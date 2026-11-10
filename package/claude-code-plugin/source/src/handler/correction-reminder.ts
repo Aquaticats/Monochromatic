@@ -9,6 +9,15 @@ import {
   PHRASE_NOT_FOUND,
 } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type Parser,
+  type JsonWriter,
+} from '../runtime/handler-runtime.ts';
+
+import { normaliseApostrophes, } from './normalise-apostrophes.ts';
+
 //region Patterns
 
 /**
@@ -79,45 +88,6 @@ const CORRECTION_PHRASES: readonly string[] = [
 //endregion
 
 //region Detection
-
-/**
- Unicode left single quotation mark (`U+2018`).
- */
-const LEFT_SINGLE_QUOTE = '‘';
-
-/**
- Unicode right single quotation mark (`U+2019`).
- */
-const RIGHT_SINGLE_QUOTE = '’';
-
-/**
- Normalises curly quotation marks (`U+2018`, `U+2019`) to ASCII apostrophes
- so phrase lookups stay simple.
- 
- Replaces the original regexes' `['']?` optional marker (which accepted
- either apostrophe shape); after normalisation the phrase list only needs
- the straight-apostrophe form for each variant.
- 
- @param prompt - raw user input
- 
- @returns prompt with curly single quotes replaced by `'`
- 
- @example
- ```ts
- normaliseApostrophes('that’s wrong'); // => "that's wrong"
- ```
- */
-function normaliseApostrophes(prompt: string,): string {
-  return prompt
-    .replaceAll(
-    LEFT_SINGLE_QUOTE,
-    "'",
-    )
-    .replaceAll(
-    RIGHT_SINGLE_QUOTE,
-    "'",
-    );
-}
 
 /**
  Tests whether a user prompt matches any correction-phrase pattern.
@@ -222,31 +192,18 @@ function correctionReminderHandler(
  
  Input is trusted; it comes from Claude Code's hook dispatch system.
  
- @param raw - JSON-encoded event payload received on stdin
- 
- @returns the parsed UserPromptSubmit event
- 
  @example
  ```ts
  correctionReminderParser('{"hook_event_name":"UserPromptSubmit","prompt":"hi"}');
  // => { hook_event_name: 'UserPromptSubmit', prompt: 'hi', ... }
  ```
  */
-function correctionReminderParser(raw: string,): UserPromptSubmitInput {
-  /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted input from Claude Code hook system */
-  return JSON.parse(raw,) as UserPromptSubmitInput;
-}
+const correctionReminderParser: Parser<UserPromptSubmitInput> = makeHookInputParser<UserPromptSubmitInput>();
 
 /**
  Serializes the correction-reminder output for stdout.
  
  No trailing newline; matches Claude Code's wire convention.
- 
- @param output - {@link CorrectionReminderOutput} handler result to serialize
- 
- @returns JSON-encoded payload for Claude Code's hook reader
- 
- @mutates output - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
  
  @example
  ```ts
@@ -254,9 +211,7 @@ function correctionReminderParser(raw: string,): UserPromptSubmitInput {
  // => '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":""}}'
  ```
  */
-function correctionReminderWriter(output: CorrectionReminderOutput,): string {
-  return JSON.stringify(output,);
-}
+const correctionReminderWriter: JsonWriter<CorrectionReminderOutput> = makeJsonWriter<CorrectionReminderOutput>();
 
 export type { CorrectionReminderOutput, };
 

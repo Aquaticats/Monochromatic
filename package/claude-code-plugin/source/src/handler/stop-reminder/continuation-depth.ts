@@ -19,7 +19,16 @@
 
 import type { TranscriptRecord, } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 
-import { open, } from 'node:fs/promises';
+import { createReadStream, } from 'node:fs';
+import { stat, } from 'node:fs/promises';
+import { buffer, } from 'node:stream/consumers';
+
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
 
 /**
  Marker identifying this hook's own forced-continuation feedback in a transcript.
@@ -171,14 +180,20 @@ function isHumanTurnRecord(record: TranscriptRecord,): boolean {
  */
 function parseRecord(line: string,): TranscriptRecord | typeof UNPARSABLE {
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSONL written by Claude Code
-    return JSON.parse(line,) as TranscriptRecord;
+    return parseTranscriptRecord(line,);
   }
-  catch (error) {
-    void error;
+  catch (error: unknown) {
+    // A truncated final line is normal while a session is live, so this is not a
+    // warning; the caught value still names why the line could not be parsed.
+    loggerForTranscript.debug(`skipping a transcript line that is not JSON: ${String(error,)}`,);
     return UNPARSABLE;
   }
 }
+
+/**
+ Parser for one transcript line, asserted once for every reader in this folder.
+ */
+const parseTranscriptRecord: OwnedFileParser<TranscriptRecord> = makeOwnedFileParser<TranscriptRecord>();
 
 /**
  Sentinel for a transcript line that is not valid JSON.
@@ -187,6 +202,112 @@ function parseRecord(line: string,): TranscriptRecord | typeof UNPARSABLE {
  expected value rather than an error condition.
  */
 const UNPARSABLE: unique symbol = Symbol('claude-code-plugin/stop-reminder/unparsable-transcript-line',);
+
+/**
+ Module logger for transcript reads.
+ */
+const loggerForTranscript = tagged({ tag: 'stop-reminder-transcript', },);
+
+/**
+ Sentinel for a newest-first transcript scan that reached the start of its
+ window without any record producing a verdict.
+ 
+ A unique symbol rather than `undefined`: a verdict may itself be falsy (a
+ `false` "no work happened" answer is a real outcome), so absence needs a value
+ no classifier can return.
+ */
+const SCAN_FINISHED: unique symbol = Symbol('stop-reminder/transcript-scan-found-no-verdict',);
+
+/**
+ Walks transcript records newest first, skipping blanks and unreadable lines,
+ and returns the first verdict a caller's classifier produces.
+ 
+ One owner for the scan shape the transcript readers share: index down from the
+ end, read `lines[index] ?? ''`, skip blanks, parse, skip {@link UNPARSABLE},
+ then classify. It lives beside {@link parseRecord} because that function
+ already owns transcript-line parsing for every reader in this folder, so a
+ separate module would import back into this one and close a loop.
+ 
+ @param lines - transcript JSONL lines, oldest first
+ 
+ @param acceptLine - cheap pre-filter; a line it rejects is never parsed, which
+   keeps the scan to the handful of records that can change a verdict
+ 
+ @param classifyRecord - returns a verdict to end the scan, or
+   {@link SCAN_FINISHED} to keep looking at older records
+ 
+ @returns the first verdict produced, or {@link SCAN_FINISHED} when the window
+   held no such record
+ 
+ @example
+ ```ts
+ const firstRecording = scanTranscriptNewestFirst({
+   lines,
+   classifyRecord: function classify(record) {
+     return record.type === 'user' ? record : SCAN_FINISHED;
+   },
+ });
+ ```
+ */
+function scanTranscriptNewestFirst<TVerdict,>(
+  {
+    lines,
+    acceptLine,
+    classifyRecord,
+  }: {
+    readonly lines: readonly string[];
+    readonly acceptLine?: (line: string,) => boolean;
+    readonly classifyRecord: (record: TranscriptRecord,) => TVerdict | typeof SCAN_FINISHED;
+  },
+): TVerdict | typeof SCAN_FINISHED {
+  for (let index = lines.length - 1; index >= 0; index--) {
+    /**
+     Raw transcript line under inspection.
+     */
+    const line = lines[index] ?? '';
+
+    if (line === '')
+      continue;
+    if ((acceptLine !== undefined) && (!acceptLine(line,)))
+      continue;
+
+    /**
+     Parsed record, or the sentinel for a truncated line.
+     */
+    const record = parseRecord(line,);
+
+    if (record === UNPARSABLE)
+      continue;
+
+    /**
+     Verdict this record produced, or {@link SCAN_FINISHED} to keep scanning.
+     */
+    const verdict = classifyRecord(record,);
+
+    if (verdict !== SCAN_FINISHED)
+      return verdict;
+  }
+  return SCAN_FINISHED;
+}
+
+/**
+ Cheap pre-filter for the depth scan: only a line mentioning either marker can
+ change the outcome, so the scan parses a handful of records rather than the
+ whole tail.
+ 
+ @param line - raw transcript line
+ 
+ @returns whether the line could be a block or a human turn
+ 
+ @example
+ ```ts
+ mentionsCountableMarker('{"type":"user","origin":{"kind":"human"}}'); // true
+ ```
+ */
+function mentionsCountableMarker(line: string,): boolean {
+  return line.includes(CONTINUATION_MARKER,)
+    || line.includes('"kind":"human"',);
+}
 
 /**
  Counts forced continuations already issued since the last human turn.
@@ -212,43 +333,27 @@ const UNPARSABLE: unique symbol = Symbol('claude-code-plugin/stop-reminder/unpar
  ```
  */
 function continuationDepth(transcriptLines: readonly string[],): number {
-  /**
-   Running count of this hook's own feedback records seen so far.
-   */
-  let depth = 0;
-
-  for (let index = transcriptLines.length - 1; index >= 0; index--) {
+  return (function countForcedContinuations(): number {
     /**
-     Raw transcript line under inspection.
+     Running count of this hook's own feedback records seen so far.
      */
-    const line = transcriptLines[index] ?? '';
+    let depth = 0;
 
-    // Cheap pre-filter: only lines mentioning either marker can change the outcome,
-    // so the scan parses a handful of records rather than the whole tail.
-    if ((line === '')
-      || ((!line.includes(CONTINUATION_MARKER,))
-        && (!line.includes('"kind":"human"',)))) {
-      continue;
-    }
-
-    /**
-     Parsed record for a line that might be a block or a human turn.
-     */
-    const record = parseRecord(line,);
-
-    if (record === UNPARSABLE) {
-      continue;
-    }
-    if (isForcedContinuationRecord(record,)) {
-      depth += 1;
-      continue;
-    }
-    // A human turn closes the window; anything before it belongs to an earlier turn.
-    if (isHumanTurnRecord(record,)) {
-      return depth;
-    }
-  }
-  return depth;
+    scanTranscriptNewestFirst<number>({
+      lines: transcriptLines,
+      acceptLine: mentionsCountableMarker,
+      classifyRecord: function classifyDepthRecord(record,): number | typeof SCAN_FINISHED {
+        if (isForcedContinuationRecord(record,)) {
+          depth += 1;
+          return SCAN_FINISHED;
+        }
+        // A human turn closes the window; anything before it belongs to an
+        // earlier turn, so the count reached here is the answer.
+        return isHumanTurnRecord(record,) ? depth : SCAN_FINISHED;
+      },
+    },);
+    return depth;
+  })();
 }
 
 /**
@@ -294,6 +399,47 @@ type TranscriptTail = {
 };
 
 /**
+ Builds a tail result from the bytes the transcript stream delivered.
+ 
+ Split from {@link readTranscriptTail} so the accounting is exercised without a
+ filesystem that must shrink a file between two syscalls.
+ 
+ @param tailBytes - bytes the stream delivered, decoded as transcript text
+ 
+ @param expectedBytes - bytes the size lookup promised, which a transcript
+   truncated after the lookup undercuts
+ 
+ @param skippedEarlierBytes - whether the read began after the start of the file
+ 
+ @returns tail lines oldest first plus whether the tail is incomplete
+ 
+ @example
+ ```ts
+ const tail = buildTranscriptTail({ tailBytes: Buffer.from('{"a":1}\n'), expectedBytes: 8, skippedEarlierBytes: false });
+ ```
+ */
+function buildTranscriptTail(
+  {
+    tailBytes,
+    expectedBytes,
+    skippedEarlierBytes,
+  }: {
+    readonly tailBytes: Buffer;
+    readonly expectedBytes: number;
+    readonly skippedEarlierBytes: boolean;
+  },
+): TranscriptTail {
+  return {
+    lines: tailBytes.toString('utf8',)
+      .split('\n',),
+    // Fewer bytes than the size promised means the file shrank after the
+    // lookup: bytes this reader expected are missing, so callers must treat
+    // the tail like any other that does not start at the beginning.
+    truncated: skippedEarlierBytes || (tailBytes.length < expectedBytes),
+  };
+}
+
+/**
  Reads the tail of a transcript as lines.
  
  Separated from the counters so one stop reads the file once and answers both
@@ -316,16 +462,9 @@ type TranscriptTail = {
 async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTail> {
   try {
     /**
-     Open transcript handle, closed by scope exit even when reading throws.
-     */
-    await using handle = await open(
-      transcriptPath,
-      'r',
-    );
-    /**
      Byte length of the transcript, used to read only its tail.
      */
-    const { size, } = await handle.stat();
+    const { size, } = await stat(transcriptPath,);
     /**
      Offset of the first byte read; clamped so small transcripts read whole.
      */
@@ -334,22 +473,20 @@ async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTa
       size - TAIL_BYTES,
     );
     /**
-     Destination for the tail bytes.
+     Every tail byte, consumed to the end of the file. A stream consumer reads
+     until the file ends and joins the chunks, so a partial read cannot leave
+     an unfilled buffer behind: there is no buffer to leave unfilled.
      */
-    const buffer = Buffer.alloc(size
-      - start,);
-
-    await handle.read(
-      buffer,
-      0,
-      buffer.length,
-      start,
-    );
-    return {
-      lines: buffer.toString('utf8',)
-        .split('\n',),
-      truncated: start > 0,
-    };
+    const tailBytes = await buffer(createReadStream(
+      transcriptPath,
+      { start, },
+    ),);
+    return buildTranscriptTail({
+      tailBytes,
+      expectedBytes: size
+        - start,
+      skippedEarlierBytes: start > 0,
+    },);
   }
   catch (error) {
     // stderr is safe here: stdout carries the hook protocol and must stay clean.
@@ -365,6 +502,7 @@ async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTa
 export type { TranscriptTail, };
 
 export {
+  buildTranscriptTail,
   CONTINUATION_MARKER,
   continuationDepth,
   continuationDepthAt,
@@ -376,5 +514,8 @@ export {
   maxContinuationDepth,
   parseRecord,
   readTranscriptTail,
+  SCAN_FINISHED,
+  scanTranscriptNewestFirst,
+  TAIL_BYTES,
   UNPARSABLE,
 };

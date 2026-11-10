@@ -3,6 +3,13 @@
 Status:
  resolved.
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts` left the tree on 2026-10-17 in `a3955898f1`.
+`package/git-policy/cli/src/resolve-git.ts` left the tree on 2026-08-28 in `2aef2d409a`.
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.unit.test.ts` left the tree on 2026-10-17 in
+`a3955898f1`.
+
 ## Resolution
 
 `@monochromatic-dev/git-executable-core` now owns real-Git selection for git-policy-cli and auto-mode.

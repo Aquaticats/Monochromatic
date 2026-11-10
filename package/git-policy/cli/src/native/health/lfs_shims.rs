@@ -123,23 +123,27 @@ pub fn is_lfs_shim(path: &Path) -> std::io::Result<bool> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const explanation = (shims: string[]) => '...';
+/// const explanation = (shims: string[]) => Buffer.concat([heading, ...shims.map((shim) => Buffer.concat([prefix, Buffer.from(shim), newline])), advice]);
 /// ```
-pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
-    let mut text: String = String::from(
-        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
+pub fn render_lfs_shims(shims: &[PathBuf]) -> Vec<u8> {
+    let mut text: Vec<u8> = Vec::from(
+        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n"
+            .as_bytes(),
     );
     for shim in shims {
-        text.push_str("  ");
-        text.push_str(shim.display().to_string().as_str());
-        text.push('\n');
+        text.extend_from_slice(b"  ");
+        // The pathname is bytes, as it is in the list of other hooks (`health/doctor_hook_entries.rs`, `render_hooks`): a text spelling with
+        //  replacement characters would name a file the report never inspected.
+        text.extend_from_slice(crate::path_bytes::path_bytes_of(shim.as_path()));
+        text.push(b'\n');
     }
-    text.push_str(
+    text.extend_from_slice(
         "git-lfs writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start (for example \
 `git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
 normal. monochromatic-git-policy-cli uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
 files never run through monochromatic-git-policy-cli. You may delete them or leave them. Only a script that starts Git without monochromatic-git-policy-cli, \
-such as `/usr/bin/git` directly, would run them.\n",
+such as `/usr/bin/git` directly, would run them.\n"
+            .as_bytes(),
     );
     return text;
 }

@@ -41,6 +41,23 @@ import { searchPage, } from './server/page/search.ts';
 import { settingsPage, } from './server/page/settings.ts';
 import { taskDetailsPage, } from './server/page/task-details.ts';
 import { staticHandler, } from './server/static.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the HTTP entry point reports its listening URL here.
+ */
+const l = tagged({
+  tag: 'done-variant-server',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Default HTTP port when neither `--port=` nor `PORT` env var is provided.
@@ -251,4 +268,4 @@ const server = serve(
   app,
   { port: resolvePort(), },
 );
-console.log(`Listening on ${server.url}`,);
+l.info(`Listening on ${server.url}`,);

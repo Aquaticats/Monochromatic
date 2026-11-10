@@ -1,5 +1,8 @@
 # Cli-git Windows PATHEXT resolution
 
+Note 2026-11-09T16:56:27-05:00:
+`package/git-policy/cli/src/resolve-git.ts` left the tree on 2026-08-28 in `2aef2d409a`.
+
 ## Symptom
 
 The Windows job in hosted run `29168995711` failed before trust tests began:

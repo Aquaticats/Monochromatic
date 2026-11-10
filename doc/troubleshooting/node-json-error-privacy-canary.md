@@ -1,5 +1,14 @@
 # Node 26.8.2 JSON.parse diagnostics can defeat whole-input privacy canaries
 
+Note 2026-11-09T16:54:06-05:00:
+these citations in this record name paths that no longer exist.
+`package/module/translation-repair/src/preparation-attempt.unit.test.ts` left the tree on 2026-09-15 in
+`cbedea3574`.
+`package/module/translation-repair/src/` was split into the `src` folders of the packages under
+`package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+`package/module/translation-repair/src/create-preparation-attempt.ts` left the tree on 2026-09-15 in
+`cbedea3574`.
+
 ## Symptom
 
 A translation-repair namespace guard-removal test passed after raw `SyntaxError` causes were restored.

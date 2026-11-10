@@ -18,8 +18,19 @@
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { NoAppIdentityError } from './errors.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const launchLogger = tagged({ tag: 'kwin-key-helper-launch', },);
+
+//endregion Logging
 
 /**
  Lowercased resource class to the exact command (and args) that launches a new,
@@ -203,8 +214,12 @@ export async function launchNewInstance({
       desktopFileName,
       resourceClass
     });
-    console.log(`[key-helper] launching new instance: ${chosen.cmd} ${chosen.args
-      .join(' ')}`);
+    tagged({
+      tag: launchNewInstance.name,
+      l: launchLogger,
+    },)
+      .info(`launching new instance: ${chosen.cmd} ${chosen.args
+        .join(' ')}`,);
     /**
      Spawned process, awaited via its `close` event.
      */
@@ -221,6 +236,10 @@ export async function launchNewInstance({
      Best-effort message extracted from a thrown value of unknown type.
      */
     const message = caughtValueText(error,);
-    console.error(`[key-helper] launch failed: ${message}`);
+    tagged({
+      tag: launchNewInstance.name,
+      l: launchLogger,
+    },)
+      .error(`launch failed: ${message}`,);
   }
 }

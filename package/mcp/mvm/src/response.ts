@@ -4,6 +4,22 @@
  */
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const responseLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'response',
+},);
+
+//endregion Logging
 
 //region Types: response shape definitions
 
@@ -84,7 +100,11 @@ export function errorResponse({
    Human-readable text preserving caller-provided diagnostics.
    */
   const message = caughtValueText(err,);
-  console.error(`[mcp-mvm] ${tag} failed: ${message}`,);
+  tagged({
+    tag: errorResponse.name,
+    l: responseLogger,
+  },)
+    .error(`${tag} failed: ${message}`,);
   return {
     content: [{
       type: TEXT_TYPE,
@@ -120,7 +140,11 @@ export function invalidArgumentsResponse({
   readonly tag: string;
   readonly text: string;
 },): ErrorResponse {
-  console.error(`[mcp-mvm] ${tag} refused: ${text}`,);
+  tagged({
+    tag: invalidArgumentsResponse.name,
+    l: responseLogger,
+  },)
+    .warn(`${tag} refused: ${text}`,);
   return {
     content: [{
       type: TEXT_TYPE,

@@ -1,5 +1,13 @@
 # cli-git 0.0.1 on GitHub Actions ubuntu-24.04: `/home` rewriting hides repository config
 
+Note 2026-11-09T16:52:23-05:00:
+these citations in this record name paths that no longer exist.
+`package/module/fs-path/src/root-discovery.ts` is now `package/fs-path/core/src/root-discovery.ts`,
+moved 2026-10-29 in `592d78b143`.
+`package/git-policy/cli/src/trust/config-discovery.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`.github/workflows/final-newline.yml` left the tree on 2026-10-14 in `e441028636`.
+`package/git-policy/cli/bin/final-newline-workflow.mjs` left the tree on 2026-10-14 in `e441028636`.
+
 ## Symptom
 
 The independent final-newline workflow reached its trust step and emitted:

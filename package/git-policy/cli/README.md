@@ -132,7 +132,17 @@ Read-only commands,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
-  Concurrent commits from several worktrees or sessions therefore never overwrite each other.
+  The commit that concludes a merge,
+   a cherry-pick or a revert is made again the same way on the branch as it is now,
+   with the parents its state names,
+   and an amend whose branch moved becomes a new commit on top of the branch,
+  with the amended message and authorship,
+   leaving the commit it named and the commit that moved the branch as they are,
+  and a line says what it became
+   (`SPEC.md`,
+  "Retry after a moved branch").
+  Concurrent commits from several worktrees or sessions therefore never overwrite each other,
+   and none waits for another.
   The wrapper takes no lock of its own:
   a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
@@ -3247,6 +3257,40 @@ on the blocking pool and never on the landing thread:
 
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
+
+A commit does not write that cache itself.
+When the cache holds no compiled form of the rules text a command needs,
+the command asks the service of that worktree to compile and publish it,
+with the same one-way `warm` message a worktree-moving command sends,
+and loads the rules without writing:
+the rules it compiled are the ones it scans with,
+and the artifact becomes the service's write rather than the command's.
+The question is asked only when the cache holds no artifact for that text,
+which one `stat` answers,
+so a warm cache pays nothing beside the read it always made.
+
+Two cases keep the write on the command's path,
+because nothing else can make it:
+
+- a machine where no service runs for that worktree,
+  which is the first command after a boot or a fresh home;
+- a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+  rules files,
+  since the service's own environment carries no such variable and it would compile the configuration's files
+  (or the default appendix) instead.
+  A configuration that names files wins over the variable,
+  so a repository with both lists leaves them to the service.
+
+The artifact itself is published without a file or directory sync:
+a reader validates its magic,
+scanner version,
+platform,
+source digest,
+payload digest and engine digest,
+so a copy a crash tore is rejected and recompiled,
+and forcing the bytes to the device made the writer wait for a file that is derived data
+(6.7 s and 3.0 s of `fsync` in one measured commit,
+and 1.5 s in its `rename`).
 
 ## Reading the repository in process
 

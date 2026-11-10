@@ -11,6 +11,9 @@
 >  `doc/planning/mpm-toolchain-migration.md`,
 >  section `Implementation record (toolchain-core, 2026-10-26)`).
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/toolchain/mpm-manifest.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 A Mise-removal assessment initially treated missing Meta Package Manager adapters as requiring commands outside MPM.

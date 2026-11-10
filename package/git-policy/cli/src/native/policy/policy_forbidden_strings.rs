@@ -45,7 +45,9 @@ use crate::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
 use crate::repository_location::RepositoryLocation;
 /// Import the scanner adapter and its failure.
-use crate::scanner_adapter::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
+use crate::scanner_adapter::{
+    CandidateScanner, RulesSource, ScannerError, ScannerFailure, compiled_rules_artifact_exists,
+};
 /// Import the code of each scanner and scan failure.
 use crate::scanner_failure_code::{
     finding_failure_code, scan_run_failure_code, scanner_failure_code,
@@ -53,9 +55,10 @@ use crate::scanner_failure_code::{
 /// Import the rules-file precedence and which candidates are scanned.
 use crate::scanner_selection::{RULES_VARIABLE, is_scannable, rules_candidate_paths, rules_source};
 /// Import the worktree's top level from Git's answer.
-use crate::worktree_identity::worktree_root;
-/// The scanner library's per-candidate result and per-match finding.
-use forbidden_strings::{CandidateScan, RulesListError, ScanFinding};
+use crate::worktree_identity::{git_directory, worktree_root};
+/// The scanner library's per-candidate result and per-match finding,
+///  and what a load may write into the shared compiled-rules cache.
+use forbidden_strings::{CacheAccess, CandidateScan, RulesListError, ScanFinding};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -67,8 +70,8 @@ use forbidden_strings::{CandidateScan, RulesListError, ScanFinding};
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// `PathBuf` is an owned filesystem path.
-use std::path::PathBuf;
+/// `Path` is a borrowed filesystem path of raw OS bytes.
+use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -136,6 +139,84 @@ pub struct ScannerState {
     /// The loaded scanner,
     ///  or the failure of the one attempt to load it.
     loaded: Option<Result<CandidateScanner, ScannerError>>,
+}
+
+/// What:
+///  Who adds the compiled rules to the shared cache when a scan needs rules no cache holds.
+/// Why:
+///   The compiled artifact is derived data a machine pays for once per rules text and release,
+///  and writing it costs the writer a device stall:
+///  6.7 s and 3.0 s of `fsync` in one measured commit.
+///  A resident service that already runs for this worktree compiles and publishes it on its own time,
+///  so the command that needs the rules takes no write at all;
+///  a machine with no service running publishes from this process,
+/// as every command did before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CachePublisher = { kind: 'service'; gitDir: string; repository: string } | { kind: 'this-process' };
+/// ```
+pub enum CachePublisher<'a> {
+    /// The commit service of this worktree,
+    /// asked to compile the rules and never waited for.
+    Service {
+        /// The worktree's own Git directory,
+        ///  which names the service instance and its socket.
+        git_dir: &'a std::path::Path,
+        /// The worktree's top level,
+        ///  whose configuration names the rules files.
+        repository: &'a std::path::Path,
+    },
+    /// This process,
+    /// which writes the artifact as the scanner does by default.
+    ThisProcess,
+}
+
+/// What:
+///  The access a load takes,
+/// from whether the cache holds the text and whether someone else publishes.
+///  `bool` is the answer to each.
+/// Why:
+///   A cache that already holds the compiled text costs no write either way,
+///  and only a miss is the question here;
+///  the two answers are kept apart so a control can pin each one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cacheAccess(cached, publishedElsewhere) // cached || !publishedElsewhere ? readWrite : readOnly
+/// ```
+pub fn cache_access(cached: bool, published_elsewhere: bool) -> CacheAccess {
+    if cached || !published_elsewhere {
+        return CacheAccess::ReadWrite;
+    }
+    return CacheAccess::ReadOnly;
+}
+
+/// What:
+///  The access this load takes.
+/// Why:
+///   The service is asked only when the cache holds nothing,
+///  which is the only case a write question exists;
+///  a hit is read and repaired here without a process walk or a message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// publisher.access(rules) // cached ? readWrite : askTheService(rules)
+/// ```
+impl CachePublisher<'_> {
+    /// The access a load of `rules` takes.
+    fn access(&self, rules: &RulesSource) -> CacheAccess {
+        let Self::Service { git_dir, repository } = self else {
+            return CacheAccess::ReadWrite;
+        };
+        if compiled_rules_artifact_exists(rules) {
+            return CacheAccess::ReadWrite;
+        }
+        return cache_access(
+            false,
+            crate::service_warm_request::ask_running_service_to_warm(git_dir, repository),
+        );
+    }
 }
 
 /// What:
@@ -263,9 +344,10 @@ impl ScannerState {
         &mut self,
         rules: &RulesSource,
         builtin_rules: bool,
+        access: CacheAccess,
     ) -> Result<&CandidateScanner, PolicyOutcome> {
         if self.loaded.is_none() {
-            self.loaded = Some(CandidateScanner::load(rules, builtin_rules));
+            self.loaded = Some(CandidateScanner::load_writing_cache(rules, builtin_rules, access));
             // An absent optional file is routine on a fresh clone, so it is logged for diagnosis, not warned.
             if let Some(Ok(scanner)) = &self.loaded {
                 for skipped in scanner.skipped_optional_rules() {
@@ -326,6 +408,53 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
             ));
         }
     }
+}
+
+/// What:
+///  Whether the service of this worktree would compile the very rules list this command selected.
+///  `&ScannerSettings` borrows the options and the variable;
+///  `&Path` is the repository's top level;
+///  `&RulesSource` is the selection.
+/// Why:
+///   The service resolves the configuration's files only,
+///  because its environment carries no `FORBIDDEN_STRINGS_RULES`;
+///  a list the variable named is therefore another text,
+///  and its artifact is not the one this command reads.
+/// A configuration that names files wins over the variable,
+///  so a repository with both still leaves the list to the service,
+///  which is the usual setup here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceReadsTheSameRules(settings, root, selected)
+/// ```
+fn service_reads_the_same_rules(
+    settings: &ScannerSettings,
+    repository_root: &Path,
+    selected: &RulesSource,
+) -> bool {
+    let configured: Result<RulesSource, RulesListError> = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
+    let Ok(without_variable) = configured else {
+        return false;
+    };
+    return without_variable == *selected;
+}
+
+/// What:
+///  The worktree's own Git directory,
+///  or nothing when the command runs outside one.
+/// Why:
+///   The Git directory names the commit service instance of this worktree,
+///  which is the process asked to publish the compiled rules;
+///  a command outside a worktree has none to ask and publishes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function serviceGitDirectory(facts): Promise<string | undefined>;
+/// ```
+fn service_git_directory<F: RepositoryFacts>(facts: &mut F) -> Option<PathBuf> {
+    let location: RepositoryLocation = facts.location().ok()?;
+    return git_directory(&location.identity).map(Path::to_path_buf);
 }
 
 /// What:
@@ -470,7 +599,22 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
             );
         }
     };
-    let loaded: &CandidateScanner = match scanner.load(&rules, settings.options.builtin_rules) {
+    // What: the publisher decides the load's access, and the loader records what the scanner said.
+    // Why:  The service reads this repository's configuration and its own environment carries no
+    //       `FORBIDDEN_STRINGS_RULES`, so a list the variable named is not the list the service would compile:
+    //       leaving that text to the service publishes another text's artifact and compiles this one on every command.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const publisher = serviceReadsTheSameRules(settings, root, rules) ? servicePublisher(gitDir, root) : thisProcess;
+    // ```
+    let service_git_dir: Option<PathBuf> = service_git_directory(facts);
+    let publisher: CachePublisher<'_> = match (service_reads_the_same_rules(settings, root.as_path(), &rules), service_git_dir.as_deref()) {
+        (true, Some(git_dir)) => CachePublisher::Service { git_dir, repository: root.as_path() },
+        _ => CachePublisher::ThisProcess,
+    };
+    let access: CacheAccess = publisher.access(&rules);
+    let loaded: &CandidateScanner = match scanner.load(&rules, settings.options.builtin_rules, access) {
         Ok(found) => found,
         Err(outcome) => return outcome,
     };

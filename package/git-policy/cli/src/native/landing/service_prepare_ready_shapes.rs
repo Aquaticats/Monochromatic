@@ -93,6 +93,32 @@ impl Scratch {
     pub fn held_by_the_service(&mut self, held: bool) {
         self.1 = held;
     }
+
+    /// What:
+    ///  Takes a tree the service handed back to this command,
+    ///  and starts its removal beside the command.
+    /// Why:
+    ///   A request the service answered without landing (a commit sent back to be prepared again,
+    /// a branch that moved)
+    ///  leaves its tree to this process,
+    ///  which reads the change it captured from the tree's private index to make the commit again
+    ///  (`service_server.rs`,
+    ///  `remove_the_trees`).
+    ///  The read is over when this is called,
+    ///  and the removal is recursive and bounded by `SCRATCH_REMOVAL_CEILING`,
+    ///  so it runs beside the command and never makes it wait.
+    ///  A process killed before it calls this leaves the tree inside the repository scratch directory,
+    ///  where the sweep of a later command removes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// scratch.releaseBesideTheCommand();
+    /// ```
+    pub fn release_beside_the_command(&mut self) {
+        // The removal started here is this tree's only remover, so the drop must not start another.
+        self.1 = true;
+        crate::service_scratch_release_removal::start(self.0.clone());
+    }
 }
 
 impl Drop for Scratch {
@@ -103,6 +129,25 @@ impl Drop for Scratch {
             return;
         }
         let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING);
+    }
+}
+
+/// A tree the service answered it did not land,
+///  released beside the command when the answer's arm ends.
+/// Why:
+///   The tree is this command's again,
+///  and it is read while the arm runs,
+///  so the release must wait for the arm to end and must not make the command wait for a recursive removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class HandedBackTree { #path; [Symbol.dispose]() { startRemoval(#path); } }
+/// ```
+pub struct HandedBackTree(pub(crate) PathBuf);
+
+impl Drop for HandedBackTree {
+    fn drop(&mut self) {
+        crate::service_scratch_release_removal::start(self.0.clone());
     }
 }
 
@@ -203,10 +248,22 @@ pub struct Ready {
     /// the person is warned once the commit has landed (`conflicted_path_warning`).
     pub committed_conflicted: Vec<Vec<u8>>,
     /// The operation a commit of named paths leaves in progress:
-    /// the merge or the cherry-pick whose state the commit does not
+    /// the merge,
+    /// the cherry-pick or the revert whose state the commit does not
     ///  conclude.
     /// The person is told once the commit has landed.
     pub leaves_open: Option<Conclusion>,
+    /// What the merge,
+    /// cherry-pick or revert state named when this commit was prepared,
+    /// so a replay made on a later tip concludes the same operation;
+    /// nothing when the commit concluded none.
+    /// Why:
+    ///   A conclusion's parents come from that state,
+    /// and another command that concluded or abandoned the operation leaves nothing to conclude,
+    /// so the commit is refused rather than becoming an ordinary commit of the same tree
+    /// (`service_replay.rs`,
+    /// `Captured::conclusion`).
+    pub conclusion_state: Option<String>,
 }
 
 /// What:
@@ -250,6 +307,10 @@ pub(crate) struct ReadyShape {
     pub(crate) fixed_parents: bool,
     /// The stamp of the capture.
     pub(crate) captured_at: u64,
+    /// What the merge,
+    /// cherry-pick or revert state named,
+    /// nothing when the preparation concluded none.
+    pub(crate) conclusion_state: Option<String>,
 }
 
 /// Builders of a `Ready` from a shape.
@@ -288,6 +349,7 @@ impl ReadyShape {
             captured_at: self.captured_at,
             committed_conflicted: Vec::new(),
             leaves_open: None,
+            conclusion_state: self.conclusion_state.clone(),
         });
     }
 }

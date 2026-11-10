@@ -21,6 +21,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::RepositoryFrozen(String::from("/work/repo")),
         ClientFailure::BranchKeepsChanging { branch: String::from("main"), times: 5 },
         ClientFailure::BranchMoved { branch: String::from("main") },
+        ClientFailure::ConclusionStateChanged { branch: String::from("main") },
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"), amend: false },
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"), amend: true },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12")) },
@@ -75,8 +76,9 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
         ClientFailure::ContentPruned => 23,
-        ClientFailure::PermissionDenied(_) => 24,
+        ClientFailure::PermissionDenied(_) => 27,
         ClientFailure::RepositoryFrozen(_) => 25,
+        ClientFailure::ConclusionStateChanged { .. } => 26,
         ClientFailure::StepTooSlow => 22,
         ClientFailure::StillWithService { .. } => 20,
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
@@ -117,11 +119,15 @@ fn contains_whole(text: &str, word: &str) -> bool {
     return false;
 }
 
-/// Every variant has a sample.
+/// Every variant has a sample,
+/// and every sample is a variant of its own:
+/// a number two variants share would let one of them go unrendered.
+/// The highest number is the last one,
+/// so a sample added without a number of its own fails here.
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::RepositoryFrozen(String::new())) + 1;
+    let expected: usize = variant_index(&ClientFailure::PermissionDenied(String::new())) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -208,6 +214,7 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
+    assert!(render(&ClientFailure::NoCommonVersion).contains(STOP_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
     for command in CHECK_COMMANDS {
         assert!(unsure.contains(command), "{unsure}");
@@ -216,6 +223,8 @@ fn messages_quote_their_constants_and_facts() {
     let branch: String = render(&ClientFailure::BranchKeepsChanging { branch: String::from("topic"), times: 7 });
     assert!(branch.contains("topic") && branch.contains('7'), "{branch}");
     assert!(render(&ClientFailure::BranchMoved { branch: String::from("topic") }).contains("topic"));
+    let changed: String = render(&ClientFailure::ConclusionStateChanged { branch: String::from("topic") });
+    assert!(changed.contains("topic") && changed.contains("cherry-pick") && changed.contains("revert"), "{changed}");
     let saved: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: true });
     assert!(saved.contains("`git commit --amend -F /r/.git/saved`") && saved.contains("topic"), "{saved}");
     let plain: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: false });
@@ -289,4 +298,25 @@ fn the_rebuild_notice_names_the_branch_the_builds_the_time_and_the_ceiling() {
         assert!(said.contains(part), "{part}: {said}");
     }
     assert!(said.ends_with('\n') && !said.contains("so it was built again"), "{said}");
+}
+
+/// What:
+///  A git older than the running service is told both ways to get a service it can work with,
+/// and the one a rollback needs names the command that stops the newer service.
+/// Why:
+///  Finding 2 of the audit of service restarts and version skew (2026-11-09):
+/// with a newer service running,
+/// an older client exits in milliseconds with advice to update the wrapper,
+/// which is the opposite of a rollback,
+/// and the newer service then runs until its idle exit (`IDLE_EXIT`) because nothing names the command that stops it.
+/// `AGENTS.md` rule `DGT`:
+/// name every valid remediation path.
+#[test]
+fn an_older_git_is_told_how_to_get_a_service_it_can_work_with() {
+    let text: String = render(&ClientFailure::NoCommonVersion);
+    assert!(text.contains(STOP_COMMAND), "the stop a rollback needs is named: {text}");
+    assert!(text.contains("Update this git"), "the upgrade is still named: {text}");
+    assert!(text.contains("install the release"), "the rollback is named: {text}");
+    assert!(text.contains(NOTHING_CHANGED), "nothing landed: {text}");
+    assert!(!text.contains(RESTART_COMMAND), "a restart starts the newer service again, so it is not the remedy here: {text}");
 }

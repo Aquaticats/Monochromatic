@@ -8,6 +8,7 @@ use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capt
 use crate::commit_preparation::{PreparationError, PreparationRequest, run_native_commit_within};
 use crate::shadow_create::create_shadow_repository;
 use crate::test_support::{REAL_GIT, age, executable, fixture, git, git_context, git_text, remove, renew_inode, repository};
+use crate::transaction_git::GitContext;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -241,24 +242,39 @@ fn an_intent_to_add_entry_equal_to_the_base_keeps_its_path_in_the_commit() {
 /// an index whose only marks are intent-to-add entries seeds it too,
 /// copied as it is;
 /// an assume-unchanged entry sends the build to the base,
-/// and an absent file seeds nothing.
+/// and bytes this crate cannot read seed nothing.
 #[test]
 fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");
-    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let (repo, _indexes, _base) = committed_repository(root.as_path());
     let real: PathBuf = repo.join(".git").join("index");
-    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Copy);
+    assert_eq!(seed_of_index_bytes(&index_bytes_of(real.as_path())), PrivateIndexSeed::Copy);
     std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
     git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
     assert_eq!(
-        private_index_seed(real.as_path()),
+        seed_of_index_bytes(&index_bytes_of(real.as_path())),
         PrivateIndexSeed::CopyWithIntentToAdd(vec![b"added.txt".to_vec()]),
         "an intent-to-add entry keeps the copy"
     );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
-    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Base);
-    assert_eq!(private_index_seed(indexes.commit_index.as_path()), PrivateIndexSeed::Base);
+    assert_eq!(seed_of_index_bytes(&index_bytes_of(real.as_path())), PrivateIndexSeed::Base);
+    assert_eq!(seed_of_index_bytes(b"not an index"), PrivateIndexSeed::Base, "bytes this crate cannot read seed nothing");
     remove(root.as_path());
+}
+
+/// What:
+///  The bytes of one file,
+///  read the way a control hands an index's state to the seed decision.
+/// Why:
+///  The controls below ask the seed decision about the bytes the real index holds,
+///  so they must read that file rather than name it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexBytes = (path: string) => readFileSync(path);
+/// ```
+fn index_bytes_of(index: &Path) -> Vec<u8> {
+    return std::fs::read(index).expect("the index's bytes");
 }
 
 //region The stat data of an index the move to another disk left stale
@@ -269,7 +285,17 @@ const STALE_FILES: usize = 12;
 /// How long the clean filter of those files takes,
 /// in milliseconds,
 /// so a refresh that must read them costs a time the test can put a ceiling on.
-const CLEAN_FILTER_MILLISECONDS: u64 = 100;
+///  The sleep is what the ceiling is measured against,
+/// and a sleep does not grow when the host runs many controls at once,
+/// where the step under the ceiling does:
+/// in a selection of 96 controls the landing controls took 62 s against 4.6 s alone, 13.5 times,
+/// and the scratch step's own cost is about 0.1 s here,
+/// so a ceiling of 825 ms (eleven files at 100 ms, three quarters of the read)
+/// left room for only eight times that cost and ended the step instead.
+/// At 400 ms the same ceiling is 3,300 ms,
+/// which leaves the step 33 times its own cost before it is ended,
+/// and a commit that pays the reads inside the step still takes 4,400 ms or more.
+const CLEAN_FILTER_MILLISECONDS: u64 = 400;
 
 /// The fixed transaction ID of the shape the shadow's name takes.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -295,7 +321,7 @@ struct Stale {
 /// The ceiling of the scratch commit in these controls:
 /// three quarters of what reading every stale file costs,
 /// so a commit that pays the refresh in its own step is stopped and one that does not is not,
-/// with the rest of the room left for a loaded host.
+/// with the rest of the room left for a busy host (`CLEAN_FILTER_MILLISECONDS`).
 ///
 /// The commit names one path,
 /// and the preparation stages that path from the worktree before the commit runs,
@@ -346,18 +372,7 @@ fn stale_fixture(root: &Path) -> Stale {
 /// Stages the named path into the private index,
 /// as a commit of that path prepares it.
 fn prepare_stale(stale: &Stale) {
-    let pathspecs: Vec<OsString> = vec![OsString::from("f1.txt")];
-    let selection: IndexSelection = IndexSelection {
-        mode: TransactionMode::ExplicitPath,
-        pathspecs: pathspecs.as_slice(),
-        pathspec_file: None,
-        pathspec_file_nul: false,
-        stage_into_index: false,
-        stage_tracked_changes: false,
-        base_revision: stale.base.as_str(),
-    };
-    let real: PathBuf = stale.repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("private index");
+    prepare_stale_with(&git_context(), stale);
 }
 
 /// Runs the scratch commit of the named path under the stale index's ceiling.
@@ -390,34 +405,172 @@ fn a_commit_over_an_index_whose_stat_data_is_stale_finishes() {
     remove(root.as_path());
 }
 
-/// The refresh reaches the real index,
-/// so the commit after this one does not pay it again:
-/// the index records the inode a file it did not have to change has now.
+/// The refresh reaches the private index,
+/// and never the real one:
+/// the commit after this one is not made faster by this commit's preparation,
+/// and the real index is written only by a landing,
+/// which holds its lock anyway.
 ///  The named file is left out of this control:
 /// a path whose bytes changed keeps the stat data the index recorded for it,
 /// so the next `git add` still sees it as changed.
 #[test]
-fn the_refresh_of_a_stale_index_is_kept_in_the_real_index() {
-    let root: PathBuf = fixture("commit-index-stat-stale-kept");
+fn a_preparation_keeps_the_refresh_in_the_private_index_and_leaves_the_real_one_alone() {
+    let root: PathBuf = fixture("commit-index-stat-stale-private");
     let stale: Stale = stale_fixture(root.as_path());
     let real: PathBuf = stale.repo.join(".git").join("index");
-    let before: String = debug_listing(stale.repo.as_path(), real.as_path(), "f2.txt");
-    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
-    assert!(!before.contains(format!("ino: {inode}").as_str()), "the fixture's index must be stale, or this control proves nothing: {before}");
+    let before: Vec<u8> = std::fs::read(real.as_path()).expect("the real index");
     prepare_stale(&stale);
-    let after: String = debug_listing(stale.repo.as_path(), real.as_path(), "f2.txt");
     assert!(
-        after.contains(format!("ino: {inode}").as_str()),
-        "the real index must record the inode the file has now, {inode}: {after}"
+        std::fs::read(real.as_path()).expect("the real index") == before,
+        "a preparation must not write the real index, and the bytes of {} changed",
+        real.display()
+    );
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        listing.contains(format!("ino: {inode}").as_str()),
+        "the private index must record the inode the file has now, {inode}, so the scratch commit reads no file: {listing}"
     );
     remove(root.as_path());
 }
 
-/// An index another program has locked is refreshed in the private index instead,
-/// so the commit still finishes inside its ceiling,
-/// and the real index keeps the stat data it had until the lock is gone.
+/// A repository of `STALE_FILES` files whose index records stat data the worktree no longer has,
+/// behind a clean filter that makes reading them slow,
+/// as `stale_fixture` makes it,
+/// and a Git that answers every refresh with `answering` instead of refreshing.
+///  The rest of the command line goes to the real Git,
+/// so only the refresh is the control's.
+fn shim_git_that_answers_the_refresh(root: &Path, answering: &str) -> GitContext {
+    let shim: PathBuf = root.join("shim-git");
+    executable(
+        shim.as_path(),
+        format!("#!/bin/sh\ncase \"$*\" in\n  *\"update-index --refresh\"*) {answering} ;;\nesac\nexec {REAL_GIT} \"$@\"\n").as_bytes(),
+    );
+    let mut context: GitContext = git_context();
+    context.real_git = shim;
+    return context;
+}
+
+/// Staging of the named path with a context of the control's own,
+/// so a Git that answers the refresh its own way is the one that prepares the commit.
+fn prepare_stale_with(context: &GitContext, stale: &Stale) {
+    let pathspecs: Vec<OsString> = vec![OsString::from("f1.txt")];
+    let selection: IndexSelection = IndexSelection {
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: pathspecs.as_slice(),
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        base_revision: stale.base.as_str(),
+    };
+    let real: PathBuf = stale.repo.join(".git").join("index");
+    initialize_commit_index(context, stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
+}
+
+/// A rebuild after the branch moved keeps its refresh in its own private index too,
+/// and leaves the real index alone:
+///  a rebuild runs when other commits land,
+/// which is the moment the real index lock is busiest.
 #[test]
-fn an_index_another_program_holds_is_refreshed_in_the_private_copy() {
+fn a_retry_keeps_the_refresh_in_the_private_index_and_leaves_the_real_one_alone() {
+    let root: PathBuf = fixture("commit-index-stat-retry-private");
+    let stale: Stale = stale_fixture(root.as_path());
+    let real: PathBuf = stale.repo.join(".git").join("index");
+    let before: Vec<u8> = std::fs::read(real.as_path()).expect("the real index");
+    let tree: String = git_text(stale.repo.as_path(), &["rev-parse", format!("{}^{{tree}}", stale.base).as_str()]);
+    initialize_retry_index(&git_context(), stale.repo.as_path(), real.as_path(), &stale.indexes, tree.as_str()).expect("retry index");
+    assert!(
+        std::fs::read(real.as_path()).expect("the real index") == before,
+        "a rebuild must not write the real index, and the bytes of {} changed",
+        real.display()
+    );
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        listing.contains(format!("ino: {inode}").as_str()),
+        "the rebuilt index must record the inode the file has now, {inode}: {listing}"
+    );
+    remove(root.as_path());
+}
+
+/// A refresh Git refuses leaves the private index exactly as the copy and the staging made it,
+/// and the preparation still answers success:
+/// the stat data is a cache,
+/// so a commit that cannot refresh it is slower and never failed.
+///  The control above is what the recorded inode looks like when the refresh was kept,
+/// and this one when it was not.
+#[test]
+fn a_private_refresh_that_fails_leaves_the_private_index_as_the_copy_made_it() {
+    let root: PathBuf = fixture("commit-index-stat-private-failed");
+    let stale: Stale = stale_fixture(root.as_path());
+    let real: PathBuf = stale.repo.join(".git").join("index");
+    let before: Vec<u8> = std::fs::read(real.as_path()).expect("the real index");
+    let context: GitContext = shim_git_that_answers_the_refresh(root.as_path(), "exit 128");
+    prepare_stale_with(&context, &stale);
+    assert!(
+        std::fs::read(real.as_path()).expect("the real index") == before,
+        "the real index is never written by a preparation, and the bytes of {} changed",
+        real.display()
+    );
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        !listing.contains(format!("ino: {inode}").as_str()),
+        "a refresh Git refused records nothing, so the private index keeps the inode the copy carried: {listing}"
+    );
+    remove(root.as_path());
+}
+
+/// A refresh whose Git was killed records nothing either,
+/// and the preparation still answers success.
+#[test]
+fn a_killed_private_refresh_leaves_the_private_index_as_the_copy_made_it() {
+    let root: PathBuf = fixture("commit-index-stat-private-killed");
+    let stale: Stale = stale_fixture(root.as_path());
+    let context: GitContext = shim_git_that_answers_the_refresh(root.as_path(), "kill -9 $$");
+    prepare_stale_with(&context, &stale);
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        !listing.contains(format!("ino: {inode}").as_str()),
+        "a refresh that was killed records nothing, so the private index keeps the inode the copy carried: {listing}"
+    );
+    remove(root.as_path());
+}
+
+/// A refresh the step's ceiling ends is a refresh that was not kept:
+/// the preparation answers success at once instead of waiting for the Git it stopped,
+/// and the private index holds what the copy carried.
+#[test]
+fn a_private_refresh_the_ceiling_ends_leaves_the_private_index_as_the_copy_made_it() {
+    let root: PathBuf = fixture("commit-index-stat-private-ceiling");
+    let stale: Stale = stale_fixture(root.as_path());
+    let context: GitContext = shim_git_that_answers_the_refresh(root.as_path(), "sleep 30");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(500);
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ceiling)); });
+    let began: std::time::Instant = std::time::Instant::now();
+    prepare_stale_with(&context, &stale);
+    let spent: std::time::Duration = began.elapsed();
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert!(
+        spent < std::time::Duration::from_secs(20),
+        "the step was ended at {ceiling:?} instead of waiting for a Git that sleeps 30 s, but the preparation took {spent:?}"
+    );
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        !listing.contains(format!("ino: {inode}").as_str()),
+        "a refresh the ceiling ended records nothing, so the private index keeps the inode the copy carried: {listing}"
+    );
+    remove(root.as_path());
+}
+
+/// An index another program has locked is no obstacle to a preparation at all:
+/// the preparation reads the real index and never writes it,
+/// so a lock a person's own `git commit` holds costs the commit nothing.
+#[test]
+fn an_index_another_program_holds_does_not_stop_the_preparation() {
     let root: PathBuf = fixture("commit-index-stat-stale-locked");
     let stale: Stale = stale_fixture(root.as_path());
     let lock: PathBuf = stale.repo.join(".git").join("index.lock");
@@ -425,7 +578,7 @@ fn an_index_another_program_holds_is_refreshed_in_the_private_copy() {
     prepare_stale(&stale);
     match commit_stale(&stale) {
         Ok(code) => assert_eq!(code, 0, "the scratch commit exited {code}"),
-        Err(error) => panic!("the commit over a stale index another program locked did not finish: {error}"),
+        Err(error) => panic!("the commit over an index another program locked did not finish: {error}"),
     }
     remove(root.as_path());
 }

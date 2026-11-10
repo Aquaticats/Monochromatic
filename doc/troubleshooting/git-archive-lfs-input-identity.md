@@ -1,5 +1,9 @@
 # Git 2.55 archive filtering invalidates raw-blob benchmark corpus attribution
 
+Note 2026-11-09T16:52:23-05:00:
+`package/dev-script/task-util` is now `package/monorepo-task/core-exec`,
+moved 2026-10-29 in `592d78b143`.
+
 ## Symptom
 
 The frozen source tree contained 13,860 blob entries totaling 366,655,696 bytes.

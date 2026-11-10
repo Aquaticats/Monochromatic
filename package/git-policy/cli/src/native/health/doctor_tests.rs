@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use std::io::ErrorKind;
 
 /// Names of the paths in a list,
 /// for compact comparison.
@@ -16,10 +17,10 @@ fn names(paths: &[PathBuf]) -> Vec<String> {
 }
 
 /// Unpack the exit status,
-/// standard output as bytes and standard error of an exit action.
-fn exit_bytes_parts(action: Action) -> (i32, Vec<u8>, String) {
+/// standard output and standard error as bytes of an exit action.
+fn exit_bytes_parts(action: Action) -> (i32, Vec<u8>, Vec<u8>) {
     return match action {
-        Action::Exit { code, stdout, stderr } => (code, stdout.into_bytes(), stderr),
+        Action::Exit { code, stdout, stderr } => (code, stdout.into_bytes(), stderr.into_bytes()),
         Action::ExitBytes { code, stdout, stderr } => (code, stdout, stderr),
         other => panic!("doctor must end in an exit action, not {other:?}"),
     };
@@ -29,7 +30,11 @@ fn exit_bytes_parts(action: Action) -> (i32, Vec<u8>, String) {
 /// standard output and standard error of an exit action that reports text.
 fn exit_parts(action: Action) -> (i32, String, String) {
     let (code, stdout, stderr) = exit_bytes_parts(action);
-    return (code, String::from_utf8(stdout).expect("a report of text paths"), stderr);
+    return (
+        code,
+        String::from_utf8(stdout).expect("a report of text paths"),
+        String::from_utf8(stderr).expect("an explanation of text paths"),
+    );
 }
 
 /// The hooks location of `cwd`,
@@ -1022,5 +1027,45 @@ fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
         [replacement.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat(),
         "the lossy spelling names another directory"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A Git LFS shim in a directory whose name is not UTF-8 is explained by the bytes of its pathname,
+///  never by the lossy spelling of them.
+/// Why:
+///  The shims are explained on standard error,
+/// and that explanation names each shim's file,
+///  which is a pathname:
+/// `Path::display()` replaces each byte that is not UTF-8 with U+FFFD,
+///  and a directory whose name is exactly that replacement is another directory,
+/// so a text explanation named a shim
+///  nothing had inspected.
+///  The list of other hooks on standard output already keeps its bytes
+///  (`health/doctor_hook_entries.rs`,
+/// `render_hooks`);
+/// this is the same rule for the second stream.
+#[cfg(unix)]
+#[test]
+fn a_shim_whose_path_is_not_utf8_is_explained_by_its_bytes() {
+    use std::ffi::{OsStr, OsString};
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("doctor-shims-non-utf8");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inspected: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xff")));
+    let replacement: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xef\xbf\xbd")));
+    for directory in [inspected.as_path(), replacement.as_path()] {
+        std::fs::create_dir_all(directory).expect("hooks directory");
+        executable(directory.join("pre-push").as_path(), lfs_shim_text("pre-push").as_bytes());
+    }
+    git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), inspected.as_os_str()]);
+    let (code, stdout, stderr) = exit_bytes_parts(doctor_action(&git_context(), repo.as_path()));
+    let named: Vec<u8> = [inspected.as_os_str().as_bytes(), b"/pre-push".as_slice()].concat();
+    let lossy: Vec<u8> = [replacement.as_os_str().as_bytes(), b"/pre-push".as_slice()].concat();
+    let said = |needle: &[u8]| -> bool { return stderr.windows(needle.len()).any(|window| return window == needle); };
+    assert_eq!(code, 0, "a repository that holds only shims exits 0: {}", String::from_utf8_lossy(stderr.as_slice()));
+    assert_eq!(stdout, Vec::<u8>::new(), "nothing is listed on standard output");
+    assert!(said(named.as_slice()), "the inspected shim is named by its own bytes: {}", String::from_utf8_lossy(stderr.as_slice()));
+    assert!(!said(lossy.as_slice()), "the lossy spelling names another directory: {}", String::from_utf8_lossy(stderr.as_slice()));
     remove(root.as_path());
 }

@@ -189,6 +189,45 @@ impl StageClaim {
     /// ```ts
     /// await claim.recordBinding(binding);
     /// ```
+    /// What:
+    ///  Names the Git process this add started in the add's own record,
+    /// as soon as the command that started it has its number.
+    /// Why:
+    ///   The record of an add exists because a copy of the source's ignored state is owed,
+    /// and it is written before Git
+    ///  runs;
+    /// a command killed while its Git is still making the destination leaves a record whose destination is
+    ///  not there yet,
+    /// and a later command that settles that record would take the worktree Git is about to
+    ///  finish for one nothing made.
+    /// The name is written only while the record is still planned:
+    /// once the binding is
+    ///  recorded,
+    /// Git has returned and nothing of it runs.
+    /// A name that cannot be written is logged and not fatal,
+    /// because the add's
+    ///  own work must not stop for its bookkeeping,
+    /// and the settlement's bound covers such a record.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// claim.rememberRunningChild(destination, childPid);
+    /// ```
+    pub fn remember_running_child(&self, destination: &Path, child_pid: u32) {
+        let Some(record) = self.destination_record.as_deref() else { return };
+        let Ok(text) = std::fs::read_to_string(record) else { return };
+        if crate::worktree_add_binding::decode_record(text.as_str()) != Some(crate::worktree_add_binding::Recorded::Planned(destination.to_path_buf())) {
+            return;
+        }
+        let Some(child) = crate::worktree_copy_owner::copy_owner_of_process(child_pid) else {
+            crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} was started and its identity cannot be read; the record stays unnamed", destination.display()).as_str());
+            return;
+        };
+        if let Err(error) = write_atomic(record, crate::worktree_add_binding::planned_record_with_child(destination, &child).as_bytes(), "destination record") {
+            crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} could not be named in its record ({}); the record stays unnamed", destination.display(), error.0).as_str());
+        }
+    }
+
     pub fn record_binding(&self, binding: &Binding) -> Result<(), WorktreeCopyError> {
         let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
         write_atomic(record, binding.encode().as_bytes(), "destination record")?;

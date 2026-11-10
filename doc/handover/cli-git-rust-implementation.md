@@ -167,6 +167,39 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Landings while the gate on `283d7d9053` runs, and what they left open (2026-11-09T19:02:02-05:00)
+
+Landed on main,
+each tested on main first:
+`13d8f918ec` (a lint run whose analysis child crashed fails),
+`fb0dab9ccb` (statusline diagnostics and tagged loggers across the packages issue 1677 names),
+`d302e16ded` (the wrapper's perf tests and read fixture remove their folders when a test fails),
+`5fde185d69` (MCP logger comments)
+and `b51cb087ee` (a named pipe where a rules file or the index lock is expected ends in a sentence).
+
+Left open:
+
+- `landing::service_index_prestage::tests::the_marker_made_ahead_names_this_process_and_the_batch`
+  failed once in a 216-test selection on the FIFO branch after `8.261 s`.
+  It passed alone in `0.196 s`,
+  and the same selection then passed whole.
+  The coordinator's output filter dropped its message,
+  so the cause is not known.
+  The gate log of `776281f4ee` shows no failure of it.
+  Check filters now keep `panicked` lines.
+- A `lint:oxlint` run now goes red when the TypeScript 7.1 API server crashes,
+  and says the findings are incomplete.
+  `doc/troubleshooting/typescript-7-config-registry-nil-panic.md` holds the cause.
+  Lost findings are read from the code and were not observed:
+  ten runs on one worktree had no panic.
+- The console sink sends `info` records to stdout through `console.info`.
+  `package/mcp/stdio` and `package/mcp/mvm` log nothing at `info`,
+  and only their comments say why.
+  No test stops a later `info` call from writing into the frame stream.
+- Issue 1292 stays open for the inline `[cycle]`-style prefixes in `hall-monitor`.
+- A landing that adds a workspace dependency leaves the main checkout unlinked until
+  `mise exec -- pnpm install --frozen-lockfile --offline` runs there.
+
 #### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
 
 The release gate on `742076c71d` ended with 69 of 6,699 tests failed
@@ -212,6 +245,21 @@ under rule `WGH`:
   and a kill during install leaves empty files and a half-filled worktree that nothing records.
   Both come from the EXDEV copy fallback.
   The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+  A later run killed a snapshot-route add ten times:
+  two kills left a full snapshot of the main checkout beside the destination,
+  credentials and a copy of `.git` included,
+  and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
+  `package/git-policy/cli/SPEC.md` says the person removes the stage,
+  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
+  the swap and index-rewrite phases were not reached.
+  Two `worktree_copy` controls,
+  `a_creation_recovers_a_dead_journal_first` and `a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+  timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
+  The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
+  so the branch did not add the time.
+  What the time goes to is unmeasured,
+  and under rule `SUF` it stays a contention defect until it is.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
   and read-only commands wait 60 s over a saved merge:
@@ -224,8 +272,20 @@ under rule `WGH`:
   so native Git refuses it over unsaved work
   (`--no-edit` completes it).
 - `never-stuck`:
-  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
-  and it is briefed.
+  a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
+  and the commit service's landing behind it.
+  Fixed on the branch `fix/git-policy-cli-fifo-where-a-file-is-expected-ends-no-command`
+  (not merged into `main` yet),
+  which reads both through opens that cannot wait
+  (`service_index_wait.rs`,
+  `service_index_marker.rs`,
+  `entry_rules_text_change_warm.rs`,
+  `package/forbidden-strings/cli/src/rules_snapshot.rs`),
+  and refuses a rules file that is not a plain one with a sentence naming its path.
+  The reproductions,
+  the stacks that put the service thread in `marker_of`,
+  and the survey of the rest of the class are in
+  `doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`.
 - `differential-against-real-git`:
   `git commit -- .` also commits untracked files,
   global pathspec modes are ignored by an explicit-path commit,
@@ -1896,33 +1956,44 @@ Both pass alone (2.5 s and 21.6 s),
 which is the same contention shape this section corrected in the standards-review controls,
 and neither module is changed here.
 
-Owner question:
-`package/git-policy/cli/SPEC.md:5471` says a commit prepares
-"in parallel with other commits and without the real index lock",
-and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
-The step here takes that lock when the index is stale,
-which the two controls this branch fixed do not see,
-because their repositories have an index Git has just written.
-It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
-and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
-so concurrent commits still never fail on it and nothing waits on it in preparation.
-Two readings are open:
+Answered by the owner's instruction for
+`perf/git-policy-cli-commit-preparation-without-the-real-index-lock`:
+preparation stays lock-free,
+and the refresh moves to the landing,
+which already holds `index.lock`.
+The owner's requirements for the lane are
+"commits vs native git should not take 5s longer.",
+"Commits should never fail.",
+"Use as few locks as possible."
+and "never discard user data",
+and `doc/decision/cli-git-concurrent-commits.md:29` already says
+"Each commit prepares without the real index lock."
 
-- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
-  which is what this branch does and what keeps the scratch step inside its ceiling.
-- Keep preparation lock-free,
-  and hand the write to the landing,
-  which already holds `index.lock`:
-  it would build its private copy,
-  answer the same in-process staleness question over the live index,
-  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
-  and install that copy.
-  Then nothing outside the landing writes the real index,
-  and the cost moves to the landing,
-  inside its lock,
-  on every commit after the worktree moved.
-  The first commit after the move would still pay the refresh on its private copy in preparation,
-  as the locked-index fallback does today.
+What the branch changed (2026-11-09):
+
+- `commit/commit_index.rs` refreshes the private commit index,
+  not the real one,
+  after the copy and the selection are in it
+  (`initialize_commit_index`,
+  `initialize_retry_index`).
+  It still asks the in-process staleness question first,
+  so a copy that describes the worktree costs no Git start and no lock.
+- `landing/service_land_follow.rs` records the worktree's stat data in the copy it is about to install,
+  through the same question and the same refresh,
+  while the landing holds the real index lock,
+  and leaves out the entries the reset just wrote.
+  A refresh that fails,
+  is killed or is ended at its step ceiling installs the copy anyway,
+  and the release flushes the copy only when Git replaced it.
+- The in-process reset hands back the names it reset
+  (`index/index_reset_file.rs`),
+  which is what lets a landing leave those entries out for a list derived from the branch.
+
+Measurements,
+controls and the spread:
+`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What a batch's own refresh costs,
+and what moving it bought".
 
 Still to do:
 
@@ -1931,11 +2002,10 @@ Still to do:
   closed by the section below.
 - The question's pass was single-threaded;
   closed by the section below.
-- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
-  (Git answers a held lock at once,
-  measured 0.00 s,
-  and the private index is refreshed instead),
-  and the landing still waits for that lock as it always has,
+- Closed 2026-11-09:
+  a preparation names no real index at all any more,
+  so it never meets another program's `index.lock` and cannot wait on one.
+  The landing still waits for a foreign holder as it always has,
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.

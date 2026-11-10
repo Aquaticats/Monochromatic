@@ -1788,15 +1788,24 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
-A regular file whose size and modification time agree is also compared by contents when its change time
-is at or after the instant the proving pass finished,
-which the journal records:
+A regular file whose size and modification time agree is also compared by contents when the change
+time of either side is at or after the instant the proving pass began,
+both sides being read because either can hold bytes the other does not,
+which the journal records,
+the instant being taken before the pass rather than after it,
+because an edit made while the pass runs carries a change time before the pass ends:
 an edit can keep the length and put the modification time back,
 and the change time cannot be put back by an ordinary user.
 A journal written by an earlier release records no such instant,
 and then every regular file's contents are compared.
 Only the files the change time flags are read,
 so a conversion nothing was changed in reads no contents at all.
+Both sides are opened by the plain-file reader,
+which waits for no writer and follows no link:
+a name
+  swapped for a named pipe or a link after the walk read its metadata ends the comparison with the
+file named
+  instead of holding the conversion's claim for ever.
 The measurement behind that choice,
 on this repository's largest worktree (28,569,216,018 bytes in 115,067 files,
 144,633 entries,
@@ -1966,14 +1975,29 @@ in milliseconds after the epoch,
 so the removal can tell a file changed after the proof from one the copy already carried;
 a journal written by an earlier release has no such field.
 A rollback deletes the new subvolume only while the name holds a subvolume root,
-which is what the migration created there,
-and only while that object is the checkout the journal recorded installing:
-the recorded identity is compared before the deletion on every path that reaches it,
+which is what the migration created there:
+a directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds.
+The journal also records the identity of the subvolume the migration made at that name (device,
+inode and,
+where the filesystem gives one,
+birth time),
+in the same map of named values that holds the checkout's identity,
+before anything is copied into it,
+and the rollback deletes the stage only while that identity still answers for the directory it deletes:
+a subvolume another process put at that name in the meantime is refused with the path and the
+two identities,
+and nothing is deleted.
+A journal that records no identity for the stage names no subvolume to delete,
+so the rollback is refused there too,
+with the path and both ways out (delete the migration's own stage,
+or move a foreign one away and clear the journal),
+instead of deleting what it cannot name.
+The identity of the checkout the migration installed is compared as well,
+before the deletion on every path that reaches it,
 including a run resumed after the exchange was recorded,
-which skips the swap and with it the pair check that guards the exchange.
-A directory that replaced it is refused with both paths and nothing is deleted,
-because the removal's fallback would otherwise delete it and whatever it holds,
-and a subvolume that replaced it is refused with both identities.
+which skips the swap and with it the pair check that guards the exchange;
+a directory or a subvolume that replaced it is refused with both paths and both identities.
 One window stays open and is written here rather than closed:
 another process that puts a subvolume at that name in the moment between the identity check and the
 destruction has that subvolume destroyed;
@@ -4005,6 +4029,47 @@ it would load changed,
 only to a service of that worktree that already runs (found by its start arguments),
 and never starts a process.
 The client keeps compiling on a cache miss.
+`src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
+(`CachePublisher`,
+`cache_access`):
+when the cache holds no artifact for the rules text
+(`forbidden_strings::compiled_rules_artifact_exists`,
+one `stat` of the path the text's digest names)
+the command asks a service of that worktree that already runs to compile and publish it,
+with the same one-way `warm` message,
+and loads the rules read-only
+(`forbidden_strings::CacheAccess::ReadOnly`,
+`CandidateScanner::load_writing_cache`),
+so the rules it compiled are only ever a scan's input.
+An artifact too damaged to decode is not a miss here:
+the load reads it,
+rejects it,
+and repairs it in this process.
+The command publishes the artifact itself in two cases:
+a worktree with no running service,
+and a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+rules files,
+which the service's environment does not carry and would not compile.
+A configuration that names rules files wins over the variable,
+so such a repository leaves its list to the service.
+A service that declines the warm (its address space leaves too little room,
+`warm_fits`)
+also leaves the artifact for the next command that publishes,
+so such a machine compiles the rules once per command:
+correct,
+and slower than a cache it cannot fill.
+The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
+writes a private temporary and renames it over the artifact,
+syncing neither the file nor its directory:
+every read validates magic,
+schema,
+scanner version,
+platform,
+source digest,
+payload digest,
+engine digest and trailing bytes,
+so a torn artifact is rejected and recompiled,
+and the file is derived data that may be deleted at any time.
 The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
 signing,
 the signing program,
@@ -4682,6 +4747,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   before it says the
   result is not known (twice the longest branch write measured,
   3.4 s).
+- `LOOKING_FOR_A_LANDED_COMMIT` 10 seconds:
+  how long a client looks for the commit a request it already sent made,
+  after its answer was lost,
+  before it says the result is not known.
+  Twice the owner's 5 s bound on what a commit may add to native Git,
+  the derivation `WAITING_NOTICE_AFTER` uses;
+  it covers the 5 to 9 s inside which the audit of service restarts and version skew (2026-11-09) saw the client give up
+  while the commit landed seconds later.
+  The look waits only while an open batch of the journal names the request,
+  so a request nothing is landing costs one look and no wait.
 - `FOREIGN_OWNER_PATIENCE` 20 minutes:
   twice `LOCK_CEILING`,
   derived in code (`src/native/process/pid_namespace.rs`),
@@ -5107,7 +5182,8 @@ now inside these bounds:
   A PID file holding a number this process table does not have is waited for the same way by a commit,
   and its line says which number it read and that a Git of another PID namespace writes one this table has
   never had:
-  the number proves no death, so no commit ends early on it
+  the number proves no death,
+  so no commit ends early on it
   (cross-vendor review of 2026-11-09,
   finding 2).
   A merge is the command that acts on that evidence:
@@ -5158,6 +5234,13 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The connection that carries the beats is accepted before the recovery of the batch an earlier service left open,
+  so a service that is recovering still greets and still beats,
+  and nothing is landed before that recovery is over because only the landing thread lands and it reads the queue after it
+  (finding C of the audit `commit-kills-and-concurrency`,
+  2026-11-09:
+  every client exited 1 after about 5.5 s with "not known whether the commit was made"
+  while the recovering service landed their commits).
   After a commit was prepared,
   that failure reads the branch once (`git merge-base --is-ancestor <prepared> <reference>`)
   and states what it shows:
@@ -5173,12 +5256,29 @@ now inside these bounds:
   though the service may still land it;
   or that the branch could not be read,
   which keeps the words "not known whether the commit was made".
-  The read waits for nothing,
-  and a commit the service builds itself from the request leaves the third answer,
-  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
-  a message said the commit was
-  not known to have been made,
-  and the service landed it 73 seconds later).
+  Before that read,
+  and for every failure that means an answer was lost after the request was sent,
+  the client looks in the service's own journal for the commit the request made,
+  for at most `LOOKING_FOR_A_LANDED_COMMIT` (10 seconds):
+  a finished batch (`<seq>.done`) names the commit each of its requests became,
+  and an open batch (`<seq>.intent`) names the commit it is making,
+  which the branch then says is made or not yet;
+  a commit either of them shows is a landed commit and the command returns it with exit 0 through the same function.
+  The look waits only while an open batch names the request,
+  so a request nothing is landing costs one look and no wait.
+  A failure to reach a service again after a request was sent is never the "this commit was not made" text,
+  whatever it was (a start that failed,
+  a service of another release that would not stop,
+  a service of another protocol):
+  a request that was sent may have landed,
+  so that failure is the "stopped answering" one,
+  which says the result is not known and names the branch reads and the restart
+  (the audit of service restarts and version skew,
+  2026-11-09,
+  printed "this commit was not made ... Nothing in the repository changed" while the commit was on the branch).
+  A commit the service builds itself from the request is the case the journal answers where the branch alone could not:
+  the open batch names the commit it is making,
+  and the finished one names the commit it made.
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -5366,8 +5466,17 @@ and
   The owner chose this on 2026-11-04 ("A:
   fail,
   retry (Recommended)").
+  A git that is older than the service that answers it,
+  which is what a rollback to an earlier release leaves running,
+  cannot ask it to retire at all,
+  and that message names both ways out:
+  update this git,
+  or install the release it belongs to and stop the newer service with `STOP_COMMAND`
+  (`systemctl --user stop 'monochromatic-git-policy-cli@*.service'`),
+  because a restart starts the program the manager's unit still names.
   Test:
-  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
+  and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
 - Provisioning asks the manager for the reload its own writes need,
   and a kill between writing a template and that reload is repaired
   by the next commit:
@@ -5724,6 +5833,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
+  The report reaches the person through a record of the worktree's notice directory,
+  shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
+  because the command that ran the push returned before the push ended:
+  it holds the lines the reconcile wrote,
+  which begin with `monochromatic-git-policy-cli: auto-push: `,
+  and it is written whatever the move came to,
+  so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  Its name carries the report's own prefix,
+  so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
 - No push without a connection waits without a bound,
   and no push with an open connection is stopped for time.
   The push is stopped on no progress and no open connection,
@@ -8327,6 +8445,7 @@ Each commit passes through three phases:
     in parallel with other commits and without the real index lock,
     capture the invocation facts,
     build a private index for the selection,
+    refresh the stat data of that private index when it no longer describes the worktree,
     run the pre-forward policies over it until they settle,
     and make the commit.
     The wrapper builds it from the command line (message and identity options,
@@ -8360,6 +8479,10 @@ Each commit passes through three phases:
     then creates Git's own `index.lock` exclusively,
     advances the target ref by compare-and-swap from the tip it read,
     builds the new index beside the real one,
+    records the worktree's stat data in it
+    (`git update-index --refresh` with `GIT_INDEX_FILE` set to the copy,
+    asked for only when the copy no longer describes the worktree,
+    and left out for the entries the reset just wrote),
     and installs it by renaming the lock over `index`.
     The lock is therefore held for the branch move and the index build only
     (`lock_hold_ms` in the service's log line for the request),
@@ -8462,6 +8585,54 @@ blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+
+A held record is settled when Git proves its commit reached the remote.
+The question is put to the local repository alone,
+because a command asks no remote:
+`<branch>@{upstream}` names the ref the branch's pushes update,
+and `git merge-base --is-ancestor <commit> <that ref>` says whether the commit is in it
+(`held_push_commit_on_the_remote.rs`).
+A `merge-base` that exits other than `0` or `1`,
+a branch with no upstream,
+a branch outside `refs/heads` and a Git that cannot be started all answer "nothing is known",
+and the line stands.
+That record is moved to `done`,
+where the queue keeps a push that was made,
+so it is known to the queue and no round may run it,
+and no command says the commit is held while `git status` shows it on the remote.
+The proof is Git's record and not the remote's:
+a remote-tracking ref can lag the remote
+(a push whose reference update was refused still delivered the commits),
+and a lagging record leaves the held line standing,
+which costs a line that is still true of the record and loses nothing,
+while settling on anything weaker would drop the only word about a commit that is not backed up.
+A `blocked` record is not asked about at all:
+the question of whether a commit the gate refused should ever be pushed is open with the owner.
+
+A push record in `pending` is a push no service has taken yet.
+When the wrapper is killed between promoting its record and waking the service,
+or a service goes away before it looks,
+the command that would have said "the push is queued" is gone,
+so every command says it from the record:
+the oldest such record is named,
+the rest are counted,
+and the words claim only that the push has not been made and that the service makes it the next time it
+looks at the repository,
+which needs no further commit.
+A record younger than `PUSH_QUEUED_AFTER` (15 seconds) is a push in flight and is not named;
+the wait measured on this host at 2026-11-09T16:40-05:00 from a landing to the claim of its push record
+was 15 ms to 3.9 s with the service idle between commits and up to 10.7 s with commits made back to back
+(debug build,
+local bare remote),
+so a record that outlasts the bound has outlasted any service that was merely busy.
+The line is the record's,
+so it goes when a claim moves the record.
+
+The service writes the repository it lands for into the journal's claim watch before it answers
+(`note_for_the_next_service` in `service_claim_watch.rs`),
+so a service that starts looks at it even though no client ever woke it for that repository,
+and a kill is followed by the work being run with no commit needed
+(`service_server_work_loop.rs`).
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
@@ -10009,6 +10180,16 @@ and how long anyone waits:
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
   Neither the client nor the landing loop waits for it.
+  A request the service did not land,
+  one it sent back to be prepared again (`retry-prepare`) or one whose branch moved (`branch-moved`),
+  is not one whose landing read the tree:
+  the tree goes back to its client,
+  which reads the change it captured from the tree's private index to make the commit again
+  (`retry_of` in `src/native/landing/service_replay.rs`)
+  and releases it beside its own command,
+  in a task and under the same ceiling.
+  Removing it in the service took that read from under every rebuild,
+  which failed with a private index that was not there.
   Nothing else in the service removes a tree a request named:
   the tree holds the private index and the conclusion copies the landing reads,
   and a client killed while its request waits is not evidence that the landing is over.
@@ -10525,7 +10706,7 @@ For injected commit-only semantics:
     Intent-to-add entries stay in the copy,
     because they carry no cached stat data and copy as they are,
     and the paths they name are cleared before the reset
-    (`copy_index_for_reset`,
+    (`write_index_for_reset`,
     `commit_index_copying.rs`):
     the reset to the base then writes the base's own entry at each of those paths,
     replaces one whose mode or object name differs,
@@ -10555,7 +10736,7 @@ For injected commit-only semantics:
     One window stays open in that rebuild and is written here rather than closed
     (`initialize_retry_index`,
     `commit_index.rs`):
-    the real index is classified at the start of the build and copied after the stat refresh,
+    the real index is classified at the start of the build and copied at once,
     and a command that replaces it between the two
     leaves the copy holding intent-to-add entries the classification never named,
     so the clearing above does not reach them.
@@ -10569,7 +10750,9 @@ For injected commit-only semantics:
     and the restage drops it).
     No lock covers it:
     the real index belongs to the person and their other commands,
-    and a lock held across the stat refresh would stop them to protect a path nothing named.
+    and a lock held across the copy would stop them to protect a path nothing named.
+    The stat refresh of the private index runs after it,
+    on that index alone (`commit_index_stat_refresh.rs`).
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
@@ -10633,6 +10816,46 @@ The landing removes the same state from the worktree exactly as native Git remov
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
+
+### The amend a moved branch makes
+
+An amend whose branch is no longer at the commit it replaces lands its changes as a new commit on the branch as it is now
+(the owner's choice,
+2026-11-09:
+"A:
+land as a new commit (Recommended)";
+the refusal and a rewrite of the commit another session landed were both rejected).
+The result is the replaced commit,
+then the commit that moved the branch,
+then the amendment,
+and neither earlier commit is changed.
+The commit is made from:
+
+- its tree:
+  the amendment's own tree merged onto the branch as it is now by the replay rule above
+  (`git merge-tree --write-tree` from the replaced commit as the merge base);
+- its one parent:
+  the branch as it is now;
+- its author,
+  committer and message:
+  those of the amend,
+  kept as stored,
+  so the author's date survives the rebuild;
+- its header lines and its signature:
+  written whole by `git hash-object -t commit -w` under the identities and message the amend made,
+  or,
+  when the amend was signed,
+  signed again by `git commit-tree -S` with the `-S` option the command line named,
+  whose other header lines a signature cannot carry are dropped with a warning.
+
+Nothing waits for another command and nothing is refused for it.
+The person is told what the amend became after it lands:
+a line naming the branch,
+the commit that landed,
+and that the commits already there were left as they are
+(`amend_lands_as_new_note` in `src/native/landing/landed_summary.rs`).
+Code:
+`src/native/landing/service_amend_replayed.rs`.
 
 ### Word-level second merge pass
 
@@ -11175,18 +11398,37 @@ and the message the person typed saved in a file with the command that reuses it
 A merged tree equal to the branch ends with `concurrent-commit/already-committed`.
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
-in five builds at most (the first and four more);
-one built after an editor keeps the typed message in a file and is built again from it within the same five;
-an amend is never sent for another tip and fails with a plain message.
-The retry is bounded;
-a branch that keeps changing ends the commit with a plain message naming the branch
-and the number of attempts it made:
-"changed 5 times" for the commits Git built,
-and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
-and for a batch the service builds again after its reference update finds the branch moved,
-each three attempts at most.
-The bounds are `REBUILD_ATTEMPTS` in `src/native/landing/service_commit.rs`
-and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
+while the time since its first build is under the ceiling;
+one built after an editor keeps the typed message in a file and is built again from it under the same ceiling.
+A commit that concludes a merge,
+a cherry-pick or a revert depends on the state the worktree holds and not on the tip,
+so it is built again the same way:
+its parents come from `MERGE_HEAD`,
+`CHERRY_PICK_HEAD` or `REVERT_HEAD`,
+the tree is the replay above,
+and the preparation refuses with `ConclusionStateChanged` when that state is no longer the one the commit was
+prepared over,
+because another command either finished the operation or abandoned it
+(`conclusion_state_text` in `conclusion_copy.rs`).
+No commit waits for another,
+and no command is refused for another session's commit or merge
+(the owner,
+2026-11-09:
+"I would consider this to be a defect in our wrapper.
+Agents should never wait on each other on commits or merges.").
+An amend whose branch moved is not made as an amend again:
+it lands as a new commit on the branch as it is now
+(see "The amend a moved branch makes").
+The retry is bounded by time,
+not by a count of builds:
+`MOVED_BRANCH_REBUILD_CEILING` in `src/native/service/wait_ceilings.rs`,
+which `CLI_GIT_REBUILD_CEILING_SECONDS` sets for a control,
+and every rebuild says how many builds were made,
+how long it has been,
+and when the rebuilding stops.
+A branch that keeps changing past the ceiling ends the commit with a plain message naming the branch
+and the number of attempts it made;
+the attempts of one landing are `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
@@ -11664,7 +11906,8 @@ empty for a commit that noted no step:
 `calls` how often it ran,
 `totalMs` the whole of its time and `longestMs` its longest run;
 the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
-`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index read` for the one reading of an index's bytes that every private copy of the commit is written from,
+`index seed` for the walk of those bytes that decides which way an index may seed a private commit index,
 `index equals base` for the in-process answer of whether the captured index already holds the base's tree,
 `index copy` for a copy of an index into a private one,
 `policy blob write` for storing a correction's bytes,
