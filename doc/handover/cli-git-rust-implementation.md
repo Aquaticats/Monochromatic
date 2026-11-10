@@ -59,6 +59,71 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
+
+Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
+(`efde03fbbc` the failing controls,
+`5dc8b8df7d` the fix),
+ahead of `main` at `c351a48f48`;
+`main` is a commit further with the note that names the two losses the audit script reproduced.
+
+What the script reproduced on `main`,
+and what each is now:
+
+- A `SIGKILL` between the index records of a carry back and its first worktree file lost the layer not yet written.
+  The next command read the entry its own killed step had written as someone else's,
+  skipped the path,
+  and dropped the record and the ref with the unsaved bytes in them,
+  then said the file changed again while the merge ran.
+  Each layer of a path is now judged and written on its own,
+  and a carry accepts its own planned index entry as explained
+  (`explained_entries` in `merge_isolation_carry_place.rs`).
+- A save that landed between the clear's judgement and its write was replaced.
+  Every worktree write now sets the judged entry aside with `RENAME_NOREPLACE`,
+  checks its identity and then its bytes against the judgement,
+  and places the new entry with a second `RENAME_NOREPLACE`,
+  putting back what is not the judged entry.
+  Every path's identity is read again before the index records go as well,
+  so a save before that point stops the step with nothing written.
+  That is the step finding 4 of `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`
+  asks for,
+  which the second pass already took and the carry's write step did not.
+
+One behaviour moved beyond the report:
+a clear that meets newer bytes is no longer refused.
+It puts the captured layers back,
+drops the record and the ref,
+and makes the round again on what the file holds now
+(`a_clear_that_met_newer_bytes` in `merge_isolation_apply.rs`),
+so a save during a merge neither fails the command nor is replaced,
+and the round loop's ceiling (`MAX_ROUNDS`, twenty) bounds a file saved again and again.
+
+Evidence:
+`cargo nextest run --test native_binary -- merge_carries_edits` is 17 tests,
+all passing,
+including the five new controls:
+a kill between the layers,
+a kill before the clear writes anything,
+a kill between two carried files,
+a kill after the carried files (which also asserts no line claims a change that did not happen),
+and a save between the index step and the file.
+Each was run failing before the fix;
+the two reported cases failed exactly as the script showed.
+
+Limits and unknowns:
+the take's check is the file's identity and then its bytes,
+so a save through an already-open descriptor that keeps the same length and puts the modification time back is
+not seen,
+which is the limit finding 4 of that planning doc already records for the second pass.
+Killing the process between the take and the placing leaves the judged entry under a `cli-git-recovery-*`
+private name with the path empty until the next command puts it back;
+the controls for that are the second pass's, not this branch's.
+
+Next action:
+review and merge this branch;
+then the same two windows want a run of the whole binary suite,
+which this branch ran only for the merge modules.
+
 ### At the Claude Code restart (2026-11-10T05:16:25-05:00)
 
 `0.6.1-alpha.7` is published and installed,

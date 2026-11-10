@@ -12698,7 +12698,8 @@ The phases that are still reached are `service-staged`
 repeatable,
 so its files carry the occurrence:
 `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
-and, of an isolated merge:
+and,
+of an isolated merge:
 `merge-carried` (the capture and the record are durable and the checkout is untouched),
 `merge-intent` (record durable and Git not yet started),
 `merge-clear-index` and `merge-clear-file`

@@ -2165,11 +2165,13 @@ Now the merge runs and the person's work is carried across it:
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named,
-  and the naming is true: nothing was written to it before the check that found it changed.
+  and the naming is true:
+  nothing was written to it before the check that found it changed.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.
-  A layer the person saved again while the merge ran stays as they left it, and is named.
+  A layer the person saved again while the merge ran stays as they left it,
+  and is named.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
