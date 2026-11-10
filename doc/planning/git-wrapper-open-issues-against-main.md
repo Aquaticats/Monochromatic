@@ -1002,3 +1002,67 @@ and they are the reason a missing path is not a missing defect:
   #677 or #678,
  which sit in the same numbering block but are not duplication campaigns,
  and it does not re-measure the drifts inside a campaign beyond the code the issue names.
+
+## The five citation issues and the three rebuilt records, checked 2026-11-10T16:53:37-05:00 against `e498914475`
+
+What:
+ issues 1907,
+ 1911,
+ 4408,
+ 5933 and 4103,
+ which each report a document naming a path,
+ function or task the tree no longer holds,
+ and issues 4132,
+ 4133 and 4134,
+ which report three troubleshooting records that commit `5ac11cf09e` rebuilt on 2026-11-10.
+
+Why:
+ four of the five issues name one of two decision records,
+ which this branch may not edit,
+ so those entries carry the exact note that would fix the citation and wait for the owner,
+ while 4103 and the three rebuilt records only needed a re-check against `main`.
+
+- `#1907`:
+  the document is a decision record,
+  so nothing in it changed here;
+  the two notes below are the proposal.
+ `doc/decision/private-npm-registry.md` lines 165 to 168 name
+ `package/git-policy/cli/src/policy-engine/apply-policy-patches.ts`,
+  which `git log --follow` shows deleted 2026-10-13 in `642b6d72cb`,
+  and lines 178 to 188 name the root task
+ `mise run //package/git-policy/repository:bump:dependents` and its runner
+ `package/git-policy/repository/src/bump-dependents.ts`,
+  whose calling line `changeset:version` dropped in `d39c883c4d` and which `a2b56c548c` deleted with the package,
+  both on 2026-10-13.
+ `git ls-files` returns none of the three,
+  and no note marks any of them.
+ Proposal,
+  the original text kept and one dated note added after each citation:
+
+```md
+<!-- doc/decision/private-npm-registry.md, after `and its fixes never reach the worktree.` -->
+   cli-git's commit transaction cannot do this today:
+    it patches only paths already staged in the commit
+    (`package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` lines 99 to 112 reject other targets),
+    and its fixes never reach the worktree.
+    Note 2026-11-10T16:53:37-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+    Which paths a commit carries is decided in
+    `package/git-policy/cli/src/native/commit/commit_selection_staging.rs`,
+    and a fix installs its corrections into the worktree through
+    `package/git-policy/cli/src/native/policy/direct_fix_install.rs`.
+```
+
+```md
+<!-- doc/decision/private-npm-registry.md, after `so the job needs no build step.` -->
+    The runner (`package/git-policy/repository/src/bump-dependents.ts`)
+     compares worktree manifests with `HEAD`
+     and shares its planning module (`dependent-bump-workflow.ts`) with the cli-git policy,
+     so both apply the same edge and publishability rules.
+    It imports only Node built-ins and sibling source files,
+     so the job needs no build step.
+     Note 2026-11-10T16:53:37-05:00: the task and that runner are deleted (2026-10-13 `a2b56c548c`).
+     `changeset:version` in `mise.toml:1514` runs
+     `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`,
+     and the edge and publishability rules it applies live under
+     `package/git-policy/cli/src/native/dependent_version/`.
+```
