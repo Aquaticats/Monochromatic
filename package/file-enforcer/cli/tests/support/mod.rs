@@ -66,12 +66,34 @@ impl Harness {
         return harness;
     }
 
-    /// Write a file under the repository,
-    /// creating directories.
+    /// What:
+    ///  Write a file under the repository,
+    /// creating directories,
+    /// so that a reader sees either the old text or the whole new text.
+    /// Why:
+    ///  `fs::write` truncates first,
+    /// and the watcher reacts to that truncation:
+    /// a run could read the fixture empty and write the generated file from nothing,
+    /// which made `watch_regenerates_on_input_changes_and_warns_on_hand_edits` fail
+    /// (the trace showed `CLAUDE.md` holding the empty-file concatenation while `AGENTS.md` already had the new text).
+    /// The staging file sits beside the target,
+    /// so the rename stays on one filesystem.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// write(path: string, text: string): void {
+    ///   const target = join(this.repo, path);
+    ///   mkdirSync(dirname(target), { recursive: true });
+    ///   writeFileSync(`${target}.staging`, text);
+    ///   renameSync(`${target}.staging`, target);
+    /// }
+    /// ```
     pub fn write(&self, path: &str, text: &str) {
         let target = self.repo.path().join(path);
         std::fs::create_dir_all(target.parent().expect("a parent")).expect("directories");
-        std::fs::write(target, text).expect("write");
+        let staging = target.with_file_name(format!("{}.staging", target.file_name().unwrap_or_default().to_string_lossy()));
+        std::fs::write(&staging, text).expect("write");
+        std::fs::rename(&staging, &target).expect("rename");
     }
 
     /// Read a file under the repository.
