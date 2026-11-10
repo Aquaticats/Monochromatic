@@ -1,11 +1,14 @@
 /**
  Monorepo-aware `\@import` inlining over the css-edit CST.
  
- Resolution strategy (mirrors CSS conventions):
- 1. Relative paths (`./foo.css`, `../bar.css`): resolved against the importer
- 2. Bare specifiers (`mixin.css`): tried as relative first (CSS treats these as relative)
- 3. Package specifiers (`\@scope/pkg/path.css`, `pkg/path.css`): resolved via
-    `node_modules` traversal, checking `exports` then `style`/`main` fields
+ Resolution strategy (mirrors CSS URL resolution):
+ 1. Absolute paths (`/foo.css`): used as written
+ 2. Every other specifier, `./foo.css`, `foo.css`, `sub/foo.css`, and
+    `\@scope/pkg/foo.css` alike: probed as a URL relative to the importing
+    stylesheet first, which is how CSS reads them
+ 3. Package specifiers (`\@scope/pkg/path.css`, `pkg/path.css`): when no file
+    sits beside the importer at that path, resolved via `node_modules`
+    traversal, checking `exports` then `style`/`main` fields
  */
 import {
   dirname,
@@ -120,29 +123,34 @@ function resolveSpecifier({
     );
   }
 
-  // Could be bare-local (CSS convention) or a package specifier.
-  // Try relative first: CSS treats `@import 'foo.css'` as relative.
-  if ((!isPackageSpecifier(specifier,))
-    || ((!specifier.includes('/',)) && (!specifier.startsWith('@',))))
-    {
-    /**
-     Attempt to resolve as relative path
-     */
-    const asRelative = resolve(
-      [
-        fromDir,
-        specifier,
-      ],
-    );
-    if (existsSync(asRelative,))
-      return asRelative;
+  // Every remaining specifier could be a URL relative to the importing
+  // stylesheet or a package reference. CSS resolves `@import 'sub/theme.css'`
+  // against the importer, so the relative candidate is probed for all of
+  // them, not only for specifiers without a slash.
+  /**
+   The specifier read as a path relative to the importing file.
+   */
+  const asRelative = resolve(
+    [
+      fromDir,
+      specifier,
+    ],
+  );
+  if (existsSync(asRelative,))
+    return asRelative;
+
+  // No such file beside the importer: a package specifier names one inside
+  // a node_modules directory.
+  if (isPackageSpecifier(specifier,)) {
+    return resolvePackage({
+      specifier,
+      fromDir,
+    },);
   }
 
-  // Package specifier
-  return resolvePackage({
-    specifier,
-    fromDir,
-  },);
+  // Neither a relative file nor a package reference: the specifier is
+  // outside every form this resolver knows, so refuse it rather than guess.
+  throw new Error(`CSS @import specifier not found: '${specifier}' from '${fromFile}'`,);
 }
 
 //endregion Import resolution

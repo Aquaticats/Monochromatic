@@ -196,6 +196,20 @@ await describe({
         //region Import inlining
 
         it({
+          name: 'resolves a slash-containing bare specifier against the importer directory',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'sub/theme.css';",
+                'sub/theme.css': '.theme { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.theme { color: red; }',);
+          },
+        },),
+
+        it({
           name: 'inlines a duplicate import only once',
           fn: async () => {
             const result = await buildInTempDir({
