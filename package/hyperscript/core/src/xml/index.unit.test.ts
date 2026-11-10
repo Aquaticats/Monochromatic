@@ -1,12 +1,12 @@
+import { hXml as $, } from '@monochromatic-dev/hyperscript-core';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { $, } from './index.ts';
 
 await describe({
-  name: $.name,
+  name: 'hXml',
   children: [
     it({
       name: 'creates a simple element with text content',

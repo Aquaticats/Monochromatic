@@ -79,6 +79,13 @@ const SMALLEST_YEAR = 2_000;
 const LARGEST_YEAR = 2_099;
 
 /**
+ Largest plausible two-digit year in a `YYMM` token: the largest offset from the
+ documented year floor, so `99` stands for 2099 and the short and long readings agree
+ on the plausible year range.
+ */
+const LARGEST_SHORT_YEAR = LARGEST_YEAR - SMALLEST_YEAR;
+
+/**
  Marker some router catalogs prefix onto rolling alias entries.
  */
 const ALIAS_MARKER = '~';
@@ -454,8 +461,12 @@ export function isDateShapedRaw(raw: string,): boolean {
       && (second <= LARGEST_DAY);
     /**
      Whether the token reads as `YYMM`.
+
+     A two-digit field already lies inside the documented year range, and the bound
+     stays derived from that range so a narrower one still rejects the years it
+     excludes. Only the month field can rule the reading out.
      */
-    const readsAsYearMonth = (first <= LARGEST_DAY)
+    const readsAsYearMonth = (first <= LARGEST_SHORT_YEAR)
       && (second >= SMALLEST_CALENDAR_FIELD)
       && (second <= LARGEST_MONTH);
     return readsAsMonthDay || readsAsYearMonth;

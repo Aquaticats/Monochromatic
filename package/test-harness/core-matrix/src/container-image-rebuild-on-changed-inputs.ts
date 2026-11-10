@@ -286,7 +286,7 @@ export function podmanEngineWith({ l: parentLogger = defaultLogger, }: { readonl
     l: parentLogger,
   },);
   return {
-    hasImage: function hasImage(image,) {
+    hasImage: function hasImage(image: string,): Promise<boolean> {
       return podmanSucceeds({
         podmanArguments: [
           'image',
@@ -296,7 +296,7 @@ export function podmanEngineWith({ l: parentLogger = defaultLogger, }: { readonl
         l,
       },);
     },
-    idOf: function idOf(image,) {
+    idOf: function idOf(image: string,): Promise<string> {
       return podmanOutput({
         podmanArguments: [
           'image',
@@ -311,7 +311,7 @@ export function podmanEngineWith({ l: parentLogger = defaultLogger, }: { readonl
     labelOf: async function labelOf({
       image,
       name,
-    },) {
+    }: ImageLabelQuery,): Promise<string> {
       try {
         return await podmanOutput({
           podmanArguments: [
@@ -364,7 +364,7 @@ export async function inputsDigestOf({
    Identity of each base image, in the order the inputs list them.
    */
   const baseImageIds = await Promise.all(inputs.baseImages
-    .map(async function idOfBase(baseImage,) {
+    .map(async function idOfBase(baseImage: string,): Promise<string> {
       return await engine.hasImage(baseImage,) ? await engine.idOf(baseImage,) : MISSING_BASE_IMAGE_ID;
     },),);
   return createHash('sha256',)
