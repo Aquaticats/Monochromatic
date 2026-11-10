@@ -153,6 +153,120 @@ fn package_licenses_matches_whole_spdx_ids_not_substrings() {
     assert_eq!(code2, 0, "{events2:?}");
 }
 
+/// What:
+///  A licenses config whose MIT text is the text each package carries itself.
+/// Why:
+///  Every test below drives the same requirement table,
+/// so the difference between them is the fixture,
+/// not the config.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function packageTextsConfig(): string
+/// ```
+fn package_texts_config() -> &'static str {
+    return r#"{"rules": [{"kind": "package-licenses", "id": "lic", "directory": "LICENSES",
+        "manifests": ["package/*/*/package.json"],
+        "texts": {"LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt"},
+        "packageTexts": {"MIT": "LICENSES/MIT.txt"},
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["LGPL-3.0-or-later"]},
+                     {"operand": "MIT", "texts": ["MIT"]}]}]}"#;
+}
+
+#[test]
+fn package_licenses_keeps_each_packages_own_text_and_never_copies_one_across_packages() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("package/sindre/conf/package.json", r#"{"license": "LGPL-3.0-or-later AND MIT"}"#),
+            ("package/sindre/conf/LICENSES/MIT.txt", "MIT License\n\nCopyright (c) Sindre Sorhus\n"),
+            ("package/other/matcher/package.json", r#"{"license": "LGPL-3.0-or-later AND MIT"}"#),
+            ("package/other/matcher/LICENSES/MIT.txt", "MIT License\n\nCopyright (c) Another Author\n"),
+        ],
+    );
+    let (code1, events1) = run_config(dir.path(), package_texts_config(), RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    assert_eq!(
+        read_text(dir.path(), "package/sindre/conf/LICENSES/MIT.txt"),
+        "MIT License\n\nCopyright (c) Sindre Sorhus\n",
+        "a package keeps the text it carries"
+    );
+    assert_eq!(
+        read_text(dir.path(), "package/other/matcher/LICENSES/MIT.txt"),
+        "MIT License\n\nCopyright (c) Another Author\n",
+        "another package's text never replaces this author's"
+    );
+    assert_eq!(read_text(dir.path(), "package/other/matcher/LICENSES/LGPL-3.0-or-later.txt"), "lgpl");
+    let (code2, events2) = run_config(dir.path(), package_texts_config(), check());
+    assert_eq!(code2, 0, "{events2:?}");
+}
+
+#[test]
+fn package_licenses_removes_a_packages_own_text_when_the_expression_drops_the_id() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("package/a/b/package.json", r#"{"license": "LGPL-3.0-or-later"}"#),
+            ("package/a/b/LICENSES/MIT.txt", "the expression no longer names MIT"),
+        ],
+    );
+    let (code1, events1) = run_config(dir.path(), package_texts_config(), RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    assert!(
+        !dir.path().join("package/a/b/LICENSES/MIT.txt").exists(),
+        "the text a package carries itself is owned, so dropping the id removes it"
+    );
+    assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/LGPL-3.0-or-later.txt"), "lgpl");
+}
+
+#[test]
+fn package_licenses_fails_when_a_package_needs_a_text_it_does_not_carry() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("package/a/b/package.json", r#"{"license": "LGPL-3.0-or-later AND MIT"}"#),
+        ],
+    );
+    let (code1, events1) = run_config(dir.path(), package_texts_config(), RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    let failure = events1
+        .iter()
+        .find(|event| return event.code == "license-text-missing")
+        .expect("a package without its own text is reported");
+    assert!(failure.message.contains("package/a/b/LICENSES/MIT.txt"), "{}", failure.message);
+    assert!(failure.message.contains("upstream"), "the message says where a text comes from: {}", failure.message);
+    assert!(
+        !dir.path().join("package/a/b/LICENSES/LGPL-3.0-or-later.txt").exists(),
+        "a failing run writes nothing"
+    );
+}
+
+#[test]
+fn package_licenses_rejects_a_blank_package_text() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("package/a/b/package.json", r#"{"license": "LGPL-3.0-or-later AND MIT"}"#),
+            ("package/a/b/LICENSES/MIT.txt", " \n"),
+        ],
+    );
+    let (code1, events1) = run_config(dir.path(), package_texts_config(), RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    let failure = events1
+        .iter()
+        .find(|event| return event.code == "license-text-blank")
+        .expect("a text with no license in it is reported");
+    assert!(failure.message.contains("package/a/b/LICENSES/MIT.txt"), "{}", failure.message);
+}
+
 #[test]
 fn mirror_makes_the_target_equal_and_leaves_siblings_alone() {
     let dir = scratch_dir();
