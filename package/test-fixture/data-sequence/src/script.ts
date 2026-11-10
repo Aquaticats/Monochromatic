@@ -1,3 +1,5 @@
+/* v8 ignore file -- @preserve */
+
 // Don't test fixtures.
 
 //region Fixture Data Generation Utility: Provides manual generation logic for creating fixture data arrays and promises used in testing scenarios
