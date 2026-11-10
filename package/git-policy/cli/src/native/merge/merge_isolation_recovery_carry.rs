@@ -150,10 +150,9 @@ pub(crate) async fn restore_the_capture_awaiting<W: std::io::Write + ?Sized>(
 pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
     let detail: String = match failure {
         CarryFailure::IndexHeld(text) | CarryFailure::Failed(text) => String::from(text.as_str()),
-        CarryFailure::Foreign(path) => format!(
-            "{} changed after the merge captured it",
-            crate::path_bytes::path_message_text(path.as_slice())
-        ),
+        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
+            format!("{} changed after the merge captured it", crate::path_bytes::path_message_text(path.as_slice()))
+        }
     };
     return format!(
         "A merge in this worktree keeps the work its paths held, and that work could not be carried into them yet: {detail}. The bytes are \

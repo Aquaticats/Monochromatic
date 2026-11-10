@@ -396,7 +396,7 @@ fn a_save_between_the_index_step_and_the_file_is_kept() {
     assert!(after.contains(STAGED_LINE), "the staged line is still in the file: {after:?}");
     assert!(after.contains(FEATURE_THIRD), "the merge's line reaches the file: {after:?}");
     assert!(said.contains("a.txt"), "the command says which file it is about: {said}");
-    assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved");
+    assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved: {said}");
     assert_eq!(records(repo.as_path()), "", "the record went");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
     remove_settled(&fixture);

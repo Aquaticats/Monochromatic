@@ -97,6 +97,29 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
     return lines;
 }
 
+/// What:
+///  Say that a path the captured work does not explain was left as it is.
+/// Why:
+///   A merge that does not land puts the person's own layers back,
+/// and a path written after the capture
+///  holds bytes newer than those,
+/// so nothing is written there and the person is told which file was left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// say(`${path} was saved while this merge ran, so it holds your bytes and was left as it is`);
+/// ```
+pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(out: &mut W, path: &[u8]) {
+    let named: String = text(path);
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: {named} was written after this merge captured it, so it holds your bytes and was left as \
+             it is; the merge did not change it.\n"
+        )
+        .as_bytes(),
+    );
+}
+
 /// The text of one path for a line the person reads.
 ///
 /// In TS you'd write (pseudocode):

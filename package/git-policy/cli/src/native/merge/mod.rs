@@ -164,6 +164,10 @@ pub mod merge_isolation_carry_layers;
 /// merged or left alone.
 pub mod merge_isolation_carry_notice;
 
+/// Putting one planned worktree write in place,
+/// or leaving a path alone because what stands there is not the entry that was judged.
+pub mod merge_isolation_carry_place;
+
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;

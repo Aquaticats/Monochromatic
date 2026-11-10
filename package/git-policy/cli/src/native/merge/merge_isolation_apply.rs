@@ -246,6 +246,11 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     if let Some(capture) = plan.carried
         && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::BeforeTheApply, &mut std::io::stderr())
     {
+        // A path holding bytes newer than the capture is the person's, so the clear wrote nothing to it, the capture goes back
+        //  where it can, and the merge is made again on what the file holds now instead of being refused for a save.
+        if matches!(failure, CarryFailure::Foreign(_) | CarryFailure::Changed(_)) {
+            return Err(a_clear_that_met_newer_bytes(&place, record.as_path(), &intent, reference.as_str(), &failure));
+        }
         let detail: String = failure_text(&failure);
         let lock_taken: bool = matches!(failure, CarryFailure::IndexHeld(_));
         return Err(settle_a_failed_step(&place, record.as_path(), &intent, reference.as_str(), detail.as_str(), lock_taken, 2, b""));
@@ -437,6 +442,43 @@ fn save_for_a_later_finish(
 
 
 
+
+/// What:
+///  Put the person's own work back and make the merge again on the bytes their files hold now.
+/// Why:
+///   The owner's rule is that a save is never discarded and a merge is never refused for one;
+/// the clear stops at the first path
+///  it did not judge, so the record goes once the layers are back,
+/// and the round starts again on what the person has now
+///  (`SPEC.md`,
+/// "Merges and commits never fail").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aClearThatMetNewerBytes({ place, record, intent, reference, failure }): Bail; // settle, then Bail.Again
+/// ```
+fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path, intent: &MergeIntent, reference: &str, failure: &CarryFailure) -> Bail {
+    let detail: String = failure_text(failure);
+    return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
+        // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
+        Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
+        // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
+        Ok(MergeRecoveryAction::IndexHeld | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
+            2,
+            format!(
+                "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \
+                 removed. Run any git command again to finish it.\n"
+            ),
+        ),
+        // The merge is in the branch, which another command may have made it; the person's work is back and nothing is left.
+        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
+            code: 0,
+            stdout: String::new(),
+            stderr: format!("monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"),
+        }),
+        Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
+    };
+}
 
 /// What:
 ///  What a failed step's detail means for the command's ending.
