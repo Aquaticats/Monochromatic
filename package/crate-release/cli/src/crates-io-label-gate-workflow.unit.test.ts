@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import {
+  existsSync,
+  writeFileSync,
+} from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -108,6 +111,107 @@ const actionLines = (await readRepositoryFile(`${decisionActionFolder}/action.ym
  */
 const actionScript = (runScripts(actionLines)[0] ?? [])
   .join('\n');
+
+/**
+ The interpreter the decision action's step declares, read from the action instead of assumed, so a change there fails
+ the invariant below rather than silently running the script some other way.
+ */
+const actionShell = (actionLines.find(function isShell(line) {
+  return line.trim()
+    .startsWith('shell:');
+}) ?? '').trim()
+  .slice('shell:'.length)
+  .trim();
+
+/**
+ The shell a workflow step's script runs in when the step names none: the runner's default bash.
+ */
+const bashShell = 'bash {0}';
+
+/**
+ How long one step's script may run.
+
+ Every spawn in this file used to wait without a bound, so a child that could not finish held the whole suite in an
+ indefinite wait (`ep_poll` on the parent). A `node` that cannot start a thread under a full task ceiling sleeps for
+ good instead of failing (`doc/troubleshooting/node-26-child-stuck-when-a-full-task-ceiling-refuses-its-threads.md`),
+ and the shared per-user ceiling has been reached before. The file's peak is eight tasks and a green run of it takes
+ about five seconds, so twenty seconds is several times any legitimate step and still ends the suite by itself.
+ */
+const stepTimeoutMilliseconds = 20_000;
+
+/**
+ What a finished step's script wrote and which status it exited with. A step that produced no status never becomes one
+ of these, because that is a failure the caller has to see, not a value to compare.
+ */
+type StepResult = {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+};
+
+/**
+ Run a step's script the way GitHub runs it, with a bound on the wait.
+
+ GitHub writes a step's `run:` body to an extensionless file and gives it to the interpreter the step's `shell:` names:
+ `node {0}` for the decision action, and the default bash for a step that names none.
+
+ @param options - the fixture directory, the script, the interpreter, and the environment the step reads
+
+ @returns the status, stdout and stderr of the finished step
+
+ @throws Error when the step spawns nothing, is killed, or is still running when the bound expires
+
+ @example
+ ```ts
+ runStep({ fixture, script, shell: 'node {0}', env: {} });
+ ```
+ */
+function runStep({
+  fixture,
+  script,
+  shell,
+  env,
+}: {
+  readonly fixture: StubFixture;
+  readonly script: string;
+  readonly shell: string;
+  readonly env: Readonly<Record<string, string>>;
+}): StepResult {
+  /**
+   Whether the step runs the file through Node, as the `node {0}` shell in the action's step declares. The launcher is
+   extensionless because Actions writes one, and Node detects the module syntax of the body.
+   */
+  const runsNode = shell === 'node {0}';
+  /**
+   The command and its arguments: the interpreter with the script file, or bash with the script as its argument.
+   */
+  const command = runsNode ? process.execPath : 'bash';
+  const args = runsNode ? ['decide-action'] : ['-c', script];
+  if (runsNode)
+    writeFileSync(join(fixture.directory, 'decide-action'), script);
+  const child = spawnSync(command, args, {
+    cwd: fixture.directory,
+    env: {
+      ...fixture.environment(),
+      ...env,
+    },
+    encoding: 'utf8',
+    timeout: stepTimeoutMilliseconds,
+    killSignal: 'SIGKILL',
+  });
+  if (child.error !== undefined)
+    throw new Error(
+      `the ${shell} step did not finish within ${String(stepTimeoutMilliseconds)} ms`,
+      { cause: child.error, },
+    );
+  if (child.status === null)
+    throw new Error(`the ${shell} step produced no exit status, so it was killed by ${String(child.signal)}`);
+  return {
+    status: child.status,
+    stdout: child.stdout,
+    stderr: child.stderr,
+  };
+}
 
 /**
  Jobs whose id is, or ends with, a suffix.
@@ -250,22 +354,18 @@ async function decide({
     path: 'out',
     text: ''
   });
-  const child = spawnSync(
-    'bash',
-    ['-c', actionScript],
-    {
-      cwd: fixture.directory,
-      env: {
-        ...fixture.environment(),
-        MANIFEST_PATH: 'Cargo.toml',
-        GITHUB_OUTPUT: join(
-          fixture.directory,
-          'out'
-        ),
-      },
-      encoding: 'utf8',
+  const child = runStep({
+    fixture,
+    script: actionScript,
+    shell: actionShell,
+    env: {
+      MANIFEST_PATH: 'Cargo.toml',
+      GITHUB_OUTPUT: join(
+        fixture.directory,
+        'out'
+      ),
     },
-  );
+  });
   expect(child.status).toBe(0);
   return Object.fromEntries((await fixture.read('out')).split('\n')
     .filter(function nonBlank(line) {
@@ -403,25 +503,21 @@ async function runDetect({
     path: 'detect-out',
     text: ''
   });
-  const child = spawnSync(
-    'bash',
-    ['-c', facts.script],
-    {
-      cwd: fixture.directory,
-      env: {
-        ...fixture.environment(),
-        EVENT_NAME: event,
-        INPUT_CRATE: facts.crate,
-        BEFORE_SHA: '',
-        [decisionVariable]: decision[decisionOutput] ?? '',
-        GITHUB_OUTPUT: join(
-          fixture.directory,
-          'detect-out'
-        ),
-      },
-      encoding: 'utf8',
+  const child = runStep({
+    fixture,
+    script: facts.script,
+    shell: bashShell,
+    env: {
+      EVENT_NAME: event,
+      INPUT_CRATE: facts.crate,
+      BEFORE_SHA: '',
+      [decisionVariable]: decision[decisionOutput] ?? '',
+      GITHUB_OUTPUT: join(
+        fixture.directory,
+        'detect-out'
+      ),
     },
-  );
+  });
   expect(child.status).toBe(0);
   return {
     detect: Object.fromEntries((await fixture.read('detect-out')).split('\n')
@@ -469,6 +565,12 @@ await describe({
             expect(actionScript).toContain(decisionOutput);
           },
         }),
+        it({
+          name: 'runs that script as a Node step, which is how this file runs it, so the two cannot drift apart',
+          fn: async () => {
+            expect(actionShell).toBe('node {0}');
+          },
+        }),
         ...manifestLineCases.map(function actionCase({
           version,
           label,
@@ -500,22 +602,18 @@ await describe({
               path: 'out',
               text: ''
             });
-            const child = spawnSync(
-              'bash',
-              ['-c', actionScript],
-              {
-                cwd: fixture.directory,
-                env: {
-                  ...fixture.environment(),
-                  MANIFEST_PATH: 'Cargo.toml',
-                  GITHUB_OUTPUT: join(
-                    fixture.directory,
-                    'out'
-                  ),
-                },
-                encoding: 'utf8',
+            const child = runStep({
+              fixture,
+              script: actionScript,
+              shell: actionShell,
+              env: {
+                MANIFEST_PATH: 'Cargo.toml',
+                GITHUB_OUTPUT: join(
+                  fixture.directory,
+                  'out'
+                ),
               },
-            );
+            });
             expect(child.status).toBe(0);
             expect(await fixture.read('out')).toContain(`${decisionOutput}=false`);
           },
