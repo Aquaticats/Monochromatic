@@ -20,26 +20,29 @@
 //! plant('refs/heads/main.lock'); const refused = commit(); expect(refused.stderr).toContain('rm -- '); rm(lock); expect(commit().code).toBe(0);
 //! ```
 
-use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, FixtureService, bounded_for, fixture, git, repository, start_fixture_service, wrapper_first_path};
+use super::commit::{COMMIT_BOUND_SECONDS, git_text, remove_settled};
+use super::support::{Fixture, FixtureService, Observed, bounded_for, fixture, git, observe, repository, start_fixture_service, wrapper_first_path};
 use super::support_fixture_service_log::service_log;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 /// The longest a control waits for anything,
 /// far beyond a healthy run.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The longest a command that settles a held commit may run here.
-/// A settlement does what the landing that met the lock would have done,
+/// The longest a command that settles a held commit may run here,
+/// which is the commit bound these controls already use:
+/// a settlement does what the landing that met the lock would have done,
 /// installs the index entries and marks the batch done included,
-/// so it costs what a landing costs;
-/// on a shared host whose disk queue is deep that is minutes and not milliseconds,
-/// and the bound is a guard against a hang,
-/// not a measure of the work.
-const SETTLE_BOUND_SECONDS: &str = "600";
+/// so it costs what a landing costs.
+/// It is never the text of the shared bound of one Git command:
+/// that text is the supervisor's own backstop,
+/// and a command carrying it must show work every few seconds,
+/// which a commit answered by the service cannot
+/// (`shared_bound_misuse`,
+/// `binary_supervisor.rs`).
+const SETTLE_BOUND_SECONDS: &str = COMMIT_BOUND_SECONDS;
 
 /// The longest a control waits for a settlement on a shared host.
 const SETTLE_PATIENCE: Duration = Duration::from_secs(600);
@@ -78,19 +81,45 @@ fn wait_for_at_most(what: &str, patience: Duration, condition: impl Fn() -> bool
     }
 }
 
+/// What:
+///  A lock a killed Git left,
+///  as old as one is when the next command meets it.
+/// Why:
+///  A lock younger than the judgement's margin is looked at again rather than judged,
+///  so a lock written a moment ago makes the landing poll for the whole wait
+///  and leaves the command's own process tree idle for seconds,
+///  which the harness's hang guard reads as a deadlock.
+///  A lock a killed Git left is seconds to days old,
+///  and one two minutes old is judged at once,
+///  so the control depends on the code and not on that wait.
+fn plant_a_lock(path: &Path) {
+    std::fs::create_dir_all(path.parent().expect("the lock's directory")).expect("the lock's directory");
+    let file: std::fs::File = std::fs::File::create(path).expect("the lock a killed Git leaves");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(120);
+    file.set_modified(long_ago).expect("the lock's age");
+}
+
+/// The command a wrapped run of `arguments` in `repo` is started with.
+fn wrapped_at_the_settle_bound(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> std::process::Command {
+    let program: PathBuf = fixture.root.join("bin/git");
+    let mut command: std::process::Command = bounded_for(fixture, program.as_path(), wrapper_first_path(fixture).as_os_str(), SETTLE_BOUND_SECONDS);
+    command.current_dir(repo).args(arguments);
+    return command;
+}
+
 /// Run a wrapped commit of `FILE` to its end,
 /// with the bound a commit that meets a reference lock needs,
 /// and return its exit status and what it wrote.
 fn commit(fixture: &Fixture, repo: &Path, message: &str) -> (Option<i32>, String) {
-    let program: PathBuf = fixture.root.join("bin/git");
-    let ended = bounded_for(fixture, program.as_path(), wrapper_first_path(fixture).as_os_str(), SETTLE_BOUND_SECONDS)
-        .current_dir(repo)
-        .args(["commit", "--quiet", "-m", message, "--", FILE])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .output()
-        .expect("the wrapped commit runs");
-    return (ended.status.code(), String::from_utf8_lossy(ended.stderr.as_slice()).into_owned());
+    return commit_paths(fixture, repo, message, FILE);
+}
+
+/// Run a wrapped commit of one named path to its end,
+/// with the bound a commit that meets a reference lock needs.
+fn commit_paths(fixture: &Fixture, repo: &Path, message: &str, path: &str) -> (Option<i32>, String) {
+    let mut command: std::process::Command = wrapped_at_the_settle_bound(fixture, repo, &["commit", "--quiet", "-m", message, "--", path]);
+    let ended: Observed = observe(&mut command, b"");
+    return (ended.code, String::from_utf8_lossy(ended.stderr.as_slice()).into_owned());
 }
 
 /// What:
@@ -129,15 +158,9 @@ fn a_commit_that_meets_a_live_reference_lock_waits_for_it_and_lands() {
 /// with the bound a settlement needs,
 /// and return its exit status and what it wrote on standard error.
 fn command(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Option<i32>, String) {
-    let program: PathBuf = fixture.root.join("bin/git");
-    let ended = bounded_for(fixture, program.as_path(), wrapper_first_path(fixture).as_os_str(), SETTLE_BOUND_SECONDS)
-        .current_dir(repo)
-        .args(arguments)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .output()
-        .expect("the wrapped command runs");
-    return (ended.status.code(), String::from_utf8_lossy(ended.stderr.as_slice()).into_owned());
+    let mut command: std::process::Command = wrapped_at_the_settle_bound(fixture, repo, arguments);
+    let ended: Observed = observe(&mut command, b"");
+    return (ended.code, String::from_utf8_lossy(ended.stderr.as_slice()).into_owned());
 }
 
 /// The subject of the commit the branch names.
@@ -162,7 +185,7 @@ fn head_subject(fixture: &Fixture, repo: &Path) -> String {
 fn a_commit_that_meets_a_lock_nothing_proves_gone_is_held_and_moves_the_branch_when_it_goes() {
     let (fixture, repo, service) = scene("reference-lock-held");
     let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
-    std::fs::write(&lock, "").expect("the lock a killed Git leaves");
+    plant_a_lock(lock.as_path());
     std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
     let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
     assert_eq!(code, Some(0), "the commit is made and held: {said}");
@@ -211,7 +234,7 @@ fn a_commit_that_meets_a_lock_nothing_proves_gone_is_held_and_moves_the_branch_w
 fn a_held_commit_lands_on_the_branch_another_session_moved() {
     let (fixture, repo, service) = scene("reference-lock-held-moved");
     let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
-    std::fs::write(&lock, "").expect("the lock a killed Git leaves");
+    plant_a_lock(lock.as_path());
     std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
     let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
     assert_eq!(code, Some(0), "the commit is made and held: {said}");
@@ -247,20 +270,20 @@ fn two_held_commits_wait_beside_each_other_and_both_land_in_order() {
     let (fixture, repo, service) = scene("reference-lock-two-held");
     let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
     let other: &str = "g.txt";
-    std::fs::write(&lock, "").expect("the lock a killed Git leaves");
+    plant_a_lock(lock.as_path());
     std::fs::write(repo.join(FILE), "the first edit\n").expect("the first edit");
     let (first, said) = commit(&fixture, repo.as_path(), "held first");
     assert_eq!(first, Some(0), "the first commit is made and held: {said}");
     std::fs::write(repo.join(other), "the second edit\n").expect("the second edit");
     git(&fixture, &repo, &["add", "--", other]);
-    let (second, said_second) = commit(&fixture, repo.as_path(), "held second");
+    let (second, said_second) = commit_paths(&fixture, repo.as_path(), "held second", other);
     assert_eq!(second, Some(0), "the second commit is made and held beside the first: {said_second}");
     assert!(said_second.contains("2 held commits"), "the count of held commits is said: {said_second}");
     assert_eq!(head_subject(&fixture, repo.as_path()), "base\n", "the branch has not moved");
     let (quiet, told) = command(&fixture, repo.as_path(), &["status"]);
     assert_eq!(quiet, Some(0), "the command itself runs: {told}");
     assert!(told.contains("2 held commits"), "the count is said on every command: {told}");
-    assert!(told.contains("held first") || told.contains("held second"), "each held commit is named: {told}");
+    assert_eq!(told.matches("is held: the branch has not moved yet").count(), 2, "each held commit has its own line: {told}");
     // The lock goes, and the next command lands both, in the order they were made.
     std::fs::remove_file(&lock).expect("the holder lets go");
     let (resumed, said_now) = command(&fixture, repo.as_path(), &["status"]);

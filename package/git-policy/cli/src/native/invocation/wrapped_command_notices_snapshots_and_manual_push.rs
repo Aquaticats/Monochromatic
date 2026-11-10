@@ -244,7 +244,7 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocatio
         return;
     }
     for line in lines {
-        let _written = writeln!(std::io::stderr(), "{}{line}", crate::wrapper_names_old_and_new::PROGRAM.current);
+        let _written = writeln!(std::io::stderr(), "{}: {line}", crate::wrapper_names_old_and_new::PROGRAM.current);
     }
 }
 
