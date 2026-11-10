@@ -163,6 +163,21 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
 }
 
 /// What:
+///  Whether a record's `schemaVersion` is one of the earlier versions this build still reads.
+/// Why:
+///   An earlier record carries the same fields,
+///  so the version it names is what decides it,
+///  never the shape of its bytes.
+fn an_earlier_schema_version(map: &serde_json::Map<String, serde_json::Value>, earlier: &[i64]) -> bool {
+    for version in earlier {
+        if number_equals(map, "schemaVersion", *version) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Parse record bytes,
 /// or nothing when they are not a valid intent.
 /// Why:
@@ -175,7 +190,7 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
 pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let map: serde_json::Map<String, serde_json::Value> = parse_object(decode_fatal(bytes)?)?;
     let version_readable: bool = number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
-        || EARLIER_MERGE_INTENT_SCHEMA_VERSIONS.iter().any(|earlier| { return number_equals(&map, "schemaVersion", *earlier); });
+        || an_earlier_schema_version(&map, &EARLIER_MERGE_INTENT_SCHEMA_VERSIONS);
     if !version_readable || string_field(&map, "state")? != "merge-intent" {
         return None;
     }

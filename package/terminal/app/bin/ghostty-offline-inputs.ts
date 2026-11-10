@@ -121,3 +121,39 @@ export function verifyArchive({ bytes, pinned }: { readonly bytes: Uint8Array; r
 export function readyMarkerFor(manifestText: string): string {
   return `${sha256Of(new TextEncoder().encode(manifestText))}\n`
 }
+
+/**
+ * Whether a ready marker may be trusted: it must carry the digest of the current pins.
+ *
+ * @param options - `markerText` is what the marker file holds, or undefined when no marker exists.
+ * @returns True only for a marker written from the same pins.
+ */
+export function readyMarkerIsCurrent({ markerText, expectedMarkerText }: { readonly markerText: string | undefined; readonly expectedMarkerText: string }): boolean {
+  return markerText === expectedMarkerText
+}
+
+/**
+ * The paths, relative to the offline-inputs root, that a finished fetch leaves behind.
+ *
+ * The Ghostty checkout is named by its build.zig, because that is the file libghostty-vt-sys asserts inside
+ * GHOSTTY_SOURCE_DIR before it builds, and each Zig package by the directory Zig reads it from.
+ *
+ * @param manifest - the parsed manifest.
+ * @returns One relative path per promised input.
+ */
+export function promisedInputPaths(manifest: OfflineInputsManifest): readonly string[] {
+  return ['source/build.zig', ...manifest.packages.map((pinned) => `packages/${pinned.zigHash}`)]
+}
+
+/**
+ * The promised inputs that are absent from disk.
+ *
+ * A marker alone stands for nothing: a worktree that kept the gitignored marker while its target directory lost the
+ * source tree would otherwise report the inputs as current and the build would stop.
+ *
+ * @param options - `isPresent` answers whether a relative path exists under the offline-inputs root.
+ * @returns The missing relative paths, empty when every promised input is present.
+ */
+export function missingInputs({ manifest, isPresent }: { readonly manifest: OfflineInputsManifest; readonly isPresent: (relativePath: string) => boolean }): readonly string[] {
+  return promisedInputPaths(manifest).filter((relativePath) => !isPresent(relativePath))
+}

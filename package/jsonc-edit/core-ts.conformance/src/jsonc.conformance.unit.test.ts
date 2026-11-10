@@ -34,6 +34,8 @@ import type { JsonValue, } from 'type-fest';
 
 import fixtures from '../fixtures/jsonc-conformance.json' with { type: 'json', };
 
+//region Local corpus: documents parsed without fixtures/jsonc-conformance.json, plus the source cast they share
+
 const asJsonc = (source: string,): StringJsonc => source as StringJsonc;
 
 type ValidCase = {
@@ -78,6 +80,10 @@ const invalidCases: readonly string[] = [
   '{ "a": 1, , }',
   '{ /* open comment\n"a": 1 }',
 ];
+
+//endregion Local corpus
+
+//region Shared fixture vocabulary: the shapes fixtures/jsonc-conformance.json carries, spelled as this module compares
 
 /**
  One shared fixture case that must parse, with the shape both implementations agree on.
@@ -129,6 +135,10 @@ type SharedOwnershipCase = {
 };
 /* oxlint-enable no-restricted-syntax/no-nullish-union */
 
+//endregion Shared fixture vocabulary
+
+//region Fixture expectation helpers: decode fixture fields and API results into one vocabulary for the case shapes
+
 /**
  What:     Decode one fixture comment field into text or the absence sentinel.
  Why:      The fixture's absence spelling is JSON null; narrowing by typeof keeps this module's
@@ -179,6 +189,10 @@ type SharedRootShapeCase = {
   readonly refused: boolean;
 };
 
+//endregion Fixture expectation helpers
+
+//region Edit helpers: walk a document for its comment bodies, build a replacement by kind, and probe a refusal
+
 /**
  What:     Collect every comment body attached anywhere in a document.
  Why:      The round-trip contract is stated as bodies that must still be attached afterwards, which
@@ -188,11 +202,15 @@ type SharedRootShapeCase = {
  @param path - Address the walk is currently at.
  @param into - Accumulator, filled in place so the walk stays tail-shaped.
  */
-const collectBodies = (
-  state: JsoncEditState,
-  path: readonly (string | number)[],
-  into: string[],
-): void => {
+const collectBodies = ({
+  state,
+  path,
+  into,
+}: {
+  readonly state: JsoncEditState;
+  readonly path: readonly (string | number)[];
+  readonly into: string[];
+},): void => {
   const valueComment = jsoncGetComment({ state, path: [...path,], },);
   if (valueComment !== COMMENT_ABSENT)
     into.push(valueComment.text,);
@@ -208,7 +226,7 @@ const collectBodies = (
     return;
   if (Array.isArray(value,)) {
     value.forEach(function walkElement(_: unknown, index: number,): void {
-      collectBodies(state, [...path, index,], into,);
+      collectBodies({ state, path: [...path, index,], into, },);
     },);
     return;
   }
@@ -216,7 +234,7 @@ const collectBodies = (
   if (keys === undefined)
     return;
   for (const key of keys)
-    collectBodies(state, [...path, key,], into,);
+    collectBodies({ state, path: [...path, key,], into, },);
 };
 
 /**
@@ -269,9 +287,15 @@ const attemptRefusal = (attempt: () => unknown,): RefusalProbe => {
   }
 };
 
+//endregion Edit helpers
+
+//region Test tree: the local corpora and the corpus both maintained implementations share
+
 await describe({
   name: 'JSONC conformance',
   children: [
+    //region Local corpus cases: run both local tables, each as a loop over its own entries
+
     it({
       name: 'valid JSONC documents parse to the expected value',
       fn: async () => {
@@ -293,6 +317,11 @@ await describe({
           },).toThrow();
       },
     },),
+
+    //endregion Local corpus cases
+
+    //region Shared fixtures: reads fixtures/jsonc-conformance.json, the corpus the Rust crate reads too
+
     describe({
       name: 'shared fixtures',
       children: [
@@ -392,7 +421,7 @@ await describe({
               },);
               const reparsed = parseJsoncEdit({ source: asJsonc(emitted,), },);
               const bodies: string[] = [];
-              collectBodies(reparsed, [], bodies,);
+              collectBodies({ state: reparsed, path: [], into: bodies, },);
               for (const wanted of sample.commentBodies)
                 expect(bodies.includes(wanted,),).toBe(true,);
             }
@@ -443,5 +472,9 @@ await describe({
         },),
       ],
     },),
+
+    //endregion Shared fixtures
   ],
 },);
+
+//endregion Test tree

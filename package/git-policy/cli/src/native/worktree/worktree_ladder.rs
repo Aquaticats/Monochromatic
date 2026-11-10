@@ -84,7 +84,7 @@ mod other {
 
         /// Settle nothing.
         pub fn finish(self, git: GitStatus, __run_git: &mut dyn GitRunner, _context: &GitContext, _out: &mut dyn Write) -> LadderResult {
-            return LadderResult { git, carried: None, placed: None };
+            return LadderResult { git, carried: None, placed: None, claim: None };
         }
     }
 }
