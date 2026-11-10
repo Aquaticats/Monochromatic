@@ -959,7 +959,7 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
-## Answered in the question tool, recorded 2026-11-10T11:13:17-05:00
+## Answered in the question tool, recorded 2026-11-10T11:15:59-05:00
 
 ### A clean that deletes ignored files in a linked worktree
 
