@@ -7,6 +7,30 @@
 //region Delimiter stripping
 
 /**
+ Raised when a delimiter literal is empty.
+ 
+ An empty delimiter matches at every cursor position, so a scan between
+ delimiters never advances past the opener and would consume memory until the
+ process dies instead of returning. Only non-empty literals can bound a span.
+ */
+class EmptyDelimiterError extends Error {
+  /**
+   Build the diagnostic naming the parameter the caller left empty.
+   
+   @param parameter - name of the delimiter parameter carrying the empty literal
+   
+   @example
+   ```ts
+   new EmptyDelimiterError('openDelim');
+   ```
+   */
+  constructor(parameter: 'openDelim' | 'closeDelim',) {
+    super(`stripBetweenDelims needs a non-empty delimiter, but ${parameter} is empty`,);
+    this.name = 'EmptyDelimiterError';
+  }
+}
+
+/**
  Removes substrings bounded by matching open and close delimiters from `text`.
  
  Iterates left to right. For each open delimiter found, removes through the
@@ -16,13 +40,16 @@
  
  @param text - input text
  
- @param openDelim - opening delimiter literal
+ @param openDelim - opening delimiter literal, which must not be empty
  
- @param closeDelim - closing delimiter literal
+ @param closeDelim - closing delimiter literal, which must not be empty
  
  @param disallowedInside - optional character that aborts stripping when present inside candidate span
  
  @returns text with each matched delimiter span removed
+ 
+ @throws {@link EmptyDelimiterError} when `openDelim` or `closeDelim` is empty,
+ because an empty literal matches at the cursor and the scan could never advance
  
  @example
  ```ts
@@ -43,6 +70,11 @@ function stripBetweenDelims(
     readonly disallowedInside?: string;
   },
 ): string {
+  if (openDelim === '')
+    throw new EmptyDelimiterError('openDelim',);
+  if (closeDelim === '')
+    throw new EmptyDelimiterError('closeDelim',);
+
   /**
    Output segments, joined once so the accumulator is never recopied per span.
    */
@@ -147,6 +179,7 @@ function stripLinesStartingWith(
 //endregion Delimiter stripping
 
 export {
+  EmptyDelimiterError,
   stripBetweenDelims,
   stripLinesStartingWith,
 };
