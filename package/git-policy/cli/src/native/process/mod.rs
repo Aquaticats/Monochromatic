@@ -42,6 +42,10 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// Whether this process has a controlling terminal,
+/// and so may have a person to answer a login question.
+pub mod control_terminal;
+
 /// The descriptor the relay sends through:
 /// made once,
 /// pointed at the child being waited for,
