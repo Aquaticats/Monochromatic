@@ -853,7 +853,7 @@ highest priority first:
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
-- Landed on main since the previous entry:
+- Landed on main since the `mpm-shadow` landing (`9406b6e5b0`):
   `931a4a18e2` (a `#` on a publish-list item is refused by name,
   322 of 322 selected tests on top of main),
   `e590c0554d` (service work items and other records keep path bytes),

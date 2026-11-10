@@ -540,7 +540,7 @@ and every Windows and macOS leg.
   was throttled in 207 of 2260 CPU periods (164.8 s of throttled time),
   and killed nothing.
   Two limits of this figure:
-  the build reused the target directory the failed attempt named later in this bullet had already filled,
+  the build reused the target directory the earlier attempt (19:45:55 to 19:51:07) had already filled,
   so a cold build can go higher,
   and the variants covered are the release build only.
   `lint:clippy:container` and `test:container` share this bound and were not run.

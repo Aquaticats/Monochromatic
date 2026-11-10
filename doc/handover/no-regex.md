@@ -391,7 +391,7 @@ this task;
 - `pnpm-lock.yaml`
 
 Every file I changed for this task is committed;
- leave the above alone
+ leave those working-tree modifications alone
 unless the user asks otherwise.
 
 ## If you need to resume / extend
@@ -605,8 +605,9 @@ unless the user asks otherwise.
 
 ### If a downstream test fails
 
-- `UncertaintyMatch.pattern` field was dropped earlier in this overall
-  task.
+- `UncertaintyMatch.pattern` field was dropped by `a457ddcb`,
+  the
+  `uncertainty.ts` split of this task.
    Only consumer outside `uncertainty*.ts` is
   `stop-reminders/index.ts`,
    which reads `.phrase`.

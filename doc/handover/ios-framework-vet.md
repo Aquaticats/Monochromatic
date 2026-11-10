@@ -1040,8 +1040,8 @@ NET substrate's `RustTriple` fix);
   Fails two owner hard rules;
    no gate build attempted.
    Full reasoning in `device-gate-results.md`.
-- Owner-appended set (gate after the above,
-   before the web block):
+- Owner-appended set (gated after the ranked frameworks,
+  before the web frameworks):
    Dioxus DONE (FULL PASS both legs,
   2026-06-12:
    Dioxus 0.7.9 `dx` CLI,
