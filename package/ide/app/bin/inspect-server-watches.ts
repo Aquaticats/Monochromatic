@@ -11,7 +11,7 @@
 // the diagnostics stale. SERVER_WATCH_BEFORE_BINARY names an older ide-language-inspect build to measure as
 // "before" (case rust-before, which only opens, waits, and closes, since older builds know fewer steps).
 // No server is ever pointed at this repository; it is read only to copy the TypeScript 7 packages.
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -20,7 +20,9 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { typescriptInStore } from './typescript-in-store.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
-const store = resolve('../../../node_modules/.pnpm');
+// The workspace keeps one global virtual store, named by pnpm itself, below its store directory; a path written here
+// pointed at the per-project layout the workspace left on 2026-11-02.
+const store = join(execFileSync('pnpm', ['store', 'path'], { encoding: 'utf8' }).trim(), 'links');
 const privateRoot = join(homedir(), 'temp', 'agent');
 if ((statSync(privateRoot).mode & 0o077) !== 0) throw new Error('Scratch root must exclude group and other permissions: ' + privateRoot);
 const base = realpathSync(mkdtempSync(join(privateRoot, 'ide-server-watches-')));
@@ -96,10 +98,10 @@ for (let group = 0; group < 40; group++) {
 // The displayed file imports from another file; removing the export there makes an error here.
 write({ root: ts, relative: 'src/g00/dep.ts', text: 'export const local: number = 1;\n' });
 write({ root: ts, relative: 'src/g00/f00.ts', text: 'import { value } from "pkg-0000";\nimport { local } from "./dep";\nexport const doubled: number = value * 2 + local;\n' });
-// The compiler the workspace installs, whose folder name carries the version; the check copies what the store holds.
-const typescript = typescriptInStore(store);
-cpSync(join(store, typescript.compiler, 'node_modules', 'typescript'), join(ts, 'node_modules', 'typescript'), { recursive: true });
-cpSync(join(store, typescript.platformBinary, 'node_modules', '@typescript', 'typescript-linux-x64'), join(ts, 'node_modules', '@typescript', 'typescript-linux-x64'), { recursive: true });
+// The compiler the workspace installs, found by the store's own folders; the check copies what the store holds.
+const typescript = typescriptInStore({ store });
+cpSync(typescript.compiler, join(ts, 'node_modules', 'typescript'), { recursive: true });
+cpSync(typescript.platformBinary, join(ts, 'node_modules', '@typescript', 'typescript-linux-x64'), { recursive: true });
 filler(ts);
 const countDirectories = (root: string): number => {
   let count = 0;
