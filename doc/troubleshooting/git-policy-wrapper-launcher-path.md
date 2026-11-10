@@ -12,13 +12,12 @@ this repository switches its installed program and its settings file when it ins
 This record keeps the names of its time.
 
 Note 2026-11-09T16:55:17-05:00:
-these citations in this record name paths that no longer exist.
+this citation in this record names a path that no longer exists.
 `package/git-policy/cli/src/native/rule_commit_only.rs` is now
 `package/git-policy/cli/src/native/commit/rule_commit_only.rs`,
 moved 2026-11-03 in `a004a6ab2c`.
-`package/git-policy/cli/src/native/shadow_links.rs` is now
-`package/git-policy/cli/src/native/shadow/shadow_links.rs`,
-moved 2026-11-03 in `373765289c`.
+The shadow-links citation this note also carried moved with the LFS incident into
+`git-policy-shadow-lfs.md`.
 
 ## Symptom
 
@@ -128,10 +127,6 @@ not another documentation-only warning.
 `package/git-policy/cli/src/native/commit/rule_commit_only.rs` in `a004a6ab2c`
 (refactor(git-policy-cli):
 move the commit path modules into a commit folder).
-`package/git-policy/cli/src/native/shadow_links.rs` moved on 2026-11-03 to
-`package/git-policy/cli/src/native/shadow/shadow_links.rs` in `373765289c`
-(refactor(git-policy-cli):
-move the shadow repository and replay modules into a shadow folder).
 
 [Issue 1768](https://github.com/Aquaticats/Monochromatic/issues/1768) records this UX and integration gap.
 [Issue 575](https://github.com/Aquaticats/Monochromatic/issues/575) covers related explicit real-Git invocations.
