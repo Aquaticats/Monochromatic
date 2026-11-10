@@ -152,56 +152,56 @@ and the web profile then booted with no `skipping profile bundle` line.
 
 ## Open queue
 
-1. Make the `engines.dsh` field stop pinning one exact version.
-   Both plugin manifests declare a single version,
-   so every DSH upgrade makes DSH skip the bundles again,
-   as `doc/troubleshooting/dsh-rc5-profile-startup.md` records.
-   Whether a range is safe for plugins that call host APIs is the owner's call.
-   Also open:
-   the comments at `pnpm-workspace.yaml` about `@deepseek-ai/dsh-llm-pi-ai` and
-   `@deepseek-ai/dsh-config-editor` still describe their 0.2.1-rc.2 behavior,
-   and were not re-checked against 0.2.2-rc.1.
-   Test sessions `trial-real-home-2` and `trial-real-home-3` remain in the real session list,
-   along with the backup `~/.dsh/cordis.patch.yml.bak-20261107T214942-0500`,
-   until the owner says to remove them.
-2. Collapse both search provider keys to a single home.
-   The full procedure is
-   `doc/runbook/search-fetch-credential-single-home.local.md`,
-   which is local-only and not tracked,
-   and which also covers the key rotation that goes with it.
-   The single home is
-   `~/.pi/agent/extensions/pi-search-fetch.json`,
-   and reaching it requires deleting the `LINKUP_API_KEY` and `EXA_API_KEY`
-   exports from `~/.bashrc`,
-   because `resolveApiKey` prefers the environment and would otherwise shadow
-   the file.
-   The same procedure swaps Claude Code's hosted `linkup` MCP server for the
-   repo's stdio `search-fetch` server at global scope.
-   Only the owner can perform it:
-   it needs a new key from the Linkup dashboard and Claude Code stopped while
-   `~/.claude.json` is edited.
-3. Priority 7 in the audit:
-   guard the `preset-cordis` override against upgrade drift.
-   The override shadows all 35 shipped ids in identical order,
-   so any upstream change to `presets/cordis.patch.yml` is lost silently at the
-   next DSH upgrade,
-   with a `MAINTENANCE` comment as the only defence.
-   A repo task that diffs the shipped preset against the override and fails on
-   drift would make that loud.
-   The predicted failure happened on 2026-11-07:
-   the user-level patch restated three presets with a `list-agents` row that 0.2.2-rc.1 removed,
-   and no session could be created
-   (`doc/troubleshooting/dsh-list-agents-subpath-removed-in-0-2-2-rc-1.md`).
-   The row is fixed.
-   The drift guard is still proposed and not taken,
-   and is the owner's call.
-4. The 14 hidden workflow skills.
-   `~/.agents/skills/` has 29 `SKILL.md` files and exactly 14 carry
-   `disable-model-invocation: true`,
-   which DSH honours by excluding them from the model-visible catalog.
-   Exposing them means writing a plugin,
-   since `dsh-commands` registers commands in code.
-   Settled as an audit finding rather than work.
+1.  Make the `engines.dsh` field stop pinning one exact version.
+    Both plugin manifests declare a single version,
+    so every DSH upgrade makes DSH skip the bundles again,
+    as `doc/troubleshooting/dsh-rc5-profile-startup.md` records.
+    Whether a range is safe for plugins that call host APIs is the owner's call.
+    Also open:
+    the comments at `pnpm-workspace.yaml` about `@deepseek-ai/dsh-llm-pi-ai` and
+    `@deepseek-ai/dsh-config-editor` still describe their 0.2.1-rc.2 behavior,
+    and were not re-checked against 0.2.2-rc.1.
+    Test sessions `trial-real-home-2` and `trial-real-home-3` remain in the real session list,
+    along with the backup `~/.dsh/cordis.patch.yml.bak-20261107T214942-0500`,
+    until the owner says to remove them.
+2.  Collapse both search provider keys to a single home.
+    The full procedure is
+    `doc/runbook/search-fetch-credential-single-home.local.md`,
+    which is local-only and not tracked,
+    and which also covers the key rotation that goes with it.
+    The single home is
+    `~/.pi/agent/extensions/pi-search-fetch.json`,
+    and reaching it requires deleting the `LINKUP_API_KEY` and `EXA_API_KEY`
+    exports from `~/.bashrc`,
+    because `resolveApiKey` prefers the environment and would otherwise shadow
+    the file.
+    The same procedure swaps Claude Code's hosted `linkup` MCP server for the
+    repo's stdio `search-fetch` server at global scope.
+    Only the owner can perform it:
+    it needs a new key from the Linkup dashboard and Claude Code stopped while
+    `~/.claude.json` is edited.
+3.  Priority 7 in the audit:
+    guard the `preset-cordis` override against upgrade drift.
+    The override shadows all 35 shipped ids in identical order,
+    so any upstream change to `presets/cordis.patch.yml` is lost silently at the
+    next DSH upgrade,
+    with a `MAINTENANCE` comment as the only defence.
+    A repo task that diffs the shipped preset against the override and fails on
+    drift would make that loud.
+    The predicted failure happened on 2026-11-07:
+    the user-level patch restated three presets with a `list-agents` row that 0.2.2-rc.1 removed,
+    and no session could be created
+    (`doc/troubleshooting/dsh-list-agents-subpath-removed-in-0-2-2-rc-1.md`).
+    The row is fixed.
+    The drift guard is still proposed and not taken,
+    and is the owner's call.
+4.  The 14 hidden workflow skills.
+    `~/.agents/skills/` has 29 `SKILL.md` files and exactly 14 carry
+    `disable-model-invocation: true`,
+    which DSH honours by excluding them from the model-visible catalog.
+    Exposing them means writing a plugin,
+    since `dsh-commands` registers commands in code.
+    Settled as an audit finding rather than work.
 
 ## Owner preferences
 

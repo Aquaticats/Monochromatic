@@ -29,30 +29,30 @@ but leaves this user-global setup unchanged.
 
 ## Steps
 
-1. Add the entry to the `[tools]` table of `~/.config/mise/config.toml`.
-   Copy the single `"cargo:monochromatic-git-policy-cli" = { ... }` line from the fenced block in
-   `doc/planning/cli-git-global-install.md`,
-   section `Proposal`.
-   Keep `version = "latest"`:
-   the wrapper is our own package and is never pinned.
-2. Install only this tool,
-   from the home directory,
-   so the global entry applies:
+1.  Add the entry to the `[tools]` table of `~/.config/mise/config.toml`.
+    Copy the single `"cargo:monochromatic-git-policy-cli" = { ... }` line from the fenced block in
+    `doc/planning/cli-git-global-install.md`,
+    section `Proposal`.
+    Keep `version = "latest"`:
+    the wrapper is our own package and is never pinned.
+2.  Install only this tool,
+    from the home directory,
+    so the global entry applies:
 
-   ```shell
-   # run from a terminal, outside any repository
-   cd ~ && mise install cargo:monochromatic-git-policy-cli
-   ```
+    ```shell
+    # run from a terminal, outside any repository
+    cd ~ && mise install cargo:monochromatic-git-policy-cli
+    ```
 
-   A bare `mise install` would install every missing global tool.
-   If the install reports a timeout while checking a download,
-   run the same command again.
-3. Check the result in a clean login shell:
+    A bare `mise install` would install every missing global tool.
+    If the install reports a timeout while checking a download,
+    run the same command again.
+3.  Check the result in a clean login shell:
 
-   ```shell
-   # expected: the first line names ~/.local/bin/git, the second /usr/bin/git
-   env -i HOME="$HOME" bash -lic 'cd ~; type -a git'
-   ```
+    ```shell
+    # expected: the first line names ~/.local/bin/git, the second /usr/bin/git
+    env -i HOME="$HOME" bash -lic 'cd ~; type -a git'
+    ```
 
 ## Verify that auto-push works
 

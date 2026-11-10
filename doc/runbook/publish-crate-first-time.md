@@ -73,77 +73,77 @@ TODO
 Prerequisites,
 each verifiable on a clean machine:
 
-1. A Linux host with this repository checked out and on `main`,
-   at a commit that contains the version you intend to publish.
-   Check with `git -C <repo> log --oneline -1` and
-   `grep '^version' <repo>/package/jsonc-edit/core-rust/Cargo.toml`.
-2. The Rust toolchain this repository pins,
-   installed by running `mise run toolchain:install` from the repository root
-   (`toolchain.lock.json` records the version).
-   Check with `mise run toolchain:list`,
-   which prints observed versus locked versions and exits non-zero on drift,
-   and `cargo --version`,
-   which must print a version rather than an error.
-3. Network access to `crates.io`,
-   `static.crates.io` and `index.crates.io`.
-   Check with `curl -sS -o /dev/null -w '%{http_code}\n' -A 'setup-check' https://crates.io/api/v1/crates/serde`,
-   which must print `200`.
-4. A browser signed in to the crates.io account that owns this repository's other crates,
-   reached through GitHub sign-in.
-   Check by opening <https://crates.io/> and confirming your avatar in the top-right corner
-   rather than a **Log in** button.
-5. Owner rights on the crate,
-   which a first publication establishes automatically for the publishing account.
+1.  A Linux host with this repository checked out and on `main`,
+    at a commit that contains the version you intend to publish.
+    Check with `git -C <repo> log --oneline -1` and
+    `grep '^version' <repo>/package/jsonc-edit/core-rust/Cargo.toml`.
+2.  The Rust toolchain this repository pins,
+    installed by running `mise run toolchain:install` from the repository root
+    (`toolchain.lock.json` records the version).
+    Check with `mise run toolchain:list`,
+    which prints observed versus locked versions and exits non-zero on drift,
+    and `cargo --version`,
+    which must print a version rather than an error.
+3.  Network access to `crates.io`,
+    `static.crates.io` and `index.crates.io`.
+    Check with `curl -sS -o /dev/null -w '%{http_code}\n' -A 'setup-check' https://crates.io/api/v1/crates/serde`,
+    which must print `200`.
+4.  A browser signed in to the crates.io account that owns this repository's other crates,
+    reached through GitHub sign-in.
+    Check by opening <https://crates.io/> and confirming your avatar in the top-right corner
+    rather than a **Log in** button.
+5.  Owner rights on the crate,
+    which a first publication establishes automatically for the publishing account.
 
 ### Steps
 
 Status:
 TODO
 
-1. Open <https://crates.io/settings/tokens>.
-   Expected outcome:
-   the **API Tokens** page for your account,
-   listing any existing tokens.
-2. Click **New Token**.
-   Expected outcome:
-   a token creation form appears.
-3. Type the name `monochromatic-jsonc-edit-bootstrap` in the **Name** field.
-   Expected outcome:
-   the name is accepted;
-   it is only a label,
-   but naming it after the crate makes revocation unambiguous later.
-4. Set **Expiration** to the shortest offered period,
-   one day where the form offers it.
-   Expected outcome:
-   the form shows the chosen expiry.
-   A bootstrap token never needs to live longer than the publish.
-5. Select the **publish-new**,
-   **publish-update** and **trusted-publishing** scopes.
-   Expected outcome:
-   those three scopes are checked,
-   and no other scope is.
-   `publish-new` creates the crate;
-   `publish-update` is needed if the first attempt fails partway and you retry;
-   `trusted-publishing` lets the agent create the crate's Trusted Publishing configuration through the API,
-   so you never open the crate's settings page.
-   Under **Crates**,
-   restrict the token to the crate names being published when the form offers it.
-6. Click **Generate Token**.
-   Expected outcome:
-   the new token appears in the list and its secret value is shown once,
-   as a string beginning with `cio`.
-7. Copy that secret value.
-   Do not paste it into the agent conversation,
-   an issue,
-   a commit message or a shell history entry you intend to share.
-8. In a terminal at the repository root,
-   run `cargo login`.
-   Expected outcome:
-   the prompt `please paste your API token, then press Enter:` appears.
-9. Paste the token and press **Enter**.
-   Expected outcome:
-   the prompt returns with no `error:` line.
-   Cargo stores the token in `~/.cargo/credentials.toml` with mode `600`.
+1.  Open <https://crates.io/settings/tokens>.
+    Expected outcome:
+    the **API Tokens** page for your account,
+    listing any existing tokens.
+2.  Click **New Token**.
+    Expected outcome:
+    a token creation form appears.
+3.  Type the name `monochromatic-jsonc-edit-bootstrap` in the **Name** field.
+    Expected outcome:
+    the name is accepted;
+    it is only a label,
+    but naming it after the crate makes revocation unambiguous later.
+4.  Set **Expiration** to the shortest offered period,
+    one day where the form offers it.
+    Expected outcome:
+    the form shows the chosen expiry.
+    A bootstrap token never needs to live longer than the publish.
+5.  Select the **publish-new**,
+    **publish-update** and **trusted-publishing** scopes.
+    Expected outcome:
+    those three scopes are checked,
+    and no other scope is.
+    `publish-new` creates the crate;
+    `publish-update` is needed if the first attempt fails partway and you retry;
+    `trusted-publishing` lets the agent create the crate's Trusted Publishing configuration through the API,
+    so you never open the crate's settings page.
+    Under **Crates**,
+    restrict the token to the crate names being published when the form offers it.
+6.  Click **Generate Token**.
+    Expected outcome:
+    the new token appears in the list and its secret value is shown once,
+    as a string beginning with `cio`.
+7.  Copy that secret value.
+    Do not paste it into the agent conversation,
+    an issue,
+    a commit message or a shell history entry you intend to share.
+8.  In a terminal at the repository root,
+    run `cargo login`.
+    Expected outcome:
+    the prompt `please paste your API token, then press Enter:` appears.
+9.  Paste the token and press **Enter**.
+    Expected outcome:
+    the prompt returns with no `error:` line.
+    Cargo stores the token in `~/.cargo/credentials.toml` with mode `600`.
 10. Run `cd package/jsonc-edit/core-rust && cargo publish --dry-run --no-verify`.
     Expected outcome:
     `Packaged 31 files`,
@@ -220,140 +220,140 @@ which reads the token in-process and prints only statuses and publisher fields).
 After the publish,
 with the owner's token from `cargo login` still in `~/.cargo/credentials.toml`:
 
-1. Read the token from the credential file inside the script that makes the request,
-   never on a command line,
-   in an environment variable another process can read,
-   or in any output;
-   print only HTTP statuses and the returned ids.
-2. `POST https://crates.io/api/v1/trusted_publishing/github_configs`
-   with the token in the `Authorization` header,
-   a `User-Agent` naming the tool,
-   and the body
-   `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
-   "workflow_filename": "cargo-publish.yml", "environment": null}}`.
-   Expected outcome:
-   HTTP 200 with a `github_config` whose `repository_owner_id` is `343218767`.
-   crates.io's handler requires the token's `trusted-publishing` endpoint scope and that the token's owner owns the crate,
-   has a verified email and a linked GitHub account
-   (`src/controllers/trustpub/github_configs/create.rs`,
-   `.with_endpoint_scope(EndpointScope::TrustedPublishing)`,
-   at [rust-lang/crates.io `e0edaf98`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/src/controllers/trustpub/github_configs/create.rs#L51-L57),
-   read 2026-11-04);
-   the body fields are `NewGitHubConfig` in
-   [`crates/crates_io_api_types/src/trustpub.rs`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/crates/crates_io_api_types/src/trustpub.rs#L27-L39).
-   A crate holds at most five GitHub configurations.
-3. List it back with `GET https://crates.io/api/v1/trusted_publishing/github_configs?crate=<name>`;
-   `DELETE .../github_configs/<id>` removes a wrong one.
-4. Prove the route with the two dispatches in `What to check` item 5,
-   then tell the owner the token can be revoked (step 17).
+1.  Read the token from the credential file inside the script that makes the request,
+    never on a command line,
+    in an environment variable another process can read,
+    or in any output;
+    print only HTTP statuses and the returned ids.
+2.  `POST https://crates.io/api/v1/trusted_publishing/github_configs`
+    with the token in the `Authorization` header,
+    a `User-Agent` naming the tool,
+    and the body
+    `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
+    "workflow_filename": "cargo-publish.yml", "environment": null}}`.
+    Expected outcome:
+    HTTP 200 with a `github_config` whose `repository_owner_id` is `343218767`.
+    crates.io's handler requires the token's `trusted-publishing` endpoint scope and that the token's owner owns the crate,
+    has a verified email and a linked GitHub account
+    (`src/controllers/trustpub/github_configs/create.rs`,
+    `.with_endpoint_scope(EndpointScope::TrustedPublishing)`,
+    at [rust-lang/crates.io `e0edaf98`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/src/controllers/trustpub/github_configs/create.rs#L51-L57),
+    read 2026-11-04);
+    the body fields are `NewGitHubConfig` in
+    [`crates/crates_io_api_types/src/trustpub.rs`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/crates/crates_io_api_types/src/trustpub.rs#L27-L39).
+    A crate holds at most five GitHub configurations.
+3.  List it back with `GET https://crates.io/api/v1/trusted_publishing/github_configs?crate=<name>`;
+    `DELETE .../github_configs/<id>` removes a wrong one.
+4.  Prove the route with the two dispatches in `What to check` item 5,
+    then tell the owner the token can be revoked (step 17).
 
 ### What to check
 
 Status:
 TODO
 
-1. The crate exists on the registry.
-   Run:
+1.  The crate exists on the registry.
+    Run:
 
-   ```bash
-   curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit
-   ```
+    ```bash
+    curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit
+    ```
 
-   The body must contain `"name":"monochromatic-jsonc-edit"` and
-   `"max_stable_version":"0.1.0"`.
-   A `404` means the upload did not land.
-2. The version carries the right metadata.
-   The same response must contain `"license":"LGPL-3.0-or-later"`,
-   `"crate_size"` near `72070`,
-   which is the compressed upload size in bytes rather than the
-   `286.9KiB` that `cargo package` reports uncompressed,
-   and a non-empty `"description"`.
-3. Documentation builds.
-   Open <https://docs.rs/monochromatic-jsonc-edit/0.1.0/monochromatic_jsonc_edit/>.
-   Expected outcome:
-   HTTP `200` and a module page listing `parse_jsonc`,
-   `emit_jsonc_value`,
-   `jsonc_set_comment` and `JsoncNumberIdentity`.
-   docs.rs builds asynchronously,
-   so a first load may still return `404` while the build is queued;
-   measured on 2026-09-26,
-   the page served `200` within minutes of the upload.
-   The `/crate/.../status` route is not a public JSON endpoint:
-   it returned an HTML `404` for this crate even after the docs page worked.
-4. A downstream crate can consume it.
-   The agent performs this check in a disposable directory under `~/temp/agent`,
-   with `monochromatic-jsonc-edit = "0.1.0"` resolved from the registry rather than a path.
-   Expected outcome:
-   the consumer compiles and its assertions pass against the downloaded crate.
-5. Trusted Publishing works end to end.
-   Two dispatches answer two different questions.
-   First,
-   prove the job wiring without touching authentication:
+    The body must contain `"name":"monochromatic-jsonc-edit"` and
+    `"max_stable_version":"0.1.0"`.
+    A `404` means the upload did not land.
+2.  The version carries the right metadata.
+    The same response must contain `"license":"LGPL-3.0-or-later"`,
+    `"crate_size"` near `72070`,
+    which is the compressed upload size in bytes rather than the
+    `286.9KiB` that `cargo package` reports uncompressed,
+    and a non-empty `"description"`.
+3.  Documentation builds.
+    Open <https://docs.rs/monochromatic-jsonc-edit/0.1.0/monochromatic_jsonc_edit/>.
+    Expected outcome:
+    HTTP `200` and a module page listing `parse_jsonc`,
+    `emit_jsonc_value`,
+    `jsonc_set_comment` and `JsoncNumberIdentity`.
+    docs.rs builds asynchronously,
+    so a first load may still return `404` while the build is queued;
+    measured on 2026-09-26,
+    the page served `200` within minutes of the upload.
+    The `/crate/.../status` route is not a public JSON endpoint:
+    it returned an HTML `404` for this crate even after the docs page worked.
+4.  A downstream crate can consume it.
+    The agent performs this check in a disposable directory under `~/temp/agent`,
+    with `monochromatic-jsonc-edit = "0.1.0"` resolved from the registry rather than a path.
+    Expected outcome:
+    the consumer compiles and its assertions pass against the downloaded crate.
+5.  Trusted Publishing works end to end.
+    Two dispatches answer two different questions.
+    First,
+    prove the job wiring without touching authentication:
 
-   ```bash
-   gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-jsonc-edit -f dry-run=true
-   ```
+    ```bash
+    gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-jsonc-edit -f dry-run=true
+    ```
 
-   Then open the run and confirm the `je-publish-crate` job reached
-   `Publish (dry run)` and printed `warning: aborting upload due to dry run`,
-   with the attestation and authentication steps skipped.
-   Measured on 2026-09-26,
-   run `36217693067` concluded `success` this way.
+    Then open the run and confirm the `je-publish-crate` job reached
+    `Publish (dry run)` and printed `warning: aborting upload due to dry run`,
+    with the attestation and authentication steps skipped.
+    Measured on 2026-09-26,
+    run `36217693067` concluded `success` this way.
 
-   Second,
-   prove the OIDC route itself.
-   While the version in `Cargo.toml` is already on crates.io,
-   a **dry-run** unchecked dispatch authenticates and then skips the upload,
-   because the publish step curls
-   `https://crates.io/api/v1/crates/monochromatic-jsonc-edit/${VERSION}` first:
+    Second,
+    prove the OIDC route itself.
+    While the version in `Cargo.toml` is already on crates.io,
+    a **dry-run** unchecked dispatch authenticates and then skips the upload,
+    because the publish step curls
+    `https://crates.io/api/v1/crates/monochromatic-jsonc-edit/${VERSION}` first:
 
-   ```bash
-   gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-jsonc-edit -f dry-run=false
-   ```
+    ```bash
+    gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-jsonc-edit -f dry-run=false
+    ```
 
-   Confirm `Authenticate with crates.io (Trusted Publishing)` succeeded and that the publish
-   step logged
-   `##[notice]monochromatic-jsonc-edit 0.1.0 already on crates.io; skipping publish.`.
-   A failure at the authentication step means one of the four publisher fields does not match
-   the workflow's identity.
-   Measured on 2026-09-26,
-   run `36217828047` concluded `success` with exactly that notice,
-   and the registry still listed a single version afterwards.
+    Confirm `Authenticate with crates.io (Trusted Publishing)` succeeded and that the publish
+    step logged
+    `##[notice]monochromatic-jsonc-edit 0.1.0 already on crates.io; skipping publish.`.
+    A failure at the authentication step means one of the four publisher fields does not match
+    the workflow's identity.
+    Measured on 2026-09-26,
+    run `36217828047` concluded `success` with exactly that notice,
+    and the registry still listed a single version afterwards.
 
-   A later real version is published by bumping `version` in
-   `package/jsonc-edit/core-rust/Cargo.toml`,
-   pushing to `main`,
-   and letting the `je-detect` job notice the bump;
-   or by dispatching the same workflow with **dry-run** unchecked once the version is new.
+    A later real version is published by bumping `version` in
+    `package/jsonc-edit/core-rust/Cargo.toml`,
+    pushing to `main`,
+    and letting the `je-detect` job notice the bump;
+    or by dispatching the same workflow with **dry-run** unchecked once the version is new.
 
 ### Restore
 
 Status:
 TODO
 
-1. Revoke the bootstrap token if step 17 was skipped:
-   open <https://crates.io/settings/tokens> and click **Revoke** on
-   `monochromatic-jsonc-edit-bootstrap`.
-2. Remove the stored credential from this machine with `cargo logout`.
-   Expected outcome:
-   `~/.cargo/credentials.toml` no longer holds a `token` entry for `crates.io`.
-   Skip this if another crate on this machine still publishes by token.
-3. Delete the Trusted Publisher only if the crate must stop being publishable from CI:
-   crate **Settings**,
-   **Trusted Publishing** tab,
-   then the delete control on the GitHub Actions row.
-4. A published version cannot simply be deleted.
-   crates.io keeps every uploaded version permanently,
-   and removal is a policy decision handled through the crates.io team rather than a setting.
-   Before republishing a broken 0.1.0,
-   yank it instead:
-   `cargo yank --version 0.1.0 monochromatic-jsonc-edit`,
-   which keeps the version downloadable for existing lockfiles while stopping new resolutions.
-   Then bump the version in `Cargo.toml` and publish again.
-5. Local build state created by the checks lives in
-   `package/jsonc-edit/core-rust/target` and in the disposable consumer directory under
-   `~/temp/agent`.
-   Both are untracked and safe to delete.
+1.  Revoke the bootstrap token if step 17 was skipped:
+    open <https://crates.io/settings/tokens> and click **Revoke** on
+    `monochromatic-jsonc-edit-bootstrap`.
+2.  Remove the stored credential from this machine with `cargo logout`.
+    Expected outcome:
+    `~/.cargo/credentials.toml` no longer holds a `token` entry for `crates.io`.
+    Skip this if another crate on this machine still publishes by token.
+3.  Delete the Trusted Publisher only if the crate must stop being publishable from CI:
+    crate **Settings**,
+    **Trusted Publishing** tab,
+    then the delete control on the GitHub Actions row.
+4.  A published version cannot simply be deleted.
+    crates.io keeps every uploaded version permanently,
+    and removal is a policy decision handled through the crates.io team rather than a setting.
+    Before republishing a broken 0.1.0,
+    yank it instead:
+    `cargo yank --version 0.1.0 monochromatic-jsonc-edit`,
+    which keeps the version downloadable for existing lockfiles while stopping new resolutions.
+    Then bump the version in `Cargo.toml` and publish again.
+5.  Local build state created by the checks lives in
+    `package/jsonc-edit/core-rust/target` and in the disposable consumer directory under
+    `~/temp/agent`.
+    Both are untracked and safe to delete.
 
 ## monochromatic-lint 0.1.0
 
@@ -514,9 +514,9 @@ as measured the same day:
 
 Still to do:
 
-1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish,
-   but it can edit publishers),
-   then the agent runs `cargo logout`.
+1.  Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish,
+    but it can edit publishers),
+    then the agent runs `cargo logout`.
 
 ## monochromatic-mpm-shadow 0.1.0
 
@@ -692,24 +692,24 @@ and no Trusted Publishing configuration exists yet.
 The order follows the dependency pins,
 which are exact (`=`) path versions that file-enforcer's `Cargo.toml` sync writes:
 
-1. `monochromatic-jsonc-edit` 0.1.2.
-   `monochromatic-file-enforcer` calls `parse_jsonc_with_spans`,
-   which 0.1.1 (the version on crates.io) does not have.
-   0.1.2 is an additive release,
-   which the 0.1 series treats as a patch bump,
-   so 0.1.1 users keep compiling.
-   This crate already uses Trusted Publishing,
-   so its release is a workflow run and needs no owner token.
-2. `monochromatic-xml-edit` 0.1.0,
-   `monochromatic-dependency-catalog` 0.1.0 and `monochromatic-browserslist` 0.1.0,
-   in any order,
-   because none of them depends on another first-party crate.
-3. `monochromatic-file-enforcer` 0.1.0,
-   which pins `monochromatic-jsonc-edit` to `=0.1.2`.
-4. `monochromatic-file-enforcer-cli` 0.1.0,
-   which pins `monochromatic-file-enforcer`,
-   `monochromatic-dependency-catalog`,
-   `monochromatic-browserslist` and `monochromatic-xml-edit` to `=0.1.0`.
+1.  `monochromatic-jsonc-edit` 0.1.2.
+    `monochromatic-file-enforcer` calls `parse_jsonc_with_spans`,
+    which 0.1.1 (the version on crates.io) does not have.
+    0.1.2 is an additive release,
+    which the 0.1 series treats as a patch bump,
+    so 0.1.1 users keep compiling.
+    This crate already uses Trusted Publishing,
+    so its release is a workflow run and needs no owner token.
+2.  `monochromatic-xml-edit` 0.1.0,
+    `monochromatic-dependency-catalog` 0.1.0 and `monochromatic-browserslist` 0.1.0,
+    in any order,
+    because none of them depends on another first-party crate.
+3.  `monochromatic-file-enforcer` 0.1.0,
+    which pins `monochromatic-jsonc-edit` to `=0.1.2`.
+4.  `monochromatic-file-enforcer-cli` 0.1.0,
+    which pins `monochromatic-file-enforcer`,
+    `monochromatic-dependency-catalog`,
+    `monochromatic-browserslist` and `monochromatic-xml-edit` to `=0.1.0`.
 
 The workflow jobs chain in the same order with `needs:`,
 so a run that publishes several of them never starts a crate before the crates it depends on.
@@ -724,120 +724,120 @@ so 0.1.2 must be on crates.io before any of them publishes a new version.
 
 ### Owner steps in order
 
-1. Release `monochromatic-jsonc-edit` 0.1.2 before anything else,
-   from the branch,
-   because `monochromatic-file-enforcer` cannot be packaged or published until 0.1.2 is on the registry:
+1.  Release `monochromatic-jsonc-edit` 0.1.2 before anything else,
+    from the branch,
+    because `monochromatic-file-enforcer` cannot be packaged or published until 0.1.2 is on the registry:
 
-   ```bash
-   gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-jsonc-edit -f dry-run=false
-   ```
+    ```bash
+    gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-jsonc-edit -f dry-run=false
+    ```
 
-   Expected outcome:
-   `je-publish-crate` authenticates through Trusted Publishing and uploads 0.1.2,
-   and `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit` lists `0.1.2`.
-   A dispatch from a branch is possible because the workflow file exists on the default branch.
-   A trusted publisher configuration has no branch field:
-   its fields are repository owner,
-   repository name,
-   workflow file name and environment
-   (RFC 3691, <https://raw.githubusercontent.com/rust-lang/rfcs/master/text/3691-trusted-publishing-cratesio.md>,
-   read 2026-10-31).
-   No run in this repository has authenticated from a branch other than `main`,
-   so confirm it here:
-   if the `Authenticate with crates.io (Trusted Publishing)` step fails,
-   merge the bump to `main` instead,
-   which also publishes it.
-   The merge carries all five new crates,
-   so do it in step 8 only after their publishers exist,
-   or accept one red `cargo-publish` run where the five new jobs fail at authentication and upload nothing.
-   Dispatch only after the review of `monochromatic-jsonc-edit` is final:
-   0.1.2 can never be republished,
-   so a later change to its source needs 0.1.3 and new pins.
-2. Create one token at <https://crates.io/settings/tokens> named `monochromatic-file-enforcer-bootstrap`,
-   with the shortest expiry and the scopes `publish-new`,
-   `publish-update` and `trusted-publishing`
-   (the last one lets the agent create the five publishers through the API,
-   as for `monochromatic-mpm-shadow`).
-   Run `cargo login` at the repository root and paste the token.
-   Do not paste it into the agent conversation.
-3. Prove each package before uploading,
-   in the order under `Publish order`:
+    Expected outcome:
+    `je-publish-crate` authenticates through Trusted Publishing and uploads 0.1.2,
+    and `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit` lists `0.1.2`.
+    A dispatch from a branch is possible because the workflow file exists on the default branch.
+    A trusted publisher configuration has no branch field:
+    its fields are repository owner,
+    repository name,
+    workflow file name and environment
+    (RFC 3691, <https://raw.githubusercontent.com/rust-lang/rfcs/master/text/3691-trusted-publishing-cratesio.md>,
+    read 2026-10-31).
+    No run in this repository has authenticated from a branch other than `main`,
+    so confirm it here:
+    if the `Authenticate with crates.io (Trusted Publishing)` step fails,
+    merge the bump to `main` instead,
+    which also publishes it.
+    The merge carries all five new crates,
+    so do it in step 8 only after their publishers exist,
+    or accept one red `cargo-publish` run where the five new jobs fail at authentication and upload nothing.
+    Dispatch only after the review of `monochromatic-jsonc-edit` is final:
+    0.1.2 can never be republished,
+    so a later change to its source needs 0.1.3 and new pins.
+2.  Create one token at <https://crates.io/settings/tokens> named `monochromatic-file-enforcer-bootstrap`,
+    with the shortest expiry and the scopes `publish-new`,
+    `publish-update` and `trusted-publishing`
+    (the last one lets the agent create the five publishers through the API,
+    as for `monochromatic-mpm-shadow`).
+    Run `cargo login` at the repository root and paste the token.
+    Do not paste it into the agent conversation.
+3.  Prove each package before uploading,
+    in the order under `Publish order`:
 
-   ```bash
-   mise run //package/xml-edit/core-rust:publish:dry-run
-   mise run //package/dependency-catalog/core-native:publish:dry-run
-   mise run //package/browserslist/core-rust:publish:dry-run
-   ```
+    ```bash
+    mise run //package/xml-edit/core-rust:publish:dry-run
+    mise run //package/dependency-catalog/core-native:publish:dry-run
+    mise run //package/browserslist/core-rust:publish:dry-run
+    ```
 
-   Expected outcome for each:
-   `Packaged N files`,
-   `Verifying`,
-   then `warning: aborting upload due to dry run`,
-   and no `403`.
-   The `ignoring test` and `ignoring example` warnings are expected:
-   the tests and the example read repository files that no `.crate` holds.
-4. Publish the three independent crates with `mise run //package/<path>:publish`
-   for `xml-edit/core-rust`,
-   `dependency-catalog/core-native` and `browserslist/core-rust`.
-   Cargo waits until each crate is available.
-5. Dry-run and publish `monochromatic-file-enforcer`,
-   then `monochromatic-file-enforcer-cli`:
+    Expected outcome for each:
+    `Packaged N files`,
+    `Verifying`,
+    then `warning: aborting upload due to dry run`,
+    and no `403`.
+    The `ignoring test` and `ignoring example` warnings are expected:
+    the tests and the example read repository files that no `.crate` holds.
+4.  Publish the three independent crates with `mise run //package/<path>:publish`
+    for `xml-edit/core-rust`,
+    `dependency-catalog/core-native` and `browserslist/core-rust`.
+    Cargo waits until each crate is available.
+5.  Dry-run and publish `monochromatic-file-enforcer`,
+    then `monochromatic-file-enforcer-cli`:
 
-   ```bash
-   mise run //package/file-enforcer/core-rust:publish:dry-run
-   mise run //package/file-enforcer/core-rust:publish
-   mise run //package/file-enforcer/cli:publish:dry-run
-   mise run //package/file-enforcer/cli:publish
-   ```
+    ```bash
+    mise run //package/file-enforcer/core-rust:publish:dry-run
+    mise run //package/file-enforcer/core-rust:publish
+    mise run //package/file-enforcer/cli:publish:dry-run
+    mise run //package/file-enforcer/cli:publish
+    ```
 
-   These dry runs resolve the pinned crates from crates.io,
-   so they only pass after steps 1 and 4.
-   Before then the core answers
-   ``failed to select a version for the requirement `monochromatic-jsonc-edit = "=0.1.2"` ``
-   and the cli answers
-   ``no matching package named `monochromatic-browserslist` found``.
-6. Tell the agent the five crates are published and the token is logged in.
-   The agent creates the five Trusted Publishing configurations through the API,
-   one `POST https://crates.io/api/v1/trusted_publishing/github_configs` per crate with the body
-   `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
-   "workflow_filename": "cargo-publish.yml", "environment": null}}`,
-   reads the token from the credential file in-process,
-   prints only statuses,
-   and lists them back with `GET ...?crate=<name>`.
-   The owner is `Aquaticats` (id 343218767),
-   not `Aquaticat`
-   (the correction recorded in the `monochromatic-search-shadow` section).
-   The dashboard route in steps 12 to 16 of `Steps` does the same one crate at a time.
-7. Revoke the token at <https://crates.io/settings/tokens>,
-   then run `cargo logout`.
-8. Merge the branch to `main`.
-   The pushed range adds the five new `Cargo.toml` files to `main`,
-   so every `*-detect` job reads that as a version bump and runs the publish job:
-   each authenticates through Trusted Publishing and logs `already on crates.io; skipping publish.`,
-   and the `fec-*` jobs build the two Linux archives and create the immutable release
-   `monochromatic-file-enforcer-cli-v0.1.0`.
-   Dispatch a dry run first from the branch if you want to see the archives before they become permanent:
+    These dry runs resolve the pinned crates from crates.io,
+    so they only pass after steps 1 and 4.
+    Before then the core answers
+    ``failed to select a version for the requirement `monochromatic-jsonc-edit = "=0.1.2"` ``
+    and the cli answers
+    ``no matching package named `monochromatic-browserslist` found``.
+6.  Tell the agent the five crates are published and the token is logged in.
+    The agent creates the five Trusted Publishing configurations through the API,
+    one `POST https://crates.io/api/v1/trusted_publishing/github_configs` per crate with the body
+    `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
+    "workflow_filename": "cargo-publish.yml", "environment": null}}`,
+    reads the token from the credential file in-process,
+    prints only statuses,
+    and lists them back with `GET ...?crate=<name>`.
+    The owner is `Aquaticats` (id 343218767),
+    not `Aquaticat`
+    (the correction recorded in the `monochromatic-search-shadow` section).
+    The dashboard route in steps 12 to 16 of `Steps` does the same one crate at a time.
+7.  Revoke the token at <https://crates.io/settings/tokens>,
+    then run `cargo logout`.
+8.  Merge the branch to `main`.
+    The pushed range adds the five new `Cargo.toml` files to `main`,
+    so every `*-detect` job reads that as a version bump and runs the publish job:
+    each authenticates through Trusted Publishing and logs `already on crates.io; skipping publish.`,
+    and the `fec-*` jobs build the two Linux archives and create the immutable release
+    `monochromatic-file-enforcer-cli-v0.1.0`.
+    Dispatch a dry run first from the branch if you want to see the archives before they become permanent:
 
-   ```bash
-   gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-file-enforcer-cli -f dry-run=true
-   ```
+    ```bash
+    gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-file-enforcer-cli -f dry-run=true
+    ```
 
 ### What to check
 
-1. Every crate answers on the registry:
-   `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/<name>` contains `"max_stable_version":"0.1.0"`
-   (`0.1.2` for `monochromatic-jsonc-edit`) and `"license":"LGPL-3.0-or-later"`.
-2. A clean container resolves the cli from the registry:
-   `cargo install --version 0.1.0 --root <disposable directory> monochromatic-file-enforcer-cli`
-   in a podman container capped `--cpus=2 --memory=2g`,
-   then `file-enforcer --version` prints one JSON line whose `message` is `file-enforcer 0.1.0`.
-3. `gh release view monochromatic-file-enforcer-cli-v0.1.0 --json assets --jq '.assets[].name'` lists the two archives
-   and `monochromatic-file-enforcer-cli-0.1.0-sha256sums.txt`.
-4. Discovery works without compiling:
-   `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install monochromatic-file-enforcer-cli@0.1.0`
-   in a disposable directory ends with `has been downloaded from github.com`.
-5. The cutover comparison against the TypeScript tool still has to run after this;
-   publication is only one of its prerequisites.
+1.  Every crate answers on the registry:
+    `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/<name>` contains `"max_stable_version":"0.1.0"`
+    (`0.1.2` for `monochromatic-jsonc-edit`) and `"license":"LGPL-3.0-or-later"`.
+2.  A clean container resolves the cli from the registry:
+    `cargo install --version 0.1.0 --root <disposable directory> monochromatic-file-enforcer-cli`
+    in a podman container capped `--cpus=2 --memory=2g`,
+    then `file-enforcer --version` prints one JSON line whose `message` is `file-enforcer 0.1.0`.
+3.  `gh release view monochromatic-file-enforcer-cli-v0.1.0 --json assets --jq '.assets[].name'` lists the two archives
+    and `monochromatic-file-enforcer-cli-0.1.0-sha256sums.txt`.
+4.  Discovery works without compiling:
+    `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install monochromatic-file-enforcer-cli@0.1.0`
+    in a disposable directory ends with `has been downloaded from github.com`.
+5.  The cutover comparison against the TypeScript tool still has to run after this;
+    publication is only one of its prerequisites.
 
 ### What was proven before publication
 
@@ -1011,61 +1011,61 @@ using the jobs `nws-detect`,
 
 ### Prove the release targets build
 
-1. Dispatch a dry run from the branch that holds the change
-   (a dispatch from a branch other than `main` works because the workflow file exists on it):
+1.  Dispatch a dry run from the branch that holds the change
+    (a dispatch from a branch other than `main` works because the workflow file exists on it):
 
-   ```bash
-   gh workflow run cargo-publish.yml --ref <branch> -f crate=monochromatic-nested-wayland-session -f dry-run=true
-   ```
+    ```bash
+    gh workflow run cargo-publish.yml --ref <branch> -f crate=monochromatic-nested-wayland-session -f dry-run=true
+    ```
 
-2. Open the run.
-   Expected outcome:
-   `nws-release-state` logs `Tag monochromatic-nested-wayland-session-v<version> already exists` for a version
-   that is already released,
-   and `Tag ... does not exist yet.` for a new one.
-   `nws-build-binary` runs for both targets either way,
-   and both pass `Smoke-run the binary` (the log prints equal `got:` and `want:` lines)
-   and `Verify the archive`.
-   `Attest binary provenance`,
-   `nws-create-release` and the crates.io authentication stay skipped.
-3. Download the artifacts `nws-bin-x86_64-unknown-linux-gnu` and `nws-bin-aarch64-unknown-linux-gnu`
-   from the run page within one day.
-   Expected outcome:
-   each holds one `monochromatic-nested-wayland-session-<version>-<target>.tar.gz`
-   whose directory holds the binary,
-   `README.md` and `LICENSES/`.
+2.  Open the run.
+    Expected outcome:
+    `nws-release-state` logs `Tag monochromatic-nested-wayland-session-v<version> already exists` for a version
+    that is already released,
+    and `Tag ... does not exist yet.` for a new one.
+    `nws-build-binary` runs for both targets either way,
+    and both pass `Smoke-run the binary` (the log prints equal `got:` and `want:` lines)
+    and `Verify the archive`.
+    `Attest binary provenance`,
+    `nws-create-release` and the crates.io authentication stay skipped.
+3.  Download the artifacts `nws-bin-x86_64-unknown-linux-gnu` and `nws-bin-aarch64-unknown-linux-gnu`
+    from the run page within one day.
+    Expected outcome:
+    each holds one `monochromatic-nested-wayland-session-<version>-<target>.tar.gz`
+    whose directory holds the binary,
+    `README.md` and `LICENSES/`.
 
 ### Cut the release
 
-1. Bump `version` in `package/nested-wayland-session/cli/Cargo.toml` and push to `main`,
-   or dispatch the workflow with **dry-run** unchecked for a version whose tag does not exist.
-   `nws-detect` compares the version before and after the push,
-   so a push that leaves it unchanged runs the detect job and nothing else.
-2. Expected outcome:
-   `nws-publish-crate` uploads the crate (or logs that the version is already on crates.io),
-   the two builds attest their archives,
-   and `nws-create-release` creates `monochromatic-nested-wayland-session-v<version>` once,
-   with two archives and `monochromatic-nested-wayland-session-<version>-sha256sums.txt`.
-3. Check the release:
+1.  Bump `version` in `package/nested-wayland-session/cli/Cargo.toml` and push to `main`,
+    or dispatch the workflow with **dry-run** unchecked for a version whose tag does not exist.
+    `nws-detect` compares the version before and after the push,
+    so a push that leaves it unchanged runs the detect job and nothing else.
+2.  Expected outcome:
+    `nws-publish-crate` uploads the crate (or logs that the version is already on crates.io),
+    the two builds attest their archives,
+    and `nws-create-release` creates `monochromatic-nested-wayland-session-v<version>` once,
+    with two archives and `monochromatic-nested-wayland-session-<version>-sha256sums.txt`.
+3.  Check the release:
 
-   ```bash
-   gh release view monochromatic-nested-wayland-session-v<version> --json assets --jq '.assets[].name'
-   ```
+    ```bash
+    gh release view monochromatic-nested-wayland-session-v<version> --json assets --jq '.assets[].name'
+    ```
 
-   Expected outcome:
-   three names,
-   the two archives and the checksums file.
-   Then download one archive and run `sha256sum --check` against the checksums file
-   and `gh attestation verify <archive> --repo Aquaticats/Monochromatic`.
-4. Check discovery in a disposable directory:
+    Expected outcome:
+    three names,
+    the two archives and the checksums file.
+    Then download one archive and run `sha256sum --check` against the checksums file
+    and `gh attestation verify <archive> --repo Aquaticats/Monochromatic`.
+4.  Check discovery in a disposable directory:
 
-   ```bash
-   cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install \
-     monochromatic-nested-wayland-session@<version>
-   ```
+    ```bash
+    cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install \
+      monochromatic-nested-wayland-session@<version>
+    ```
 
-   Expected outcome:
-   the output ends with `has been downloaded from github.com`.
+    Expected outcome:
+    the output ends with `has been downloaded from github.com`.
 
 ### If a run fails
 

@@ -43,67 +43,67 @@
 Immediate action required:
  blocking development or production.
 
-1. **Build System Reliability** → [Build System Todo](build-system.md#critical-issues)
-   - Fresh clone setup problems blocking new developers
-   - Package build order issues preventing successful builds
-   - Mise task dependency optimization needed
+1.  **Build System Reliability** → [Build System Todo](build-system.md#critical-issues)
+    - Fresh clone setup problems blocking new developers
+    - Package build order issues preventing successful builds
+    - Mise task dependency optimization needed
 
-2. **Security Fundamentals** → [Security Todo](security.md#application-security)
-   - Dependency vulnerability scanning and management
-   - Input validation for all user-facing applications
-   - Secrets management audit and implementation
+2.  **Security Fundamentals** → [Security Todo](security.md#application-security)
+    - Dependency vulnerability scanning and management
+    - Input validation for all user-facing applications
+    - Secrets management audit and implementation
 
-3. **Core Library Completion** → [Packages Todo](packages.md#module-library-packagemodulees)
-   - Missing async iterator utilities for complete functional programming
-   - Essential array and object utilities for developer productivity
-   - Type guard and validation utilities for type safety
+3.  **Core Library Completion** → [Packages Todo](packages.md#module-library-packagemodulees)
+    - Missing async iterator utilities for complete functional programming
+    - Essential array and object utilities for developer productivity
+    - Type guard and validation utilities for type safety
 
 ### High priority
 
 Important improvements that significantly impact developer experience.
 
-1. **Performance Optimization** → [Performance Todo](performance.md#build-performance)
-   - Build system performance improvements
-   - TypeScript compilation optimization
-   - Bundle size and runtime performance optimization
+1.  **Performance Optimization** → [Performance Todo](performance.md#build-performance)
+    - Build system performance improvements
+    - TypeScript compilation optimization
+    - Bundle size and runtime performance optimization
 
-2. **Development Automation** → [Automation Todo](automation.md#development-automation)
-   - Enhanced pre-commit hooks and code quality automation
-   - Development environment automation and consistency
-   - Code generation and templating for productivity
+2.  **Development Automation** → [Automation Todo](automation.md#development-automation)
+    - Enhanced pre-commit hooks and code quality automation
+    - Development environment automation and consistency
+    - Code generation and templating for productivity
 
 ### Normal priority
 
 Valuable improvements that enhance the project.
 
-1. **Documentation Enhancement** → [Documentation Todo](documentation.md#documentation-system-improvements)
-   - PlantUML integration for architecture diagrams
-   - Comprehensive API documentation generation
-   - User experience improvements and content optimization
+1.  **Documentation Enhancement** → [Documentation Todo](documentation.md#documentation-system-improvements)
+    - PlantUML integration for architecture diagrams
+    - Comprehensive API documentation generation
+    - User experience improvements and content optimization
 
-2. **Package Ecosystem** → [Packages Todo](packages.md#configuration-packages)
-   - Configuration package improvements and templates
-   - Style framework component library development
-   - Figma plugin enhancements and additional tools
+2.  **Package Ecosystem** → [Packages Todo](packages.md#configuration-packages)
+    - Configuration package improvements and templates
+    - Style framework component library development
+    - Figma plugin enhancements and additional tools
 
-3. **Infrastructure Improvements** → [Security Todo](security.md#infrastructure-security)
-   - Container security and deployment hardening
-   - Monitoring and incident response procedures
-   - Compliance framework implementation
+3.  **Infrastructure Improvements** → [Security Todo](security.md#infrastructure-security)
+    - Container security and deployment hardening
+    - Monitoring and incident response procedures
+    - Compliance framework implementation
 
 ### Low priority
 
 Nice-to-have features and experimental improvements.
 
-1. **Advanced Features** → [Packages Todo](packages.md#cross-package-improvements)
-   - Advanced utilities and specialized functionality
-   - Experimental patterns and libraries
-   - Integration with external tools and services
+1.  **Advanced Features** → [Packages Todo](packages.md#cross-package-improvements)
+    - Advanced utilities and specialized functionality
+    - Experimental patterns and libraries
+    - Integration with external tools and services
 
-2. **Optimization Projects** → [Performance Todo](performance.md#phase-3-advanced-weeks-5-8)
-   - Advanced caching strategies
-   - Infrastructure performance tuning
-   - Predictive analytics and monitoring
+2.  **Optimization Projects** → [Performance Todo](performance.md#phase-3-advanced-weeks-5-8)
+    - Advanced caching strategies
+    - Infrastructure performance tuning
+    - Predictive analytics and monitoring
 
 ## Current Sprint Focus
 
