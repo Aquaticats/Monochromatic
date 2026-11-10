@@ -179,6 +179,27 @@ both arms the same release build but for this change
 The sandbox is on the `$HOME` volume (`/dev/dm-1`), a different btrfs device from the repository's,
 so these are the change's effect under the same load, not this volume's absolute cost.
 
+The same scenario with the after binary traced
+(`strace -f -ttt -T -e trace=renameat2,rename,fsync,fdatasync,unlink`, run 2026-11-10T18:29:26-05:00),
+to answer whether the placement still stalls behind background syncs:
+2,146 traced processes,
+776 rename calls,
+200 sync calls.
+
+- The 24 `renameat2` calls that placed an `index.lock`:
+  median under 20 ms,
+  six slowest 717.1, 40.6, 23.1, 8.3, 7.7 and 5.9 ms.
+  Only one passed half a second.
+  The audit's untraced before trace had 1.1 s, 2.9 s and 0.65 s for the same placement
+  with six concurrent flushes each taking 8 to 12.5 s.
+- The 200 syncs that remain: median 1,489.6 ms, p90 5,517.1 ms, max 6,319.7 ms.
+  They are the landing's records and the marker, made by the background task,
+  and no commit waits for them;
+  two of them began inside a placement window.
+- Traced wall times are not the commit's cost: the same run's median commit was 5,915 ms traced
+  against 154 ms untraced,
+  so only the counts and the per-call durations are evidence here.
+
 The worktree add, commit and remove of one fixture on the repository's volume,
 with each step's kernel wait point sampled every 20 ms
 (`${HOME}/temp/agent/pi-runs/btrfs-waits-20261110T180803/measure.ts`),
