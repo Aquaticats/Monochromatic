@@ -12,6 +12,7 @@ import type * as opentype from 'opentype.js';
 
 import { resolveAbsolutePoints, } from './build-font-resolve-points.ts';
 import { toFontCoordinate, } from './font-coordinate.ts';
+import { replayPenCursor, } from './svg-path-pen-cursor.ts';
 import {
   type CellPath,
   parseSvgPathD,
@@ -136,99 +137,33 @@ export function addFilledPath({
   cellX: number;
   xShift: number;
 }>>,): void {
-  /**
-   X component of the pen cursor while emitting OpenType path commands.
-   
-   Declared as `let` because SVG H rewrites only this axis, and the cursor
-   is read back into the opentype `moveTo`/`lineTo` calls for the next vertex.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- pen cursor: H rewrites only x, each command consumes the prior cursor across forEach iterations
-  let cx = 0;
-  /**
-   Y component of the pen cursor.
-   
-   Declared as `let` for the same reason as `cx`: V rewrites only this axis,
-   and the cursor is read back on every subsequent command.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- pen cursor: V rewrites only y, each command consumes the prior cursor across forEach iterations
-  let cy = 0;
-
-  commands.forEach(function traceFilledCommand(cmd,) {
-    if (cmd.type
-      === 'M') {
-      cx = cmd.x;
-      cy = cmd.y;
-      /**
-       Glyph-space point of the pen cursor after the move.
-       */
-      const [glyphX, glyphY,] = toFontCoordinate({
-        x: cx,
-        y: cy,
-        cellX,
-        xShift,
-      },);
+  for (const event of replayPenCursor(commands,)) {
+    if (event.kind === 'close') {
+      otPath.close();
+      continue;
+    }
+    /**
+     Glyph-space point of the replayed event.
+     */
+    const [glyphX, glyphY,] = toFontCoordinate({
+      x: event.x,
+      y: event.y,
+      cellX,
+      xShift,
+    },);
+    if (event.kind === 'moveTo') {
       otPath.moveTo(
         glyphX,
         glyphY,
       );
     }
-    else if (cmd.type
-      === 'L') {
-      cx = cmd.x;
-      cy = cmd.y;
-      /**
-       Glyph-space point of the pen cursor after the line.
-       */
-      const [glyphX, glyphY,] = toFontCoordinate({
-        x: cx,
-        y: cy,
-        cellX,
-        xShift,
-      },);
+    else {
       otPath.lineTo(
         glyphX,
         glyphY,
       );
     }
-    else if (cmd.type
-      === 'H') {
-      cx = cmd.x;
-      /**
-       Glyph-space point after the horizontal command, whose Y is unchanged.
-       */
-      const [glyphX, glyphY,] = toFontCoordinate({
-        x: cx,
-        y: cy,
-        cellX,
-        xShift,
-      },);
-      otPath.lineTo(
-        glyphX,
-        glyphY,
-      );
-    }
-    else if (cmd.type
-      === 'V') {
-      cy = cmd.y;
-      /**
-       Glyph-space point after the vertical command, whose X is unchanged.
-       */
-      const [glyphX, glyphY,] = toFontCoordinate({
-        x: cx,
-        y: cy,
-        cellX,
-        xShift,
-      },);
-      otPath.lineTo(
-        glyphX,
-        glyphY,
-      );
-    }
-    else if (cmd.type
-      === 'Z') {
-      otPath.close();
-    }
-  },);
+  }
 }
 
 //endregion Path construction
