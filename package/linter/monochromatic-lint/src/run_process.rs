@@ -87,24 +87,65 @@ fn silences_panics(debug: bool) -> bool {
 ///  treating a closed pipe as an ordinary end of output.
 /// Why:
 ///  `monochromatic-lint . | head` closes the pipe early;
-///  that is not an error worth reporting.
-/// Returns false when some other write failure occurred.
+///  that is not an error worth reporting,
+///  while every other failure must reach the caller with its own reason
+/// so the reader can be told what could not be written.
+/// Returns the error of a real write failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function emit(stream: Writable, text: string): boolean;
+/// function emit(stream: Writable, text: string): void; // throws a real failure
 /// ```
-fn emit(stream: &mut dyn Write, text: &str) -> bool {
+fn emit(stream: &mut dyn Write, text: &str) -> std::io::Result<()> {
     if text.is_empty() {
-        return true;
+        return Ok(());
     }
     let mut outcome: std::io::Result<()> = stream.write_all(text.as_bytes());
     if outcome.is_ok() {
         outcome = stream.flush();
     }
     match outcome {
-        Ok(()) => return true,
-        Err(error) => return error.kind() == ErrorKind::BrokenPipe,
+        Ok(()) => return Ok(()),
+        Err(error) if error.kind() == ErrorKind::BrokenPipe => return Ok(()),
+        Err(error) => return Err(error),
+    }
+}
+
+/// What:
+///  Write both output streams and return the exit status,
+///  naming the refused stream and the operating system's error on the stream that still works.
+/// Why:
+///  A full disk or a failing descriptor would otherwise end the run with a bare status 2,
+///  leaving the reader no explanation of what could not be written or why.
+///  The explanation goes on the surviving stream,
+///  and a stream that refused it too has no third stream left to report on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function writeOutputs(stdout: Writable, stderr: Writable, output: RunOutput): number;
+/// ```
+fn write_outputs(stdout: &mut dyn Write, stderr: &mut dyn Write, output: &RunOutput) -> u8 {
+    let refused_stdout: Option<std::io::Error> = emit(stdout, output.stdout.as_str()).err();
+    let refused_stderr: Option<std::io::Error> = emit(stderr, output.stderr.as_str()).err();
+    match (refused_stdout, refused_stderr) {
+        (None, None) => return output.exit_code,
+        (Some(error), None) => {
+            // The explanation itself may be refused; there is no third stream to name that on.
+            let _ = emit(
+                stderr,
+                format!("{PROGRAM}: Cannot write standard output: {error}.\n").as_str(),
+            );
+            return 2;
+        }
+        (None, Some(error)) => {
+            let _ = emit(
+                stdout,
+                format!("{PROGRAM}: Cannot write standard error: {error}.\n").as_str(),
+            );
+            return 2;
+        }
+        // Both streams refused their text, so no stream is left to explain it on.
+        (Some(_), Some(_)) => return 2,
     }
 }
 
@@ -261,12 +302,9 @@ pub(crate) fn run_process_with(options: &CliOptions, run: Runner) -> u8 {
         )]
         |scope| return run_in_scope(scope, options, run),
     );
-    let wrote_stdout: bool = emit(&mut std::io::stdout().lock(), output.stdout.as_str());
-    let wrote_stderr: bool = emit(&mut std::io::stderr().lock(), output.stderr.as_str());
-    if !wrote_stdout || !wrote_stderr {
-        return 2;
-    }
-    return output.exit_code;
+    let mut stdout: std::io::StdoutLock<'static> = std::io::stdout().lock();
+    let mut stderr: std::io::StderrLock<'static> = std::io::stderr().lock();
+    return write_outputs(&mut stdout, &mut stderr, &output);
 }
 
 /// What:
