@@ -108,7 +108,8 @@ fn plan_named(target: &Path, operand: &str) -> RemovePlan {
     return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: false };
 }
 
-/// The same, with the force the person passes as `-f`/`--force`.
+/// The same,
+/// with the force the person passes as `-f`/`--force`.
 fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
     return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: true };
 }
@@ -155,10 +156,12 @@ fn a_forced_removal_of_a_changed_worktree_is_served_and_an_unforced_one_is_not()
 ///  A forced removal of a locked worktree is still Git's,
 ///  and nothing is destroyed.
 /// Why:
-///   Git requires the force twice for a locked worktree (`if (force < 2) reason = worktree_lock_reason(wt)`),
+///   Git requires the force twice for a locked worktree
+/// (`if (force < 2) reason = worktree_lock_reason(wt)`),
 /// and the
 ///  wrapper reads one force only,
-/// so an entry left in the registration, or a lock taken meanwhile,
+/// so an entry left in the registration,
+/// or a lock taken meanwhile,
 /// has to stop the destroy.
 #[test]
 fn a_forced_removal_of_a_locked_worktree_is_left_to_git() {

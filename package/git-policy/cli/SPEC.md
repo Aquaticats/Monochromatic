@@ -2579,12 +2579,14 @@ The wrapper serves the removal only when real Git would remove the same director
   unless the person passed `-f` or `--force`.
   Git's own removal makes that proof only when the force is zero
   (`builtin/worktree.c`,
-  `remove_worktree`: `if (!force) check_clean_worktree(wt, av[0])`),
+  `remove_worktree`:
+  `if (!force) check_clean_worktree(wt, av[0])`),
   and a forced removal deletes the worktree it was given whatever it
   holds,
   so the destroy answers for the same set of files.
   The proof is also the only place Git refuses a populated submodule
-  (`validate_no_submodules`, called from
+  (`validate_no_submodules`,
+  called from
   `check_clean_worktree`),
   so a forced removal leaves a populated submodule to the destroy exactly as Git leaves it to
   `remove_dir_recursively`.

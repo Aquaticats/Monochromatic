@@ -51,7 +51,9 @@ pub struct RemovePlan {
 
 /// Whether a token is one of the two spellings of Git's force option for this command.
 /// Why:
-///   Every other spelling (`-ff`, `--forc`, a cluster)
+///   Every other spelling (`-ff`,
+/// `--forc`,
+/// a cluster)
 /// counts the force twice or takes an abbreviation the wrapper does not
 ///  read,
 /// so each of those is left to Git rather than read as one force.
