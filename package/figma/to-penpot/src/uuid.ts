@@ -152,6 +152,36 @@ export function nextUuid(): Uuid {
 }
 
 /**
+ Build the composite GUID lookup key from session and local id components.
+ 
+ Every GUID-keyed map in the converter (node lookup, parent-to-children,
+ GUID-to-UUID) is keyed by this one format, so a parent reference resolves only
+ while both the writer and the reader spell it here.
+ 
+ @param sessionId - Figma session id
+ 
+ @param localId - Figma local id
+ 
+ @returns `"sessionId:localId"` key
+ 
+ @example
+ ```ts
+ guidKey({ sessionId: 0, localId: 1, }); // "0:1"
+ ```
+ */
+export function guidKey(
+  {
+    sessionId,
+    localId,
+  }: Readonly<{
+    sessionId: number;
+    localId: number;
+  }>,
+): string {
+  return `${sessionId}:${localId}`;
+}
+
+/**
  Generate a stable UUID from a Figma GUID (sessionID + localID).
  
  Deterministic so parents and children resolve to the same id across passes.
