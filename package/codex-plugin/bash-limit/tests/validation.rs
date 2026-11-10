@@ -128,6 +128,24 @@ fn refuses_arguments_that_are_not_utf8() -> io::Result<()> {
     return Ok(());
 }
 
+/// What:
+/// `#[test]` registers a nextest case for the first refusal inside initialization;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// A path that does not exist and names no final component must be refused before the hook starts any slice,
+/// and no other case in the suite reaches that arm.
+#[test]
+fn refuses_an_initialize_path_without_a_unit_name() -> io::Result<()> {
+    // `..` leaves the final component absent while the path stays absolute, as the entry point requires.
+    let output = support::invoke(&["--initialize", "/nonexistent-codex-fixture/.."], "")?;
+    // The shared denial check proves the blocking exit and the empty success stream.
+    denied(&output);
+    // Read the diagnostic, whose wording belongs to the no-unit-name arm alone.
+    let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(diagnostic.contains("has no unit name"), "{diagnostic}");
+    return Ok(());
+}
+
 /// Reject changed or unreadable controls and absent or invalid membership targets.
 #[test]
 fn rejects_changed_controls_and_missing_membership() -> io::Result<()> {
