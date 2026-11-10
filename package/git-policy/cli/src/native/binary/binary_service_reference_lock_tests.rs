@@ -132,6 +132,19 @@ fn commit_paths(fixture: &Fixture, repo: &Path, message: &str, path: &str) -> (O
 }
 
 /// What:
+///  The one held record of a worktree,
+///  as the wrapper wrote it.
+/// Why:
+///  The record is what a settlement reads and what names the side reference,
+///  so a control that asks about a held commit keeps the question to the state the wrapper left.
+fn held_record_of(repo: &Path) -> git_policy_cli::held_commit_record::Held {
+    let (records, damaged) = git_policy_cli::held_commit_record::list(repo.join(".git").as_path());
+    assert_eq!(damaged, Vec::<PathBuf>::new(), "every held record reads");
+    assert_eq!(records.len(), 1, "one commit is held");
+    return records[0].clone();
+}
+
+/// What:
 ///  A commit that meets a lock a live Git holds waits for it,
 ///  and lands once the holder lets go,
 ///  with nothing for the person to do.
@@ -303,6 +316,45 @@ fn two_held_commits_wait_beside_each_other_and_both_land_in_order() {
     assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{FILE}").as_str()]), "the first edit\n", "the first commit's bytes landed");
     assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{other}").as_str()]), "the second edit\n", "the second commit's bytes landed");
     assert_eq!(git_text(&fixture, &repo, &["status", "--porcelain=v1"]), "", "the index caught up with both");
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit real Git built, held behind a lock, is on the side reference the answer names,
+///  and real Git's maintenance keeps it.
+/// Why:
+///  The answer says the commit is kept at `refs/worktree/cli-git-service/<batch>` either way,
+///  and the owner's rule is "never discard user data":
+///  an object no reference names is what `git gc --prune=now` removes,
+///  and a settlement that finds it gone cannot move the branch to it.
+///  `--verbose` is a line the service does not build itself,
+///  so real Git builds this commit (`service_commit_request_of.rs`),
+///  which is the arm whose commit has no reference of its own.
+#[test]
+fn a_held_commit_real_git_built_is_kept_on_the_side_reference_and_survives_a_prune() {
+    let (fixture, repo, service) = scene("reference-lock-held-git-built");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = command(&fixture, repo.as_path(), &["commit", "--verbose", "--message=held behind the lock", "--", FILE]);
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    assert!(said.contains("is held"), "the commit is held: {said}");
+    let record: git_policy_cli::held_commit_record::Held = held_record_of(repo.as_path());
+    let held: String = record.new.clone();
+    let side: String = git_policy_cli::held_commit_settle::kept_reference(record.seq);
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", side.as_str()]).trim(),
+        held,
+        "the side reference the answer names holds the held commit: {said}"
+    );
+    git(&fixture, &repo, &["gc", "--prune=now"]);
+    assert_eq!(git_text(&fixture, &repo, &["cat-file", "-t", held.as_str()]), "commit\n", "the held commit survives a maintenance that drops what no reference names");
+    std::fs::remove_file(&lock).expect("the holder lets go");
+    let (resumed, said_now) = command(&fixture, repo.as_path(), &["status"]);
+    assert_eq!(resumed, Some(0), "the command that settles the commit runs: {said_now}");
+    wait_for_at_most("the held commit to land", SETTLE_PATIENCE, || { return head_subject(&fixture, repo.as_path()) == "held behind the lock\n"; });
+    assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{FILE}").as_str()]), "the edit\n", "the commit kept on the side reference is the one that landed");
     drop(service);
     remove_settled(&fixture);
 }
