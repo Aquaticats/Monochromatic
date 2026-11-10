@@ -52,6 +52,12 @@ const NEGATIVE_INDEX = -1;
  */
 const PAST_LAST_ELEMENT = 2;
 
+/**
+ Index several elements past the two-element list {@link base} builds, so a case
+ separates the rank set by the append rule from every distance beyond it.
+ */
+const FAR_PAST_LAST_ELEMENT = 5;
+
 await describe({
   name: 'edit-set branches',
   children: [
@@ -276,11 +282,27 @@ await describe({
           },
         },),
         it({
-          name: 'leaves the array unchanged when a final index is past the length',
+          name: 'throws on a final index at the array length instead of leaving it alone',
+          fn: async () => {
+            expect(() => {
+              jsoncDelete({ state: base(), path: ['list', PAST_LAST_ELEMENT,], },);
+            },).toThrow('no JSONC node at path',);
+          },
+        },),
+        it({
+          name: 'throws on a final index past the array length',
+          fn: async () => {
+            expect(() => {
+              jsoncDelete({ state: base(), path: ['list', FAR_PAST_LAST_ELEMENT,], },);
+            },).toThrow('no JSONC node at path',);
+          },
+        },),
+        it({
+          name: 'leaves the record unchanged when a final key is missing',
           fn: async () => {
             const state = base();
-            const next = jsoncDelete({ state, path: ['list', PAST_LAST_ELEMENT,], },);
-            expect(jsoncGetValue({ state: next, path: ['list',], },),).toEqual([10, 20,],);
+            const next = jsoncDelete({ state, path: ['missing',], },);
+            expect(next,).toEqual(state,);
           },
         },),
         it({
