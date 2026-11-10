@@ -253,13 +253,6 @@ fn the_filling_publishes_a_clean_copy_and_leaves_the_source_alone() {
 /// The lock file beside a workspace's root manifest.
 const LOCK_FILE: &str = "Cargo.lock";
 
-/// The member the fixture workspace builds.
-const FIXTURE_MEMBER: &str = "own";
-
-/// The manifest of a workspace whose only member depends on one registry crate,
-/// so a build leaves dependency state a copy is worth making from.
-const FIXTURE_MANIFEST: &str = "[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"own\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nserde = \"1\"\n";
-
 /// What:
 ///  Write the fixture workspace `entry_of` names,
 /// and build it into the source build directory,
@@ -274,10 +267,11 @@ const FIXTURE_MANIFEST: &str = "[workspace]\nmembers = [\".\"]\n\n[package]\nnam
 /// ```
 fn built_workspace(root: &Path) -> PrewarmEntry {
     let named: PrewarmEntry = entry_of(root);
-    let entry: PrewarmEntry = PrewarmEntry { members: vec![String::from(FIXTURE_MEMBER)], ..named };
+    let entry: PrewarmEntry = PrewarmEntry { members: vec![String::from(MEMBER)], ..named };
     std::fs::create_dir_all(entry.root.join("src")).expect("the workspace");
-    std::fs::write(entry.root.join("Cargo.toml"), FIXTURE_MANIFEST).expect("the manifest");
-    std::fs::write(entry.root.join("src/lib.rs"), format!("pub fn {FIXTURE_MEMBER}() -> &'static str {{ \"{FIXTURE_MEMBER}\" }}\n")).expect("the crate");
+    let manifest: String = format!("[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"{MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n{DEPENDENCY} = \"1\"\n");
+    std::fs::write(entry.root.join("Cargo.toml"), manifest).expect("the manifest");
+    std::fs::write(entry.root.join("src/lib.rs"), format!("pub fn {MEMBER}() -> &'static str {{ \"{MEMBER}\" }}\n")).expect("the crate");
     let cargo: PathBuf = cargo_on_the_search_path();
     let built: std::process::Output = std::process::Command::new(cargo)
         .args(["build", "--offline", "--quiet"])
@@ -439,7 +433,7 @@ fn the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_wor
     let destination_build: PathBuf = root.join("worktree-build");
     // A build got there first, so nothing is cloned or cleaned and only the lookup is under test.
     std::fs::create_dir_all(destination_build.as_path()).expect("a build directory a build made");
-    let entry: PrewarmEntry = PrewarmEntry { root: nested.clone(), from: root.join("source-build"), to: destination_build, members: vec![String::from(FIXTURE_MEMBER)] };
+    let entry: PrewarmEntry = PrewarmEntry { root: nested.clone(), from: root.join("source-build"), to: destination_build, members: vec![String::from(MEMBER)] };
     let item: WorkItem = item_for(root.as_path(), worktree.as_path(), &entry);
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting_with(&item, &an_environment_with_no_programs())).expect("the filling runs");
     assert_eq!(verdict, Verdict::Done, "the worktree's own Cargo link is found from the worktree root");
