@@ -10,11 +10,10 @@
  @module
  */
 
-import { execFile } from 'node:child_process';
-import { once } from 'node:events';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { runCommand, } from './child-process.ts';
 import { UnknownKeyError } from './errors.ts';
 
 //region Logging
@@ -26,6 +25,8 @@ import { UnknownKeyError } from './errors.ts';
 const keysLogger = tagged({ tag: 'kwin-key-helper-keys', },);
 
 //endregion Logging
+
+//region Key table
 
 /**
  Lowercased key token to Linux evdev key code.
@@ -80,6 +81,10 @@ export const EVDEV_KEYS: Record<string, number> = {
   delete: 111,
 };
 
+//endregion Key table
+
+//region Combo translation
+
 /**
  Translate a `+`-joined key combo into the ydotool press-then-release token
  sequence: every key is pressed left-to-right, then released right-to-left.
@@ -107,8 +112,18 @@ export function keysToEvdev(combo: string): readonly string[] {
   const codes = parts.map(function toCode(part: string): number {
     /**
      Evdev code for one token, or `undefined` when unmapped.
+
+     The lookup is own-property only: {@link EVDEV_KEYS} is a plain object, so
+     a bare index would also answer the names it inherits from
+     `Object.prototype` (`constructor`, `__proto__`) and translate them into a
+     garbage token instead of rejecting them.
      */
-    const code = EVDEV_KEYS[part];
+    const code = Object.hasOwn(
+      EVDEV_KEYS,
+      part,
+    )
+      ? EVDEV_KEYS[part]
+      : undefined;
     if (code === undefined) {
       throw new UnknownKeyError(part);
     }
@@ -133,9 +148,18 @@ export function keysToEvdev(combo: string): readonly string[] {
   ];
 }
 
+//endregion Combo translation
+
+//region Injection
+
 /**
  Inject a key combo by shelling out to `ydotool key`, logging (never throwing)
  on translation or process failure so a bad combo cannot crash the daemon.
+ 
+ A `ydotool` that exits nonzero, is killed, or cannot be started at all is
+ reported by {@link runCommand}; the log line names the command, its exit
+ status or signal, and its stderr, which is how an operator learns that
+ `ydotoold` is not running.
  
  @param keys - Combo string forwarded to {@link keysToEvdev}
  
@@ -150,20 +174,13 @@ export async function sendKeys(keys: string): Promise<void> {
      Press/release token sequence for the requested combo.
      */
     const evdev = keysToEvdev(keys);
-    /**
-     Spawned ydotool process, awaited via its `close` event.
-     */
-    const child = execFile(
-      'ydotool',
-      [
+    await runCommand({
+      command: 'ydotool',
+      args: [
         'key',
-        ...evdev
-      ]
-    );
-    await once(
-      child,
-      'close'
-    );
+        ...evdev,
+      ],
+    });
   } catch (error) {
     /**
      Best-effort message extracted from a thrown value of unknown type.
@@ -176,3 +193,5 @@ export async function sendKeys(keys: string): Promise<void> {
       .error(`ydotool/key error: ${message}`,);
   }
 }
+
+//endregion Injection

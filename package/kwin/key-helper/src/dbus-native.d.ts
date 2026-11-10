@@ -13,6 +13,8 @@
 import type { MessageBus } from '@homebridge/dbus-native';
 
 declare module '@homebridge/dbus-native' {
+  //region Declared runtime surface
+
   /**
    Options for {@link sessionBus}, where `busAddress` overrides what would
    otherwise come from `DBUS_SESSION_BUS_ADDRESS`.
@@ -128,4 +130,6 @@ declare module '@homebridge/dbus-native' {
       ) => void,
     ) => void;
   }
+
+  //endregion Declared runtime surface
 }

@@ -27,10 +27,7 @@ import {
   keyHelperInterface,
   keyHelperInterfaceDescriptor,
 } from './dbus-iface.ts';
-import {
-  findShiftDevices,
-  startEvdevMonitor,
-} from './evdev.ts';
+import { watchShiftDevices, } from './evdev.ts';
 import { sendNvimInput } from './nvim.ts';
 import { getActiveWindowClass } from './state.ts';
 
@@ -47,6 +44,8 @@ const keyHelperLogger = tagged({ tag: 'kwin-key-helper-index', },);
 
 //endregion Logging
 
+//region Constants
+
 /**
  `RequestName` reply code meaning this connection became primary owner of the
  requested well-known name.
@@ -57,6 +56,10 @@ const DBUS_NAME_PRIMARY_OWNER = 1;
  `RequestName` flags value requesting the name with no special queueing.
  */
 const DBUS_NAME_NO_FLAGS = 0;
+
+//endregion Constants
+
+//region Daemon
 
 /**
  Fire F20 on double-shift, but only while Neovide is focused.
@@ -118,29 +121,13 @@ async function main(): Promise<void> {
     l: keyHelperLogger,
   },)
     .info(`D-Bus service registered: ${DBUS_SERVICE}`,);
-  /**
-   Every readable Shift-capable input device.
-   */
-  const devices = await findShiftDevices();
-  if (devices.length === 0) {
-    tagged({
-      tag: main.name,
-      l: keyHelperLogger,
-    },)
-      .warn('no readable input devices found -- double-shift disabled',);
-  }
-  await Promise.all(devices.map(async function monitorDevice(device): Promise<void> {
-    tagged({
-      tag: main.name,
-      l: keyHelperLogger,
-    },)
-      .info(`monitoring: ${device.path} (${device.name})`,);
-    await startEvdevMonitor({
-      devicePath: device.path,
-      onDoubleShift
-    });
-  }));
+  // The watcher runs for the life of the daemon: it rescans so a replugged or
+  // newly attached keyboard is monitored again, and keeps a monitor on every
+  // device it finds.
+  await watchShiftDevices({ onDoubleShift, });
 }
 
 // A startup failure ends the process through the throw, so Node prints the message and the stack, and the status is one.
 await main();
+
+//endregion Daemon
