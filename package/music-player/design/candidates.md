@@ -78,7 +78,7 @@ which were left as historical style comparisons.
 
 ---
 
-## CHOSEN: these define the product
+## Chosen: these define the product
 
 <table>
 <thead>
@@ -152,7 +152,7 @@ on and are not settings.</td>
 
 ## Conventions added in session 4
 
-- **Every option candidate prints its own PROS / CONS / MY READ** in the caption bar
+- **Every option candidate prints its own pros / cons / My read** in the caption bar
   at the bottom of the frame (review-notes standing standard 6).
    The same text goes in
   the form's question subtitle and in chat,
@@ -228,7 +228,7 @@ pause action the clearest focal point without compressing the stack.
  This choice
 settles both matrix dimensions and supersedes the recommendation.
 
-## ROUND 13: redundant current-track and Open cues
+## Round 13: redundant current-track and Open cues
 
 All studies inherit chosen option 1B:
  centered deck,
@@ -329,7 +329,7 @@ O2 uses the tonal folder `Open` button.
  This supersedes the recommendation for 1A
 without changing the settled transport treatment.
 
-## ROUND 10: white-divider clarification
+## Round 10: white-divider clarification
 
 Three native full-device captures keep the chosen `1c` tonal structure and `3a`
 neutral metadata treatment.
@@ -365,7 +365,7 @@ recapture must also apply D36:
 fill,
  and a leading play icon as the current-track cue.
 
-## ROUND 9: theme work (all built on the bound MD3 bundle)
+## Round 9: theme work (all built on the bound MD3 bundle)
 
 <table>
 <thead>
@@ -390,7 +390,7 @@ surface-container-high rail. No dividers.</td>
 <tr>
 <td>**light-c**</td>
 <td>852×fill</td>
-<td>**CHOSEN (D34), final:** surface-container panes, visible `outlineVariant` rail line, white vertical center spacer,
+<td>**Chosen (D34), final:** surface-container panes, visible `outlineVariant` rail line, white vertical center spacer,
 and white horizontal picker/transport divider.</td>
 </tr>
 <tr>
@@ -401,12 +401,12 @@ and white horizontal picker/transport divider.</td>
 <tr>
 <td>**dark-a**</td>
 <td>418×fill</td>
-<td>REJECTED, MD3&#39;s own dark container ramp above #000; the panes read as grey cards floating on black.</td>
+<td>Rejected, MD3&#39;s own dark container ramp above #000; the panes read as grey cards floating on black.</td>
 </tr>
 <tr>
 <td>**dark-b**</td>
 <td>418×fill</td>
-<td>**CHOSEN (D32)**: the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F /
+<td>**Chosen (D32)**: the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F /
 #22222A.</td>
 </tr>
 <tr>
@@ -417,13 +417,13 @@ and white horizontal picker/transport divider.</td>
 <tr>
 <td>**dbtp-a/b/c**</td>
 <td>426×883</td>
-<td>**3a CHOSEN (D35):** one on-surface-variant line, because planned display templating will provide user-selected
+<td>**3a chosen (D35):** one on-surface-variant line, because planned display templating will provide user-selected
 emphasis. 3b strengthens true peak; 3c moves it to the trailing slot.</td>
 </tr>
 <tr>
 <td>**light-a/b/c**</td>
 <td>852×fill</td>
-<td>**1c CHOSEN (D34); final separator treatment is gray rail line plus white vertical and horizontal pane spacers.**</t
+<td>**1c chosen (D34); final separator treatment is gray rail line plus white vertical and horizontal pane spacers.**</t
 d>
 </tr>
 <tr>
@@ -534,7 +534,7 @@ settled baseline combines the `light-c` tonal structure with `dbtp-a`.
 vertical center spacer and horizontal picker/transport divider white while retaining
 the visible dynamic rail line.
 
-## ROUND 8: verdicts in
+## Round 8: verdicts in
 
 <table>
 <thead>
@@ -561,7 +561,7 @@ targets.</td>
 <tr>
 <td>**pk-g**</td>
 <td>418×883</td>
-<td>**CHOSEN (D31).**</td>
+<td>**Chosen (D31).**</td>
 <td>**The picker presentation proposal (D31).** Plain 16px text, several names per line at natural width, 24dp gaps,
 48dp targets, nothing truncated, selection = primary colour + 2dp underline. No pill, no fill, no outline. This is
 unf-i&#39;s layout with the chip styling removed. Extent counter is measured off the DOM (C = 2.2 screens, worst letter
@@ -570,7 +570,7 @@ S = 2.5), not estimated.</td>
 </tbody>
 </table>
 
-## ROUND 7: verdicts in
+## Round 7: verdicts in
 
 <table>
 <thead>
@@ -584,7 +584,7 @@ S = 2.5), not estimated.</td>
 <tr>
 <td>**scan-ef**</td>
 <td>2×411×923</td>
-<td>**scan-F CHOSEN (D26)**: right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E
+<td>**scan-F chosen (D26)**: right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E
 (left, 2dp bottom-edge line, no text or control) rejected as too little for an hour-long job.</td>
 </tr>
 <tr>
@@ -609,33 +609,33 @@ drops with the bar. Tap rows to trash, × to dismiss the bar.</td>
 <tr>
 <td>**pk-a**</td>
 <td>418×883</td>
-<td>REJECTED, one name per 48dp row, single column. The long-scroll failure again.</td>
+<td>Rejected, one name per 48dp row, single column. The long-scroll failure again.</td>
 </tr>
 <tr>
 <td>**pk-b**</td>
 <td>418×883</td>
-<td>REJECTED, two columns of one-name rows. Same failure, halved.</td>
+<td>Rejected, two columns of one-name rows. Same failure, halved.</td>
 </tr>
 <tr>
 <td>**pk-c**</td>
 <td>418×883</td>
-<td>REJECTED, same column with hairline dividers. Same failure.</td>
+<td>Rejected, same column with hairline dividers. Same failure.</td>
 </tr>
 <tr>
 <td>**pk-d**</td>
 <td>418×883</td>
-<td>VOID, bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already
+<td>Void, bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already
 killed, and kept chip styling. Do not build on it.</td>
 </tr>
 <tr>
 <td>**pk-e**</td>
 <td>418×883</td>
-<td>REJECTED, three columns of one-name rows, plus truncation.</td>
+<td>Rejected, three columns of one-name rows, plus truncation.</td>
 </tr>
 <tr>
 <td>**pk-f**</td>
 <td>418×883</td>
-<td>REJECTED, one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the
+<td>Rejected, one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the
 reserved search (D25).</td>
 </tr>
 </tbody>
@@ -661,7 +661,7 @@ reserved search (D25).</td>
 </tbody>
 </table>
 
-## ROUND 5: verdicts in
+## Round 5: verdicts in
 
 <table>
 <thead>
@@ -675,7 +675,7 @@ reserved search (D25).</td>
 <tr>
 <td>**unf-g**</td>
 <td>852×883</td>
-<td>CHOSEN over unf-f: transport left under the picker, tracks right.</td>
+<td>Chosen over unf-f: transport left under the picker, tracks right.</td>
 </tr>
 <tr>
 <td>**unf-h**</td>
@@ -686,7 +686,7 @@ request. **Current best unfolded screen.**</td>
 <tr>
 <td>**desc-f**</td>
 <td>418×883</td>
-<td>CHOSEN over desc-e: outlined segmented button, all four always visible. Called &quot;un-balanced&quot; →
+<td>Chosen over desc-e: outlined segmented button, all four always visible. Called &quot;un-balanced&quot; →
 desc-g.</td>
 </tr>
 <tr>
@@ -707,7 +707,7 @@ desc-g.</td>
 </tbody>
 </table>
 
-## ROUND 4
+## Round 4
 
 <table>
 <thead>
@@ -727,7 +727,7 @@ content-width chips, ~one screen max. Interactive. Deck right.</td>
 </tbody>
 </table>
 
-## ROUND 3: rejected (unf-d/unf-e still one folder per row)
+## Round 3: rejected (unf-d/unf-e still one folder per row)
 
 <table>
 <thead>
@@ -741,7 +741,7 @@ content-width chips, ~one screen max. Interactive. Deck right.</td>
 <tr>
 <td>**unf-d**</td>
 <td>852×883</td>
-<td>Folders in one column with letter headers; 48dp fast-scroll RAIL with drag bubble; deck right.</td>
+<td>Folders in one column with letter headers; 48dp fast-scroll rail with drag bubble; deck right.</td>
 </tr>
 <tr>
 <td>**unf-e**</td>
@@ -757,13 +757,13 @@ content-width chips, ~one screen max. Interactive. Deck right.</td>
 <tr>
 <td>**cover-c**</td>
 <td>411×923</td>
-<td>CHOSEN (D14). Reframed at fixed device size. HTML-era baseline; the native cover round of 2026-09-17 re-verifies it
+<td>Chosen (D14). Reframed at fixed device size. HTML-era baseline; the native cover round of 2026-09-17 re-verifies it
 at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume element is gone per D43.</td>
 </tr>
 </tbody>
 </table>
 
-## ROUND 2: verdicts in
+## Round 2: verdicts in
 
 <table>
 <thead>
@@ -777,14 +777,14 @@ at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume 
 <tr>
 <td>**unf-b**</td>
 <td>852×883</td>
-<td>REJECTED, letter grid reads as a keyboard. Unfolded, deck RIGHT. ~1,218 folders (artists.js) in two columns of
+<td>Rejected, letter grid reads as a keyboard. Unfolded, deck right. ~1,218 folders (artists.js) in two columns of
 48dp rows with letter headers + counts; 27-cell A to Z strip (48dp) pinned at the bottom of the left half, tap to jump;
 total folder count in the header; tracks + deck right; 16dp seam. Interactive.</td>
 </tr>
 <tr>
 <td>**unf-c**</td>
 <td>852×883</td>
-<td>REJECTED (same grid). Same file, deck LEFT under the folders and strip; tracks take the whole right half. Known
+<td>Rejected (same grid). Same file, deck left under the folders and strip; tracks take the whole right half. Known
 cost: at 883dp the folder list gets ~340dp (≈7 rows) before scrolling.</td>
 </tr>
 <tr>
@@ -796,25 +796,25 @@ cost: at 883dp the folder list gets ~340dp (≈7 rows) before scrolling.</td>
 <tr>
 <td>**cover-d**</td>
 <td>411×923</td>
-<td>REJECTED. Cover screen, controls only: 88dp play, 64dp prev/next, mode group, no volume (hardware keys), list
+<td>Rejected. Cover screen, controls only: 88dp play, 64dp prev/next, mode group, no volume (hardware keys), list
 behind one 72dp &quot;Tracks&quot; row. Verified at 411 wide.</td>
 </tr>
 <tr>
 <td>**desc-a**</td>
 <td>418×883</td>
-<td>SUPERSEDED by desc-d (wrong model of subfolders). Descend demo, interactive (▶</td>
-<td>steps playback): the list FOLLOWS into the subfolder; chip becomes a breadcrumb; &quot;Up to Camellia&quot;
+<td>Superseded by desc-d (wrong model of subfolders). Descend demo, interactive (▶</td>
+<td>steps playback): the list follows into the subfolder; chip becomes a breadcrumb; &quot;Up to Camellia&quot;
 row.</td>
 </tr>
 <tr>
 <td>**desc-b**</td>
 <td>418×883</td>
-<td>SUPERSEDED. Same demo: the list STAYS; only the deck subtitle names the subfolder (&quot;Live · 1 of 3&quot;).</td>
+<td>Superseded. Same demo: the list stays; only the deck subtitle names the subfolder (&quot;Live · 1 of 3&quot;).</td>
 </tr>
 <tr>
 <td>**desc-c**</td>
 <td>418×883</td>
-<td>SUPERSEDED. Same demo: the list STAYS; the playing subfolder row takes the highlight with &quot;Playing ·
+<td>Superseded. Same demo: the list stays; the playing subfolder row takes the highlight with &quot;Playing ·
 track&quot; beneath.</td>
 </tr>
 </tbody>
@@ -868,7 +868,7 @@ see open-questions.md #3).
 
 ---
 
-## SUPERSEDED: keep for reference, do not build on
+## Superseded: keep for reference, do not build on
 
 ### Wrong-aspect fold layouts (all drawn in a landscape frame; the inner display is square)
 - **fold-a**:
@@ -907,7 +907,7 @@ see open-questions.md #3).
    Play again / Pick another folder.
 - **o6-b**:
   end of folder:
-   rolls into the next folder with a NEXT chip.
+   rolls into the next folder with a next chip.
   Both moot:
    the mode control (Repeat / In order / Shuffle folder / Shuffle all)
   already determines end-of-folder behaviour.

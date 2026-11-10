@@ -14,7 +14,7 @@ thing that went wrong.
 Three were wrong:
  two-line list rows were built at 56dp (the spec is 72dp,
 56dp is
-the *one*-line height),
+the **one**-line height),
  segmented buttons at 48dp visual height (the spec is 40dp
 visual with a 48dp tap target),
  and slider handles at 4×26px (the updated M3 slider
@@ -203,13 +203,13 @@ Where a form is a follow-up round,
 a narrower form than they were meant:
 
 * "we don't really need this as tabs" (about the CA / CH / CL to CO split) was recorded in
-  D17 as *no sub-buckets as tabs*.
+  D17 as **no sub-buckets as tabs**.
    The segmentation itself was what died.
    It came back
   as a rail accordion in pk-d.
 * "picker names not as a wall of chips" was recorded as presentation being "open",
   and
-  then written into D28 as *chips are still the presentation*.
+  then written into D28 as **chips are still the presentation**.
 * One name per 48dp row had been rejected for the long scroll (5b) and was rebuilt
   three more times (pk-a,
    pk-b,
@@ -329,7 +329,7 @@ your own output as I told you the 5th time?"
  same question.**
  The corrected files were shown in a
 question form,
- and all three light candidates rendered DARK in their thumbnails.
+ and all three light candidates rendered dark in their thumbnails.
  Two
 separate causes,
  and the first fix did not address the real one:
@@ -341,11 +341,11 @@ separate causes,
 * **the real cause**:
   the design system publishes its dark scheme under
   `[data-theme="dark"]`,
-   the HOST sets that attribute on `<html>` when the user's app
+   the host sets that attribute on `<html>` when the user's app
   is in dark mode,
    and custom properties inherit.
    So a "light" study built on
-  `var(--md-sys-color-surface)` renders in the DARK scheme on a dark-mode host,
+  `var(--md-sys-color-surface)` renders in the dark scheme on a dark-mode host,
    while
   looking perfectly light in a light-mode preview.
    Baseline fallbacks did not help:
@@ -390,7 +390,7 @@ and give `html`/`body` the literal desk colour since they sit above that root.
 3. **Look at the rendered output before asking about it**:
    and when the question is
    "does this read as X",
-    look at it in the USER's view,
+    look at it in the user's view,
     at their window size,
     not only
    in a preview iframe of a different shape.
@@ -406,11 +406,11 @@ was then broken by someone reading those exact words:
   read as a preference;
    two forms went out with no
   free-text field at all (5e).
-* "no sub-buckets *as tabs*":
+* "no sub-buckets **as tabs**":
   read as banning one presentation;
    the segmentation came
   back as a rail accordion (5d).
-* "picker names not as a wall of chips" was filed under presentation being *open*,
+* "picker names not as a wall of chips" was filed under presentation being **open**,
   and then written back into a decision as chips (5d).
 
 The user:
@@ -496,7 +496,7 @@ user changed their mind:
 <tr>
 <td>5</td>
 <td>same, with my picks</td>
-<td>pros and cons were in chat, not where the user was looking, 5e/6</td>
+<td>Pros and cons were in chat, not where the user was looking, 5e/6</td>
 </tr>
 </tbody>
 </table>
@@ -1014,7 +1014,7 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
 
 ## Standing standards for this project
 
-1. **EVERY question form ends with a free-text field.
+1. **Every question form ends with a free-text field.
     No exceptions.**
     Not "usually",
    not "when the options feel thin",
@@ -1061,7 +1061,7 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
     pros,
     cons,
     and a pick,
-   written as a LIST.**
+   written as a list.**
     The user asks for choices,
     not a menu read out flatly,
    "you're supposed to comment on each option with what you think yourself of the pros
@@ -1072,10 +1072,10 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
     So,
     per candidate:
    ```text
-   PROS   · one point per line
+   pros   · one point per line
           · one point per line
-   CONS   · one point per line
-   MY READ · pick / fallback / reject, and why in one line
+   cons   · one point per line
+   My read · pick / fallback / reject, and why in one line
    ```
    Never a prose paragraph,
     never a run-on sentence with semicolons.

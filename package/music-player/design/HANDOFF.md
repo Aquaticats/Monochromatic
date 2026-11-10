@@ -1045,7 +1045,7 @@ systems (D28),
     no fill,
     no outline.
     The wrapped
-   several-per-line *layout* is right;
+   several-per-line **layout** is right;
     only the styling was wrong.
 3. No one-item-per-row lists,
    one,
@@ -1115,7 +1115,7 @@ project holds itself to.
   get asked.
 - **Every option carries pros,
    cons and my own pick,
-   written as a LIST**,
+   written as a list**,
   in the chat
   message,
    in the form subtitle,
@@ -2899,7 +2899,7 @@ things a new session must know about it:
     the five
    surface-container values are this project's own (D32).
 2. **Its dark scheme lives under `[data-theme="dark"]`,
-    and the HOST sets that
+    and the host sets that
    attribute on `<html>`.**
     Custom properties inherit,
     so a light design built on
@@ -3094,7 +3094,7 @@ Settled this session (all in decisions.md,
    parent's tracks first (D5/D6).
 - Mode control = outlined segmented button,
    always four visible (D1 reversed).
-- Transport block LEFT under the picker;
+- Transport block left under the picker;
    tracks fill the right half (D16).
 - Transport block centred/balanced layout (D18).
 - Cover screen = full player,
@@ -3172,8 +3172,8 @@ the user as decisions;
 3. **Sub-dir names must not be a wall of chips**:
    the wrapped-chip picker (unf-h)
    was called overwhelming.
-    D17's *filter* principle stands;
-    its *presentation* is
+    D17's **filter** principle stands;
+    its **presentation** is
    reopened.
     Try:
     a plain single column within the filtered letter (only ~20 to 70
@@ -3188,7 +3188,7 @@ the user as decisions;
 **Lessons this session (all in review-notes.md 5b/5c,
  read them):**
 - "Handle 1k folders" means COPE,
-   never LIST.
+   never list.
    Cost four rejected candidates.
 - Device candidates must render in a fixed device-size frame scaled to fit (pattern in
   unf-h / cover-c / desc-g).
@@ -4917,7 +4917,7 @@ explicit request.
 - Picker presentation within a letter:
   settled by D31 (pk-g) and carried natively at 48dp
  row pitch;
-  `open-questions.md` section 10 carried a stale STILL OPEN entry listing
+  `open-questions.md` section 10 carried a stale still open entry listing
  pk-e and pk-f,
   now closed with the D31 citation and native evidence.
   The next active
@@ -5447,7 +5447,7 @@ keeps the project on **baseline** M3.
 are recoverable from `components/search/specs/manifest.json`:
  ask the original
 `images/{34,35}.png` URL for `=w1200` instead of the archived 40px thumb.
-They show a 56dp *collapsed* full-pill field,
+They show a 56dp **collapsed** full-pill field,
  then a docked expanded container
 rounded 28dp with a 56dp header and divider,
  or a full-content sharp container

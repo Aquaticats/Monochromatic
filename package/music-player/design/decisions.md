@@ -139,7 +139,7 @@ desktop) still hold,
 
 ## B. Theme and colour
 
-### B1. Theme follows the OS; dark is TRUE BLACK: standing rule (revised 2026-09-04)
+### B1. Theme follows the OS; dark is true black: standing rule (revised 2026-09-04)
 The app follows the system light/dark setting.
  **The dark scheme's background is #000
 and this is a standing rule,
@@ -585,7 +585,7 @@ reflow-free;
 
 ---
 
-### D16. Unfolded screen: picker + transport LEFT, tracks RIGHT (candidate unf-g → unf-h)
+### D16. Unfolded screen: picker + transport left, tracks right (candidate unf-g → unf-h)
 Chosen over transport-right (unf-f).
  unf-h is the assembled version with D1 applied.
 
@@ -605,14 +605,14 @@ before touching the picker:**
 1. **No sub-letter segmentation,
     in any form.**
     The CA / CH / CL to CO split is dead,
-   "we don't really need this as tabs" killed the *segmentation*,
+   "we don't really need this as tabs" killed the **segmentation**,
     not just its
    presentation as tabs.
     A rail accordion (pk-d) is the same idea wearing a different
    hat and is equally out.
-2. **No chip STYLING on the names**:
+2. **No chip styling on the names**:
    but the wrapped,
-    several-per-line LAYOUT is
+    several-per-line layout is
    fine and in fact required.
     "Chips are out,
     but only the chip-like styling.
@@ -807,7 +807,7 @@ this behaviour is Android-only by nature.
 
 ## F. Input
 
-### F1. Keyboard map: DRAFT ONLY (candidate keys-a), superseded by D102
+### F1. Keyboard map: draft only (candidate keys-a), superseded by D102
 Not reviewed by the user;
 the map the human accepted in D102 replaces it.
  Current draft:
@@ -967,7 +967,7 @@ hour-long operation);
  scan-b;
  scan-d.
 
-### D27. First run opens the system music library and ASKS before analysing
+### D27. First run opens the system music library and asks before analysing
 If the platform exposes a designated music library,
 Android MediaStore,
  XDG
@@ -1049,7 +1049,7 @@ break,
  but neither is drawn,
  and neither gets special-cased UI for now.
 
-### D31. Picker names = plain text, several per line: CHOSEN (candidate pk-g, 2026-09-03)
+### D31. Picker names = plain text, several per line: chosen (candidate pk-g, 2026-09-03)
 Chosen over pk-h (14px with middot separators,
  2.0 screens):
  the 16px/24dp-gap version

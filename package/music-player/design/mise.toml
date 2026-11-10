@@ -394,6 +394,7 @@ dir = "{{config_root}}"
 run = [
   "node selected-search-question.mjs validate",
   "node prose-dashes-test.mjs",
+  "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
 ]
 
@@ -401,6 +402,11 @@ run = [
 description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"
 dir = "{{config_root}}"
 run = "node prose-dashes-test.mjs"
+
+[tasks."test:prose:emphasis"]
+description = "Hold the package's authored prose to the AGENTS.md ban on italics: emphasis is bold only"
+dir = "{{config_root}}"
+run = "node prose-emphasis-test.mjs"
 
 [tasks."build:search:status-evidence"]
 description = "Embed sanitized keyboard-closed Search status captures for the selected Fold layout"

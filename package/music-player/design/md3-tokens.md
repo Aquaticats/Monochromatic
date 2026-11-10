@@ -18,7 +18,7 @@ do not recall it.
 "This website requires JavaScript."
  **Google publishes the generated token files in a
 public repo instead**,
- and those files *are* the spec data:
+ and those files **are** the spec data:
 
 ```text
 repo:  github.com/material-components/material-web
