@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // D88: nothing is compared with a recorded digest. What is checked about an image is read from the image.
 const question = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   question,

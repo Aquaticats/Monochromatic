@@ -199,11 +199,11 @@ Raw status-bearing screenshots and hierarchies remain private.
 
 ## Historical R/C review and D56 selection
 
-`package/music-player/design/questions/cover-viewport-review.html` compares the
+`package/music-player/design/question/cover-viewport-review.html` compares the
 same-APK 200% opt-out failure control with the opt-in end-of-list state;
 it does not replace the selected A review.
-Its public captures are `questions/render/search-cover-viewport-control-s200.png`
-and `questions/render/search-cover-viewport-refinement-s200.png`.
+Its public captures are `question/render/search-cover-viewport-control-s200.png`
+and `question/render/search-cover-viewport-refinement-s200.png`.
 Every pixel in the top 151px status strip was replaced with the same
 visually checked generic 9:41 clock and signal/battery icon strip from the
 previously published selected-cover review.
@@ -216,7 +216,7 @@ The reference strip itself contains no notification or account text.
 The user answered **R**,
 selecting the cover-only keyboard-aware results viewport as D56.
 The R/C comparison remains historical evidence;
-`questions/current.html` presents only the active design.
+`question/current.html` presents only the active design.
 D63 to D68 later selected Back/Clear/focus and same-query row visibility;
 native restoration after refocus remains unverified.
 Result actions and TalkBack traversal remain separate open questions.
@@ -224,7 +224,7 @@ This selection does not authorize production implementation.
 
 ## Inner floating-result exception question
 
-`package/music-player/design/questions/floating-results-review.html` shows a
+`package/music-player/design/question/floating-results-review.html` shows a
 separate sanitized 2076 × 2152 native inner-panel capture from the same
 long-results debug fixture with **real floating Gboard**.
 Its middle right-pane result labels are partially covered while the `cam`

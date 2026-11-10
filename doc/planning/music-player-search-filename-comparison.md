@@ -208,7 +208,7 @@ Neither title customization nor a renderer fallback is implied.
 D77 and visible distinction before activation remain requirements.
 
 The superseded artifact is retained at
-`package/music-player/design/questions/archive/search-filename-policy-withdrawn.html`.
+`package/music-player/design/question/archive/search-filename-policy-withdrawn.html`.
 Its prior verification record does not verify the corrected artifact.
 
 The concrete proposed tightening of `AGENTS.md`'s existing `QPM` rule is
@@ -327,7 +327,7 @@ The fresh settings snapshot was restored and the owned runtime stopped;
 container,
 ADB target and owner/emulator process absence were verified.
 
-[The self-contained review](../../package/music-player/design/questions/search-filename-comparison.html)
+[The self-contained review](../../package/music-player/design/question/search-filename-comparison.html)
 was corrected under task 141 to a verified evidence-only artifact with
 composition examples and optional observations.
 It no longer asks for fixed supporting-text placement or retention policies.

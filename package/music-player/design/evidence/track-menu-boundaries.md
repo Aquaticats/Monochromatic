@@ -8,7 +8,7 @@ It does not reopen Search,
 notification presentation,
 keyboard defaults or D81's Settings-template requirement.
 
-The explicit D7 list and accepted `candidates/ctx-b.dc.html` contain seven
+The explicit D7 list and accepted `candidate/ctx-b.dc.html` contain seven
 action rows in three groups plus a track-name heading.
 Their old caption says eight items;
 no extra action is invented to reconcile that wording.
@@ -122,17 +122,17 @@ Measured roots and menu bounds match,
 while RGB channels differ by at most 3 on the 8-bit scale.
 No cause or cross-artifact visual equivalence is inferred.
 All current full-region pairs were inspected afresh and named by digest in the manifest before
-publishing `questions/evidence/track-menu-witnesses.json` and its PNGs.
-`questions/evidence/track-menu-native-verification.json` records exact
+publishing `question/evidence/track-menu-witnesses.json` and its PNGs.
+`question/evidence/track-menu-native-verification.json` records exact
 contexts,
 operation limits and geometry replay.
 The verified consumer requires exact cohort membership,
 measured crop bounds,
 actual runtime provenance,
 heading behavior and native-input evidence.
-The [offline viewer](../questions/track-menu.html) and its build/validation,
+The [offline viewer](../question/track-menu.html) and its build/validation,
 consumer tests and exact-cohort/native-input guard-removal proofs passed.
-The [verification record](../questions/evidence/track-menu-review-verification.json)
+The [verification record](../question/evidence/track-menu-review-verification.json)
 records that check of the viewer,
 manifest and native result.
 Four offline Chromium desktop/mobile light/dark contexts exercised all

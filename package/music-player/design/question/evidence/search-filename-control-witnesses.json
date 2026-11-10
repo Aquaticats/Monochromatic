@@ -14,7 +14,7 @@
   "verification": "Complete scene/panel/scale/theme matrix; exact retained RGB bytes; native and published opacity; metadata-free PNG chunks; a changed PNG rejected by the retained-pixel verifier",
   "witnesses": [
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-long-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-long-light-s100.png",
       "sha256": "0a835001ce47be256f788e4abfd2b9df2a108184fd390856efb83d5f063f6056",
       "panel": "inner",
       "scene": "long",
@@ -35,7 +35,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-context-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-context-light-s100.png",
       "sha256": "3c01fdd943cee9b6ac0278c35b88099ef17b92ba55eca3090b2bbc5c77ecec7b",
       "panel": "inner",
       "scene": "context",
@@ -56,7 +56,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-stem-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-stem-light-s100.png",
       "sha256": "fbf750e7c660c3b30612916dca4f38ca5c02775b70b329357354196ac6613c27",
       "panel": "inner",
       "scene": "stem",
@@ -77,7 +77,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-ordinary-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-ordinary-light-s100.png",
       "sha256": "2d2870205fd37cb626c787b0146a25ba37d53ea165992a2ade56f7267b9418c8",
       "panel": "inner",
       "scene": "ordinary",
@@ -98,7 +98,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-long-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-long-dark-s100.png",
       "sha256": "f8a89ecccffa870fda1a2c16342d6e96e0bb93630dbcde3c40d931050d92c4eb",
       "panel": "inner",
       "scene": "long",
@@ -119,7 +119,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-context-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-context-dark-s100.png",
       "sha256": "e0431493634ff94e0a974d0dd332c9dfb29b4f7296eb5a6398bb92e01a1e6825",
       "panel": "inner",
       "scene": "context",
@@ -140,7 +140,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-stem-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-stem-dark-s100.png",
       "sha256": "bf5c11b1f875a39f59406d8696f69a98ab7635917d81f00426074da791bcb2f1",
       "panel": "inner",
       "scene": "stem",
@@ -161,7 +161,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-ordinary-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-ordinary-dark-s100.png",
       "sha256": "14551cfc9df34ee35cce4d64b83d2cbfe6890ab2f5839a8e173d429216915fd7",
       "panel": "inner",
       "scene": "ordinary",
@@ -182,7 +182,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-long-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-long-light-s200.png",
       "sha256": "fb62e04fcff53c48ab41a46e8830ffbde0bcee06a7979b3b0daa7eee3b24da9a",
       "panel": "inner",
       "scene": "long",
@@ -203,7 +203,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-context-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-context-light-s200.png",
       "sha256": "452db15ff7ab7d2f9bd5b86fa0dc4109467c64488ec91d294d7c8b85c7744847",
       "panel": "inner",
       "scene": "context",
@@ -224,7 +224,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-stem-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-stem-light-s200.png",
       "sha256": "7f6f761399a1d9a96539a15459cea56293af12621f8ef2bfd0b43c3aef9f9872",
       "panel": "inner",
       "scene": "stem",
@@ -245,7 +245,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-ordinary-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-ordinary-light-s200.png",
       "sha256": "26fecb7bd5be488186554fb89c82537d0f84d55127783420fc48c584b706b3ad",
       "panel": "inner",
       "scene": "ordinary",
@@ -266,7 +266,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-long-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-long-dark-s200.png",
       "sha256": "1be582478a4cce9effcbbba985d8b1d33694ac871e77ee1f973406864eda6e5c",
       "panel": "inner",
       "scene": "long",
@@ -287,7 +287,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-context-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-context-dark-s200.png",
       "sha256": "0ddcd953e1d78d35f20e1c2c422b1b93f342e1137cfa0e8b5b42afdbddf6c675",
       "panel": "inner",
       "scene": "context",
@@ -308,7 +308,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-stem-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-stem-dark-s200.png",
       "sha256": "6c428839ae80aa6201c3fd51ffb61725072612fc4faac55a55da4c03b7491439",
       "panel": "inner",
       "scene": "stem",
@@ -329,7 +329,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-inner-ordinary-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-inner-ordinary-dark-s200.png",
       "sha256": "1aff95c8e92d7cc16d5f565c3d2a3a0a8f9453865af101f5e750ed83deed9c83",
       "panel": "inner",
       "scene": "ordinary",
@@ -350,7 +350,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-long-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-long-light-s100.png",
       "sha256": "be1c72a29ac83764bb25291c8ff396f9dcf0b275ed38956beee4b0a6b87b687e",
       "panel": "cover",
       "scene": "long",
@@ -371,7 +371,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-context-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-context-light-s100.png",
       "sha256": "ef104dc5a2561b79c2d95c137077ed3801c3f0e6c52acd63e403f714ace14c36",
       "panel": "cover",
       "scene": "context",
@@ -392,7 +392,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-stem-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-stem-light-s100.png",
       "sha256": "842663be3a7c2df513cd97e7ec0ba87b5fcfe175a45e9b85c5aa75dc7cd214a7",
       "panel": "cover",
       "scene": "stem",
@@ -413,7 +413,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-ordinary-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-ordinary-light-s100.png",
       "sha256": "780bc57e120cd0783152f4a235d60c4e7890d0f30af708a564b64d76ad8634e6",
       "panel": "cover",
       "scene": "ordinary",
@@ -434,7 +434,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-long-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-long-dark-s100.png",
       "sha256": "cbe1155b5d388ae91d01bef5713a8a26c4da41d05a51491b115dbb95a50263f1",
       "panel": "cover",
       "scene": "long",
@@ -455,7 +455,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-context-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-context-dark-s100.png",
       "sha256": "a31a1117f0475672e444cb8269d51ed4a5a072737e2c574154c1b42675c31f30",
       "panel": "cover",
       "scene": "context",
@@ -476,7 +476,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-stem-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-stem-dark-s100.png",
       "sha256": "e76e3cdf0e0eed479f1f0ed0f35db1dbf6efce1fbf8ef3e7b5af1da57f89966a",
       "panel": "cover",
       "scene": "stem",
@@ -497,7 +497,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-ordinary-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-ordinary-dark-s100.png",
       "sha256": "988c4bc10e55d2dd3be333167e0d3024047f6ad9e4bb3266919eeea2ea4c3516",
       "panel": "cover",
       "scene": "ordinary",
@@ -518,7 +518,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-long-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-long-light-s200.png",
       "sha256": "bd85d646560a15c08a49dc8554f08a2c503be6137bbd308ee3ebfc6a1def9bf1",
       "panel": "cover",
       "scene": "long",
@@ -539,7 +539,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-context-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-context-light-s200.png",
       "sha256": "545e4648ae7d17b1a40723f4a59d92de2917eb86c07b5a38d579e6efce502389",
       "panel": "cover",
       "scene": "context",
@@ -560,7 +560,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-stem-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-stem-light-s200.png",
       "sha256": "f3e09c1b621d760af7271435d73d91ccf61de66278b310c019faab828b39a882",
       "panel": "cover",
       "scene": "stem",
@@ -581,7 +581,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-ordinary-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-ordinary-light-s200.png",
       "sha256": "1ab7964e17cf50edddee8b9af4abcfb7ad671f5df5440952098cf73e9b840efb",
       "panel": "cover",
       "scene": "ordinary",
@@ -602,7 +602,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-long-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-long-dark-s200.png",
       "sha256": "5e7e758c2edfb8962aedbaad876c673cc543fc1b289824d60da6cadee625778b",
       "panel": "cover",
       "scene": "long",
@@ -623,7 +623,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-context-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-context-dark-s200.png",
       "sha256": "53c3f94668b94687a8dff6d168fa96010cc7dc413ae2113e9fd824e99fdc3d6e",
       "panel": "cover",
       "scene": "context",
@@ -644,7 +644,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-stem-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-stem-dark-s200.png",
       "sha256": "e7e0fd1a287ec23ae447c038a8293df61206877286813e66fe75435c54551f17",
       "panel": "cover",
       "scene": "stem",
@@ -665,7 +665,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-control-cover-ordinary-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-control-cover-ordinary-dark-s200.png",
       "sha256": "deea4b5814bd874159763452732fa92c6e22e061d2a10df2ba82972e203933d0",
       "panel": "cover",
       "scene": "ordinary",

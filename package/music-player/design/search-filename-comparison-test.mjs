@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -35,7 +35,7 @@ const manifestFile = 'search-filename-comparison-witnesses.json';
 const comparison = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestFile
   ),
@@ -45,7 +45,7 @@ const baselineFile = 'search-filename-actual-player-witnesses.json';
 const baseline = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     baselineFile
   ),
@@ -62,7 +62,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -75,12 +75,12 @@ for (const file of [
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'search-filename-comparison.template.html'
   ),
   join(
     fixture,
-    'questions',
+    'question',
     'search-filename-comparison.template.html'
   )
 );
@@ -186,7 +186,7 @@ function expectTemplateRejection({
 }) {
   const path = join(
     fixture,
-    'questions',
+    'question',
     'search-filename-comparison.template.html'
   );
   const template = readFileSync(
@@ -226,7 +226,7 @@ try {
     !== 0)) throw new Error('Disposable positive review failed.');
   const quotedPath = join(
     fixture,
-    'questions',
+    'question',
     'search-filename-comparison.template.html'
   );
   const quotedOriginal = readFileSync(
@@ -318,7 +318,7 @@ try {
   });
   const output = join(
     fixture,
-    'questions',
+    'question',
     'search-filename-comparison.html'
   );
   writeFileSync(

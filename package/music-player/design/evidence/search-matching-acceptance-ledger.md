@@ -55,11 +55,11 @@ Search match under D60.
   This outcome does not select numeric weights or a tie-break.
 
 The current native selected-only evidence is
-`package/music-player/design/questions/current.html`;
+`package/music-player/design/question/current.html`;
 `package/music-player/design/evidence/search-match-emphasis-native.md`
 records after-state bounds and image provenance.
 The D/P and M/F/T comparisons are historical at
-`package/music-player/design/questions/archive/search-ranking-before-dm.html`.
+`package/music-player/design/question/archive/search-ranking-before-dm.html`.
 
 ## Deferred engine distinctions, not current UI questions
 
@@ -133,4 +133,4 @@ Do not proactively choose a library,
 ask W/A,
 or turn illustrative captions into navigation or playback now.
 
-[word-review]: ../questions/archive/search-word-boundary-deferred.html
+[word-review]: ../question/archive/search-word-boundary-deferred.html

@@ -1,5 +1,5 @@
-// Rail model for the folder picker. It ports the JavaScript rail in design/candidates/buckets.js and its
-// helper scriptOf in design/candidates/artists.js. Only writing systems present in the library get a
+// Rail model for the folder picker. It ports the JavaScript rail in design/candidate/buckets.js and its
+// helper scriptOf in design/candidate/artists.js. Only writing systems present in the library get a
 // section (D28). Every cell is keyed by the first character of a folder name, with no sub-letter
 // segmentation (D3 and D17).
 

@@ -26,7 +26,7 @@ collision detection and matcher selection outside this work.
 
 ## Retained native cohort
 
-The [witness manifest](../questions/evidence/search-filename-comparison-witnesses.json)
+The [witness manifest](../question/evidence/search-filename-comparison-witnesses.json)
 binds 64 initial views and six separately identified scrolled witnesses to
 prototype revision `a5560abb223af9f700b9d9465eac1991a02aac07`.
 The retained APK SHA-256 is
@@ -46,7 +46,7 @@ file hashes and rejection of a changed RGB byte.
 Private original frames,
 XML,
 OCR and logs are not published.
-The [layout record](../questions/evidence/search-filename-comparison-layout.json)
+The [layout record](../question/evidence/search-filename-comparison-layout.json)
 contains 320 ordered semantic title/support slots.
 Within each matched panel/theme/font-scale group,
 exact measured Search-header-region RGB is unchanged across options,
@@ -195,7 +195,7 @@ a narrower replica when making that claim.
 ## Review and remaining boundary
 
 Use the self-contained
-[filename review](../questions/search-filename-comparison.html)
+[filename review](../question/search-filename-comparison.html)
 to inspect the authored placement and retention controls,
 including their composition.
 There is no policy ballot;
@@ -209,11 +209,11 @@ and confirmed that edited choices or notes invalidate a prepared reply.
 Adversarial notes remained inert textarea text.
 These checks apply to the archived,
 withdrawn policy form;
-[its verification summary](../questions/evidence/search-filename-policy-withdrawn-verification.json)
+[its verification summary](../question/evidence/search-filename-policy-withdrawn-verification.json)
 keeps the image census and interaction-context coverage distinct.
 They do not verify the corrected evidence-only review.
 Task 141's fresh consumer and document checks passed for the replacement.
-[The current verification summary](../questions/evidence/search-filename-comparison-review-verification.json)
+[The current verification summary](../question/evidence/search-filename-comparison-review-verification.json)
 pins its HTML/builder and records exact revised coverage.
 All 102 images were decoded and opened in the initial desktop/light pass.
 Optional empty/blank observations,

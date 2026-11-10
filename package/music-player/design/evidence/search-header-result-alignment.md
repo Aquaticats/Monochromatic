@@ -25,7 +25,7 @@ the short-results fixture included a parent-only illustrative track with
 no activation handler.
 D60 later excluded that track from the selected result set;
 this historical alignment image does not override the active D/M
-membership or order in `package/music-player/design/questions/current.html`.
+membership or order in `package/music-player/design/question/current.html`.
 
 ## Before and after at native resolution
 
@@ -114,8 +114,8 @@ their bounded findings with explicit provenance labels,
 not as final alignment captures.
 No production Search file or original AVD was changed.
 
-[inner-200]: ../questions/render/search-selected-aligned-review-inner-results-light-s200.png
-[cover-200]: ../questions/render/search-selected-aligned-review-cover-results-light-s200.png
-[inner-100]: ../questions/render/search-selected-aligned-review-inner-results-light-s100.png
-[cover-100]: ../questions/render/search-selected-aligned-review-cover-results-light-s100.png
-[current-review]: ../questions/current.html
+[inner-200]: ../question/render/search-selected-aligned-review-inner-results-light-s200.png
+[cover-200]: ../question/render/search-selected-aligned-review-cover-results-light-s200.png
+[inner-100]: ../question/render/search-selected-aligned-review-inner-results-light-s100.png
+[cover-100]: ../question/render/search-selected-aligned-review-cover-results-light-s100.png
+[current-review]: ../question/current.html

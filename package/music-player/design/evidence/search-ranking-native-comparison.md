@@ -204,16 +204,16 @@ deterministic tie-break,
 result activation or production Search code was added.
 The original AVD and IME settings remained unchanged.
 
-[current-review]: ../questions/current.html
-[archived-matrix]: ../questions/archive/search-ranking-before-dm.html
-[inner-mixed-direct-top]: ../questions/render/search-rank-accent-review-inner-rankmixed-direct-s200.png
-[inner-mixed-direct-end]: ../questions/render/search-rank-accent-review-inner-rankmixed-direct-end-s200.png
-[inner-mixed-parent-top]: ../questions/render/search-rank-accent-review-inner-rankmixed-parenthits-s200.png
-[inner-mixed-parent-end]: ../questions/render/search-rank-accent-review-inner-rankmixed-parenthits-end-s200.png
-[cover-mixed-parent-top]: ../questions/render/search-rank-accent-review-cover-rankmixed-parenthits-s200.png
-[cover-mixed-parent-end]: ../questions/render/search-rank-accent-review-cover-rankmixed-parenthits-end-s200.png
-[cover-mixed-direct-top]: ../questions/render/search-rank-accent-review-cover-rankmixed-direct-s200.png
-[inner-folders-direct-top]: ../questions/render/search-rank-accent-review-inner-rankfolders-direct-s200.png
-[cover-folders-direct-top]: ../questions/render/search-rank-accent-review-cover-rankfolders-direct-s200.png
-[inner-tracks-direct-top]: ../questions/render/search-rank-accent-review-inner-ranktracks-direct-s200.png
-[cover-tracks-parent-end]: ../questions/render/search-rank-accent-review-cover-ranktracks-parenthits-end-s200.png
+[current-review]: ../question/current.html
+[archived-matrix]: ../question/archive/search-ranking-before-dm.html
+[inner-mixed-direct-top]: ../question/render/search-rank-accent-review-inner-rankmixed-direct-s200.png
+[inner-mixed-direct-end]: ../question/render/search-rank-accent-review-inner-rankmixed-direct-end-s200.png
+[inner-mixed-parent-top]: ../question/render/search-rank-accent-review-inner-rankmixed-parenthits-s200.png
+[inner-mixed-parent-end]: ../question/render/search-rank-accent-review-inner-rankmixed-parenthits-end-s200.png
+[cover-mixed-parent-top]: ../question/render/search-rank-accent-review-cover-rankmixed-parenthits-s200.png
+[cover-mixed-parent-end]: ../question/render/search-rank-accent-review-cover-rankmixed-parenthits-end-s200.png
+[cover-mixed-direct-top]: ../question/render/search-rank-accent-review-cover-rankmixed-direct-s200.png
+[inner-folders-direct-top]: ../question/render/search-rank-accent-review-inner-rankfolders-direct-s200.png
+[cover-folders-direct-top]: ../question/render/search-rank-accent-review-cover-rankfolders-direct-s200.png
+[inner-tracks-direct-top]: ../question/render/search-rank-accent-review-inner-ranktracks-direct-s200.png
+[cover-tracks-parent-end]: ../question/render/search-rank-accent-review-cover-ranktracks-parenthits-end-s200.png

@@ -3,8 +3,8 @@ build_cover_question = '''
 const { readFileSync, writeFileSync } = await import("node:fs")
 const { join } = await import("node:path")
 const root = process.cwd()
-const templatePath = join(root, "questions", "archive", "cover-p.template.html")
-const outputPath = join(root, "questions", "archive", "cover-p.html")
+const templatePath = join(root, "question", "archive", "cover-p.template.html")
+const outputPath = join(root, "question", "archive", "cover-p.html")
 const darkCards = [
   { basename: "cover-round-cover-dark-wallpaper-s100", code: "D100", title: "Dark cover · wallpaper seed · 100% text", alt: "folded cover in dark mode under the measured wallpaper seed at default text size" },
   { basename: "cover-round-cover-dark-wallpaper-s085", code: "D085", title: "Dark cover · wallpaper seed · 85% text", alt: "folded cover in dark mode under the measured wallpaper seed at the smallest Android text preset" },
@@ -23,7 +23,7 @@ const lightCards = [
   { basename: "cover-round-cover-picker-p2-light-s100", code: "L3", title: "Settled light (D45) · P2 in-slot picker · 100% text", alt: "in-slot picker in light mode on the settled flat surface with hairlines at both seams" },
 ]
 const cardHtml = (card) => {
-  const relativePath = join("questions", "render", `${card.basename}.png`)
+  const relativePath = join("question", "render", `${card.basename}.png`)
   const encoded = readFileSync(join(root, relativePath)).toString("base64")
   const source = `data:image/png;base64,${encoded}`
   return `<article class="evidence-card"><span class="code">${card.code}</span><button class="evidence-button" type="button" data-preview-title="${card.title}" data-preview-src="${source}"><img src="${source}" width="411" height="923" alt="${card.alt}"><span class="evidence-label">Open ${card.code} at panel scale</span></button></article>`
@@ -44,7 +44,7 @@ const { execFileSync } = await import("node:child_process")
 const { readFileSync } = await import("node:fs")
 const { join } = await import("node:path")
 const root = process.cwd()
-const htmlPath = join(root, "questions", "archive", "cover-p.html")
+const htmlPath = join(root, "question", "archive", "cover-p.html")
 const html = readFileSync(htmlPath, "utf8")
 if (html.includes("@@DARK_CARDS@@") || html.includes("@@LIGHT_CARDS@@") || html.includes("@@PICKER_CARDS@@")) {
   throw new Error("Cover questionnaire contains an unresolved card placeholder.")
@@ -132,7 +132,7 @@ const contrastRatio = (first, second) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 const readRoles = (environment, mode) => {
-  const evidence = JSON.parse(readFileSync(join(root, "questions", "evidence", `cover-round-${environment}-roles-${mode}.json`), "utf8"))
+  const evidence = JSON.parse(readFileSync(join(root, "question", "evidence", `cover-round-${environment}-roles-${mode}.json`), "utf8"))
   const expected = environment === "wallpaper"
     ? { seed: "45588C", style: "TONAL_SPOT", contrast: "0.0" }
     : { seed: "D45D42", style: "TONAL_SPOT", contrast: "0.0" }
@@ -146,7 +146,7 @@ const readRoles = (environment, mode) => {
   return evidence.resolvedRoles
 }
 const modeRows = (scale) => {
-  const hierarchy = readFileSync(join(root, "questions", "evidence", `cover-round-cover-dark-wallpaper-${scale}.xml`), "utf8")
+  const hierarchy = readFileSync(join(root, "question", "evidence", `cover-round-cover-dark-wallpaper-${scale}.xml`), "utf8")
   const tops = ["Repeat track", "Play in order", "Shuffle Camellia", "Shuffle all folders"].map((label) => {
     const match = hierarchy.match(new RegExp(`content-desc="${label}"[^>]*bounds="\\[(\\d+),(\\d+)\\]`))
     if (!match) {
@@ -167,14 +167,14 @@ if (modeRows("s200") !== 4) {
 }
 const seamRowCount = (basename, outlineHex) => {
   const column = execFileSync("magick", [
-    join(root, "questions", "render", `${basename}.png`),
+    join(root, "question", "render", `${basename}.png`),
     "-crop", "1x2424+540+0", "+repage", "txt:",
   ], { encoding: "utf8" })
   const needle = outlineHex.slice(1).toUpperCase()
   return column.split("\n").filter((line) => line.includes(needle)).length
 }
 for (const [index, basename] of basenames.entries()) {
-  const hierarchyPath = join(root, "questions", "evidence", `${basename}.xml`)
+  const hierarchyPath = join(root, "question", "evidence", `${basename}.xml`)
   const hierarchy = readFileSync(hierarchyPath, "utf8")
   const markers = (basename.includes("-picker-p1") || basename.includes("-picker-p3"))
     ? [
@@ -224,7 +224,7 @@ for (const [index, basename] of basenames.entries()) {
     }
     return match.slice(1).map(Number)
   }
-  const imagePath = join(root, "questions", "render", `${basename}.png`)
+  const imagePath = join(root, "question", "render", `${basename}.png`)
   const sample = (...points) => execFileSync("magick", [
     imagePath, "-format",
     ["%[fx:minima.a]", "%[fx:maxima.a]", ...points.map(([x, y]) => `%[pixel:p{${x},${y}}]`)].join("|"),
@@ -624,7 +624,7 @@ dir = "{{config_root}}"
 run = "node search-page-question.mjs validate"
 
 [tasks."build:cover"]
-description = "Rebuild the historical folded-cover P questionnaire in questions/archive"
+description = "Rebuild the historical folded-cover P questionnaire in question/archive"
 dir = "{{config_root}}"
 shell = "node --input-type=module-typescript -e"
 run = "{{vars.build_cover_question}}"

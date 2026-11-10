@@ -7,7 +7,7 @@ The user correctly noted that those were not alternative mockups.
 That form was withdrawn without a `min_padding` choice.
 The first native replacement showed only positive-results and empty Search.
 Those historical six screenshots are indexed here,
-but the current [`questions/crease-floor-review.html`](../questions/crease-floor-review.html)
+but the current [`question/crease-floor-review.html`](../question/crease-floor-review.html)
 now shows a separate **player with Search closed** capture for each floor too.
 The initial prototype lives only on branch `prototype/music-player-theme-compose`
 at commit `469819241` under
@@ -41,16 +41,16 @@ Raw status-bearing captures and full UI hierarchies remain private.
 
 - P0,
   existing Search A with no independent floor:
-  [positive results](../questions/render/search-e2-floor-0-results-inner-light-s200.png)
-  and [empty state](../questions/render/search-e2-floor-0-empty-inner-light-s200.png).
+  [positive results](../question/render/search-e2-floor-0-results-inner-light-s200.png)
+  and [empty state](../question/render/search-e2-floor-0-empty-inner-light-s200.png).
 - P14,
   proposed 14mm **total** opposing-information floor:
-  [positive results](../questions/render/search-e2-floor-14-results-inner-light-s200.png)
-  and [empty state](../questions/render/search-e2-floor-14-empty-inner-light-s200.png).
+  [positive results](../question/render/search-e2-floor-14-results-inner-light-s200.png)
+  and [empty state](../question/render/search-e2-floor-14-empty-inner-light-s200.png).
 - P20,
   proposed 20mm **total** opposing-information floor:
-  [positive results](../questions/render/search-e2-floor-20-results-inner-light-s200.png)
-  and [empty state](../questions/render/search-e2-floor-20-empty-inner-light-s200.png).
+  [positive results](../question/render/search-e2-floor-20-results-inner-light-s200.png)
+  and [empty state](../question/render/search-e2-floor-20-empty-inner-light-s200.png).
 
 The debug prototype begins with the selected A's approximate 55px half-crease
 clearance plus its existing left 8dp and right 16dp content insets.
@@ -175,19 +175,19 @@ Only sanitized images are linked here:
 - P7.5,
   **selected independent 7.5mm total** minimum even on narrower-crease
   devices:
-  [player, Search closed](../questions/render/search-e2-complete-7p5-player-inner-light-s200.png),
-  [empty Search](../questions/render/search-e2-complete-7p5-empty-inner-light-s200.png),
-  [positive results](../questions/render/search-e2-complete-7p5-results-inner-light-s200.png).
+  [player, Search closed](../question/render/search-e2-complete-7p5-player-inner-light-s200.png),
+  [empty Search](../question/render/search-e2-complete-7p5-empty-inner-light-s200.png),
+  [positive results](../question/render/search-e2-complete-7p5-results-inner-light-s200.png).
 - P14,
   unselected proposed 14mm total minimum:
-  [player, Search closed](../questions/render/search-e2-complete-14-player-inner-light-s200.png),
-  [empty Search](../questions/render/search-e2-complete-14-empty-inner-light-s200.png),
-  [positive results](../questions/render/search-e2-complete-14-results-inner-light-s200.png).
+  [player, Search closed](../question/render/search-e2-complete-14-player-inner-light-s200.png),
+  [empty Search](../question/render/search-e2-complete-14-empty-inner-light-s200.png),
+  [positive results](../question/render/search-e2-complete-14-results-inner-light-s200.png).
 - P20,
   unselected proposed 20mm total minimum:
-  [player, Search closed](../questions/render/search-e2-complete-20-player-inner-light-s200.png),
-  [empty Search](../questions/render/search-e2-complete-20-empty-inner-light-s200.png),
-  [positive results](../questions/render/search-e2-complete-20-results-inner-light-s200.png).
+  [player, Search closed](../question/render/search-e2-complete-20-player-inner-light-s200.png),
+  [empty Search](../question/render/search-e2-complete-20-empty-inner-light-s200.png),
+  [positive results](../question/render/search-e2-complete-20-results-inner-light-s200.png).
 
 In the **player** captures,
 the left `4:35` timer node ended at x `965` for each floor;

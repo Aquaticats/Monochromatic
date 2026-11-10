@@ -16,6 +16,11 @@
 > `package/module/translation-repair` is now split across the 36 packages under
 > `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
 
+> Moved 2026-11-10 by the singular folder name rename (issue
+> [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths and names below this note are historical:
+> `package/music-player/design/candidates` is now `package/music-player/design/candidate`.
+
 ## Task (user instructions)
 
 "Review our entire repo.

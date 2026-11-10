@@ -1,7 +1,7 @@
 // What:     Unit tests for `folder_rail.rs`, pulled in by
 //           `#[cfg(test)] #[path = "folder_rail_tests.rs"] mod tests;` at the bottom of
 //           `folder_rail.rs`. Mirrors every `@Test` of `FolderRailTest.kt`. The expected values
-//           are the ones the Kotlin tests assert, taken from running `design/candidates/buckets.js`
+//           are the ones the Kotlin tests assert, taken from running `design/candidate/buckets.js`
 //           on the same inputs. Reaches the module items via `use super::*` because this file is
 //           the `tests` CHILD of folder_rail.
 // Why:      Keep the tests beside the code without inflating `folder_rail.rs` or its max-lines budget

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 //region Exact inspected authored cohort, native holds cannot become lifecycle evidence
 const question = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   question,

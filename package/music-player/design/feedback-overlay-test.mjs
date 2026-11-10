@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -35,7 +35,7 @@ const manifestName = 'feedback-overlay-witnesses.json';
 const manifest = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestName
   ),
@@ -49,7 +49,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -61,13 +61,13 @@ for (const file of [
 }
 const templatePath = join(
   fixture,
-  'questions',
+  'question',
   'feedback-overlay.template.html'
 );
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'feedback-overlay.template.html'
   ),
   templatePath
@@ -325,7 +325,7 @@ try {
   positive();
   const output = join(
     fixture,
-    'questions',
+    'question',
     'feedback-overlay.html'
   );
   writeFileSync(

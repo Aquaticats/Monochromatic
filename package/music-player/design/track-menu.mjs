@@ -8,7 +8,7 @@ import { join } from 'node:path';
 //region Exact inspected native menu cohort, not a menu policy or real operation result
 const questions = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   questions,

@@ -2,13 +2,29 @@ import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // AGENTS.md rule WR2 bans em dashes, en dashes and their ASCII substitutes from prose, and this guard holds the
-// package's authored text to it. Excluded on purpose: `_ds/` and `candidates/_ds/` are copied design-system bundles,
+// package's authored text to it. Excluded on purpose: `_ds/` and `candidate/_ds/` are copied design-system bundles,
 // `support.js` is the generated Design Component runtime, and `uploads/` holds files the user sent in, one of which
 // parses filename separators as data.
 const root = import.meta.dirname;
+// A pattern that reaches no file would let a whole surface pass unread, so each one must match before its silence
+// counts as a clean surface.
+const surfaces = [
+  '*.md',
+  'evidence/**/*.md',
+  'question/*.template.html',
+  '*.dc.html',
+  'candidate/*.dc.html',
+  'candidate/*.js'
+];
+const reached = surfaces.map(pattern => [pattern, globSync(pattern, { cwd: root })]);
+for (const [pattern, files] of reached) {
+  if (files.length === 0) {
+    throw new Error(`The dash guard's pattern ${pattern} matched no file, so the prose it covers would pass unread.`);
+  }
+}
 const authored = [
-  ...globSync(['*.md', 'evidence/**/*.md', 'questions/*.template.html'], { cwd: root }),
-  ...globSync(['*.dc.html', 'candidates/*.dc.html', 'candidates/*.js'], { cwd: root })
+  ...reached
+    .flatMap(([, files]) => files)
     .filter(file => !file.endsWith('/support.js')),
   'Decisions.dc.html'
 ].sort();

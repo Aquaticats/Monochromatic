@@ -4,7 +4,7 @@
 
 D25 requests one IntelliJ-aligned keyboard map,
 not individual key-label questions.
-[The self-contained behavior demonstration](../questions/keyboard-map.prototype.html)
+[The self-contained behavior demonstration](../question/keyboard-map.prototype.html)
 presents one coherent proposal with optional observations.
 D25 settled the Search/picker assignments,
 and the human accepted the whole map,
@@ -114,7 +114,7 @@ Logical composition cases prove no real Android or desktop IME behavior.
 
 ## Consumer verification
 
-[The verification summary](../questions/evidence/keyboard-map-prototype-verification.json)
+[The verification summary](../question/evidence/keyboard-map-prototype-verification.json)
 pins the HTML and committed classifier test.
 Checks ran offline in a 2GiB/2CPU Chromium container.
 Browser-dispatched keys using the Windows/Linux model exercised the

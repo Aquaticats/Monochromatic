@@ -1,5 +1,5 @@
 // Keyboard shortcut classifier ported from the accepted keyboard-map prototype at
-// package/music-player/design/questions/keyboard-map.prototype.html.
+// package/music-player/design/question/keyboard-map.prototype.html.
 // The checks run in the prototype's order, so every request gets the action the prototype gives.
 // The prototype's unknown-platform throw is replaced by the KeyboardPlatform enum, whose fromName
 // parser rejects unknown platform names before a request can be built.

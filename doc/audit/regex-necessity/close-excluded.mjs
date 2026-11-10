@@ -46,7 +46,7 @@ const templateIssues = ledger
 
 const GENERATED_COMMENT = `This site is in generated output, so there is nothing to change here.
 
-\`package/music-player/design/template-editor.mjs:121\` writes \`package/music-player/design/questions/template-editor.html\` (18.6 MB) from \`template-editor.template.html\`. The regex sites in the template are filed separately (${templateIssues.join(', ')}), and fixing those removes these copies on the next generator run.
+\`package/music-player/design/template-editor.mjs:121\` writes \`package/music-player/design/question/template-editor.html\` (18.6 MB) from \`template-editor.template.html\`. The regex sites in the template are filed separately (${templateIssues.join(', ')}), and fixing those removes these copies on the next generator run.
 
 Closing as a duplicate of the template issues. The exclusion and its evidence are recorded in \`doc/audit/regex-necessity.md\` and in the harness's provenance exclusions (\`doc/audit/regex-necessity/supplement.mjs\`).`;
 

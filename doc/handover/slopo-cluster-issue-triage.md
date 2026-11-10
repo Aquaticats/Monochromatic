@@ -36,6 +36,11 @@
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
 
+> Moved 2026-11-10 by the singular folder name rename (issue
+> [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths and names below this note are historical:
+> `package/music-player/design/candidates` is now `package/music-player/design/candidate`.
+
 ## Task (user instructions, verbatim intent)
 
 1.  Look through every cluster in `.slopo.local.dir/` and open GitHub issues per suggested action.

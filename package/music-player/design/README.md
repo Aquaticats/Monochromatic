@@ -27,14 +27,14 @@ Read these files in order:
 ## Active design continuation
 
 The D46 folded-cover picker revisit is in
-[`questions/cover-picker-revisit.html`](questions/cover-picker-revisit.html):
+[`question/cover-picker-revisit.html`](question/cover-picker-revisit.html):
 P4 beside the agent's P5,
 eight inspected native views,
 not a ballot.
 
 The first-run/no-library study is in
 [`evidence/first-run-access-boundaries.md`](evidence/first-run-access-boundaries.md).
-Its [verified offline review](questions/first-run-access.html) presents
+Its [verified offline review](question/first-run-access.html) presents
 24 first views and 4 end views,
 not a policy ballot.
 The study was rebuilt on 2026-10-05 after D84 made true-peak analysis
@@ -51,7 +51,7 @@ The owned native runtime was stopped after restoring its recorded fields.
 
 D82 accepts Android's standard media-notification presentation;
 no special notification design remains.
-The [whole-map keyboard design](questions/keyboard-map.prototype.html)
+The [whole-map keyboard design](question/keyboard-map.prototype.html)
 was browser-verified and accepted as built (D102),
 with editing and focused-control ownership preserved.
 [Its boundary record](evidence/keyboard-map-boundaries.md) distinguishes
@@ -66,7 +66,7 @@ D8/D9 outcome requirements and D29's non-reserving placement context remain.
 [The overlay evidence boundary](evidence/feedback-overlay-boundaries.md)
 separates held poses,
 native lifecycle controls and actual storage/log-export implementation.
-The [verified offline viewer](questions/feedback-overlay.html) presents
+The [verified offline viewer](question/feedback-overlay.html) presents
 48 inspected native held poses across both panels,
 themes and text scales.
 Native expiry,
@@ -77,7 +77,7 @@ The guest's recorded settings were restored and its owner exited cleanly.
 The consumer passed scoped tests and four-context Chromium checks,
 not Firefox ESR140 or native accessibility acceptance.
 D7's light track-menu continuation is also complete.
-The [menu viewer](questions/track-menu.html) presents 24 freshly inspected
+The [menu viewer](question/track-menu.html) presents 24 freshly inspected
 native poses with the accepted actions and one-line ellipsized heading.
 [Its evidence boundary](evidence/track-menu-boundaries.md) records all seven
 debug intents across both panels,
@@ -91,7 +91,7 @@ Real operations,
 native accessibility and Firefox acceptance are not claimed;
 full Android lint still has inherited failures.
 D26's light scan-indicator continuation is also complete.
-The [scan viewer](questions/scan-indicator.html) presents 32 freshly
+The [scan viewer](question/scan-indicator.html) presents 32 freshly
 inspected native views of the accepted scan-F bar across both panels,
 themes and text scales.
 [Its evidence boundary](evidence/scan-indicator-boundaries.md) records the
@@ -108,7 +108,7 @@ Recorded native settings were restored and owned runtimes are absent.
 Real analysis,
 native accessibility and Firefox acceptance are not claimed;
 full Android lint still has inherited failures.
-The [Settings viewer](questions/settings-pane.html) is a withdrawn record,
+The [Settings viewer](question/settings-pane.html) is a withdrawn record,
 not a current design.
 It presents 24 inspected native views of a two-row Settings pane across both panels,
 themes and text scales,
@@ -135,7 +135,7 @@ native accessibility and Firefox acceptance are not claimed;
 full Android lint still has inherited failures.
 D81's template editor is a separate design problem with its own built study:
 [`evidence/template-editor-boundaries.md`](evidence/template-editor-boundaries.md) describes it,
-and its [verified offline review](questions/template-editor.html) shows the editor as decided (D89 to D96,
+and its [verified offline review](question/template-editor.html) shows the editor as decided (D89 to D96,
 D98)
 and the two lines that get a template (D99).
 The design round for templates is closed (D96 keeps the field list where it is).
@@ -149,7 +149,7 @@ The recorded Search A decisions remain selected.
 Whether result titles display file extensions is a separate open visual
 question outside this completed round;
 no extension-display preference or matcher eligibility rule was selected.
-`questions/current.html` shows selected Search A and adopted accessibility
+`question/current.html` shows selected Search A and adopted accessibility
 goals with a correction/veto path,
 not an unanswered questionnaire.
 The [Search accessibility boundaries](evidence/search-accessibility-boundaries.md)
@@ -165,8 +165,8 @@ The next design-only,
 keyboard-closed filename-label study used the capped disposable AVD.
 `evidence/search-filename-presentation-frontier.md` records the inspected
 24-view native matrix and the separately inspected 32-view controls.
-`questions/evidence/search-filename-witnesses.json` and
-`questions/evidence/search-filename-control-witnesses.json` link sanitized
+`question/evidence/search-filename-witnesses.json` and
+`question/evidence/search-filename-control-witnesses.json` link sanitized
 app-area crops with separate provenance.
 The bounded assessment warrants a consequential comparison,
 not incumbent-only advice;
@@ -174,7 +174,7 @@ not incumbent-only advice;
 proposed scope.
 The inspected 32-view actual production-renderer baseline is now in
 `evidence/search-filename-actual-player-baseline.md` and
-`questions/evidence/search-filename-actual-player-witnesses.json`.
+`question/evidence/search-filename-actual-player-witnesses.json`.
 Its synthetic paused inputs close the copied-row rendering gap,
 not real playback or complete `MainActivity` integration.
 Unlike the narrower replica,
@@ -182,11 +182,11 @@ the actual ordinary player retains long suffixes on inner at 100%.
 Usable placement/visibility alternatives are now built,
 captured and inspected.
 `evidence/search-filename-usable-comparison.md` and
-`questions/evidence/search-filename-comparison-witnesses.json`
+`question/evidence/search-filename-comparison-witnesses.json`
 record 64 initial and six scrolled native views.
 The fixed-policy filename question is withdrawn.
 D81 preserves supporting-text templates configurable in Settings.
-Task 141 corrected `questions/search-filename-comparison.html` to an
+Task 141 corrected `question/search-filename-comparison.html` to an
 evidence-only review with optional observations and the separately
 provenanced actual-renderer baseline.
 The comparison captures are authored layouts,
@@ -199,7 +199,7 @@ Closed-page A/AA audits had no violations or incomplete checks.
 Open-dialog desktop metadata contrast remained axe incomplete;
 flat opaque computed-color and live-hit-test review resolved that bounded
 manual check without changing the axe result.
-`questions/evidence/search-filename-comparison-review-verification.json`
+`question/evidence/search-filename-comparison-review-verification.json`
 retains the exact coverage;
 no console errors were observed.
 The current disposable runtime was restored to its fresh snapshot and stopped.
@@ -286,7 +286,7 @@ page placed the Back/query/Clear header above an empty left pane and isolated
 results in the right pane.
  The user rejected that composition.
 The withdrawn form and its captures remain archived at
-`questions/archive/search-rejected-fold-review.html`.
+`question/archive/search-rejected-fold-review.html`.
  Its empty connector
 passed a superseded geometric guard but did not make the page usable.
 D50 additionally requires the unfolded playback deck to stay visible during
@@ -300,8 +300,8 @@ bottom-left playback deck rises above the keyboard while typing.
 D52 removes the redundant positive-results `Results for “cam”` heading on
 both panels.
  The former three-way matrix remains at
-`questions/archive/search-three-way-before-a.html`.
-`questions/current.html` now shows only the selected design in light/dark
+`question/archive/search-three-way-before-a.html`.
+`question/current.html` now shows only the selected design in light/dark
 at 100% and 200% text.
 The corrected unfolded typing captures keep the **same folder browser** above
 the lifted deck;
@@ -349,14 +349,14 @@ in place with bold ink over an OS-accent-derived OKLCH fill,
 not the rejected purple tertiary container.
 The [native alignment evidence](evidence/search-header-result-alignment.md),
 [native match-emphasis evidence](evidence/search-match-emphasis-native.md)
-and refreshed selected-only `questions/current.html` show these corrections;
+and refreshed selected-only `question/current.html` show these corrections;
 historical keyboard-open captures remain labeled as pre-D58-to-D61
 geometry evidence.
 D60 selects direct folder/filename matches,
 not parent-only track expansion.
 D61 selects mixed relevance across folder and track types,
 not grouped folder-first or track-first display.
-The [archived native comparison](questions/archive/search-ranking-before-dm.html)
+The [archived native comparison](question/archive/search-ranking-before-dm.html)
 and [fixture evidence](evidence/search-ranking-native-comparison.md) retain
 all D/P and M/F/T alternatives as decision history,
 not active choices or a selected scorer.
@@ -364,7 +364,7 @@ D62 records that choosing an eventual fuzzy search library does not
 change this UI review and is not work to undertake now.
 The [matching boundary ledger](evidence/search-matching-acceptance-ledger.md)
 separates selected visible examples from future engine concerns.
-The W/A [native mid-word exploration](questions/archive/search-word-boundary-deferred.html)
+The W/A [native mid-word exploration](question/archive/search-word-boundary-deferred.html)
 and [its evidence](evidence/search-word-boundary-native-comparison.md)
 are historical and unadopted;
 no matcher rule or library is selected by them.
@@ -374,25 +374,25 @@ Clear focus state,
 new-visit query behavior,
 conditional restored-query position and same-query row visibility.
 The [navigation and focus evidence](evidence/search-navigation-focus-boundaries.md)
-and [archived logic comparison](questions/archive/search-navigation-focus-before-selection.html)
+and [archived logic comparison](question/archive/search-navigation-focus-before-selection.html)
 explain the alternatives;
-the [active Search A review](questions/current.html) shows only selected
+the [active Search A review](question/current.html) shows only selected
 goals alongside the retained browser and deck.
 Native realization of focus/scroll behavior remains unverified.
 D69 to D71 distinguish an unqueried prompt,
 a fully evaluated no-match state and a known Search-source failure;
 they reject the debug fixture's unsupported automatic-recovery claim.
 The [status evidence](evidence/search-empty-unavailable-boundaries.md)
-and [keyboard-closed native gallery](questions/search-status-evidence.html)
+and [keyboard-closed native gallery](question/search-status-evidence.html)
 show these states on the selected Fold layout,
 not an implemented lookup or a selected cause-specific recovery control.
 D72 to D74 now select folder hits opening their folder without autoplay,
 track hits carrying the existing play/pause row behavior,
 and successful track actions **returning to player**.
 The [activation evidence](evidence/search-result-activation-frontier.md)
-and [archived Stay/Return logic comparison](questions/archive/search-result-activation-before-return.html)
+and [archived Stay/Return logic comparison](question/archive/search-result-activation-before-return.html)
 explain the choice;
-`questions/current.html` shows only the selected action goals.
+`question/current.html` shows only the selected action goals.
 No Search result tap handler had been tested or implemented when D72 to D74 were written;
 D127 (2026-10-14) later changed the other-track result from "start" to "select,
 paused",
@@ -408,7 +408,7 @@ not demonstrated by the static screenshots.
 Selection does not authorize production implementation.
  Desktop implementation inherits
 the Fold visual choices even if its own proportions would suggest a different layout.
-The rejected command review remains at `questions/archive/command-igr-rejected.html`.
+The rejected command review remains at `question/archive/command-igr-rejected.html`.
 D21's configurable global hotkey and extra Settings row belonged to the command bar;
 they do not silently move to Search.
  D25's Ctrl+F reservation is part of the keyboard map D102 accepted.
@@ -478,8 +478,8 @@ Do not defer the handover update until the end of a session.
 ## Historical source
 
 The imported archive remains represented by the original root documents,
-`candidates/`,
-`screenshots/`,
+`candidate/`,
+`screenshot/`,
 `uploads/`,
 and the bound Material Design 3 files under `_ds/`.
 Historical candidates remain evidence for prior decisions,

@@ -130,7 +130,7 @@ The human's existing request for the whole map is preserved without
 turning its individual entries into separate rounds.
 
 The audit and bounded behavior demonstration are complete.
-`package/music-player/design/questions/keyboard-map.prototype.html`
+`package/music-player/design/question/keyboard-map.prototype.html`
 is the verified self-contained proposal,
 with optional whole-map observations and no per-key ballot.
 `package/music-player/design/evidence/keyboard-map-boundaries.md`

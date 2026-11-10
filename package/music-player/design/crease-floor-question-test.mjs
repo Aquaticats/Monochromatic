@@ -17,11 +17,11 @@ mkdirSync(scratchBase, { recursive: true });
 //region The E2 floor review's count is the cohort it actually embeds, as the build and the validate message both say
 const root = process.cwd();
 const fixture = mkdtempSync(join(scratchBase, 'crease-floor-review-'));
-const questions = join(fixture, 'questions');
+const questions = join(fixture, 'question');
 const render = join(questions, 'render');
 mkdirSync(render, { recursive: true });
 copyFileSync(join(root, 'crease-floor-question.mjs'), join(fixture, 'crease-floor-question.mjs'));
-copyFileSync(join(root, 'questions', 'crease-floor.template.html'), join(questions, 'crease-floor.template.html'));
+copyFileSync(join(root, 'question', 'crease-floor.template.html'), join(questions, 'crease-floor.template.html'));
 const builder = join(fixture, 'crease-floor-question.mjs');
 const output = join(questions, 'crease-floor-review.html');
 // A message may name its cohort as digits or as the word for it; both are checked against the built page.
@@ -35,7 +35,7 @@ const states = ['player', 'empty', 'results'];
 for (const floor of floors) {
   for (const state of states) {
     const name = `search-e2-complete-${floor}-${state}-inner-light-s200.png`;
-    copyFileSync(join(root, 'questions', 'render', name), join(render, name));
+    copyFileSync(join(root, 'question', 'render', name), join(render, name));
   }
 }
 function invoke(command) {

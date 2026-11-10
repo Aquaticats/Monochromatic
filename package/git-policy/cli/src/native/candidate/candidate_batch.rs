@@ -360,7 +360,7 @@ fn parse_found_header(header: &[u8]) -> Option<(ObjectId, ObjectKind, usize)> {
 ///  32 MiB,
 ///  which is 1.57 times the largest file this repository tracks (20,453,084
 ///       bytes,
-///  `package/music-player/design/questions/archive/search-filename-policy-withdrawn.html`,
+///  `package/music-player/design/question/archive/search-filename-policy-withdrawn.html`,
 ///  counted on 2026-11-09 with `git ls-files -z | xargs -0 du -b`:
 ///  15 tracked files
 ///       are over 8 MiB,

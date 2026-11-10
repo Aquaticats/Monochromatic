@@ -16,16 +16,16 @@ the user declined access;
 it is not automatically the Search no-match view.
 
 The selected-A keyboard-closed
-`package/music-player/design/questions/render/search-selected-review-inner-empty-light-s100.png`
+`package/music-player/design/question/render/search-selected-review-inner-empty-light-s100.png`
 shows “Search your music” and “Type a name to explore your library” in
 the right pane,
 with the real left browser and complete deck retained.
 It is a debug fixture,
 not native proof of D63's newer focus/keyboard request.
 The earlier
-`package/music-player/design/questions/render/fold-search-inner-open-none-light-s100.png`
+`package/music-player/design/question/render/fold-search-inner-open-none-light-s100.png`
 and
-`package/music-player/design/questions/render/fold-search-inner-open-unavailable-dark-s100.png`
+`package/music-player/design/question/render/fold-search-inner-open-unavailable-dark-s100.png`
 show “No results for ‘zzq’” and “Library unavailable” in an
 **obsolete blank-left** layout.
 They preserve historical wording evidence,
@@ -46,7 +46,7 @@ APK (SHA-256
 `1caee7060acfb5bbcd9a02142b4c9bada6b5886517157d25fef4a48b9b1e9c05`)
 on the disposable `Fold_No_Hardware_Probe` inside a measured 6 GiB/2 CPU
 container.
-`questions/evidence/search-status-review-manifest.json` indexes the
+`question/evidence/search-status-review-manifest.json` indexes the
 sanitized inner 2076 × 2152px and cover 1080 × 2424px rasters for empty
 query,
 fixed `zzq` no-match and forced unavailable fixtures in light/dark at
@@ -56,7 +56,7 @@ previously checked generic 9:41 bar;
 the private raw pixels below that strip matched the published app region
 exactly,
 and output was opaque with metadata stripped.
-The [self-contained status gallery](../questions/search-status-evidence.html)
+The [self-contained status gallery](../question/search-status-evidence.html)
 allows inspecting each panel at its cited dp size.
 All captured inner states retain the actual left browser,
 Open control and complete playback deck.

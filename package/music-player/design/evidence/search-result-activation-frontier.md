@@ -19,7 +19,7 @@ completed-no-match and known unavailable statuses.
 Those earlier decisions did not choose activation.
 D72 to D74 now select the desired folder/track effects and return path,
 but do **not** make the static rows actionable.
-The present `questions/current.html` screenshots are fixture states;
+The present `question/current.html` screenshots are fixture states;
 result captions remain unimplemented examples.
 
 The debug-only
@@ -133,7 +133,7 @@ The visible Back arrow is a separate explicit exit (D64).
 A visual/logic comparison must start from selected A with its real left
 browser and full deck,
 not the obsolete blank-left or two-row parent-only `cam` fixture.
-The [archived logic-only interaction comparison](../questions/archive/search-result-activation-before-return.html)
+The [archived logic-only interaction comparison](../question/archive/search-result-activation-before-return.html)
 models a directly named `Cam` track,
 a `Camellia` folder and an `Another Xronixle` current-track hit
 under an `Another` query.

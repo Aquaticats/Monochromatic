@@ -32,7 +32,7 @@ It does not reopen Search or D81's template editor,
 whose fields and controls remain undesigned (section 11e of
 `open-questions.md`).
 
-D11 selects `candidates/settings-a.dc.html`:
+D11 selects `candidate/settings-a.dc.html`:
 three flat switch rows and a closing sentence saying the pane is short.
 D12 removed settings-b's analysis-status row,
 and D47 superseded the command bar together with D21's fourth row.
@@ -279,10 +279,10 @@ Original AVDs and library data remain untouched.
 
 ## Publication and consumer verification
 
-[The witness manifest](../questions/evidence/settings-pane-witnesses.json)
+[The witness manifest](../question/evidence/settings-pane-witnesses.json)
 and its 24 PNGs carry each view's measured rectangles,
 visible parts and line counts.
-[The native verification record](../questions/evidence/settings-pane-native-verification.json)
+[The native verification record](../question/evidence/settings-pane-native-verification.json)
 holds the input contexts,
 their replay,
 the superseded builds,
@@ -292,7 +292,7 @@ lint totals and restoration.
 The publisher removed the withdrawn three-row files only after each matched
 the hash its own witness file recorded.
 Publication preflights rejected eight changed inputs before any public write.
-The [offline viewer](../questions/settings-pane.html) states the measured
+The [offline viewer](../question/settings-pane.html) states the measured
 findings from that data and the by-eye observations separately.
 
 Its builder holds 99 named rules,
@@ -326,7 +326,7 @@ results.
 Open-dialog axe,
 Firefox ESR140 and native accessibility acceptance were not exercised.
 The browser closed and its owned container is absent.
-The [review verification record](../questions/evidence/settings-pane-review-verification.json)
+The [review verification record](../question/evidence/settings-pane-review-verification.json)
 records that check of the viewer,
 builder,
 test,

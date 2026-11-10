@@ -7,7 +7,7 @@ with the playback deck at bottom-left.
 D50 requires that deck to remain visible while typing,
 except for real floating Gboard (D53) and the brief measured Gboard
 font-update banner (D54).
-The active review at `package/music-player/design/questions/current.html` still shows a debug-only 300dp
+The active review at `package/music-player/design/question/current.html` still shows a debug-only 300dp
 system-managed input method,
 not Gboard.
 The captures linked here test selected A with real Gboard.
@@ -242,7 +242,7 @@ app content and navigation handle were inspected;
 they carry no account,
 path,
 notification text or other personal identifier in these samples.
-Each same-stem JSON file in `package/music-player/design/questions/evidence/` contains only whitelisted
+Each same-stem JSON file in `package/music-player/design/question/evidence/` contains only whitelisted
 synthetic app labels,
 focused-field state,
 node bounds,
@@ -277,14 +277,14 @@ Other keyboard states,
 result activation,
 long result names and scrolling remain open.
 
-[inner-100]: ../questions/evidence/gboard-inner-split-light-s100.png
-[inner-200]: ../questions/evidence/gboard-inner-split-light-s200.png
-[inner-dark-200]: ../questions/evidence/gboard-inner-split-dark-s200.png
-[inner-updated-200]: ../questions/evidence/gboard-inner-updated-split-dark-s200.png
-[cover-100]: ../questions/evidence/gboard-cover-full-light-s100.png
-[cover-200]: ../questions/evidence/gboard-cover-full-light-s200.png
-[cover-dark-200]: ../questions/evidence/gboard-cover-full-dark-s200.png
-[cover-updated-200]: ../questions/evidence/gboard-cover-updated-full-dark-s200.png
-[floating-inner]: ../questions/evidence/gboard-inner-floating-overlap-light-s200.png
-[floating-cover]: ../questions/evidence/gboard-cover-floating-overlap-light-s100.png
-[font-banner]: ../questions/evidence/gboard-inner-font-banner-light-s200.png
+[inner-100]: ../question/evidence/gboard-inner-split-light-s100.png
+[inner-200]: ../question/evidence/gboard-inner-split-light-s200.png
+[inner-dark-200]: ../question/evidence/gboard-inner-split-dark-s200.png
+[inner-updated-200]: ../question/evidence/gboard-inner-updated-split-dark-s200.png
+[cover-100]: ../question/evidence/gboard-cover-full-light-s100.png
+[cover-200]: ../question/evidence/gboard-cover-full-light-s200.png
+[cover-dark-200]: ../question/evidence/gboard-cover-full-dark-s200.png
+[cover-updated-200]: ../question/evidence/gboard-cover-updated-full-dark-s200.png
+[floating-inner]: ../question/evidence/gboard-inner-floating-overlap-light-s200.png
+[floating-cover]: ../question/evidence/gboard-cover-floating-overlap-light-s100.png
+[font-banner]: ../question/evidence/gboard-inner-font-banner-light-s200.png

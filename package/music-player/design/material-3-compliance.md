@@ -672,7 +672,7 @@ at high contrast.
  These rows are stress inputs,
  never options for the user to choose.
 Each row records the resolved Android roles under
-`questions/evidence/dark-dynamic-*-roles.json`.
+`question/evidence/dark-dynamic-*-roles.json`.
 
 Structural surface reach has three candidates:
 
@@ -722,7 +722,7 @@ the highest used generated container,
 darkest adjacent generated container.
  All measured text combinations clear 4.5:1 and
 all measured rail-boundary combinations clear 3:1.
-`questions/evidence/dark-dynamic-contrast.json` retains every per-environment value.
+`question/evidence/dark-dynamic-contrast.json` retains every per-environment value.
 
 These captures establish palette-dependent appearance only.
  The prototype is relaunched
@@ -852,8 +852,8 @@ icon assets on the prototype branch while adopting
  square baseline list rows with
 16px start padding and a disclosed custom keyboard-focus cue.
  Color roles come from
-`questions/evidence/cover-round-wallpaper-roles-{light,dark}.json` as study input.
-The active native rasters now live at `questions/render/command-md3-*`.
+`question/evidence/cover-round-wallpaper-roles-{light,dark}.json` as study input.
+The active native rasters now live at `question/render/command-md3-*`.
  At native
 480 × 600px in the light docked scene,
  pixels at x=200/y=120 (header) are
@@ -865,7 +865,7 @@ The active native rasters now live at `questions/render/command-md3-*`.
  Dark pairs are `#1E1F26`,
  `#73757F` and `#BAC5EE`.
 The normalized 56px header contact at
-`questions/evidence/command-md3-baseline-header-comparison.png` places a crop
+`question/evidence/command-md3-baseline-header-comparison.png` places a crop
 from the readable baseline docked spec beside the Slint header,
  without enlarging
 either logical height.
@@ -934,7 +934,7 @@ search is a secondary action.
 `ExpandedFullScreenSearchBar` in `SearchBar.kt` draws the divider.
  The normalized
 source-versus-study contact at
-`questions/evidence/search-page-header-comparison.png` compares the readable
+`question/evidence/search-page-header-comparison.png` compares the readable
 baseline `components/search/specs/images/34.png` request at `=w1200` (pink source
 measurements retained) to the Slint page header at the same 72px logical height.
 The study's query/result examples are sample content,
@@ -942,7 +942,7 @@ The study's query/result examples are sample content,
 ranking.
 
 The native light/dark study captures at
-`questions/render/search-page-*` show the trigger,
+`question/render/search-page-*` show the trigger,
  empty page,
  `cam` sample,
 no matches and unavailable library at desktop widths 360 and 480px.

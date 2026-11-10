@@ -10,24 +10,24 @@ import { join } from 'node:path';
 const root = process.cwd();
 const templatePath = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-rejected-fold-review.template.html'
 );
 const outputPath = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-rejected-fold-review.html'
 );
 const renderPath = join(
   root,
-  'questions',
+  'question',
   'render'
 );
 const evidencePath = join(
   root,
-  'questions',
+  'question',
   'evidence'
 );
 const stages = [

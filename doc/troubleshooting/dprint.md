@@ -766,10 +766,10 @@ Two shapes come from a tool rather than from a hand:
 
 The 44 unparseable files are three kinds:
 
-- 41 `package/music-player/design/candidates/*.dc.html` files,
+- 41 `package/music-player/design/candidate/*.dc.html` files,
   failing with `failed to format code with external formatter:` and a parser error such as `syntax error at line 12, col 19: expect token '<ident>', but found '{'`.
 - 2 files with an unclosed `<p>` element:
-  `package/music-player/design/questions/archive/search-ranking-before-dm.html` and its `.template.html`,
+  `package/music-player/design/question/archive/search-ranking-before-dm.html` and its `.template.html`,
   both reporting `syntax error 'expected close tag for opening tag <p> from line 287, column 4'`.
   The template carries the defect and `package/music-player/design/search-ranking-question.mjs` renders the copy.
 - 1 fixture:

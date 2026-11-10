@@ -148,7 +148,7 @@ TalkBack's overlay can cover app content.
 Each output is opaque,
 stripped of PNG metadata and pixel-compared with the same raw crop.
 Raw screenshots and OCR remain private.
-`../questions/evidence/search-talkback-witnesses.json` records the crop,
+`../question/evidence/search-talkback-witnesses.json` records the crop,
 APK hash,
 font scale,
 TalkBack version and individual output SHA-256 values.
@@ -162,7 +162,7 @@ the overlay reads “cam.
  Edit box.
  Search music”.
 
-![Query focus and matching TalkBack overlay](https://monochromatic-lfs.aquaticat.workers.dev/d43727d93dd33debf56196c182163346e7e35a05a46d1c7321325d7cda0937cd/package/music-player/design/questions/evidence/search-talkback-inner-query-s200.png)
+![Query focus and matching TalkBack overlay](https://monochromatic-lfs.aquaticat.workers.dev/d43727d93dd33debf56196c182163346e7e35a05a46d1c7321325d7cda0937cd/package/music-player/design/question/evidence/search-talkback-inner-query-s200.png)
 
 ### Left alphabet rail at scripted swipe 5
 
@@ -171,14 +171,14 @@ right Search results.
 The overlay's `17 items` is the rail's list context,
 not a Search result count.
 
-![Alphabet rail focus between query header and Search results](https://monochromatic-lfs.aquaticat.workers.dev/28e7eab8b8dd64465ce2e197c10ed00a1f807863510fdde83f38ca638d232758/package/music-player/design/questions/evidence/search-talkback-inner-alphabet-s200.png)
+![Alphabet rail focus between query header and Search results](https://monochromatic-lfs.aquaticat.workers.dev/28e7eab8b8dd64465ce2e197c10ed00a1f807863510fdde83f38ca638d232758/package/music-player/design/question/evidence/search-talkback-inner-alphabet-s200.png)
 
 ### Result title at scripted swipe 23
 
 The green rectangle encloses only `Cam`;
 the overlay reads `Cam`.
 
-![Cam result title focused independently from supporting text](https://monochromatic-lfs.aquaticat.workers.dev/79c045a7488f982767f775423eeb5dc0b264b439e4b933da86bb48f6a4bdc7c7/package/music-player/design/questions/evidence/search-talkback-inner-title-s200.png)
+![Cam result title focused independently from supporting text](https://monochromatic-lfs.aquaticat.workers.dev/79c045a7488f982767f775423eeb5dc0b264b439e4b933da86bb48f6a4bdc7c7/package/music-player/design/question/evidence/search-talkback-inner-title-s200.png)
 
 ### Result support at scripted swipe 24
 
@@ -188,4 +188,4 @@ and the overlay reads `Track · Cult of Luna · exact filename`.
 This corroborates the separate-stop baseline,
 not actionable row semantics.
 
-![Cam supporting text on the next TalkBack stop](https://monochromatic-lfs.aquaticat.workers.dev/62cf1cbb495a6f8e8d697b9a71c23454b75cdde916735c3b70e2af74d1d765a3/package/music-player/design/questions/evidence/search-talkback-inner-support-s200.png)
+![Cam supporting text on the next TalkBack stop](https://monochromatic-lfs.aquaticat.workers.dev/62cf1cbb495a6f8e8d697b9a71c23454b75cdde916735c3b70e2af74d1d765a3/package/music-player/design/question/evidence/search-talkback-inner-support-s200.png)

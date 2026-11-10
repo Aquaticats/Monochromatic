@@ -228,7 +228,7 @@ and no visible-ink recovery claim is made.
 `package/music-player/design/evidence/first-run-access-boundaries.md`
 and the witness/consumer manifests retain exact provenance and limits.
 The evidence-only review at
-`package/music-player/design/questions/first-run-access.html`
+`package/music-player/design/question/first-run-access.html`
 passed build,
 validation,
 disposable guard-removal proofs and bounded offline consumer checks.

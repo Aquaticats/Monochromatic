@@ -8,7 +8,7 @@ import { join } from 'node:path';
 const root = process.cwd();
 const question = join(
   root,
-  'questions'
+  'question'
 );
 const template = join(
   question,

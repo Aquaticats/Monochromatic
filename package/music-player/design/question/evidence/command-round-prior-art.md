@@ -61,9 +61,9 @@ search and Ctrl+O for the folder picker.
 ## Native design study
 
 The throwaway Slint study is on the prototype branch at
-`package/music-player/design/candidates/command-study.slint`.
+`package/music-player/design/candidate/command-study.slint`.
  Slint Viewer 1.17.1
-rendered the opaque rasters in `questions/render/command-round-*` at 480 × 600px
+rendered the opaque rasters in `question/render/command-round-*` at 480 × 600px
 (the current desktop app's `preferred-width` and `preferred-height` in
 `package/music-player/desktop-app/ui/app.slint`) for every S × C combination and in
 both schemes.
@@ -79,7 +79,7 @@ no-volume choice,
  It is
 not a screenshot of the current production desktop app.
  Role colors use the measured
-Android wallpaper evidence in `questions/evidence/cover-round-wallpaper-roles-{dark,light}.json`
+Android wallpaper evidence in `question/evidence/cover-round-wallpaper-roles-{dark,light}.json`
 as design-study references;
  this does not settle the desktop color mapping.
  S3 is an
@@ -151,7 +151,7 @@ The second throwaway Slint source is committed on the prototype branch as
 `ee1b2d59c`,
  with native-fit fixes in `dbbf5116e` and `6d533f740`.
  Its
-`questions/render/command-round-{i,g,r,e}*` captures separated the decision axes,
+`question/render/command-round-{i,g,r,e}*` captures separated the decision axes,
 but the user rejected the visible component as non-MD3.
  These captures are also
 historical evidence,
@@ -249,15 +249,15 @@ AndroidX `ListTokens.ItemTwoLineContainerHeight` fixes their two-line height at
 lists and were removed.
 
 The throwaway prototype source on branch `prototype/music-player-theme-compose` is
-`package/music-player/design/candidates/command-md3-study.slint`.
+`package/music-player/design/candidate/command-md3-study.slint`.
  The baseline
 redraw is committed in `0e9624dd2`,
  with accepted-player transport backdrop
 correction at `7adafa092` and baseline two-line row pitch in `c88786448`.
  Rendered rasters at
-`questions/render/command-md3-{i,g,r,e}*` are opaque native Slint in both schemes.
+`question/render/command-md3-{i,g,r,e}*` are opaque native Slint in both schemes.
 The 56px logical-height comparison at
-`questions/evidence/command-md3-baseline-header-comparison.png` preserves source
+`question/evidence/command-md3-baseline-header-comparison.png` preserves source
 and prototype heights without upscaling;
  the source crop retains Google's pink
 measurement marks and uses a different palette seed.

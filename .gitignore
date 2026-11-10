@@ -235,6 +235,6 @@ mutants.out.old/
 # The music player design pages load these Design Component runtime files; they are tracked source, not build
 # output, so a clean clone renders every .dc.html page.
 !/package/music-player/design/support.js
-!/package/music-player/design/candidates/support.js
-!/package/music-player/design/candidates/artists.js
-!/package/music-player/design/candidates/buckets.js
+!/package/music-player/design/candidate/support.js
+!/package/music-player/design/candidate/artists.js
+!/package/music-player/design/candidate/buckets.js

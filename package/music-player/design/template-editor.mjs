@@ -14,7 +14,7 @@ import {
 // and what a view draws is checked against what the template reference yields for its authored state.
 const question = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   question,

@@ -262,7 +262,7 @@ function analyse(pattern) {
  */
 const PROVENANCE_EXCLUSIONS = [
   {
-    match: (site) => site.repoPath === 'package/music-player/design/questions/template-editor.html',
+    match: (site) => site.repoPath === 'package/music-player/design/question/template-editor.html',
     reason: 'generated output: `package/music-player/design/template-editor.mjs:121` writes this 18 MB file from `template-editor.template.html`, which is scanned separately and carries its own issues. Fixing a generated file means fixing its template.',
   },
   {

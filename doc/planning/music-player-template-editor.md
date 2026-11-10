@@ -637,7 +637,7 @@ It now reads `formula: the $ at character 1 has no closing $`.
 The second build
 (prototype commit `82d2692b7471fcde27c86c9bb321a4d35557bbca`)
 was captured in full on 2026-10-05 and published on 2026-10-06
-(its images were removed from `questions/evidence/` later that day,
+(its images were removed from `question/evidence/` later that day,
 when D91 rejected the pinned layouts;
 the measurements in this section stay as the record):
 128 views,
@@ -673,7 +673,7 @@ which a template never changes.
 and the rows lose help instead,
 which can be scrolled to while the result stays in view.
 The choice is the human's and is asked on the review page,
-`package/music-player/design/questions/template-editor.html`.
+`package/music-player/design/question/template-editor.html`.
 
 ### Decided on 2026-10-06
 

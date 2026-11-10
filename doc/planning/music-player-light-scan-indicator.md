@@ -22,7 +22,7 @@ D26's scan bar stands,
 and this fit study drew no consent prompt.
 
 The accepted source is the right frame of
-`package/music-player/design/candidates/scan-ef.dc.html`.
+`package/music-player/design/candidate/scan-ef.dc.html`.
 It uses a 56px minimum-height row in its historical dp-sized mock,
 a fixed 100px control and a single-line ellipsized status label.
 The control changes between Pause and Resume without changing its slot.
@@ -288,9 +288,9 @@ changed restoration,
 a changed owner exit,
 missing action context and a changed replay binding before any public write.
 
-`questions/evidence/scan-indicator-witnesses.json` and its 32 PNGs,
-`questions/evidence/scan-indicator-native-verification.json` and
-`questions/scan-indicator.html` are published.
+`question/evidence/scan-indicator-witnesses.json` and its 32 PNGs,
+`question/evidence/scan-indicator-native-verification.json` and
+`question/scan-indicator.html` are published.
 The viewer states the inspection findings from the witness data.
 Its build and exact validation passed.
 
@@ -322,7 +322,7 @@ open-boundary and modal screenshots were inspected.
 Closed-page axe checks report zero violations or incomplete results;
 open-dialog,
 Firefox ESR140 and native accessibility acceptance remain untested.
-`questions/evidence/scan-indicator-review-verification.json` records that check of the
+`question/evidence/scan-indicator-review-verification.json` records that check of the
 viewer,
 builder,
 test and evidence.

@@ -31,7 +31,7 @@ rounds (2026-09-17):
 The Search accessibility design review is complete through D75 to D80.
 Completion covers the recorded decisions,
 not every future Search presentation detail.
-The selected review at `questions/current.html` remains a correction/veto
+The selected review at `question/current.html` remains a correction/veto
 surface,
 not a new questionnaire.
 Internal review task 133 tracks later native accessibility acceptance,
@@ -51,16 +51,16 @@ The whole-map keyboard proposal is verified without new accepted defaults.
 `doc/planning/music-player-light-error-undo.md` records the completed D83
 state-family study and inspected offline publication.
 `doc/planning/music-player-light-context-menu.md` records the completed D7
-study and verified 24-pose viewer at `questions/track-menu.html`,
+study and verified 24-pose viewer at `question/track-menu.html`,
 without production callbacks or a replacement action-list ballot.
 `doc/planning/music-player-light-scan-indicator.md` records the completed
 D26 scan-F study and verified 32-view viewer at
-`questions/scan-indicator.html`,
+`question/scan-indicator.html`,
 without real analysis,
 revised consent defaults or a scan-policy ballot.
 `doc/planning/music-player-light-settings.md` records the completed
 Settings-pane study and verified 24-view viewer at
-`questions/settings-pane.html`,
+`question/settings-pane.html`,
 without stored preferences,
 a template entry or a Settings-template ballot.
 It draws D11's two remaining rows:
@@ -72,19 +72,19 @@ but neither that incumbent nor D11's shortened Settings example selects
 Search's extension display.
 Internal task 136 captured the inspected 24-view synthetic
 complete-filename matrix;
-its manifest is `questions/evidence/search-filename-witnesses.json`.
+its manifest is `question/evidence/search-filename-witnesses.json`.
 Suffix-distinct examples remain visibly distinguishable in those
 captured states,
 not proven for every filename or a live source.
 Task 137's 32-view comparative controls are inspected and published in
-`questions/evidence/search-filename-control-witnesses.json`.
+`question/evidence/search-filename-control-witnesses.json`.
 Literal suffix omission keeps the measured title height in these samples
 but loses the distinguishing information.
 Ancestor A/B paths remain visible;
 the ordinary-row replica hides the tested suffixes.
 The inspected 32-view static actual production-renderer baseline is in
 `evidence/search-filename-actual-player-baseline.md` and
-`questions/evidence/search-filename-actual-player-witnesses.json`.
+`question/evidence/search-filename-actual-player-witnesses.json`.
 It shows the matched chrome/page/current-row context with synthetic
 paused inputs,
 not live playback or full `MainActivity` integration.
@@ -92,12 +92,12 @@ The actual ordinary player retains long suffixes on inner at 100%,
 which the narrower replica did not establish.
 The completed debug-native follow-up separates placement from visibility:
 `evidence/search-filename-usable-comparison.md` and
-`questions/evidence/search-filename-comparison-witnesses.json`
+`question/evidence/search-filename-comparison-witnesses.json`
 record 64 initial plus six scrolled inspected views.
 The fixed placement/visibility question is withdrawn because it omitted
 settled supporting-text configurability.
 D81 records templates editable in Settings.
-Internal task 141 corrected `questions/search-filename-comparison.html`
+Internal task 141 corrected `question/search-filename-comparison.html`
 to a verified evidence-only review with optional observations.
 The authored comparisons remain valid measurements,
 not template-engine output or implemented presets.
@@ -148,7 +148,7 @@ new IME work and native accessibility acceptance.
   The human approved P5 without its container:
   P4 with the caret pointing up while open.
   They are still unsatisfied and will deal with it in another major version.
-  The built P5 is shown beside P4 in `questions/cover-picker-revisit.html`;
+  The built P5 is shown beside P4 in `question/cover-picker-revisit.html`;
   the plan is `doc/planning/music-player-cover-picker-revisit.md`.
   On 2026-10-10 the human asked for the exploration now and left the angle to the agent
   (one alternative built from the best of the agent's design judgment,
@@ -175,7 +175,7 @@ new IME work and native accessibility acceptance.
   not the old
   published-ppi estimate of 411 × 923dp.
   The desktop-width
-  Slint screenshots in `questions/render/search-page-*` are historical experiments,
+  Slint screenshots in `question/render/search-page-*` are historical experiments,
   not a live review or a basis for desktop-specific design.
   The first unfolded Compose Search draft spanned the centered 24dp region
   with header and row surfaces;
@@ -199,11 +199,11 @@ new IME work and native accessibility acceptance.
   captures,
   hierarchy XML and role records remain historical evidence;
   the withdrawn artifact is archived in
-  `questions/archive/search-rejected-fold-review.html`.
+  `question/archive/search-rejected-fold-review.html`.
   That mechanical validator did not establish a coherent query/result
   relationship.
   The resulting three-way keyboard-visible comparison is archived at
-  `questions/archive/search-three-way-before-a.html`.
+  `question/archive/search-three-way-before-a.html`.
   The user selected A:
   query and results together on the right,
   with a bottom-left deck that lifts
@@ -212,7 +212,7 @@ new IME work and native accessibility acceptance.
   heading from positive results on both panels;
   the no-results state keeps
   its explanation.
-  The selected-only `questions/current.html` is design
+  The selected-only `question/current.html` is design
   evidence,
   not a production implementation.
   A user-opened YouTube
@@ -436,7 +436,7 @@ new IME work and native accessibility acceptance.
   prefix `Camellia` and later-word `Live at Camellia` matches.
   D62 removes fuzzy-library choice and the W/A word-boundary menu from
   this UI review:
-  the [historical native comparison](questions/archive/search-word-boundary-deferred.html)
+  the [historical native comparison](question/archive/search-word-boundary-deferred.html)
   is unselected evidence,
   not a question to answer.
   Backend extension eligibility,
@@ -456,7 +456,7 @@ new IME work and native accessibility acceptance.
   new-visit empty query,
   conditional restored-query top position and same-query row visibility.
   See `evidence/search-navigation-focus-boundaries.md` and the archived
-  `questions/archive/search-navigation-focus-before-selection.html`
+  `question/archive/search-navigation-focus-before-selection.html`
   comparison;
   its alternative controls are historical rather than open choices.
   Native focus/scroll restoration and system-Back/IME integration still
@@ -466,7 +466,7 @@ new IME work and native accessibility acceptance.
   no match requires a completed current-query evaluation,
   and a known source failure must not promise an automatic recovery.
   See `evidence/search-empty-unavailable-boundaries.md` and the
-  keyboard-closed `questions/search-status-evidence.html` gallery.
+  keyboard-closed `question/search-status-evidence.html` gallery.
   Exact cause-specific recovery copy/control depends on a truthful
   source-status owner in a future implementation;
   the broad debug unavailable wording was rejected.
@@ -478,7 +478,7 @@ new IME work and native accessibility acceptance.
   already-current track hits toggle play/pause,
   and successful track actions return to player.
   See `evidence/search-result-activation-frontier.md` and the archived
-  `questions/archive/search-result-activation-before-return.html`
+  `question/archive/search-result-activation-before-return.html`
   comparison.
   Stale results must not substitute another target or fake success;
   no real result tap has been verified.
@@ -541,7 +541,7 @@ new IME work and native accessibility acceptance.
   distinct mockups.
   The first native revision still omitted the Search-closed player and an
   interim player variant incorrectly painted a gray center stripe.
-  The [corrected native review](questions/crease-floor-review.html)
+  The [corrected native review](question/crease-floor-review.html)
   shows P7.5,
   P14 and P20 in the **player before Search**,
   empty Search and results at 200% text.
@@ -586,7 +586,7 @@ new IME work and native accessibility acceptance.
   its viewer says how to object.
 - D10 no-system-library/declined-source states now have built design evidence.
   `evidence/first-run-access-boundaries.md` records the scoped authored
-  native study and `questions/first-run-access.html` is verified evidence,
+  native study and `question/first-run-access.html` is verified evidence,
   not a new preference ballot.
   Since D95 and D100 (2026-10-06) only the declined state remains,
   shown as an open but unreadable library;
@@ -669,7 +669,7 @@ seam gutter.
 structurally wrong.
 
 **What was tried.**
- candidates/unf-a.dc.html:
+ candidate/unf-a.dc.html:
  folders + A to Z jump strip in the left
 half;
  folder chip,
@@ -691,7 +691,7 @@ only the data scale.
 
 **What to build.**
  The same structure at ~1,000 folders,
- using candidates/artists.js:
+ using candidate/artists.js:
 a scrolling folder list in the left half with a working 27-cell A to Z strip beneath it,
 a visible folder count,
  and the deck in the right half.
@@ -746,11 +746,11 @@ were built:
  or controls only with the list behind a button.
 
 **What was tried.**
- candidates/cover-a.dc.html (full player:
+ candidate/cover-a.dc.html (full player:
  deck,
  mode group wrapped
 2×2,
- ~6 track rows) and candidates/cover-b.dc.html (controls only,
+ ~6 track rows) and candidate/cover-b.dc.html (controls only,
  large targets,
 list and mode control behind two buttons at the bottom).
  Both were produced by
@@ -920,7 +920,7 @@ accept the platform presentation with no special design.
 **Status (2026-10-10):
 settled (D102).**
  The human accepted the whole-map proposal at
-`questions/keyboard-map.prototype.html` as built,
+`question/keyboard-map.prototype.html` as built,
 including the playback-area scope for Space,
 previous,
 next and `Ctrl+M`,
@@ -1209,21 +1209,21 @@ now has its own L3
 captures at 100% and 200% text.
 The first-run/no-library study now has its own inspected native evidence.
 D83's error/Undo overlays also have a completed light/dark study:
-`questions/feedback-overlay.html` presents 48 inspected held poses,
+`question/feedback-overlay.html` presents 48 inspected held poses,
 with native expiry and action results recorded separately.
 The layout-reserving error bar is superseded,
 not still awaiting a light version.
 D7's track menu now has its own 24-pose light/dark native publication in
-`questions/track-menu.html`,
+`question/track-menu.html`,
 with seven action intents and input/dismissal checks recorded separately.
 D26's scan indicator now has its own 32-view light/dark native publication
-in `questions/scan-indicator.html`.
+in `question/scan-indicator.html`.
 Native Pause/Resume and authored progress/completion checks are recorded
 separately in `evidence/scan-indicator-boundaries.md`,
 with the inspected cover ellipsis and large-text Resume clearance stated
 as observations.
 The Settings pane now has its own 24-view light/dark native publication
-in `questions/settings-pane.html`,
+in `question/settings-pane.html`,
 with two rows after D84 and D85.
 Row toggles,
 the Back target,
@@ -1275,7 +1275,7 @@ an empty field is plain substitution with the unit inside the peak field (D93),
 and the page rests where Android puts a focused field (D94).
 The study is rebuilt for those decisions;
 `evidence/template-editor-boundaries.md` describes it,
-and `questions/template-editor.html` shows the decided editor and asks nothing.
+and `question/template-editor.html` shows the decided editor and asks nothing.
 Shown that page,
 the human answered on 2026-10-06 that a library is always open (D95),
 that scrolling suffices to reach the field list (D96),

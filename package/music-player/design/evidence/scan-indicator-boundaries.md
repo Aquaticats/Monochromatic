@@ -20,7 +20,7 @@ it appears during analysis and leaves when analysis finishes.
 D12 rejects a permanent completed-analysis status row.
 
 The accepted source is the right frame of
-`candidates/scan-ef.dc.html`.
+`candidate/scan-ef.dc.html`.
 Its historical mock uses a 56px row,
 a fixed 100px control and a single-line ellipsized status label.
 The control changes between Pause and Resume without changing its slot.
@@ -211,16 +211,16 @@ with a per-step event ledger,
 and reproduced every field of the live manifest.
 Publication preflights rejected six changed inputs before any public write.
 
-[The witness manifest](../questions/evidence/scan-indicator-witnesses.json)
+[The witness manifest](../question/evidence/scan-indicator-witnesses.json)
 and its 32 PNGs carry the inspected status reading and label clearance for
 each view.
-[The native verification record](../questions/evidence/scan-indicator-native-verification.json)
+[The native verification record](../question/evidence/scan-indicator-native-verification.json)
 holds the action contexts,
 their replay,
 the padding control,
 fixture reports,
 lint totals and restoration.
-The [offline viewer](../questions/scan-indicator.html) states the inspection
+The [offline viewer](../question/scan-indicator.html) states the inspection
 findings from that witness data and carries its artifact provenance.
 Its builder holds 86 named rules,
 one per line.
@@ -237,7 +237,7 @@ Those counts are the publication's.
 D88 (2026-10-05) removed the builder's digest rules,
 which leaves 82 rules and 102 rejected inputs;
 the test passed again and the built page did not change.
-The [review verification record](../questions/evidence/scan-indicator-review-verification.json)
+The [review verification record](../question/evidence/scan-indicator-review-verification.json)
 records that check of the viewer,
 builder,
 test,

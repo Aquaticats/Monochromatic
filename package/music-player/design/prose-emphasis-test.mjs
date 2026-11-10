@@ -2,13 +2,26 @@ import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // AGENTS.md rule WR3 allows bold emphasis only: never italics. This guard holds the package's authored text to it.
-// Excluded on purpose, as for the dash guard: `_ds/` and `candidates/_ds/` are copied design-system bundles,
+// Excluded on purpose, as for the dash guard: `_ds/` and `candidate/_ds/` are copied design-system bundles,
 // `support.js` is the generated Design Component runtime, and `uploads/` holds files the user sent in.
 const root = import.meta.dirname;
-const authored = [
-  ...globSync(['*.md', 'questions/*.template.html'], { cwd: root }),
-  ...globSync(['*.dc.html', 'candidates/*.dc.html'], { cwd: root })
-].sort();
+// A pattern that reaches no file would let a whole surface pass unread, so each one must match before its silence
+// counts as a clean surface.
+const surfaces = [
+  '*.md',
+  'question/*.template.html',
+  '*.dc.html',
+  'candidate/*.dc.html'
+];
+const reached = surfaces.map(pattern => [pattern, globSync(pattern, { cwd: root })]);
+for (const [pattern, files] of reached) {
+  if (files.length === 0) {
+    throw new Error(`The emphasis guard's pattern ${pattern} matched no file, so the prose it covers would pass unread.`);
+  }
+}
+const authored = reached
+  .flatMap(([, files]) => files)
+  .sort();
 
 const blank = value => value
   .split('\n')

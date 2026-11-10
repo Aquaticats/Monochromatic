@@ -5,7 +5,7 @@
 D50 requires the complete unfolded deck throughout Search typing,
 except for the measured real floating Gboard overlap (D53) and brief
 real font-update banner (D54).
-The accepted [Search A review](../questions/current.html) uses a 300dp debug IME.
+The accepted [Search A review](../question/current.html) uses a 300dp debug IME.
 The earlier [Gboard evidence](gboard-geometry.md) records a real transient
 font-update banner that raised the IME top to y `1140` and clipped the final mode.
 The separate 415dp `FoldBannerInputMethod` approximates that reported height,

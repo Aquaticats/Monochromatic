@@ -7,7 +7,7 @@ import { join } from 'node:path';
 // Rebuild only selected D51 A after D52 removed the repeated positive-results heading.
 const question = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const render = join(
   question,

@@ -125,7 +125,7 @@ than once,
 **The rule.**
  Every folder surface is shown at ~1,000 entries,
  using
-candidates/artists.js.
+candidate/artists.js.
  The interesting design problems (jump strip,
  letter targets,
 wrapping,
@@ -843,7 +843,7 @@ screenshot does not establish Search navigation,
 execution.
 
 The now-withdrawn self-contained review,
- archived at `questions/archive/search-rejected-fold-review.html`,
+ archived at `question/archive/search-rejected-fold-review.html`,
 paired both native panels with measured chassis frames,
  shows the viewer's system light/dark scheme,
  starts at
@@ -881,7 +881,7 @@ page,
  D48's single header,
  or E2's restriction on information in the connector.
  The inspected native
-`questions/render/fold-search-inner-open-results-light-s100.png` shows a tonal
+`question/render/fold-search-inner-open-results-light-s100.png` shows a tonal
 Back/query/Clear header above a completely blank left body,
  while the results
 heading and two rows sit alone in the right pane.
@@ -896,7 +896,7 @@ text wraps while the left body is unused.
 obvious:
  the query bounds `[156,166][970,283]` are separated from the
 instruction bounds `[1351,1184][1793,1253]` horizontally and vertically
-(`questions/evidence/fold-search-inner-open-empty-dark-s100.xml`).
+(`question/evidence/fold-search-inner-open-empty-dark-s100.xml`).
 
 I saw these screenshots and still called the page ready.
  I treated E2 as if it

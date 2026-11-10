@@ -16,6 +16,11 @@
 > paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
 
+> Moved 2026-11-10 by the singular folder name rename (issue
+> [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths and names below this note are historical:
+> `package/music-player/design/questions` is now `package/music-player/design/question`.
+
 Status:
  complete.
 Lifecycle phase:

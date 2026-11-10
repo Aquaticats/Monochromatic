@@ -4,7 +4,7 @@
 
 The D83 source,
 native state/fit and evidence-publication queue is complete.
-The [offline overlay review](../../package/music-player/design/questions/feedback-overlay.html)
+The [offline overlay review](../../package/music-player/design/question/feedback-overlay.html)
 contains 48 inspected held poses:
 both Fold panels,
 light/dark,
@@ -19,7 +19,7 @@ not cropped away or described as universal row visibility.
 The current APK is
 `2b556131d86e39acb8ebcf194f39da9ed8e36e2f146a86ab4fb971f4c8f06480`,
 from prototype `743c5b378c6333f75857a3d5b7c87e4c284b53c5`.
-The [native verification record](../../package/music-player/design/questions/evidence/feedback-overlay-native-verification.json)
+The [native verification record](../../package/music-player/design/question/evidence/feedback-overlay-native-verification.json)
 separates inner SwiftShader lifecycle evidence,
 cover LLVM20 llvmpipe lifecycle evidence and the final LLVM20 held/Undo
 Close visit.
@@ -39,7 +39,7 @@ Fresh duplicate-initialization and changed-geometry controls reject their
 intended invalid cases.
 Held poses are not expiry evidence.
 
-The [viewer verification record](../../package/music-player/design/questions/evidence/feedback-overlay-review-verification.json)
+The [viewer verification record](../../package/music-player/design/question/evidence/feedback-overlay-review-verification.json)
 records the check of the generated HTML,
 builder,
 manifest and native report.
@@ -390,8 +390,8 @@ hierarchies and logs remain private.
 `package/music-player/design/decisions.md` sections D8,
 D9 and D29 retain outcome/placement context;
 D83 is the current non-reserving presentation authority.
-`package/music-player/design/candidates/err-b.dc.html` and
-`package/music-player/design/candidates/toast-a.dc.html` are historical
+`package/music-player/design/candidate/err-b.dc.html` and
+`package/music-player/design/candidate/toast-a.dc.html` are historical
 accepted dark treatments to inspect,
 not a current source-operation proof.
 At queue opening,

@@ -135,9 +135,9 @@ multiple terms and deterministic tie-breaks are outside the present
 separately authorized implementation task.
 No production Search or new IME experiment was authorized.
 
-[inner-word]: ../questions/render/search-word-boundary-review-inner-rankword-s200.png
-[inner-any]: ../questions/render/search-word-boundary-review-inner-rankany-s200.png
-[cover-word]: ../questions/render/search-word-boundary-review-cover-rankword-s200.png
-[cover-any]: ../questions/render/search-word-boundary-review-cover-rankany-s200.png
-[review]: ../questions/archive/search-word-boundary-deferred.html
-[current-review]: ../questions/current.html
+[inner-word]: ../question/render/search-word-boundary-review-inner-rankword-s200.png
+[inner-any]: ../question/render/search-word-boundary-review-inner-rankany-s200.png
+[cover-word]: ../question/render/search-word-boundary-review-cover-rankword-s200.png
+[cover-any]: ../question/render/search-word-boundary-review-cover-rankany-s200.png
+[review]: ../question/archive/search-word-boundary-deferred.html
+[current-review]: ../question/current.html

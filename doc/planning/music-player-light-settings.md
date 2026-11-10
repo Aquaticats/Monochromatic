@@ -31,7 +31,7 @@ Everything this plan says about the two-row pane is history,
 and this item is closed.
 
 The accepted source is
-`package/music-player/design/candidates/settings-a.dc.html`.
+`package/music-player/design/candidate/settings-a.dc.html`.
 It is an 860 by 600px dark mock shaped like a desktop window.
 Its top row is 56px high and holds an outlined `Back to Camellia` control and
 a `Settings` label.
@@ -335,10 +335,10 @@ field of the live manifest.
 Recorded guest fields were restored,
 the owner exited `0` and no matching runtime remains.
 
-`questions/evidence/settings-pane-witnesses.json`,
+`question/evidence/settings-pane-witnesses.json`,
 its 32 PNGs,
-`questions/evidence/settings-pane-native-verification.json` and
-`questions/settings-pane.html` are published.
+`question/evidence/settings-pane-native-verification.json` and
+`question/settings-pane.html` are published.
 Seven changed publisher inputs were rejected before any public write.
 The viewer's 105 rules each have at least one rejected consumer input among
 142 and a deletion proof;
@@ -346,7 +346,7 @@ its pixel rules decode PNGs in process,
 matching ImageMagick byte for byte on all 36 images they read.
 Four offline Chromium contexts passed with no axe violations,
 and all sixteen screenshots were inspected.
-`questions/evidence/settings-pane-review-verification.json` records that check of the
+`question/evidence/settings-pane-review-verification.json` records that check of the
 viewer,
 builder,
 test and evidence;
@@ -473,8 +473,8 @@ and the viewer and boundary document state it.
 The publisher removed the withdrawn three-row files only after each matched
 the hash its own witness file recorded,
 then wrote the 24 PNGs,
-`questions/evidence/settings-pane-witnesses.json` and
-`questions/evidence/settings-pane-native-verification.json` in one commit.
+`question/evidence/settings-pane-witnesses.json` and
+`question/evidence/settings-pane-native-verification.json` in one commit.
 Eight changed publisher inputs were rejected before any public write.
 At publication the viewer's 99 rules each had at least one rejected consumer input among
 135 and a deletion proof;
@@ -484,7 +484,7 @@ its in-process PNG decoder matched ImageMagick byte for byte on all 28 images
 it reads.
 Four offline Chromium contexts passed with no axe violations,
 and all sixteen screenshots were inspected.
-`questions/evidence/settings-pane-review-verification.json` records that check of the
+`question/evidence/settings-pane-review-verification.json` records that check of the
 viewer,
 builder,
 test and evidence;

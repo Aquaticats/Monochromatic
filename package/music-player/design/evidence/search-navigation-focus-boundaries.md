@@ -14,7 +14,7 @@ D52 starts positive results directly beneath the header.
 D56 keeps the cover result viewport scrollable above an ordinary bottom
 keyboard while its header remains fixed.
 The currently selected D/M results and D59 match highlights appear in
-`package/music-player/design/questions/current.html`.
+`package/music-player/design/question/current.html`.
 None of those visual decisions says whether **text edit focus** is
 requested when Search opens,
 or what a second system Back does after the keyboard has hidden.
@@ -148,10 +148,10 @@ empty/unavailable content (review task 128),
 TalkBack traversal and announcements (review task 118),
 and search-library selection (D62,
 future implementation work) stay separate.
-`package/music-player/design/questions/archive/search-navigation-focus-before-selection.html`
+`package/music-player/design/question/archive/search-navigation-focus-before-selection.html`
 retains the interactive **logic-only** comparison as historical evidence,
 not a current question or new Android/IME verification run.
 The selected D63 to D68 goals are documented in `decisions.md` and the
-active `questions/current.html` without presenting rejected variants.
+active `question/current.html` without presenting rejected variants.
 
 [m3-accessibility]: https://m3.material.io/components/search/accessibility

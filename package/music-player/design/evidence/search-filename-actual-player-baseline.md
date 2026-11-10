@@ -217,6 +217,6 @@ matcher,
 parser,
 collision algorithm or production implementation.
 
-[witnesses]: ../questions/evidence/search-filename-actual-player-witnesses.json
+[witnesses]: ../question/evidence/search-filename-actual-player-witnesses.json
 [logging]: ../../../../doc/troubleshooting/android-agp-9-host-jvm-log-boundary.md
 [plan]: ../../../../doc/planning/music-player-search-filename-comparison.md

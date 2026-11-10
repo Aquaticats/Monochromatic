@@ -14,7 +14,7 @@ No production implementation is authorized by this plan.
 
 ## What the existing P4 captures show
 
-The measurements come from the native Fold captures `questions/render/cover-round-cover-picker-p4-s100.png`
+The measurements come from the native Fold captures `question/render/cover-round-cover-picker-p4-s100.png`
 and `cover-round-cover-picker-p4-s200.png` (1080 by 2424 pixels at 390dpi):
 
 - The trigger does not change when the picker is open.
@@ -90,7 +90,7 @@ which the first captures showed.
 The container now reaches 8dp past the title on each side,
 and the rebuilt captures draw the title within one pixel
 of its place in P4 at both text sizes and in both themes.
-The review is `package/music-player/design/questions/cover-picker-revisit.html`:
+The review is `package/music-player/design/question/cover-picker-revisit.html`:
 eight inspected native views (P4 and P5,
 light and dark,
 100% and 200% text) from two emulator visits of prototype

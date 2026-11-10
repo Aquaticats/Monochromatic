@@ -1,4 +1,4 @@
-// Rail model cases, with expected values taken from running design/candidates/buckets.js on the same inputs.
+// Rail model cases, with expected values taken from running design/candidate/buckets.js on the same inputs.
 
 // What:     `package ...core` places these tests beside the rail model they exercise.
 // Why:      The tests reach `railFor` and `scriptOf` through the same package without imports.

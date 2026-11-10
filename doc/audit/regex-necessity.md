@@ -24,6 +24,11 @@ the driver `old-format-fixtures` is `old-format-driver`.
 > paths and names below this note are historical:
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
 
+> Moved 2026-11-10 by the singular folder name rename (issue
+> [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths and names below this note are historical:
+> `package/music-player/design/questions` is now `package/music-player/design/question`.
+
 Repo-wide audit of regex use against one criterion,
  with one GitHub issue filed per unnecessary site.
 

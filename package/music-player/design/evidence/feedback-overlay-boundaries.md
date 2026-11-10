@@ -119,10 +119,10 @@ The final evidence set distinguishes:
 
 Changed-geometry controls reject a shifted viewport before unchanged-player
 results are accepted.
-The [offline viewer](../questions/feedback-overlay.html) contains 48
+The [offline viewer](../question/feedback-overlay.html) contains 48
 inspected held poses with exact panel/scene/theme/font combinations,
 image digests and fresh acquisition assertions.
-[Its witness manifest](../questions/evidence/feedback-overlay-witnesses.json)
+[Its witness manifest](../question/evidence/feedback-overlay-witnesses.json)
 records measured crop origins,
 application roots,
 physical dimensions,
@@ -138,7 +138,7 @@ validation and consumer tests passed,
 including a changed-inset positive fixture,
 invalid crop/provenance negatives,
 fresh exact-cohort/hold mutants and restored positives.
-[Consumer verification](../questions/evidence/feedback-overlay-review-verification.json)
+[Consumer verification](../question/evidence/feedback-overlay-review-verification.json)
 records that check.
 Offline Chromium checks decoded and opened every image and exercised
 availability controls,
@@ -158,7 +158,7 @@ Undo/log intent,
 full diagnostic read-back and unchanged measured player geometry.
 Those groups retain their separate renderer provenance;
 exposing a render node did not make the llvmpipe run hardware-rendered.
-[Native verification](../questions/evidence/feedback-overlay-native-verification.json)
+[Native verification](../question/evidence/feedback-overlay-native-verification.json)
 retains each owning visit's actual adapter output.
 The cover lifecycle group's raw records inherited a stale SwiftShader field;
 the published group uses its matching owner's measured LLVM20 adapter.

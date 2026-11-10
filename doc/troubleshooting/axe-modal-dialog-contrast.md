@@ -103,7 +103,7 @@ states:
 
 ```console
 agent-browser --session music-player-md3 --cdp 9224 open \
-  'file:///var/home/user/Monochromatic/package/music-player/design/questions/current.html'
+  'file:///var/home/user/Monochromatic/package/music-player/design/question/current.html'
 agent-browser --session music-player-md3 --cdp 9224 eval --stdin \
   < /home/user/temp/agent/axe-core-4.13.0/axe.min.js
 agent-browser --session music-player-md3 --cdp 9224 eval \
@@ -377,9 +377,9 @@ A reproduction uses the committed offline artifact.
 Set `REPO_ROOT` to this checkout and use a fresh named browser session:
 
 ```console
-# package/music-player/design/questions/search-filename-comparison.html
+# package/music-player/design/question/search-filename-comparison.html
 agent-browser --session filename-contrast --pin-tab open \
-  "file://${REPO_ROOT}/package/music-player/design/questions/search-filename-comparison.html"
+  "file://${REPO_ROOT}/package/music-player/design/question/search-filename-comparison.html"
 agent-browser --session filename-contrast set viewport 1440 1000
 agent-browser --session filename-contrast set media light
 agent-browser --session filename-contrast select '#scale' 2
@@ -438,5 +438,5 @@ Nothing additive establishing a bug or fix was identified.
 No new issue,
 comment or patch was sent.
 
-[filename-verification]: ../../package/music-player/design/questions/evidence/search-filename-policy-withdrawn-verification.json
-[template-verification]: ../../package/music-player/design/questions/evidence/search-filename-comparison-review-verification.json
+[filename-verification]: ../../package/music-player/design/question/evidence/search-filename-policy-withdrawn-verification.json
+[template-verification]: ../../package/music-player/design/question/evidence/search-filename-comparison-review-verification.json

@@ -8,18 +8,18 @@ import { join } from 'node:path';
 const root = process.cwd();
 const render = join(
   root,
-  'questions',
+  'question',
   'render'
 );
 const templatePath = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-ranking-before-dm.template.html'
 );
 const artifactPath = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-ranking-before-dm.html'
 );

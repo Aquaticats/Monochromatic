@@ -1,5 +1,13 @@
 # Local music player: full project handoff
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now,
+> after the singular folder name rename of 2026-11-10
+> (issue [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676)):
+> `package/music-player/design/questions` is now `package/music-player/design/question`;
+> `package/music-player/design/candidates` is now `package/music-player/design/candidate`;
+> `package/music-player/design/screenshots` is now `package/music-player/design/screenshot`.
+
 ## Presentation policy correction (2026-09-09)
 
 The user withdrew the general requirement to display HTML in a visible browser window.

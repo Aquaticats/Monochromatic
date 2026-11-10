@@ -28,7 +28,7 @@ No Search result tap handler exists in the debug-only study or in
 production.
 
 The previously verified ordinary-player TalkBack transcript at
-`package/music-player/design/questions/evidence/a11y-browse-focus-100.json`
+`package/music-player/design/question/evidence/a11y-browse-focus-100.json`
 starts with “Folders” and “Open.
  Button” and reaches the deck's current
 track state announcement at recorded step `45`.

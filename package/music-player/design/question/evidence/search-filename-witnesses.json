@@ -7,7 +7,7 @@
   "verification": "Complete scene/panel/scale/theme matrix; exact retained RGB bytes; native and published opacity; metadata-free PNG chunks; a changed PNG rejected by the retained-pixel verifier",
   "witnesses": [
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-short-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-short-light-s100.png",
       "sha256": "dab55bed867270228d70122edce44a623f3d447bf1add2e6b5a7bd34850b23e3",
       "panel": "inner",
       "scene": "short",
@@ -28,7 +28,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-long-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-long-light-s100.png",
       "sha256": "0a835001ce47be256f788e4abfd2b9df2a108184fd390856efb83d5f063f6056",
       "panel": "inner",
       "scene": "long",
@@ -49,7 +49,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-edge-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-edge-light-s100.png",
       "sha256": "d06744436881815519ad021fa047cee48ddde5025a00fcd520bfd4131da98d01",
       "panel": "inner",
       "scene": "edge",
@@ -70,7 +70,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-short-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-short-dark-s100.png",
       "sha256": "09ddd714fd22c2371187fea38dce71c50f43b88b9f8921d60a1787c2ce0e648a",
       "panel": "inner",
       "scene": "short",
@@ -91,7 +91,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-long-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-long-dark-s100.png",
       "sha256": "f8a89ecccffa870fda1a2c16342d6e96e0bb93630dbcde3c40d931050d92c4eb",
       "panel": "inner",
       "scene": "long",
@@ -112,7 +112,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-edge-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-edge-dark-s100.png",
       "sha256": "d67199bfc404d26fe3adc56abc6329e0cbbd571b548a131bbb9f7722196bf265",
       "panel": "inner",
       "scene": "edge",
@@ -133,7 +133,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-short-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-short-light-s200.png",
       "sha256": "9678331075d344036c8028cf9c1a28231226657b354a610815ba0ef27ef99b8b",
       "panel": "inner",
       "scene": "short",
@@ -154,7 +154,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-long-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-long-light-s200.png",
       "sha256": "fb62e04fcff53c48ab41a46e8830ffbde0bcee06a7979b3b0daa7eee3b24da9a",
       "panel": "inner",
       "scene": "long",
@@ -175,7 +175,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-edge-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-edge-light-s200.png",
       "sha256": "f680bb1069e20e548877ef58cc7c0e3fa1e084300b7eb13933300e771df8d6dc",
       "panel": "inner",
       "scene": "edge",
@@ -196,7 +196,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-short-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-short-dark-s200.png",
       "sha256": "79873c3b19b25d149f27b0f2df15e1dd9b709ecdb254ccd385ab77ef35c7dfa0",
       "panel": "inner",
       "scene": "short",
@@ -217,7 +217,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-long-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-long-dark-s200.png",
       "sha256": "1be582478a4cce9effcbbba985d8b1d33694ac871e77ee1f973406864eda6e5c",
       "panel": "inner",
       "scene": "long",
@@ -238,7 +238,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-inner-edge-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-inner-edge-dark-s200.png",
       "sha256": "c16c7e509094e94d8df640ffa831e3db4d48ec2d76fc3bc9a78679006e2f8c77",
       "panel": "inner",
       "scene": "edge",
@@ -259,7 +259,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-short-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-short-light-s100.png",
       "sha256": "e7489d0209869061c8b51986b94de70c93a681ddb90d7b8e516bd17985f64d60",
       "panel": "cover",
       "scene": "short",
@@ -280,7 +280,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-long-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-long-light-s100.png",
       "sha256": "be1c72a29ac83764bb25291c8ff396f9dcf0b275ed38956beee4b0a6b87b687e",
       "panel": "cover",
       "scene": "long",
@@ -301,7 +301,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-edge-light-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-edge-light-s100.png",
       "sha256": "8582e96f9f9f4704e3a68c4585e3fc497528de1e7a33b3b6258a1658f94876ca",
       "panel": "cover",
       "scene": "edge",
@@ -322,7 +322,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-short-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-short-dark-s100.png",
       "sha256": "8762abf62d1db2a8f66bf32ba726cd45970ecfbd706e14f73fb264ced11bd62a",
       "panel": "cover",
       "scene": "short",
@@ -343,7 +343,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-long-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-long-dark-s100.png",
       "sha256": "cbe1155b5d388ae91d01bef5713a8a26c4da41d05a51491b115dbb95a50263f1",
       "panel": "cover",
       "scene": "long",
@@ -364,7 +364,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-edge-dark-s100.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-edge-dark-s100.png",
       "sha256": "665842a76bc6e0dd9e01c4fe0a2dabda2536c56a13ae38a949228708f92537fe",
       "panel": "cover",
       "scene": "edge",
@@ -385,7 +385,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-short-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-short-light-s200.png",
       "sha256": "6b13657f8a3a68aaebf5611599f16e9fe10fea1f8163f0b96a6bb3d173d06f7c",
       "panel": "cover",
       "scene": "short",
@@ -406,7 +406,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-long-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-long-light-s200.png",
       "sha256": "bd85d646560a15c08a49dc8554f08a2c503be6137bbd308ee3ebfc6a1def9bf1",
       "panel": "cover",
       "scene": "long",
@@ -427,7 +427,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-edge-light-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-edge-light-s200.png",
       "sha256": "5459a2a1f2a9f4f9adf5c10654a12328dd5043d6891cb016947007a785baedbe",
       "panel": "cover",
       "scene": "edge",
@@ -448,7 +448,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-short-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-short-dark-s200.png",
       "sha256": "442c83cad594a1d445a6ced1c65286685ae665b532fdc781fc89e946f566775e",
       "panel": "cover",
       "scene": "short",
@@ -469,7 +469,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-long-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-long-dark-s200.png",
       "sha256": "5e7e758c2edfb8962aedbaad876c673cc543fc1b289824d60da6cadee625778b",
       "panel": "cover",
       "scene": "long",
@@ -490,7 +490,7 @@
       "stableAppFrames": true
     },
     {
-      "image": "package/music-player/design/questions/evidence/search-filename-cover-edge-dark-s200.png",
+      "image": "package/music-player/design/question/evidence/search-filename-cover-edge-dark-s200.png",
       "sha256": "dee365d8d48bb707cc764db872b0802b1280c74e66efb3709f22eb88c92aa647",
       "panel": "cover",
       "scene": "edge",

@@ -171,7 +171,7 @@ An unmoved state is still not evidence that a gesture was delivered.
 
 The views come from 4 emulator visits,
 and each view in the
-[witness manifest](../questions/evidence/first-run-access-witnesses.json)
+[witness manifest](../question/evidence/first-run-access-witnesses.json)
 names its visit.
 All of them ran the same installed APK,
 and each view was checked in its own environment.
@@ -203,13 +203,13 @@ hierarchies and logs remain private.
 
 ## Review and lifecycle
 
-[The first-run evidence review](../questions/first-run-access.html)
+[The first-run evidence review](../question/first-run-access.html)
 shows the three states and the declined state's version as approved (D101).
 It asks nothing;
 its last field takes optional observations.
 It says that analysis is automatic and not optional,
 and it shows a second view only where content moved.
-[The verification record](../questions/evidence/first-run-access-review-verification.json)
+[The verification record](../question/evidence/first-run-access-review-verification.json)
 quotes what the tasks printed and holds no digest (D88).
 
 The builder derives the cohort from the captures and checks each image's

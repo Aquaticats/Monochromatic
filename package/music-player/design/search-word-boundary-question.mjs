@@ -8,18 +8,18 @@ import { join } from 'node:path';
 const root = process.cwd();
 const render = join(
   root,
-  'questions',
+  'question',
   'render'
 );
 const templateFile = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-word-boundary-deferred.template.html'
 );
 const outputFile = join(
   root,
-  'questions',
+  'question',
   'archive',
   'search-word-boundary-deferred.html'
 );

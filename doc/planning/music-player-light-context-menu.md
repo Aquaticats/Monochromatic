@@ -10,7 +10,7 @@ notifications,
 supporting-text configurability or the rejected minimal-menu proposal.
 Settings templates and the scan bar remain separate work.
 
-D7 and `package/music-player/design/candidates/ctx-b.dc.html` specify a
+D7 and `package/music-player/design/candidate/ctx-b.dc.html` specify a
 track-name heading and grouped actions:
 
 - Play.
@@ -199,7 +199,7 @@ then bound to the current APK/source and crop hashes.
 The rejected transfer record is retained as resolved by fresh inspection,
 not erased or converted into an equality claim.
 Current PNGs,
-scoped native verification and `questions/track-menu.html` are published.
+scoped native verification and `question/track-menu.html` are published.
 The viewer build and exact validation passed.
 Consumer positives,
 fresh exact-cohort/native-input guard removals and restored positives passed.

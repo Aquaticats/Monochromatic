@@ -10,17 +10,17 @@ import { join } from 'node:path';
 const root = process.cwd();
 const templatePath = join(
   root,
-  'questions',
+  'question',
   'current.template.html'
 );
 const outputPath = join(
   root,
-  'questions',
+  'question',
   'current.html'
 );
 const renderPath = join(
   root,
-  'questions',
+  'question',
   'render'
 );
 const slots = [
@@ -157,7 +157,7 @@ function build() {
   if (!html.includes('__MD3_REFERENCE__')) throw new Error('Command template lost the baseline header reference.');
   const reference = readFileSync(join(
     root,
-    'questions',
+    'question',
     'evidence',
     'command-md3-baseline-header-comparison.png'
   ))
@@ -211,7 +211,7 @@ function validate() {
   const urls = [...html.matchAll(/data:image\/png;base64,([A-Za-z0-9+/=]+)/g)].map((match) => match[1]);
   const reference = readFileSync(join(
     root,
-    'questions',
+    'question',
     'evidence',
     'command-md3-baseline-header-comparison.png'
   ))

@@ -1018,7 +1018,7 @@ library shows no other section;
 separated by a hairline in the one-column rail.
  This replaces the single "#" bucket
 that every non-Latin name used to fall into.
- `candidates/buckets.js` holds the model.
+ `candidate/buckets.js` holds the model.
 
 **This decision covers the rail only.**
  Presentation of the names is D31.
@@ -1421,7 +1421,7 @@ recommendation was P2;
 
 **Post-decision visual check (2026-09-23).**
  Native folded captures now cover P4 in dark at 200% and L3 light at 100% and 200%
-(`questions/render/cover-round-cover-picker-p4-s200.png` and
+(`question/render/cover-round-cover-picker-p4-s200.png` and
 `cover-round-cover-picker-p4-light-s{100,200}.png`,
 with matching XML).
  All three are
@@ -1442,7 +1442,7 @@ and dismissal by selecting the current folder.
 Back preserved input focus on the trigger;
 touch dismissal left it unfocused in touch
 mode.
- `questions/evidence/cover-round-cover-picker-p4-interaction.json` links the native
+ `question/evidence/cover-round-cover-picker-p4-interaction.json` links the native
 hierarchies.
  TalkBack accessibility focus was not measured.
  D46 remains provisional.
@@ -1831,7 +1831,7 @@ No inner layout move,
 IME placement mechanism,
 production implementation or further device experiment was selected.
 The sanitized native capture and bounded fixture are in
-`package/music-player/design/questions/floating-results-review.html`
+`package/music-player/design/question/floating-results-review.html`
 and `package/music-player/design/evidence/search-result-overflow.md`.
 
 ### D58. Search header and result rows share leading columns (2026-09-29)
@@ -2085,7 +2085,7 @@ it does not silently erase the query,
 leave Search,
 steal edit focus or reopen a dismissed keyboard.
 The fixed debug states and
-`package/music-player/design/questions/search-status-evidence.html`
+`package/music-player/design/question/search-status-evidence.html`
 illustrate this distinction on both Fold panels at 100% and 200% text
 without executing a real lookup.
 This selects status **truth conditions**,
@@ -2210,7 +2210,7 @@ substitute a different target;
 it stays in Search for truthful error handling,
 with D9's missing-item bar as the incumbent presentation precedent to
 verify during future implementation.
-The [historical Stay/Return logic comparison](questions/archive/search-result-activation-before-return.html)
+The [historical Stay/Return logic comparison](question/archive/search-result-activation-before-return.html)
 was not an Android tap test.
 No production Search implementation,
 fuzzy matcher selection or new IME experiment is authorized.
@@ -2558,7 +2558,7 @@ What follows from it:
   test,
   manifest or report.
   Those fields were removed from the published records under
-  `questions/evidence/` on this date,
+  `question/evidence/` on this date,
   and each record says so in `pageDigestsRemoved`.
 
 A narrower reading the agent adopted,
@@ -2979,7 +2979,7 @@ No production implementation is authorized by this record.
 
 ### D102. The keyboard map is accepted as built (2026-10-10)
 
-Asked whether to accept the whole IntelliJ-aligned keyboard map shown at `questions/keyboard-map.prototype.html`,
+Asked whether to accept the whole IntelliJ-aligned keyboard map shown at `question/keyboard-map.prototype.html`,
 the human answered `Accept as built`.
 This closes D25's request for one whole-map pass and replaces the F1 draft.
 On Windows and Linux,
@@ -3039,7 +3039,7 @@ and the folder names,
 letter rail and deck are as D46 and D17 settle.
 The open state is shown by the caret's direction and by the picker replacing the track list;
 a second marker on the trigger itself was not chosen.
-The captures in `questions/cover-picker-revisit.html` show P5 with its container,
+The captures in `question/cover-picker-revisit.html` show P5 with its container,
 so they are evidence of the built candidate and not of this decision;
 no capture of the decided state exists,
 and opening,

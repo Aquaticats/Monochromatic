@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -35,7 +35,7 @@ const manifestFile = 'first-run-access-witnesses.json';
 const manifest = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestFile
   ),
@@ -49,7 +49,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -61,13 +61,13 @@ for (const file of [
 }
 const templatePath = join(
   fixture,
-  'questions',
+  'question',
   'first-run-access.template.html'
 );
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'first-run-access.template.html'
   ),
   templatePath
@@ -403,7 +403,7 @@ try {
       !== 0)) throw new Error('Restored template did not validate.');
   const output = join(
     fixture,
-    'questions',
+    'question',
     'first-run-access.html'
   );
   writeFileSync(

@@ -25,28 +25,28 @@
       "step": 3,
       "name": "query",
       "speech": "cam. Edit box. Search music",
-      "image": "package/music-player/design/questions/evidence/search-talkback-inner-query-s200.png",
+      "image": "package/music-player/design/question/evidence/search-talkback-inner-query-s200.png",
       "sha256": "d43727d93dd33debf56196c182163346e7e35a05a46d1c7321325d7cda0937cd"
     },
     {
       "step": 5,
       "name": "alphabet",
       "speech": "Not selected. capital A. Radio button. 1 of 17. In list. 17 items",
-      "image": "package/music-player/design/questions/evidence/search-talkback-inner-alphabet-s200.png",
+      "image": "package/music-player/design/question/evidence/search-talkback-inner-alphabet-s200.png",
       "sha256": "28e7eab8b8dd64465ce2e197c10ed00a1f807863510fdde83f38ca638d232758"
     },
     {
       "step": 23,
       "name": "title",
       "speech": "Cam",
-      "image": "package/music-player/design/questions/evidence/search-talkback-inner-title-s200.png",
+      "image": "package/music-player/design/question/evidence/search-talkback-inner-title-s200.png",
       "sha256": "79c045a7488f982767f775423eeb5dc0b264b439e4b933da86bb48f6a4bdc7c7"
     },
     {
       "step": 24,
       "name": "support",
       "speech": "Track · Cult of Luna · exact filename",
-      "image": "package/music-player/design/questions/evidence/search-talkback-inner-support-s200.png",
+      "image": "package/music-player/design/question/evidence/search-talkback-inner-support-s200.png",
       "sha256": "62cf1cbb495a6f8e8d697b9a71c23454b75cdde916735c3b70e2af74d1d765a3"
     }
   ]

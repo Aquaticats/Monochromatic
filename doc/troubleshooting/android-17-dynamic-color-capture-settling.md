@@ -107,7 +107,7 @@ It records requested seed,
  style,
  contrast,
  and every settled dark resource role under
-`package/music-player/design/questions/evidence/dark-dynamic-*-roles.json`.
+`package/music-player/design/question/evidence/dark-dynamic-*-roles.json`.
 
 ### Working catalog
 

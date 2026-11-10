@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -39,7 +39,7 @@ const manifestPath = join(
 const manifest = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestName
   ),
@@ -61,7 +61,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -73,13 +73,13 @@ for (const file of [
 }
 const templatePath = join(
   fixture,
-  'questions',
+  'question',
   'settings-pane.template.html'
 );
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'settings-pane.template.html'
   ),
   templatePath
@@ -94,7 +94,7 @@ const builder = join(
 );
 const output = join(
   fixture,
-  'questions',
+  'question',
   'settings-pane.html'
 );
 const limits = [

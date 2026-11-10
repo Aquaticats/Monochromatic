@@ -9,7 +9,7 @@ import { join } from 'node:path';
 //region Rule helper and pinned artifact, not a scan policy or real analysis result
 const questions = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   questions,

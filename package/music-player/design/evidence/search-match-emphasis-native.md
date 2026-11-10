@@ -179,15 +179,15 @@ D69 to D71 subsequently settled Search status truth conditions,
 and D72 to D74 settled intended result actions;
 review task 118 Search accessibility remains a separate open question.
 
-[inner-light]: ../questions/render/search-selected-accent-review-inner-results-light-s200.png
-[inner-dark]: ../questions/render/search-selected-accent-review-inner-results-dark-s200.png
-[cover-light]: ../questions/render/search-selected-accent-review-cover-results-light-s200.png
-[cover-dark]: ../questions/render/search-selected-accent-review-cover-results-dark-s200.png
-[inner-parent]: ../questions/render/search-rank-accent-review-inner-rankmixed-parenthits-end-s200.png
-[cover-parent]: ../questions/render/search-rank-accent-review-cover-ranktracks-parenthits-end-s200.png
-[ranking-review]: ../questions/archive/search-ranking-before-dm.html
-[current-review]: ../questions/current.html
-[current-inner-light]: ../questions/render/search-selected-dm-review-inner-results-light-s200.png
-[current-inner-dark]: ../questions/render/search-selected-dm-review-inner-results-dark-s200.png
-[current-cover-light]: ../questions/render/search-selected-dm-review-cover-results-light-s200.png
-[current-cover-dark]: ../questions/render/search-selected-dm-review-cover-results-dark-s200.png
+[inner-light]: ../question/render/search-selected-accent-review-inner-results-light-s200.png
+[inner-dark]: ../question/render/search-selected-accent-review-inner-results-dark-s200.png
+[cover-light]: ../question/render/search-selected-accent-review-cover-results-light-s200.png
+[cover-dark]: ../question/render/search-selected-accent-review-cover-results-dark-s200.png
+[inner-parent]: ../question/render/search-rank-accent-review-inner-rankmixed-parenthits-end-s200.png
+[cover-parent]: ../question/render/search-rank-accent-review-cover-ranktracks-parenthits-end-s200.png
+[ranking-review]: ../question/archive/search-ranking-before-dm.html
+[current-review]: ../question/current.html
+[current-inner-light]: ../question/render/search-selected-dm-review-inner-results-light-s200.png
+[current-inner-dark]: ../question/render/search-selected-dm-review-inner-results-dark-s200.png
+[current-cover-light]: ../question/render/search-selected-dm-review-cover-results-light-s200.png
+[current-cover-dark]: ../question/render/search-selected-dm-review-cover-results-dark-s200.png

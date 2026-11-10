@@ -18,7 +18,7 @@ makeScratchBase(scratchBase, { recursive: true });
 const html = readFileSync(
   join(
     process.cwd(),
-    'questions',
+    'question',
     'keyboard-map.prototype.html'
   ),
   'utf8'

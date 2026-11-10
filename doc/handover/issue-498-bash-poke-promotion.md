@@ -11,6 +11,11 @@
 > `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
 > `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
 
+> Moved 2026-11-10 by the singular folder name rename (issue
+> [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths and names below this note are historical:
+> `package/music-player/design/questions` is now `package/music-player/design/question`.
+
 ## Authority and state
 
 The user asked to resolve Aquaticat/Monochromatic#498 and invoked the grilling skill.

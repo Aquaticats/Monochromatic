@@ -124,7 +124,7 @@ the rest need the screen they belong to.
     port `design/template-reference.mjs` to `core/TrackTemplate.kt`
     with a test file that mirrors its 94 cases.
 2.  Keyboard map classifier (D102):
-    port the classifier inside `design/questions/keyboard-map.prototype.html`
+    port the classifier inside `design/question/keyboard-map.prototype.html`
     to `core/KeyboardMap.kt` with a test that mirrors `design/keyboard-map-test.mjs`.
 3.  Player screen to the design:
     remove the in-app volume row (D43),

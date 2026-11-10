@@ -469,7 +469,7 @@ and they are the reason a missing path is not a missing defect:
 
 - `#611`:
  still true.
- `package/music-player/design/support.js` and `package/music-player/design/candidates/support.js`
+ `package/music-player/design/support.js` and `package/music-player/design/candidate/support.js`
  are still the same 69134 byte artifact,
  both md5 `951ae391b8ae72ef12e671c2fad23353`,
  and neither is tracked.

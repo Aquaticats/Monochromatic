@@ -385,7 +385,7 @@ all inspected and published with separate provenance.
 bounded measurements.
 Its fixed-policy recommendations and question are withdrawn because they
 omitted configurable supporting-text templates edited in Settings.
-Task 141 corrected [the self-contained review](../questions/search-filename-comparison.html)
+Task 141 corrected [the self-contained review](../question/search-filename-comparison.html)
 to verified evidence-only inspection with optional observations.
 Captures remain authored layouts,
 not a template implementation or default selection.
@@ -401,12 +401,12 @@ TalkBack,
 activation,
 focus transitions and keyboard-open behavior remain outside the proof.
 
-[filename-manifest]: ../questions/evidence/search-filename-witnesses.json
-[inner-long]: ../questions/evidence/search-filename-inner-long-dark-s200.png
-[cover-long]: ../questions/evidence/search-filename-cover-long-dark-s200.png
-[control-manifest]: ../questions/evidence/search-filename-control-witnesses.json
-[control-layout]: ../questions/evidence/search-filename-control-layout.json
+[filename-manifest]: ../question/evidence/search-filename-witnesses.json
+[inner-long]: ../question/evidence/search-filename-inner-long-dark-s200.png
+[cover-long]: ../question/evidence/search-filename-cover-long-dark-s200.png
+[control-manifest]: ../question/evidence/search-filename-control-witnesses.json
+[control-layout]: ../question/evidence/search-filename-control-layout.json
 [buffer-record]: ../../../../doc/troubleshooting/node-26-adb-dumpsys-buffer-limit.md
 [comparison-plan]: ../../../../doc/planning/music-player-search-filename-comparison.md
 [actual-baseline]: search-filename-actual-player-baseline.md
-[actual-witnesses]: ../questions/evidence/search-filename-actual-player-witnesses.json
+[actual-witnesses]: ../question/evidence/search-filename-actual-player-witnesses.json

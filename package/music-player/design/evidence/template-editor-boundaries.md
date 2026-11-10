@@ -32,7 +32,7 @@ the first look at a first build,
 the pinned layouts that D91 rejected with what they measured,
 and the decisions of 2026-10-06.
 
-The review page is `questions/template-editor.html`.
+The review page is `question/template-editor.html`.
 It shows the decided editor and the two templates as decided,
 and asks nothing;
 its last field takes anything the human would change.
@@ -197,7 +197,7 @@ Removing each of its four named guards makes that test fail.
 An offline browser check in a container bounded to 2 GiB of memory and 2 CPUs opened every embedded view,
 prepared replies,
 and ran in light and dark at desktop and phone width with no accessibility finding on the closed page.
-`questions/evidence/template-editor-review-verification.json` records these results.
+`question/evidence/template-editor-review-verification.json` records these results.
 
 No digest of an image is recorded,
 and neither the builder nor the review record compares anything with a digest (D88).

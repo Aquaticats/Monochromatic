@@ -2,7 +2,7 @@
 
 ## Measured boundary
 
-The accepted [Search A review](../questions/current.html) uses the physical
+The accepted [Search A review](../question/current.html) uses the physical
 2076 × 2152px Pixel 9 Pro Fold inner panel at the measured 390dpi setting.
 E2 places the approximate visible dent at x `[983,1093)`px,
 centred on x `1038`.
@@ -18,7 +18,7 @@ See [device-metrics.md](../device-metrics.md) and
 ## Native selected-A measurements
 
 The private debug-only prototype worktree's
-`package/music-player/design/questions/evidence/search-selected-inner-*.xml`
+`package/music-player/design/question/evidence/search-selected-inner-*.xml`
 records UI Automator nodes for Search results,
 typing and empty states in light/dark at 100%/200% text.
 Each inner fixture's metadata identifies prototype commit `25dc2fb01`,
@@ -53,11 +53,11 @@ For the active 200% typing capture,
 UI Automator placed `4:35` at `[842,629][965,707]`,
 Open at `[744,168][894,259]`,
 and the matching right-side result labels at x `1220` or farther.
-The [light typing screenshot](../questions/render/search-selected-review-inner-typing-light-s200.png)
+The [light typing screenshot](../question/render/search-selected-review-inner-typing-light-s200.png)
 visually shows no meaning-bearing app mark in the central band above the
 debug IME;
 the continuing pane/background boundary is structural and allowed.
-The [dark empty screenshot](../questions/render/search-selected-review-inner-empty-dark-s100.png)
+The [dark empty screenshot](../question/render/search-selected-review-inner-empty-dark-s100.png)
 shows the empty-state heading near x `1132` without entering the dent.
 A separate band scan from y `320` to `1320` found no near-black pixels
 (`max(R,G,B) < 140`) in the light typing/result samples and no near-white
@@ -112,7 +112,7 @@ The floor preference was later settled as 7.5mm total opposing-information
 separation;
 long result names and other screen states remain verification work.
 The first policy question at
-`package/music-player/design/questions/crease-floor-review.html` was
+`package/music-player/design/question/crease-floor-review.html` was
 withdrawn after the user noted that it showed just one existing mockup.
 Its proportional bars were not native layout variants.
 The P0/P10/P12 menu was **not answered**;

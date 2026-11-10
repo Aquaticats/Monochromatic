@@ -9,7 +9,7 @@ import { inflateSync } from 'node:zlib';
 //region Rule helper and pinned artifact, not a stored preference or a working setting
 const questions = join(
   process.cwd(),
-  'questions'
+  'question'
 );
 const evidence = join(
   questions,

@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -35,7 +35,7 @@ const manifestFile = 'cover-picker-revisit-witnesses.json';
 const manifest = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestFile
   ),
@@ -49,7 +49,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -61,13 +61,13 @@ for (const file of [
 }
 const templatePath = join(
   fixture,
-  'questions',
+  'question',
   'cover-picker-revisit.template.html'
 );
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'cover-picker-revisit.template.html'
   ),
   templatePath
@@ -297,7 +297,7 @@ try {
       !== 0)) throw new Error('Restored template did not validate.');
   const output = join(
     fixture,
-    'questions',
+    'question',
     'cover-picker-revisit.html'
   );
   writeFileSync(

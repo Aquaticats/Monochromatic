@@ -2,9 +2,9 @@
 //!  one section per writing system present in the library.
 //!
 //! Ported from `core/FolderRail.kt`.
-//!  The JavaScript rail is `design/candidates/buckets.js`,
+//!  The JavaScript rail is `design/candidate/buckets.js`,
 //!  and
-//! its `scriptOf` helper is in `design/candidates/artists.js`.
+//! its `scriptOf` helper is in `design/candidate/artists.js`.
 //!  Only writing systems present in
 //! the library get a section.
 //!  Every cell is keyed by the first character of a folder name,

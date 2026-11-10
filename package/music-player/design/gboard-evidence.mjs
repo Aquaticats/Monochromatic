@@ -20,7 +20,7 @@ const input = process.env
 /** Destination belongs to this design package, never to the active AVD. */
 const destination = join(
   import.meta.dirname,
-  'questions/evidence'
+  'question/evidence'
 );
 /** One measured source per keyboard state, not candidate choices. */
 const captures = [

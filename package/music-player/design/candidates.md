@@ -2,7 +2,7 @@
 
 ## Current status and how to read this archive
 
-`questions/current.html` is the selected Fold Search review through
+`question/current.html` is the selected Fold Search review through
 D75 to D80,
 not a candidate-selection questionnaire.
 The accessibility round is complete;
@@ -29,7 +29,7 @@ the keyboard-map design is settled by D102.
 
 ## Historical inventory
 
-66 files in **candidates/**.
+66 files in **candidate/**.
  Every one is a standalone Design Component (.dc.html)
 that opens in a browser at its declared preview size.
  Each demonstrates exactly one
@@ -158,7 +158,7 @@ on and are not settings.</td>
   the form's question subtitle and in chat,
   the user may be reading any of the three.
 - **A theme study pins its colour scheme inline on its own root element** and links the
-  token sheets from `candidates/_ds/…` (copied there),
+  token sheets from `candidate/_ds/…` (copied there),
    never `../_ds/…`.
    The host sets
   `data-theme="dark"` on `<html>`;
@@ -427,7 +427,7 @@ emphasis. 3b strengthens true peak; 3c moves it to the trailing slot.</td>
 d>
 </tr>
 <tr>
-<td>**candidates/_ds/**</td>
+<td>**candidate/_ds/**</td>
 <td>none</td>
 <td>Copied MD3 token sheets (palette, color, fonts, typography, shape, elevation, spacing, state) so candidate files
 resolve them without `../`.</td>
@@ -489,7 +489,7 @@ full-label segments.
  and
 single-select semantics without horizontal scrolling.
  The corrected native evidence is
-`questions/render/refine-large-text-segmented.png` from prototype commit `bf6830f4f`.
+`question/render/refine-large-text-segmented.png` from prototype commit `bf6830f4f`.
 The transport was scrolled vertically for that capture,
  placing the full control above
 the system navigation inset.
@@ -1090,7 +1090,7 @@ All four reuse the D28 adaptive rail and the D31 wrapped plain-text names at 48d
 primary plus 2dp indicator on the current folder.
 Captures:
 `cover-round-cover-picker-*`
-in `questions/render`,
+in `question/render`,
 dark at 100%,
 P2 at 200%,
 and P2 in light under the settled L3
@@ -1107,7 +1107,7 @@ Back,
 selection dismissal,
 and keyboard focus retained after Back;
 TalkBack focus is not
-covered (`questions/evidence/cover-round-cover-picker-p4-interaction.json`).
+covered (`question/evidence/cover-round-cover-picker-p4-interaction.json`).
  Documented
 P1/P3 deviation:
 the floating menu panel exceeds the baseline menu's 112 to 280dp width
@@ -1166,14 +1166,14 @@ I1 has a 360 × 640px larger-text/long-label stress capture.
  E1 no-results and E2
 unavailable-action captures are contextual probes,
  not options.
- The rejected form was replaced in `questions/current.html` before another review;
+ The rejected form was replaced in `question/current.html` before another review;
  do not solicit codes from the withdrawn rasters.
  The withdrawn native rasters are
-`questions/render/command-round-{i,g,r,e}*`.
+`question/render/command-round-{i,g,r,e}*`.
  The
 first S × C draft was not shown to the user;
  its evidence is also historical in
-`questions/evidence/command-round-prior-art.md`.
+`question/evidence/command-round-prior-art.md`.
  Native static rasters
 do not prove keyboard operation,
  accessible semantics,
@@ -1205,7 +1205,7 @@ expanded view.
  All color roles are sampled from the documented wallpaper-role
 evidence.
 
-`questions/render/command-md3-{i,g,r,e}*` contains each light/dark native scene
+`question/render/command-md3-{i,g,r,e}*` contains each light/dark native scene
 at the desktop app's preferred 480 × 600px size;
  I1 to I3 also cover 1100 × 640px,
 and the I1 360 × 640px probe draws a proposed full-content larger-text fallback;
@@ -1214,10 +1214,10 @@ its static `stress` input does not verify width-driven responsive behavior.
 unavailable-action scenes remain contextual probes,
  not independent choices.
 The rejected command questionnaire was archived at
-`questions/archive/command-igr-rejected.html` when D47 replaced it.
+`question/archive/command-igr-rejected.html` when D47 replaced it.
  Its normalized 56px baseline-spec versus native
 header comparison is at
-`questions/evidence/command-md3-baseline-header-comparison.png`.
+`question/evidence/command-md3-baseline-header-comparison.png`.
  None of these
 alternatives has been selected by the user.
  The Slint surfaces are static and do not
@@ -1253,16 +1253,16 @@ empty page,
  no results and unavailable library;
 1100 × 640px captures cover the trigger,
  empty page and illustrative results only
-(`questions/render/search-page-*`,
+(`question/render/search-page-*`,
  main commit `c65154138`).
  Search button and Back
 TouchAreas are wired in the design prototype;
  the static captures do not by
 themselves prove click delivery or focus restoration.
  The rejected I/G/R form is now archived at
-`questions/archive/command-igr-rejected.html`;
+`question/archive/command-igr-rejected.html`;
  The formerly active desktop walkthrough is now retired;
-`questions/current.html` now embeds the selected A-only native Fold review.
+`question/current.html` now embeds the selected A-only native Fold review.
 The old HTML
 flow was exercised,
  but it neither proves the native TouchAreas were activated nor
@@ -1285,19 +1285,19 @@ the D47/D48 player trigger and separate one-header Search page on the cover
  approximately 443 × 994dp at the measured AVD 390dpi) and inner
 display (2076 × 2152px,
  approximately 852 × 883dp) in both schemes.
- `questions/render/fold-search-{cover,inner}-*.png` contains opaque
+ `question/render/fold-search-{cover,inner}-*.png` contains opaque
 Android system bars and target-sized results,
  empty,
  no-results and unavailable
 states at 100% text;
  player and results at 200% text are fit checks.
  Each PNG
-has a paired XML hierarchy in `questions/evidence/` and each panel/scheme has a
+has a paired XML hierarchy in `question/evidence/` and each panel/scheme has a
 native role JSON;
  each frame now has measured panel,
  density,
  night-mode and
-font-scale metadata in `questions/evidence/`.
+font-scale metadata in `question/evidence/`.
  The rejected unfolded study put Back/query/Clear over an empty left body and
 isolated results or instructions in the right body.
  The user rejected the
@@ -1310,8 +1310,8 @@ new design acceptance gate.
 not a candidate for endorsement.
 
 The withdrawn split study is archived at
-`questions/archive/search-rejected-fold-review.html`.
-The active `questions/current.html` now shows selected A only,
+`question/archive/search-rejected-fold-review.html`.
+The active `question/current.html` now shows selected A only,
  not that old
 walkthrough,
  gallery or feedback form.
@@ -1331,7 +1331,7 @@ matrix to choose from.
 ## Selected Fold Search A after D52
 
 The three-way keyboard-visible comparison is archived at
-`questions/archive/search-three-way-before-a.html`.
+`question/archive/search-three-way-before-a.html`.
 The user selected A (D51):
  Search query and results stay together on the unfolded
 right pane,
@@ -1340,10 +1340,10 @@ typing.
  D52 removes the duplicate `Results for “cam”` heading from positive
 results on the inner and cover panels.
  The initial A-only rasters in
-`questions/render/search-selected-review-*` are sanitized native captures
+`question/render/search-selected-review-*` are sanitized native captures
 at 100% and 200% text in light/dark.
  The self-contained
-`questions/current.html` shows the selected state,
+`question/current.html` shows the selected state,
  not a new choice menu.
 Native query input was exercised with a measured 300dp debug-only system IME;
 Real-Gboard geometry is measured for the linked settled and overlay states;

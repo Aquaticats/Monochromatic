@@ -24,7 +24,7 @@ const fixture = mkdtempSync(join(
 ));
 const evidence = join(
   fixture,
-  'questions',
+  'question',
   'evidence'
 );
 mkdirSync(
@@ -35,7 +35,7 @@ const manifestName = 'track-menu-witnesses.json';
 const manifest = JSON.parse(readFileSync(
   join(
     root,
-    'questions',
+    'question',
     'evidence',
     manifestName
   ),
@@ -49,7 +49,7 @@ for (const file of [
   copyFileSync(
     join(
       root,
-      'questions',
+      'question',
       'evidence',
       file
     ),
@@ -61,13 +61,13 @@ for (const file of [
 }
 const templatePath = join(
   fixture,
-  'questions',
+  'question',
   'track-menu.template.html'
 );
 copyFileSync(
   join(
     root,
-    'questions',
+    'question',
     'track-menu.template.html'
   ),
   templatePath
@@ -303,7 +303,7 @@ try {
   positive();
   const output = join(
     fixture,
-    'questions',
+    'question',
     'track-menu.html'
   );
   writeFileSync(
