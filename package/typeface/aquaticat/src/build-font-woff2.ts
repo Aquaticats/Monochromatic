@@ -18,6 +18,8 @@ import spawn from 'nano-spawn';
  
  @param distDir - output directory for the WOFF2 file
  
+ @throws When the conversion fails, carrying the caught value as its cause
+ 
  @example
  ```ts
  await convertToWoff2({
@@ -67,9 +69,9 @@ export async function convertToWoff2({
     console.log(`Wrote ${woff2Path} (${size} bytes)`,);
   }
   catch (error: unknown) {
-    console.error(
-      'WOFF2 conversion failed:',
-      (error as { stderr: string; }).stderr,
+    throw new Error(
+      `WOFF2 conversion failed for ${otfPath}: ${(error as { stderr: string; }).stderr}`,
+      { cause: error, },
     );
   }
 }
