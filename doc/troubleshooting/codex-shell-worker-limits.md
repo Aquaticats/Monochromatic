@@ -85,6 +85,45 @@ The shell itself exits with status 70 if attachment fails after hook validation.
 The guard test includes a successful payload as a positive control.
 Removing the guard in a throwaway worktree made that test fail.
 
+### Starting an absent slice creates it instead of failing
+
+The initialization arm at `package/codex-plugin/bash-limit/src/limits.rs:87` runs
+`systemctl --user start -- <name>.slice` when the parent cgroup is absent,
+and the package's tests never reach the spawn at line 103.
+A probe on 2026-11-09 measured that command on systemd 262,
+because issue #1262 assumed an absent slice makes the command fail:
+
+```text
+# systemctl --user start -- codex-fixture-missing-probe.slice
+EXIT=0
+
+# systemctl --user list-units 'codex-fixture*' --all
+codex-fixture.slice                loaded active active Slice /codex/fixture
+codex-fixture-missing.slice        loaded active active Slice /codex/fixture/missing
+codex-fixture-missing-probe.slice  loaded active active Slice /codex/fixture/missing/probe
+```
+
+The start created the absent slice and every slice above it.
+A name systemd rejects is escaped and started as well rather than refused:
+
+```text
+# systemctl --user start -- 'codex fixture space.slice'
+Invalid unit name "codex fixture space.slice" escaped as "codex\x20fixture\x20space.slice" (maybe you should use systemd-escape?).
+EXIT=0
+```
+
+So a `--initialize` run given an absent `.slice` path starts its slice successfully
+and then fails in `verify` on the still-absent control files.
+Status 2 and a non-empty diagnostic therefore cannot show whether the start arm ran,
+and reaching the arm's own failure branch needs a start that genuinely fails:
+a host without a user bus,
+or an injection point for the command.
+
+Both probes created units in the shared user manager and stopped them again with `systemctl --user stop`,
+leaving no `codex*` unit or cgroup behind.
+An ordinary test that exercises this arm inherits that side effect,
+so the choice between the side effect and an injection point belongs to the owner.
+
 ## Hook arguments belong in the command string
 
 A hook definition containing separate `command` and `args` properties launched the binary without its arguments.
