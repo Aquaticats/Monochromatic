@@ -99,11 +99,38 @@ async function outcomeWithin({
   wait: Promise<unknown>;
   windowMs: number;
 }>,): Promise<string> {
-  return Promise.race([
+  /**
+   Window timer, held so it can be cleared once the race settles.
+
+   The timer is referenced, so it keeps the process alive long enough to fire: an
+   unreferenced one lets Node report an unsettled top-level await instead, which
+   hides the failure this helper exists to report.
+   */
+  const window: { timer?: ReturnType<typeof setTimeout>; } = {};
+
+  /**
+   Outcome of the race between the wait and the window.
+   */
+  const outcome = await Promise.race([
     wait.then(() => SETTLED,),
-    delay(windowMs, undefined, { ref: false, },)
-      .then(() => PENDING,),
+    new Promise<string>(
+      /**
+       Resolves the window when it ends.
+
+       @param resolve - Promise settlement callback.
+       */
+      function armWindow(resolve,): void {
+        window.timer = setTimeout(
+          function onWindowEnd(): void {
+            resolve(PENDING,);
+          },
+          windowMs,
+        );
+      },
+    ),
   ],);
+  clearTimeout(window.timer,);
+  return outcome;
 }
 
 /**

@@ -16,7 +16,6 @@
 
 import { spawn as cpSpawn, } from 'node:child_process';
 import { once, } from 'node:events';
-import { setTimeout as delay, } from 'node:timers/promises';
 
 import {
   describe,
@@ -78,11 +77,38 @@ const HUNG = 'hung';
  ```
  */
 async function settledWithinDeadline({ wait, }: Readonly<{ wait: Promise<void>; }>,): Promise<string> {
-  return Promise.race([
+  /**
+   Deadline timer, held so it can be cleared once the race settles.
+
+   The timer is referenced, so it keeps the process alive long enough to fire: an
+   unreferenced one lets Node report an unsettled top-level await instead, which
+   hides the failure this helper exists to report.
+   */
+  const deadline: { timer?: ReturnType<typeof setTimeout>; } = {};
+
+  /**
+   Outcome of the race between the wait and the deadline.
+   */
+  const outcome = await Promise.race([
     wait.then(() => SETTLED,),
-    delay(HANG_DEADLINE_MS, undefined, { ref: false, },)
-      .then(() => HUNG,),
+    new Promise<string>(
+      /**
+       Resolves the deadline when it fires.
+
+       @param resolve - Promise settlement callback.
+       */
+      function armDeadline(resolve,): void {
+        deadline.timer = setTimeout(
+          function onDeadline(): void {
+            resolve(HUNG,);
+          },
+          HANG_DEADLINE_MS,
+        );
+      },
+    ),
   ],);
+  clearTimeout(deadline.timer,);
+  return outcome;
 }
 
 //endregion Fixtures
