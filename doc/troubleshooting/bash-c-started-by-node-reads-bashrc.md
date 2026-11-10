@@ -35,7 +35,8 @@ The --norc option inhibits this behavior
 Node gives a child with `stdio: 'pipe'` a socket pair,
 not an anonymous pipe,
 so standard input is a socket and bash takes it for a remote shell.
-The Unix socket is the first condition (the second is the inherited `SHLVL`, measured below),
+The Unix socket is the first condition (the second is the inherited `SHLVL`,
+measured below),
 not the use of Node:
 the same `bash -c` with standard input ignored,
 or fed from a shell pipe,
@@ -69,15 +70,23 @@ From a shell,
 
 ## A second condition: the inherited `SHLVL`
 
-Measured 2026-11-07 on this host (bash 5.3.15, Node 26.13.0),
+Measured 2026-11-07 on this host (bash 5.3.15,
+Node 26.13.0),
 with a disposable home whose `.bashrc` and `.bash_profile` each write a marker file,
 and `spawnSync('bash', ['-c', 'true'], { env, encoding: 'utf8' })` (standard input a socket):
 
-- `env` of only `PATH` and `HOME`: the marker was written.
-- `env` of the whole `process.env` of a terminal session (`SHLVL=2`): no marker.
-  Removing `SHLVL` from that environment, and nothing else, brought the marker back.
-- `SHLVL` set to each of `''`, `0` and `x`: the marker was written.
-  Set to `1` or `2`: no marker.
+- `env` of only `PATH` and `HOME`:
+  the marker was written.
+- `env` of the whole `process.env` of a terminal session (`SHLVL=2`):
+  no marker.
+  Removing `SHLVL` from that environment,
+  and nothing else,
+  brought the marker back.
+- `SHLVL` set to each of `''`,
+  `0` and `x`:
+  the marker was written.
+  Set to `1` or `2`:
+  no marker.
 
 So bash reads the startup file when standard input is a socket and the `SHLVL` it inherits is not a positive number.
 I did not read the bash source for this rule;

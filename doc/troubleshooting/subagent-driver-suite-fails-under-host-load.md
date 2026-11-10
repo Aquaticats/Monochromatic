@@ -288,7 +288,8 @@ after the retry work of that branch added runs to the file.
   The run now has the file's ordinary 300 s backstop,
   and the test ends it with the stop file after waiting out the looks in which a retry that should not go would have gone.
 
-The stop file ending such a run reports `model-error`, not `stop-file`:
+The stop file ending such a run reports `model-error`,
+not `stop-file`:
 a failure stays until a reply succeeds,
 so a run stopped while its failure is unanswered has not finished its task.
 

@@ -176,9 +176,12 @@ the quiet clock keeps running through it,
 so a run whose counters never come back ends and does not wait for a reading that never comes,
 and a later look that reads the run counts again.
 The judge says which of the three endings it reached:
-`Quiet` (signs read, nothing moved),
-`Unreadable` (no counters could be read for the window, though earlier looks read them),
-and `Unmeasurable` (no look ever read them, so the wall clock is the bound).
+`Quiet` (signs read,
+nothing moved),
+`Unreadable` (no counters could be read for the window,
+though earlier looks read them),
+and `Unmeasurable` (no look ever read them,
+so the wall clock is the bound).
 
 ```rust
 pub(crate) fn observe(&mut self, elapsed: Duration, look: Option<Look>) -> Option<Ending> {
@@ -243,7 +246,9 @@ So 94 percent of the test was the flushes.
 and a stand-in platform says no.
 `subvolume_command::execute` and `worktree_convert::convert_worktree` install the answer of the platform whose call is
 running for that call's whole extent (`subvolume_file_write_steps::WritesKeptInMemory`,
-whose first name, `without_flushing_for_this_thread`, this record keeps as its original text and which the code renamed
+whose first name,
+`without_flushing_for_this_thread`,
+this record keeps as its original text and which the code renamed
 on 2026-11-09):
 a stand-in that keeps its writes in the page cache turns the flushes off,
 and a platform that flushes turns them back on,
@@ -379,7 +384,9 @@ and only a stand-in that says otherwise keeps its writes in the page cache.
 ## The cross-vendor review of 2026-11-09 and what it found
 
 A reviewer of another vendor read this branch and found five defects.
-All five held, each was shown by a control that failed before its fix, and each is fixed or guarded here.
+All five held,
+each was shown by a control that failed before its fix,
+and each is fixed or guarded here.
 
 - `Judge::observe` returned before any deadline when a look could not be read
   (`let current: Look = look?`),
@@ -395,7 +402,8 @@ All five held, each was shown by a control that failed before its fix, and each 
   Both entry points now install the platform's answer for every call,
   so a call that flushes turns the flushes back on for its own extent.
 - two watchers of one process kept each other alive:
-  `look` left out only the reading thread, so the other watcher's `/proc` reads moved the run's byte counter.
+  `look` left out only the reading thread,
+  so the other watcher's `/proc` reads moved the run's byte counter.
   Every watcher now lists its own thread in `WATCHING_THREADS` when it starts,
   and `look` leaves out every thread in it.
 - the file-write control proved only that the bytes arrived,
@@ -412,12 +420,17 @@ Measured on this host on 2026-11-09:
   `a_run_whose_counters_stop_being_readable_is_ended` panicked with
   `the run ends rather than wait for a reading that never comes`,
   and `a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge` failed with
-  `assertion left == right failed: step 4 moved`, `left: Some(Unmeasurable(2s))`, `right: None`;
+  `assertion left == right failed: step 4 moved`,
+  `left: Some(Unmeasurable(2s))`,
+  `right: None`;
 - with the entry points installing the switch only when the platform says no,
-  both flush-scope controls failed with `left: Some(false)`, `right: Some(true)`;
+  both flush-scope controls failed with `left: Some(false)`,
+  `right: Some(true)`;
 - with `look` leaving out the reading thread alone,
   `two_watchers_do_not_keep_each_other_alive` failed with
-  `assertion left == right failed: a watcher ended the process:`, `left: None`, `right: Some(6)`,
+  `assertion left == right failed: a watcher ended the process:`,
+  `left: None`,
+  `right: Some(6)`,
   after the child ran its whole five seconds;
 - with the durable file flush removed,
   `the_switch_decides_whether_a_write_is_flushed` failed with
@@ -427,7 +440,8 @@ Measured on this host on 2026-11-09:
 
 The judge and flush controls after the fixes:
 `20 tests run: 20 passed`
-(`run_progress` 13, `subvolume_file_write_steps` 7;
+(`run_progress` 13,
+`subvolume_file_write_steps` 7;
  the later controls named in the next subsection make it 21).
 
 The moving-run control was then asked the question the review said it could not answer.
@@ -435,26 +449,31 @@ With the child's 4 KiB write removed and its sleeps kept,
 `a_run_that_keeps_moving_past_its_window_is_not_ended` fails as it must:
 `the moving child ended on its own:` and
 `the unit-test run showed no sign of work for 1.0 s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started or ended): a test is stuck`.
-Before the fix the same control passed with the write removed, which is the finding.
+Before the fix the same control passed with the write removed,
+which is the finding.
 The write was restored and the control passed again (`PASS [ 3.031s]`).
 
 What the review did not measure:
 no test in this crate was run with an exhausted descriptor table,
-so both judge findings are shown by made-up looks and times, not by a real stuck process without descriptors.
+so both judge findings are shown by made-up looks and times,
+not by a real stuck process without descriptors.
 
 ### The later review rounds of 2026-11-09
 
-A second cross-vendor review of the same branch found two more, and both held.
+A second cross-vendor review of the same branch found two more,
+and both held.
 
 - `end` wrote its line with `eprintln!`,
   which panics when the write fails,
-  so on a stderr that refuses writes (a full disk, a closed pipe) only the watcher thread died
+  so on a stderr that refuses writes (a full disk,
+  a closed pipe) only the watcher thread died
   and the test it watched stayed blocked without a watcher.
   The line now goes through `writeln!` on a locked stderr whose error is ignored,
   and the abort follows unconditionally:
   reporting is never a precondition for ending the process.
 - `two_watchers_do_not_keep_each_other_alive` passed with the fixture's watcher disconnected,
-  because its child arms a one-second watcher of its own, which ends the sleeping child either way.
+  because its child arms a one-second watcher of its own,
+  which ends the sleeping child either way.
   The child now prints how many watchers it registered,
   and the parent asserts that count beside the ending and the message.
 

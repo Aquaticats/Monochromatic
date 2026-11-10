@@ -45,15 +45,18 @@ Nothing bounded that step,
 and the control read the clock one time only,
 at the end,
 so a host that took 30 ms for it turned the assertion into
-`left: Some(FileStamp { .. })`, `right: None`.
+`left: Some(FileStamp { .. })`,
+`right: None`.
 
 ## Verification
 
-Version under test: the package's own test binary at
+Version under test:
+the package's own test binary at
 `target/debug/build/monochromatic-git-policy-cli/<hash>/out/git_policy_cli-<hash>`,
 built from this worktree on 2026-11-08.
 
-Before the change, run as written:
+Before the change,
+run as written:
 
 ```sh
 systemd-run --user --scope -p CPUQuota=3% -p MemoryMax=2G -p TasksMax=256 -p IOWeight=10 -- \
@@ -76,14 +79,18 @@ and no pin installed means `SystemTime::now` as before.
 The control states three instants against the source's own change time
 (`stamp_nanos`):
 
-- the change itself, which proves nothing,
-- one nanosecond inside `RECENT_CHANGE_NANOS`, which proves nothing either,
-- a whole `RECENT_CHANGE_NANOS` later, which carries the stamp and equals the source's.
+- the change itself,
+  which proves nothing,
+- one nanosecond inside `RECENT_CHANGE_NANOS`,
+  which proves nothing either,
+- a whole `RECENT_CHANGE_NANOS` later,
+  which carries the stamp and equals the source's.
 
 No sleep and no elapsed-time bet remain in the control,
 and it ends in 0.09 to 0.28 s.
 
-Shown failing, each plant reverted after its run:
+Shown failing,
+each plant reverted after its run:
 
 - a `stamp_is_settled` that trusts a recent stamp,
 failed in 0.01 s:
@@ -98,7 +105,8 @@ assertion `left == right` failed: a file whose change time is the clock's own in
 - a `stamp_is_settled` that never trusts a stamp,
 failed in 0.01 s with `assertion failed: settled.is_some()`.
 
-After the change, six runs at the 3% allowance that reproduced it passed.
+After the change,
+six runs at the 3% allowance that reproduced it passed.
 
 ## What does not work
 
@@ -116,7 +124,8 @@ It is exercised by every other control that copies a file with the real clone re
 (`stage_mirrors_selected_entries_with_modes_and_links`,
 `a_large_manifest_is_copied_in_slices_and_arrives_whole`).
 - `RECENT_CHANGE_NANOS` (20 ms) is unchanged and still has no measurement beside it.
-This record measured the control, not the constant.
+This record measured the control,
+  not the constant.
 
 ## Upstream filing decision
 

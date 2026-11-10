@@ -26,7 +26,8 @@ bounded run SlowToFinishCleanup: the holder took the lock before it was stopped
 test result: FAILED. 9 passed; 2 failed; 0 ignored; 0 measured; 4810 filtered out; finished in 29.55s
 ```
 
-Five tests failed across those four runs, both of the controls above among them in every failing run.
+Five tests failed across those four runs,
+both of the controls above among them in every failing run.
 
 There was no slow suite run and no watchdog:
 the runs ended in about 30 s and
@@ -85,7 +86,8 @@ and its existence never proved the lock came first anyway.
 
 ## Reproduction
 
-The four runs above use the package's test binary directly, so the whole `lock` module shares one process:
+The four runs above use the package's test binary directly,
+so the whole `lock` module shares one process:
 
 ```sh
 systemd-run --user --scope -p CPUQuota=10% -p MemoryMax=4G -p TasksMax=512 -p IOWeight=10 -- \
@@ -130,14 +132,16 @@ Repeats of the same capped run after the change:
 11 controls each,
 0 failures.
 
-Shown failing, each plant reverted after its run
+Shown failing,
+each plant reverted after its run
 (the plants are the shipped defects these controls exist to catch,
 not changes to the controls):
 
 - a `LockLedger::claiming` that reads no lock before the stop signals,
 failed in 24.9 s with
 `bounded run SlowToFinishCleanup: a stopped Git child left lock files: .../refs/remotes/origin/main.lock size=41 born=SystemTime { tv_sec: 1794194824, tv_nsec: 288383998 } pid_file_beside=false`
-(the 20 s is this control's `SWEEP_WAIT` allowance for a sweep on a thread, not the watchdog);
+(the 20 s is this control's `SWEEP_WAIT` allowance for a sweep on a thread,
+  not the watchdog);
 - an `escalation_waits` that gives a blocked member no wait past the grace,
 failed in 5.3 s with
 `SlowToFinishCleanup: the stop ended without a look seeing Git between its two unlinks,
@@ -157,7 +161,8 @@ and it is bounded well inside the 120 s watchdog.
 the two slow-cleanup controls decide by the cut on disk.
 `in_uninterruptible_sleep` and the ceiling keep their own controls in
 `process/stop_waits_while_a_member_cannot_be_interrupted_tests.rs`.
-- The stop reads the process tree once, before it signals.
+- The stop reads the process tree once,
+  before it signals.
 Measured here:
 Git was forked by `strace` after that read,
 so `kill_members` never signalled it,

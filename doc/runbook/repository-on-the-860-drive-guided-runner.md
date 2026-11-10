@@ -279,7 +279,8 @@ Stages marked window run inside the window and are refused once its maximum has 
     and a fresh `btrfs subvolume list -u` with the print mode of the freeze and the final pass.
     A registration of a worktree whose folder is gone fails `c01-pre-freeze-table`:
     `git worktree prune` settles them
-    (the first attempt met 36, all under scratch folders that had been deleted).
+    (the first attempt met 36,
+    all under scratch folders that had been deleted).
 2.  `c06-stop-units` (needs `--assert=c06-stop-units`):
     stops the user units:
     every `cli-git@*` and `monochromatic-git-policy-cli@*` socket and service
@@ -642,7 +643,8 @@ watch the status):
   with `btrfs-progs` 7.1,
   not on the move's snapshots:
   a `--no-data` stream ends exactly at its end record
-  (bisected: 946,688 of 946,688 bytes are needed for a dump to succeed,
+  (bisected:
+  946,688 of 946,688 bytes are needed for a dump to succeed,
   16,802 commands),
   bytes appended after the record are ignored by `--dump`,
   and a stream cut short makes `--dump` exit 1 with
@@ -686,7 +688,8 @@ Still open:
   plus an install in each checkout whose links dangle,
   which took 7.6 s for the main checkout,
   and it is inside the window.
-  Until it runs, the existing checkouts other than the repaired main one are not relinked.
+  Until it runs,
+  the existing checkouts other than the repaired main one are not relinked.
 
 The copy tool's unit tests import the built package:
 after a source change run `mise run //package/repository-move/cli:buildAndTest`,
