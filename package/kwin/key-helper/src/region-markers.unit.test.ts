@@ -29,8 +29,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 //region Vocabulary
-// Where the markers are read from, what one marker line looks like, and the
-// length beyond which a module is expected to hold more than one section.
+// Where the markers are read from, the two marker words, and the length beyond
+// which a module is expected to hold more than one section.
 
 /**
  Directory holding this package's modules, which is this test file's own folder.
@@ -44,14 +44,14 @@ const SOURCE_DIRECTORY = import.meta.dirname;
 const SOURCE_FILE_SUFFIX = '.ts';
 
 /**
- One `//region` line, with the label after the marker captured as `purpose`.
+ Word a line writes to open a region, read after the line's indentation.
  */
-const REGION_OPENER = /^\s*\/\/region(?:\s+(?<purpose>.*?))?\s*$/u;
+const REGION_OPENER = '//region';
 
 /**
- One `//endregion` line, with the label after the marker captured as `purpose`.
+ Word a line writes to close the innermost open region.
  */
-const REGION_CLOSER = /^\s*\/\/endregion(?:\s+(?<purpose>.*?))?\s*$/u;
+const REGION_CLOSER = '//endregion';
 
 /**
  Length past which a module is expected to open a region.
@@ -83,18 +83,44 @@ type SourceModule = {
 };
 
 /**
- Which marker a line writes, and the label it writes after it.
+ What one line of module text writes: a region opener, a region closer, or
+ neither, so a reader switches on the kind rather than testing for absence.
  */
-type Marker = {
+type LineMarker = {
   /**
-   Marker that opens a region or closes the innermost open one.
+   Marker the line writes.
    */
-  readonly kind: 'opener' | 'closer';
+  readonly kind: 'opener' | 'closer' | 'none';
   /**
-   Label after the marker, empty when the line writes none.
+   Label after the marker word, empty when the line names no purpose or writes
+   no marker.
    */
   readonly purpose: string;
 };
+
+/**
+ Whether one line writes a given marker word, and the label written after it.
+ */
+type MarkerReading = {
+  /**
+   Whether the line writes this marker at all.
+   */
+  readonly isMarker: boolean;
+  /**
+   Label after the marker word, empty when the line names no purpose.
+   */
+  readonly purpose: string;
+};
+
+/**
+ Reading of a line that writes other text, returned rather than minted per line.
+ */
+const OTHER_TEXT: MarkerReading = { isMarker: false, purpose: '', };
+
+/**
+ Reading of a line that writes no region marker.
+ */
+const NO_MARKER: LineMarker = { kind: 'none', purpose: '', };
 
 /**
  A region opened on a line and not yet closed.
@@ -111,40 +137,77 @@ type OpenRegion = {
 };
 
 /**
- Reads one marker from a line of module text.
+ Reads one marker word off a line.
 
- @param line - one line of source text, as written
+ The word counts as the line's marker only when the label after it is empty or
+ separated by whitespace, so a comment that merely begins with the word, as
+ `//regions are read here` does, stays ordinary comment text.
 
- @returns the marker the line writes, or `undefined` for every other line
+ @param line - one line of module text, as written
+ @param marker - marker word to read, `//region` or `//endregion`
+ @returns whether the line writes this marker, and the label after it
 
  @example
  ```ts
- markerOn('//region Constants');
+ readMarker({ line: '  //region Constants', marker: REGION_OPENER });
  ```
  */
-function markerOn(line: string,): Marker | undefined {
+function readMarker({ line, marker, }: {
+  readonly line: string;
+  readonly marker: string;
+},): MarkerReading {
   /**
-   Opener match, when the line writes one.
+   Line with its indentation removed, so a marker nested in a block still
+   matches.
    */
-  const opener = REGION_OPENER.exec(line,);
-  if (opener !== null) {
-    return { kind: 'opener', purpose: (opener.groups?.['purpose'] ?? '').trim(), };
+  const trimmed = line.trimStart();
+  if (!trimmed.startsWith(marker,)) {
+    return OTHER_TEXT;
   }
   /**
-   Closer match, when the line writes one.
+   Text after the marker word, which is the label when it starts with
+   whitespace.
    */
-  const closer = REGION_CLOSER.exec(line,);
-  if (closer !== null) {
-    return { kind: 'closer', purpose: (closer.groups?.['purpose'] ?? '').trim(), };
+  const rest = trimmed.slice(marker.length,);
+  if ((rest !== '') && (rest.trimStart() === rest)) {
+    return OTHER_TEXT;
   }
-  return undefined;
+  return { isMarker: true, purpose: rest.trim(), };
+}
+
+/**
+ Reads the marker one line writes.
+
+ @param line - one line of module text, as written
+ @returns the opener or closer the line writes, or `none` for every other line
+
+ @example
+ ```ts
+ markerOn('//endregion Constants');
+ ```
+ */
+function markerOn(line: string,): LineMarker {
+  /**
+   Reading of this line as an opener.
+   */
+  const opener = readMarker({ line, marker: REGION_OPENER, },);
+  if (opener.isMarker) {
+    return { kind: 'opener', purpose: opener.purpose, };
+  }
+  /**
+   Reading of this line as a closer.
+   */
+  const closer = readMarker({ line, marker: REGION_CLOSER, },);
+  if (closer.isMarker) {
+    return { kind: 'closer', purpose: closer.purpose, };
+  }
+  return NO_MARKER;
 }
 
 /**
  Counts the lines a module holds, as `wc --lines` does.
 
  @param text - whole file text
-
  @returns number of newline characters in the text
 
  @example
@@ -160,7 +223,6 @@ function lineCount(text: string,): number {
  Reports every pairing fault in one module's markers.
 
  @param module - module name and text to read
-
  @returns one message per fault, empty when every marker pairs
 
  @example
@@ -186,15 +248,19 @@ function markerProblems({ name, text, }: SourceModule,): readonly string[] {
      Marker this line writes, if any.
      */
     const marker = markerOn(line,);
-    if (marker === undefined) {
+    if (marker.kind === 'none') {
       continue;
     }
     /**
      1-based line number the marker sits on.
      */
     const lineNumber = index + 1;
+    /**
+     Marker word the line writes, named in every message below.
+     */
+    const word = marker.kind === 'opener' ? REGION_OPENER : REGION_CLOSER;
     if (marker.purpose === '') {
-      problems.push(`${name}:${String(lineNumber,)} //${marker.kind === 'opener' ? 'region' : 'endregion'} names no purpose`,);
+      problems.push(`${name}:${String(lineNumber,)} ${word} names no purpose`,);
       continue;
     }
     if (marker.kind === 'opener') {
@@ -206,15 +272,15 @@ function markerProblems({ name, text, }: SourceModule,): readonly string[] {
      */
     const opened = open.pop();
     if (opened === undefined) {
-      problems.push(`${name}:${String(lineNumber,)} //endregion ${marker.purpose} closes no region`,);
+      problems.push(`${name}:${String(lineNumber,)} ${word} ${marker.purpose} closes no region`,);
       continue;
     }
     if (opened.purpose !== marker.purpose) {
-      problems.push(`${name}:${String(opened.line,)} //region ${opened.purpose} is closed at line ${String(lineNumber,)} by //endregion ${marker.purpose}`,);
+      problems.push(`${name}:${String(opened.line,)} ${REGION_OPENER} ${opened.purpose} is closed at line ${String(lineNumber,)} by ${word} ${marker.purpose}`,);
     }
   }
   for (const leftover of open) {
-    problems.push(`${name}:${String(leftover.line,)} //region ${leftover.purpose} is never closed`,);
+    problems.push(`${name}:${String(leftover.line,)} ${REGION_OPENER} ${leftover.purpose} is never closed`,);
   }
   return problems;
 }
@@ -235,8 +301,8 @@ async function sourceModules(): Promise<readonly SourceModule[]> {
    */
   const entries = await readdir(SOURCE_DIRECTORY, { withFileTypes: true, },);
   /**
-   Names of the entries that are modules, sorted so a failure reads the same
-   way twice.
+   Names of the entries that are modules, sorted so a failure reads the same way
+   twice.
    */
   const names = entries
     .filter(function isModule(entry: Dirent,): boolean {
@@ -293,10 +359,22 @@ await describe({
              */
             const unmarked = modules
               .filter(function isLongAndUnmarked(module: SourceModule,): boolean {
-                return lineCount(module.text,) > LENGTH_REQUIRING_A_REGION
-                  && !module.text.split('\n',).some(function opensRegion(line: string,): boolean {
-                    return markerOn(line,)?.kind === 'opener';
+                /**
+                 Whether the module is long enough to hold several sections.
+                 */
+                const isLong = lineCount(module.text,) > LENGTH_REQUIRING_A_REGION;
+                /**
+                 Whether any of the module's lines opens a region.
+                 */
+                const opensRegion = module.text
+                  .split('\n',)
+                  .some(function isOpener(line: string,): boolean {
+                    return markerOn(line,).kind === 'opener';
                   },);
+                if (!isLong) {
+                  return false;
+                }
+                return !opensRegion;
               },)
               .map(function moduleName(module: SourceModule,): string {
                 return module.name;
@@ -338,7 +416,7 @@ await describe({
           name: 'reports a marker that names no purpose',
           fn: async () => {
             /**
-             Module text whose opener states no purpose for its section.
+             Module text whose markers state no purpose for their section.
              */
             const anonymous = [
               '//region',
@@ -349,6 +427,16 @@ await describe({
               'anonymous.ts:1 //region names no purpose',
               'anonymous.ts:3 //endregion names no purpose',
             ],);
+          },
+        }),
+        it({
+          name: 'ignores comment text that merely begins with a marker word',
+          fn: async () => {
+            expect(markerOn('//regions are read here',),).toEqual({ kind: 'none', purpose: '', },);
+            expect(markerOn('//endregion and then some',),).toEqual({
+              kind: 'closer',
+              purpose: 'and then some',
+            },);
           },
         }),
       ],
