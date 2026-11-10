@@ -160,6 +160,12 @@ pub mod child_watch_task_loop_and_notice;
 /// The watched one-shot run for a caller that is itself a task of the runtime.
 pub mod child_watch_output_watched_on_the_runtime;
 
+/// The one-shot run of a watched step:
+/// the command started,
+/// its output read whole,
+/// and the watch that ends it.
+pub mod child_watch_one_shot_run;
+
 /// The paths of a dirty worktree and of a fast-forward,
 /// and their overlap.
 pub mod auto_push_dirty_paths;

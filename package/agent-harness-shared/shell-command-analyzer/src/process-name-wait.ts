@@ -5,19 +5,10 @@
  */
 
 import { analyzeShellCommand, } from './analyzer.ts';
+import { shellScriptPayloads, } from './shell-script-payloads.ts';
 import type { ShellCommandInfo, } from './types.ts';
 
 //region Constants
-
-/**
- Shell binaries whose `-c` argument is a script string.
- */
-const SHELL_NAMES: ReadonlySet<string> = new Set([
-  'bash',
-  'sh',
-  'zsh',
-  'dash',
-],);
 
 /**
  Commands that look processes up by name or command line.
@@ -51,54 +42,6 @@ const PROCESS_NAME_WAIT_BAN_REASON: string = [
 //endregion Constants
 
 //region Predicates
-
-/**
- Collects `-c` script strings passed to shells named in a command or its wrapper arguments.
-
- @param info - parsed command whose name or arguments may launch a shell
-
- @returns script strings that the launched shells execute
-
- @example
- ```ts
- shellScriptPayloads(info); // ['until ! pgrep x; do sleep 1; done']
- ```
- */
-function shellScriptPayloads(info: ShellCommandInfo,): string[] {
-  /**
-   Command name followed by its arguments, so a wrapper's inner command is scanned like a direct one.
-   */
-  const words = [
-    info.name,
-    ...info.args,
-  ];
-
-  return words
-    .flatMap(function payloadAfterShellDashC(
-      word,
-      index,
-    ): string[] {
-      if (!SHELL_NAMES.has(word,))
-        return [];
-
-      /**
-       Arguments after the shell name.
-       */
-      const rest = words.slice(index + 1,);
-      /**
-       Position of the `-c` flag within `rest`.
-       */
-      const dashCIndex = rest.indexOf('-c',);
-      /**
-       Script string following the `-c` flag.
-       */
-      const payload = rest[dashCIndex + 1];
-
-      return ((dashCIndex !== (-1)) && ((typeof payload) === 'string'))
-        ? [payload,]
-        : [];
-    },);
-}
 
 /**
  Checks whether a shell command calls `pgrep` or `pidof` inside a `while` or `until` loop.
@@ -135,7 +78,12 @@ function waitsOnProcessName(command: string,): boolean {
         return true;
 
       // `timeout 60 bash -c '<script>'` and similar wrappers hide the loop inside a string argument.
-      return shellScriptPayloads(info,)
+      return shellScriptPayloads({
+        words: [
+          info.name,
+          ...info.args,
+        ],
+      },)
         .some(waitsOnProcessName,);
     },);
 }

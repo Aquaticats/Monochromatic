@@ -12,7 +12,7 @@
 use super::*;
 use crate::test_support::{SharedSink, fixture, remove, repository};
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 
 /// The longest time a stopped step took past its window until the call returned,
 /// in microseconds,
