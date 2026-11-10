@@ -347,7 +347,7 @@ Tradeoff,
  and the reason this repo did not adopt it:
 the suffix is matched with `String.prototype.endsWith` against the direct superclass identifier
 or the class's own name,
- so allowlisting `Writable` also permits any class merely *named*
+ so allowlisting `Writable` also permits any class merely **named**
 `*Writable` that extends something else entirely,
  and permits every `Writable` subclass in the
 workspace,

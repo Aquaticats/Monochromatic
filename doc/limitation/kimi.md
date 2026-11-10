@@ -5,7 +5,7 @@ so future sessions do not repeat the same pattern.
 
 ## Pi goal extension grilling session (2026-07-10)
 
-**Goal:**
+Goal:
 Run a `/grilling` session on
 [issue 360](https://github.com/Aquaticat/Monochromatic/issues/360),
 which proposes replacing the installed `npm:@narumitw/pi-goal` extension with a
@@ -15,7 +15,7 @@ The replacement should preserve useful `/goal` persistence and explicit
  but remove the upstream global stale-tool-call latch
 that can deadlock an agent after an interruption.
 
-**Files and resources involved:**
+Files and resources involved:
 
 - `https://github.com/Aquaticat/Monochromatic/issues/360`
 - `/var/home/user/.pi/agent/npm/node_modules/@narumitw/pi-goal/src/goal.ts`
@@ -60,7 +60,7 @@ grilling session:
 
 ### Question 1: per-session state isolation
 
-**What was asked:**
+What was asked:
 
 > Do you want all mutable runtime goal state isolated in a per-session object
 > created at `session_start` and destroyed at `session_shutdown`,
@@ -72,7 +72,7 @@ The question was accompanied by a recommendation,
 "What do you think?"
  and offered no selectable options.
 
-**Why it failed:**
+Why it failed:
 
 This is an internal implementation question,
  not a design question.
@@ -83,14 +83,14 @@ a code-structure decision,
  not a user-facing design choice.
 The user had explicitly asked for design questions with options.
 
-**Correct behavior:**
+Correct behavior:
 Open with a design-level question about user-facing behavior,
  not about
 internal state layout.
 
 ### Question 2: command surface compatibility
 
-**What was asked:**
+What was asked:
 
 A three-option question about whether the `/goal` command surface and
 `goal_complete` tool should be:
@@ -104,7 +104,7 @@ A three-option question about whether the `/goal` command surface and
   `/goal list`,
    and separate pause/resume/clear tools.
 
-**Why it failed:**
+Why it failed:
 
 Option C was nonsensical for `/goal`.
 `/goal` is a single active goal with start,
@@ -127,7 +127,7 @@ Kimi then re-read the upstream `README.md` and confirmed the single-active-goal
 usage model,
  but the option should never have been offered.
 
-**Correct behavior:**
+Correct behavior:
 Research the upstream README and source before offering design alternatives.
 Ground every option in the actual usage model.
 If no meaningful redesign axis exists,
@@ -135,7 +135,7 @@ If no meaningful redesign axis exists,
 
 ### Question 3: pause semantics
 
-**What was asked:**
+What was asked:
 
 A three-option question about what `/goal pause` should do to the current turn:
 
@@ -151,7 +151,7 @@ A three-option question about what `/goal pause` should do to the current turn:
   phase,
    otherwise let tools finish.
 
-**Why it failed:**
+Why it failed:
 
 The question assumed that a Pi extension command could abort an arbitrary
 in-flight agent turn.
@@ -171,7 +171,7 @@ lifecycle.
 The only meaningful design choice for pause is whether and how the extension
 stops enqueuing its own follow-up messages.
 
-**Correct behavior:**
+Correct behavior:
 Confirm what an extension can and cannot do before posing options.
 When the question is constrained by the Pi extension API,
  state that constraint

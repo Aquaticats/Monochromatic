@@ -216,25 +216,25 @@ and none should be.
 The six constraints,
 walked:
 
-1. Is it upstream's fault?
-   No.
-   Undefining an active domain while leaving it running is documented in the source comment,
-   and it is the behaviour a transient domain needs.
-   The defect was in this repository's guard.
-2. Can upstream fix it?
-   Not applicable without a defect.
-3. Are they supporting this use case?
-   Not applicable;
-   a state name rather than an integer is `virsh`'s presentation choice.
-4. Would the repository welcome our contribution?
-   Not applicable without a change to propose.
-5. Will they likely fix it?
-   Not applicable;
-   nothing in libvirt's tracker or release notes was consulted,
-   because no report is needed.
-6. Have we prototyped a minimal fix?
-   Not applicable upstream.
-   The consumer-side fix is landed and tested in this repository.
+1.  Is it upstream's fault?
+    No.
+    Undefining an active domain while leaving it running is documented in the source comment,
+    and it is the behaviour a transient domain needs.
+    The defect was in this repository's guard.
+2.  Can upstream fix it?
+    Not applicable without a defect.
+3.  Are they supporting this use case?
+    Not applicable;
+    a state name rather than an integer is `virsh`'s presentation choice.
+4.  Would the repository welcome our contribution?
+    Not applicable without a change to propose.
+5.  Will they likely fix it?
+    Not applicable;
+    nothing in libvirt's tracker or release notes was consulted,
+    because no report is needed.
+6.  Have we prototyped a minimal fix?
+    Not applicable upstream.
+    The consumer-side fix is landed and tested in this repository.
 
 `.out-of-scope/` holds no libvirt entry,
 so the exemption check found nothing to apply;

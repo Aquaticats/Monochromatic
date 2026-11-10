@@ -293,39 +293,39 @@ JetBrains Marketplace,
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-    Yes for the discoverability gap.
-    Apple's
-   official install path requires a custom plugin repository,
-    and upstream issue
-   `apple/pkl-intellij#4` tracks Marketplace publication.
-2. Can upstream fix it?
-    Yes,
-    by publishing the official plugin to JetBrains
-   Marketplace.
-3. Are they supporting this use case?
-    Yes.
-    The docs and README explicitly say the
-   plugin provides Pkl language support for IntelliJ Platform IDEs.
-4. Would the repo welcome our contribution?
-    Not for this specific gap.
-    The
-   contributor guide accepts issues and pull requests generally,
-    but maintainer
-   comment `https://github.com/apple/pkl-intellij/issues/4#issuecomment-2317876133`
-   says Marketplace publication is `all internal`.
-5. Will they likely fix it?
-    Indeterminate.
-    Maintainers said they are working on
-   it,
-    but the 2026-03-29 comment says there is still no ETA.
-6. Have we prototyped a minimal fix compatible with their architecture?
-    No. The
-   missing step is publication to JetBrains Marketplace,
-    not a code change in the
-   public repository.
-    The public repository already contains functional file-type
-   registration and release metadata.
+1.  Is it really upstream's fault?
+     Yes for the discoverability gap.
+     Apple's
+    official install path requires a custom plugin repository,
+     and upstream issue
+    `apple/pkl-intellij#4` tracks Marketplace publication.
+2.  Can upstream fix it?
+     Yes,
+     by publishing the official plugin to JetBrains
+    Marketplace.
+3.  Are they supporting this use case?
+     Yes.
+     The docs and README explicitly say the
+    plugin provides Pkl language support for IntelliJ Platform IDEs.
+4.  Would the repo welcome our contribution?
+     Not for this specific gap.
+     The
+    contributor guide accepts issues and pull requests generally,
+     but maintainer
+    comment `https://github.com/apple/pkl-intellij/issues/4#issuecomment-2317876133`
+    says Marketplace publication is `all internal`.
+5.  Will they likely fix it?
+     Indeterminate.
+     Maintainers said they are working on
+    it,
+     but the 2026-03-29 comment says there is still no ETA.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+     No. The
+    missing step is publication to JetBrains Marketplace,
+     not a code change in the
+    public repository.
+     The public repository already contains functional file-type
+    registration and release metadata.
 
 Duplicate search found `apple/pkl-intellij#4`,
  and the findings above add no new

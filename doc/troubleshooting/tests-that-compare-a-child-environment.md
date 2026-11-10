@@ -27,22 +27,22 @@ Three configuration entries,
 none of them in the test or in the linter,
 put the variable in the test process:
 
-1. `toolchain.lock.json` line 485 gives the rust tool the environment entry
-   `"RUSTUP_TOOLCHAIN": "nightly-2026-11-08"`,
-   and mise exports it for every task.
-   `mise exec -- printenv RUSTUP_TOOLCHAIN` answers `nightly-2026-11-08`;
-   a shell outside mise has no value.
-2. `$CARGO_HOME/config.toml` sets `[build]` `build-dir` to
-   `"/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`,
-   the shared build folder of [the host cache decision][build-dir-host-cache].
-3. Every `cargo` mise runs is the launcher `cargo-shadow`.
-   When its caller set no `CARGO_BUILD_BUILD_DIR`,
-   when that template ends in `{workspace-path-hash}`,
-   and when a toolchain is known from a leading `+name` or `RUSTUP_TOOLCHAIN`,
-   it sets `CARGO_BUILD_BUILD_DIR` to the toolchain-keyed folder
-   (`package/cargo-shadow/cli/src/lean_keyed_folder.rs` line 209,
-   called from `package/cargo-shadow/cli/src/shim.rs` line 169;
-   mechanism A of `package/cargo-shadow/cli/README.md`).
+1.  `toolchain.lock.json` line 485 gives the rust tool the environment entry
+    `"RUSTUP_TOOLCHAIN": "nightly-2026-11-08"`,
+    and mise exports it for every task.
+    `mise exec -- printenv RUSTUP_TOOLCHAIN` answers `nightly-2026-11-08`;
+    a shell outside mise has no value.
+2.  `$CARGO_HOME/config.toml` sets `[build]` `build-dir` to
+    `"/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`,
+    the shared build folder of [the host cache decision][build-dir-host-cache].
+3.  Every `cargo` mise runs is the launcher `cargo-shadow`.
+    When its caller set no `CARGO_BUILD_BUILD_DIR`,
+    when that template ends in `{workspace-path-hash}`,
+    and when a toolchain is known from a leading `+name` or `RUSTUP_TOOLCHAIN`,
+    it sets `CARGO_BUILD_BUILD_DIR` to the toolchain-keyed folder
+    (`package/cargo-shadow/cli/src/lean_keyed_folder.rs` line 209,
+    called from `package/cargo-shadow/cli/src/shim.rs` line 169;
+    mechanism A of `package/cargo-shadow/cli/README.md`).
 
 The launcher sets the variable for the `cargo` child it starts.
 Cargo then starts `cargo nextest`,

@@ -19,6 +19,8 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
  */
 const l = tagged({ tag: 'mutation-test', },);
 
+//region Exclusion rules
+
 /**
  Unit test file suffix.
  */
@@ -32,6 +34,10 @@ const EXCLUDED_SUFFIXES: Readonly<Record<string, string>> = {
   '.bench.ts': 'benchmark file',
   '.d.ts': 'declaration file',
 };
+
+//endregion Exclusion rules
+
+//region Selection shapes
 
 /**
  File selected or skipped during source scanning.
@@ -48,6 +54,10 @@ export type SourceSelection = {
   readonly files: readonly string[];
   readonly excluded: readonly SourceExclusion[];
 };
+
+//endregion Selection shapes
+
+//region Directory scan
 
 /**
  Recursively lists package-relative .ts files under one directory.
@@ -100,6 +110,10 @@ async function listTsFiles(options: {
   return nested.flat();
 }
 
+//endregion Directory scan
+
+//region Source selection
+
 /**
  Selects production source files for mutation.
  
@@ -136,8 +150,15 @@ export async function selectSources(options: {
      Exclusion reason for this file, when any suffix matches.
      */
     const reason = Object.entries(EXCLUDED_SUFFIXES,)
-      .find(function matches(entry,): boolean {
-        return file.endsWith(entry[0],);
+      .find(function matches(entry: readonly [
+        string,
+        string,
+      ],): boolean {
+        /**
+         Suffix that entry documents.
+         */
+        const [suffix,] = entry;
+        return file.endsWith(suffix,);
       },)
       ?.[1];
 
@@ -160,6 +181,10 @@ export async function selectSources(options: {
     excluded,
   };
 }
+
+//endregion Source selection
+
+//region Test selection
 
 /**
  Returns whether a test stem relates to a source stem.
@@ -271,3 +296,5 @@ export async function selectTests(options: {
   ]
     .toSorted();
 }
+
+//endregion Test selection

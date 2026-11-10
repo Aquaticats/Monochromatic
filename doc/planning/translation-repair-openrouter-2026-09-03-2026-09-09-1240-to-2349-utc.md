@@ -187,90 +187,90 @@ because the default load balancing spread calls over endpoints priced at twice t
 
 ### The six levers, in commit order
 
-1. `037d1f650`:
-   every OpenRouter call carries `max_tokens` at a measured ceiling
-   (the 99th percentile of `completion_tokens` over that model's completed OpenRouter calls since the top-up),
-   and Qwen3.8-27B and glm-5.3 leave the OpenRouter catalog
-   (24 percent of Qwen's calls there were abandoned and billed to the end;
-   glm-5.3 was the second bleeder and Hyper serves both).
-2. `4f87555fc`:
-   every abandoned OpenRouter stream writes a `SPEND ... estimated=abandoned` line reckoned from the characters
-   delivered before the cut,
-   so the meter and the log can be reconciled without a second reckoning.
-3. `1fe7ca2fe`:
-   `provider.sort: 'price'` on every OpenRouter request
-   (the routing page says sorting disables load balancing and picks the cheapest;
-   zero data retention,
-   `require_parameters` and the ignore list still apply),
-   and the `SPEND` line carries `cached=N` off `usage.prompt_tokens_details.cached_tokens`,
-   since DeepSeek's prompt caching is automatic and reads at a tenth of the input price.
-   The third `noname` pass shows the routing at work:
-   `deepseek-v4-pro-0813` on NextBit,
-   `deepseek-v4-flash-0731` on DeepInfra,
-   and `cached=512` on the second minimax call of the pass.
-4. `b71a55385`,
-   the fan-out window:
-   every `gatherStageVoices` round asks quorum plus one seat,
-   from a bench rotated deterministically by the prompt,
-   and the rest only when a voice is lost;
-   quorum is unchanged.
-   On the first `noname` pass 1,430 seats were asked across 229 rounds where quorum needed about 810,
-   and every surplus seat waited out a grace window and,
-   on the per-token provider,
-   was generated and billed to the end.
-   Three consequences were decided with it:
-   a fixture scripting every seat asks for the whole bench through a `fanOut` knob on the select,
-   critic,
-   chunk-critic and coverage stages;
-   the coverage verdict takes its majority over the seats the gather asked,
-   since a seat the window spared was never silent;
-   and a judge bench whose window could not carry a unanimous self-written slate on self-votes alone
-   (four seats:
-   three halves fall short of the minimum of 2) asks the whole bench,
-   which is one seat more (`candidate-select-fanout.ts`).
-5. `78ea8c8c7`,
-   the cap on every provider:
-   the table moves to `completion-cap.ts` keyed by roster id and every client sends it,
-   Synthetic (a weekly token allowance),
-   Bedrock (a credit never topped up),
-   Hyper (under its own per-model ceiling) and OpenRouter.
-   Measured over every `SPEND` line in the pass logs (142,437 completed calls across the four providers;
-   `~/temp/agent/cap-measure-20260909.txt` holds the table):
-   each cap is the highest 99th percentile any provider with at least 100 calls of the model recorded,
-   floored at the pooled 90th (3,831),
-   and every cap cuts under one percent of that model's completed calls
-   (`minimax-m3` the most,
-   274 of 34,018,
-   whose Hyper replies ran to the 32,000 ceiling that provider already enforced).
-   The caps:
-   GLM-5.3-Flash 18,316;
-   Qwen3.8-27B 20,894;
-   Kimi-K3 10,921;
-   gpt-oss-120b 3,831;
-   minimax-m3 10,822;
-   gemma-4-26b-a4b-it 3,831;
-   deepseek-v4-pro 9,128;
-   deepseek-v4-flash 16,543;
-   glm-5.3 22,067;
-   gemma-4-e2b 3,831;
-   gemma-4-31b 8,194.
-6. `33a023445`,
-   the window for the six stages that read their own round
-   (the lane contest,
-   section and block pairing,
-   the consolidation gate,
-   the naturalness review and the polish gate;
-   356 seats on the first `noname` pass for quorums of about half):
-   `runWindowedRounds` asks quorum plus one seat,
-   the rest only when a voice is lost,
-   up to the same three retry rounds the other stages have and these never had,
-   and returns one outcome per seat asked in roster order.
-   The naturalness confirmation now challenges exactly the seats the discovery asked,
-   at the discovery's quorum,
-   since the artifact reads one requested roster across both readings and a challenge put to the reviewers who
-   approved is what a confirmation is.
-   A provider down for every seat now costs such a stage up to four rounds of the client's five transient attempts,
-   as it already costs the other sixteen stages.
+1.  `037d1f650`:
+    every OpenRouter call carries `max_tokens` at a measured ceiling
+    (the 99th percentile of `completion_tokens` over that model's completed OpenRouter calls since the top-up),
+    and Qwen3.8-27B and glm-5.3 leave the OpenRouter catalog
+    (24 percent of Qwen's calls there were abandoned and billed to the end;
+    glm-5.3 was the second bleeder and Hyper serves both).
+2.  `4f87555fc`:
+    every abandoned OpenRouter stream writes a `SPEND ... estimated=abandoned` line reckoned from the characters
+    delivered before the cut,
+    so the meter and the log can be reconciled without a second reckoning.
+3.  `1fe7ca2fe`:
+    `provider.sort: 'price'` on every OpenRouter request
+    (the routing page says sorting disables load balancing and picks the cheapest;
+    zero data retention,
+    `require_parameters` and the ignore list still apply),
+    and the `SPEND` line carries `cached=N` off `usage.prompt_tokens_details.cached_tokens`,
+    since DeepSeek's prompt caching is automatic and reads at a tenth of the input price.
+    The third `noname` pass shows the routing at work:
+    `deepseek-v4-pro-0813` on NextBit,
+    `deepseek-v4-flash-0731` on DeepInfra,
+    and `cached=512` on the second minimax call of the pass.
+4.  `b71a55385`,
+    the fan-out window:
+    every `gatherStageVoices` round asks quorum plus one seat,
+    from a bench rotated deterministically by the prompt,
+    and the rest only when a voice is lost;
+    quorum is unchanged.
+    On the first `noname` pass 1,430 seats were asked across 229 rounds where quorum needed about 810,
+    and every surplus seat waited out a grace window and,
+    on the per-token provider,
+    was generated and billed to the end.
+    Three consequences were decided with it:
+    a fixture scripting every seat asks for the whole bench through a `fanOut` knob on the select,
+    critic,
+    chunk-critic and coverage stages;
+    the coverage verdict takes its majority over the seats the gather asked,
+    since a seat the window spared was never silent;
+    and a judge bench whose window could not carry a unanimous self-written slate on self-votes alone
+    (four seats:
+    three halves fall short of the minimum of 2) asks the whole bench,
+    which is one seat more (`candidate-select-fanout.ts`).
+5.  `78ea8c8c7`,
+    the cap on every provider:
+    the table moves to `completion-cap.ts` keyed by roster id and every client sends it,
+    Synthetic (a weekly token allowance),
+    Bedrock (a credit never topped up),
+    Hyper (under its own per-model ceiling) and OpenRouter.
+    Measured over every `SPEND` line in the pass logs (142,437 completed calls across the four providers;
+    `~/temp/agent/cap-measure-20260909.txt` holds the table):
+    each cap is the highest 99th percentile any provider with at least 100 calls of the model recorded,
+    floored at the pooled 90th (3,831),
+    and every cap cuts under one percent of that model's completed calls
+    (`minimax-m3` the most,
+    274 of 34,018,
+    whose Hyper replies ran to the 32,000 ceiling that provider already enforced).
+    The caps:
+    GLM-5.3-Flash 18,316;
+    Qwen3.8-27B 20,894;
+    Kimi-K3 10,921;
+    gpt-oss-120b 3,831;
+    minimax-m3 10,822;
+    gemma-4-26b-a4b-it 3,831;
+    deepseek-v4-pro 9,128;
+    deepseek-v4-flash 16,543;
+    glm-5.3 22,067;
+    gemma-4-e2b 3,831;
+    gemma-4-31b 8,194.
+6.  `33a023445`,
+    the window for the six stages that read their own round
+    (the lane contest,
+    section and block pairing,
+    the consolidation gate,
+    the naturalness review and the polish gate;
+    356 seats on the first `noname` pass for quorums of about half):
+    `runWindowedRounds` asks quorum plus one seat,
+    the rest only when a voice is lost,
+    up to the same three retry rounds the other stages have and these never had,
+    and returns one outcome per seat asked in roster order.
+    The naturalness confirmation now challenges exactly the seats the discovery asked,
+    at the discovery's quorum,
+    since the artifact reads one requested roster across both readings and a challenge put to the reviewers who
+    approved is what a confirmation is.
+    A provider down for every seat now costs such a stage up to four rounds of the client's five transient attempts,
+    as it already costs the other sixteen stages.
 
 Not done,
 and next:

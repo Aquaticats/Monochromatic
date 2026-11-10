@@ -148,204 +148,204 @@ The first reader traced six links;
 the check confirmed them and found three more,
 marked here as added by the check.
 
-1. Critics.
-   Slice 68 drew two critical `accuracy/non-translation` claims (lines 8933 and 8934);
-   slice 67 nine claims,
-   seven major and two minor (lines 8950 to 8958;
-   DeepSeek filed 4 and Haiku 5,
-   with `accuracy/addition` for the quotation,
-   for "her life was short" and for "warrior on a battlefield",
-   and `accuracy/omission` for the unkind world);
-   slice 69 two critical `non-translation` claims (lines 9035 and 9036);
-   slice 70 seven claims,
-   six major and one minor (lines 9100 to 9106;
-   added by the check).
-   The critic stage heard 2 of 8 voices (lines 8932,
-   8949,
-   9034 and 9099),
-   `deepseek-v4.1-flash` and `claude-haiku-5-5`.
-2. Panel and electorate floor.
-   Each panel packet heard 2 of 8 (`stage-short-bench (panel reachable 2 of 8, quorum 2)` is in chunk 67's findings),
-   so the stage's own quorum was 2 and was met.
-   The tally then needs weight 3:
-   `adjudication/src/tally-votes.ts:78` to `:82`
-   (`electorate = supported + unsupported + ambiguous + sourceDefect`;
-   `if (electorate < config.minBallotWeight) return 'needs-human'`,
-   the check at `:81`);
-   `shared-contract/src/adjudicate-model.ts:311` to `:315` (`DEFAULT_ADJUDICATION_CONFIG`,
-   `minBallotWeight: 3` at `:312`,
-   no `weights`).
-   The weight of a panelist defaults to 1
-   (`adjudication/src/tally-claim.ts:33` to `:43`;
-   `adjudicate-model.ts:296`,
-   "absent panelists weigh one"),
-   and the run passes no config
-   (`adjudication/src/panel-stage.ts:430` to `:434`;
-   `repair/src/repair-slice-key.ts:722` to `:726` says no run can replace it).
-   Two panelists weigh 2,
-   below 3,
-   so every claim lands `needs-human`,
-   even where both panelists support it:
-   line 9058 (slice 68,
-   `needs-human critical`,
-   "panel claude-haiku-5-5 supported,
-   deepseek-v4.1-flash supported"),
-   line 9080 (slice 69,
-   the same),
-   line 9285 (slice 67's quotation claim,
-   `needs-human major`,
-   both supported) and lines 9238 to 9244 (slice 70,
-   six `needs-human major`,
-   one minor).
-   Totals for the four slices:
-   20 claims (9,
-   2,
-   2 and 7) and 17 issues in the artifact,
-   all `needs-human` (12 major,
-   2 critical and 3 minor;
-   artifact `chunks[67..70].issues`).
-3. Editor.
-   Envelopes are cut from accepted issues only
-   (`repair/src/repair-chunk.ts:316` to `:323`,
-   with `:332` to `:334` filtering `issue.status === 'accepted'`),
-   so with none accepted the chunk logs `nothing to edit, unchanged`
-   (lines 9059,
-   9081,
-   9245 and 9286).
-   Nothing in the pipeline reads a `needs-human` status except to record it:
-   the only non-test mentions are the status type (`shared-contract/src/adjudicate-model.ts:140`),
-   the tally,
-   a comment in `artifact/src/artifact-v1-read.ts:25` (non-accepted issues are left out of graded precision)
-   and the probe code.
-   No severity,
-   including critical,
-   changes this.
-4. The two guards that exist for exactly this case could not fire (added by the check).
-   - The archive dispute.
-     `archive/src/archive-dispute.ts` (owner classes 107,
-     2026-09-24,
-     "Not eligible;
-     fall back to the repair text",
-     and 176,
-     2026-09-27)
-     makes the archive ineligible when the repair lane's adjudicators accepted an addition or a major accuracy claim
-     against it.
-     It reads only `issue.status === 'accepted'` (`:306` to `:311`,
-     `disputingIssuesOf`).
-     With the panel unable to accept anything,
-     the dispute could not arise;
-     the log's `translate-archive-disputed` lines are for slices 2,
-     3 and 4 only (lines 12402 to 12404).
-     Had it fired,
-     the archive would not have been "a candidate,
-     a fallback,
-     a standing or a lane offer anywhere downstream"
-     (the header of `archive-dispute.ts`).
-   - Non-translation votes.
-     `archive/src/non-translation-evidence.ts:29` (`NON_TRANSLATION_BLOCK_VOTES = 3`) and `:267`
-     (`votes >= NON_TRANSLATION_BLOCK_VOTES`):
-     "three independent voices,
-     not a bare pair".
-     Slices 68 and 69 drew exactly two critical `non-translation` votes each
-     (artifact `nonTranslationVotes: 2`,
-     `nonTranslationStanding: false`),
-     so they did not stand either.
-     This is a second absolute floor of 3 beside the tally's floor of 3.
-5. Silent-stage record (added by the check).
-   `repair/src/repair-cache-gate.ts` and `ChunkRepairOutcome.silentStages` (ledger B820,
-   `doc/audit-ledger-silent-stages-recorded-as-data.md:11` on) exist to mark a panel that heard fewer than quorum.
-   The stage quorum shrinks to the reachable bench
-   (`stage/src/stage-reachable-quorum.ts:1` to `:30`,
-   floor `MIN_STAGE_VOICES = 2`),
-   so 2 of 2 counts as quorum met:
-   `silentStages` is empty on all 118 chunks.
-   The stage believes it heard a quorum that its own tally cannot use.
-6. Lane contest.
-   For 71 slices in all,
-   `lane contest: 1 of 7 seats reachable, below the floor of 2; no round is opened and the slice keeps its incumbent`
-   (`lane-contest/src/lane-contest-stage.ts:444` to `:446`;
-   first line 17107);
-   the artifact records `verdict: quorum-not-met, usable: 0, benchBelowFloor: true` for slices 66 to 71,
-   including 67 to 70.
-   The seven late judges are all unreachable except `deepseek-v4.1-flash`:
-   Haiku holds `late-judge-dropped`
-   (`shared-contract/src/claude-card-sides.ts:264` to `:268`;
-   the comment at `:37` to `:39` says "which the owner did not name"),
-   and Qwen holds it by the owner's answer of 2026-10-22
-   (`shared-contract/src/model-cards.ts:108` to `:115`).
-7. Slate.
-   The consolidation bought a slate for these slices
-   (a lane text existed,
-   so the skip at `consolidate/src/consolidate-slice-buy.ts:251` to `:257` could not apply).
-   The lone judge,
-   `deepseek-v4.1-flash`,
-   said in its own words that the archive text was the fault,
-   and was outvoted by the floor of two ballots
-   (the log prints the weights):
-   line 19632 (slice 67,
-   weight 0.5)
-   "Candidate 3 is disqualified:
-   it invents a lengthy quotation attributed to Big Boss in *Metal Gear Solid 2*,
-   adds the
-   characterization that her life was short and filled with defiance,
-   and drops the original's propositions ...";
-   line 19689 (slice 68)
-   "Candidate 1 is not a rendering of the ORIGINAL at all";
-   line 19728 (slice 69,
-   weight 1)
-   "Candidate 1 is not a translation of the ORIGINAL and adds unrelated material about a quote,
-   a warrior,
-   and victory.
-   Candidates 2,
-   3,
-   and 4 all render the passage completely and faithfully";
-   line 19764 (slice 70)
-   "Candidate 2 is unacceptable:
-   it drops most of the passage".
-   Then `bench short of quorum ... the winner needs weight N from at least 2 ballots` and
-   `winner was named by 1 ballot against a floor of 2; keeping the fallback`
-   (lines 19633 to 19635 for slice 67),
-   and the terminal `slate-declined-standing`
-   (artifact `consolidation.slices[67..70].terminal`;
-   mapping at `consolidate/src/consolidate-settle.ts:128` to `:130`).
-8. Ship.
-   `consolidate/src/consolidate-slice-buy.ts:411` to `:415` warns
-   `standing lacks contest endorsement and the single consolidation attempt kept it (slate-declined-standing);
-   shipping with the finding recorded`
-   (the text is at `:413`;
-   log lines 19636,
-   19693,
-   19732 and 19768).
-   Page checking records `final-selection-unendorsed (slice N): archive wording stands without contest endorsement,
-   recorded as evidence` and returns it as a finding
-   (`page-check/src/corpus-run/final-selection-completeness.ts:146` to `:147`;
-   the lines for slices 67 to 70 are among the 35 at 21893 to 21927).
-   The `TALLY` counts the slice in `standingUnendorsed=66`
-   (`slice-cache/src/corpus-run/settled-tally.ts:72` to `:140`,
-   `standingsKeptUnendorsed` at `:96`;
-   slices that kept the archive for want of any valid wording are excluded there,
-   and these did not).
-   `repairIssues=341 repairAccepted=89` are printed,
-   but no field says that 234 of the 341 issues were left for a human.
-   `DEFECTS` did not print,
-   and no `publish: shipping with defect` warn exists (`rg --count`:
-   0),
-   which is correct by the code:
-   `PublishCheck` (`page-check/src/corpus-run/publish-defects.ts:30` to `:40`:
-   archive-original,
-   contributor-names,
-   destinations,
-   front-matter,
-   headings,
-   no-valid-wording,
-   page-agreement,
-   page-footnotes,
-   page-source-unparseable;
-   emitted at `corpus-pass/src/corpus-run/pass-entry-persist.ts:150` to `:160` and
-   `page-check/src/corpus-run/publish-fixed.ts:369` to `:380`)
-   has no check on `needs-human` or on unendorsed standing,
-   and none of its checks measures whether the wording follows the source.
-   So a page like this one ships clean.
+1.  Critics.
+    Slice 68 drew two critical `accuracy/non-translation` claims (lines 8933 and 8934);
+    slice 67 nine claims,
+    seven major and two minor (lines 8950 to 8958;
+    DeepSeek filed 4 and Haiku 5,
+    with `accuracy/addition` for the quotation,
+    for "her life was short" and for "warrior on a battlefield",
+    and `accuracy/omission` for the unkind world);
+    slice 69 two critical `non-translation` claims (lines 9035 and 9036);
+    slice 70 seven claims,
+    six major and one minor (lines 9100 to 9106;
+    added by the check).
+    The critic stage heard 2 of 8 voices (lines 8932,
+    8949,
+    9034 and 9099),
+    `deepseek-v4.1-flash` and `claude-haiku-5-5`.
+2.  Panel and electorate floor.
+    Each panel packet heard 2 of 8 (`stage-short-bench (panel reachable 2 of 8, quorum 2)` is in chunk 67's findings),
+    so the stage's own quorum was 2 and was met.
+    The tally then needs weight 3:
+    `adjudication/src/tally-votes.ts:78` to `:82`
+    (`electorate = supported + unsupported + ambiguous + sourceDefect`;
+    `if (electorate < config.minBallotWeight) return 'needs-human'`,
+    the check at `:81`);
+    `shared-contract/src/adjudicate-model.ts:311` to `:315` (`DEFAULT_ADJUDICATION_CONFIG`,
+    `minBallotWeight: 3` at `:312`,
+    no `weights`).
+    The weight of a panelist defaults to 1
+    (`adjudication/src/tally-claim.ts:33` to `:43`;
+    `adjudicate-model.ts:296`,
+    "absent panelists weigh one"),
+    and the run passes no config
+    (`adjudication/src/panel-stage.ts:430` to `:434`;
+    `repair/src/repair-slice-key.ts:722` to `:726` says no run can replace it).
+    Two panelists weigh 2,
+    below 3,
+    so every claim lands `needs-human`,
+    even where both panelists support it:
+    line 9058 (slice 68,
+    `needs-human critical`,
+    "panel claude-haiku-5-5 supported,
+    deepseek-v4.1-flash supported"),
+    line 9080 (slice 69,
+    the same),
+    line 9285 (slice 67's quotation claim,
+    `needs-human major`,
+    both supported) and lines 9238 to 9244 (slice 70,
+    six `needs-human major`,
+    one minor).
+    Totals for the four slices:
+    20 claims (9,
+    2,
+    2 and 7) and 17 issues in the artifact,
+    all `needs-human` (12 major,
+    2 critical and 3 minor;
+    artifact `chunks[67..70].issues`).
+3.  Editor.
+    Envelopes are cut from accepted issues only
+    (`repair/src/repair-chunk.ts:316` to `:323`,
+    with `:332` to `:334` filtering `issue.status === 'accepted'`),
+    so with none accepted the chunk logs `nothing to edit, unchanged`
+    (lines 9059,
+    9081,
+    9245 and 9286).
+    Nothing in the pipeline reads a `needs-human` status except to record it:
+    the only non-test mentions are the status type (`shared-contract/src/adjudicate-model.ts:140`),
+    the tally,
+    a comment in `artifact/src/artifact-v1-read.ts:25` (non-accepted issues are left out of graded precision)
+    and the probe code.
+    No severity,
+    including critical,
+    changes this.
+4.  The two guards that exist for exactly this case could not fire (added by the check).
+    - The archive dispute.
+      `archive/src/archive-dispute.ts` (owner classes 107,
+      2026-09-24,
+      "Not eligible;
+      fall back to the repair text",
+      and 176,
+      2026-09-27)
+      makes the archive ineligible when the repair lane's adjudicators accepted an addition or a major accuracy claim
+      against it.
+      It reads only `issue.status === 'accepted'` (`:306` to `:311`,
+      `disputingIssuesOf`).
+      With the panel unable to accept anything,
+      the dispute could not arise;
+      the log's `translate-archive-disputed` lines are for slices 2,
+      3 and 4 only (lines 12402 to 12404).
+      Had it fired,
+      the archive would not have been "a candidate,
+      a fallback,
+      a standing or a lane offer anywhere downstream"
+      (the header of `archive-dispute.ts`).
+    - Non-translation votes.
+      `archive/src/non-translation-evidence.ts:29` (`NON_TRANSLATION_BLOCK_VOTES = 3`) and `:267`
+      (`votes >= NON_TRANSLATION_BLOCK_VOTES`):
+      "three independent voices,
+      not a bare pair".
+      Slices 68 and 69 drew exactly two critical `non-translation` votes each
+      (artifact `nonTranslationVotes: 2`,
+      `nonTranslationStanding: false`),
+      so they did not stand either.
+      This is a second absolute floor of 3 beside the tally's floor of 3.
+5.  Silent-stage record (added by the check).
+    `repair/src/repair-cache-gate.ts` and `ChunkRepairOutcome.silentStages` (ledger B820,
+    `doc/audit-ledger-silent-stages-recorded-as-data.md:11` on) exist to mark a panel that heard fewer than quorum.
+    The stage quorum shrinks to the reachable bench
+    (`stage/src/stage-reachable-quorum.ts:1` to `:30`,
+    floor `MIN_STAGE_VOICES = 2`),
+    so 2 of 2 counts as quorum met:
+    `silentStages` is empty on all 118 chunks.
+    The stage believes it heard a quorum that its own tally cannot use.
+6.  Lane contest.
+    For 71 slices in all,
+    `lane contest: 1 of 7 seats reachable, below the floor of 2; no round is opened and the slice keeps its incumbent`
+    (`lane-contest/src/lane-contest-stage.ts:444` to `:446`;
+    first line 17107);
+    the artifact records `verdict: quorum-not-met, usable: 0, benchBelowFloor: true` for slices 66 to 71,
+    including 67 to 70.
+    The seven late judges are all unreachable except `deepseek-v4.1-flash`:
+    Haiku holds `late-judge-dropped`
+    (`shared-contract/src/claude-card-sides.ts:264` to `:268`;
+    the comment at `:37` to `:39` says "which the owner did not name"),
+    and Qwen holds it by the owner's answer of 2026-10-22
+    (`shared-contract/src/model-cards.ts:108` to `:115`).
+7.  Slate.
+    The consolidation bought a slate for these slices
+    (a lane text existed,
+    so the skip at `consolidate/src/consolidate-slice-buy.ts:251` to `:257` could not apply).
+    The lone judge,
+    `deepseek-v4.1-flash`,
+    said in its own words that the archive text was the fault,
+    and was outvoted by the floor of two ballots
+    (the log prints the weights):
+    line 19632 (slice 67,
+    weight 0.5)
+    "Candidate 3 is disqualified:
+    it invents a lengthy quotation attributed to Big Boss in *Metal Gear Solid 2*,
+    adds the
+    characterization that her life was short and filled with defiance,
+    and drops the original's propositions ...";
+    line 19689 (slice 68)
+    "Candidate 1 is not a rendering of the ORIGINAL at all";
+    line 19728 (slice 69,
+    weight 1)
+    "Candidate 1 is not a translation of the ORIGINAL and adds unrelated material about a quote,
+    a warrior,
+    and victory.
+    Candidates 2,
+    3,
+    and 4 all render the passage completely and faithfully";
+    line 19764 (slice 70)
+    "Candidate 2 is unacceptable:
+    it drops most of the passage".
+    Then `bench short of quorum ... the winner needs weight N from at least 2 ballots` and
+    `winner was named by 1 ballot against a floor of 2; keeping the fallback`
+    (lines 19633 to 19635 for slice 67),
+    and the terminal `slate-declined-standing`
+    (artifact `consolidation.slices[67..70].terminal`;
+    mapping at `consolidate/src/consolidate-settle.ts:128` to `:130`).
+8.  Ship.
+    `consolidate/src/consolidate-slice-buy.ts:411` to `:415` warns
+    `standing lacks contest endorsement and the single consolidation attempt kept it (slate-declined-standing);
+    shipping with the finding recorded`
+    (the text is at `:413`;
+    log lines 19636,
+    19693,
+    19732 and 19768).
+    Page checking records `final-selection-unendorsed (slice N): archive wording stands without contest endorsement,
+    recorded as evidence` and returns it as a finding
+    (`page-check/src/corpus-run/final-selection-completeness.ts:146` to `:147`;
+    the lines for slices 67 to 70 are among the 35 at 21893 to 21927).
+    The `TALLY` counts the slice in `standingUnendorsed=66`
+    (`slice-cache/src/corpus-run/settled-tally.ts:72` to `:140`,
+    `standingsKeptUnendorsed` at `:96`;
+    slices that kept the archive for want of any valid wording are excluded there,
+    and these did not).
+    `repairIssues=341 repairAccepted=89` are printed,
+    but no field says that 234 of the 341 issues were left for a human.
+    `DEFECTS` did not print,
+    and no `publish: shipping with defect` warn exists (`rg --count`:
+    0),
+    which is correct by the code:
+    `PublishCheck` (`page-check/src/corpus-run/publish-defects.ts:30` to `:40`:
+    archive-original,
+    contributor-names,
+    destinations,
+    front-matter,
+    headings,
+    no-valid-wording,
+    page-agreement,
+    page-footnotes,
+    page-source-unparseable;
+    emitted at `corpus-pass/src/corpus-run/pass-entry-persist.ts:150` to `:160` and
+    `page-check/src/corpus-run/publish-fixed.ts:369` to `:380`)
+    has no check on `needs-human` or on unendorsed standing,
+    and none of its checks measures whether the wording follows the source.
+    So a page like this one ships clean.
 
 ### Does an owner rule say such a slice ships the archive?
 

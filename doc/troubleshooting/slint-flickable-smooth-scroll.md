@@ -257,23 +257,23 @@ all five held.
  They do not,
  because the fix already exists upstream:
 
-1. Upstream's behaviour?
-    Yes,
-    the missing mouse-wheel animation was upstream
-   behaviour,
-    now intentionally changed.
-2. Can upstream fix it?
-    Already fixed in #11338.
-3. Supporting the use case?
-    Yes;
-    issue #11312 requested it and was accepted
-   and closed by the fix.
-4. Will they fix it?
-    Already merged and released in Slint 1.17.0.
-5. Prototyped a minimal fix?
-    Not applicable;
-    upstream's own merged change is
-   the fix.
+1.  Upstream's behaviour?
+     Yes,
+     the missing mouse-wheel animation was upstream
+    behaviour,
+     now intentionally changed.
+2.  Can upstream fix it?
+     Already fixed in #11338.
+3.  Supporting the use case?
+     Yes;
+     issue #11312 requested it and was accepted
+    and closed by the fix.
+4.  Will they fix it?
+     Already merged and released in Slint 1.17.0.
+5.  Prototyped a minimal fix?
+     Not applicable;
+     upstream's own merged change is
+    the fix.
 
 There is nothing to report:
  upstream already shipped the fix in Slint 1.17.0.

@@ -96,25 +96,25 @@ adds another moving part).
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. The Linux kernel refuses
-   overlay-on-bind-mount by design;
-    podman behaves correctly.
-2. **Can upstream fix it?
-   ** Either podman could surface a clearer error
-   message ("storage driver overlay unavailable:
-    try vfs or
-   fuse-overlayfs"),
-    but the underlying mount failure is not theirs to
-   fix.
-3. **Are they supporting this use case?
-   ** Podman supports VFS for
-   exactly this case.
-4. **Will they likely fix it?
-   ** Diagnostic wording could improve;
-   functional behaviour cannot.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. The Linux kernel refuses
+    overlay-on-bind-mount by design;
+     podman behaves correctly.
+2.  **Can upstream fix it?
+    ** Either podman could surface a clearer error
+    message ("storage driver overlay unavailable:
+     try vfs or
+    fuse-overlayfs"),
+     but the underlying mount failure is not theirs to
+    fix.
+3.  **Are they supporting this use case?
+    ** Podman supports VFS for
+    exactly this case.
+4.  **Will they likely fix it?
+    ** Diagnostic wording could improve;
+    functional behaviour cannot.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -211,21 +211,21 @@ containerisation with stricter inner limits.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. Docker's non-privileged
-   sandbox is doing what it says on the tin.
-2. **Can upstream fix it?
-   ** Docker could relax the remount restriction
-   for containers with `SYS_ADMIN`;
-    doing so would weaken the sandbox.
-3. **Are they supporting this use case?
-   ** "Run podman inside Docker"
-   is an unusual deployment;
-    not a documented Docker use case.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. Docker's non-privileged
+    sandbox is doing what it says on the tin.
+2.  **Can upstream fix it?
+    ** Docker could relax the remount restriction
+    for containers with `SYS_ADMIN`;
+     doing so would weaken the sandbox.
+3.  **Are they supporting this use case?
+    ** "Run podman inside Docker"
+    is an unusual deployment;
+     not a documented Docker use case.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -302,20 +302,20 @@ For multi-tenant scenarios it would not be.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. Docker's per-container
-   cgroup namespace is a deliberate isolation feature.
-2. **Can upstream fix it?
-   ** They could;
-    it would weaken isolation by
-   default.
-3. **Are they supporting this use case?
-   ** `cgroupns_mode` exists
-   precisely for this case.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. Docker's per-container
+    cgroup namespace is a deliberate isolation feature.
+2.  **Can upstream fix it?
+    ** They could;
+     it would weaken isolation by
+    default.
+3.  **Are they supporting this use case?
+    ** `cgroupns_mode` exists
+    precisely for this case.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -397,22 +397,22 @@ Tradeoff:
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. Minimal base images
-   intentionally omit CAs to keep size down;
-    users are expected to
-   install them.
-2. **Can upstream fix it?
-   ** Bundling CAs by default would bloat every
-   minimal image.
-3. **Are they supporting this use case?
-   ** Yes;
-    `apt-get install
-   ca-certificates` is the documented path.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. Minimal base images
+    intentionally omit CAs to keep size down;
+     users are expected to
+    install them.
+2.  **Can upstream fix it?
+    ** Bundling CAs by default would bloat every
+    minimal image.
+3.  **Are they supporting this use case?
+    ** Yes;
+     `apt-get install
+    ca-certificates` is the documented path.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -505,25 +505,25 @@ canonical CPU model and still exposes AVX when the physical CPU has it.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    Bun could detect
-   the missing AVX and produce a clean error instead of OOM-spiral;
-   the JIT path is the offender,
-    not Bun's design choice to use a JIT.
-2. **Can upstream fix it?
-   ** A `cpuid` check at startup with a friendly
-   error message is a small change.
-3. **Are they supporting this use case?
-   ** Bun ships for x86_64
-   generally;
-    the QEMU-without-AVX case is unusual but real.
-4. **Will they likely fix it?
-   ** Unknown;
-    not a blocker for the modal
-   Bun user.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     Bun could detect
+    the missing AVX and produce a clean error instead of OOM-spiral;
+    the JIT path is the offender,
+     not Bun's design choice to use a JIT.
+2.  **Can upstream fix it?
+    ** A `cpuid` check at startup with a friendly
+    error message is a small change.
+3.  **Are they supporting this use case?
+    ** Bun ships for x86_64
+    generally;
+     the QEMU-without-AVX case is unusual but real.
+4.  **Will they likely fix it?
+    ** Unknown;
+     not a blocker for the modal
+    Bun user.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report unless this recurs in a context where
@@ -599,24 +599,24 @@ shape is required.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Yes,
-    partly.
-    The static-server
-   shortcut should accept `--hostname` or default to `0.0.0.0` when
-   port-forwarded contexts (Docker) are common.
-2. **Can upstream fix it?
-   ** Likely.
-    Either accept the flag in
-   static-server mode or default the bind to dual-stack.
-3. **Are they supporting this use case?
-   ** Static serving for quick
-   testing is documented;
-    the IPv6-only bind is not.
-4. **Will they likely fix it?
-   ** Unknown.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Yes,
+     partly.
+     The static-server
+    shortcut should accept `--hostname` or default to `0.0.0.0` when
+    port-forwarded contexts (Docker) are common.
+2.  **Can upstream fix it?
+    ** Likely.
+     Either accept the flag in
+    static-server mode or default the bind to dual-stack.
+3.  **Are they supporting this use case?
+    ** Static serving for quick
+    testing is documented;
+     the IPv6-only bind is not.
+4.  **Will they likely fix it?
+    ** Unknown.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

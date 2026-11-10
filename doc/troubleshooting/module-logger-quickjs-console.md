@@ -287,7 +287,7 @@ No QuickJS-ng report is warranted:
   correction belongs to `module-logger`;
   the verified package patch and regression test are committed here.
 
-**Upstream filing artifact:**
+Upstream filing artifact:
  nothing to add to the QuickJS-ng tracker.
 A new issue there would misattribute the failure.
 The relevant downstream follow-up belongs in `Aquaticat/labwc-config`

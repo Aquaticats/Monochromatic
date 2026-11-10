@@ -133,22 +133,22 @@ A missing override returns to ordinary state and can reproduce the error.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   Mise rejected an untrusted executable config path exactly as its trust documentation describes.
-2. **Can upstream fix it?**
-   No fix is needed.
-   `MISE_STATE_DIR` provides the required disposable-state boundary.
-3. **Are they supporting this use case?**
-   Yes.
-   The directory reference explicitly documents state-directory override and trust storage.
-4. **Would the repository welcome our contribution?**
-   Not applicable because there is no defect or documentation gap established by this probe.
-5. **Will they likely fix it?**
-   Not applicable because the behavior is intentional.
-6. **Have we prototyped a minimal compatible fix?**
-   Yes for local operation:
-   isolated trust plus the same isolated state on execution passes the positive control.
+1.  **Is it really upstream's fault?**
+    No.
+    Mise rejected an untrusted executable config path exactly as its trust documentation describes.
+2.  **Can upstream fix it?**
+    No fix is needed.
+    `MISE_STATE_DIR` provides the required disposable-state boundary.
+3.  **Are they supporting this use case?**
+    Yes.
+    The directory reference explicitly documents state-directory override and trust storage.
+4.  **Would the repository welcome our contribution?**
+    Not applicable because there is no defect or documentation gap established by this probe.
+5.  **Will they likely fix it?**
+    Not applicable because the behavior is intentional.
+6.  **Have we prototyped a minimal compatible fix?**
+    Yes for local operation:
+    isolated trust plus the same isolated state on execution passes the positive control.
 
 Do not file an upstream issue.
 The durable artifact is this local troubleshooting record and the isolated-state command pattern.

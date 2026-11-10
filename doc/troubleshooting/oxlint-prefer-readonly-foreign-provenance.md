@@ -240,24 +240,24 @@ so broad reachability would suppress findings on unproved values.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    No. Oxlint and TypeScript do not define this repository's ownership marker or
-   effect semantics.
-2. **Can upstream fix it?**
-    Not without adopting project-specific provenance and contract rules.
-3. **Are they supporting this use case?**
-    Oxlint supports JavaScript plugins,
-   and TypeScript 7 exposes the semantic graph used by the bridge,
-   but neither promises ownership inference.
-4. **Would the repo welcome our contribution?**
-    No general upstream defect was identified.
-5. **Will they likely fix it?**
-    Not applicable because the behavior is implemented in the project-owned plugin.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    The identity classifier,
-   fixed-point propagation,
-   call-edge facts,
-   and focused fixtures are the implemented prototype and migration path.
+1.  **Is it really upstream's fault?**
+     No. Oxlint and TypeScript do not define this repository's ownership marker or
+    effect semantics.
+2.  **Can upstream fix it?**
+     Not without adopting project-specific provenance and contract rules.
+3.  **Are they supporting this use case?**
+     Oxlint supports JavaScript plugins,
+    and TypeScript 7 exposes the semantic graph used by the bridge,
+    but neither promises ownership inference.
+4.  **Would the repo welcome our contribution?**
+     No general upstream defect was identified.
+5.  **Will they likely fix it?**
+     Not applicable because the behavior is implemented in the project-owned plugin.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     The identity classifier,
+    fixed-point propagation,
+    call-edge facts,
+    and focused fixtures are the implemented prototype and migration path.
 
 Nothing should be filed upstream.
 

@@ -464,39 +464,39 @@ The present ignore mismatch already fails that gate.
 The exact replacement question already exists as [discussion 19571][],
 including the monorepo emit caveat.
 
-1. **Is it really upstream's fault?
-   ** No.
-   Oxlint intentionally type-checks the files selected for linting,
-    and its documented replacement example is
-   `tsc --noEmit` over the same intended source surface.
-   This repository has a broader TypeScript include surface than its Oxlint surface.
-2. **Can upstream fix it?
-   ** There is no demonstrated upstream defect to fix.
-   Oxlint could add a whole-project diagnostic mode,
-    but that would be a separate feature rather than a correction
-   to the observed behavior.
-3. **Are they supporting this use case?
-   ** Yes,
-    with boundaries.
-   The type-aware guide supports replacing a separate `tsc --noEmit` step,
-    and the collaborator answer says emit
-   users must retain `tsc`.
-4. **Would the repository welcome a contribution?
-   ** Yes,
-    conditionally.
-   Oxc's `CONTRIBUTING.md:12-21` welcomes reviewed and tested AI-assisted work when AI use is disclosed,
-    and its
-   [PR policy][oxc pr policy] asks contributors to open a discussion before architectural changes.
-   No contribution is justified without an upstream defect or missing documented case.
-5. **Will they likely fix it?
-   ** Not applicable.
-   The current behavior matches the selected-file architecture,
-    and the existing discussion treats replacement as
-   configuration-dependent.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream patch was attempted because
-   constraint 1 fails.
-   The disposable harness instead proves the downstream scope mismatch.
+1.  **Is it really upstream's fault?
+    ** No.
+    Oxlint intentionally type-checks the files selected for linting,
+     and its documented replacement example is
+    `tsc --noEmit` over the same intended source surface.
+    This repository has a broader TypeScript include surface than its Oxlint surface.
+2.  **Can upstream fix it?
+    ** There is no demonstrated upstream defect to fix.
+    Oxlint could add a whole-project diagnostic mode,
+     but that would be a separate feature rather than a correction
+    to the observed behavior.
+3.  **Are they supporting this use case?
+    ** Yes,
+     with boundaries.
+    The type-aware guide supports replacing a separate `tsc --noEmit` step,
+     and the collaborator answer says emit
+    users must retain `tsc`.
+4.  **Would the repository welcome a contribution?
+    ** Yes,
+     conditionally.
+    Oxc's `CONTRIBUTING.md:12-21` welcomes reviewed and tested AI-assisted work when AI use is disclosed,
+     and its
+    [PR policy][oxc pr policy] asks contributors to open a discussion before architectural changes.
+    No contribution is justified without an upstream defect or missing documented case.
+5.  **Will they likely fix it?
+    ** Not applicable.
+    The current behavior matches the selected-file architecture,
+     and the existing discussion treats replacement as
+    configuration-dependent.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream patch was attempted because
+    constraint 1 fails.
+    The disposable harness instead proves the downstream scope mismatch.
 
 ### Upstream filing artifact
 

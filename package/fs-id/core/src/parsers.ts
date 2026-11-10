@@ -93,6 +93,19 @@ const SOURCE_PREFIXES: Readonly<Record<FsIdSource, string>> = {
 };
 
 /**
+ Characters that end the first field of a `df -P` data row.
+ 
+ @example
+ ```ts
+ DF_FIELD_SEPARATORS.includes('\t');
+ ```
+ */
+const DF_FIELD_SEPARATORS: readonly string[] = [
+  ' ',
+  '\t',
+];
+
+/**
  Checks canonical payload grammar without throwing.
  
  @param value - Canonical payload candidate
@@ -238,7 +251,7 @@ export function parseFindmntUuid(output: string,): string {
  
  @param device - Device path candidate
  
- @returns Whether every code unit is allowed ASCII
+ @returns Whether every character is allowed ASCII
  
  @example
  ```ts
@@ -246,11 +259,42 @@ export function parseFindmntUuid(output: string,): string {
  ```
  */
 function isSafeDevicePath(device: string,): boolean {
-  for (let index = 0; index < device.length; index += 1) {
-    if (!SAFE_DEVICE_CHARACTERS.includes(device.charAt(index,),))
+  for (const character of device) {
+    if (!SAFE_DEVICE_CHARACTERS.includes(character,))
       return false;
   }
   return true;
+}
+
+/**
+ Finds where the first field of one `df -P` data row ends.
+ 
+ @param row - Trimmed data row
+ 
+ @returns Position of the earliest separator, or the row length when it holds
+ none
+ 
+ @example
+ ```ts
+ findDfFieldEnd('/dev/disk3s1 10 5'); // 12
+ ```
+ */
+function findDfFieldEnd(row: string,): number {
+  return DF_FIELD_SEPARATORS.reduce(
+    function keepEarliestFieldEnd(
+      end,
+      separator,
+    ): number {
+      /**
+       Position of this separator in the row, or absent sentinel.
+       */
+      const position = row.indexOf(separator,);
+      if ((position === (-1)) || (position >= end))
+        return end;
+      return position;
+    },
+    row.length,
+  );
 }
 
 /**
@@ -283,21 +327,11 @@ export function parseDfDevice(output: string,): string {
      */
     const trimmed = line.trim();
     /**
-     First field endpoint.
-     */
-    const whitespaceIndex = (function findWhitespace(): number {
-      for (let index = 0; index < trimmed.length; index += 1) {
-        if ((trimmed.charAt(index,) === ' ') || (trimmed.charAt(index,) === '\t'))
-          return index;
-      }
-      return trimmed.length;
-    })();
-    /**
      Filesystem device field.
      */
     const device = trimmed.slice(
       0,
-      whitespaceIndex,
+      findDfFieldEnd(trimmed,),
     );
     if (!device.startsWith('/dev/',))
       continue;

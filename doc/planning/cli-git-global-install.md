@@ -247,17 +247,17 @@ because `~/.local/bin` is already on the `PATH` that Claude Code sessions inheri
 
 ## Steps after acceptance
 
-1. In podman,
-   verify the atomic link form and that installing a newer version repoints the link.
-2. Add the entry to the host's `~/.config/mise/config.toml`,
-   and run `mise install`.
-3. Verify at the user boundary:
-   `type -a git` in a clean login shell,
-   and a `claude -p` commit in a scratch clone with
-   a bare remote reaches the remote.
-4. Write a short runbook for setting up another machine the user controls,
-   and settle the `AGENTS.md` wording.
-5. Update or close issue 1796 with the evidence.
+1.  In podman,
+    verify the atomic link form and that installing a newer version repoints the link.
+2.  Add the entry to the host's `~/.config/mise/config.toml`,
+    and run `mise install`.
+3.  Verify at the user boundary:
+    `type -a git` in a clean login shell,
+    and a `claude -p` commit in a scratch clone with
+    a bare remote reaches the remote.
+4.  Write a short runbook for setting up another machine the user controls,
+    and settle the `AGENTS.md` wording.
+5.  Update or close issue 1796 with the evidence.
 
 ## Rollback
 

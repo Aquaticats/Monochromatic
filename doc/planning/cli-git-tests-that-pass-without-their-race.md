@@ -819,13 +819,13 @@ The plants,
 in the order they were run,
 each removed again before the next:
 
-1. `foundation/blocking_jobs_within_the_budget.rs:87`,
-   the semaphore's size decoupled from the reported bound.
-2. `push/push_progress.rs:167`,
-   `is_working` without the `D` state.
-3. `worktree/worktree_convert_command.rs:157`,
-   `conversion_workers` with no memory per item.
-4. `testing/parallel_test_support.rs`,
-   `wait_while_short` returning `true` at once.
-5. `landing/service_round.rs:234`,
-   every directory in a lane of its own.
+1.  `foundation/blocking_jobs_within_the_budget.rs:87`,
+    the semaphore's size decoupled from the reported bound.
+2.  `push/push_progress.rs:167`,
+    `is_working` without the `D` state.
+3.  `worktree/worktree_convert_command.rs:157`,
+    `conversion_workers` with no memory per item.
+4.  `testing/parallel_test_support.rs`,
+    `wait_while_short` returning `true` at once.
+5.  `landing/service_round.rs:234`,
+    every directory in a lane of its own.

@@ -447,92 +447,92 @@ Checks that came out clean:
 
 Medium:
 
-1. Page lines 241 to 245,
-   source line 87:
-   再见咯面码，这次的 uno，真的加了很多呢。
-   The page reads "Goodbye,
-   Menma.
-   This time,
-   the game of Uno",
-   then an em-dash,
-   then "truly,
-   so many draw cards stacked on the next player."
-   "The next player" is not in the source and the doer of the adding is dropped;
-   the source says only that this time the Uno game "really added a lot".
-   TianqiChen66625 had "you stacked a lot of draw cards on everyone" and TianqiChen66624 "we really stacked a lot".
-   The Uno reading is uncertain on all three pages;
-   this one adds an addressee and leaves a fragment.
-2. Front matter,
-   page lines 2 to 6 (known,
-   unchanged on TianqiChen66624 and TianqiChen66625).
-   The archive authority ships it as it stands.
-   The source has `name: めんま`,
-   `alias: 面码, Menma` and `desc: 这次的捉迷藏，真的找不到你了。`;
-   the page has `name: Menma`,
-   `alias: めんま, Menma` and `desc: This time, we won’t find you anymore.`
-   The `desc` loses 捉迷藏 (hide-and-seek),
-   which the body carries at page line 232,
-   and the alias drops 面码.
+1.  Page lines 241 to 245,
+    source line 87:
+    再见咯面码，这次的 uno，真的加了很多呢。
+    The page reads "Goodbye,
+    Menma.
+    This time,
+    the game of Uno",
+    then an em-dash,
+    then "truly,
+    so many draw cards stacked on the next player."
+    "The next player" is not in the source and the doer of the adding is dropped;
+    the source says only that this time the Uno game "really added a lot".
+    TianqiChen66625 had "you stacked a lot of draw cards on everyone" and TianqiChen66624 "we really stacked a lot".
+    The Uno reading is uncertain on all three pages;
+    this one adds an addressee and leaves a fragment.
+2.  Front matter,
+    page lines 2 to 6 (known,
+    unchanged on TianqiChen66624 and TianqiChen66625).
+    The archive authority ships it as it stands.
+    The source has `name: めんま`,
+    `alias: 面码, Menma` and `desc: 这次的捉迷藏，真的找不到你了。`;
+    the page has `name: Menma`,
+    `alias: めんま, Menma` and `desc: This time, we won’t find you anymore.`
+    The `desc` loses 捉迷藏 (hide-and-seek),
+    which the body carries at page line 232,
+    and the alias drops 面码.
 
 Low:
 
-3. Page lines 238 to 239,
-   source line 85:
-   "Sleep well,
-   Menma.
-   This time,
-   putting on the kigurumi",
-   then an em-dash,
-   then "truly,
-   you’re really about to become one with it."
-   真的 is rendered twice,
-   as "truly" and "really".
-   TianqiChen66625 had "you’re about to become one with it".
-4. Page line 146,
-   source line 47:
-   "She had been putting on the kigurumi since high school" for 她从高中开始变娃.
-   The past perfect progressive points back from a moment the narration has already passed;
-   TianqiChen66624 and TianqiChen66625 wrote "She began putting on the kigurumi in high school",
-   which is closer.
-5. Page lines 247 to 252,
-   source line 89:
-   the source repeats 也会继续 three times and ends 就像说过的那样吧.
-   The page keeps the "too" on the third clause only,
-   adds "And",
-   and drops the hedge 吧 ("just as she said").
-   TianqiChen66624 and TianqiChen66625 had "also" on all three clauses.
-6. Page lines 137 to 138,
-   source line 43:
-   "Want to come?
-   Want to come?"
-   for 要来吗要来吗！
-   The closing exclamation is lost on the second;
-   TianqiChen66624 had "Wanna come!
-   " at that place.
-7. Page lines 212 to 213,
-   source line 75:
-   "I still can’t hold on any longer" for 我还是坚持不下去了.
-   还是 here is "in the end,
-   after all",
-   and TianqiChen66625's "I just can’t hold on anymore" reads closer.
-   A judgement item.
-8. Page line 86,
-   source line 29:
-   吾心安处，并非吾乡... is unquoted in the source,
-   and the page puts it in quotation marks and ends it with the single character U+2026,
-   where every other ellipsis on the page is three full stops
-   (page lines 157,
-   171,
-   177,
-   212 and 251) and the source uses three full stops.
-   TianqiChen66624 and TianqiChen66625 also quoted it,
-   and the part for 2026-10-15 records the marks as intended.
-   The mixed ellipsis forms are new on this page.
-9. Page lines 11 to 13:
-   "(an anime)" is added after the title,
-   which the source does not have.
-   The archive's `page.en.md` carries it
-   (its line 11) and the pass kept it.
+3.  Page lines 238 to 239,
+    source line 85:
+    "Sleep well,
+    Menma.
+    This time,
+    putting on the kigurumi",
+    then an em-dash,
+    then "truly,
+    you’re really about to become one with it."
+    真的 is rendered twice,
+    as "truly" and "really".
+    TianqiChen66625 had "you’re about to become one with it".
+4.  Page line 146,
+    source line 47:
+    "She had been putting on the kigurumi since high school" for 她从高中开始变娃.
+    The past perfect progressive points back from a moment the narration has already passed;
+    TianqiChen66624 and TianqiChen66625 wrote "She began putting on the kigurumi in high school",
+    which is closer.
+5.  Page lines 247 to 252,
+    source line 89:
+    the source repeats 也会继续 three times and ends 就像说过的那样吧.
+    The page keeps the "too" on the third clause only,
+    adds "And",
+    and drops the hedge 吧 ("just as she said").
+    TianqiChen66624 and TianqiChen66625 had "also" on all three clauses.
+6.  Page lines 137 to 138,
+    source line 43:
+    "Want to come?
+    Want to come?"
+    for 要来吗要来吗！
+    The closing exclamation is lost on the second;
+    TianqiChen66624 had "Wanna come!
+    " at that place.
+7.  Page lines 212 to 213,
+    source line 75:
+    "I still can’t hold on any longer" for 我还是坚持不下去了.
+    还是 here is "in the end,
+    after all",
+    and TianqiChen66625's "I just can’t hold on anymore" reads closer.
+    A judgement item.
+8.  Page line 86,
+    source line 29:
+    吾心安处，并非吾乡... is unquoted in the source,
+    and the page puts it in quotation marks and ends it with the single character U+2026,
+    where every other ellipsis on the page is three full stops
+    (page lines 157,
+    171,
+    177,
+    212 and 251) and the source uses three full stops.
+    TianqiChen66624 and TianqiChen66625 also quoted it,
+    and the part for 2026-10-15 records the marks as intended.
+    The mixed ellipsis forms are new on this page.
+9.  Page lines 11 to 13:
+    "(an anime)" is added after the title,
+    which the source does not have.
+    The archive's `page.en.md` carries it
+    (its line 11) and the pass kept it.
 10. Small additions:
     page line 16 "left everyone behind" for 离开了大家 (no "behind";
     inherited from the archive's line 13,

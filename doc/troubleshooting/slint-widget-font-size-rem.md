@@ -309,41 +309,41 @@ cover this),
  so the filing check runs normally.
  It stops at constraint 1.
 
-1. Is it really upstream's fault?
-    No. This is intended design,
-    not a defect.
-    Fluent (and every built-in style)
-   sizes widgets in `rem` on purpose so an app rescales them through `Window.default-font-size`;
-    whether a widget
-   also exposes its own `font-size` is a per-widget API choice (`CheckBox` does,
-    `Button`/`Slider` do not);
-    and
-   the `rem`-in-`global` rejection is a correct guard,
-   because the value is genuinely unknowable in a windowless `global` (`check_expressions.rs:26`).
-    There is no bug
-   behavior to report,
-    only a design that surprised us until traced.
-2. Can upstream fix it?
-    Not applicable,
-    there is nothing to fix;
-    a "let me set a widget's font-size" request would
-   be a feature,
-    not a fix.
-3. Are they supporting this use case?
-    The rescale-via-`default-font-size` path and `rem` are the documented,
-   supported way to size text;
-    the design already covers the real need.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    no filing follows.
-5. Will they likely fix it?
-    Not applicable;
-    no defect.
-6. Have we prototyped a minimal fix?
-    Not applicable;
-    the resolution is a consumer-side idiom (this doc's
-   workaround),
-    not an upstream change.
+1.  Is it really upstream's fault?
+     No. This is intended design,
+     not a defect.
+     Fluent (and every built-in style)
+    sizes widgets in `rem` on purpose so an app rescales them through `Window.default-font-size`;
+     whether a widget
+    also exposes its own `font-size` is a per-widget API choice (`CheckBox` does,
+     `Button`/`Slider` do not);
+     and
+    the `rem`-in-`global` rejection is a correct guard,
+    because the value is genuinely unknowable in a windowless `global` (`check_expressions.rs:26`).
+     There is no bug
+    behavior to report,
+     only a design that surprised us until traced.
+2.  Can upstream fix it?
+     Not applicable,
+     there is nothing to fix;
+     a "let me set a widget's font-size" request would
+    be a feature,
+     not a fix.
+3.  Are they supporting this use case?
+     The rescale-via-`default-font-size` path and `rem` are the documented,
+    supported way to size text;
+     the design already covers the real need.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     no filing follows.
+5.  Will they likely fix it?
+     Not applicable;
+     no defect.
+6.  Have we prototyped a minimal fix?
+     Not applicable;
+     the resolution is a consumer-side idiom (this doc's
+    workaround),
+     not an upstream change.
 
 Decision:
  do not file.

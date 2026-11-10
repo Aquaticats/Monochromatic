@@ -408,45 +408,45 @@ No new issue should be opened.
 
 ### Upstream filing decision
 
-1. Really upstream's fault:
-    yes.
-    Cloudflare reports `error_category: origin` on zone `api.openai.com`,
-   and the origin answers invalid-credential requests correctly,
-    so the fault is in OpenAI's
-   OAuth validation path.
-2. Can upstream fix it:
-    yes,
-    and only they can.
-    It is their origin infrastructure.
-3. Are they supporting this use case:
-    yes.
-    The token's own `aud` claim is `https://api.openai.com/v1`,
-   and pi's native OpenAI target is documented by
-   `package/pi-plugin/openai-fast/src/native-openai.unit.test.ts:105`.
-4. Would the repository welcome the contribution:
-    unknown,
-    and not the deciding factor here.
-   `openai/codex` accepts bug reports (issue 45569 carries the `bug` and `connectivity` labels and
-   stayed open),
-    but the failing component is closed-source service infrastructure that no pull request
-   in that repository can change.
-    No policy banning AI-assisted reports was found in the issue template
-   fields reproduced in issue 45569.
-5. Will they likely fix it:
-    unknown.
-    They resolved a related Codex degradation the same day
-   (incident `01M4T4ZCM54D3ZPTQXRSWFG0XS`),
-    which shows the area is actively worked,
-    and issue 45569
-   has sat open without a maintainer response since 2026-09-15.
-6. Prototyped minimal fix:
-    no,
-    and it is not achievable.
-    There is no source to patch for
-   `api.openai.com`'s origin,
-    so the auto-prototype step has no target.
-    This is the constraint that
-   fails the gate.
+1.  Really upstream's fault:
+     yes.
+     Cloudflare reports `error_category: origin` on zone `api.openai.com`,
+    and the origin answers invalid-credential requests correctly,
+     so the fault is in OpenAI's
+    OAuth validation path.
+2.  Can upstream fix it:
+     yes,
+     and only they can.
+     It is their origin infrastructure.
+3.  Are they supporting this use case:
+     yes.
+     The token's own `aud` claim is `https://api.openai.com/v1`,
+    and pi's native OpenAI target is documented by
+    `package/pi-plugin/openai-fast/src/native-openai.unit.test.ts:105`.
+4.  Would the repository welcome the contribution:
+     unknown,
+     and not the deciding factor here.
+    `openai/codex` accepts bug reports (issue 45569 carries the `bug` and `connectivity` labels and
+    stayed open),
+     but the failing component is closed-source service infrastructure that no pull request
+    in that repository can change.
+     No policy banning AI-assisted reports was found in the issue template
+    fields reproduced in issue 45569.
+5.  Will they likely fix it:
+     unknown.
+     They resolved a related Codex degradation the same day
+    (incident `01M4T4ZCM54D3ZPTQXRSWFG0XS`),
+     which shows the area is actively worked,
+     and issue 45569
+    has sat open without a maintainer response since 2026-09-15.
+6.  Prototyped minimal fix:
+     no,
+     and it is not achievable.
+     There is no source to patch for
+    `api.openai.com`'s origin,
+     so the auto-prototype step has no target.
+     This is the constraint that
+    fails the gate.
 
 Decision:
  do not file a new issue.

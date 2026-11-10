@@ -1002,118 +1002,118 @@ No candidate has been scored.
 
 ## Steps remaining, in the skill's order
 
-1. Finish discovery.
-   - Class 3:
-     run comparison-term and peer-tool queries;
-     Linkup is unauthorized,
-     use `WebSearch`,
-     `agent-browser` or
-      another provider.
-   - Class 1 and 2:
-     optional extra queries for the taxonomy terms `tree-sitter-toml`,
-     `toml_writer`,
-     `serde_spanned` and `tomling`,
-     which the class records as unqueried;
-     GitHub code search for
-      `DocumentMut` or `toml_edit` consumers is not required.
-   - Class 4:
-     run literal `rg` queries over `doc` and `package` with explicit paths and record counts;
-      run `cargo tree --invert toml_edit --offline` in `package/ide/app` and `package/nested-wayland-session/cli`.
-   - Record the terminal discovery result.
-2. Freeze context and the rubric before rating any candidate.
-   Draft criteria,
-   default weight 1 each:
-   comment-preserving edit fidelity on repository operations with the least
-   wrapper code;
-   parse and deserialize error spans;
-   dependency and build surface (count and same-author crates);
-   maintenance evidence (issue and PR sample per the skill,
-   releases,
-   maintainer concentration);
-   upstream test depth
-   (conformance,
-   property,
-   fuzz);
-   platform CI matrix evidence;
-   TOML 1.1 and spec compliance;
-   API fit with
-   `workspace = true` catalog operations.
-   Human-auditability measurements apply as measurements feeding the dependency and source-size criteria.
-3. Screening exits with evidence:
-   re-probe `taplo` on a TOML 1.1 inline-table trailing comma in a container;
-   read the `fig` TOML module status,
-   the `patchloom` library surface,
-   `oxc-toml` and `tomlsmith` README or API for
-   mutation,
-   the `callisto-manifests` licence text;
-   probe the pre-2021 and old crates (`tomllib`,
-   `toml_document`) for TOML 1.1.
-4. Hard-gate confirmation for survivors:
-   licence texts,
-   manifests,
-   lifecycle scripts (`build.rs`),
-   transitive tree,
-   native or generated code,
-   security
-   disclosure policy,
-   release provenance (tags,
-   CI release workflow,
-   `trustpub` data for `toml_edit` and
-   `oxc-toml`),
-   supply-chain policy compatibility with `minimumReleaseAge` and `trustPolicy`.
-5. Execution manifest per candidate before running any command tree,
-   with the skill's default isolation:
-   `podman run --memory=2g --cpus=2 --rm`,
-   no ambient credentials,
-   no real home mount,
-   read-only repository mount,
-   private scratch volume,
-   network disabled after a separately inspected `cargo fetch` phase,
-   image digest recorded.
-   Quote the synthetic-load ban in any subagent brief.
-6. Equal-depth finalist validation for every hard-gate-confirmed candidate:
-   re-clone at the published release tag;
-   read promised-behavior,
-   error and serialization source with `path:line`
-   excerpts;
-   tests,
-   CI and fuzzing or mutation evidence (absence reported inline);
-   maintenance audit (issues and PRs updated in the last 12 months:
-   all if at most 20,
-   otherwise the 10 most recently
-   updated;
-   maintainer comments versus actions;
-   merge latency;
-   releases);
-   run each upstream default CI-equivalent path and relevant non-default suites in the container;
-   consumer-boundary probe,
-   the same for every finalist:
-   parse all 26 tracked `Cargo.toml` files and
-   `rust-catalog.toml` from a read-only mount and compare round trips;
-   run the operations the Rust file-enforcer needs
-   (set inside an existing table,
-   no creation when the table is absent,
-   append a block,
-   `workspace = true` forms,
-   array append and remove,
-   key delete with attached comments) and one deliberately malformed file to capture the
-   error span;
-   reuse the 91 valid and 108 invalid `toml-test` fixtures under `package/test-fixture/toml-edit/src/`;
-   Linux x64 locally,
-   cite upstream CI for macOS and Windows,
-   state the limit.
-7. Replacement parity:
-   inventory the incumbent's consumed paths (see the incumbent entry) with a parity test for each.
-8. Score validated finalists with the frozen rubric;
-   run the full one-at-a-time sensitivity matrix;
-   pros and cons per
-   finalist;
-   fully sorted ranking with the reason for each adjacent pair;
-   confidence and evidence limits.
-9. Synthesize,
-   state the recommendation or the no-recommendation result,
-   and end with the question only if the skill
-   requires one.
+1.  Finish discovery.
+    - Class 3:
+      run comparison-term and peer-tool queries;
+      Linkup is unauthorized,
+      use `WebSearch`,
+      `agent-browser` or
+       another provider.
+    - Class 1 and 2:
+      optional extra queries for the taxonomy terms `tree-sitter-toml`,
+      `toml_writer`,
+      `serde_spanned` and `tomling`,
+      which the class records as unqueried;
+      GitHub code search for
+       `DocumentMut` or `toml_edit` consumers is not required.
+    - Class 4:
+      run literal `rg` queries over `doc` and `package` with explicit paths and record counts;
+       run `cargo tree --invert toml_edit --offline` in `package/ide/app` and `package/nested-wayland-session/cli`.
+    - Record the terminal discovery result.
+2.  Freeze context and the rubric before rating any candidate.
+    Draft criteria,
+    default weight 1 each:
+    comment-preserving edit fidelity on repository operations with the least
+    wrapper code;
+    parse and deserialize error spans;
+    dependency and build surface (count and same-author crates);
+    maintenance evidence (issue and PR sample per the skill,
+    releases,
+    maintainer concentration);
+    upstream test depth
+    (conformance,
+    property,
+    fuzz);
+    platform CI matrix evidence;
+    TOML 1.1 and spec compliance;
+    API fit with
+    `workspace = true` catalog operations.
+    Human-auditability measurements apply as measurements feeding the dependency and source-size criteria.
+3.  Screening exits with evidence:
+    re-probe `taplo` on a TOML 1.1 inline-table trailing comma in a container;
+    read the `fig` TOML module status,
+    the `patchloom` library surface,
+    `oxc-toml` and `tomlsmith` README or API for
+    mutation,
+    the `callisto-manifests` licence text;
+    probe the pre-2021 and old crates (`tomllib`,
+    `toml_document`) for TOML 1.1.
+4.  Hard-gate confirmation for survivors:
+    licence texts,
+    manifests,
+    lifecycle scripts (`build.rs`),
+    transitive tree,
+    native or generated code,
+    security
+    disclosure policy,
+    release provenance (tags,
+    CI release workflow,
+    `trustpub` data for `toml_edit` and
+    `oxc-toml`),
+    supply-chain policy compatibility with `minimumReleaseAge` and `trustPolicy`.
+5.  Execution manifest per candidate before running any command tree,
+    with the skill's default isolation:
+    `podman run --memory=2g --cpus=2 --rm`,
+    no ambient credentials,
+    no real home mount,
+    read-only repository mount,
+    private scratch volume,
+    network disabled after a separately inspected `cargo fetch` phase,
+    image digest recorded.
+    Quote the synthetic-load ban in any subagent brief.
+6.  Equal-depth finalist validation for every hard-gate-confirmed candidate:
+    re-clone at the published release tag;
+    read promised-behavior,
+    error and serialization source with `path:line`
+    excerpts;
+    tests,
+    CI and fuzzing or mutation evidence (absence reported inline);
+    maintenance audit (issues and PRs updated in the last 12 months:
+    all if at most 20,
+    otherwise the 10 most recently
+    updated;
+    maintainer comments versus actions;
+    merge latency;
+    releases);
+    run each upstream default CI-equivalent path and relevant non-default suites in the container;
+    consumer-boundary probe,
+    the same for every finalist:
+    parse all 26 tracked `Cargo.toml` files and
+    `rust-catalog.toml` from a read-only mount and compare round trips;
+    run the operations the Rust file-enforcer needs
+    (set inside an existing table,
+    no creation when the table is absent,
+    append a block,
+    `workspace = true` forms,
+    array append and remove,
+    key delete with attached comments) and one deliberately malformed file to capture the
+    error span;
+    reuse the 91 valid and 108 invalid `toml-test` fixtures under `package/test-fixture/toml-edit/src/`;
+    Linux x64 locally,
+    cite upstream CI for macOS and Windows,
+    state the limit.
+7.  Replacement parity:
+    inventory the incumbent's consumed paths (see the incumbent entry) with a parity test for each.
+8.  Score validated finalists with the frozen rubric;
+    run the full one-at-a-time sensitivity matrix;
+    pros and cons per
+    finalist;
+    fully sorted ranking with the reason for each adjacent pair;
+    confidence and evidence limits.
+9.  Synthesize,
+    state the recommendation or the no-recommendation result,
+    and end with the question only if the skill
+    requires one.
 10. Update this report after each phase,
     commit when the owner allows it,
     and release the lock.

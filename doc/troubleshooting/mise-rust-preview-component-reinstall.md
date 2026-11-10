@@ -618,55 +618,55 @@ They do not cover a component that is installed but listed under rustup's alias.
 
 The six filing constraints all pass:
 
-1. **Is it really upstream's fault?**
-   Yes.
-   Rustup accepts both names and lists the pre-rename alias by design.
-   Mise compares that output against the unresolved requested name and creates
-   the false missing state.
-2. **Can upstream fix it?**
-   Yes.
-   The prototype changes one matcher and extends one existing unit test.
-3. **Are they supporting this use case?**
-   Yes.
-   `docs/lang/rust.md:157-168` documents the `components` option and promises:
+1.  **Is it really upstream's fault?**
+    Yes.
+    Rustup accepts both names and lists the pre-rename alias by design.
+    Mise compares that output against the unresolved requested name and creates
+    the false missing state.
+2.  **Can upstream fix it?**
+    Yes.
+    The prototype changes one matcher and extends one existing unit test.
+3.  **Are they supporting this use case?**
+    Yes.
+    `docs/lang/rust.md:157-168` documents the `components` option and promises:
 
-   > If the Rust toolchain is already installed,
-   > `mise install` will still add any missing configured components.
+    > If the Rust toolchain is already installed,
+    > `mise install` will still add any missing configured components.
 
-   Merged PRs #10876 and #12771 added and refined component reconciliation
-   specifically for task and install flows.
-4. **Would the repository welcome the contribution?**
-   Yes,
-    with process requirements.
-   `docs/contributing.md:6-16` welcomes AI-assisted responses when the poster is
-   connected to the question and says to review and verify the response before
-   posting.
-   `docs/contributing.md:20-38` asks contributors to settle non-obvious direction
-   before investing in a pull request.
-   `README.md:184-191` routes bug reports to the Troubleshooting and Bug Reports
-   Discussion category;
-    `.github/ISSUE_TEMPLATE/config.yml:1-5` disables blank
-   issues and points to Discussions.
-   The draft discloses AI assistance and asks whether the scoped patch fits the
-   current design before a PR.
-5. **Will they likely fix it?**
-   Yes,
-    based on current evidence.
-   The maintainer merged the directly related reconciliation fixes #10876 and
-   #12771.
-   On 2026-05-13,
-    the maintainer rejected PR #9839 as
-   ["too hacky"][pr-9839-comment] and said the bug was not important to resolve.
-   The maintainer later merged #10876 on 2026-07-08 and #12771 on 2026-09-04,
-   implementing the install-satisfaction capability that #9839 proposed.
-   Those later merges are stronger evidence for current direction.
-   No current documentation or maintainer response marks alias-aware
-   reconciliation as a non-goal.
-6. **Has a minimal compatible fix been prototyped?**
-   Yes.
-   The patch extends the existing matcher and test rather than introducing a new
-   reconciliation path.
-   The red and green focused test results are recorded in the Prototype section.
+    Merged PRs #10876 and #12771 added and refined component reconciliation
+    specifically for task and install flows.
+4.  **Would the repository welcome the contribution?**
+    Yes,
+     with process requirements.
+    `docs/contributing.md:6-16` welcomes AI-assisted responses when the poster is
+    connected to the question and says to review and verify the response before
+    posting.
+    `docs/contributing.md:20-38` asks contributors to settle non-obvious direction
+    before investing in a pull request.
+    `README.md:184-191` routes bug reports to the Troubleshooting and Bug Reports
+    Discussion category;
+     `.github/ISSUE_TEMPLATE/config.yml:1-5` disables blank
+    issues and points to Discussions.
+    The draft discloses AI assistance and asks whether the scoped patch fits the
+    current design before a PR.
+5.  **Will they likely fix it?**
+    Yes,
+     based on current evidence.
+    The maintainer merged the directly related reconciliation fixes #10876 and
+    #12771.
+    On 2026-05-13,
+     the maintainer rejected PR #9839 as
+    ["too hacky"][pr-9839-comment] and said the bug was not important to resolve.
+    The maintainer later merged #10876 on 2026-07-08 and #12771 on 2026-09-04,
+    implementing the install-satisfaction capability that #9839 proposed.
+    Those later merges are stronger evidence for current direction.
+    No current documentation or maintainer response marks alias-aware
+    reconciliation as a non-goal.
+6.  **Has a minimal compatible fix been prototyped?**
+    Yes.
+    The patch extends the existing matcher and test rather than introducing a new
+    reconciliation path.
+    The red and green focused test results are recorded in the Prototype section.
 
 Decision:
 keep a fileable GitHub Discussion draft,
