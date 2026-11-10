@@ -340,21 +340,13 @@ function pixelsMatchingInBox(
     height,
   } = area;
 
-  /**
-   Columns of the rectangle, as offsets from its left edge.
-   */
-  const columnOffsets = numbersBelow(width,);
-
-  /**
-   Rows of the rectangle, as offsets from its top edge.
-   */
-  const rowOffsets = numbersBelow(height,);
-  for (const rowOffset of rowOffsets) {
+  for (const rowOffset of numbersBelow(height,)) {
     /**
      Row the walk is on.
      */
     const y = top + rowOffset;
-    for (const columnOffset of columnOffsets) {
+    // A walk of the columns starts over for each row, because one walk is read once.
+    for (const columnOffset of numbersBelow(width,)) {
       /**
        Column the walk is on.
        */
