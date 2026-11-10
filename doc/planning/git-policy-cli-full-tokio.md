@@ -8596,7 +8596,8 @@ cleared.
   `403cf459bb`,
   before the last checks.
   Commit `2a00940c40` is the work,
-  and `78cb8d9135` is this section's own commit.
+  `78cb8d9135` is this section's own commit,
+  and `f28892147a` is its measurement and its last run.
   Not merged into main.
 - What this run was asked to do,
   in the order the previous record's "What the round still needs,
@@ -8806,9 +8807,13 @@ cleared.
   `landing::service_claim` and
   `standards_review`:
   203 of 203 passed in 17.4 s at the tip of `2a00940c40`,
-  and 203 of 203 in 17.5 s at the merged tip (`ec99918fe2`),
+  203 of 203 in 17.5 s at the merged tip (`ec99918fe2`),
   where main had brought 39 more tests into these folders
-  (5831 and 5870 skipped).
+  (5831 and 5870 skipped),
+  and 204 of 204 in 17.6 s at the tip of `f28892147a`,
+  where the last control,
+  `the_synchronous_wait_answers_from_inside_the_runtime`,
+  had joined the selection.
 - The binary target's own landing tests,
   `native:test:binary:host`:
   `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`,
