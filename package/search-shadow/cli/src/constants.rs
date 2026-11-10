@@ -47,7 +47,7 @@ pub const EXEC_FAILED_EXIT_CODE: i32 = 126;
 
 /// What:
 /// `pub const MAX_OUTPUT_BYTES: u64 = 4 * 1024 * 1024;` is the most of the real tool's standard output the shadow passes
-/// through in one run (`u64` because a byte count is read from `io::copy`'s return and compared with file sizes).
+/// through in one run (`u64` because the copy compares a running byte count with this cap).
 /// Why:
 /// The incident that asked for it (issue 3474) wrote 13,328,044,032 bytes of `rg` output into a 16 GiB tmpfs,
 /// and the owner decided "Cap its output" on 2026-11-10.
