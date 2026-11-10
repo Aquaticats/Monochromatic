@@ -424,8 +424,8 @@ description = "Check in the build container that cargo-nextest reads .config/nex
 run = "node bin/check-nextest-config.ts"
 
 [tasks."test:bin"]
-description = "Check the compositor version reader, the container bound, the frame-pattern analysis, the copyright-line, terminal-color, process-identifier and prepared-syntax readers, and the runtime publishing helpers of the bin scripts with node:test"
-run = "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/copyright-lines.test.ts bin/stress-native-report.test.ts bin/terminal-color-escapes.test.ts bin/process-identifier.test.ts bin/prepared-syntax-record.test.ts bin/runtime-publish.test.ts"
+description = "Check the compositor version reader, the container bound, the frame-pattern analysis, the copyright-line, terminal-color, process-identifier, prepared-syntax and runtime-cache-key readers, and the runtime publishing helpers of the bin scripts with node:test"
+run = "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/copyright-lines.test.ts bin/stress-native-report.test.ts bin/terminal-color-escapes.test.ts bin/process-identifier.test.ts bin/prepared-syntax-record.test.ts bin/runtime-cache-key.test.ts bin/runtime-publish.test.ts"
 
 [tasks."test:design"]
 description = "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test"

@@ -14,6 +14,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 import { preparedSyntaxSpanCount } from './prepared-syntax-record.ts';
+import { isRuntimeCacheKeyFolderName } from './runtime-cache-key.ts';
 import { isProcessIdentifier } from './process-identifier.ts';
 import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
@@ -334,7 +335,7 @@ const keyFolder = (cache: string): string => {
   demand({ condition: isDirectory(root), message: 'no unpacked runtime below ' + root });
   const keys = readdirSync(root);
   const key = keys[0];
-  if (keys.length !== 1 || key === undefined || !/^[0-9a-f]{16}$/.test(key)) throw new Error('expected one runtime key folder below ' + root + ', found ' + JSON.stringify(keys));
+  if (keys.length !== 1 || key === undefined || !isRuntimeCacheKeyFolderName(key)) throw new Error('expected one runtime key folder below ' + root + ', found ' + JSON.stringify(keys));
   return join(root, key);
 };
 const cachedSql = (cache: string): string => join(keyFolder(cache), 'grammars', 'sql.so');
