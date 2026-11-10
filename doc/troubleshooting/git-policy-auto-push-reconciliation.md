@@ -117,6 +117,11 @@ which drives a real repository through the wrapper's own push:
   (line 455) use a remote `pre-receive` hook that refuses one push between two reconciles,
   which is the reproducer of the 0.2.1 retry defect.
 
+Run on this host on 2026-11-10 with
+`mise run //package/git-policy/cli:native:test:host -- auto_push_reconcile`,
+the suite reported `Summary [ 400.955s] 83 tests run: 83 passed (12 slow), 6122 skipped`,
+and every test named above is among the passes.
+
 The release boundary is verified by tag:
 `monochromatic-git-policy-cli-v0.1.6` was committed 2026-10-18T06:28:24-04:00,
 `monochromatic-git-policy-cli-v0.2.0` at 2026-10-18T21:38:39-04:00 with the subject
