@@ -399,7 +399,7 @@ pub fn check_separator(arguments: &[OsString], separator: usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletes: boolean };
+/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletesOnlyByItsPatterns: boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct FixedFacts {
@@ -419,7 +419,8 @@ pub struct FixedFacts {
     pub ignored_and_tracked: Vec<String>,
     /// The answer to `repository_holds_a_stash`.
     pub stash: bool,
-    /// The answer to `clean_would_delete`.
+    /// Whether the dry run of a clean as typed names a path only its own `-e`/`--exclude` patterns call
+    ///  ignored, and the same clean without them names nothing.
     pub clean_deletes: bool,
 }
 
@@ -469,10 +470,31 @@ impl RepositoryFacts for FixedFacts {
         return Ok(self.stash);
     }
 
-    /// The answer to `clean_would_delete`,
-    ///  which decides whether a clean carrying its own exclusions rejects.
-    fn clean_would_delete(&mut self, _arguments: Vec<OsString>) -> Result<bool, String> {
-        return Ok(self.clean_deletes);
+    /// What:
+    ///  Answer the dry run of the clean as typed with the one path its own patterns add,
+    ///  and the dry run of the same clean without them with nothing.
+    /// Why:
+    ///   That difference is what decides whether a clean carrying its own exclusions rejects,
+    ///  and a path both answers name is one the worktree itself ignores, which no longer refuses anything.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// cleanDeletedPaths(arguments) {
+    ///   return arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude')) && this.cleanDeletes
+    ///     ? [Buffer.from('Would remove notes.txt')] : [];
+    /// }
+    /// ```
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        // Only the answer that carries a pattern names anything; the same clean without one deletes what the
+        //  worktree itself ignores, which is nothing this fake repository holds.
+        let carries_pattern: bool = arguments.iter().any(|one| {
+            let bytes: &[u8] = one.as_encoded_bytes();
+            return bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
+        });
+        if carries_pattern && self.clean_deletes {
+            return Ok(vec![b"Would remove notes.txt".to_vec()]);
+        }
+        return Ok(Vec::<Vec<u8>>::new());
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -564,7 +586,7 @@ pub fn mode_is_linked(mode: u8) -> bool {
 ///  Fixed facts chosen by one byte:
 ///  a linked worktree or no repository,
 ///  and the
-///       six other answers from its higher bits.
+///       seven other answers from its higher bits.
 /// Why:
 ///   Neither location exists on disk,
 ///  so no configuration and no leftover state is
