@@ -115,9 +115,9 @@ The task runs seven steps in sequence:
     and registers it with `virsh --connect qemu:///session define`.
     Nothing starts the VM.
 7.  **Grant the virt-manager Flatpak access**:
-    `flatpak override --user --filesystem`
-    runs for the package's `output/` directory only after the `flatpak info`
-    probe of `org.virt_manager.virt-manager` succeeds.
+    `flatpak override --user` adds a `--filesystem` entry for the package's
+    `output/` directory to `org.virt_manager.virt-manager`,
+    only after the `flatpak info` probe of that Flatpak succeeds.
 
 After the script finishes,
  start the VM:
