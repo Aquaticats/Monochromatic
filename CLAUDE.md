@@ -1666,9 +1666,9 @@ MD1:
 
 MD2:
  `-` for unordered lists;
- pad numbered markers so digits, dot and spaces fill four columns
- (`1.` then two spaces,
- `10.` then one).
+ pad numbered markers so digits,
+ dot and spaces fill four columns,
+ as `1.` then two spaces and `10.` then one.
 
 MD3:
  Fenced code blocks with language tags and file-path comments.
