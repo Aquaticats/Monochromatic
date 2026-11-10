@@ -37,7 +37,7 @@ fn git_directory(name: &str) -> (PathBuf, PathBuf) {
 fn blocked(outcome: Waiting) -> String {
     return match outcome {
         Waiting::Gone => panic!("nothing stands, so the write may be tried again"),
-        Waiting::Blocked(words) => words,
+        Waiting::Blocked { words, .. } => words,
     };
 }
 

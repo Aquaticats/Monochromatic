@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Render only scanner documentation through the repository's installed CommonMark-to-HTML-tree pipeline.
+ Throws `Error` when a renderer is missing or a document renders without headings or with a literal bold delimiter
  */
 import {
   mkdir,
@@ -405,49 +406,35 @@ async function renderDocument({
 }
 
 /**
- Render the documentation and retain the HTML element tree plus readable rendered text.
-
- @throws Error when a renderer is missing or a document renders without headings or with a literal bold delimiter
-
- @example
- ```ts
- await main();
- ```
+ The Markdown-to-HTML-tree processor.
  */
-async function main(): Promise<void> {
-  /**
-   The Markdown-to-HTML-tree processor.
-   */
-  const processor = await createProcessor();
-  /**
-   Root of the repository.
-   */
-  const repository = resolve(
-    import.meta.dirname,
-    '../../../..',
-  );
-  /**
-   Directory that receives the evidence.
-   */
-  const evidence = resolve(
-    import.meta.dirname,
-    '../target/verification/docs',
-  );
-  await mkdir(
-    evidence,
-    { recursive: true },
-  );
-  await mapInSequence({
-    items: documents,
-    run: function renderOf(file) {
-      return renderDocument({
-        processor,
-        repository,
-        evidence,
-        file,
-      });
-    },
-  });
-}
-
-await main();
+const processor = await createProcessor();
+/**
+ Root of the repository.
+ */
+const repository = resolve(
+  import.meta.dirname,
+  '../../../..',
+);
+/**
+ Directory that receives the evidence.
+ */
+const evidence = resolve(
+  import.meta.dirname,
+  '../target/verification/docs',
+);
+await mkdir(
+  evidence,
+  { recursive: true },
+);
+await mapInSequence({
+  items: documents,
+  run: function renderOf(file) {
+    return renderDocument({
+      processor,
+      repository,
+      evidence,
+      file,
+    });
+  },
+});
