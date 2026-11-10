@@ -8427,7 +8427,7 @@ in this order:
   `service_claim` and
   `landing`:
   1253 of 1253 passed in 32.5 s,
-  and 1261 of 1261 in 31.8 s at the merged tip
+  and 1261 of 1261 in 31.8 s and again in 30.9 s at the merged tip
   (`8e24183ae1`,
   main merged at `6c0f52b543` and then at `cc31ef8afa`),
   where the eight more are the tests main brought into these folders.
