@@ -61,6 +61,8 @@ use std::process::{Command, Output, Stdio};
 /// import { SHADOWED_NAMES } from 'search_shadow/constants';
 /// ```
 use search_shadow::constants::SHADOWED_NAMES;
+/// Imports the output cap, the exit code of a run it stopped, and the exit code of a run whose output could not be passed on.
+use search_shadow::constants::{CAPPED_EXIT_CODE, MAX_OUTPUT_BYTES, OUTPUT_FAILED_EXIT_CODE};
 /// Imports the exit code for a missing real tool and the priority level the shim uses.
 use search_shadow::constants::NOT_FOUND_EXIT_CODE;
 use search_shadow::priority::LOWEST_BEST_EFFORT_LEVEL;
@@ -183,6 +185,36 @@ fn texts(items: &[&str]) -> Vec<OsString> {
         owned.push(OsString::from(*item));
     }
     return owned;
+}
+
+/// What:
+/// `fn script_printing(bytes: u64) -> String` returns a fixture body that writes that many `a` bytes on standard output.
+/// Why:
+/// The cap turns on an exact byte count,
+/// so a case must choose the count rather than a size class,
+/// and `a` bytes survive any terminal between the tool and the test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scriptPrinting = (bytes: number) => `head --bytes=${bytes} /dev/zero | tr '\\0' a`;
+/// ```
+fn script_printing(bytes: u64) -> String {
+    return format!("head --bytes={bytes} /dev/zero | tr '\\0' a");
+}
+
+/// What:
+/// `fn host_path() -> String` returns this test process's own PATH.
+/// Why:
+/// The case that needs a terminal asks `script` (util-linux) for one,
+/// and `script` is looked up on the child's PATH,
+/// so that PATH holds the shadow directories first and this machine's own PATH after them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hostPath = () => process.env.PATH ?? '';
+/// ```
+fn host_path() -> String {
+    return std::env::var("PATH").unwrap_or_default();
 }
 
 /// What:
@@ -441,4 +473,121 @@ fn refuses_an_unbounded_find_from_a_repository_root_but_runs_a_bounded_one() {
     assert!(String::from_utf8_lossy(&refused.stderr).contains("-maxdepth 3"));
     assert!(String::from_utf8_lossy(&allowed.stdout).contains("REAL find . -maxdepth 2 -name x"));
     assert!(String::from_utf8_lossy(&escaped.stdout).contains("REAL find . -name x"));
+}
+
+/// The cap, on the exact byte count:
+/// an output of exactly the cap is passed on whole,
+/// and one byte more stops the real tool there and says so.
+#[test]
+fn passes_an_output_of_the_cap_whole_and_stops_one_byte_past_it() {
+    let (root, path_variable) = make_world();
+    let real_rg = root.path().join("real").join("rg");
+
+    fs::write(&real_rg, format!("#!/bin/sh\n{}\n", script_printing(MAX_OUTPUT_BYTES))).expect("write the fixture");
+    let whole = run_rg(root.path(), &texts(&["X", "."]), root.path(), &path_variable, &[]);
+    assert_eq!(whole.stdout.len() as u64, MAX_OUTPUT_BYTES, "an output of exactly the cap is not past it");
+    assert_eq!(whole.status.code(), Some(0), "{}", String::from_utf8_lossy(&whole.stderr));
+    assert!(whole.stderr.is_empty(), "a complete output needs no line: {}", String::from_utf8_lossy(&whole.stderr));
+
+    fs::write(&real_rg, format!("#!/bin/sh\n{}\n", script_printing(MAX_OUTPUT_BYTES + 1))).expect("write the fixture");
+    let stopped = run_rg(root.path(), &texts(&["X", "."]), root.path(), &path_variable, &[]);
+    let stderr = String::from_utf8_lossy(&stopped.stderr).to_string();
+    assert_eq!(stopped.stdout.len() as u64, MAX_OUTPUT_BYTES, "the shadow passes the head and no more");
+    assert_eq!(stopped.status.code(), Some(CAPPED_EXIT_CODE), "{stderr}");
+    assert!(stderr.contains("search-shadow: stopped"), "{stderr}");
+    assert!(stderr.contains(&MAX_OUTPUT_BYTES.to_string()), "the line must name the cap: {stderr}");
+    assert!(stderr.contains("X ."), "the line must name the command: {stderr}");
+    assert!(stderr.contains(&real_rg.display().to_string()), "the line must name the real tool to read it all: {stderr}");
+}
+
+/// The cap belongs to the shadow and not to ripgrep:
+/// any shadowed tool that prints past it is stopped the same way.
+#[test]
+fn stops_any_shadowed_tool_that_prints_past_the_cap() {
+    let (root, path_variable) = make_world();
+    write_script(&root.path().join("real"), "find", &script_printing(MAX_OUTPUT_BYTES * 2));
+
+    let output = run_tool(root.path(), "find", &texts(&[".", "-maxdepth", "1", "-name", "x"]), root.path(), &path_variable, &[]);
+
+    assert_eq!(output.stdout.len() as u64, MAX_OUTPUT_BYTES, "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(CAPPED_EXIT_CODE));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("search-shadow: stopped"));
+}
+
+/// A terminal shows the whole output:
+/// the cap is for an output nothing is watching,
+/// so with a terminal on standard output the shadow still replaces itself and prints everything.
+#[test]
+fn does_not_cap_an_output_a_terminal_shows() {
+    // `script` (util-linux) is what gives the shadow a terminal; without it this case cannot be shown at all.
+    if Command::new("script").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_err() {
+        return;
+    }
+    let (root, path_variable) = make_world();
+    let past_the_cap: u64 = MAX_OUTPUT_BYTES + 4096;
+    write_script(&root.path().join("real"), "rg", &script_printing(past_the_cap));
+    let mut command = Command::new("script");
+    command.arg("--quiet").arg("--return").arg("--command").arg("exec \"$SHADOW_RG\" X .").arg("/dev/null");
+    command.current_dir(root.path());
+    command.env_clear();
+    // The shadow's own directories first, then this machine's PATH so `script` itself is found.
+    command.env("PATH", format!("{path_variable}:{}", host_path()));
+    command.env("SHADOW_RG", root.path().join("shadow").join("rg"));
+    command.stdin(Stdio::null());
+
+    let output = command.output().expect("run the shadow behind a terminal");
+
+    assert_eq!(output.stdout.len() as u64, past_the_cap, "a terminal's output is not capped: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.stderr.is_empty(), "no line is added to a complete output: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "the real tool's own status is kept");
+}
+
+/// An output that cannot be passed on (a full disk) must not pass for a complete one:
+/// the run fails and says why.
+#[test]
+fn fails_and_says_why_when_the_output_cannot_be_passed_on() {
+    let (root, path_variable) = make_world();
+    let full = fs::OpenOptions::new().write(true).open("/dev/full").expect("open /dev/full");
+    let mut command = Command::new(root.path().join("shadow").join("rg"));
+    command.args(texts(&["X", "."]));
+    command.current_dir(root.path());
+    command.env_clear();
+    command.env("PATH", &path_variable);
+    command.stdin(Stdio::null());
+    command.stdout(Stdio::from(full));
+    command.stderr(Stdio::piped());
+
+    let child = command.spawn().expect("run the shadow");
+    let output = child.wait_with_output().expect("wait for the shadow");
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    assert_eq!(output.status.code(), Some(OUTPUT_FAILED_EXIT_CODE), "{stderr}");
+    assert!(stderr.contains("search-shadow:"), "{stderr}");
+    assert!(stderr.contains("No space left on device"), "the line must name what the output failed on: {stderr}");
+}
+
+/// The lost-pipe refusal has no override:
+/// naming the wide-walk variable does not lift it through the real process either.
+#[test]
+fn the_wide_walk_variable_does_not_lift_the_lost_pipe_refusal() {
+    let (root, path_variable) = make_world();
+    let shadow = root.path().join("shadow").join("rg");
+    let script = "printf 'a\\nb\\n' | \"$1\" --invert-match X .";
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(script)
+        .arg("pipeline")
+        .arg(&shadow)
+        .current_dir(root.path())
+        .env_clear()
+        .env("PATH", &path_variable)
+        .env("SEARCH_SHADOW_ALLOW_WIDE", "1")
+        .output()
+        .expect("run the pipeline");
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("standard input is a pipe"), "{stderr}");
+    assert!(output.stdout.is_empty(), "the real tool must not have run");
 }
