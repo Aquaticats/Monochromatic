@@ -396,7 +396,10 @@ pub fn merge_by_word(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
 const MARKER_WIDTH: usize = 7;
 
 /// What:
-///  The text of a marker line: the repeated character, a space, then the label.
+///  The text of a marker line:
+/// the repeated character,
+/// a space,
+/// then the label.
 /// Why:
 ///   Git writes a marker as `<<<<<<< <label>\n` and no label when none is given
 /// (`xdl_fill_merge_buffer`,

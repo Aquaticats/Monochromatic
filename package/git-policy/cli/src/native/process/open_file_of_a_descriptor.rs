@@ -123,7 +123,9 @@ fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<St
 }
 
 /// The file system type of a kernel `overlay` mount:
-/// the one whose layers, not itself, decide whether a read can reach a server,
+/// the one whose layers,
+/// not itself,
+/// decide whether a read can reach a server,
 /// and whose layers a process inside a container cannot name.
 const OVERLAY_FILE_SYSTEM: &str = "overlay";
 
@@ -237,7 +239,8 @@ pub fn opened_file_of_our_own(descriptor: i32) -> std::io::Result<OpenedFile> {
 }
 
 /// What:
-///  The same on a platform that has no `statx`, and no `/proc` to walk for a count of descriptors.
+///  The same on a platform that has no `statx`,
+/// and no `/proc` to walk for a count of descriptors.
 /// Why:
 ///   Nothing is guessed at where the kernel's own answer is not there.
 ///

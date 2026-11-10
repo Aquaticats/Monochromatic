@@ -1173,6 +1173,10 @@ and anything another process added to it meanwhile stays there and is named in a
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
+The swap this command made itself proves the worktree is its own,
+so the skip comes before any question about the reservation the destination answered for before the swap:
+no line says the worktree received no copy,
+and no record describes it as unfilled.
 
 Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
@@ -1681,6 +1685,13 @@ through a temporary file created exclusively under a unique name,
 creates
 `<path>.cli-git-converting` as a subvolume and records its identity (device,
 inode and birth time) in the journal right after.
+A kill between those two steps leaves an empty stage the journal does not name yet:
+the next run,
+and `--abandon`,
+take it as this conversion's own because the journal is at the phase that creates the stage and the name holds nothing,
+record it or destroy it,
+and go on.
+An entry at that name is somebody's copy and is still left alone.
 Git's `index.lock`,
 which is Git's own protocol for writing an index and so cannot be dropped,
 is taken with a token only for
@@ -2270,6 +2281,14 @@ however bounded the step was;
 `Command::output` and the wrapper's own forwarded child are such callers,
 and the line a ceiling writes says so and says which of the two things it knows about Git,
 naming the helper nowhere because nothing reports which process a filter started.
+The record of an add that owes an ignored-state copy lives from before real Git runs until that copy's journal names
+its stage:
+the rung that took the claim hands it to the copy instead of releasing it,
+and no completion marker is written while a copy is still owed,
+so a command killed between the end of the checkout and the copy's journal leaves a claim whose owner is dead,
+which the next recovery reports by name.
+The completion marker is written when an add is settled with no copy left to make,
+and a claim released then says nothing more.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,
@@ -2754,7 +2773,17 @@ Create absent entries exclusively and retain the Git-created worktree on any fai
 Install a regular file as a hard link to its staged copy,
 so it appears atomically with its final bytes and mode;
 when the filesystem refuses the link,
-fall back to the exclusive copy-on-write request.
+fill a file the filesystem has given no name (`O_TMPFILE`) in the destination's own directory,
+give it the entry's exact mode before it can be read,
+and link it to the destination name only once it holds every byte.
+A filesystem without unnamed files is filled under a private name in that directory,
+`.monochromatic-git-policy-cli-partial-` followed by a digest of the stage and the entry,
+which a resumed copy of the same stage computes again and removes before filling it again;
+the name reaches the destination by a rename that does not replace,
+else by a hard link whose staging name is removed after.
+No file therefore ever holds a destination name before its bytes and mode are whole,
+so a copy killed at any instruction leaves nothing at that name,
+and the next command installs the entry instead of refusing the destination it finds.
 The staged copy is independent of the source,
 so a destination file never shares storage with its source file.
 Immediate rollback visits only transaction-owned paths in child-first order;
@@ -2780,6 +2809,18 @@ the batch's absent paths are claimed before any of them is created,
 and their identities are recorded after.
 Installation cost therefore grows linearly with the entry count.
 A trailing log fragment without a line terminator is an unfinished append;
+An installation writes one record of its destination and that destination's identity before its first entry,
+`<identifier>.unfilled` beside the journal,
+naming the worktree,
+the source and the owner that wrote it,
+and removes it when the installation completes.
+Every command that runs the recovery names a worktree whose record's owner is dead and whose destination is still that
+object,
+with the `git worktree remove --force` and same `git worktree add` commands that settle it,
+and removes the record once the worktree is gone or a different object stands at that path.
+An add whose own Git was refused at a destination that carries another command's registration proof settles its own
+record and says so,
+instead of promising a later command's report of a record nothing keeps.
 recovery ignores it and truncates it before appending.
 A complete line whose bytes are not UTF-8 is corruption:
 reading it with replacement characters would claim a path the writer never named,
@@ -3442,17 +3483,24 @@ and "never discard user data"):
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
   so `git merge --ff-only` takes them as it always did,
   and a path that changed after the capture stops the step with nothing written.
-- After the branch moved, each layer is merged with the merge's own:
+- After the branch moved,
+  each layer is merged with the merge's own:
   the worktree's file form and the index's blob separately,
   so a staged edit stays staged and an unsaved one stays unsaved.
-  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  A side unchanged on either side takes the other side;
+  the bytes of a layer nothing of the merge reaches are written back exactly;
   a text both sides changed goes through `merge_second_pass`,
   the pass this package already runs,
   and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
-  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  A binary file,
+  a link,
+  a mode the pass cannot take,
+  a path the merge deletes and a path the person deleted keep the
   person's side whole and are named on standard error with what to do;
   a path written after the capture is left alone and named.
-  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+  Every such finding exits 0:
+  the merge is made,
+  and the person's work is theirs to judge.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
   a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
@@ -12068,6 +12116,12 @@ null when the command made none),
 `exitCode`,
 `totalMs`,
 the disjoint phases
+`routeMs`
+(what the command spent before its first preparation began:
+finding the worktree's route to a service,
+this commit's identity,
+the standard input a pathspec file is read from,
+and the client's settings),
 `prepareMs`,
 `buildMs`,
 `provisionMs`,
@@ -12119,6 +12173,12 @@ each figure the time the stretch spent without a Git child,
 because the steps are recorded apart,
 a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
 at most 64 entries with the rest counted in `preparePartsDropped`),
+`buildParts`
+(the build phase's stretches by name,
+in the same shape as `prepareParts` and with the same rule,
+its own list and its own bound stated in `buildPartsDropped`:
+a build's name is never read as a preparation's),
+`buildPartsDropped`
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
@@ -12172,8 +12232,23 @@ and within `submitMs` the reach (`reachMs`,
 The record carries two accounts of the preparation,
 and they answer different questions:
 `prepareSpans` names the work a site in the wrapper measured around itself,
-`prepareParts` names the stretches no Git child covered,
+`prepareParts` and `buildParts` name the stretches no Git child covered,
 and a Git child that a span started is inside that span and outside every part.
+The build phase's names are `branch`,
+`message`,
+`amend tree`,
+`fitting request`,
+`request`,
+`shadow`,
+`shadow skeleton`,
+`shadow config`,
+`shadow links`,
+`shadow conclusion`,
+`shadow refs`,
+`client build`,
+`commit read back` and `amend fields`,
+and a build that stops inside itself closes the phase where the command stops,
+so its time is stated by `buildMs` and never left to `otherMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
