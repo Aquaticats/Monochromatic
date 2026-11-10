@@ -7,6 +7,26 @@ import type {
 } from '../types.ts';
 
 /**
+ Suffix of the probe file this sink's verification owns.
+ The file never carries log records,
+ so a crash between its creation and removal leaves sweepable residue,
+ never a fake first record in a log a reader parses line by line.
+ */
+const PROBE_FILE_SUFFIX = '.probe.tmp';
+
+/**
+ Radix of the probe file's random component,
+ so `Number.prototype.toString` yields compact alphanumerics.
+ */
+const PROBE_NONCE_RADIX = 36;
+
+/**
+ Length of the probe file's random component, which keeps two verifications
+ started in the same millisecond on different probe files.
+ */
+const PROBE_NONCE_LENGTH = 4;
+
+/**
  Builds an OPFS sink that buffers serialized records through the shared
  {@link createRecordBuffer} policy and appends each newline-joined JSONL
  batch to a per-session file in the Origin Private File System with one
@@ -42,9 +62,10 @@ export function createOpfsSink(): Sink {
   const pendingBatchWrites = new Set<Promise<void>>();
 
   /**
-   Verifies OPFS is available and round-trips a probe write, then opens the
-   stream reused by subsequent writes. The logger calls this once and owns
-   the resulting availability.
+   Verifies OPFS is available by round-tripping a probe file it removes, then
+   opens the stream reused by subsequent writes. The probe never touches this
+   run's log file, so that file holds nothing but JSONL records. The logger
+   calls this once and owns the resulting availability.
    
    @returns Whether OPFS logging is available.
    */
@@ -64,18 +85,53 @@ export function createOpfsSink(): Sink {
         '-',
         );
       /**
-       OPFS handle for the per-run log file, created on first verification and reused for subsequent writes.
+       Random component keeping two verifications started in the same millisecond on different probe files.
        */
-      const fileHandle = await opfsRoot.getFileHandle(
-        `monochromatic-${timestamp}.log.jsonl`,
+      const probeNonce = Math.random()
+        .toString(PROBE_NONCE_RADIX,)
+        .slice(
+        2,
+        2 + PROBE_NONCE_LENGTH,
+        )
+        .padEnd(
+        PROBE_NONCE_LENGTH,
+        '0',
+        );
+      /**
+       Probe file this verification owns, named outside the log family so it is never read as a record.
+       */
+      const probeFileName = `monochromatic-${timestamp}.${probeNonce}${PROBE_FILE_SUFFIX}`;
+      /**
+       OPFS handle for that probe file, created for this verification alone.
+       */
+      const probeHandle = await opfsRoot.getFileHandle(
+        probeFileName,
         { create: true, },
       );
-      // Write test data and close to flush; getFile() reads stale content
+      /**
+       Removes the probe file on every exit path, including a mismatch throw or a close failure.
+       A cleanup failure is reported rather than thrown, because residue in the
+       origin private file system says nothing about whether logging works.
+       */
+      await using _probeCleanup = {
+        async [Symbol.asyncDispose](): Promise<void> {
+          try {
+            await opfsRoot.removeEntry(probeFileName,);
+          }
+          catch (error: unknown) {
+            reportLoggerInternalError({
+              context: 'OPFS sink probe file cleanup failed',
+              error,
+            },);
+          }
+        },
+      };
+      // Write probe data and close to flush; getFile() reads stale content
       // while a FileSystemWritableFileStream is still open.
       /**
        Throwaway writable used only to flush the probe so the next `getFile` returns persisted content.
        */
-      const probeWritable = await fileHandle.createWritable({ keepExistingData: true, },);
+      const probeWritable = await probeHandle.createWritable();
       /**
        Probe record written and read back to confirm OPFS round-trips writes.
        */
@@ -86,21 +142,23 @@ export function createOpfsSink(): Sink {
       /**
        File snapshot of the probe, taken after closing `probeWritable` so its bytes are flushed.
        */
-      const file = await fileHandle.getFile();
+      const probeFile = await probeHandle.getFile();
       /**
        Probe contents read back; matching the literal `"test":true` proves OPFS persisted the data.
        */
-      const content = await file.text();
+      const content = await probeFile.text();
+      if (!content.includes('"test":true',))
+        return false;
+
       /**
-       Whether the probe round-tripped; only then is the reused stream opened.
+       OPFS handle for the per-run log file, created once verification proved writes persist.
        */
-      const available = content.includes('"test":true',);
-
-      if (available)
-        // Reopen for subsequent log writes.
-        state.writable = await fileHandle.createWritable({ keepExistingData: true, },);
-
-      return available;
+      const fileHandle = await opfsRoot.getFileHandle(
+        `monochromatic-${timestamp}.log.jsonl`,
+        { create: true, },
+      );
+      state.writable = await fileHandle.createWritable({ keepExistingData: true, },);
+      return true;
     }
     catch (error: unknown) {
       /**

@@ -26,6 +26,33 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
+
+Issue 1540:
+the quiz components set literal `green` and `red`,
+which ignore `tokens.ts` and do not follow the dark-mode toggle.
+Their docs promise a `color-mix()` derivation from the link tokens that was never wired.
+The agent `ssg-aquati-cat-ready-bugs` fixed the rest of that package and stopped here,
+because the answer is a design choice.
+Nothing else is waiting on it.
+
+#### A: add success and danger colour tokens
+
+Right answers stay green and wrong answers stay red in both themes.
+It costs one more pair of tokens,
+with values you pick or a contrast-checked pair an agent proposes.
+
+#### B: derive verdicts from the link tokens with `color-mix()`, as the docs promise
+
+It adds no tokens and follows the theme by construction.
+The link colour is purple,
+so right and wrong become two purples and lose the green and red meaning.
+
+Ranking:
+A > B,
+because the colour carries the verdict,
+and B gives that up to save a pair of tokens.
+
 ### Should a commit land when a killed Git left a branch's lock behind?, asked 2026-11-09T18:30:54-05:00
 
 A Claude Sonnet audit killed `git update-ref` during a commit.
@@ -1686,6 +1713,41 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T19:25:35-05:00,
+  issue 1555 of `package/ssg/aquati.cat`:
+  a post's dates compare calendar days in the git author's own offset,
+  carried through `ResolvedDates` and the build manifest,
+  so the answer does not depend on the machine that builds.
+  Say "undo" to compare in the build machine's zone instead.
+- 2026-11-09T19:25:35-05:00,
+  issue 1557 of `package/ssg/aquati.cat`:
+  `@lezer/json` joins the catalog and that package so JSON fences keep their highlighting.
+  Say "undo" to drop the alias and leave JSON fences unstyled.
+- 2026-11-09T19:25:35-05:00,
+  issue 1541 of `package/ssg/aquati.cat`:
+  an agent writes the alert labels and the brand-image alt in Catalan and Chinese,
+  and `lang` goes into the MDX component scope,
+  which makes the cached post HTML depend on language.
+  Say "undo" to keep English labels on every language.
+- 2026-11-09T19:25:35-05:00,
+  issue 1549 of `package/ssg/aquati.cat`:
+  the dark-theme dropdown shadow is `rgb(0 0 0 / 45%)`,
+  and the light theme keeps its earlier alpha.
+  Say "undo" to pick another value.
+- 2026-11-09T19:25:35-05:00,
+  issue 1400 of `package/logger/core`:
+  a record buffer holds its page lifecycle listeners only while records wait,
+  and no public teardown method was added,
+  because nothing calls one today.
+  `DECISIONS.md` in that package records the alternative.
+  Say "undo" to add `Sink.dispose` and a `Logger` method.
+- 2026-11-09T19:25:35-05:00,
+  issues 1500 and 1510 of `package/pi-shared/model-review`:
+  `assertModelUsesApi` is gone,
+  because a table keyed on `model.api` cannot mismatch,
+  and the Bedrock and Google dispatch branches get tests through a fake table,
+  so `@aws-sdk/client-bedrock-runtime` and `@google/genai` do not become dependencies for tests alone.
+  Say "undo" to restore the assertion or add the SDKs.
 - 2026-11-09T16:22:51-05:00,
   the merge's second pass becomes awaitable as one body:
   `GitRunner::run` hands back a boxed future,

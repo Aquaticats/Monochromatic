@@ -7,6 +7,23 @@ import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 import type { Task, } from '../../lib/types.ts';
 import { formatRunningTrackedTime, } from './format-tracked-time.ts';
 import { TASK_CARD_STYLES, } from './task-card-styles.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: a toggle that failed leaves the card in its previous state.
+ */
+const l = tagged({
+  tag: 'done-variant-task-card-render',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Configuration for a `\<task-card\>` instance, passed via `createTaskCard`.
@@ -155,10 +172,7 @@ export function renderTaskCardContent(
                     await onToggleComplete(task.id,);
                   }
                   catch (error: unknown) {
-                    console.error(
-                      'toggle complete failed',
-                      error,
-                    );
+                    l.error(`toggle complete failed: ${caughtValueText(error,)}`,);
                   }
                 })();
               }

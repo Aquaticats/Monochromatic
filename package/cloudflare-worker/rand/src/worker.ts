@@ -17,12 +17,18 @@ import type {
 } from './env.ts';
 import { handleRequest, } from './index.ts';
 
+//region Root logger
+
 /**
  Root logger every request handler derives from. The default logger builds
  its sinks on the first log call, which happens inside a handler, so
  importing it here runs nothing in global scope.
  */
 const l = tagged({ tag: 'cloudflare-worker-rand', },);
+
+//endregion Root logger
+
+//region Flush lifecycle
 
 /**
  Disposable that hands the root logger's flush to `waitUntil` when the
@@ -39,6 +45,10 @@ function flushOnExit(ctx: ExecutionContextLike,): Disposable {
     },
   };
 }
+
+//endregion Flush lifecycle
+
+//region Worker entry
 
 /**
  Worker entry wrangler invokes for every request.
@@ -86,3 +96,5 @@ const worker = {
 };
 
 export default worker;
+
+//endregion Worker entry

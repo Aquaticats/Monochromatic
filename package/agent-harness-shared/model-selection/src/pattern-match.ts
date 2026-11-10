@@ -121,18 +121,37 @@ export function parseModelPattern<TModel extends ModelIdentity,>(
     readonly availableModels: readonly TModel[];
   },
 ): PatternResolution<TModel> {
-  for (
-    let currentPattern = pattern, thinkingLevel: ScopedThinkingLevel | typeof NO_THINKING_LEVEL = NO_THINKING_LEVEL;
-    ;
-  ) {
+  /**
+   Boundaries of every candidate body, longest body first: the whole pattern,
+   then the pattern cut before each colon taken from the end.
+   */
+  const bodyBoundaries = [
+    pattern.length,
+    ...colonIndexesOf(pattern,)
+      .toReversed(),
+  ];
+  /**
+   Thinking level carried into each walk step: the first valid suffix among the
+   steps already stripped, so a later colon segment never overrides it.
+   */
+  const carriedLevels: (ScopedThinkingLevel | typeof NO_THINKING_LEVEL)[] = [NO_THINKING_LEVEL,];
+  for (const [walkStep, boundary,] of bodyBoundaries.entries()) {
     /**
-     Exact or fuzzy match for current pattern body.
+     Exact or fuzzy match for the pattern body ending at this boundary.
      */
     const exactMatch = tryMatchModel({
-      pattern: currentPattern,
+      pattern: pattern.slice(
+        0,
+        boundary,
+      ),
       availableModels,
     },);
     if (exactMatch !== NO_PATTERN_MATCH) {
+      /**
+       Thinking level stripped before this body, when one was stripped.
+       */
+      const thinkingLevel = carriedLevels[walkStep]
+        ?? NO_THINKING_LEVEL;
       return {
         model: exactMatch,
         ...(thinkingLevel === NO_THINKING_LEVEL ? {} : { thinkingLevel, }),
@@ -140,23 +159,31 @@ export function parseModelPattern<TModel extends ModelIdentity,>(
     }
 
     /**
-     Last colon, used for optional thinking suffix parsing.
+     Boundary of the next shorter body, absent once no colon segment remains.
      */
-    const lastColonIndex = currentPattern.lastIndexOf(':',);
-    if (lastColonIndex === (-1))
-      return {};
+    const nextBoundary = bodyBoundaries[walkStep + 1];
+    if (nextBoundary === undefined)
+      break;
 
     /**
-     Candidate suffix after last colon.
+     Colon segment stripped after this body failed to match.
      */
-    const suffix = currentPattern.slice(lastColonIndex + 1,);
-    if ((thinkingLevel === NO_THINKING_LEVEL) && isThinkingLevel(suffix,))
-      thinkingLevel = suffix;
-    currentPattern = currentPattern.slice(
-      0,
-      lastColonIndex,
+    const suffix = pattern.slice(
+      nextBoundary + 1,
+      boundary,
+    );
+    /**
+     Level the next step starts with: unchanged once a valid suffix was seen.
+     */
+    const carried = carriedLevels.at(-1,)
+      ?? NO_THINKING_LEVEL;
+    carriedLevels.push(
+      ((carried === NO_THINKING_LEVEL) && isThinkingLevel(suffix,))
+        ? suffix
+        : carried,
     );
   }
+  return {};
 }
 
 /**
@@ -405,6 +432,28 @@ function tryMatchModel<TModel extends ModelIdentity,>(
    */
   const [firstCandidate,] = sortedCandidates;
   return firstCandidate ?? NO_PATTERN_MATCH;
+}
+
+/**
+ Indexes of every colon in a pattern, ascending, in UTF-16 positions.
+ 
+ @param pattern - pi model pattern
+ 
+ @returns colon indexes, empty when the pattern carries no suffix separator
+ */
+function colonIndexesOf(
+  pattern: string,
+): number[] {
+  return pattern
+    .split('',)
+    .flatMap(function colonIndex(
+      character,
+      characterIndex,
+    ) {
+      return character === ':'
+        ? [characterIndex,]
+        : [];
+    },);
 }
 
 /**

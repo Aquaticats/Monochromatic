@@ -1,6 +1,7 @@
 //! Controls for the isolated merge's intent record.
 
 use super::*;
+use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, remove};
 
 /// The intent every control uses.
@@ -88,6 +89,45 @@ fn a_malformed_intent_is_refused() {
         assert_eq!(parse_merge_intent(broken.as_bytes()), None, "{broken}");
     }
     assert_eq!(parse_merge_intent(&[0xff, 0xfe]), None);
+}
+
+/// What:
+///  A record that ended is removed without flushing its directory,
+///  and a record the power loss brings back names a
+///  merge the branch already holds,
+///  which recovery only loses again.
+/// Why:
+///  The flush after the removal was a third of the merge's fsyncs,
+/// and it sits on the path the person waits for:
+/// a
+///  merge that needs no resolution took 22 to 41 seconds in a measured disk stall where real Git took 9 to 16
+///  milliseconds (finding 1 of the merge-and-pull audit of 2026-11-09).
+///  It buys no safety:
+/// a record that comes back after a power loss names a merge whose commit the branch already
+///  holds,
+/// and `settle_failed_merge` drops it as already landed (`a_landed_merge_only_loses_its_record`),
+/// or
+///  one whose branch moved,
+///  which it settles the same way a later command always could.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMergeIntent(gitDir, intent); takeDirectorySyncs(); removeMergeIntent(path); expect(takeDirectorySyncs()).toEqual([]);
+/// ```
+#[test]
+fn a_record_that_ended_is_removed_without_flushing_its_directory() {
+    let root: PathBuf = fixture("merge-intent-removal-syncs");
+    let git_dir: PathBuf = root.join("git-dir");
+    std::fs::create_dir(git_dir.as_path()).expect("git dir");
+    let path: PathBuf = write_merge_intent(git_dir.as_path(), &intent(None, Some("refs/heads/main"))).expect("the record");
+    // The write's own flushes are the price of "the record survives a crash before Git starts".
+    let _written: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
+    take_file_syncs();
+    remove_merge_intent(path.as_path()).expect("removed");
+    assert!(!path.exists(), "the record is gone from the directory");
+    let flushed: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
+    assert!(flushed.is_empty(), "the removal is not flushed: a record that comes back after a power loss is settled by the next command, so nothing waits on this flush: {flushed:?}");
+    remove(&root);
 }
 
 /// A record is written once,

@@ -22,6 +22,23 @@ import {
   type TaskComplexity,
   type TaskPriority,
 } from '../../lib/types.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the autofill endpoint reports a rejected AI response and its own handler failures.
+ */
+const l = tagged({
+  tag: 'done-variant-ai-autofill',
+  l: logger,
+},);
+
+//endregion Logging
 
 //region Types
 
@@ -164,10 +181,7 @@ function parseAutofillResponse(raw: string,): AutofillResult {
     };
   }
   catch (error) {
-    console.error(
-      'AI autofill response JSON parse failed:',
-      error,
-    );
+    l.warn(`AI JSON output unparsable, so the autofill result stays empty: ${caughtValueText(error,)}`,);
     return empty;
   }
 }
@@ -263,10 +277,7 @@ export async function handleAutofill(req: Request,): Promise<Response> {
     },);
 
     if (!result.ok) {
-      console.error(
-        'AI autofill failed:',
-        result.error,
-      );
+      l.error(`AI autofill failed: ${result.error}`,);
       return Response.json({
         tags: [],
         locations: [],
@@ -280,10 +291,7 @@ export async function handleAutofill(req: Request,): Promise<Response> {
     return Response.json(autofill,);
   }
   catch (error) {
-    console.error(
-      'AI autofill handler error:',
-      error,
-    );
+    l.error(`autofill handler failed: ${caughtValueText(error,)}`,);
     return Response.json({
       tags: [],
       locations: [],

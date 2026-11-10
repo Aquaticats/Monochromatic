@@ -16,6 +16,23 @@ import type { TaskDetail, } from './component/task-detail.ts';
 import { api, } from './lib/api.ts';
 // oxlint-disable-next-line import/no-unassigned-import -- side-effect: registers the task-detail custom element
 import './component/task-detail.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the panel reports a failing save handler and its own lifecycle here.
+ */
+const l = tagged({
+  tag: 'done-variant-new-task-dialog',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Blank task template used when creating a new task; optional fields stay absent.
@@ -163,10 +180,7 @@ export function createNewTaskDialog(): NewTaskDialog {
           }
         }
         catch (error: unknown) {
-          console.error(
-            'new task action handler failed',
-            error,
-          );
+          l.error(`new task action handler failed: ${caughtValueText(error,)}`,);
         }
       })();
     },
@@ -176,10 +190,7 @@ export function createNewTaskDialog(): NewTaskDialog {
    Opens the panel with a fresh empty task, hiding the FAB and playing the expand animation.
    */
   function openPanel(): void {
-    console.log(
-      '[new-task-dialog] openPanel(), detail.configure is:',
-      typeof detail.configure,
-    );
+    l.debug(`openPanel with configure of type ${typeof detail.configure}`,);
     detail.configure({
       task: emptyTask,
       blockerSummaries: [],
