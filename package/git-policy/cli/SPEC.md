@@ -8280,6 +8280,21 @@ unless an enabled content policy reads the command's candidates first:
 the candidate prediction runs that same `git add` on a private index and stops on its failure,
 which names Git's refusal and no line of this check.
 
+The two listings run before Git does,
+so a path that appears between them and the forwarded command is not counted:
+a spelling that covered every path up to then is still refused,
+and one that covered all but that new path is let through.
+The window is the policy pass's own,
+and no file is read twice.
+
+A pattern written only in wildcard syntax,
+such as a class holding `*` or an escaped `*`,
+is read as naming no character of a name,
+because Git's character classes and escapes are not modelled here:
+a repository whose entire content is one file of that name is refused,
+and nothing else is,
+since such a spelling names no path a person means.
+
 An ordinary name costs nothing;
 a spelling that is no ordinary name costs two listing reads,
 the second only when the first found a path.

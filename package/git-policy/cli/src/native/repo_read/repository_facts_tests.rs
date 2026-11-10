@@ -454,6 +454,26 @@ fn a_selection_is_counted_against_the_repository_and_the_callers_directory() {
     remove(root.as_path());
 }
 
+/// A path in conflict is one path at two or three stages,
+///  and the counts name paths,
+///  so a command that sweeps it up still equals the reference and its number is the number of paths.
+#[test]
+fn an_unmerged_path_is_counted_once() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("facts-unmerged");
+    start_conflicted_merge(root.as_path());
+    let mut facts: GitFacts = facts_in(&[root.as_path()]);
+    assert_eq!(
+        facts.staged_selection(vec![OsString::from(".")]),
+        Ok(StagedSelection {
+            selected: 1,
+            repository: 1,
+            directory: 1,
+        }),
+        "the conflicted path is one path, listed at three stages"
+    );
+    remove(directory.as_path());
+}
+
 /// A selection that cannot be listed is a failure naming the fact,
 ///  never an empty answer that would prove a command stages nothing.
 #[test]

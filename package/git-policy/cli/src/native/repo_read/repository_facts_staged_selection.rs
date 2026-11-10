@@ -57,7 +57,9 @@ pub(super) fn staged_selection(
 ) -> Result<StagedSelection, String> {
     let asked: Vec<OsString> =
         selection_query_arguments(facts.global_prefix.as_slice(), pathspecs.as_slice());
-    let selected: Vec<Vec<u8>> = listed(facts, asked, "the paths a git add selects")?;
+    let mut selected: Vec<Vec<u8>> = listed(facts, asked, "the paths a git add selects")?;
+    // An unmerged path is one path listed at two or three stages in a row, and the count names paths.
+    selected.dedup();
     // A command that selects nothing is no bulk command, and one process answers it.
     if selected.is_empty() {
         return Ok(StagedSelection {
@@ -67,11 +69,13 @@ pub(super) fn staged_selection(
         });
     }
     let directory_prefix: Vec<u8> = facts.location()?.prefix;
-    let whole: Vec<Vec<u8>> = listed(
+    let mut whole: Vec<Vec<u8>> = listed(
         facts,
         whole_worktree_query_arguments(facts.global_prefix.as_slice()),
         "the paths of the worktree",
     )?;
+    // The same deduplication, so both counts name paths and the equality still holds.
+    whole.dedup();
     let mut directory: usize = 0;
     for path in &whole {
         // `--full-name` prints each path from the top level, so the caller's own directory is a prefix of it.
