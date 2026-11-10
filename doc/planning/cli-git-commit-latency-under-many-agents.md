@@ -3185,3 +3185,263 @@ If the owner wants this reproducible from the repository,
 the sampler belongs beside `bin/native-perf.ts`,
 with a control of its own,
 which is a change this record does not make.
+
+## What each part of a commit's private repository is for, and how many commits need it (2026-11-10T05:42:20-05:00)
+
+What this answers:
+for each part the creation of a commit's shadow repository makes,
+what reads it,
+whether a given commit needs it,
+and how many real commits needed it;
+and,
+because the owner chose the pool ahead of the alternatives
+("Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.",
+`doc/handover/questions-for-the-owner.md`,
+"May a commit take its private repository from a pool made ahead?"),
+which route the numbers pick:
+one that makes no shadow for a commit that needs none,
+or one that reuses a finished one.
+
+### Where the numbers come from
+
+The two records the wrapper writes for every wrapped commit,
+copied aside before they were read because the machine keeps committing:
+`.git/monochromatic-git-policy-cli-commit-timing.jsonl` and its one generation `.1`
+of the main checkout,
+271 records of the releases `0.6.1-alpha.6` and `0.6.1-alpha.7`
+between 2026-11-10T06:33:22Z and 2026-11-10T10:31:01Z,
+about twenty agents committing.
+The figures of this repository's own shape,
+which are what a creation costs here rather than in a fixture:
+
+- 1,968 refs (`git for-each-ref | wc -l`),
+  of them 878 branches and one symbolic ref;
+- 78 entries in the common Git directory,
+  of which 25 are the entries a creation links
+  (`is_private_shadow_entry` excludes the other 53);
+- 296 worktrees (`git worktree list | wc -l`),
+  each with its own commit service.
+
+### Which commits need a shadow at all
+
+A commit builds in a shadow only when Git must build it:
+the preparation forces that route for
+`config_native || unborn || detached || state_present || changes.is_none()`
+(`service_prepare.rs`,
+`ready.needs_native = forced`),
+and `build_with_git` is the only caller of the creation on the commit path
+(`service_native.rs`).
+The other route,
+a commit the service builds itself,
+runs no `git commit` and makes no shadow (`service_commit_request_of.rs`).
+
+Counted:
+
+- 248 of the 271 records reached the build phase,
+  and every one of those 248 made a shadow
+  (`buildParts["shadow skeleton"].calls == 1`).
+  None took the service-built route.
+- 23 stopped or ended before the build (`buildMs` 0,
+  no `buildParts`).
+- The last 300 first-parent commits of `main` all carry a `gpgsig` header
+  (`git log --first-parent --format='%H %p' -n 300 HEAD`,
+  then `git cat-file --batch`),
+  so this repository signs every commit,
+  and a signing request is exactly what `config_needs_native` refuses to build without Git.
+  Every commit this repository makes therefore needs a shadow:
+  a route that makes no shadow for a commit that needs none removes nothing here.
+- 242 of those 300 commits are merges,
+  and the merge path builds its commit with `git commit-tree` and no shadow at all
+  (`merge_isolation_apply.rs`,
+  `commit_merge`).
+  The "needs no shadow" population of this repository is its merges,
+  and that route already exists.
+
+So the route that reuses a finished shadow is the one that removes the most,
+and the sections below size what a commit can stop doing:
+the parts a commit cannot read at all go first,
+the rest come from a pool.
+
+### The parts, one by one
+
+Every part below is made by `create_shadow_repository_carrying`
+(`shadow_create.rs`),
+for every commit that reaches the build.
+
+The parent and skeleton directories,
+the placeholder `HEAD` and the private mode:
+ten `mkdir` calls,
+one `write` and one `chmod`.
+Every commit needs them:
+they are the repository Git's `commit` is pointed at
+(`native_commit_arguments`,
+`--git-dir=<shadow>`).
+
+`config`,
+and `objects/info/alternates`:
+two `write` calls and two `chmod` calls.
+Every commit needs them:
+the config carries the format facts,
+the include of the real config,
+the worktree root and every hook event switched off (`shadow_config.rs`),
+and the alternates are how the shadow's Git reads real objects
+while its own store receives the commit (`shadow_create.rs`).
+
+The links,
+25 directory-entry creations in this repository:
+every non-private entry of the common Git directory,
+one symbolic link each (`shadow_links.rs`,
+`link_shadow_entries`).
+`doc/decision/cli-git-concurrent-commits.md` requires them
+("every real Git-dir entry that is not transaction-private
+(such as `info`,
+`rr-cache`,
+`lfs`,
+and `modules`) is symlinked into the shadow by default").
+What a commit can actually read through them is narrower than the set:
+every shadow command points `core.hooksPath` at an absent directory
+(`shadow_git.rs`,
+`shadow_request`;
+`native_commit_arguments` for `git commit`),
+so no hook resolves anything,
+and the Git children a shadow runs
+(`commit`,
+`rev-parse`,
+`cat-file`,
+`mktree`,
+`hash-object`,
+`read-tree`,
+`write-tree`,
+`update-index`,
+`update-ref`,
+`symbolic-ref`)
+read `info` for attributes and a sparse checkout and `lfs` for the filter's store.
+They are kept,
+because the decision record requires the set,
+and a pool amortizes them over many commits.
+
+The conclusion copies:
+one `mkdir` of the transaction's `conclusion` directory,
+one `stat` per name in `CONCLUSION_STATE_FILES`,
+and a synced write per entry that exists (`conclusion_copy.rs`).
+Only a commit that concludes a merge,
+a cherry-pick or a revert has anything to copy:
+copies exist so the landing removes exactly the entries native Git removed
+(`conclusion_cleanup.rs`,
+`reproduce_conclusion_cleanup`,
+which answers "no conclusion state was copied" when the directory is absent).
+The records name no conclusion state,
+so how many of the 248 had any cannot be read from them;
+the `mkdir` happens for all 248.
+
+The ref snapshot:
+one `git for-each-ref` over the real repository,
+one `packed-refs` write of every real direct ref (1,968 of them here),
+one loose file per real symbolic ref (one here),
+the private target ref and `HEAD` (`shadow_refs.rs`,
+`write_shadow_refs`).
+Every commit makes it,
+and `doc/decision/cli-git-concurrent-commits.md` requires the snapshot.
+What a commit reads from it is `refs/stash`
+(`autostash_carry.rs`,
+`conflicted_autostash`) and the symbolic chain a target branch can be
+(`end_of_symbolic_chain`).
+
+Reading the commit back,
+`git rev-parse HEAD^{commit}` and `git cat-file commit`
+(`commit_preparation.rs`,
+`read_prepared_commit`):
+every commit needs both.
+
+### Where the seconds were, in these 248 records
+
+The whole command:
+median 469 ms,
+p95 13,611 ms,
+the largest 65,948 ms,
+and 35 of the 248 over 5,000 ms.
+
+`buildMs`,
+which holds the creation and Git's build:
+236,572 ms in all,
+median 57 ms,
+p95 721 ms,
+the largest 65,365 ms,
+and only six of the 248 over 5,000 ms there.
+So most of the commits over the bar wait somewhere else,
+and this record speaks to the six.
+
+By the name each stretch has in `buildParts`,
+with the records that spent any time in it,
+their total,
+and the largest:
+
+- `shadow conclusion`:
+  44 records,
+  196,670 ms,
+  64,126 ms.
+  This is 83.1 percent of every `buildMs` in the window,
+  and five records spent more than 5,000 ms in this stretch alone,
+  one of them 64,126 ms of its 65,365 ms build
+  (2026-11-10T06:53:52.459Z on `refs/heads/main`,
+  whose every other stretch was under 510 ms).
+- `shadow skeleton`:
+  22 records,
+  14,721 ms,
+  9,757 ms.
+- `shadow links`:
+  22 records,
+  1,929 ms,
+  1,401 ms.
+- `shadow refs`:
+  all 248,
+  1,169 ms,
+  427 ms (median 1 ms).
+- `shadow config`:
+  10 records,
+  72 ms,
+  30 ms.
+- `client build` and `commit read back`:
+  35 ms and 7 ms in all.
+
+The only call inside the `shadow conclusion` stretch that creates anything
+is `create_private_directory(<scratch>/conclusion)`,
+the first call of `copy_conclusion_state`;
+everything after it is a `stat` or a read of a file that a commit without conclusion state does not hold.
+A `mkdir` is one of the calls this volume holds longest
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What waits,
+sampled from the host without adding load":
+`mkdir` in `wait_current_trans` at 2,411 ms and in `handle_reserve_ticket` at 1,200 ms),
+and reads do not wait there.
+So the largest single stretch of these builds is one `mkdir`
+that a commit with nothing to conclude does not need.
+
+### What a commit can stop doing
+
+- The conclusion copies directory:
+  nothing,
+  when the worktree holds no `MERGE_HEAD`,
+  `MERGE_AUTOSTASH`,
+  `MERGE_MSG`,
+  `MERGE_MODE`,
+  `SQUASH_MSG`,
+  `AUTO_MERGE`,
+  `CHERRY_PICK_HEAD`,
+  `REVERT_HEAD`,
+  `MERGE_RR` or `sequencer` state,
+  which is what a commit that concludes nothing holds.
+  The landing already treats an absent directory as "no state was copied".
+  This removes the largest stretch above from those commits.
+- Everything else the creation makes is needed by every commit that builds in a shadow,
+  or is required by `doc/decision/cli-git-concurrent-commits.md`,
+  and cannot be dropped per commit.
+
+That is the reuse route this record's findings pick,
+and the parts are built as:
+a creation that makes only what the commit can read (the conclusion copies wait for state),
+and a pool of finished shadows for the parts every commit needs,
+whose member a commit claims with one `rename`
+and refuses when it is not what a creation would have made.
