@@ -37,6 +37,11 @@ const block = { type: 'block', text: ' e ', } as const;
  */
 const HALF_INDEX = 1 / 2;
 
+/**
+ Negative segment used to verify no array element sits before the first one.
+ */
+const NEGATIVE_INDEX = -1;
+
 await describe({
   name: 'edit-comment branches',
   children: [
@@ -81,6 +86,17 @@ await describe({
             expect(() => {
               jsoncGetComment({ state: twoKeys(), path: ['nope',], },);
             },).toThrow('no JSONC node at path',);
+          },
+        },),
+        it({
+          name: 'getting a comment at a negative or fractional array segment throws',
+          fn: async () => {
+            const state = parseJsoncEdit({ source: asJsonc('{ "list": [1, 2] } // c',), },);
+            for (const index of [NEGATIVE_INDEX, HALF_INDEX,]) {
+              expect(() => {
+                jsoncGetComment({ state, path: ['list', index,], },);
+              },).toThrow('no JSONC node at path',);
+            }
           },
         },),
         it({
