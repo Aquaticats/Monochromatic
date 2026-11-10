@@ -69,5 +69,17 @@ await describe({
         expect(() => keysToEvdev('ctrl; rm -rf /')).toThrow(UnknownKeyError);
       },
     }),
+    ...[
+      'constructor',
+      '__proto__',
+      'hasOwnProperty',
+    ].map(function mapPrototypeName(name: string) {
+      return it({
+        name: `rejects the Object.prototype name ${name} instead of translating it`,
+        fn: async () => {
+          expect(() => keysToEvdev(name)).toThrow(UnknownKeyError);
+        },
+      });
+    }),
   ],
 });

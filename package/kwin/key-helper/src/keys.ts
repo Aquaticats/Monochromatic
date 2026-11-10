@@ -107,8 +107,18 @@ export function keysToEvdev(combo: string): readonly string[] {
   const codes = parts.map(function toCode(part: string): number {
     /**
      Evdev code for one token, or `undefined` when unmapped.
+
+     The lookup is own-property only: {@link EVDEV_KEYS} is a plain object, so
+     a bare index would also answer the names it inherits from
+     `Object.prototype` (`constructor`, `__proto__`) and translate them into a
+     garbage token instead of rejecting them.
      */
-    const code = EVDEV_KEYS[part];
+    const code = Object.hasOwn(
+      EVDEV_KEYS,
+      part,
+    )
+      ? EVDEV_KEYS[part]
+      : undefined;
     if (code === undefined) {
       throw new UnknownKeyError(part);
     }
