@@ -170,7 +170,10 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     // which nothing of the wrapper's is in that folder: everything born later is somebody else's, and keeps it.
     // What a snapshot of the main checkout set aside is handed to the commit service once the worktree is in place, and the add
     //  does not wait for it. Nothing is set aside for a linked worktree.
-    let pending: Option<PendingTrash> = trash.map(|manifest: TrashManifest| return PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet });
+    let pending: Option<PendingTrash> = match trash {
+        Some(manifest) => Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet }),
+        None => None,
+    };
     crate::worktree_snapshot::record_made_of_the_stage(source, stage, *made);
     let exchange_entered: bool = begin_step("exchange");
     let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);

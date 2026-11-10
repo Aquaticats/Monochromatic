@@ -145,7 +145,29 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
 /// const alreadyExcluded = (bytes) => bytes.toString('latin1').split('\n').map((line) => line.trim()).includes(TRASH_EXCLUDE_LINE);
 /// ```
 fn already_excluded(bytes: &[u8]) -> bool {
-    return bytes.split(|byte: &u8| return *byte == b'\n').any(|line: &[u8]| return line.trim_ascii() == TRASH_EXCLUDE_LINE.as_bytes());
+    return bytes.split(is_a_line_end).any(is_the_wrappers_line);
+}
+
+/// Whether a byte ends a line.
+fn is_a_line_end(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether one line,
+/// with the spaces a person may leave around it,
+/// is the wrapper's own.
+/// Why:
+///   The comparison is made of bytes,
+/// so a line that holds a pattern that is not text is compared as it is and
+///  never as replacement characters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTheWrappersLine = (line) => line.trim() === TRASH_EXCLUDE_LINE;
+/// ```
+fn is_the_wrappers_line(line: &[u8]) -> bool {
+    return line.trim_ascii() == TRASH_EXCLUDE_LINE.as_bytes();
 }
 
 /// Exclude-line controls stay out of the release executable.
