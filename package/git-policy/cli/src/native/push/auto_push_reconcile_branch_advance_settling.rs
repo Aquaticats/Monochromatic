@@ -27,6 +27,48 @@ use crate::merge_isolation_journal::MergeIntent;
 use crate::recovery_error::RecoveryError;
 use std::path::PathBuf;
 
+#[cfg(test)]
+thread_local! {
+    /// A control makes every settle started from this thread fail,
+    /// as the system does when it has no thread to give.
+    static STARTS_FAIL_ON_THIS_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// While it lives,
+/// every settle started from the thread that made it is refused,
+/// as when the system has no thread to give.
+#[cfg(test)]
+pub(crate) struct RefusedSettleStarts;
+
+#[cfg(test)]
+impl RefusedSettleStarts {
+    /// Refuse the settle starts of the current thread until the value is dropped.
+    pub(crate) fn here() -> Self {
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(true); });
+        return Self;
+    }
+}
+
+#[cfg(test)]
+impl Drop for RefusedSettleStarts {
+    fn drop(&mut self) {
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(false); });
+    }
+}
+
+/// Whether a control refused the starts of this thread.
+#[cfg(test)]
+fn a_control_refuses_starts() -> bool {
+    return STARTS_FAIL_ON_THIS_THREAD.with(|flag| { return flag.get(); });
+}
+
+/// Whether a control refused the starts of this thread;
+/// nothing outside the controls refuses one.
+#[cfg(not(test))]
+fn a_control_refuses_starts() -> bool {
+    return false;
+}
+
 /// What:
 ///  Settle a merge record from a thread of its own,
 /// and answer what the settle decided.
@@ -47,6 +89,15 @@ pub(crate) async fn settle_failed_merge_awaiting(
     record: PathBuf,
     intent: MergeIntent,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
+    if a_control_refuses_starts() {
+        return Err(MergeRefusal {
+            error: RecoveryError(crate::scoped_start::refused_thread_sentence(
+                "settle the merge record",
+                &std::io::Error::other("a control refused the thread"),
+            )),
+            began: true,
+        });
+    }
     let (tell, heard) = tokio::sync::oneshot::channel();
     let started = std::thread::Builder::new()
         .name(String::from("git-policy-settle"))

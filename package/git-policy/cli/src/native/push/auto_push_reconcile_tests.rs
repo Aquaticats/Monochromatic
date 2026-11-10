@@ -2505,3 +2505,45 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     );
     remove(&s.root);
 }
+
+/// A settle whose thread the system refuses is not run in the task's place:
+/// the branch advance reports the limit that refused it,
+/// and the record stays for the next wrapper command to settle.
+/// The starts are refused to this thread by the seam of the settling module,
+/// because a child under `RLIMIT_NPROC` one cannot start the Git the fixture needs.
+#[test]
+fn a_settle_whose_thread_the_system_refuses_leaves_the_record_for_the_next_command() {
+    let s = scenario("ar-ff-settle-thread-refused");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let old = text_of(&s.local, &["rev-parse", "HEAD"]);
+    let marker = s.root.join("raced-refused");
+    let shim = s.root.join("racing-git-refused");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    echo \"fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main'\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        marker = marker.display(),
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut racing = push_git(&s.local);
+    racing.real_git = shim;
+    let refused = crate::auto_push_reconcile_branch_advance_settling::RefusedSettleStarts::here();
+    let result: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+        &racing,
+        "refs/heads/main",
+        &old,
+        &target,
+    ))
+    .expect("git");
+    drop(refused);
+    let Err(reason) = result else { panic!("the move was refused, so it is not reported as done") };
+    assert!(reason.contains("Git refused the fast-forward"), "{reason}");
+    assert!(reason.contains("no thread could be started to settle the merge record"), "{reason}");
+    assert!(reason.contains("ulimit -u"), "the sentence names the limits to check: {reason}");
+    assert_eq!(
+        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count),
+        1,
+        "the record stays for the next wrapper command, which settles it"
+    );
+    remove(&s.root);
+}
