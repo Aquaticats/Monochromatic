@@ -246,13 +246,15 @@ fn is_a_regular_file(found: std::fs::Metadata) -> bool {
 ///  it names a saved copy;
 /// measured on 2026-11-10 (`log_rotation_cost_measurement_tests.rs`,
 /// the entry in
-///  `doc/planning/cli-git-shipped-limits-audit.md`) the pass took a median of 13 ms and a 99th percentile of 254 ms
+///  `doc/planning/cli-git-shipped-limits-audit.md`) the pass takes a median of 13 ms and a 99th percentile of 254 ms
 ///  to drop one generation that names no saved copy,
 /// and a median of 369 ms and a 99th percentile of 432 ms where every generation
-///  pinned and had to be read to its end,
-/// run inside the appending call,
-/// which is close to the 5 s by which the owner said a
-///  commit must not be slower than native Git.
+///  pins and is read to its end.
+/// Run inside the appending call,
+/// as it was before it had a thread,
+/// the second shape reached a 99th percentile
+///  of 4.4 s,
+/// which is the owner's whole 5 s margin ("commits vs native git should not take 5s longer").
 /// On a thread of its own the rotation costs the command a median of 385 us and a
 ///  99th percentile of 580 us,
 /// and one under the bound 267 us and 322 us.
