@@ -1413,9 +1413,9 @@ use crate::worktree_copy_stage_made_object::{made_record_beside_claim, read_made
 ///  Give the read-only directory of an abandoned stage its owner's write permission back,
 /// so the fixture teardown removes the fixture.
 /// Why:
-///   `abandoned_stage` leaves one directory at mode `0500`, the shape an interrupted installation leaves;
-/// a control that
-///  keeps the stage must clear that before its own fixture can be removed.
+///   `abandoned_stage` leaves one directory at mode `0500`,
+/// the shape an interrupted installation leaves,
+/// so a control that keeps the stage must clear that before its own fixture can be removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

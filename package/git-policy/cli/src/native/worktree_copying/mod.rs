@@ -114,6 +114,11 @@ pub mod worktree_copy_stage_made_object;
 #[cfg(target_os = "linux")]
 pub mod worktree_copy_stage_entries_the_record_accounts_for;
 
+/// Whether that record proves the folder standing at a container's name,
+/// and the words a sweep says about a stage it keeps or removes.
+#[cfg(unix)]
+pub mod worktree_copy_stage_reaping_proof_and_words;
+
 /// What an interrupted `git worktree add` settles to,
 /// with the proof its checkout is whole or gone.
 #[cfg(unix)]
