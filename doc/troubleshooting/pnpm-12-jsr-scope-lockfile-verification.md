@@ -143,13 +143,13 @@ Patterns that fail:
 
 ## Verified workarounds
 
-1.   Run the committed pnpm through mise for lockfile work:
+1.  Run the committed pnpm through mise for lockfile work:
      `mise exec pnpm@11.21.0 -- pnpm install --lockfile-only`.
      Tradeoff:
      the lockfile is written by pnpm 11 while the shell's default pnpm is 12;
      `pnpm --version` and `mise.lock` disagree until the bump is committed or reverted,
      and pnpm 12's verification pass is skipped entirely for that run.
-2.   Remove the JSR edge:
+2.  Remove the JSR edge:
      `happy-opfs` left `module-fs-path`,
      the catalog,
      and the lockfile in commit `e3badc3d7`
@@ -183,27 +183,27 @@ Patterns that fail:
 The pnpm side is a separate question,
  walked here:
 
-1.   Is it really upstream's fault?
+1.  Is it really upstream's fault?
      Unproven:
      the trace shows the verifier routing by `registries_by_scope`,
      but the layer that drops a `~/.npmrc` scope route on that path was not isolated.
-2.   Can upstream fix it?
+2.  Can upstream fix it?
      Yes if it is a config-layer omission;
      the verifier already supports scope routing.
-3.   Are they supporting this use case?
+3.  Are they supporting this use case?
      Yes:
      `registries_by_scope` is documented as populated from `.npmrc` `@scope:registry`.
-4.   Would the repo welcome our contribution?
+4.  Would the repo welcome our contribution?
      `pnpm/pnpm` has `CONTRIBUTING.md`,
      `AGENTS.md`,
      and `REVIEW_GUIDE.md` in the `v12.3.4` tree;
      no ban on AI-assisted reports was read for this note,
      and the files were not reviewed in full.
-5.   Will they likely fix it?
+5.  Will they likely fix it?
      No signal either way:
      `gh search issues --repo pnpm/pnpm 'jsr registry scope 404'` and
      `'supply-chain policy check scoped registry'` returned no matching issue.
-6.   Have we prototyped a minimal fix?
+6.  Have we prototyped a minimal fix?
      No.
 
 Decision:
