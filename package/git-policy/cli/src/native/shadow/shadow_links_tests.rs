@@ -150,8 +150,8 @@ fn shared_entry_names(common: &Path) -> Vec<String> {
 /// in the order the directory lists them.
 fn entry_names(directory: &Path) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(directory).expect("a readable directory") {
-        let entry: std::fs::DirEntry = entry.expect("a readable entry");
+    for listed in std::fs::read_dir(directory).expect("a readable directory") {
+        let entry: std::fs::DirEntry = listed.expect("a readable entry");
         names.push(entry.file_name().to_string_lossy().into_owned());
     }
     return names;
