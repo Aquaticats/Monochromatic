@@ -285,27 +285,57 @@ fn show_missing_chooser_message() {
 }
 
 /// What:
+/// `show_chooser_failure_message` tells the user in the main window what the folder chooser said when it failed.
+/// Why:
+/// the chooser runs on a worker thread,
+/// and only the event-loop thread may touch the window;
+/// the message itself is built on that thread because it is plain text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function showChooserFailureMessage(message: string): void { mainWindow?.showError(message); }
+/// ```
+fn show_chooser_failure_message(message: String) {
+    let main_window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
+    if let Some(window) = main_window {
+        crate::ui_overlays::show_error(&window, &message);
+    }
+}
+
+/// What:
 /// `open_folder_dialog` asks for a folder on a worker thread and opens it without autoplay.
 /// Why:
-/// the native dialog blocks,
+/// the chooser blocks,
 /// so it runs off the event-loop thread;
 /// the engine receives the chosen root.
+/// What happened is decided in `src/folder_chooser.rs`,
+/// so a cancel,
+/// a missing chooser,
+/// and a chooser that failed are no longer the same silence
+/// (issue 1010).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openFolderDialog(sender): void { spawn(() => { switch (advice(chooseFolder())) { case open: sender.send({kind: 'openRoot', root, select: undefined, play: false}); break; case nothing: break; case tellNoChooser: showMissingChooserMessage(); break; case tellFailure: showChooserFailureMessage(message); } }); }
+/// ```
 pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
     std::thread::spawn(move || {
-        // What:     the chooser is checked before it opens.
-        // Why:      the dialog library answers "nothing" both for Cancel and for "no chooser installed" (PB5); only a
-        //           missing chooser needs a message, and only the check can tell the two apart.
-        if music_player::dialog_backend::dialog_backend_missing() {
-            tracing::warn!("no folder chooser is available; the user is told how to proceed");
-            let _ = slint::invoke_from_event_loop(show_missing_chooser_message);
-            return;
-        }
-        if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-            sender.send(Command::OpenRoot {
-                root: dir,
+        match music_player::folder_chooser::advice(music_player::folder_chooser::choose_folder()) {
+            music_player::folder_chooser::ChooserAdvice::Open { folder } => sender.send(Command::OpenRoot {
+                root: folder,
                 select: None,
                 play: false,
-            });
+            }),
+            // A cancel closes the window the user just used, so it says nothing.
+            music_player::folder_chooser::ChooserAdvice::Nothing => {}
+            music_player::folder_chooser::ChooserAdvice::TellNoChooser => {
+                tracing::warn!("no folder chooser is available; the user is told how to proceed");
+                let _ = slint::invoke_from_event_loop(show_missing_chooser_message);
+            }
+            music_player::folder_chooser::ChooserAdvice::TellFailure { message } => {
+                tracing::error!(%message, "the user is told why the folder chooser failed");
+                let _ = slint::invoke_from_event_loop(move || show_chooser_failure_message(message));
+            }
         }
     });
 }

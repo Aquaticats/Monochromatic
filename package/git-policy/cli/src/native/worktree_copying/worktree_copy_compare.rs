@@ -51,11 +51,44 @@ pub(crate) const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
 pub use crate::worktree_copy_vanished_entry::lstat_or_absent;
 
 /// What:
+///  One side of a byte comparison,
+///  opened without waiting and without following a link,
+/// or nothing when the path holds
+///  something a regular file cannot equal.
+/// Why:
+///   The comparison reads the source's entry after the walk recorded it,
+/// and a name a build replaced
+///  with a named pipe in between would hold the comparison on an open that waits for a writer that may never
+///  come ("nothing should ever wait forever or indefinitely").
+/// The kind is taken from the handle this opens,
+///  so a pipe,
+/// a device or a directory answers as no regular file at all,
+/// which the caller reads as the
+///  difference a settling pass retries and then drops,
+/// never as a wait and never as a failure of the add.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const openedSide = (path) => { try { return openPlainFile(path); } catch (e) { if (e.code === 'EINVAL') return undefined; throw e; } };
+/// ```
+fn opened_regular_file(path: &Path) -> Result<Option<std::fs::File>, WorktreeCopyError> {
+    return match crate::plain_file::open_plain_file(path) {
+        Ok(file) => Ok(Some(file)),
+        // The plain-file reader refuses a path that is not a plain file with `InvalidInput` and the words the person reads,
+        //  and a link it may not follow with `ELOOP`; neither holds a regular file's bytes.
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput || error.raw_os_error() == Some(libc::ELOOP) => Ok(None),
+        Err(error) => Err(raw_failure(&error)),
+    };
+}
+
+/// What:
 ///  Whether two regular files hold the same bytes,
 /// compared in bounded chunks.
 /// Why:
 ///   Sizes are compared first,
 /// and a short read means the file changed under the comparison.
+/// A side that is no longer a regular file holds none of the other side's bytes,
+/// so the two differ.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,10 +98,12 @@ fn regular_file_bytes_equal(
     left_path: &Path,
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {
-    let mut left: std::fs::File =
-        std::fs::File::open(left_path).map_err(raw_failure_of)?;
-    let mut right: std::fs::File =
-        std::fs::File::open(right_path).map_err(raw_failure_of)?;
+    let (Some(mut left), Some(mut right)) = (
+        opened_regular_file(left_path)?,
+        opened_regular_file(right_path)?,
+    ) else {
+        return Ok(false);
+    };
     let left_size: u64 = left
         .metadata()
         .map_err(raw_failure_of)?
