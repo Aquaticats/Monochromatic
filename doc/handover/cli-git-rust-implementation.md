@@ -6326,6 +6326,32 @@ are in append mode now).
   the new control would now name that as `limit=stall` instead of as a clock,
   which is what a
   reproduction would need.
+- `word_merge::an_edit_made_while_the_pass_merges_is_not_replaced` and
+  `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`
+  failed under host load at their own fifteen-second window:
+  at `c0bb93d036` the first failed at 16.06 s,
+  and on another branch the second at 16.29 s with the same assertion,
+  each passing alone.
+  Cause:
+  each control found the pass's own `git check-attr` by walking `/proc` for that child inside a window,
+  so the window,
+  and not the pass,
+  was what a loaded host ran out of.
+  Fixed on `test/git-policy-cli-word-merge-controls-wait-on-a-marker` (`76b18e0f3b`,
+  `3e9133dbd5`,
+  `47f4caf239`):
+  a stand-in Git on the run's `PATH` holds the pass at that one query and reads the control's word on a pipe
+  before it goes on (`binary_word_merge_pass_gate.rs`),
+  so the control waits on the pass and no clock is involved.
+  Planted,
+  each control against the guard it pins:
+  a baseline read at install time fails the first at 4.160 s with
+  "the other command's bytes survive",
+  and a length comparison instead of a byte comparison fails the second at 10.739 s.
+  Checks:
+  57 of 57 `word_merge` and `merge_second_pass` controls of the library,
+  39 of 39 of the binary target with the pair at 1.186 s and 1.224 s under a load average of 148,
+  and Clippy clean on every target.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 

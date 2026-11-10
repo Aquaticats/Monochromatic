@@ -7933,12 +7933,99 @@ The wording of a refusal:
     and both pass in the 87-control run,
     so the flake is in the control's `/proc` polling and not in the pass;
     it is not fixed here,
-    because a proper fix is a shim Git that writes a marker instead of a window.
+    because a proper fix is a shim Git that writes a marker instead of a window
+    (fixed 2026-11-09,
+    see "The two controls of the second pass wait on the pass itself" below).
 - Not run:
   the whole `native:test:host` suite,
   the container gate,
   `native:perf` (nothing of this run is in a commit or a forwarded command's path)
   and any mutation campaign (paused by the owner).
+
+## The two controls of the second pass wait on the pass itself, 2026-11-09T19:04:27-05:00
+
+Branch `test/git-policy-cli-word-merge-controls-wait-on-a-marker`,
+from main at `283d7d9053`.
+Three commits:
+`76b18e0f3b` (the stand-in Git and the two controls),
+`3e9133dbd5` (a warning in the stand-in's pipe opener) and
+`47f4caf239` (two doc lines the linter broke).
+
+### What replaced the window
+
+The section "Step T12,
+the second pass awaits its own Git,
+and the reconcile's chain stops at the branch move"
+records the failure and names the fix:
+each of the pair walked `/proc` for the pass's own `git check-attr` child inside a fifteen-second window,
+and under host load the pass had not reached the query before the window closed.
+The window is gone.
+`binary_word_merge_pass_gate.rs` puts a stand-in `git` on the run's `PATH`:
+the wrapper's link directory,
+then the stand-in,
+and nothing else,
+because real Git at a conventional location outranks every other candidate the wrapper considers.
+The stand-in passes every start to real Git by absolute path,
+except the pass's own `git check-attr -z --stdin merge`,
+which it holds:
+it writes `reached.marker` and the word `reached` on one pipe,
+and it reads the control's word on a second pipe before it goes on.
+The commit policy's own `check-attr` names its paths as arguments,
+so the two flags tell the pass's query apart from every other start,
+and the marker file makes the hold happen once per run.
+The control waits on that pipe and releases the pass after its edit,
+so neither side is raced against a clock.
+Two details make the wait clockless:
+a pipe held at both ends waits for nothing to be opened and never reads the end of its input,
+and a control still waiting when the command ends is woken by the command's own end,
+so a pass that never reaches the query fails the control with its reason instead of hanging it.
+The supervisor's idle rule is suspended for the hold itself,
+which is the test's own controlled wait.
+The controls also conflict four files instead of forty:
+the gate is what puts the edit inside the pass,
+so the count no longer buys a window.
+
+### What each control still proves, and the plants that showed it
+
+- `word_merge::an_edit_made_while_the_pass_merges_is_not_replaced`:
+the edit's bytes survive and the line names the path the pass left.
+Planted by reading the worktree baseline at install time instead of when the conflicts were read
+(`stillness` in `merge_second_pass_worktree_unchanged.rs`),
+as it was before the guard:
+the control failed at 4.160 s with
+"assertion `left == right` failed:
+the other command's bytes survive",
+left holding the merged file's bytes and right the resolution's.
+Restored,
+and it passes.
+- `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`:
+a resolution of the same length whose modification time was put back survives.
+Planted by comparing lengths instead of bytes in `stillness`,
+which is the defect the bytes replaced:
+the control failed at 10.739 s with "the other command's bytes survive" as its words,
+and the 'R'-filled file gone.
+Restored,
+and it passes.
+
+### What this change ran
+
+- `//package/git-policy/cli:native:test:host -- word_merge merge_second_pass`:
+57 of 57 passed in 1.987 s.
+- `//package/git-policy/cli:native:test:binary:host -- word_merge merge_second_pass`:
+39 of 39 passed in 23.251 s,
+with the pair at 1.186 s and 1.224 s
+under a load average of 148 on 8 CPUs.
+- `//package/git-policy/cli:native:clippy` clean on every target.
+- `//package/git-policy/cli:lint:monochromatic-lint`:
+nothing in the files this branch touched.
+The run still fails on eleven errors and eight warnings in files this branch does not touch
+(`landing/service_commit.rs` and `testing/test_support.rs` over 300 code lines,
+the rest `markdown/semantic-line-breaks` and `rust/avoidable-closure`),
+which stand at `283d7d9053` too.
+- Not run:
+the whole `native:test:host` suite,
+the container gate,
+`native:perf` and any mutation campaign (paused by the owner).
 
 ## Limits
 
