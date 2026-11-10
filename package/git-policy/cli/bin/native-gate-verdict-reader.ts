@@ -152,6 +152,12 @@ export async function readGateLog(logPath: string): Promise<string> {
 }
 
 /**
+ How many of a log's last lines a person sees when no verdict arrived, which is what the scratch wait scripts printed: enough
+ for one failure and the line under it.
+ */
+export const noVerdictTailLines = 30;
+
+/**
  What one wait for a verdict found.
  */
 export type VerdictOutcome =
@@ -169,21 +175,65 @@ export type VerdictOutcome =
     /**
      Marks a wait that ended without a verdict.
      */
-      readonly kind: 'none'
+      readonly kind: 'none';
+    /**
+     What ended the wait: the deadline, or a unit that stopped without writing one.
+     */
+      readonly reason: 'deadline' | 'unit-ended';
+    /**
+     The log's last lines, which say how far the run got.
+     */
+      readonly tail: readonly string[]
     };
+
+/**
+ The last lines of one log.
+
+ @param text - the log's text
+
+ @param count - how many of its last lines to keep
+
+ @returns the last `count` lines, without the empty text a trailing newline leaves
+
+ @example
+ ```ts
+ tailLinesOf({ text: 'a\nb\n', count: 1 });
+ ```
+ */
+export function tailLinesOf({
+  text,
+  count,
+}: {
+  readonly text: string;
+  readonly count: number;
+}): readonly string[] {
+  /**
+   The log's lines, without the empty text a trailing newline leaves behind.
+   */
+  const lines = text.split('\n');
+  return ((lines.at(-1) === '') ? lines.slice(
+    0,
+    -1
+  ) : lines).slice(-count);
+}
 
 /**
  Waits, bounded, for a gate log to hold a verdict.
 
  The log is read once before the first interval passes, so a verdict that is already there answers at once, and the wait
  never outlasts the deadline: the last interval is shortened to what is left, and a deadline that has already passed is
- one look and no sleep.
+ one look and no sleep. A unit the caller names ends the wait as well, so a gate that died before writing its verdict is
+ reported as soon as systemd sees it stop rather than at the end of the deadline.
 
  @param logPath - absolute path of the gate's log
+
+ @param marker - the text the log has to carry, which is the gate's exit-status line by default
 
  @param deadlineMilliseconds - how long this may wait, counted from its own start
 
  @param pollMilliseconds - milliseconds between two looks, which the deadline shortens
+
+ @param stillRunning - asks whether the gate unit still runs; absent, only the marker or the deadline ends the wait
 
  @param readLog - reads the log, which a test replaces with its own stand-in
 
@@ -191,24 +241,28 @@ export type VerdictOutcome =
 
  @param now - reads the clock, which a test replaces with its own
 
- @returns the verdict lines, or none when the deadline passed without one
+ @returns the verdict lines, or the reason no verdict came and the log's last lines
 
  @example
  ```ts
- await waitForGateVerdict({ logPath: '/l/gate.log', deadlineMilliseconds: 1_800_000, pollMilliseconds: 20_000 });
+ await waitForGateVerdict({ logPath: '/l/gate.log', marker: 'gate-exit-status=', deadlineMilliseconds: 1_800_000, pollMilliseconds: 20_000 });
  ```
  */
 export async function waitForGateVerdict({
   logPath,
+  marker = gateExitStatusMarker,
   deadlineMilliseconds,
   pollMilliseconds,
+  stillRunning,
   readLog = readGateLog,
   wait = waitUntil,
   now = Date.now,
 }: {
   readonly logPath: string;
+  readonly marker?: string;
   readonly deadlineMilliseconds: number;
   readonly pollMilliseconds: number;
+  readonly stillRunning?: () => Promise<boolean>;
   readonly readLog?: (logPath: string) => Promise<string>;
   readonly wait?: (milliseconds: number) => Promise<undefined>;
   readonly now?: () => number;
@@ -223,7 +277,7 @@ export async function waitForGateVerdict({
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- sequential polling must read the log before it sleeps again
     const text = await readLog(logPath);
-    if (text.includes(gateExitStatusMarker))
+    if (text.includes(marker))
       return {
         kind: 'verdict',
         lines: verdictLinesOf({ text, }),
@@ -233,7 +287,28 @@ export async function waitForGateVerdict({
      */
     const left = deadline - now();
     if (left <= 0)
-      return { kind: 'none', };
+      return {
+        kind: 'none',
+        reason: 'deadline',
+        tail: tailLinesOf({
+          text,
+          count: noVerdictTailLines,
+        }),
+      };
+    /**
+     Whether the gate unit still runs, which is true when the caller named none.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the unit has to be asked between two reads, and its answer decides the next step
+    const running = (stillRunning === undefined) ? true : await stillRunning();
+    if (!running)
+      return {
+        kind: 'none',
+        reason: 'unit-ended',
+        tail: tailLinesOf({
+          text,
+          count: noVerdictTailLines,
+        }),
+      };
     // oxlint-disable-next-line eslint/no-await-in-loop -- sequential polling must delay between two reads
     await wait(Math.min(
       pollMilliseconds,

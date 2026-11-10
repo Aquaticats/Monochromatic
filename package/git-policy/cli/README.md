@@ -4245,6 +4245,14 @@ mise run //package/git-policy/cli:native:test:container
   which split a slow sample into its phases.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
+  `native:lock:check` asks cargo whether every manifest the gate builds still resolves against its own lockfile
+  (`bin/native-lock-check.ts`,
+  replacing the scratch scripts `locked-check.ts` and `lock-refresh.ts`).
+  It prints one line per manifest with cargo's status,
+  the directory and cargo's first error,
+  and `--refresh` first re-resolves only the entries a raised floor made unsatisfiable,
+  which writes a lockfile before it checks again.
+  It exits nonzero when any locked check failed.
 
 A release build of the executable:
 
@@ -4335,6 +4343,18 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   `--poll-milliseconds` sets the interval between two looks
   (default 20 seconds,
   shortened to what the deadline leaves).
+  A wider caller can name what ends the wait and what it prints then:
+  `--marker <text>` waits for another line than the exit status
+  (the older waits spelled their own markers,
+  `exit=`,
+  a nextest tag or a sentence),
+  `--unit <name>` ends the wait as soon as systemd reports that unit stopped,
+  so a gate that died is reported at once instead of at the end of the deadline,
+  and `--tail-lines <count>` sets how many of the log's last lines a wait without a verdict prints
+  (30 by default,
+  none with 0).
+  A wait that ends without a verdict names its reason,
+  `no verdict in <log> within <n> s` or `unit <name> stopped without a verdict in <log>`.
 
 ### Lint
 

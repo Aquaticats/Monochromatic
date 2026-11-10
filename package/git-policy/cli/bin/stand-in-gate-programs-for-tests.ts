@@ -43,6 +43,11 @@ export const standInDirectoryVariable = 'GATE_STAND_IN_DIR';
 export const standInFailureVariable = 'GATE_STAND_IN_FAIL';
 
 /**
+ Environment variable that names the `ActiveState` the stand-in `systemctl` reports.
+ */
+export const standInUnitStateVariable = 'GATE_STAND_IN_UNIT_STATE';
+
+/**
  The stand-in `systemd-run`: records its arguments as one JSON array per line, then fails when the fixture asked for a
  refused start and names the unit it would have started otherwise.
  */
@@ -61,6 +66,14 @@ process.stdout.write('Running as unit: ' + unit + '.service\\n');
 `;
 
 /**
+ The stand-in `systemctl`: answers `show --property=ActiveState` with the state the fixture was made for, so a test can
+ watch a wait end because the unit stopped without asking systemd about a unit of this machine.
+ */
+const standInSystemctlProgram = `#!/usr/bin/env node
+process.stdout.write('ActiveState=' + (process.env.${standInUnitStateVariable} ?? 'inactive') + '\\nInvocationID=stand-in\\n');
+`;
+
+/**
  Fixture holding the stand-in program and the environment that puts it first on `PATH`.
  */
 export type GateStandIn = AsyncDisposable & {
@@ -75,16 +88,19 @@ export type GateStandIn = AsyncDisposable & {
 };
 
 /**
- Create the stand-in program of one fixture.
+ Create the stand-in programs of one fixture.
+
+ @param unitState - the `ActiveState` the stand-in `systemctl` reports; none is written when it is absent, so a test that
+   asks about no unit gets no answer
 
  @returns the fixture; declare it with `await using`
 
  @example
  ```ts
- await using standIn = await createGateStandIn();
+ await using standIn = await createGateStandIn({ unitState: 'inactive' });
  ```
  */
-export async function createGateStandIn(): Promise<GateStandIn> {
+export async function createGateStandIn({ unitState }: { readonly unitState?: string; } = {}): Promise<GateStandIn> {
   await mkdir(
     scratchParent,
     {
@@ -118,6 +134,15 @@ export async function createGateStandIn(): Promise<GateStandIn> {
     standInSystemdRunProgram,
     { mode: ownerOnlyMode, },
   );
+  if (unitState !== undefined)
+    await writeFile(
+      join(
+        programs,
+        'systemctl',
+      ),
+      standInSystemctlProgram,
+      { mode: ownerOnlyMode, },
+    );
   return {
     directory,
     environment: {
@@ -126,6 +151,7 @@ export async function createGateStandIn(): Promise<GateStandIn> {
         .PATH
         ?? ''}`,
       [standInDirectoryVariable]: directory,
+      ...(unitState === undefined ? {} : { [standInUnitStateVariable]: unitState }),
     } as Readonly<Record<string, string>>,
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(

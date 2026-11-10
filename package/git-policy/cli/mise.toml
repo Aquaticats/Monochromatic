@@ -73,6 +73,10 @@ description = "Wait, bounded, for a gate log's verdict line and print it with ne
 # The promoted `~/temp/agent/gate/wait-for-gate-verdict.ts`.
 run = "node bin/native-gate-verdict.ts"
 
+[tasks."native:lock:check"]
+description = "Ask cargo whether every manifest the gate builds still resolves against its own lockfile, and print one line per manifest with the status, the directory and cargo's first error: `-- [--checkout <path>] [--refresh] [<directory>...]`. `--refresh` re-resolves the locked entries first, which writes a lockfile, and prints both answers; the exit status is nonzero when any locked check failed. Replaces the scratch scripts `locked-check.ts` and `lock-refresh.ts`"
+run = "node bin/native-lock-check.ts"
+
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
 run = "cargo build --locked --offline --bin monochromatic-git-policy-cli"

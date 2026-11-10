@@ -8,6 +8,7 @@
  */
 import {
   parseArgs,
+  type ParseArgsOptionDescriptor,
   type ParseArgsOptionsConfig,
 } from 'node:util';
 
@@ -174,9 +175,11 @@ function isParseArgsError({ error }: { readonly error: unknown; }): boolean {
 
  @param argv - the arguments after the script path
 
- @param knownOptions - every option this command takes, each of which takes one value
+ @param knownOptions - every option this command takes that takes one value
 
- @returns the values by flag and the positionals
+ @param flagOptions - the options that take no value, whose presence alone is the answer
+
+ @returns the values by flag, a flag's own value being `true`, and the positionals
 
  @throws NativeGateError when an option is unknown, has no value, or is given twice
 
@@ -188,9 +191,11 @@ function isParseArgsError({ error }: { readonly error: unknown; }): boolean {
 export function gateOptions({
   argv,
   knownOptions,
+  flagOptions = [],
 }: {
   readonly argv: readonly string[];
   readonly knownOptions: readonly string[];
+  readonly flagOptions?: readonly string[];
 }): GateOptions {
   /**
    The flags given more than once, which a parse would silently resolve.
@@ -202,14 +207,36 @@ export function gateOptions({
   if (repeated.length > 0)
     throw new NativeGateError(`${repeated.join(', ')} is given twice, so which of the two values names the gate is unknown.`);
   /**
-   What `parseArgs` is told each option is: one value, never a boolean, so a flag always needs its value.
+   Every option this command takes, which a refusal lists.
    */
-  const specs: ParseArgsOptionsConfig = Object.fromEntries(knownOptions.map(function spec(flag) {
-    return [
-      flag.slice('--'.length),
-      { type: 'string', },
-    ];
-  }));
+  const everyOption = [
+    ...knownOptions,
+    ...flagOptions,
+  ];
+  /**
+   What `parseArgs` is told each option is: one value, or none at all for a flag, named without the dashes it is typed with.
+   */
+  const entries: readonly (readonly [
+    string,
+    ParseArgsOptionDescriptor
+  ])[] = [
+    ...knownOptions.map(function valueSpec(flag) {
+      return [
+        flag.slice('--'.length),
+        { type: 'string', },
+      ] as const;
+    }),
+    ...flagOptions.map(function flagSpec(flag) {
+      return [
+        flag.slice('--'.length),
+        { type: 'boolean', },
+      ] as const;
+    }),
+  ];
+  /**
+   The option table `parseArgs` takes.
+   */
+  const specs: ParseArgsOptionsConfig = Object.fromEntries(entries);
   try {
     /**
      The parsed command line, which the standard library splits at a `--` and refuses a flag it was not given.
@@ -235,7 +262,7 @@ export function gateOptions({
     if (!isParseArgsError({ error, }))
       throw error;
     throw new NativeGateError(
-      `${caughtValueText(error)} This command takes ${knownOptions.length === 0 ? 'no options' : knownOptions.join(', ')}, and everything after -- is a positional argument.`,
+      `${caughtValueText(error)} This command takes ${everyOption.length === 0 ? 'no options' : everyOption.join(', ')}, and everything after -- is a positional argument.`,
       { cause: error, }
     );
   }

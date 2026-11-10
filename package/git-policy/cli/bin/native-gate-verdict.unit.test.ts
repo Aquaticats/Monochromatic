@@ -9,11 +9,16 @@ import {
 
 import { NativeGateError } from './native-gate-error.ts';
 import { runGateCommand } from './native-gate-run.ts';
-import { createGateScratchDirectory } from './stand-in-gate-programs-for-tests.ts';
+import {
+  createGateScratchDirectory,
+  createGateStandIn,
+} from './stand-in-gate-programs-for-tests.ts';
 import { gateExitStatusMarker } from './native-gate-unit.ts';
 import {
   defaultVerdictPollMilliseconds,
+  noVerdictTailLines,
   readGateLog,
+  tailLinesOf,
   verdictLineLimit,
   verdictLinesOf,
   waitForGateVerdict,
@@ -293,6 +298,70 @@ await describe({
       },
     }),
     it({
+      name: 'keeps the last lines of a log for a wait that ends without a verdict, without the text a trailing newline leaves',
+      fn: async () => {
+        expect(tailLinesOf({
+          text: 'one\ntwo\nthree\n',
+          count: 2,
+        }),).toEqual([
+          'two',
+          'three',
+        ],);
+        expect(tailLinesOf({
+          text: '',
+          count: 3,
+        }),).toEqual([],);
+      },
+    }),
+    it({
+      name: 'ends the wait at the text the caller names instead of the exit-status line',
+      fn: async () => {
+        /**
+         What the wait found in a log whose own last line is another one.
+         */
+        const outcome = await waitForGateVerdict({
+          logPath: '/l/gate.log',
+          marker: 'Compiling monochromatic-git-policy-cli',
+          deadlineMilliseconds: 60_000,
+          pollMilliseconds: defaultVerdictPollMilliseconds,
+          readLog: async function compiling() {
+            return 'Compiling monochromatic-git-policy-cli\n';
+          },
+          wait: async function noSleep() {
+            throw new Error('the marker is there, so nothing sleeps');
+          },
+        });
+        expect(outcome.kind,).toBe('verdict',);
+      },
+    }),
+    it({
+      name: 'ends the wait when the unit the caller names stopped, keeping the log tail it left',
+      fn: async () => {
+        /**
+         What the wait found for a gate that died before writing its verdict.
+         */
+        const outcome = await waitForGateVerdict({
+          logPath: '/l/gate.log',
+          deadlineMilliseconds: 60_000,
+          pollMilliseconds: defaultVerdictPollMilliseconds,
+          readLog: async function unfinished() {
+            return unfinishedLog();
+          },
+          stillRunning: async function stopped() {
+            return false;
+          },
+          wait: async function noSleep() {
+            throw new Error('a stopped unit ends the wait before it sleeps');
+          },
+        });
+        expect(outcome.kind,).toBe('none',);
+        if (outcome.kind !== 'none')
+          return;
+        expect(outcome.reason,).toBe('unit-ended',);
+        expect(outcome.tail,).toContain('Running as unit: gpc-gate-a-20261110T180203-0500.service',);
+      },
+    }),
+    it({
       name: 'prints the verdict of a finished gate and exits zero, whatever the gate\'s own status was',
       fn: async () => {
         await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-gate-verdict-', });
@@ -390,6 +459,140 @@ await describe({
         const printed = await verdict({ args: ['/l/gate.log', '0', 'stray',], });
         expect(printed.status,).toBe(1,);
         expect(printed.stderr,).toContain('takes one log path and one deadline',);
+      },
+    }),
+    it({
+      name: 'ends a wait on the text a wider caller names, which is how the older waits were spelled',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-gate-verdict-', });
+        /**
+         The log's path.
+         */
+        const logPath = join(
+          scratch.path,
+          'gate.log',
+        );
+        await writeFile(
+          logPath,
+          'exit=0\nsome other line\n',
+        );
+        /**
+         How the command ended.
+         */
+        const printed = await verdict({ args: [
+          '--marker',
+          'exit=0',
+          logPath,
+          '0',
+        ], });
+        expect(printed.status,).toBe(0,);
+      },
+    }),
+    it({
+      name: 'prints the log tail of a wait that ends without a verdict, and none when the caller asks for none',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-gate-verdict-', });
+        /**
+         The log's path.
+         */
+        const logPath = join(
+          scratch.path,
+          'gate.log',
+        );
+        await writeFile(
+          logPath,
+          'first line\nsecond line\nthird line\n',
+        );
+        /**
+         How the command ended with a tail of one line.
+         */
+        const printed = await verdict({ args: [
+          '--tail-lines',
+          '1',
+          logPath,
+          '0',
+        ], });
+        expect(printed.status,).toBe(1,);
+        expect(printed.stdout,).toContain('third line',);
+        expect(printed.stdout,).not.toContain('second line',);
+        /**
+         How the command ended with no tail at all.
+         */
+        const quiet = await verdict({ args: [
+          '--tail-lines',
+          '0',
+          logPath,
+          '0',
+        ], });
+        expect(quiet.stdout,).not.toContain('third line',);
+      },
+    }),
+    it({
+      name: 'reports a run that died before writing its verdict as soon as its unit stops',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-gate-verdict-', });
+        await using standIn = await createGateStandIn({ unitState: 'inactive', });
+        /**
+         The log's path.
+         */
+        const logPath = join(
+          scratch.path,
+          'gate.log',
+        );
+        await writeFile(
+          logPath,
+          unfinishedLog(),
+        );
+        /**
+         How the command ended.
+         */
+        const printed = await runGateCommand({
+          program: process.execPath,
+          args: [
+            verdictPath,
+            '--unit',
+            'gpc-gate-a-20261110T180203-0500',
+            logPath,
+            '60',
+          ],
+          deadlineMilliseconds: 60_000,
+          environment: standIn.environment,
+        });
+        expect(printed.status,).toBe(1,);
+        expect(printed.stdout,).toContain('stopped without a verdict',);
+        expect(printed.stdout,).toContain('Running as unit',);
+      },
+    }),
+    it({
+      name: 'prints the whole configured tail by default, which is what a person reads when a run died early',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-gate-verdict-', });
+        /**
+         A log of more lines than the default tail.
+         */
+        const text = Array.from(
+          { length: noVerdictTailLines + 5, },
+          function line(_unused, index) {
+            return `line ${String(index + 1)}`;
+          },
+        ).join('\n');
+        /**
+         The log's path.
+         */
+        const logPath = join(
+          scratch.path,
+          'gate.log',
+        );
+        await writeFile(
+          logPath,
+          `${text}\n`,
+        );
+        /**
+         How the command ended.
+         */
+        const printed = await verdict({ args: [logPath, '0',], });
+        expect(printed.stdout,).toContain(`line ${String(noVerdictTailLines + 5)}`,);
+        expect(printed.stdout,).not.toContain('line 1\n',);
       },
     }),
   ],
