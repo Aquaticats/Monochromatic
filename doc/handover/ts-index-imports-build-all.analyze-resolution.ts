@@ -188,12 +188,24 @@ function subkeyFor(
   return rest === '' ? '.' : `.${rest}`;
 }
 
+// The character set the pattern source escapes: one member of it has to carry a
+// backslash to appear literally inside a pattern.
+const PATTERN_SYNTAX_CHARACTERS = '.*+?^${}()|[]\\';
+
+// The text with every pattern-syntax character prefixed by a backslash, so it appears
+// literally when read as pattern source. One character walk answers the same set the
+// escaping pattern named, and it keeps the value itself out of pattern source.
+function escapePatternSource(text: string): string {
+  let escaped = '';
+  for (const character of text) {
+    escaped += PATTERN_SYNTAX_CHARACTERS.includes(character) ? `\\${character}` : character;
+  }
+  return escaped;
+}
+
 // import/export-context specifier scanner (same boundary rule as the rewriter).
 const re = new RegExp(
-  `(?<![A-Za-z0-9_$])(?:from|import)\\s*\\(?\\s*['"](${SCOPE.replaceAll(
-    /[.*+?^${}()|[\]\\]/g,
-    String.raw`\$&`
-  )}[^'"]+)['"]`,
+  `(?<![A-Za-z0-9_$])(?:from|import)\\s*\\(?\\s*['"](${escapePatternSource(SCOPE)}[^'"]+)['"]`,
   'g',
 );
 
