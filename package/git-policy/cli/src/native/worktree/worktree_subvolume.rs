@@ -16,7 +16,10 @@
 //! a failure before that point (a branch that exists,
 //! a
 //!  name Git rejects) leaves the directory,
-//! so the wrapper removes the empty subvolume itself.
+//! so the wrapper removes the empty object it made itself.
+//! An empty folder inside a repository is a trap and not a harmless leftover:
+//! a Git command run in it acts on the
+//!  enclosing checkout as if that were the new worktree.
 //! A destination that is
 //!  not on btrfs,
 //! or a subvolume the kernel refuses,
@@ -219,15 +222,47 @@ pub fn reserve_destination(destination: &Path) -> Reservation {
 }
 
 /// What:
+///  What became of the empty object this command created at a destination,
+/// when it was settled after real Git returned.
+/// Why:
+///   A destination that still holds something is the one case the person has to be told about,
+/// and only
+///  the settlement knows it;
+/// a removed or absent object leaves nothing to say.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CreatedDestinationSettlement = 'removed' | 'gone' | 'holds something' | 'left alone';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreatedDestinationSettlement {
+    /// The empty object this command created was removed.
+    Removed,
+    /// Nothing stands at the path any more.
+    Gone,
+    /// The object at the path is the one this command created and it holds something,
+    /// so it stays with everything in it.
+    HoldsSomething,
+    /// The object at the path is not the one this command created,
+    /// or the path or its parent could not be read,
+    /// so nothing was removed and nothing is said.
+    LeftAlone,
+}
+
+/// What:
 ///  After Git ended,
-/// remove the created subvolume if it is still the one this process created and still empty.
-///  `rmdir` deletes an empty subvolume without the `user_subvol_rm_allowed` mount option.
+/// remove the object this command created at a destination while it is still that object and still empty.
+///  `rmdir` removes an empty btrfs subvolume without the `user_subvol_rm_allowed` mount option.
 /// Why:
 ///   Git leaves an empty destination when it failed before it started to fill it,
-/// and a leftover empty subvolume would
-///  make the next attempt at the same path look like an accepted empty directory.
+/// and a leftover empty folder
+///  inside a repository is acted on by any Git command run in it,
+/// as if the enclosing checkout were the new
+///  worktree;
+/// a leftover empty subvolume would also make the next attempt at the same path look like an accepted empty
+///  directory.
 /// A destination that holds anything
-///  is Git's result (or its late failure's) and stays,
+///  is Git's result (or its late failure's, or another program's) and stays,
 /// and so does an object that another process put at the path:
 /// the
 ///  identity recorded at creation must still be the identity of what the name leads to,
@@ -241,49 +276,57 @@ pub fn reserve_destination(destination: &Path) -> Reservation {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function settleSubvolumeDestination(made: CreatedSubvolume): Promise<void>;
+/// async function settleCreatedDestination(made: CreatedSubvolume): Promise<CreatedDestinationSettlement>;
 /// ```
-pub fn settle_subvolume_destination(created: &CreatedSubvolume) {
+pub fn settle_created_destination(created: &CreatedSubvolume) -> CreatedDestinationSettlement {
     let shown: &Path = created.path.as_path();
     let Some(expected) = created.identity else {
         debug(TAG, format!("{} was not identified when it was created; left alone", shown.display()).as_str());
-        return;
+        return CreatedDestinationSettlement::LeftAlone;
     };
     let (Some(parent_path), Some(name)) = (shown.parent(), shown.file_name()) else {
         debug(TAG, format!("{} has no parent and name; left alone", shown.display()).as_str());
-        return;
+        return CreatedDestinationSettlement::LeftAlone;
     };
     let parent: std::fs::File = match std::fs::File::open(parent_path) {
         Ok(parent) => parent,
         Err(error) => {
             debug(TAG, format!("{} cannot be settled ({error}); left alone", parent_path.display()).as_str());
-            return;
+            return CreatedDestinationSettlement::LeftAlone;
         }
     };
     let held: std::fs::File = match open_directory_at(&parent, name) {
         Ok(held) => held,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return CreatedDestinationSettlement::Gone,
         Err(error) => {
             debug(TAG, format!("{} cannot be opened ({error}); left alone", shown.display()).as_str());
-            return;
+            return CreatedDestinationSettlement::LeftAlone;
         }
     };
     if identity_of(&held).ok() != Some(expected) {
-        warn(TAG, format!("{} is not the empty subvolume this command created, so it is left in place; remove it yourself if it is not wanted", shown.display()).as_str());
-        return;
+        warn(TAG, format!("{} is not the empty object this command created, so it is left in place; remove it yourself if it is not wanted", shown.display()).as_str());
+        return CreatedDestinationSettlement::LeftAlone;
     }
     let mut listing = match std::fs::read_dir(handle_path(&held)) {
         Ok(listing) => listing,
         Err(error) => {
             debug(TAG, format!("{} cannot be listed ({error}); left alone", shown.display()).as_str());
-            return;
+            return CreatedDestinationSettlement::LeftAlone;
         }
     };
     if listing.next().is_some() {
-        return;
+        return CreatedDestinationSettlement::HoldsSomething;
     }
     match remove_at(&parent, name, true) {
-        Ok(()) => debug(TAG, format!("removed the empty subvolume {} that Git did not fill", shown.display()).as_str()),
-        Err(error) => debug(TAG, format!("could not remove the empty subvolume {} ({error})", shown.display()).as_str()),
+        Ok(()) => {
+            debug(TAG, format!("removed the empty destination {} that Git did not fill", shown.display()).as_str());
+            return CreatedDestinationSettlement::Removed;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return CreatedDestinationSettlement::Gone,
+        Err(error) => {
+            debug(TAG, format!("could not remove the empty destination {} ({error})", shown.display()).as_str());
+            return CreatedDestinationSettlement::LeftAlone;
+        }
     }
 }
 

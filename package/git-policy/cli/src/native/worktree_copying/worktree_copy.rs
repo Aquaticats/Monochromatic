@@ -49,12 +49,13 @@ use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
 use crate::worktree_copy_notices::nothing_but_a_reservation;
+use crate::worktree_copy_notices::refused_destination_written_into_notice;
 use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
 use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
-use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination};
+use crate::worktree_subvolume::{CreatedSubvolume, CreatedDestinationSettlement, Reservation, reserve_destination, settle_created_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -439,11 +440,25 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
-    // A destination this command reserved is never removed here. Its identity was captured one call after the creation,
-    // so another command may own the directory that now stands at that name; removing it would delete a reservation this
-    // command did not make. An empty directory left after a refused add is harmless: Git accepts it as a destination, and a
-    // later add fills it and copies into it.
-    let _ = made_here;
+    // A destination this command made and real Git refused is removed again while it is still the same object and still
+    // empty, so a refused add leaves no empty folder inside the enclosing checkout for a later Git command to act on as if
+    // the enclosing checkout were that worktree (the owner met four of them on 2026-11-10 with `git worktree add -b
+    // <branch> <path> main`). `rmdir` cannot remove a directory that holds anything, so a destination another program
+    // wrote into stays with everything in it, and the person is told which path this command left there. Nothing is
+    // removed while the copy failed: what stands at the path is not known then.
+    if made_here
+        && copy_failure.is_none()
+        && !git.succeeded()
+        && let Reservation::Mine(made) = &reserved
+    {
+        match settle_created_destination(made) {
+            CreatedDestinationSettlement::HoldsSomething => {
+                // The person's stream carries this line, and a closed one keeps the status Git gave.
+                let _written = stderr.write_all(refused_destination_written_into_notice(made.path.as_path()).as_bytes());
+            }
+            CreatedDestinationSettlement::Removed | CreatedDestinationSettlement::Gone | CreatedDestinationSettlement::LeftAlone => {}
+        }
+    }
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
     // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
     // was never filled, so the record stays and the next command reports it as an interrupted add.
