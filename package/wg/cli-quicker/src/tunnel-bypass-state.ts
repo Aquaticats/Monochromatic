@@ -7,7 +7,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 
-import { BypassStateError, } from './errors.ts';
+import {
+  BypassStateError,
+  isErrnoException,
+} from './errors.ts';
 import {
   bypassRuntimeDirectory,
   bypassStatePath,
@@ -23,24 +26,6 @@ import type { BypassState, } from './tunnel-bypass-types.ts';
  Sentinel representing absent state path.
  */
 export const BYPASS_STATE_ABSENT: unique symbol = Symbol('bypass state path is absent',);
-
-/**
- Narrows caught value to Node filesystem error.
- 
- @param error - Caught value.
- 
- @returns Whether value carries error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' }); // true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Reads UTF-8 path with explicit absence.

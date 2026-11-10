@@ -5,3 +5,9 @@
 //        meaningful, so the generator lives here and is imported by both.
 
 pub mod generators;
+
+/// Registers the boolean-face/attribution-face agreement unit tests (sidecar;
+///  the fuzz targets are libFuzzer harnesses and never compile it).
+#[cfg(test)]
+#[path = "is_match_matches_tests.rs"]
+mod is_match_matches_tests;

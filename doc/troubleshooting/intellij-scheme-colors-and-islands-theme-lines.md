@@ -185,10 +185,37 @@ private data object DefaultClassicThemeStrategy : DefaultThemeStrategy {
 
 So the honest floor for a theme whose parent is `Islands Dark` is the 2025.2 line,
 not 2023.3.
-Whether 2025.2 already exposes the id as a selectable theme is the one point this
-investigation could not settle without running a 2025.2 IDE:
-its files are present,
-while its default id is still `ExperimentalDark`.
+The registration is what decides that,
+because a directory of theme files is not a provider:
+branch `252` declares the provider,
+and branches `251` and `243` declare no provider with that id at all:
+
+```xml
+<!-- platform/platform-resources/src/META-INF/PlatformExtensions.xml, branch 252 -->
+<themeProvider id="Islands Dark" path="/themes/islands/ManyIslandsDark.theme.json" targetUi="islands"/>
+```
+
+[`PlatformExtensions.xml#L701`](https://github.com/JetBrains/intellij-community/blob/4f7a2fa69cf0d5ec94e7baab73ace3d2ec19a06e/platform/platform-resources/src/META-INF/PlatformExtensions.xml#L701),
+and branch `253` keeps the same entry at line 716.
+
+`targetUi="islands"` does not narrow that to Islands UI sessions.
+A parent is resolved by id across every registered provider,
+with no `targetUi` filter:
+
+```kotlin
+// platform/platform-impl/src/com/intellij/ide/ui/laf/UiThemeProviderListManager.kt, branch 252
+private fun findParentTheme(themes: Collection<LafEntry>, parentId: String?): UITheme? {
+  return if (parentId == null) null else themes.firstOrNull { it.id == parentId }?.theme?.get()?.theme
+}
+```
+
+[`UiThemeProviderListManager.kt#L180-L182`](https://github.com/JetBrains/intellij-community/blob/4f7a2fa69cf0d5ec94e7baab73ace3d2ec19a06e/platform/platform-impl/src/com/intellij/ide/ui/laf/UiThemeProviderListManager.kt#L180-L182)
+
+The same file filters the theme *chooser* by `targetUi`,
+so a plugin theme that declares none is grouped with the classic themes and shown
+under either UI.
+That is why a third-party theme can inherit `Islands Dark` on 2025.2 and still
+appear in the list of an Islands session on 2025.3.
 
 ## An earlier reading was wrong
 
@@ -219,6 +246,9 @@ reproducible with one call per line:
 # presence probe for the Islands theme directory, one release line per call
 gh api "repos/JetBrains/intellij-community/contents/platform/platform-resources/src/themes/islands?ref=251"   # 404
 gh api "repos/JetBrains/intellij-community/contents/platform/platform-resources/src/themes/islands?ref=252"   # 3 files
+# provider registration, one release line per call
+gh repo clone JetBrains/intellij-community "$HOME/temp/agent/intellij-community-252" -- --depth 1 --branch 252 --single-branch
+rg -n 'themeProvider id="Islands Dark"' "$HOME/temp/agent/intellij-community-252/platform/platform-resources/src/META-INF/PlatformExtensions.xml"
 ```
 
 Colour literals,
@@ -255,6 +285,9 @@ The plugin applies this in `package/intellij-plugin/islands-black/scheme/Islands
 
 State the theme's real floor in `since-build`,
 or provide a second theme JSON with a parent older lines do have.
+The plugin took the first:
+`META-INF/plugin.xml` declares build `252`,
+and its `README` says 2025.2+.
 Tradeoff of the first:
 users on 2023.3 through 2025.1 can no longer install the plugin,
 which is a support decision,
