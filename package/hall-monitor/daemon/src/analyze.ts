@@ -112,31 +112,53 @@ export function skipSpacesAndTabs({
 }
 
 /**
- Locates the literal verdict token after `VERDICT:` in an upper-cased line.
- 
+ Locates the literal verdict token after the first `VERDICT:` in an upper-cased text.
+
  @param upper - upper-cased LLM response
- 
+
  @returns `'PRODUCTIVE'` / `'UNPRODUCTIVE'` when present; {@link NO_VERDICT} otherwise
  */
 function findVerdictToken(upper: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' | typeof NO_VERDICT {
   /**
-   Index of the canonical `VERDICT:` literal; -1 means the line is missing.
+   Index of the first `VERDICT:` literal; -1 means the text never names one.
    */
   const idx = upper.indexOf(VERDICT_PREFIX,);
   if (idx === (-1))
     return NO_VERDICT;
-  /**
-   Cursor after `VERDICT:` and any inline whitespace; verdict word starts here.
-   */
-  const start = skipSpacesAndTabs({
-    s: upper,
+  return verdictTokenAfterPrefix({
+    line: upper,
     from: idx + VERDICT_PREFIX
       .length,
+  },);
+}
+
+/**
+ Reads the verdict word that follows the `VERDICT:` prefix ending at `from`.
+
+ @param line - upper-cased text holding the prefix
+
+ @param from - index just past the prefix
+
+ @returns `'PRODUCTIVE'` / `'UNPRODUCTIVE'` when the word follows; {@link NO_VERDICT} otherwise
+ */
+function verdictTokenAfterPrefix({
+  line,
+  from,
+}: Readonly<{
+  line: string;
+  from: number;
+}>): 'PRODUCTIVE' | 'UNPRODUCTIVE' | typeof NO_VERDICT {
+  /**
+   Cursor after the prefix and any inline whitespace; verdict word starts here.
+   */
+  const start = skipSpacesAndTabs({
+    s: line,
+    from,
   },);
   /**
    Substring beginning at `start`; checked against the longer alternative first.
    */
-  const tail = upper.slice(start,);
+  const tail = line.slice(start,);
   if (tail.startsWith('UNPRODUCTIVE',))
     return 'UNPRODUCTIVE';
   if (tail.startsWith('PRODUCTIVE',))
@@ -145,9 +167,51 @@ function findVerdictToken(upper: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' | typeo
 }
 
 /**
+ Reads the verdict from the final line that begins with the canonical prefix.
+
+ The system prompt requires the response's final line to be exactly the verdict,
+ so a response that quotes or echoes the format line is read from the verdict it
+ states last, never from the echo. Lines are walked from the end and each is
+ scanned once, so the walk is O(n) time and O(1) stack.
+
+ @param upper - upper-cased LLM response
+
+ @returns the final line's verdict; {@link NO_VERDICT} when no line begins with the prefix
+ */
+function findFinalVerdictLineToken(upper: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' | typeof NO_VERDICT {
+  /**
+   Response split into lines once, so the backward walk allocates nothing per step.
+   */
+  const lines = upper.split(
+    '\n',
+  );
+  for (const rawLine of lines.toReversed()) {
+    /**
+     Line with the padding the response may carry around it removed.
+     */
+    const line = rawLine.trim();
+    if (!line.startsWith(VERDICT_PREFIX,))
+      continue;
+    /**
+     Verdict stated by this line; an empty remainder keeps the walk going.
+     */
+    const token = verdictTokenAfterPrefix({
+      line,
+      from: VERDICT_PREFIX.length,
+    },);
+    if (token !== NO_VERDICT)
+      return token;
+  }
+  return NO_VERDICT;
+}
+
+/**
  Extracts a PRODUCTIVE or UNPRODUCTIVE verdict from the LLM response text.
- Looks for the canonical `VERDICT: ...` line first via {@link findVerdictToken},
- falls back to keyword matching.
+ Reads the final line beginning with the canonical `VERDICT:` prefix via
+ {@link findFinalVerdictLineToken}, so a response that echoes the prompt's own
+ format line is still read from the verdict it states last. A response with no
+ such line keeps the older reading of the first `VERDICT:` it mentions, and
+ otherwise falls back to keyword matching.
  
  @param result - raw LLM response text
  
@@ -165,7 +229,13 @@ export function parseVerdict(result: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' {
    */
   const upper = result.toUpperCase();
   /**
-   Parsed verdict from the canonical line; {@link NO_VERDICT} when only fallback keyword matching can apply.
+   Verdict the response's final canonical line states; {@link NO_VERDICT} when no line is canonical.
+   */
+  const finalLineVerdict = findFinalVerdictLineToken(upper,);
+  if ((typeof finalLineVerdict) === 'string')
+    return finalLineVerdict;
+  /**
+   Parsed verdict from the first canonical mention; {@link NO_VERDICT} when only fallback keyword matching can apply.
    */
   const verdict = findVerdictToken(upper,);
   if ((typeof verdict) === 'string')

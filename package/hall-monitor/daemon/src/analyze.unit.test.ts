@@ -209,6 +209,25 @@ await describe({
         },),
 
         it({
+          name: 'reads the final verdict line, not the format line the prompt quotes',
+          fn: async () => {
+            /**
+             Response that echoes the prompt's own format line before stating the verdict, the shape the
+             system prompt invites.
+             */
+            const response = [
+              'The desktop shows a code editor and a terminal.',
+              'FINAL LINE must be exactly: VERDICT: PRODUCTIVE or VERDICT: UNPRODUCTIVE',
+              '',
+              'VERDICT: UNPRODUCTIVE',
+            ].join(
+              '\n',
+            );
+            expect(parseVerdict(response,),).toBe('UNPRODUCTIVE',);
+          },
+        },),
+
+        it({
           name: 'falls back to the UNPRODUCTIVE keyword when no canonical line is present',
           fn: async () => {
             expect(parseVerdict('The user is clearly unproductive.',),).toBe('UNPRODUCTIVE',);
