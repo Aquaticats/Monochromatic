@@ -498,7 +498,6 @@ export function createConf<T extends Record<string, unknown> = Record<string, un
         /* oxlint-enable typescript/no-unsafe-type-assertion */
       }
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the implementation object satisfies Conf<T> member by member; the overload set is restated at this single factory edge because per-member overload assignability cannot be expressed on an object literal.
   } as unknown as Conf<T>;
   Object.freeze(conf,);
 
