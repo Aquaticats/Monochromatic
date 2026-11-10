@@ -252,6 +252,45 @@ await describe({
               .toThrow('ENOENT',);
           },
         },),
+        it({
+          name: 'fails at the timestamped folder when a second backup names the same moment',
+          fn: async () => {
+            await using fixture = await mkdtempDisposable(join(
+              scratchRoot(),
+              'backup-path-same-moment-',
+            ),);
+            const fixturePath = fixture.path;
+            const backupRoot = await makeBackupRoot(fixturePath,);
+            const sourcePath = join(
+              fixturePath,
+              'note.txt',
+            );
+            await writeFile(
+              sourcePath,
+              'content before the edit',
+            );
+            /**
+             The backup the first call makes, which names the moment this test
+             fixed.
+             */
+            const firstDestination = await backupPath({
+              sourcePath,
+              backupRoot,
+              now: fixedNow,
+            },);
+            expect(firstDestination,)
+              .toBeDefined();
+
+            const secondAttempt = backupPath({
+              sourcePath,
+              backupRoot,
+              now: fixedNow,
+            },);
+            await expect(secondAttempt,)
+              .rejects
+              .toHaveProperty('code', 'EEXIST',);
+          },
+        },),
       ],
     },),
     describe({
