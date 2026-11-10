@@ -36,7 +36,7 @@ and the same group is recorded three times before it as a suite-only failure who
 queued").
 The 60 seconds those controls spend is their own patience:
 each retries a refusal that changed nothing until `PATIENCE` runs out
-(`src/native/binary/binary_service_tests.rs`,
+(`package/git-policy/cli/src/native/binary/binary_service_tests.rs`,
 `run_settle_past_a_refusal`).
 
 ## What the look costs, measured as the look makes it
@@ -207,6 +207,17 @@ and with it:
 
 ```text
 Summary [   2.932s] 36 tests run: 36 passed, 6256 skipped
+```
+
+In the binary suite at its default parallelism on 2026-11-10,
+with the host's load average between 85 and 125 and four other nextest suites running beside it,
+all four settle controls passed:
+
+```text
+PASS [   9.091s] service::the_settle_command_changes_nothing_when_its_condition_cannot_be_written
+PASS [  43.280s] service::the_settle_command_finishes_a_batch_the_earlier_helper_left_open
+PASS [  43.444s] service::the_settle_command_is_not_held_by_a_service_another_control_is_starting
+PASS [  67.803s] service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero
 ```
 
 ## Limits
