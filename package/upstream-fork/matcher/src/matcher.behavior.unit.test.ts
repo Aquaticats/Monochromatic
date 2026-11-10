@@ -755,7 +755,7 @@ await describe({
     },),
 
     it({
-      name: 'requires every input under allPatterns with only negations',
+      name: 'keeps the some-branch under allPatterns with only negations',
       fn: async () => {
         /**
          Only-negation patterns shared by every case below.
@@ -785,7 +785,7 @@ await describe({
           ],
           patterns,
           options,
-        },),).toBe(false,);
+        },),).toBe(true,);
         expect(isMatch({
           inputs: [
             'foo',
@@ -799,6 +799,46 @@ await describe({
           patterns,
           options,
         },),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'keeps the some-branch under allPatterns with repeated bare negations',
+      fn: async () => {
+        /**
+         Repeated bare negation patterns, the shape that shrank from the
+         differential oracle: each `!` alone excludes the empty input, so `a`
+         still matches and `some` answers true.
+         */
+        const patterns = [
+          '!',
+          '!',
+        ];
+        /**
+         All-patterns flags of the shrank case.
+         */
+        const options = {
+          caseSensitive: false,
+          allPatterns: true,
+        };
+        expect(matcher({
+          inputs: [
+            'a',
+            '',
+          ],
+          patterns,
+          options,
+        },),).toEqual([
+          'a',
+        ],);
+        expect(isMatch({
+          inputs: [
+            'a',
+            '',
+          ],
+          patterns,
+          options,
+        },),).toBe(true,);
       },
     },),
 
