@@ -440,6 +440,87 @@ It asserts that every resolved `exclude` path lands inside that consumer and tha
 only `src/retained.ts` survives in the resolved file list.
 Restoring the bare prefixes fails two of its three cases.
 
+## A package-root `task.ts` sits outside every package TS project
+
+### Problem
+
+`mise run //package/<path>:lint` prints one warning on a tree where every check
+passes,
+followed by a stack trace:
+
+```text
+[warn] [preference] semantic evidence unavailable for <package>/task.ts: project-not-found:
+ SemanticBridgeError: TypeScript found no configured project for <package>/task.ts.
+```
+
+The message comes from `prefer-readonly-parameter-type`,
+whose `Program` visitor
+catches `SemanticBridgeError` and logs instead of reporting a finding
+(`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/readonly-rule-visitor.ts`).
+`Found 0 warnings and 0 errors.` with exit code 0 next to that warning is a clean
+run,
+a fact `doc/troubleshooting/oxlint-semantic-bridge-channel-eof.md` uses as its
+control measurement.
+
+### Root cause
+
+The preset `package/config/typescript/tsconfig.options.json` includes
+`${configDir}/src/**/*.ts`,
+ `${configDir}/*.config.ts`,
+ and the Astro leftovers,
+so a package-root `task.ts` belongs to no project,
+and 170 package folders tracked one at commit `9f42989137`.
+A `task.ts` mirrors that package's `mise.toml` and takes its shape from the
+monorepo task package by relative path:
+
+```ts
+import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
+
+export default {
+  'build': { extends: 'build', },
+} satisfies PackageTaskFile;
+```
+
+### Solution
+
+Leave `task.ts` out of the project and read the warning as expected.
+Adding `${configDir}/task.ts` to the preset's `include` looks like the fix and
+breaks every package whose `task.ts` carries that import,
+because the import reaches source outside the package's `rootDir`:
+
+```text
+task.ts(7,39): error TS6059: File '<root>/package/monorepo-task/cli/src/types.ts' is not under
+ 'rootDir' '<root>/package/fs-path/core'. 'rootDir' is expected to contain all source files.
+task.ts(7,39): error TS6307: File '<root>/package/monorepo-task/cli/src/types.ts' is not listed within the
+ file list of project '<root>/package/fs-path/core/tsconfig.json'.
+```
+
+### Verification
+
+On the 2026-11-10T04:45 tree
+(`9f42989137`),
+`mise run //package/<path>:lint:types` over ten packages returned exit code 0 for
+the five that passed without the probe
+(`package/claude-code-plugin/bash-output-filter`,
+ `package/fs-path/core`,
+ `package/linter/monochromatic-lint`,
+ `package/logger/core.fuzz`,
+ and `package/toml-edit/core`),
+and exit code 1 for the five that already failed without it
+(`package/ide/app`,
+ `package/terminal/app`,
+ `package/config/pnpr`,
+ `package/forbidden-strings/cli`,
+ `package/music-player/desktop-app`).
+With `${configDir}/task.ts` added to the preset,
+`package/fs-path/core`,
+`package/logger/core.fuzz`,
+ and `package/toml-edit/core`
+moved from exit code 0 to exit code 1 with the two codes above,
+and `package/claude-code-plugin/bash-output-filter` stayed at exit code 0,
+whose `task.ts` declares no import.
+Reverting the preset returns every package to its earlier result.
+
 ## Narrowing not preserved inside function declarations
 
 ### Problem
