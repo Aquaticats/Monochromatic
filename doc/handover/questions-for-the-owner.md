@@ -850,6 +850,20 @@ Please also say whether `lint:sidecar-locks` should stay separate once A makes t
 and whether `toml-edit-fuzz.yml` and `logger-fuzz.yml` should gain the same check for their sidecars,
 which have the same second lockfile.
 
+Second instance,
+found 2026-11-10T02:35:00-05:00 on `main` at `26e81489710d`:
+`package/linter/monochromatic-lint.fuzz` did not compile either.
+Its `src/orchestration.rs` builds `FilePlan` and `Fix` literals,
+and the runtime crate had since added the `fix_scope` and `class` fields,
+so `cargo check --lib` and its own `lint:types` failed with two E0063 errors.
+That sidecar does define `lint:types`,
+but it has no aggregate `lint` task,
+so no branch CI task and no package lint sweeps it:
+the defect is the same gap the question describes,
+not a missing task.
+Branch `fix/fuzz-sidecar-lint-on-main` fixes both literals (`c63423245d`),
+which shows A would have caught it and C would not have caught it before the merge.
+
 ### May the ignored-state rule say what a copy does with a file that never settles?, asked 2026-11-09T16:22:51-05:00
 
 `doc/decision/cli-git-policies-platform.md`,
