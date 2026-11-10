@@ -33,9 +33,10 @@ use std::path::{Path, PathBuf};
 /// The commit's scratch directory:
 /// the private indexes and Git's scratch repository,
 /// and who removes it.
-/// The resident service removes it when the connection that holds it closes,
-/// by whatever means this process ends,
-/// once the command has handed it over (`held_by_the_service`).
+/// The resident service removes it once the landing that reads it is over,
+/// when that landing put the commit on the branch (`held_by_the_service`);
+/// a request the service answered as not landed leaves the tree to this process,
+/// which reads the private index of the attempt for the rebuild and then removes it itself.
 /// A command that never handed it over,
 /// because the service refused it or because the preparation stopped where it was,
 /// removes it itself as it goes out of scope,
@@ -82,13 +83,13 @@ impl Scratch {
     ///  Records whether the service holds the directory,
     ///  so this process must not remove a held one.
     /// Why:
-    ///   The connection that carries the announcement is the service's claim on the directory,
-    ///  and it removes the directory when that connection closes,
-    ///  however this process ends.
+    ///   A landing that puts the commit on the branch is the service's claim on the directory,
+    ///  and the service removes it once that landing is over;
+    ///  every other answer leaves the directory to this process.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// scratch.heldByTheService(watch !== undefined);
+    /// scratch.heldByTheService(theServiceLandedTheCommit);
     /// ```
     pub fn held_by_the_service(&mut self, held: bool) {
         self.1 = held;

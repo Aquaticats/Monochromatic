@@ -2,6 +2,12 @@
  Shared types and helper functions for the task data-access layer.
  */
 import db from '../db.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import {
   type Task,
   type TaskComplexity,
@@ -10,6 +16,18 @@ import {
   TASK_NOT_FOUND,
 } from '../types.ts';
 import { SQL_SELECT_TASK_BY_ID, } from './tasks-sql.ts';
+
+//region Logging
+
+/**
+ Logger for this module: a stored column that is not the JSON this module wrote is reported before it is treated as empty.
+ */
+const l = tagged({
+  tag: 'done-tasks-helpers',
+  l: logger,
+},);
+
+//endregion Logging
 
 /* oxlint-disable no-restricted-syntax/no-nullish-union -- mirrors `@tursodatabase/database` `prepare().get()/.all()` raw row shape: SQLite NULL columns materialize as JS `null` on the returned row object, so the honest type for a nullable column is `T | null`; `mapTask` converts these to absent (`?:`) fields at the application boundary */
 /**
@@ -166,10 +184,7 @@ export function parseStringArray(value: string,): string[] {
   }
   catch (jsonParseError: unknown) {
     // Stored column was not valid JSON; log the cause and treat it as an empty list.
-    console.error(
-      'parseStringArray could not parse stored JSON array; using empty array:',
-      jsonParseError,
-    );
+    l.warn(`stored JSON array unreadable, so it is treated as empty: ${caughtValueText(jsonParseError,)}`,);
     return [];
   }
 }

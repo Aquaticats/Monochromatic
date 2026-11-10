@@ -43,7 +43,6 @@ use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktr
 use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
-use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
@@ -67,10 +66,12 @@ use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_
 use crate::service_messages::{ClientFailure, render};
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
-use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{HandedBackTree, NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
-use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, the_amends_tree, the_amendment_lands_as_new};
+use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, the_amends_tree};
+/// The request this attempt sends,
+/// and the message Git typed into the commit it built.
+use crate::service_commit_request_of::{RequestOf, the_request_of};
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
@@ -237,50 +238,19 @@ pub fn service_commit<F: RepositoryFacts>(
         let native: bool = !lands_as_new && (ready.needs_native || embedded.is_none());
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
-        let mut typed: Option<String> = None;
         let amendment: Option<&AmendedCommit> = if lands_as_new { amended.as_ref() } else { None };
-        let (sent, first_parent): (CommitRequest, String) = match amendment {
-            Some(fields) => {
-                // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the
-                //  single parent.
-                let (sent, parent, subject) =
-                    the_amendment_lands_as_new(fields, &ready, invocation, native_inputs, id.as_str(), arguments_after_subcommand(invocation.arguments, invocation.subcommand_index))?;
-                typed = Some(subject);
-                (sent, parent)
-            }
-            None => match embedded_in_use {
-            None => {
-                // A commit Git built before, whose editor has run and whose branch moved, is built again from the line that
-                //  rebuild was made with; every other attempt builds from the person's own line.
-                let rebuilt_arguments: Option<Vec<OsString>> = reissued_line.clone();
-                let built: GitBuilt = build_with_git(&BuildInput {
-                    context: invocation.context,
-                    cwd: invocation.cwd,
-                    capture: &native_inputs.capture,
-                    scratch: ready.scratch.0.as_path(),
-                    commit_index: native_inputs.commit_index.as_path(),
-                    arguments: rebuilt_arguments.as_deref().unwrap_or(native_inputs.arguments.as_slice()),
-                    pathspecs: native_inputs.pathspecs.as_slice(),
-                    mode: native_inputs.mode,
-                    staged_all: native_inputs.staged_all,
-                    selected_privately: native_inputs.selected_privately,
-                })?;
-                let parent: String = built.parents.first().cloned().unwrap_or_default();
-                typed = Some(built.message.clone());
-                let sent: CommitRequest = request_for_git_built(&ready, native_inputs, id.as_str(), built.commit, invocation.region.amend);
-                (sent, parent)
-            }
-            Some(made) => {
-                let sent: CommitRequest = request_for_embedded(&ready, native_inputs, id.as_str(), made, &tree);
-                // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
-                let parent: String = match made.source.as_ref() {
-                    Some(replaced) => replaced.parents.first().cloned().unwrap_or_default(),
-                    None => ready.base.clone(),
-                };
-                (sent, parent)
-            }
-            },
-        };
+        let (sent, first_parent, typed): (CommitRequest, String, Option<String>) = the_request_of(RequestOf {
+            amendment,
+            embedded_in_use,
+            tree: &tree,
+            ready: &ready,
+            invocation,
+            native_inputs,
+            // A commit Git built before, whose editor has run and whose branch moved, is built again from the line that rebuild
+            //  was made with; every other attempt builds from the person's own line.
+            reissued: reissued_line.as_ref(),
+            id: id.as_str(),
+        })?;
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
         if amended.is_none() && sent.amend {
             amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
@@ -305,8 +275,14 @@ pub fn service_commit<F: RepositoryFacts>(
         let submitted: Result<Submitted, ClientFailure> = submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit);
         // A request the service took is one whose tree the service removes once its landing is over, so this process leaves it
         //  alone; only a definite answer that the service never took the request leaves the tree to this process, which removes
-        //  it as it ends.
+        //  it as it ends. A request the service answered without landing it is released by the arm that answers it, beside this
+        //  command, once that arm has read the change it captured from the tree's private index.
         ready.scratch.held_by_the_service(!the_service_never_took(&submitted));
+        // The service answered that this attempt did not land the commit: the rebuild below captures the change from this
+        //  attempt's private index, so this is the instant a control holds to prove that index is still there to be read.
+        if matches!(submitted, Ok(Submitted::PrepareAgain { .. } | Submitted::Moved)) {
+            reach_service_phase(Phase::ServiceSentBack)?;
+        }
         match submitted {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();

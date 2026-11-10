@@ -12,10 +12,7 @@ import {
   reportVerificationDeadline,
   reportVerificationFailure,
 } from './sink-verification-reports.ts';
-import {
-  isHostDeadlineElapsed,
-  withHostTimeout,
-} from './with-host-timeout.ts';
+import { settleWithinHostTimeout, } from './with-host-timeout.ts';
 
 import type { Sink, } from './types.ts';
 
@@ -108,6 +105,9 @@ async function applyLateVerdict(
  arrives. An answer that never arrives leaves the sink undecided until the
  process ends, and its records stay bounded by the logger's buffer cap.
 
+ The deadline arrives as the wait's outcome, so a verifier that rejects with
+ text resembling a timeout is still retired as the failing backend it is.
+
  @param entryIndex - Sink entry index to verify.
 
  @param ms - Milliseconds startup waits before it stops waiting for this probe.
@@ -135,51 +135,47 @@ async function watchOneProbe(
   },
 ): Promise<void> {
   /**
-   Timeout label the deadline matcher has to reproduce exactly.
-   */
-  const label = `sink ${entryIndex} verify`;
-  /**
    The sink's own probe, started once and observed even after the deadline.
    */
   const probe = startProbe({ sink, },);
 
   try {
+    /**
+     Which side of the wait finished first: the probe, or the deadline.
+     */
+    const outcome = await settleWithinHostTimeout({
+      ms,
+      promise: probe,
+    },);
+
+    if (outcome === 'expired') {
+      reportVerificationDeadline({
+        entryIndex,
+        sink,
+        timeoutMs: ms,
+      },);
+      void applyLateVerdict({
+        entryIndex,
+        ports,
+        probe,
+        sink,
+      },);
+      return;
+    }
+
     ports.conclude({
-      available: await withHostTimeout({
-        label,
-        ms,
-        promise: probe,
-      },),
+      available: await probe,
       entryIndex,
     },);
   }
   catch (error: unknown) {
-    if (!isHostDeadlineElapsed({
+    reportVerificationFailure({
+      entryIndex,
       error,
-      label,
-      ms,
-    },)) {
-      reportVerificationFailure({
-        entryIndex,
-        error,
-        kept: ports.keptCount(),
-        sink,
-      },);
-      ports.markUnavailable({ entryIndex, },);
-      return;
-    }
-
-    reportVerificationDeadline({
-      entryIndex,
-      sink,
-      timeoutMs: ms,
-    },);
-    void applyLateVerdict({
-      entryIndex,
-      ports,
-      probe,
+      kept: ports.keptCount(),
       sink,
     },);
+    ports.markUnavailable({ entryIndex, },);
   }
 }
 

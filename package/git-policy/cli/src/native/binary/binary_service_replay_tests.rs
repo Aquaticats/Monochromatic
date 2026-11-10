@@ -128,10 +128,16 @@ fn start(scene: &Scene, message: &str, paused: bool) -> Started {
 /// Starts a wrapped commit of `path`,
 /// paused after it captured when `markers` names the directory of its markers.
 fn start_on(scene: &Scene, message: &str, path: &str, markers: Option<&Path>) -> Started {
+    return start_with_phase(scene, message, path, "service-prepared", markers);
+}
+
+/// Starts a wrapped commit of `path`,
+/// paused at `phase` when `markers` names the directory of its markers.
+fn start_with_phase(scene: &Scene, message: &str, path: &str, phase: &str, markers: Option<&Path>) -> Started {
     let mut command: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", message, "--", path]);
     command.env("XDG_RUNTIME_DIR", &scene.service.runtime).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     if let Some(directory) = markers {
-        command.env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", directory.display()));
+        command.env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", directory.display()));
     }
     let mut child: Child = command.spawn().expect("the wrapped commit starts");
     let stderr = child.stderr.take().expect("piped standard error");
@@ -455,5 +461,94 @@ fn captures_that_arrive_in_order_in_one_batch_both_land() {
     }
     assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "earlier edit"), (5, "later edit")]));
     assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-4"]), "later\nearlier\nholder\nbase\n");
+    remove_settled(&scene.fixture);
+}
+
+/// The scratch trees of the repository the scene's commits make:
+/// one directory per attempt,
+/// named after the request and the attempt,
+/// inside the repository scratch directory.
+fn scratch_trees(scene: &Scene) -> Vec<PathBuf> {
+    let directory: PathBuf = scene.repo.join(".git").join("monochromatic-git-policy-cli-scratch");
+    let Ok(entries) = std::fs::read_dir(&directory) else { return Vec::new() };
+    let mut trees: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with("monochromatic-git-policy-cli-service-") {
+            trees.push(entry.path());
+        }
+    }
+    trees.sort();
+    return trees;
+}
+
+/// The scratch tree that appeared since `before`:
+/// the one the commit that was started after that look made.
+fn the_tree_that_appeared(scene: &Scene, before: &[PathBuf]) -> PathBuf {
+    let mut appeared: Vec<PathBuf> = Vec::new();
+    for tree in scratch_trees(scene) {
+        if !before.contains(&tree) {
+            appeared.push(tree);
+        }
+    }
+    assert_eq!(
+        appeared.len(),
+        1,
+        "one attempt makes one scratch tree, and the command reads its private index after the service answered: a tree that is gone here was removed under that read: {appeared:?}"
+    );
+    return appeared.remove(0);
+}
+
+/// A commit Git built that the service answers as not landed is sent back to capture its change:
+/// the private index of the attempt it captured is still there for that read,
+/// because the service leaves a tree it answered to the command that made it,
+/// and the commit then lands on the branch as it moved.
+/// Why:
+///  The service removes the tree of an answered request beside its landing loop,
+/// and the command reads the private index of that tree after the answer;
+/// a removal in that window made the read fail with "No such file or directory",
+/// or,
+/// when only the index file was gone,
+/// rebuilt the commit from the empty tree and reported a conflict naming files the commit never changed
+/// (reproduction `r02-index-commit-fails-when-foreign-commit-moves-branch.ts`,
+/// 2026-11-09).
+#[test]
+fn a_commit_the_service_sent_back_still_has_the_private_index_of_the_attempt_it_captured() {
+    let scene: Scene = scene("replay-sent-back", true);
+    let file: PathBuf = scene.repo.join(FILE);
+    // Only the first arrival at the marker is held for the control; a commit sent back reaches it again, and goes on.
+    for number in 2..=LATER_ARRIVALS {
+        std::fs::write(scene.markers.join(format!("service-sent-back-{number}.release")), "").expect("release of a later arrival");
+    }
+    std::fs::write(scene.repo.join(OTHER), "the other edit\n").expect("the other edit");
+    std::fs::write(&file, lines_with(&[(1, "the edit")])).expect("the edit");
+    // The holder keeps the service busy on the index, so the commit under control is prepared on the tip before the holder
+    //  lands and reaches the service behind it.
+    let lock: PathBuf = scene.repo.join(".git/index.lock");
+    std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
+    let holder: Started = start_on(&scene, "holder", OTHER, None);
+    holder.waiting.recv_timeout(PATIENCE).expect("the holder waits for the index");
+    let before: Vec<PathBuf> = scratch_trees(&scene);
+    let sent_back: Started = start_with_phase(&scene, "sent back", FILE, "service-sent-back", Some(scene.markers.as_path()));
+    // The commit under control is prepared and its request is queued while the branch is still where the holder found it.
+    wait_for("the service queued the commit under control", || { return queued_requests(&scene) >= 2; });
+    std::fs::remove_file(&lock).expect("the lock is let go");
+    let reached: PathBuf = scene.markers.join("service-sent-back-1.reached");
+    wait_for("the service sent the commit back", || { return reached.exists(); });
+    let tree: PathBuf = the_tree_that_appeared(&scene, before.as_slice());
+    let index: PathBuf = tree.join("commit.index");
+    // The service removes the trees it answered beside its landing loop; a removal of this one would show up here.
+    let began: Instant = Instant::now();
+    while index.exists() && began.elapsed() < Duration::from_secs(2) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(index.exists(), "the private index of the attempt the service sent back was removed: {}", index.display());
+    std::fs::write(scene.markers.join("service-sent-back-1.release"), "").expect("release");
+    let ended: Ended = finish(sent_back);
+    assert_eq!(ended.code, Some(0), "{}", ended.stderr);
+    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "the edit")]), "the captured bytes landed on the moved branch");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "sent back\nholder\nbase\n");
+    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&[(1, "the edit")]), "the person's file is intact");
+    assert_eq!(finish(holder).code, Some(0), "the holder landed too");
     remove_settled(&scene.fixture);
 }

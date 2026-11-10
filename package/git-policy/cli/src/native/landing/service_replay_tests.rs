@@ -524,3 +524,47 @@ fn the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name() {
     assert_eq!(toplevel_of(b"/tmp/repo\r\n"), PathBuf::from("/tmp/repo"), "a carriage return and its line feed go together");
     assert_eq!(toplevel_of(b"/tmp/repo\n"), PathBuf::from("/tmp/repo"), "one line break is the terminator");
 }
+
+/// What:
+///  A capture whose private index is gone is named,
+///  and no tree is read from it.
+/// Why:
+///  `git write-tree` answers with the empty tree for an index that is gone,
+///  so a read that found nothing rebuilt the commit as a deletion of every file
+///  and reported a conflict naming paths the commit never changed
+///  (reproduction `r02-index-commit-fails-when-foreign-commit-moves-branch.ts`,
+///  `commit -a`,
+///  2026-11-09).
+#[test]
+fn a_private_index_that_is_gone_is_named_instead_of_read_as_the_empty_tree() {
+    let world: World = world("replay-captured-tree-gone");
+    let common: PathBuf = world.repo.join(".git");
+    let gone: PathBuf = world.root.join("scratch/commit.index");
+    let stop: TransactionStop = captured_tree(&world.context, world.repo.as_path(), gone.as_path(), common.join("objects").as_path())
+        .expect_err("a private index that is not there is not read");
+    let text: String = match stop {
+        TransactionStop::Message(text) => text,
+        TransactionStop::Failed { message, .. } => message,
+        TransactionStop::NativeExit(status) => panic!("a message, not Git's own exit {status}"),
+    };
+    assert!(text.contains(gone.display().to_string().as_str()), "the index is named: {text}");
+    assert!(text.contains(crate::service_messages::NOTHING_CHANGED), "nothing changed: {text}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A private index that is there is read,
+///  so the guard does not stand in the way of the retry it protects.
+/// Why:
+///  The capture is one Git run over the index the attempt wrote,
+///  and a guard that refused a real index would end every retry.
+#[test]
+fn a_private_index_that_is_there_is_read_into_the_tree_of_the_captured_change() {
+    let world: World = world("replay-captured-tree-there");
+    let common: PathBuf = world.repo.join(".git");
+    let index: PathBuf = world.root.join("scratch/commit.index");
+    std::fs::copy(common.join("index"), index.as_path()).expect("the private index of an attempt");
+    let tree: String = captured_tree(&world.context, world.repo.as_path(), index.as_path(), common.join("objects").as_path()).expect("the tree of the captured change");
+    assert_eq!(tree, git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]), "the index holds the base, so its tree is the base's");
+    remove(world.root.as_path());
+}

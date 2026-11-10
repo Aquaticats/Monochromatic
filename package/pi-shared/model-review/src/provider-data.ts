@@ -15,6 +15,10 @@ import {
 } from '@earendil-works/pi-ai';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import type { StructuredReviewMessageSnapshot, } from './types.ts';
+
+//region Types -- provider option contract carrying a forced selector
+
 /**
  Simple options carrying provider-specific forced selector.
 
@@ -32,6 +36,10 @@ type ReviewSimpleStreamOptions = Omit<SimpleStreamOptions, 'toolChoice'> & {
    */
   readonly toolChoice?: unknown;
 };
+
+//endregion Types -- provider option contract carrying a forced selector
+
+//region Isolated request values -- model, tool, and message copies the provider owns
 
 /**
  Clone model data into provider-owned arrays and records.
@@ -124,6 +132,57 @@ function isolateReviewTool(
 }
 
 /**
+ Clone caller review messages into provider-owned containers.
+ 
+ The provider request and its recorded snapshot read messages through this one
+ function, so a validation change lands once and the snapshot cannot disagree
+ with what is sent.
+
+ @param messages - caller review messages
+ 
+ @param errorPrefix - diagnostic prefix naming the rejecting boundary
+ 
+ @returns isolated user-message records
+ 
+ @throws when a message is not a user message with string content
+ 
+ @example
+ ```ts
+ cloneReviewMessages({
+   messages: context.messages,
+   errorPrefix: 'Structured review provider received unsupported',
+ });
+ ```
+ */
+function cloneReviewMessages(
+  {
+    messages,
+    errorPrefix,
+  }: ForeignBorrowed<Readonly<{
+    readonly messages: Context['messages'];
+    readonly errorPrefix: string;
+  }>>,
+): StructuredReviewMessageSnapshot[] {
+  /**
+   Isolated user-message records.
+   */
+  const clones: StructuredReviewMessageSnapshot[] = [];
+  for (const message of messages) {
+    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
+      throw new Error(
+        `${errorPrefix} ${message.role} message content`,
+      );
+    }
+    clones.push({
+      role: 'user',
+      content: message.content,
+      timestamp: message.timestamp,
+    },);
+  }
+  return clones;
+}
+
+/**
  Clone known one-message review context into provider-owned containers.
  
  @param context - final structured-review context
@@ -143,19 +202,10 @@ function isolateReviewContext(
   /**
    Isolated review messages.
    */
-  const messages: Context['messages'] = [];
-  for (const message of context.messages) {
-    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
-      throw new Error(
-        `Structured review provider received unsupported ${message.role} message content`,
-      );
-    }
-    messages.push({
-      role: 'user',
-      content: message.content,
-      timestamp: message.timestamp,
-    },);
-  }
+  const messages: Context['messages'] = cloneReviewMessages({
+    messages: context.messages,
+    errorPrefix: 'Structured review provider received unsupported',
+  },);
   /**
    Isolated structured tools.
    */
@@ -172,6 +222,10 @@ function isolateReviewContext(
     ...(tools.length === 0 ? {} : { tools, }),
   },);
 }
+
+//endregion Isolated request values -- model, tool, and message copies the provider owns
+
+//region Provider options -- neutral fields copied into fresh records
 
 /**
  Clone provider options into fresh outer records.
@@ -207,44 +261,12 @@ function isolateReviewOptions(
   /* oxlint-enable typescript/no-unsafe-type-assertion */
 }
 
-/**
- Assert model carries exact API discriminant.
- 
- @param input - selected model and expected API literal
- 
- @returns nothing
- 
- @throws when model API differs from expected literal
- 
- @example
- ```ts
- const input = { model, api: 'openai-responses' } as const;
- assertModelUsesApi(input);
- ```
- */
-function assertModelUsesApi<const TApi extends Api,>(
-  input: {
-    readonly model: ForeignBorrowed<Model<Api>>;
-    readonly api: TApi;
-  },
-): asserts input is {
-  readonly model: ForeignBorrowed<Model<TApi>>;
-  readonly api: TApi;
-} {
-  if (input.model
-    .api
-    !== input.api) {
-    throw new Error(
-      `Expected review model API ${input.api} but received ${input.model
-        .api}`,
-    );
-  }
-}
+//endregion Provider options -- neutral fields copied into fresh records
 
 export {
+  cloneReviewMessages,
   isolateReviewContext,
   isolateReviewModel,
   isolateReviewOptions,
-  assertModelUsesApi,
 };
 export type { ReviewSimpleStreamOptions, };

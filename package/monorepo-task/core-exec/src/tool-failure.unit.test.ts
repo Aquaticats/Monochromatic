@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  AnalysisCrashError,
   isCapturedSubprocessFailure,
   ToolKilledBySignalError,
   ToolNotStartedError,
@@ -87,6 +88,27 @@ await describe({
             },);
             expect(error.name,).toBe(ToolKilledBySignalError.name,);
             expect(error.message,).toBe(`[task-oxlint] oxlint terminated by signal: ${endingSignal}`,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: AnalysisCrashError.name,
+      children: [
+        it({
+          name: 'names the crash and says the run cannot say the code is clean',
+          fn: async () => {
+            const crashHeader = 'panic: runtime error: invalid memory address or nil pointer dereference';
+            const error = new AnalysisCrashError({
+              task: 'task-oxlint',
+              tool: 'oxlint',
+              detail: crashHeader,
+            },);
+            expect(error.name,).toBe(AnalysisCrashError.name,);
+            expect(error.message,).toContain('[task-oxlint] oxlint',);
+            expect(error.message,).toContain('findings are incomplete',);
+            expect(error.message,).toContain(crashHeader,);
+            expect(error.message,).toContain('cannot say the code is clean',);
           },
         },),
       ],
