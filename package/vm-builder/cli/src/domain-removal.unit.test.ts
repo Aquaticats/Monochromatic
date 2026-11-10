@@ -22,6 +22,15 @@ const DOMAIN_NAME = 'fixture-domain';
 const LIBVIRT_URI = 'qemu:///session';
 
 /**
+ Domain states `virsh domstate` prints for a domain libvirt still holds a QEMU process for, where `virsh destroy`
+ stops it.
+
+ Listed in the order of the `virshDomainState` enum of `tools/virsh-domain-monitor.c` in libvirt, so a state that moves
+ there shows up here beside its neighbours. Only one of these spellings is `running`.
+ */
+const ACTIVE_STATES = ['running', 'idle', 'paused', 'in shutdown', 'pmsuspended',];
+
+/**
  Domain states `virsh domstate` prints for a domain no QEMU process is left for, where `virsh destroy` fails with
  "domain is not running".
 
@@ -216,15 +225,15 @@ await describe({
 
         //region Stopping the domain first
 
-        it({
-          name: 'destroys a running domain before undefining it',
+        ...ACTIVE_STATES.map((state,) => it({
+          name: `destroys a domain in state '${state}' before undefining it`,
           fn: async () => {
             /**
-             Fake hypervisor holding a running domain.
+             Fake hypervisor holding a domain in the state under test.
              */
             const fake = fakeVirsh({
               defined: true,
-              state: 'running',
+              state,
             },);
             await removeFixtureDomain(fake,);
             expect(fake.subcommands(),).toEqual([
@@ -233,6 +242,26 @@ await describe({
               'destroy',
               'undefine',
             ],);
+          },
+        },)),
+        it({
+          name: 'stops instead of guessing when `domstate` prints a state it does not classify',
+          fn: async () => {
+            /**
+             Fake hypervisor printing a state spelling this package has never seen.
+             */
+            const fake = fakeVirsh({
+              defined: true,
+              state: 'suspended',
+            },);
+            /**
+             Rejection the removal is expected to raise.
+             */
+            const error = await rejectionOf(removeFixtureDomain(fake,));
+            expect(error,).toBeInstanceOf(Error,);
+            expect((error as Error).name,).toBe('UnknownDomainStateError',);
+            expect((error as Error).message,).toContain("'suspended'",);
+            expect(fake.subcommands(),).not.toContain('undefine',);
           },
         },),
         ...INACTIVE_STATES.map((state,) => it({
