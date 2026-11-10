@@ -414,7 +414,7 @@ podspec;
   320,
   space.
   cc:
-  238}) with PROT_READ -- so 'no runtime codegen / jitless' is verified against primary source,
+  238}) with PROT_READ, so 'no runtime codegen / jitless' is verified against primary source,
    not just prose.
 
 Minor citation imprecisions found (cosmetic;
@@ -505,7 +505,7 @@ h:
  correctly not cited to a repo source.
 - Sources checked:
    /tmp/agent/primjs-audit-20260612/docs/`template_interpreter.md`
-   (lines 49,61,73,82 -- handler generator writes embedded.
+   (lines 49,61,73,82: handler generator writes embedded.
   S;
    dispatch_table;
    confirmed);
@@ -524,7 +524,7 @@ h:
   podspec:
   63 (embedded.
   S in sp.
-  source_files -- confirmed);
+  source_files: confirmed);
    /tmp/agent/primjs-audit-20260612/src/gc/mem_map.
   cc:
   90-98 (mprotect wrapper at 91,
@@ -537,11 +537,11 @@ h:
    /tmp/agent/primjs-audit-20260612/docs/`wasm.md` (no JIT/executable-memory reference);
    /tmp/agent/lynx-audit-20260612/core/Lynx.
   gni:
-  62-64 (iOS default jsengine_type=jsc -- confirmed);
+  62-64 (iOS default jsengine_type=jsc, confirmed);
    /tmp/agent/lynx-audit-20260612/platform/darwin/common/lynx/public/module/LynxModule.
   h (@protocol LynxModule,
    name,
-   methodLookup -- confirmed);
+   methodLookup, confirmed);
    /tmp/agent/lynx-audit-20260612/platform/darwin/ios/lynx/module/LynxFetchModule.
   m:
   30-40 (.
@@ -551,11 +551,11 @@ h:
    /tmp/agent/lynx-audit-20260612/platform/darwin/ios/lynx/public/LynxView.
   h:
   41 (LynxView :
-   UIView -- confirmed);
+   UIView, confirmed);
    /tmp/agent/lynx-audit-20260612/platform/darwin/ios/lynx/public/ui/text/LynxTextView.
   h:
   13 (LynxTextView :
-   UIView -- confirmed);
+   UIView, confirmed);
    /tmp/agent/lynx-audit-20260612/core/shell/runtime/bts/bts_runtime.
   {h:
   56,

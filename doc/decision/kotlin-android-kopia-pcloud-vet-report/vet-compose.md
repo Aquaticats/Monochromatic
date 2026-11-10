@@ -285,7 +285,7 @@ Did that migration.
  the public template is broken on
 the latest AGP and there is no one-line escape.
 
-### 3b. Desktop JVM + runComposeUiTest  -- PASS
+### 3b. Desktop JVM + runComposeUiTest: PASS
 
 Test `shared/src/desktopTest/kotlin/AppDesktopTest.kt`:
 ```text
@@ -326,7 +326,7 @@ JUnit XML (`shared/build/test-results/desktopTest/TEST-AppDesktopTest.xml`):
 Ran headless via Skiko offscreen Surface (no Xvfb needed;
  DISPLAY was present but the runner does not use it).
 
-### 3c. Android on Pixel 6 (oriole, Android 16 / API 36)  -- PASS
+### 3c. Android on Pixel 6 (oriole, Android 16 / API 36): PASS
 
 Build:
 ```text
@@ -559,7 +559,7 @@ The technologies work,
    This single wrong import was the last thing standing between "looks broken" and "green test".
 10. Every Android assemble prints `❌ KMP Dependencies Resolution Failure` diagnostics (non-fatal;
      APK
-    still builds) — noisy and alarming.
+    still builds), noisy and alarming.
 11. Edge-to-edge is default on targetSdk 36 / Android 16:
      the app drew "Count:
      0" at y=0,

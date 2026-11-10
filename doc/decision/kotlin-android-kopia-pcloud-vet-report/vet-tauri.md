@@ -103,7 +103,7 @@ the JS side calls `window.__TAURI__.core.invoke("name", args)` (when `app.withGl
  Channels (`plugin/Channel.kt`) provide event streaming back to JS.
 `#[cfg_attr(mobile, tauri::mobile_entry_point)]` (`crates/tauri-macros/src/lib.rs:40`) is the mobile entry hook.
 
-### Rust async HTTP server (local S3 endpoint) and streaming HTTPS client (pCloud) -- cross-compiled for Android
+### Rust async HTTP server (local S3 endpoint) and streaming HTTPS client (pCloud): cross-compiled for Android
 
 This is the load-bearing technical question and it passes with direct evidence.
  A probe crate
@@ -146,7 +146,7 @@ lines for tokio 1.52.3,
  tower-http 0.6.11,
  reqwest 0.13.4).
 
-### Bundling and exec of the kopia Go binary -- the real constraint
+### Bundling and exec of the kopia Go binary: the real constraint
 
 Tauri's first-class sidecar mechanism (`externalBin`) is DESKTOP-ONLY.
  In the source,
@@ -323,7 +323,7 @@ cargo-tauri android init      # victory: Project generated successfully!
 `src-tauri/gen/android` (Gradle project,
  editable).
 
-### 3b. Build the APK (debug, aarch64) -- PASS
+### 3b. Build the APK (debug, aarch64): PASS
 
 ```text
 cargo-tauri android build --debug --apk --target aarch64
@@ -343,7 +343,7 @@ APK = 135 MB debug (unstripped debug `.so`;
  WebView `databaseEnabled`,
  `onBackPressed`).
 
-### 3c. Install, launch, confirm resumed, verify the JS<->Rust bridge, screencap -- PASS
+### 3c. Install, launch, confirm resumed, verify the JS<->Rust bridge, screencap: PASS
 
 ```text
 adb -s 1C171FDF600KWW install -r app-universal-debug.apk          -> Success
@@ -411,7 +411,7 @@ accepted a Kotlin stack (Compose MP + Ktor + OkHttp + Kotest + Jazzer) for THIS 
 that island.
  Both Compose MP and a Tauri app were independently built and run on the same Pixel 6 this session.
 
-### vs Compose Multiplatform (Kotlin/JVM) -- `/tmp/agent/vet-compose.md`
+### vs Compose Multiplatform (Kotlin/JVM): `/tmp/agent/vet-compose.md`
 
 - Repo fit:
    Compose MP is a JVM/Gradle island;
@@ -457,7 +457,7 @@ that island.
   span phone+desktop+iOS;
    that is not this app's need.
 
-### vs Slint + Rust -- (Slint is the repo's desktop UI incumbent, pinned in `mise.toml`)
+### vs Slint + Rust (Slint is the repo's desktop UI incumbent, pinned in `mise.toml`)
 
 - Repo fit:
    excellent on the backend (all-Rust,
@@ -650,18 +650,18 @@ watch item (#14994),
  being fixed.
 
 Ecosystem fit:
- local-server + HTTPS-streaming PASS — a probe of axum 0.8.9 + reqwest 0.12.28 (rustls 0.23.40 +
+ local-server + HTTPS-streaming PASS: a probe of axum 0.8.9 + reqwest 0.12.28 (rustls 0.23.40 +
 ring,
  NO OpenSSL) + hyper 1.10.1 + h2 + tokio 1.52.3 cross-compiled for aarch64-linux-android in 26s;
  streaming
 bodies fit the no-duplicate-storage constraint.
- Binary-bundling CAVEAT — Tauri's sidecar is desktop-only;
+ Binary-bundling CAVEAT: Tauri's sidecar is desktop-only;
  the
 kopia binary must be hand-shipped as `jniLibs/arm64-v8a/libkopia.so` and exec'd from `nativeLibraryDir`
 (`std::process::Command`),
  an Android-wide constraint,
  not Tauri-unique.
- Background CAVEAT — Tauri provides only
+ Background CAVEAT: Tauri provides only
 a foreground Activity;
  a Kotlin foreground Service must be hand-added to keep the server/kopia alive backgrounded.
 
