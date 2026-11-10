@@ -287,6 +287,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     root: &Path,
     git_dir: &Path,
     steps: &[Step],
+    transaction_id: &str,
     wait: LockWait,
     batch: Batch,
     out: &mut W,
@@ -330,7 +331,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
         // The private names this one path's write may not remove, because a program could still write into them.
         let mut held: Vec<PathBuf> = Vec::new();
-        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, &mut held).await {
+        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut held).await {
             Ok(found) => found,
             Err(failure) => {
                 let _ = out.write_all(

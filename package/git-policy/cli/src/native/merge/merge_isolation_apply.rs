@@ -239,7 +239,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  the branch before it runs. Their bytes are the objects the record names, so nothing of theirs is lost by it; a path written
     //  after the capture stops the clear with nothing written, and the round is made again on the newer bytes.
     if let Some(capture) = plan.carried
-        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::BeforeTheApply, &mut std::io::stderr())
+        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, transaction_id.as_str(), LockWait::BeforeTheApply, &mut std::io::stderr())
     {
         // A path holding bytes newer than the capture is the person's, so the clear wrote nothing to it, the capture goes back
         //  where it can, and the merge is made again on what the file holds now instead of being refused for a save.
@@ -291,7 +291,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     let mut report_stderr: String = String::new();
     let mut carry_finished: bool = true;
     if let Some(capture) = plan.carried {
-        match carry(&session.context, root, git_dir, changes.as_slice(), capture, landed, LockWait::WhileFinishing, &mut std::io::stderr()) {
+        match carry(&session.context, root, git_dir, changes.as_slice(), capture, landed, transaction_id.as_str(), LockWait::WhileFinishing, &mut std::io::stderr()) {
             Ok(report) => {
                 for line in report_lines(reference.as_str(), &report) {
                     report_stderr.push_str(line.as_str());

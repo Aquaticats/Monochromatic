@@ -135,7 +135,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     };
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
     //  while the file waits beside it, and would otherwise be read as someone else's.
-    put_back_stranded_takes(root, changes.as_slice(), out);
+    put_back_stranded_takes(root, place.git_dir.as_path(), changes.as_slice(), out);
     // What this worktree already holds of the merge is read once, the index first and the worktree second, before anything can
     //  refuse; every refusal after this point reports from this one reading, so no path can say nothing is installed while the
     //  index holds the merge.

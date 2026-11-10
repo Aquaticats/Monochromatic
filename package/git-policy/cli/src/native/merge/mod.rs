@@ -109,6 +109,10 @@ pub mod merge_isolation_recovery_notice;
 /// The index read the way a merge's recovery needs it.
 pub mod merge_isolation_index_reading;
 
+/// The private name a take gives a file it moves aside,
+/// and the merge record that name is tied to.
+pub mod merge_isolation_take_aside_names;
+
 /// The take of a worktree file a merge must replace or delete,
 /// and the private names it leaves behind.
 pub mod merge_isolation_take_asides;

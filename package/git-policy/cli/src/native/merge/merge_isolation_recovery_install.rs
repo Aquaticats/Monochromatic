@@ -111,6 +111,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     changes: &[Change],
     judgements: &[Judged],
     installed_before: bool,
+    transaction_id: &str,
     out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
     // Whether the index may be written now, and why not: `merge_isolation_recovery_index_lock.rs`.
@@ -138,7 +139,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
             //  anyone's to set aside; the deletions empty it before the checkout writes the file.
             continue;
         }
-        match take_aside_awaiting(place, root, change.path.as_slice(), location.as_path(), judged).await {
+        match take_aside_awaiting(place, root, change.path.as_slice(), location.as_path(), judged, transaction_id).await {
             Ok(Take::Nothing) => {}
             Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
             Ok(Take::Aside { aside, taken, expected }) => {
@@ -254,9 +255,10 @@ pub fn install_entries(
     changes: &[Change],
     judgements: &[Judged],
     installed_before: bool,
+    transaction_id: &str,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    return match run_on_runtime(install_entries_awaiting(place, root, changes, judgements, installed_before, out)) {
+    return match run_on_runtime(install_entries_awaiting(place, root, changes, judgements, installed_before, transaction_id, out)) {
         Ok(found) => found,
         // The runtime refused before anything was written, so nothing of the merge is in the checkout.
         Err(refusal) => Err(MergeRefusal { error: RecoveryError(format!("{refusal}")), began: installed_before }),

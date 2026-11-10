@@ -57,7 +57,7 @@ pub async fn complete_awaiting<W: std::io::Write + ?Sized>(
     installed_before: bool,
     out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
-    if install_entries_awaiting(place, root, changes, judgements, installed_before, out).await? == Installed::IndexHeld {
+    if install_entries_awaiting(place, root, changes, judgements, installed_before, intent.owner.transaction_id.as_str(), out).await? == Installed::IndexHeld {
         // A merge that was already installed has nothing to defer: a command that went on would read it as another session's
         //  staged work, so it is stopped and told what is there.
         if installed_before {

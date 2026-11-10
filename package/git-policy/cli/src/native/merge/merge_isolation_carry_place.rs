@@ -34,7 +34,8 @@
 
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
-use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, aside_name, may_remove_the_aside_awaiting};
+use crate::merge_isolation_take_aside_names::aside_name;
+use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, may_remove_the_aside_awaiting};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -349,8 +350,15 @@ enum Taken {
 /// ```ts
 /// async function takeJudged({ context, root, path, location, judged }): Promise<Taken>;
 /// ```
-async fn take_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Result<Taken, CarryFailure> {
-    let aside: PathBuf = aside_name(location);
+async fn take_judged_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    location: &Path,
+    judged: &JudgedFile,
+    transaction_id: &str,
+) -> Result<Taken, CarryFailure> {
+    let aside: PathBuf = aside_name(location, transaction_id);
     match rename_noreplace(location, aside.as_path()) {
         Ok(()) => {}
         // The path was freed between the judgement and the take, which is not this write to make.
@@ -387,6 +395,7 @@ async fn remove_judged_awaiting(
     path: &[u8],
     location: &Path,
     judged: &JudgedFile,
+    transaction_id: &str,
     kept: &mut Vec<PathBuf>,
 ) -> Result<Placed, CarryFailure> {
     if judged.content.is_none() {
@@ -396,7 +405,7 @@ async fn remove_judged_awaiting(
             _ => Ok(Placed::Changed { kept: None }),
         };
     }
-    return match take_judged_awaiting(context, root, path, location, judged).await? {
+    return match take_judged_awaiting(context, root, path, location, judged, transaction_id).await? {
         Taken::Aside(aside) => {
             // The entry that was judged is the one this write removes, and its bytes are in the merge's capture.
             drop_the_aside_awaiting(context, root, path, aside.as_path(), judged, kept).await?;
@@ -428,6 +437,7 @@ async fn place_bytes_awaiting(
     judged: &JudgedFile,
     bytes: &[u8],
     mode: &str,
+    transaction_id: &str,
     kept: &mut Vec<PathBuf>,
 ) -> Result<Placed, CarryFailure> {
     let private: PathBuf = match write_private(location, bytes, mode) {
@@ -445,7 +455,7 @@ async fn place_bytes_awaiting(
             Err(error) => Err(CarryFailure::Failed(format!("{} could not be made: {error}", location.display()))),
         };
     }
-    let aside: PathBuf = match take_judged_awaiting(context, root, path, location, judged).await? {
+    let aside: PathBuf = match take_judged_awaiting(context, root, path, location, judged, transaction_id).await? {
         Taken::Aside(waits) => waits,
         Taken::Changed { kept: stranded } => {
             let _left = std::fs::remove_file(private.as_path());
@@ -496,6 +506,7 @@ pub(crate) async fn place_file_awaiting(
     path: &[u8],
     judged: &JudgedFile,
     write: &FileWrite,
+    transaction_id: &str,
     kept: &mut Vec<PathBuf>,
 ) -> Result<Placed, CarryFailure> {
     // The comparisons run from the top of the worktree, where a relative directory option of the invocation does not reach:
@@ -505,8 +516,8 @@ pub(crate) async fn place_file_awaiting(
     let location: PathBuf = worktree_path(root, path);
     return match write {
         FileWrite::Leave => Ok(Placed::Nothing),
-        FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged, kept).await,
-        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(&rooted, root, path, location.as_path(), judged, bytes, mode, kept).await,
+        FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged, transaction_id, kept).await,
+        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(&rooted, root, path, location.as_path(), judged, bytes, mode, transaction_id, kept).await,
     };
 }
 
