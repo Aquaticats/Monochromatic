@@ -10,6 +10,8 @@ import type {
   Model,
 } from '@earendil-works/pi-ai';
 
+//region Scripted provider contracts
+
 /**
  Script stage notifications and observations exposed to driver.
  */
@@ -30,6 +32,10 @@ type ScriptedToolCall = {
   // Pi AI 0.87 types ToolCall.arguments as JsonObject.
   readonly arguments: JsonObject;
 };
+
+//endregion Scripted provider contracts
+
+//region Interruption tool calls
 
 /**
  Build scripted ordinary-tool batch for one interruption boundary.
@@ -96,6 +102,8 @@ function interruptionToolCalls(
     },
   ];
 }
+
+//endregion Interruption tool calls
 
 export { interruptionToolCalls, };
 export type {
