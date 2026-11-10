@@ -35,7 +35,8 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
-/// The kept path's line, and what stands at it.
+/// The kept path's line,
+/// and what stands at it.
 use crate::merge_isolation_carry_kept_path::kept_path;
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};

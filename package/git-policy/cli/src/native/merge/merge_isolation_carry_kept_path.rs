@@ -11,7 +11,8 @@
 //! "Merges and commits never fail",
 //! "Carry edits forward";
 //! the owner's rule "never discard user data").
-//!  A path whose state differs from a plain file, deleted,
+//!  A path whose state differs from a plain file,
+//! deleted,
 //! a symbolic link,
 //! a mode the word pass could not take,
 //! is
@@ -48,7 +49,8 @@ pub enum Holds {
     /// The person's own symbolic link,
     /// whose bytes are its target's text.
     Link,
-    /// Nothing: the person deleted the path,
+    /// Nothing:
+    /// the person deleted the path,
     /// and that deletion stands.
     Nothing,
 }
