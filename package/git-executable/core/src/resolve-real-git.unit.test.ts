@@ -2,11 +2,9 @@ import { execFile, } from 'node:child_process';
 import {
   chmod,
   mkdir,
-  mkdtemp,
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -24,15 +22,15 @@ import {
 import {
   RealGitNotFoundError,
   resolveRealGit,
-  type ResolveRealGitOptions,
 } from '../dist/final/node/index.mjs';
+import {
+  captureResolutionError,
+  createTempDirectory,
+  EXECUTABLE_MODE,
+  writeExecutable,
+} from './disposable-executable-fixture.ts';
 
 //region Disposable executable fixtures
-
-/**
- File mode making fixture scripts executable by owner.
- */
-const EXECUTABLE_MODE = 0o755;
 
 /**
  File mode leaving fixture readable but not executable.
@@ -98,103 +96,6 @@ node "%~dp0\..\@monochromatic-dev\git-policy-cli\dist\final\node\index.mjs" %*
 `,
   },
 ];
-
-/**
- Disposable temporary directory used by resolver tests.
- */
-type TempDirectory = {
-  readonly path: string;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- Creates disposable temporary directory for executable fixtures.
- 
- @returns Directory removed when async disposal completes.
- 
- @example
- ```ts
- await using tempDirectory = await createTempDirectory();
- ```
- */
-async function createTempDirectory(): Promise<TempDirectory> {
-  /**
-   Absolute fixture root unique to current test.
-   */
-  const path = await mkdtemp(join(
-    scratchRoot(),
-    'git-executable-',
-  ),);
-
-  return {
-    path,
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        path,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-}
-
-/**
- Writes executable fixture bytes.
- 
- @param path - Absolute fixture path.
- 
- @param content - Script or native-format bytes.
- 
- @returns Nothing after fixture becomes executable.
- 
- @example
- ```ts
- await writeExecutable({ path: '/tmp/git', content: '#!/bin/sh\n' });
- ```
- */
-async function writeExecutable({
-  path,
-  content,
-}: {
-  readonly path: string;
-  readonly content: string | Uint8Array;
-},): Promise<void> {
-  await writeFile(
-    path,
-    content,
-    { mode: EXECUTABLE_MODE, },
-  );
-  await chmod(
-    path,
-    EXECUTABLE_MODE,
-  );
-}
-
-/**
- Captures resolver rejection without promise matcher indirection.
- 
- @param options - Disposable resolver inputs expected to reject.
- 
- @returns Caught value or undefined when lookup unexpectedly resolves.
- 
- @example
- ```ts
- const caught = await captureResolutionError({ pathEnv: '/missing' });
- ```
- */
-async function captureResolutionError(
-  options: ResolveRealGitOptions,
-): Promise<unknown> {
-  try {
-    await resolveRealGit(options,);
-  }
-  catch (error) {
-    return error;
-  }
-  return undefined;
-}
 
 /**
  Resolves Git in isolated process with deadline protecting FIFO regression tests.
@@ -309,7 +210,7 @@ await describe({
     it({
       name: 'promotes PATH-exposed common Git over earlier external Git',
       fn: async function promotesCommonGit(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier ordinary PATH directory.
          */
@@ -344,7 +245,7 @@ await describe({
     it({
       name: 'skips four absent package-bin candidates before common Git',
       fn: async function skipsAbsentPackageBins(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH directory containing selected common Git fixture.
          */
@@ -376,7 +277,7 @@ await describe({
       name: 'rejects executable FIFO candidate without waiting for a writer',
       skip: process.platform === 'win32',
       fn: async function rejectsExecutableFifo(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier PATH directory containing executable FIFO candidate.
          */
@@ -417,7 +318,7 @@ await describe({
       name: 'does not inspect later unreadable candidate after common Git resolves',
       skip: process.platform === 'win32',
       fn: async function doesNotInspectLaterUnreadableCandidate(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier PATH directory containing preferred common executable.
          */
@@ -463,7 +364,7 @@ await describe({
       return it({
         name: `skips ${selfShimCase.name} and resolves later external Git`,
         fn: async function skipsSelfShim(): Promise<void> {
-          await using tempDirectory = await createTempDirectory();
+          await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
           /**
            Directory containing self-referential wrapper fixture.
            */
@@ -499,7 +400,7 @@ await describe({
     it({
       name: 'rejects padded self shim whose marker follows inspection bound',
       fn: async function rejectsPaddedSelfShim(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier PATH directory containing oversized non-native wrapper.
          */
@@ -542,7 +443,7 @@ await describe({
     it({
       name: 'skips prioritized common self shim before ordinary PATH Git',
       fn: async function skipsCommonSelfShim(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier ordinary PATH directory.
          */
@@ -577,7 +478,7 @@ await describe({
     it({
       name: 'falls back to PATH order when preferred path is not exposed',
       fn: async function fallsBackToPathOrder(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH directory containing fallback executable.
          */
@@ -598,7 +499,7 @@ await describe({
     it({
       name: 'skips non-executable candidate and selects later Git',
       fn: async function skipsNonExecutableCandidate(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier directory containing readable non-executable candidate.
          */
@@ -642,7 +543,7 @@ await describe({
     it({
       name: 'follows Windows PATHEXT and common-path identity case-insensitively',
       fn: async function followsWindowsPathExtensions(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Directory containing Windows-named executable fixtures.
          */
@@ -675,7 +576,7 @@ await describe({
     it({
       name: 'splits injected POSIX PATH on the POSIX delimiter regardless of host',
       fn: async function splitsInjectedPosixPath(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH entry that exposes no executable.
          */
@@ -702,7 +603,7 @@ await describe({
     it({
       name: 'resolves relative PATH entry against injected working directory',
       fn: async function resolvesRelativePathEntry(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Relative PATH directory under injected cwd.
          */
@@ -724,7 +625,7 @@ await describe({
     it({
       name: 'resolves empty PATH entry against injected working directory',
       fn: async function resolvesEmptyPathEntry(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Executable exposed by empty PATH entry at injected cwd.
          */
@@ -741,7 +642,7 @@ await describe({
     it({
       name: 'uses injected environment PATH when explicit path is absent',
       fn: async function usesInjectedEnvironmentPath(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Directory exposed only through injected process environment.
          */
@@ -767,7 +668,7 @@ await describe({
     it({
       name: 'shares in-flight resolution across concurrent equal calls',
       fn: async function sharesInflightResolution(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Directory containing concurrently resolved executable.
          */
@@ -792,7 +693,7 @@ await describe({
     it({
       name: 'reuses successful resolution after executable disappears',
       fn: async function reusesSuccessfulResolution(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Directory containing cache fixture.
          */
@@ -822,7 +723,7 @@ await describe({
     it({
       name: 'separates successful resolutions for changed effective candidates',
       fn: async function separatesChangedInputs(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          First candidate directory.
          */
@@ -861,7 +762,7 @@ await describe({
     it({
       name: 'evicts least-recently-used success after cache capacity',
       fn: async function evictsLeastRecentlyUsedSuccess(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Distinct PATH directories exceeding documented cache capacity.
          */
@@ -911,7 +812,7 @@ await describe({
     it({
       name: 'retries rejected resolution after executable appears',
       fn: async function retriesRejectedResolution(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Existing directory whose Git candidate initially does not exist.
          */
@@ -940,7 +841,7 @@ await describe({
     it({
       name: 'throws dedicated error when PATH exposes no usable candidate',
       fn: async function throwsDedicatedError(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Captured dedicated lookup failure.
          */
@@ -963,7 +864,7 @@ await describe({
     it({
       name: 'reports PATH order when no common platform path was promoted',
       fn: async function reportsPathOrderSelection(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH directory containing the only candidate.
          */
@@ -993,7 +894,7 @@ await describe({
     it({
       name: 'reports the promoted common platform path that wins the scan',
       fn: async function reportsPromotedSelection(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          Earlier ordinary PATH directory.
          */
@@ -1041,7 +942,7 @@ await describe({
     it({
       name: 'names a candidate rejected for exceeding the inspection bound',
       fn: async function namesOversizedCandidate(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH directory containing the only, oversized wrapper candidate.
          */
@@ -1078,7 +979,7 @@ await describe({
       name: 'names a candidate rejected for not being a regular file',
       skip: process.platform === 'win32',
       fn: async function namesNonRegularCandidate(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-', },);
         /**
          PATH directory containing the only, non-regular candidate.
          */
