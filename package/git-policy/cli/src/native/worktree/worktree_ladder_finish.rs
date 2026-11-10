@@ -90,7 +90,7 @@ impl From<PlaceError> for Ended {
 ///  leave-out made inside the worktree.
 /// Why:
 ///   The line is printed once the worktree is whole,
-/// and the trash is emptied later,
+/// and the trash is handed over and emptied later,
 /// beside the package repair,
 /// so
 ///  the two travel out of this module instead of being settled here.
@@ -120,9 +120,8 @@ struct Served {
 /// and completes the worktree
 ///  with Git's own checkout.
 /// `made` receives the identity of the stage as soon as it exists.
-/// The trash is emptied after the swap,
-///  beside the package repair of the new worktree,
-/// so the person waits for the slower of the two.
+/// The trash is handed over after the swap,
+///  and the service empties it after the command returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,11 +176,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced_outcome {
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
-    // What a snapshot of the main checkout set aside is emptied by the lifecycle once the package repair of the new worktree has
-    //  run, beside it, and never fails the add. Nothing is set aside for a linked worktree.
+    // What a snapshot of the main checkout set aside is handed to the commit service once the worktree is in place, and the add
+    //  does not wait for it. Nothing is set aside for a linked worktree.
     let mut pending: Option<PendingTrash> = None;
     if let Some(manifest) = trash {
-        pending = Some(PendingTrash { destination: plan.destination.clone(), git_dir: target.admin.clone(), manifest, quiet: plan.quiet });
+        pending = Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet });
     }
     return Ok(Served { line: target.line, placed, trash: pending });
 }
