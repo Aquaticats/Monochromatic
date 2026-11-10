@@ -225,6 +225,43 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in the question tool, recorded 2026-11-10T08:24:33-05:00
+
+### Package-local rules
+
+"Add it (Recommended)":
+`AGENTS.md` gains a rule that a rule or fact about one package goes in that package's docs.
+The rule about controls is `WFR` in `package/git-policy/cli/README.md`.
+
+### `cargo-shadow lean` and a record another user's process might hold
+
+"Keep removing and logging (Recommended)".
+
+### Replaying the wrapper's fuzz seeds in normal tests
+
+"Leave them to campaigns".
+
+## Answered in the question tool, recorded 2026-11-10T08:23:02-05:00
+
+### The rule about controls that decide from a sleep
+
+Proposed for `AGENTS.md`;
+the owner:
+"Put it in pkg local docs.
+How many times do I need to say to put things that are package-local in pkg local docs?"
+
+### An unbounded `rg` over a folder that is not a repository (issue 3474)
+
+"Cap its output (Recommended)".
+
+### `SEARCH_SHADOW_ALLOW_WIDE=1` and the refusal of piped `rg`
+
+"Keep no override".
+
+### Credential-named variables in interactive Pi sessions
+
+"Leave them as they are (Recommended)".
+
 ## Answered in the question tool, recorded 2026-11-10T08:19:14-05:00
 
 ### Packages with no license (issue 2994)

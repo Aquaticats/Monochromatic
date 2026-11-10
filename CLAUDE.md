@@ -1715,6 +1715,10 @@ DPL:
  `LICENSES/`.
 Package docs stay beside code.
 
+PLK:
+ A rule or fact about one package goes in that package's docs,
+ never `AGENTS.md` or a repo-wide doc.
+
 DL1:
  Repo-wide doc paths:
  `doc/<family>/<kebab-topic>.md`;
