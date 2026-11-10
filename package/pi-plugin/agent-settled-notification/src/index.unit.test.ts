@@ -28,6 +28,33 @@ import {
   getOnlyHandler,
 } from './test-fixtures.ts';
 
+//region Fixtures
+
+/**
+ Boundary failure whose diagnostic text cannot be read.
+ 
+ The notification wrapper builds its message from the failure it caught, so a
+ failure that refuses to describe itself breaks that construction rather than
+ the delivery, which is the state this suite needs to reach.
+ */
+class UnreadableBoundaryFailureError extends Error {
+  /**
+   Stable error classification independent of minification.
+   */
+  override readonly name = 'UnreadableBoundaryFailureError';
+
+  /**
+   Refuses the diagnostic text every wrapper reads when describing a failure.
+   
+   @throws Error naming the refusal, which is what reaches the handler
+   */
+  override get message(): string {
+    throw new Error('unreadable boundary failure',);
+  }
+}
+
+//endregion Fixtures
+
 await describe({
   name: '',
   children: [
@@ -173,14 +200,10 @@ await describe({
             /** Recording logger standing in for the module root logger. */
             const recording = createRecordingLogger();
             /**
-             Inject boundary failure whose own text conversion throws, so building the
+             Inject boundary failure whose own diagnostic text throws, so building the
              desktop-refusal error fails instead of the delivery it describes.
              */
-            const unreadable = {
-              toString: function throwOnText(): string {
-                throw new Error('unreadable boundary failure',);
-              },
-            };
+            const unreadable = new UnreadableBoundaryFailureError();
 
             registerAgentSettledNotification({
               pi: harness.api,
