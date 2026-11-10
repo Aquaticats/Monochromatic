@@ -28,6 +28,8 @@ use crate::child_environment::{
 };
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
+/// Who a real-Git start runs for: the announced query is the command the person typed.
+use crate::hooks_off::StartOwner;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
 use crate::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
@@ -448,7 +450,7 @@ fn run_announced(
     overlay: &[(OsString, OsString)],
     text: &str,
 ) -> i32 {
-    match run_real_git(real_git, arguments, overlay) {
+    match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
         Ok(outcome) => {
             write_stream(&mut std::io::stdout(), printable_after(outcome, text));
             return exit_code(outcome);

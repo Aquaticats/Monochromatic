@@ -23,6 +23,8 @@ use crate::start_retry::RetryStart;
 use crate::candidate_object::ObjectId;
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+use crate::hooks_off::StartOwner;
 /// The watch that announces a request that takes long and stops the process at the bound.
 use crate::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
 /// What:
@@ -248,7 +250,7 @@ pub fn start_object_reader_within(
     // ```ts
     // const child = spawn(realGit, args, { stdio: ['pipe', 'pipe', 'ignore'] });
     // ```
-    let started: std::io::Result<Child> = git_command(real_git, arguments.as_slice(), overlay)
+    let started: std::io::Result<Child> = git_command(real_git, arguments.as_slice(), overlay, StartOwner::Wrapper)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

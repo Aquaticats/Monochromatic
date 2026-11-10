@@ -13,6 +13,7 @@
 
 /// Import the forwarding functions under test and shared fixtures.
 use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
+use crate::hooks_off::StartOwner;
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
@@ -64,6 +65,7 @@ fn command_preserves_program_arguments_and_overlay() {
         Path::new("/opt/real git/git"),
         arguments.as_slice(),
         overlay.as_slice(),
+        StartOwner::Wrapper,
     );
     assert_eq!(command.get_program(), OsStr::new("/opt/real git/git"));
     let mut seen_arguments: Vec<OsString> = Vec::<OsString>::new();
@@ -90,7 +92,7 @@ fn command_preserves_program_arguments_and_overlay() {
     assert_eq!(marker.starter_pid, std::process::id());
     assert_eq!(marker.mode, crate::started_as_git::StartMode::Child);
     // No overlay means the child environment is exactly the inherited one plus the marker.
-    let bare: Command = git_command(Path::new("git"), &[], &[]);
+    let bare: Command = git_command(Path::new("git"), &[], &[], StartOwner::Wrapper);
     assert_eq!(bare.get_envs().count(), 1);
     assert_eq!(bare.get_envs().next().map(|(name, _value)| { return name.to_os_string(); }), Some(OsString::from(crate::started_as_git::STARTED_AS_GIT_VARIABLE)));
 }
@@ -130,6 +132,7 @@ fn run_reports_exit_codes_and_signals() {
             program.as_path(),
             &[OsString::from("a b"), OsString::new(), OsString::from("--")],
             &[(OsString::from("MARKER"), OsString::from("m v"))],
+            StartOwner::Wrapper,
         )
         .expect("child starts");
         assert_eq!(outcome, expected, "{name}");
@@ -143,7 +146,7 @@ fn run_reports_exit_codes_and_signals() {
 fn unstartable_program_is_an_error() {
     let missing: &Path = Path::new("/nonexistent-directory/git");
     assert_eq!(
-        run_real_git(missing, &[], &[])
+        run_real_git(missing, &[], &[], StartOwner::Wrapper)
             .expect_err("missing program")
             .kind(),
         std::io::ErrorKind::NotFound
@@ -234,7 +237,7 @@ fn a_run_with_a_ceiling_ends_git_and_leaves_its_helpers_running() {
     );
     executable(program.as_path(), script.as_bytes());
     let began: std::time::Instant = std::time::Instant::now();
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
     let waited: std::time::Duration = began.elapsed();
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
@@ -258,9 +261,9 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
     let root: PathBuf = fixture("forward-under-ceiling");
     let program: PathBuf = root.join("quick-git");
     executable(program.as_path(), b"#!/bin/sh\nexit 3\n");
-    assert_eq!(run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(30)).expect("it ends at once"), ChildOutcome::Exited(3));
+    assert_eq!(run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(30), StartOwner::Wrapper).expect("it ends at once"), ChildOutcome::Exited(3));
     let missing: PathBuf = root.join("no-git");
-    assert_eq!(run_real_git_until(missing.as_path(), &[], &[], std::time::Duration::from_secs(30)).expect_err("nothing to start").kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(run_real_git_until(missing.as_path(), &[], &[], std::time::Duration::from_secs(30), StartOwner::Wrapper).expect_err("nothing to start").kind(), std::io::ErrorKind::NotFound);
     remove(root.as_path());
 }
 
@@ -300,7 +303,7 @@ fn a_ceiling_whose_child_cannot_be_collected_returns_and_says_so() {
     let script: String = format!("#!/bin/sh\necho $$ > {}\nexec sleep 600\n", child_number.display());
     executable(program.as_path(), script.as_bytes());
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Left)));
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
@@ -371,7 +374,7 @@ fn a_bounded_step_keeps_the_process_group_of_this_one() {
     let program: PathBuf = root.join("printing-git");
     let script: String = format!("#!/bin/sh\nread -r line < /proc/self/stat\nset -- $line\nprintf '%s\\n' \"$5\" > {}\n", group_file.display());
     executable(program.as_path(), script.as_bytes());
-    let outcome: ChildOutcome = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect("the script ends at once");
+    let outcome: ChildOutcome = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect("the script ends at once");
     assert_eq!(outcome, ChildOutcome::Exited(0), "the script ran to its end");
     // SAFETY: `getpgrp` takes no argument and touches no memory.
     let mine: i32 = unsafe { libc::getpgrp() };
@@ -478,7 +481,7 @@ fn a_ceiling_says_what_a_caller_reading_the_stream_to_its_end_sees() {
     let script: String = format!("#!/bin/sh\nsleep 600 &\necho $! > {}\nexec sleep 600\n", helper_number.display());
     executable(program.as_path(), script.as_bytes());
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Collected)));
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
     let said: String = error.to_string();
     // The helper holds the stream open exactly as the line says, so this control ends it here.

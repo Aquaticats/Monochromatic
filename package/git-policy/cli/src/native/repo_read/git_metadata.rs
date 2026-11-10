@@ -17,6 +17,8 @@ use crate::child_class::ChildClass;
 use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+use crate::hooks_off::StartOwner;
 use crate::repo_read_hook::try_metadata;
 /// The longest a read of a check runs.
 use crate::wait_ceilings::PLUMBING_STEP_CEILING;
@@ -262,7 +264,7 @@ pub fn run_metadata_git_without_within(
     // ```ts
     // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
     // ```
-    let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    let mut command: std::process::Command = git_command(real_git, arguments, overlay, StartOwner::Wrapper);
     for name in remove {
         command.env_remove(name);
     }

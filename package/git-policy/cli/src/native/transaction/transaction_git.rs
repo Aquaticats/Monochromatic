@@ -21,6 +21,8 @@
 
 /// Building a Git child from an argument array and an overlay.
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+use crate::hooks_off::StartOwner;
 use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::class_of;
@@ -118,6 +120,7 @@ pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Comma
         context.real_git.as_path(),
         arguments.as_slice(),
         context.overlay.as_slice(),
+        StartOwner::Wrapper,
     );
     command.current_dir(request.cwd.as_path());
     for name in &request.unset {

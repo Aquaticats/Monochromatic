@@ -1,5 +1,6 @@
 //! What:
-//!  Start the real Git with every hook switched off.
+//!  Start the real Git with every hook switched off,
+//! and with Git's file-watching monitor switched off for the Git the wrapper starts for its own work.
 //! Why:
 //!  The wrapper supports no external hook program:
 //! not a traditional hook (an executable file in
@@ -12,14 +13,18 @@
 //! and `-c hook.<event>.enabled=false` for every hook event Git knows,
 //! which switches every
 //!  configured hook off whatever its name.
-//!  `core.fsmonitor` is left as configured:
-//! it is a program Git starts for its own feature,
-//! and the event switches
-//!  do not reach it (measured on Git 2.56.0,
-//! doc/planning/cli-git-no-self-invocation-dispatcher.md).
+//!  The Git the wrapper starts for its own work also carries `-c core.fsmonitor=false`
+//! (`StartOwner::Wrapper`):
+//! a Git that reads the index asks the file-watching daemon first and waits for it,
+//! for up to
+//!  `fsmonitor.startTimeout` (60 s by default),
+//! so a daemon that is starting or gone holds the step that long.
+//!  The command the person typed keeps the person's setting (`StartOwner::Person`),
+//! because forwarding a command
+//!  changes nothing about it.
 //!  They follow every global option of the caller and precede the subcommand,
 //! so no `-c` or `--config-env` of the caller
-//!  can switch a hook or the hooks path back on.
+//!  can switch a hook, the hooks path or the monitor back on.
 //!  The options are part of the argument vector,
 //! so they add no system call and no process start.
 //!  The wrapper injects no hook of its own,
@@ -27,7 +32,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! spawn(realGit, ['-c', `core.hooksPath=${NO_HOOKS_DIRECTORY}`, ...HOOK_EVENTS.flatMap((e) => ['-c', `hook.${e}.enabled=false`]), ...args]);
+//! spawn(realGit, ['-c', `core.hooksPath=${NO_HOOKS_DIRECTORY}`, ...(owner === 'wrapper' ? ['-c', 'core.fsmonitor=false'] : []), ...HOOK_EVENTS.flatMap((e) => ['-c', `hook.${e}.enabled=false`]), ...args]);
 //! ```
 
 /// The global-option parser,
@@ -45,6 +50,34 @@ use std::process::Command;
 /// which is a device,
 /// so nothing can create it.
 pub const NO_HOOKS_DIRECTORY: &str = "/dev/null/cli-git-no-hooks";
+
+/// The `core.fsmonitor` setting every start of the wrapper's own Git carries.
+///  Git's file-watching daemon registers a watch on every directory before it answers,
+/// and a Git that reads the index
+///  waits for it for up to `fsmonitor.startTimeout`,
+/// so a commit step must not depend on the daemon being there or starting.
+pub const MONITOR_OFF_SETTING: &str = "core.fsmonitor=false";
+
+/// Whose Git a start runs.
+///  The two owners get the same hooks-off prefix and differ in one setting:
+/// whether Git's file-watching monitor
+///  is left to the person's configuration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StartOwner {
+    /// Git the wrapper starts for its own work:
+    /// the commit's index builds and trees,
+    /// `read-tree`,
+    /// `diff-tree`,
+    /// `reset`,
+    /// the scratch commit,
+    /// the landing and service steps,
+    /// and queries.
+    Wrapper,
+    /// The command the person typed,
+    /// which the wrapper forwards and changes nothing about:
+    /// the person's `core.fsmonitor` stays.
+    Person,
+}
 
 /// Every hook event of Git 2.56.0 (`githooks(5)`),
 /// server-side events included.
@@ -151,13 +184,16 @@ pub fn activate() {
 
 /// What:
 ///  The arguments a real-Git start gets,
-/// with the hooks-off options in front of the subcommand.
+/// with the options in front of the subcommand:
+/// the hooks path and the event switches always,
+/// and the monitor switch for `StartOwner::Wrapper`.
 /// Why:
 ///   The options follow every global option of the caller (`-c`,
 /// `--config-env`,
 /// `--git-dir`),
 /// so a caller cannot
-///  switch a hook event or the hooks path back on,
+///  switch a hook event,
+/// the hooks path or the monitor back on,
 /// and they precede the subcommand,
 /// so they apply to it.
 ///  A configuration query gets none,
@@ -169,9 +205,9 @@ pub fn activate() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...args.slice(0, layout.prefixLen), ...hooksOffOptions, ...args.slice(layout.prefixLen)]
+/// [...args.slice(0, layout.prefixLen), ...hooksOffOptions, ...ownerOptions, ...args.slice(layout.prefixLen)]
 /// ```
-pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
+pub fn hooks_off_arguments(arguments: &[OsString], owner: StartOwner) -> Vec<OsString> {
     if is_configuration_query(arguments) {
         return arguments.to_vec();
     }
@@ -180,6 +216,10 @@ pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
     let mut result: Vec<OsString> = arguments[..split].to_vec();
     result.push(OsString::from("-c"));
     result.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    if owner == StartOwner::Wrapper {
+        result.push(OsString::from("-c"));
+        result.push(OsString::from(MONITOR_OFF_SETTING));
+    }
     for event in switched_off_events() {
         result.push(OsString::from("-c"));
         result.push(OsString::from(format!("hook.{event}.enabled=false")));
@@ -190,18 +230,20 @@ pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
 
 /// What:
 ///  Add `arguments` to a real-Git command,
-/// with the hooks-off options once the process has switched them on.
+/// with the options of `owner` once the process has switched them on.
 /// Why:
 ///   One function serves both builders of real-Git commands,
-/// so no start can miss the options.
+/// so no start can miss the options,
+/// and the caller
+///  names whose Git it starts instead of choosing the options itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// command.args(hooksOff.active ? hooksOffArguments(args) : args);
+/// command.args(hooksOff.active ? hooksOffArguments(args, owner) : args);
 /// ```
-pub fn add_arguments(command: &mut Command, arguments: &[OsString]) {
+pub fn add_arguments(command: &mut Command, arguments: &[OsString], owner: StartOwner) {
     if ACTIVE.load(Ordering::SeqCst) {
-        command.args(hooks_off_arguments(arguments));
+        command.args(hooks_off_arguments(arguments, owner));
     } else {
         command.args(arguments);
     }

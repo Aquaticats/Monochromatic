@@ -29,6 +29,8 @@ use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// The shadow request and the real-Git command builder.
 use crate::shadow_git::shadow_request;
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+use crate::hooks_off::StartOwner;
 use crate::signal_relay::SignalGuard;
 /// Context,
 /// one required Git start and failure text.
@@ -223,7 +225,7 @@ pub fn run_native_commit_within(
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
     let arguments: Vec<OsString> = native_commit_arguments(request)?;
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
+    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice(), StartOwner::Wrapper);
     command
         .current_dir(cwd)
         .env("GIT_INDEX_FILE", request.commit_index);

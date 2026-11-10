@@ -24,6 +24,8 @@
 use crate::commit_command::effective_directory;
 /// The builder of real-Git commands.
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+use crate::hooks_off::StartOwner;
 /// The refusal texts.
 use crate::lfs_pre_push::plan_failed_message;
 /// The pre-check that the program can start.
@@ -92,7 +94,7 @@ impl GitQuery for InteractiveQuery<'_> {
     fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
         let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
         arguments.extend(query_arguments.iter().map(OsString::from));
-        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay).output() {
+        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay, StartOwner::Wrapper).output() {
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };

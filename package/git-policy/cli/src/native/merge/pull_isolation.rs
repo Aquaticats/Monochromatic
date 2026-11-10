@@ -49,7 +49,7 @@ use crate::merge_isolation_message::fetch_head_merge_heads;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Running real Git as a child that owns the terminal,
 /// for the fetch.
-use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{ForwardedRun, run_wrapper_own_git};
 /// The repository shape of the invocation.
 use crate::worktree_identity::WorktreeIdentity;
 /// Owned operating-system text.
@@ -476,7 +476,7 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
     fetch.extend(plan.fetch.iter().cloned());
     fetch.extend(plan.places.iter().cloned());
     debug(TAG, "the fetch of a pull that merges runs, then the merge goes through the isolated merge");
-    match run_forwarded_git(forward.real_git.as_path(), fetch.as_slice(), overlay.as_slice(), None) {
+    match run_wrapper_own_git(forward.real_git.as_path(), fetch.as_slice(), overlay.as_slice()) {
         ForwardedRun::Ran(0) => {}
         // A failed fetch ends the pull with status 1, as `cmd_pull` does, and a fetch Git was killed in is a failed one.
         ForwardedRun::Ran(_) | ForwardedRun::Killed(_) => return PullStep::Ended(CoordinatedRun::Ran(1)),
