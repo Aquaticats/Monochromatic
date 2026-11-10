@@ -170,6 +170,10 @@ a failed child dumps it and keeps
 its status,
 `allowFailure` leaves the status alone,
 a failed start is named and fails,
+its missing file and its
+permission reason are told apart,
+a start the call allows still prints its
+command,
 the bound
 and a signal are named,
 and what a timed-out child printed is dumped.
