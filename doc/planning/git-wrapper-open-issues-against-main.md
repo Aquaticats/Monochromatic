@@ -1025,7 +1025,7 @@ Why:
 - `#1907`:
   the document is a decision record,
   so nothing in it changed here;
-  the two notes below are the proposal.
+  the two fenced blocks in this entry are the proposal.
  `doc/decision/private-npm-registry.md` lines 165 to 168 name
  `package/git-policy/cli/src/policy-engine/apply-policy-patches.ts`,
   which `git log --follow` shows deleted 2026-10-13 in `642b6d72cb`,
@@ -1162,9 +1162,9 @@ Why:
   the half about a second incident is resolved,
   the half about the heading set still holds.
  `doc/troubleshooting/git-policy-wrapper-launcher-path.md` on `main` ends with a pointer to
- [git-policy-shadow-lfs.md](git-policy-shadow-lfs.md) in place of the second incident,
-  so the second incident is one pointer now rather than a section after the remedy,
-  and the file no longer duplicates that record or contradicts its verdict,
+ [git-policy-shadow-lfs.md](git-policy-shadow-lfs.md) instead of a second incident under its own headings,
+  so the file carries one incident,
+  no longer duplicates that record and no longer contradicts its verdict,
   and the claim in the issue's title is gone.
  Its title and headings are still not the seven sections the skill requires:
   it has `Symptom`,
