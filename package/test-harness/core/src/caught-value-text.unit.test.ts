@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core';
 
-import { caughtValueText, } from '@monochromatic-dev/caught-value-core';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 await describe({
   name: caughtValueText.name,
