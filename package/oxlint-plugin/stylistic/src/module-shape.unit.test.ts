@@ -9,13 +9,13 @@
  first, because the TSDoc `@example` blocks in this package legitimately show
  `(a, b)` pairs.
 
- The scan reads `function` declarations and function expressions, including a
- destructured parameter's bindings. A parameter list of an arrow function or of
- a method shorthand is not read: telling `createOnce(context) {` from a call
- statement needs a parser, and a text scan that guessed would report innocent
- lines. There is no math exemption either, because no text tells a formula
- variable from an abbreviation, so a helper that really computes with one takes
- a deliberate change to this guard, never a silent pass.
+ The scan reads `function` declarations and function expressions, including the
+ bindings a destructured parameter declares. A parameter list of an arrow
+ function or of a method shorthand is not read: telling `createOnce(context) {`
+ from a call statement needs a parser, and a text scan that guessed would report
+ innocent lines. There is no math exemption either, because no text tells a
+ formula variable from an abbreviation, so a helper that really computes with
+ one takes a deliberate change to this guard, never a silent pass.
 
  @module
  */
@@ -172,6 +172,14 @@ const OBJECT_PATTERN_OPENER = '{';
 const OBJECT_PATTERN_CLOSER = '}';
 
 /**
+ Bracket pairs a destructured parameter can open with, mapped to the one closing it.
+ */
+const PATTERN_BRACKETS: ReadonlyMap<string, string> = new Map([
+  [OBJECT_PATTERN_OPENER, OBJECT_PATTERN_CLOSER,],
+  ['[', ']',],
+],);
+
+/**
  Separator between a destructured property's key and the name it binds.
  */
 const PATTERN_KEY_SEPARATOR = ':';
@@ -237,6 +245,10 @@ const SCANNER_FIXTURE = [
   '}',
   '',
   'export function untag({ s, }: LineParts,): string {',
+  '  return s;',
+  '}',
+  '',
+  'export function untagList([s,]: readonly string[],): string {',
   '  return s;',
   '}',
   '',
@@ -615,7 +627,11 @@ function parameterNames(parameter: string,): readonly string[] {
    Parameter text without leading whitespace.
    */
   const trimmed = withoutRest.trimStart();
-  if (!(trimmed.startsWith(OBJECT_PATTERN_OPENER,)))
+  /**
+   Bracket closing the pattern this parameter opens with, absent for a plain name.
+   */
+  const patternCloserCharacter = PATTERN_BRACKETS.get(trimmed[0] ?? '',);
+  if (patternCloserCharacter === undefined)
     return [identifierPrefix(trimmed,),];
   /**
    Column the pattern closes at, or `NOT_FOUND_COLUMN`.
@@ -623,8 +639,8 @@ function parameterNames(parameter: string,): readonly string[] {
   const patternCloser = matchingBracketColumn({
     text: trimmed,
     from: 0,
-    open: OBJECT_PATTERN_OPENER,
-    close: OBJECT_PATTERN_CLOSER,
+    open: trimmed[0] ?? '',
+    close: patternCloserCharacter,
   },);
   if (patternCloser === NOT_FOUND_COLUMN)
     return [];
@@ -865,6 +881,7 @@ function fixtureLine(declarationStart: string,): number {
 const SCANNER_FIXTURE_OFFENDERS: readonly SingleCharacterParameter[] = [
   { name: 's', line: fixtureLine(`export ${FUNCTION_KEYWORD} broken(`,), },
   { name: 's', line: fixtureLine(`export ${FUNCTION_KEYWORD} untag(`,), },
+  { name: 's', line: fixtureLine(`export ${FUNCTION_KEYWORD} untagList(`,), },
 ];
 
 //endregion Fixture expectations
