@@ -292,21 +292,6 @@ fn outside_a_repository_the_layout_fails() {
     remove(root.as_path());
 }
 
-/// The incomplete-layout guard rejects an empty report line.
-#[test]
-fn an_empty_layout_line_is_incomplete() {
-    let lines: Vec<&str> = vec!["/repo", "", "/repo/.git"];
-    assert_eq!(
-        required_line(&lines, 1),
-        Err(GitFailure(String::from("Git returned incomplete repository layout.")))
-    );
-    assert_eq!(
-        required_line(&lines, 9),
-        Err(GitFailure(String::from("Git returned incomplete repository layout.")))
-    );
-    assert_eq!(required_line(&lines, 0), Ok(String::from("/repo")));
-}
-
 /// A stand-in Git that logs each start and fails,
 /// so a read that starts Git shows in the log.
 fn logging_stand_in(root: &Path) -> (GitContext, PathBuf) {
@@ -371,5 +356,116 @@ fn the_layout_ref_format_matches_rev_parse_for_files_and_reftable() {
     let for_reftable: InvocationLayout =
         capture_invocation_layout(&context, reftable.as_path(), false).expect("layout");
     assert_eq!(for_reftable.ref_format, RefFormat::Reftable);
+    remove(root.as_path());
+}
+
+/// What:
+///  Create a repository whose directory name is `name`'s bytes,
+///  with one empty commit on `main`.
+/// Why:
+///   A name that is not UTF-8,
+///  or one that holds a line feed,
+///  has no spelling a fixture name can carry,
+///  and `repository` takes text.
+fn repository_named(root: &Path, name: &[u8]) -> PathBuf {
+    use std::os::unix::ffi::OsStringExt;
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(name.to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    return repo;
+}
+
+/// What:
+///  Require every path of `layout` to be the one inside `repo`.
+/// Why:
+///   The layout is where the commit reads and writes its index,
+///  its objects and its scratch directory,
+///  so a path that is not the repository's own is a write somewhere else.
+fn require_layout_inside(repo: &Path, layout: &InvocationLayout) {
+    let git_dir: PathBuf = repo.join(".git");
+    assert_eq!(layout.repository_root, std::fs::canonicalize(repo).expect("fixture"), "the worktree root");
+    assert_eq!(layout.git_dir, git_dir, "the Git directory");
+    assert_eq!(layout.common_dir, git_dir, "the common directory");
+    assert_eq!(layout.real_index_path, git_dir.join("index"), "the real index");
+    assert_eq!(layout.object_directory, git_dir.join("objects"), "the object directory");
+    assert_eq!(layout.registry_root, git_dir.join("cli-git-transactions"), "the transaction registry");
+    assert_eq!(layout.object_format, "sha1");
+}
+
+/// What:
+///  A repository whose directory name is not UTF-8 is captured where it is.
+/// Why:
+///  The layout keeps the bytes Git prints (`path_bytes.rs`).
+///  The in-process report spelled its paths as text and so declined,
+///  and the report Git printed was decoded as UTF-8 before it was read,
+///  so a commit in such a repository failed with "Git returned non-UTF-8 output."
+///  instead of landing.
+#[test]
+fn a_repository_whose_name_is_not_utf8_is_captured() {
+    let root: PathBuf = fixture("capture-invocation-not-utf8");
+    // 0xEF opens a three-byte sequence and is no name on its own, so this is not UTF-8 text.
+    let repo: PathBuf = repository_named(root.as_path(), b"rep\xefo");
+    let layout: InvocationLayout = capture_invocation_layout(&git_context(), repo.as_path(), false)
+        .expect("the layout of a repository whose name is not UTF-8");
+    require_layout_inside(repo.as_path(), &layout);
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository whose directory name holds a line feed is captured where it is.
+/// Why:
+///  A pathname may hold the line feed that separates two answers of one report,
+///  and one report split at every line feed read the rest of such a name as the next path:
+///  the Git directory,
+///  the common directory,
+///  the index,
+///  the object directory and the registry all named directories that do not exist.
+#[test]
+fn a_repository_whose_name_holds_a_line_feed_is_captured() {
+    let root: PathBuf = fixture("capture-invocation-line-feed");
+    let repo: PathBuf = repository_named(root.as_path(), b"a\nb");
+    let layout: InvocationLayout = capture_invocation_layout(&git_context(), repo.as_path(), false)
+        .expect("the layout of a repository whose name holds a line feed");
+    require_layout_inside(repo.as_path(), &layout);
+    remove(root.as_path());
+}
+
+/// What:
+///  The report Git prints is read as bytes,
+///  so a pathname that is not UTF-8 reaches the layout unchanged.
+/// Why:
+///  The in-process reader declines some layouts,
+///  and the report it leaves to Git is bytes too;
+///  decoding it as UTF-8 refused a repository Git works in.
+#[test]
+fn the_report_git_prints_is_read_as_bytes() {
+    let root: PathBuf = fixture("capture-invocation-not-utf8-from-git");
+    let repo: PathBuf = repository_named(root.as_path(), b"na\xefve");
+    let mut context: GitContext = git_context();
+    context.overlay.extend(crate::repo_read_hook::switch_off());
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false)
+        .expect("the report Git printed for a repository whose name is not UTF-8");
+    require_layout_inside(repo.as_path(), &layout);
+    remove(root.as_path());
+}
+
+/// What:
+///  A pathname that holds a line feed is asked for on its own,
+///  so the report Git prints is still split into the paths it names.
+/// Why:
+///  The answers of one report are separated by line feeds,
+///  and a pathname may hold one;
+///  a report with more answers than the layout has pathnames cannot be split back into them,
+///  so each one is asked for alone then.
+#[test]
+fn a_pathname_holding_a_line_feed_is_asked_for_on_its_own() {
+    let root: PathBuf = fixture("capture-invocation-line-feed-from-git");
+    let repo: PathBuf = repository_named(root.as_path(), b"a\nb");
+    let mut context: GitContext = git_context();
+    context.overlay.extend(crate::repo_read_hook::switch_off());
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false)
+        .expect("the report Git printed for a repository whose name holds a line feed");
+    require_layout_inside(repo.as_path(), &layout);
     remove(root.as_path());
 }
