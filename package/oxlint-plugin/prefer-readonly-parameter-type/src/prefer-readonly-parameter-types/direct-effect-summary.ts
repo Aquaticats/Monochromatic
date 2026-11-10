@@ -109,6 +109,12 @@ export function directEffectSummary({
   readonly analysisRoot?: string;
   readonly externalEffectResolver: ExternalCallableEffectResolver;
 },): MutableEffectSummary {
+//region Summary scaffolding
+// Everything the summary is built from before the body is walked: the checker,
+// the slot table the declaration alone determines, the origin index the
+// parameters seed, the exact foreign-ownership markers, and the mutable summary
+// itself.
+
   /**
    TypeScript checker for current project.
    */
@@ -194,6 +200,13 @@ export function directEffectSummary({
     resultApplications: [],
     calls: [],
   };
+//endregion Summary scaffolding
+
+//region Bodyless signatures and discovered bindings
+// A source signature has no body, so its effects are recorded and the summary
+// returned; otherwise the body is scanned for what every local can hold, by
+// parameter slot and by call site.
+
   /**
    Callable implementation body, absent for source signatures.
    */
@@ -239,6 +252,12 @@ export function directEffectSummary({
    form keeping the write it genuinely performs because a call to a parameter resolves through
    its default.
    */
+//endregion Bodyless signatures and discovered bindings
+
+//region The body walk
+// The selected body nodes, and one pass over them recording writes, nested
+// callable returns, handoffs, and drained iterators.
+
   const bodyNodes = activeCallableBodyNodes({
     project,
     body,
@@ -373,6 +392,13 @@ export function directEffectSummary({
       },);
     }
   },);
+//endregion The body walk
+
+//region Concise bodies and seeding
+// A concise arrow hands its result back through no statement the walk above can
+// carry, so it is recorded here; the direct sets are then seeded into the
+// propagated ones.
+
   /* And the result a concise arrow hands back, which no statement in the walk above can carry. The
    * returned branch there tests `isReturnStatement`, and a concise body is the callable's own body
    * expression with no return statement anywhere, so `(row: Row,): Row => row` recorded an empty
@@ -410,3 +436,4 @@ export function directEffectSummary({
     },);
   return summary;
 }
+//endregion Concise bodies and seeding

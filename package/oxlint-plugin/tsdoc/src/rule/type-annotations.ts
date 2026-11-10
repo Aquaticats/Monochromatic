@@ -23,6 +23,10 @@ import {
   stripCommentLineMarker,
 } from './tsdoc-visitors.ts';
 
+//region Inline tag recognition
+// The character after `{` that makes a brace a TSDoc inline tag, and the check
+// that separates one from a JSDoc type annotation.
+
 /**
  Character that follows `{` for TSDoc inline tags such as `{@link Target}`.
  */
@@ -59,6 +63,12 @@ function isInlineTagOpener(params: {
   } = params;
   return text.charAt(braceIndex + 1,) === INLINE_TAG_MARKER;
 }
+
+//endregion Inline tag recognition
+
+//region Annotation collection
+// The linear scan that collects every `{Type}` body following a `@word`, which
+// is what the rule reports on.
 
 /**
  Collects every JSDoc-style `{Type}` body that follows a `@word` and at
@@ -157,6 +167,11 @@ export function findTypeAnnotations(s: string,): readonly string[] {
   return out;
 }
 
+//endregion Annotation collection
+
+//region The rule
+// The exported rule, reporting one diagnostic per collected annotation.
+
 /**
  Disallows type annotations in TSDoc tags, detected via
  {@link findTypeAnnotations}.
@@ -225,3 +240,5 @@ export const noTypes: CreateOnceRule = {
     },);
   },
 };
+
+//endregion The rule

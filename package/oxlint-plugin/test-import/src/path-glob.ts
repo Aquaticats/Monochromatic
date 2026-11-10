@@ -10,6 +10,10 @@
  @module
  */
 
+//region Pattern vocabulary
+// The two wildcard spellings, the record position that marks "no backtrack
+// point yet", and the separator both patterns and normalized paths use.
+
 /**
  Wildcard matching a whole run of path segments.
  */
@@ -29,6 +33,12 @@ const NO_BACKTRACK = -1;
  Separator that both patterns and normalized paths use.
  */
 const SEPARATOR = '/';
+
+//endregion Pattern vocabulary
+
+//region Scan cursor
+// The mutable scan position both matching levels share, created at the start
+// of a comparison and rewound just past a wildcard on mismatch.
 
 /**
  Mutable scan position shared by both matching levels.
@@ -101,6 +111,12 @@ function backtrack({ cursor, }: {
   cursor.pattern = cursor.wildcardPattern + 1;
   return true;
 }
+
+//endregion Scan cursor
+
+//region Segment matching
+// One pattern segment without wildcards, one with `*` wildcards, then a path
+// segment stride that advances both sides together.
 
 /**
  Scans one path segment against one pattern segment containing `*` wildcards.
@@ -194,6 +210,12 @@ function matchSegment({
     text,
   },) === pattern.length;
 }
+
+//endregion Segment matching
+
+//region Path matching
+// The whole-path scan that gives `**` its own backtrack point, and the
+// entry points that split a normalized path and try a pattern list in order.
 
 /**
  Scans a segmented path against a segmented pattern containing `**` wildcards.
@@ -334,3 +356,5 @@ export function matchesAnyGlob({
     },);
   },);
 }
+
+//endregion Path matching

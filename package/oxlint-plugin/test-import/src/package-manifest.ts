@@ -15,6 +15,10 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+//region Manifest shapes
+// The fields of a `package.json` this plugin reads, the string facts one
+// manifest contributes, and the sentinel for text that describes no root.
+
 /**
  Logger for manifest parsing.
  */
@@ -69,6 +73,12 @@ export const MANIFEST_UNUSABLE: unique symbol = Symbol(
   'manifest text that is unparseable or carries no package name',
 );
 
+//endregion Manifest shapes
+
+//region Source export keys
+// The `./ts` export keys, which name the sanctioned source channel and are
+// therefore never counted as a shipped artifact.
+
 /**
  Export key naming the TypeScript source entry.
  */
@@ -78,6 +88,12 @@ const SOURCE_EXPORT_KEY = './ts';
  Prefix of export keys naming TypeScript source subpaths.
  */
 const SOURCE_EXPORT_PREFIX = './ts/';
+
+//endregion Source export keys
+
+//region Narrowing parsed JSON
+// Type predicates that make inspection safe: a manifest carrying a string
+// name, and a non-null object whose properties can be read.
 
 /**
  Narrows parsed JSON to a manifest carrying a package name.
@@ -123,6 +139,12 @@ export function isPackageManifest(value: unknown,): value is PackageManifest {
 function isRecordLike(value: unknown,): value is Record<string, unknown> {
   return ((typeof value) === 'object') && (value !== null);
 }
+
+//endregion Narrowing parsed JSON
+
+//region Export target collection
+// Depth-first collection of every string leaf under one `exports` subtree,
+// since conditional exports nest objects and arrays without bound.
 
 /**
  Collects every string leaf of one `exports` subtree.
@@ -177,6 +199,12 @@ export function stringTargets({ node, }: {
   }
   return targets;
 }
+
+//endregion Export target collection
+
+//region Parsing manifests
+// Reading manifest text as JSON, then reducing it to the package name and the
+// paths it declares consumers may load.
 
 /**
  Parses manifest text, treating malformed JSON as absence.
@@ -281,3 +309,5 @@ export function manifestFacts({ text, }: {
     ],
   };
 }
+
+//endregion Parsing manifests

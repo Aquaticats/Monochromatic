@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import * as v from 'valibot';
 
+//region Shared schema and bound constants
+
 /**
  JSON object boundary used before inspecting host output.
  */
@@ -19,6 +21,10 @@ const RecordsSchema = v.array(RecordSchema,);
  Preparation, actual dispatch, and terminal observation are the per-attempt update boundaries.
  */
 const MAX_PROGRESS_EVENTS_PER_ATTEMPT = 3;
+
+//endregion Shared schema and bound constants
+
+//region JSONL parsing
 
 /**
  Parse strict JSONL without dropping non-JSON diagnostics or truncating the evidence.
@@ -44,6 +50,10 @@ export function parseAdvisorHostJsonl(text: string,): readonly Record<string, un
       );
     },);
 }
+
+//endregion JSONL parsing
+
+//region Usage accounting verification
 
 /**
  Validate available accounting against the actual per-attempt records.
@@ -108,6 +118,10 @@ function verifyUsage(value: unknown,): Record<string, unknown> {
   );
   return operation;
 }
+
+//endregion Usage accounting verification
+
+//region Host evidence verification
 
 /**
  Verify registered-tool execution, progress privacy, cancellation, and slash-command persistence.
@@ -276,3 +290,5 @@ export function verifyAdvisorHostEvidence({
     );
   }
 }
+
+//endregion Host evidence verification

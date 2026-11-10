@@ -14,6 +14,10 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { ancestorDirectories, } from './ancestor-directories.ts';
 
+//region Logger and identity shapes
+// The module logger, the sentinel for a file outside every readable package, and
+// the manifest identity implementation inference needs.
+
 /**
  Package identity logger.
  */
@@ -37,6 +41,11 @@ export type InstalledPackageIdentity = {
   readonly manifest: Readonly<Record<string, unknown>>;
 };
 
+//endregion Logger and identity shapes
+
+//region Manifest predicate
+// Whether a parsed JSON value is a package manifest record.
+
 /**
  Tests whether unknown JSON value is a package manifest record.
  
@@ -55,6 +64,12 @@ function isManifest(value: unknown,): value is Readonly<Record<string, unknown>>
     && ('version' in value)
     && ((typeof value.version) === 'string');
 }
+
+//endregion Manifest predicate
+
+//region Package roots
+// The final installed-package root a file sits under, and the nearest workspace
+// package root when it sits under none.
 
 /**
  Resolves package root from final installed-package boundary.
@@ -150,6 +165,12 @@ function workspacePackageRoot(
   return INSTALLED_PACKAGE_UNAVAILABLE;
 }
 
+//endregion Package roots
+
+//region Package identity
+// The exact identity parsed from one package root, and the exported lookup for a
+// declaration or implementation file.
+
 /**
  Parses exact package identity from package root.
  
@@ -239,3 +260,4 @@ export function installedPackageForFile(
     ? INSTALLED_PACKAGE_UNAVAILABLE
     : packageIdentityAtRoot(root,);
 }
+//endregion Package identity

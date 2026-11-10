@@ -35,6 +35,7 @@
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/monorepo-task-core-exec": "workspace:*",
     "@monochromatic-dev/llm-image-diff": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/pi-plugin-spawn": "workspace:*",
     "@oxlint/plugins": "catalog:",
     "@playwright/test": "catalog:",

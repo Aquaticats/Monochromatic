@@ -4,8 +4,9 @@
 //!  and the three measures a margin is judged by.
 
 use super::*;
-use crate::test_fixtures::{flat_bins, levels_match, track};
-use truepeak_core::{default_policy, peak_dbtp};
+use crate::probe_bins::select_over_bin_peaks;
+use crate::test_fixtures::{BIN_SECONDS, flat_bins, levels_match, track};
+use truepeak_core::{ProbeGrid, default_policy, peak_dbtp};
 
 /// The short-scan bound every fixture splits on.
 const SHORT_SCAN_MAX_SECS: f64 = 2.0;
@@ -97,21 +98,32 @@ fn a_corpus_of_short_tracks_decodes_its_length_and_yields_no_row() {
 }
 
 /// What:
-///  pass one samples the bins evenly with both endpoints,
-///  and a single sample sits mid-track.
+///  the bench's zoom probe spends the production selection:
+///  its peak and its decoded bins equal a direct call over the same grid.
+/// Why:
+///  a bench-only copy of the selection let corpus evidence drift from playback;
+///  this pins the routing that keeps them equal.
 #[test]
-fn pass_one_samples_evenly_with_both_endpoints() {
-    let count = (PASS1_COVERAGE * LONG_SECS as f64).round() as usize;
-    let indices = even_indices(LONG_SECS as usize, PASS1_COVERAGE);
-    assert_eq!(indices.len(), count);
-    assert_eq!(indices[0], 0, "the pass starts at the first bin");
-    assert_eq!(indices[count - 1], LONG_SECS as usize - 1, "the pass ends at the last bin");
-    assert!(indices.windows(2).all(|pair| return pair[0] < pair[1]), "indices ascend: {indices:?}");
+fn the_zoom_probe_spends_the_production_selection() {
+    // A hill, a crest, and a mid-track loud second, so the climb has work the even pass
+    // alone cannot do.
+    let mut bins = flat_bins(LONG_SECS as usize, QUIET_PEAK);
+    bins[0] = HILL_PEAK;
+    bins[1] = HOT_PEAK;
+    bins[LONG_SECS as usize / 2] = HILL_PEAK;
+    let hill = track("hill.flac", LONG_SECS, HOT_PEAK, bins.clone());
+    let total_coverage = LONG_BUDGET_SECS / LONG_SECS as f64 - 0.0001;
+    let (peak, decoded) = zoom_probe(&hill, PASS1_COVERAGE, total_coverage);
 
-    let single = even_indices(LONG_SECS as usize, 0.0);
-    assert_eq!(single.len(), 1, "coverage zero still samples once");
-    assert_eq!(single[0], (LONG_SECS as usize - 1) / 2, "a single sample sits mid-track");
-    assert_eq!(even_indices(1, PASS1_COVERAGE), vec![0], "one bin has one place to be");
+    let grid = ProbeGrid {
+        bin_count: bins.len(),
+        coverage_fraction: total_coverage,
+        even_coverage_fraction: PASS1_COVERAGE,
+        bones_hot_bins: None,
+    };
+    let expected = select_over_bin_peaks(grid, &bins);
+    assert_eq!(peak, f64::from(expected.peak), "the bench reads the selection's loudest bin");
+    assert_eq!(decoded, expected.used_bins as f64 * BIN_SECONDS, "the bench charges the selection's bins");
 }
 
 /// What:

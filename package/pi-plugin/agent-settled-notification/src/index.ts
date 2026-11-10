@@ -44,6 +44,56 @@ const logger = tagged({ tag: 'pi-agent-settled-notification', },);
 //region Notification boundary
 
 /**
+ Reports that the local desktop-notification boundary refused a delivery request.
+ 
+ A settlement can arrive when no desktop notification service answers: the
+ executable is absent from `PATH`, the session has no D-Bus server, or the
+ bounded delivery expires. The caller, not this package, decides what such a
+ failure means, so delivery reports it as a thrown error the caller can log
+ without the value crossing Pi's lifecycle boundary.
+ 
+ @example
+ ```ts
+ try {
+   await notifyAgentSettled({});
+ }
+ catch (error) {
+   if (!(error instanceof NotificationUnavailableError))
+     throw error;
+   logger.warn(error.message);
+ }
+ ```
+ */
+class NotificationUnavailableError extends Error {
+  /**
+   Stable error classification independent of minification.
+   */
+  override readonly name = 'NotificationUnavailableError';
+
+  /**
+   Creates a delivery failure naming the executable that could not deliver.
+   
+   @param command - executable whose delivery attempt failed
+   
+   @param cause - value the operating-system notification boundary threw
+   */
+  constructor(
+    {
+      command,
+      cause,
+    }: {
+      readonly command: string;
+      readonly cause: unknown;
+    },
+  ) {
+    super(
+      `desktop notification through ${command} failed: ${caughtValueText(cause,)}`,
+      { cause, },
+    );
+  }
+}
+
+/**
  Command and arguments passed to the desktop-notification executable.
  */
 type NotificationInvocation = {
@@ -96,16 +146,6 @@ type NotificationProcessRunner = (
 type NotificationInvoker = (
   invocation: NotificationInvocation,
 ) => Promise<void>;
-
-/**
- Outcome of an attempted desktop-notification delivery.
- */
-type NotificationDeliveryResult =
-  | { readonly delivered: true; }
-    | {
-      readonly delivered: false;
-      readonly error: unknown;
-    };
 
 /**
  Runs a local desktop-notification process without shell interpretation.
@@ -211,17 +251,26 @@ async function invokeDefaultNotification(
 }
 
 /**
- Attempts delivery of the settled-agent notification without propagating a desktop failure to Pi.
+ Delivers the settled-agent notification, reporting a desktop refusal as a thrown error.
+ 
+ The caller owns the response: `handleAgentSettled` logs the failure and keeps Pi's
+ lifecycle hook from failing, while a test can assert on the error it receives.
  
  @param invoke - replacement desktop-notification boundary for tests
  
- @returns successful delivery state or captured failure for caller-owned logging
+ @throws NotificationUnavailableError when the desktop-notification boundary fails,
+ carrying the boundary's own failure as `cause`
  
  @example
  ```ts
- const delivery = await notifyAgentSettled({});
- if (!delivery.delivered)
-   console.error(delivery.error);
+ try {
+   await notifyAgentSettled({});
+ }
+ catch (error) {
+   if (!(error instanceof NotificationUnavailableError))
+     throw error;
+   logger.warn(error.message);
+ }
  ```
  */
 async function notifyAgentSettled(
@@ -230,19 +279,18 @@ async function notifyAgentSettled(
   }: {
     readonly invoke?: NotificationInvoker;
   },
-): Promise<NotificationDeliveryResult> {
+): Promise<void> {
   try {
     await invoke({
       command: NOTIFICATION_COMMAND,
       args: NOTIFICATION_ARGUMENTS,
     },);
-    return { delivered: true, };
   }
   catch (error) {
-    return {
-      delivered: false,
-      error,
-    };
+    throw new NotificationUnavailableError({
+      command: NOTIFICATION_COMMAND,
+      cause: error,
+    },);
   }
 }
 
@@ -293,11 +341,12 @@ function registerAgentSettledNotification(
     l = logger,
   }: AgentSettledNotificationRegistration,
 ): void {
+  /* oxlint-disable no-restricted-syntax/no-function-root-let -- Session-local failure latch prevents repeated warnings after expected host-capability failures. */
   /**
    Tracks whether the current Pi runtime already surfaced unavailable desktop capability.
    */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- Session-local failure latch prevents repeated warnings after expected host-capability failures.
   let hasWarnedAboutUnavailableNotification = false;
+  /* oxlint-enable no-restricted-syntax/no-function-root-let */
 
   pi.on(
     'agent_settled',
@@ -309,27 +358,29 @@ function registerAgentSettledNotification(
         tag: handleAgentSettled.name,
         l,
       },);
-      /**
-       Result of attempting the static desktop notification.
-       */
-      const delivery = await notifyAgentSettled((invoke === undefined
-        ? {}
-        : { invoke, }),);
-      if (delivery.delivered) {
+      try {
+        await notifyAgentSettled((invoke === undefined
+          ? {}
+          : { invoke, }),);
         innerLogger.debug('sent settled-agent desktop notification',);
-        return;
       }
+      catch (error) {
+        // Anything but a desktop refusal is a defect in this package, so it
+        // keeps travelling instead of looking like an expected desktop outage.
+        if (!(error instanceof NotificationUnavailableError))
+          throw error;
 
-      /**
-       Safe error summary that preserves diagnostics without throwing from Pi's lifecycle hook.
-       */
-      const failure = caughtValueText(delivery.error,);
-      if (!hasWarnedAboutUnavailableNotification) {
-        hasWarnedAboutUnavailableNotification = true;
-        innerLogger.warn(`settled-agent desktop notification unavailable: ${failure}`,);
-        return;
+        /**
+         Safe error summary that preserves diagnostics without failing Pi's lifecycle hook.
+         */
+        const failure = caughtValueText(error,);
+        if (!hasWarnedAboutUnavailableNotification) {
+          hasWarnedAboutUnavailableNotification = true;
+          innerLogger.warn(`settled-agent desktop notification unavailable: ${failure}`,);
+          return;
+        }
+        innerLogger.debug(`settled-agent desktop notification remains unavailable: ${failure}`,);
       }
-      innerLogger.debug(`settled-agent desktop notification remains unavailable: ${failure}`,);
     },
   );
 }
@@ -356,13 +407,13 @@ export {
   NOTIFICATION_ARGUMENTS,
   NOTIFICATION_COMMAND,
   NOTIFICATION_TIMEOUT_MS,
+  NotificationUnavailableError,
   invokeNotification,
   notifyAgentSettled,
   registerAgentSettledNotification,
 };
 
 export type {
-  NotificationDeliveryResult,
   NotificationInvocation,
   NotificationProcessInput,
   NotificationProcessRunner,

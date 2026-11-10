@@ -6,6 +6,10 @@
 
 import { isIdentifierText, } from 'typescript/ast/scanner';
 
+//region Classification shapes
+// The ownership, access-segment, and path-kind shapes one mutable cause is made
+// of, and the classification the rule diagnostics read.
+
 /**
  Source ownership of one writable declaration.
  */
@@ -71,6 +75,12 @@ export type ReadonlyClassification =
       readonly kind: 'projected-readonly-capability';
       readonly reason: string;
     };
+
+//endregion Classification shapes
+
+//region Building a classification
+// The deep-readonly singleton, one writable cause, and the prefixing that carries
+// a child's paths up one access segment.
 
 /**
  Deep-readonly singleton result.
@@ -142,6 +152,12 @@ export function prefixReadonlyClassification({
       },),
   };
 }
+
+//endregion Building a classification
+
+//region Rendering paths
+// The stable identity that de-duplicates equivalent paths, and the rendering of
+// one segment, a whole path, and its reason text.
 
 /**
  Stable identity for de-duplicating equivalent writable paths.
@@ -244,6 +260,12 @@ function writablePathReason(path: WritablePath,): string {
   return `\`${rendered}\` is writable`;
 }
 
+//endregion Rendering paths
+
+//region Diagnostic text
+// The de-duplicated sorted paths and the line that renders each distinct cause
+// without truncation.
+
 /**
  De-duplicates and sorts writable paths without presentation truncation.
  
@@ -325,6 +347,12 @@ export function readonlyMutableReason(
     .map(writablePathReason,)
     .join('; ',);
 }
+
+//endregion Diagnostic text
+
+//region Ownership questions
+// Whether the evidence is exclusively structural, and which side of the
+// workspace boundary the writable declarations sit on.
 
 /**
  Tests whether mutable evidence is exclusively structural property or index data.
@@ -409,3 +437,4 @@ export function mutableClassificationHasWorkspaceDeclaration(
       return declarationOwners.includes('workspace',);
     },);
 }
+//endregion Ownership questions

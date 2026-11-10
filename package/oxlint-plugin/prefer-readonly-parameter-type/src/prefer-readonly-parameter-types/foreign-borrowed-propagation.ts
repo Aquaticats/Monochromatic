@@ -14,6 +14,9 @@ import {
   groundForeignCandidates,
 } from './foreign-borrowed-grounding.ts';
 
+//region Inbound arguments
+// Whether one inbound argument is wholly foreign-owned.
+
 /**
  Tests whether one inbound argument is wholly foreign-owned.
  
@@ -53,6 +56,12 @@ function inboundArgumentIsForeign({
       return callerCandidates.has(callerIndex,);
     },);
 }
+
+//endregion Inbound arguments
+
+//region The call index and its candidates
+// Every owned incoming call by callee key, and the optimistic candidates the
+// greatest fixed point narrows.
 
 /**
  Collects every owned incoming call by callee declaration key.
@@ -128,6 +137,12 @@ function initializeCandidates({
   }
   return candidates;
 }
+
+//endregion The call index and its candidates
+
+//region The fixed point
+// The pass bound and the exported computation of guaranteed foreign ownership,
+// which supports recursive inbound calls.
 
 /**
  Counts parameter candidates bounding provenance narrowing passes.
@@ -244,3 +259,4 @@ export function propagateForeignBorrowed(
     candidates,
   },);
 }
+//endregion The fixed point

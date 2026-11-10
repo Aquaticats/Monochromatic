@@ -126,9 +126,16 @@ function isMissingEntry(error: unknown): boolean {
  backslash. The shell command this file builds contains spaces and pipes, so it
  always takes this form.
 
+ The same value then has its field codes expanded, after the quoting is undone,
+ so a percentage character that is not doubled is read as the start of a field
+ code: `%f` becomes the file a launcher was given, and a letter the
+ specification does not list makes the entry invalid. Doubling it is the only
+ literal form the specification has, and it holds inside a quoted argument as
+ well.
+
  @param value - One argument of the entry's command line
  
- @returns The argument quoted for the desktop-entry grammar
+ @returns The argument quoted and field-code-escaped for the desktop-entry grammar
  
  @example
  ```ts
@@ -156,6 +163,12 @@ export function desktopEntryQuote({ value }: { readonly value: string; }): strin
     .replaceAll(
     '"',
     String.raw`\"`,
+    )
+    // A literal percentage character is written doubled, or the expansion that
+    // follows the quoting rule reads it as a field code and runs another path.
+    .replaceAll(
+    '%',
+    '%%',
     );
   return `"${escaped}"`;
 }
@@ -172,7 +185,7 @@ export function desktopEntryQuote({ value }: { readonly value: string; }): strin
  `exec`s the binary, so the shell is replaced by the daemon rather than wrapping
  it. Both the binary path and the whole script are encoded for the grammar they
  cross, at the point they are interpolated, which is what makes a checkout path
- containing a space or a quote work.
+ containing a space, a quote or a percentage character work.
 
  @param binPath - Absolute path of the built daemon binary
  
