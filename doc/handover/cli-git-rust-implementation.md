@@ -100,7 +100,7 @@ and the round loop's ceiling (`MAX_ROUNDS`,
 twenty) bounds a file saved again and again.
 
 Evidence:
-`cargo nextest run --test native_binary -- merge_carries_edits` is 19 tests,
+`cargo nextest run --test native_binary -- merge_carries_edits` is 18 tests,
 all passing,
 including the six new controls:
 a kill between the layers,
