@@ -6,25 +6,22 @@
 // Real servers run only against disposable projects: below the private agent scratch root, which is
 // on the same file system as real projects, and below fresh private directories in /tmp and
 // $XDG_RUNTIME_DIR (/run/user/<uid>), which the sandbox replaces and the policy binds back read-only.
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
+import { typescriptInStore } from './typescript-in-store.ts';
 
 const inspect = resolve('target/debug/ide-language-inspect');
 const scripted = resolve('target/debug/ide-scripted-lsp');
 const probeScript = resolve('bin/language-confinement-probe.cjs');
-const store = resolve('../../../node_modules/.pnpm');
-// The workspace catalog pins one TypeScript 7 release and the store holds whichever it installed, so the fixture copies the
-// newest TypeScript 7 entry by prefix instead of naming a version that goes stale with every catalog bump.
-const storeEntry = (prefix: string): string => {
-  const found = readdirSync(store).filter((name) => name.startsWith(prefix)).sort();
-  const newest = found.at(-1);
-  if (newest === undefined) throw new Error(`No ${prefix} entry in the pnpm store ${store}; run the workspace install first`);
-  return join(store, newest);
-};
+// The workspace keeps one global virtual store, named by pnpm itself, below its store directory; a path written here
+// pointed at the per-project layout the workspace left on 2026-11-02, so the fixture copies nothing and stops.
+const store = join(execFileSync('pnpm', ['store', 'path'], { encoding: 'utf8' }).trim(), 'links');
+// The compiler the store holds, found by the store's own folders instead of a version that goes stale with a catalog bump.
+const typescript = typescriptInStore({ store });
 const realHome = homedir();
 const privateRoot = join(realHome, 'temp', 'agent');
 if ((statSync(privateRoot).mode & 0o077) !== 0) throw new Error('Scratch root must exclude group and other permissions: ' + privateRoot);
@@ -122,8 +119,8 @@ const makeTypeScript = (root: string): void => {
   write({ path: join(root, 'src/index.ts'), text: tsIndex });
   // A plain JavaScript file with an untyped bare import invites automatic type acquisition.
   write({ path: join(root, 'src/legacy.js'), text: "const leftPad = require('left-pad');\nmodule.exports = leftPad('x', 3);\n" });
-  cpSync(join(storeEntry('typescript@7'), 'node_modules/typescript'), join(root, 'node_modules/typescript'), { recursive: true });
-  cpSync(join(storeEntry('@typescript+typescript-linux-x64@7'), 'node_modules/@typescript/typescript-linux-x64'), join(root, 'node_modules/@typescript/typescript-linux-x64'), { recursive: true });
+  cpSync(typescript.compiler, join(root, 'node_modules/typescript'), { recursive: true });
+  cpSync(typescript.platformBinary, join(root, 'node_modules/@typescript/typescript-linux-x64'), { recursive: true });
   write({ path: join(root, 'node_modules/typescript/bin/tsc'), text: [
     '#!/usr/bin/env node',
     'import { createRequire } from "node:module";',
