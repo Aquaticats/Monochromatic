@@ -8596,7 +8596,7 @@ cleared.
   `403cf459bb`,
   before the last checks.
   Commit `2a00940c40` is the work,
-  and the commit that carries this section is named in it.
+  and `78cb8d9135` is this section's own commit.
   Not merged into main.
 - What this run was asked to do,
   in the order the previous record's "What the round still needs,
