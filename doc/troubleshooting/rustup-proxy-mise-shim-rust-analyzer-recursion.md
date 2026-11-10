@@ -12,8 +12,8 @@ and recorded the same final error.
 
 ## Symptom
 
-A `mise exec` of any binary the active Rust toolchain lacks,
-shimmed by mise,
+A `mise exec` of `rust-analyzer` through a Rust toolchain that lacks it,
+with a mise shim of that name on `PATH`,
 prints one pair of lines per cycle and then a mise install failure:
 
 ```console
@@ -34,13 +34,16 @@ mise ✗ rust@nightly-2026-11-09  54ms · failed: rustup show profile failed for
 The version is not the trigger:
 `mise exec rust@nightly-2026-11-09 -- rustc -V` and
 `mise exec rust@nightly-2026-11-10 -- rustc -V` both succeed.
-The trigger is the command:
-a binary that mise shims,
-that rustup proxies,
-and that the selected toolchain has no `bin/<binary>` for.
-`rust-analyzer` is the usual one,
-because no toolchain ships it unless its `rust-analyzer` component was added;
-`cargo-miri` and the other shimmed proxies of a missing component are the same shape.
+The trigger is the binary:
+`rust-analyzer`,
+which mise shims,
+which rustup proxies,
+and which the selected toolchain has no `bin/rust-analyzer` for.
+`rust-analyzer` is the only binary with this shape,
+because rustup's PATH fallback exists only for it;
+a missing `cargo-miri` fails cleanly instead
+(measured,
+see the failing catalog in "Verification").
 
 ### The IDE surface (measured 2026-10-14)
 
@@ -335,12 +338,21 @@ default
 ```
 
 Catalog that fails,
-one variant:
+two variants:
 
-- Any mise-shimmed binary the selected toolchain lacks,
-  run through `mise exec rust@<channel>`:
+- `rust-analyzer` through `mise exec rust@<channel>` when the toolchain lacks it:
   the 21-cycle loop above,
   ending in the mise install failure.
+- `cargo-miri` through the same command:
+  no loop,
+  because rustup's PATH fallback is rust-analyzer-only.
+
+  ```console
+  $ mise exec rust@nightly-2026-11-10 -- cargo-miri --version
+  error: 'cargo-miri' is not installed for the toolchain 'nightly-2026-11-10-x86_64-unknown-linux-gnu'.
+  help: run `rustup component add --toolchain nightly-2026-11-10-x86_64-unknown-linux-gnu miri` to install it
+  ```
+
 - The bare proxy with no tool request in the environment ends differently:
   `rust-analyzer --version` outside `mise exec` stops at
   `mise ERROR No version is set for shim: rust-analyzer`,
