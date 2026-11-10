@@ -1792,7 +1792,12 @@ Under the owner's "Please make any non-destructive options (when they are the on
 the coordinator picked neither side of that trade:
 the flush stays, it starts as early as the code allows,
 and a landing that finds the marker still flushing takes the lock the ordinary way and never waits for that flush.
-The same agent builds it.
+The same agent built it (`c72e9f3174`):
+the marker of the next batch is started as soon as a landing has its lock,
+and a landing that finds the flush still running stages its own and waits for nothing,
+with the marker left to finish and removed once it is done.
+Measured: `lock_wait_ms` 9,369 and 12,867 with `lock_stage_kind=pre` before, 0 across 46 landings after,
+and 8,086 ms of a wrapped commit at the median before against 804 with the host quieter.
 Say "undo" to publish without the flush instead.
 
 ## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
