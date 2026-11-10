@@ -85,11 +85,11 @@ fn a_text_both_sides_changed_is_merged_or_kept_between_markers() {
     let base: String = blob(repo.as_path(), "a.txt", b"one\ntwo\nthree\n");
     let ours: String = blob(repo.as_path(), "b.txt", b"ONE\ntwo\nthree\n");
     let theirs: String = blob(repo.as_path(), "c.txt", b"one\ntwo\nTHREE\n");
-    let clean: Decision = decide(&runner, b"a.txt", &Layer { base: side(&base), ours: side(&ours), theirs: side(&theirs) }).expect("the word pass");
+    let clean: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"a.txt", &Layer { base: side(&base), ours: side(&ours), theirs: side(&theirs) })).expect("the runtime").expect("the word pass");
     assert_eq!(clean.outcome, Outcome::Merged { bytes: b"ONE\ntwo\nTHREE\n".to_vec(), conflict: false, parts: Vec::new() });
     let same_line: String = blob(repo.as_path(), "d.txt", b"one\nTWO-by-the-person\nthree\n");
     let other_line: String = blob(repo.as_path(), "e.txt", b"one\nTWO-by-the-merge\nthree\n");
-    let conflicted: Decision = decide(&runner, b"a.txt", &Layer { base: side(&base), ours: side(&same_line), theirs: side(&other_line) }).expect("the word pass");
+    let conflicted: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"a.txt", &Layer { base: side(&base), ours: side(&same_line), theirs: side(&other_line) })).expect("the runtime").expect("the word pass");
     let Outcome::Merged { bytes, conflict, .. } = conflicted.outcome else { panic!("a conflict keeps both sides in one text") };
     assert!(conflict);
     let text: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
@@ -114,7 +114,7 @@ fn a_binary_both_sides_changed_is_kept_and_named() {
     let base: String = blob(repo.as_path(), "b.bin", b"\x00\x01\x02base");
     let ours: String = blob(repo.as_path(), "c.bin", b"\x00\x01\x02the-person");
     let theirs: String = blob(repo.as_path(), "d.bin", b"\x00\x01\x02the-merge");
-    let decided: Decision = decide(&runner, b"b.bin", &Layer { base: side(&base), ours: side(&ours), theirs: side(&theirs) }).expect("the pass leaves it");
+    let decided: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"b.bin", &Layer { base: side(&base), ours: side(&ours), theirs: side(&theirs) })).expect("the runtime").expect("the pass leaves it");
     assert_eq!(decided.outcome, Outcome::Kept(NOT_TEXT));
     assert_eq!(decided.mode.as_deref(), Some("100644"));
     remove(root.as_path());

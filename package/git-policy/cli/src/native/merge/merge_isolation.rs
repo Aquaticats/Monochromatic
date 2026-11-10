@@ -268,7 +268,8 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         &shape,
         (head, target, reference.as_str()),
         (common_dir, root, input.environment),
-        (staged_work, carrying),
+        staged_work,
+        carrying,
     )?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session

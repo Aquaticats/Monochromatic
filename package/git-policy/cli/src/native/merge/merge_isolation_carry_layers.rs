@@ -191,8 +191,8 @@ fn end_mode(layer: &Layer) -> Option<String> {
 /// ```ts
 /// async function bytes(runner, oid: string): Promise<Uint8Array>;
 /// ```
-fn bytes_of(runner: &dyn GitRunner, oid: &str) -> Result<Vec<u8>, String> {
-    let reply = runner.run(&["cat-file", "blob", oid], None, None)?;
+async fn bytes_of(runner: &dyn GitRunner, oid: &str) -> Result<Vec<u8>, String> {
+    let reply = runner.run(&["cat-file", "blob", oid], None, None).await?;
     if reply.code != Some(0) {
         return Err(format!("git cat-file {oid} failed: {}", String::from_utf8_lossy(reply.stderr.as_slice()).trim()));
     }
@@ -236,7 +236,7 @@ fn stage(side: &Option<Side>) -> Option<Stage> {
 /// ```ts
 /// function decide(runner, path, layer): Decision; // throws when Git cannot be read
 /// ```
-pub fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Decision, String> {
+pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Decision, String> {
     if same_object(&layer.base, &layer.ours) {
         return Ok(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
     }
@@ -255,8 +255,8 @@ pub fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Deci
         let (Some(ours), Some(theirs)) = (&layer.ours, &layer.theirs) else {
             return Err(String::from("a path both sides added holds two sides"));
         };
-        let ours_bytes: Vec<u8> = bytes_of(runner, ours.oid.as_str())?;
-        let theirs_bytes: Vec<u8> = bytes_of(runner, theirs.oid.as_str())?;
+        let ours_bytes: Vec<u8> = bytes_of(runner, ours.oid.as_str()).await?;
+        let theirs_bytes: Vec<u8> = bytes_of(runner, theirs.oid.as_str()).await?;
         if unfit(ours_bytes.as_slice()).is_some() || unfit(theirs_bytes.as_slice()).is_some() {
             return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
         }
@@ -273,7 +273,7 @@ pub fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Deci
         };
     }
     let conflict: Conflict = Conflict { path: path.to_vec(), base: stage(&layer.base), ours: stage(&layer.ours), theirs: stage(&layer.theirs) };
-    let verdicts: Vec<Verdict> = second_pass(runner, &[conflict], AttributeSource::Invocation)?;
+    let verdicts: Vec<Verdict> = second_pass(runner, &[conflict], AttributeSource::Invocation).await?;
     let Some(verdict) = verdicts.into_iter().next() else {
         return Err(String::from("the second pass answered nothing for a path it was given"));
     };
@@ -289,9 +289,9 @@ pub fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Deci
                 return Err(String::from("a conflict the pass resolved as an overlap holds every stage"));
             };
             let bytes: Vec<u8> = keep_both(
-                bytes_of(runner, base.oid.as_str())?.as_slice(),
-                bytes_of(runner, ours.oid.as_str())?.as_slice(),
-                bytes_of(runner, theirs.oid.as_str())?.as_slice(),
+                bytes_of(runner, base.oid.as_str()).await?.as_slice(),
+                bytes_of(runner, ours.oid.as_str()).await?.as_slice(),
+                bytes_of(runner, theirs.oid.as_str()).await?.as_slice(),
                 (OUR_LABEL, THEIR_LABEL),
             );
             return Ok(Decision { outcome: Outcome::Merged { bytes, conflict: true, parts: Vec::new() }, mode: end_mode(layer) });
@@ -348,8 +348,8 @@ pub fn merge_text(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
 /// ```ts
 /// async function writeLayerBytes(runner, bytes): Promise<string>;
 /// ```
-pub fn write_layer_bytes(runner: &dyn GitRunner, bytes: &[u8]) -> Result<String, String> {
-    return write_blob(runner, bytes);
+pub async fn write_layer_bytes(runner: &dyn GitRunner, bytes: &[u8]) -> Result<String, String> {
+    return write_blob(runner, bytes).await;
 }
 
 /// The decisions of one layer of one path,

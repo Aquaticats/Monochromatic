@@ -332,6 +332,31 @@ fn rooted(context: &GitContext) -> GitContext {
     return GitContext { global_prefix: Vec::new(), ..context.clone() };
 }
 
+/// What:
+///  One awaited step of the word-level pass,
+/// run to its end from this synchronous path.
+/// Why:
+///   The pass awaits every Git start it makes
+/// (`merge_second_pass_git_runner.rs`),
+/// and the merge that
+///  carries a person's work is a command's synchronous step,
+/// so this one entry of the process runtime is taken for it.
+/// Everything else the carry does is a plain start,
+/// which must stay outside the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decision = runOnRuntime(decide(runner, path, layer));
+/// ```
+fn on_the_runtime<T>(future: impl std::future::Future<Output = Result<T, String>>) -> Result<T, CarryFailure> {
+    return match crate::lazy_runtime::run_on_runtime(future) {
+        Ok(found) => found.map_err(CarryFailure::Failed),
+        Err(error) => Err(CarryFailure::Failed(format!(
+            "the word-level pass over a path this merge carries could not run: {error}"
+        ))),
+    };
+}
+
 /// The runner that merges one layer,
 /// from the top of the worktree.
 ///
@@ -689,7 +714,7 @@ fn plan_worktree(
 ) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
     let (runner, context, root) = places;
     let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
-    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).map_err(CarryFailure::Failed)?;
+    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
     let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
     return match decision.outcome {
         Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
@@ -702,7 +727,7 @@ fn plan_worktree(
             None => Ok((FileWrite::Remove, Note::None, None)),
         },
         Outcome::Merged { bytes, conflict, .. } => {
-            let oid: String = write_layer_bytes(runner, bytes.as_slice()).map_err(CarryFailure::Failed)?;
+            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
             let form: Vec<u8> = file_form(context, root, entry.path.as_slice(), oid.as_str()).map_err(CarryFailure::Failed)?;
             return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
         }
@@ -748,7 +773,7 @@ fn plan_index(
         return Ok(IndexWrite::Leave);
     }
     let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
-    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).map_err(CarryFailure::Failed)?;
+    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
     let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
     return match decision.outcome {
         Outcome::Merges => Ok(IndexWrite::Leave),
@@ -757,7 +782,7 @@ fn plan_index(
             None => Ok(IndexWrite::Remove),
         },
         Outcome::Merged { bytes, .. } => {
-            let oid: String = write_layer_bytes(runner, bytes.as_slice()).map_err(CarryFailure::Failed)?;
+            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
             Ok(IndexWrite::Entry(mode, oid))
         }
         Outcome::Gone(_) => Ok(IndexWrite::Remove),
