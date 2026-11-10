@@ -10,6 +10,10 @@ import { preferReadonlyParameterTypes, } from './prefer-readonly-parameter-types
 import { initializeExternalImplementationApi, } from './prefer-readonly-parameter-types/external-implementation-project.ts';
 import { initializeSemanticBridge, } from './prefer-readonly-parameter-types/semantic-bridge-lifecycle.ts';
 
+//region Package surface
+// Re-exports of the classifiers, ledgers, and tables the rules and consumers
+// read. The plugin object below wires the four rules over them.
+
 export {
   classifyReadonlyType,
   propertyIsReadonly,
@@ -89,11 +93,23 @@ export {
   type ParameterIndex,
 } from './prefer-readonly-parameter-types/effect-slot-identity.ts';
 
+//endregion Package surface
+
+//region Bridge warm start
+// Both bridges start before oxlint reserves its per-worker buffers, because
+// spawning them mid-lint fails with `ENOMEM` at this host's worker count.
+
 initializeSemanticBridge();
 /* Beside it, and for the same reason. The external implementation child was created on first demand,
  * which happens mid-lint after oxlint has reserved its per-worker buffers, and that spawn fails with
  * `ENOMEM` at this host's default worker count. */
 initializeExternalImplementationApi();
+
+//endregion Bridge warm start
+
+//region Exports reached only by built-artifact tests
+// Internals exposed per `XPT` so a unit test can exercise the built output
+// rather than the source it was compiled from.
 
 /**
  Pure origin-resolution classifier, exported for built-artifact branch tests.
@@ -136,6 +152,11 @@ export { createOmissionLedger, } from './prefer-readonly-parameter-types/effect-
  */
 export { readonlyPreferenceGuidance, } from './prefer-readonly-parameter-types/readonly-preference-guidance.ts';
 
+//endregion Exports reached only by built-artifact tests
+
+//region The plugin
+// The plugin object and its default export.
+
 /**
  Oxlint plugin separating readonly preference, mutation, opacity, and contract policies.
  
@@ -161,6 +182,12 @@ const plugin: Plugin = eslintCompatPlugin({
 },);
 
 export default plugin;
+
+//endregion The plugin
+
+//region More exports reached only by built-artifact tests
+// The remaining internals exposed per `XPT` for their own built-artifact
+// tests.
 
 /**
  Verified inert collection members, exported for the built-artifact probe test.
@@ -271,3 +298,5 @@ export {
   VERIFY_SHARED_DIRECTORY_ENVIRONMENT_VARIABLE,
   VERIFY_SHARED_ENVIRONMENT_VARIABLE,
 } from './prefer-readonly-parameter-types/shared-analysis-telemetry.ts';
+
+//endregion More exports reached only by built-artifact tests

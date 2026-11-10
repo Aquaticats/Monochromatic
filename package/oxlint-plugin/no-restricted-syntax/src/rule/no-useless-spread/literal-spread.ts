@@ -14,6 +14,10 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Literal items and sentinels
+// One literal item, and the two sentinels that keep a rewrite from changing
+// behavior, dropping a comment, or acting on a container that is not a list.
+
 /**
  Literal item: array element (possibly a hole), or object property or spread.
  */
@@ -28,6 +32,12 @@ const NO_SAFE_INLINE: unique symbol = Symbol('inlining this literal spread could
  Sentinel for a spread literal whose container is not an array, object, or argument list.
  */
 const NOT_A_LIST_SPREAD: unique symbol = Symbol('spread literal container is not an array, object, or argument list',);
+
+//endregion Literal items and sentinels
+
+//region Rewrite safety
+// Whether the gap between two tokens is blank, and whether inlining an object
+// literal's properties would change when an accessor runs.
 
 /**
  Whether text between two tokens holds only whitespace, so a rewrite drops no comment.
@@ -80,6 +90,12 @@ function hasSpreadSensitiveProperty(items: ForeignBorrowed<readonly LiteralItem[
         === '__proto__');
   },);
 }
+
+//endregion Rewrite safety
+
+//region The fix
+// Building the replacement text for a literal spread, including removal of an
+// empty body and its separating comma.
 
 /**
  Builds the fix that replaces a literal spread with the literal's items, or
@@ -178,6 +194,12 @@ function inlineFix(
     );
   };
 }
+
+//endregion The fix
+
+//region Reporting
+// Naming the diagnostic per container kind, and the exported entry point that
+// reports one literal spread.
 
 /**
  Names the diagnostic for a literal spread into its container.
@@ -278,3 +300,5 @@ export function reportLiteralSpread(
   },);
   return true;
 }
+
+//endregion Reporting

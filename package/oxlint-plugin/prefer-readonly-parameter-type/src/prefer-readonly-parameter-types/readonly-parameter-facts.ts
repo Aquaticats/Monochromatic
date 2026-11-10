@@ -41,6 +41,10 @@ import {
 } from './readonly-type-origin.ts';
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';
 
+//region Fact shapes
+// The project shape the classifier requires, and one parameter with everything
+// its verdict reads apart from foreign ownership.
+
 /**
  Semantic project shape the readonly classifier requires.
  */
@@ -87,6 +91,11 @@ export type ReadonlyParameterFacts = {
    */
   readonly redundantMarkerPossible: boolean;
 };
+
+//endregion Fact shapes
+
+//region One declared parameter
+// The facts for one declared parameter position.
 
 /**
  Builds facts for one declared parameter position.
@@ -277,6 +286,11 @@ function factsForParameter({
   };
 }
 
+//endregion One declared parameter
+
+//region Every parameter of a callable
+// The facts for each declared parameter of one callable.
+
 /**
  Builds facts for every declared parameter of one callable.
  
@@ -329,6 +343,11 @@ export function readonlyParameterFacts({
     },);
 }
 
+//endregion Every parameter of a callable
+
+//region Foreign-ownership sensitivity
+// Whether foreign ownership can change what a parameter reports.
+
 /**
  Tests whether foreign ownership can change what this parameter reports.
  
@@ -363,3 +382,4 @@ export function factsNeedForeignProof(facts: ReadonlyParameterFacts,): boolean {
     || ((!facts.mutated) && (kind === 'mutable'))
     || facts.redundantMarkerPossible;
 }
+//endregion Foreign-ownership sensitivity

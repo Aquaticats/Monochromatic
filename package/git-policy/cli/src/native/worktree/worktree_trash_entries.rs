@@ -24,7 +24,7 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::lazy_runtime::run_on_runtime;
+use crate::lazy_runtime::{RuntimeError, run_on_runtime};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::{Event, OrderedEvents};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
@@ -128,6 +128,27 @@ struct RemoveEachEntry {
     remove: Arc<RemoveOne>,
 }
 
+/// What:
+///  Remove the entry at `entry` of the trash `inside`,
+/// found by the name and identity the manifest recorded.
+/// Why:
+///   One body removes one entry,
+/// so the job of the pool,
+/// the awaited face and the in-turn fallback cannot remove
+///  different things or report a different reason.
+/// The reason names the entry,
+/// because the list keeps no index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removal = remove(inside, trash, entryName(entry), manifest.entries[entry])
+/// ```
+fn remove_one(inside: &Path, trash: &File, manifest: &TrashManifest, remove: &RemoveOne, entry: usize) -> Result<Removal, String> {
+    // The reason the removal gives is the person's, word for word: the entry's name is in it already, and a prefix would say it
+    //  twice.
+    return remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry]));
+}
+
 impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
     fn run<'a>(&'a self, _index: usize, index: &'a usize, _say: LinesToTheConsumer<Result<Removal, String>>) -> Pin<Box<dyn Future<Output = Result<Removal, String>> + Send + 'a>> {
         return Box::pin(async move {
@@ -137,7 +158,7 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             let remove: Arc<RemoveOne> = Arc::clone(&self.remove);
             let entry: usize = *index;
             let removal = run_blocking_job_within_the_budget(move || {
-                return (remove)(inside.as_path(), trash.as_ref(), OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry]));
+                return remove_one(inside.as_path(), trash.as_ref(), manifest.as_ref(), remove.as_ref(), entry);
             })
             .await;
             return match removal {
@@ -198,9 +219,46 @@ impl OrderedEvents<Result<Removal, String>> for KeepReasonsOfEntriesThatStay<'_>
 pub fn remove_entries(request: &EntryRemoval) -> Vec<String> {
     return match run_on_runtime(remove_entries_awaiting(request)) {
         Ok(left) => left,
+        // A caller that is already inside the runtime cannot enter it, and its work is not lost: the entries are removed here,
+        //  one after another, which is the work the pool would have done.
+        Err(RuntimeError::Nested) => remove_entries_in_turn(request),
         // No entry was removed, and the runtime's own reason is why they all stay.
         Err(refusal) => vec![refusal.to_string()],
     };
+}
+
+/// What:
+///  Remove every entry the manifest records on the calling thread,
+/// one after another,
+/// and return the reason each entry that stays gives,
+/// in entry order.
+/// Why:
+///   This is the face of a caller that is already inside the runtime,
+/// where entering it is refused and no
+///  job of the blocking pool is available either (a job of the pool is inside the runtime too):
+/// a handler that knows
+///  nothing of the runtime,
+/// written against the synchronous face,
+/// still empties its trash.
+/// The removals are the pool's own,
+/// so a trash emptied here holds exactly what a trash emptied there holds;
+/// what
+///  differs is only that they run one after another rather than side by side,
+/// which the caller that takes this path pays for and the
+///  drain of the service never does (it asks `empty_trash_awaiting`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of manifest.entries.keys()) { const reason = removeOne(...); if (reason) left.push(reason) }
+/// ```
+fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
+    let mut left: Vec<String> = Vec::new();
+    for entry in 0..request.manifest.entries.len() {
+        if let Err(reason) = remove_one(request.inside.as_path(), request.trash.as_ref(), request.manifest.as_ref(), request.remove.as_ref(), entry) {
+            left.push(reason);
+        }
+    }
+    return left;
 }
 
 /// What:

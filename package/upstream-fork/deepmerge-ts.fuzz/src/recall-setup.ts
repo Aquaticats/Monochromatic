@@ -295,15 +295,6 @@ async function extractTree(
   console.log(`${name} <- ${revision}`,);
 }
 
-/**
- One extracted tree as map iteration yields it: the tree name and the revision
- it checks out.
- */
-type TreeRevision = readonly [
-  tree: string,
-  revision: string
-];
-
 if (import.meta.main) {
   /**
    Full-history upstream clone.
@@ -389,7 +380,10 @@ if (import.meta.main) {
         : [];
     },),
   ],);
-  await Promise.all([...trees,].map(async function extract([name, revision,]: TreeRevision,) {
+  await Promise.all([...trees,].map(async function extract([name, revision,]: readonly [
+    string,
+    string
+  ],) {
     await extractTree({
       clone,
       name,

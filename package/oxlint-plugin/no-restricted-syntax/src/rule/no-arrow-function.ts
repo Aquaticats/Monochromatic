@@ -71,6 +71,11 @@ export const noArrowFunction: CreateOnceRule = {
       ArrowFunctionExpression(
         node: ForeignBorrowed<ESTree.ArrowFunctionExpression>,
       ): void {
+//region Fix eligibility
+// Only a `const` or `export const` initializer with a single identifier declarator
+// and no read of an enclosing binding has a behavior-preserving rewrite; every
+// other arrow is reported without one.
+
         /**
          Only auto-fix when the arrow is the direct initializer of a variable declaration:
          `const name = (...) => ...` or `export const name = (...) => ...`.
@@ -118,6 +123,12 @@ export const noArrowFunction: CreateOnceRule = {
           },);
           return;
         }
+
+//endregion Fix eligibility
+
+//region Replacement text
+// The name, the export prefix, and the function head and body the rewrite is
+// assembled from.
 
         /**
          Variable name from the declarator (e.g. `foo` in `const foo = ...`).
@@ -220,6 +231,12 @@ export const noArrowFunction: CreateOnceRule = {
          */
         const statementListOwner = isExported ? grandparent.parent : grandparent;
 
+//endregion Replacement text
+
+//region Replacement form and report
+// Where a function declaration may stand decides whether the whole declaration
+// is replaced or only the arrow is swapped for a named function expression.
+
         /**
          True when the declaration sits where a function declaration may stand.
          */
@@ -257,3 +274,5 @@ export const noArrowFunction: CreateOnceRule = {
     };
   },
 };
+
+//endregion Replacement form and report

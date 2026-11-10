@@ -41,6 +41,7 @@ use crate::standards_review_text::seconds_with_tenth;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
+use tokio::sync::oneshot;
 
 /// The environment variable that points the log at a disposable fixture.
 pub const LOG_VARIABLE: &str = "SHADOW_REVIEW_LOG";
@@ -555,6 +556,83 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
             }
         }
     }
+}
+
+/// What:
+///  `run_contained` awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The wait for the job is the runtime's timer here,
+/// so a worker that waits holds nothing while the job runs;
+/// a caller inside the runtime cannot make the synchronous wait at all,
+/// because the job it waits for
+///  starts Git,
+/// and the synchronous wait is refused from inside the runtime (`lazy_runtime::run_on_runtime`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runContainedAwaiting(job, ceiling)
+/// ```
+pub async fn run_contained_awaiting<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    return run_contained_in_awaiting(&RUNNER, job, ceiling).await;
+}
+
+/// What:
+///  `run_contained` on a runner of the caller's own,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The admit,
+/// the thread,
+/// the release before the send and the two bounded waits are the synchronous face's;
+/// what differs is
+///  only where the wait happens,
+/// so the two cannot answer differently.
+/// A value that arrives after the ceiling is dropped with the sender that comes back to nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let waited = await timeout(ceiling, value); if (timed out) { if (markAbandoned(generation)) return CEILING; waited = await timeout(handoffWait, value) } return answer(waited)
+/// ```
+pub async fn run_contained_in_awaiting<T: Send + 'static>(runner: &'static Containment, job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    // The one atomic admission is the synchronous face's, and for the same reason: a job the caller stopped waiting for may still hold
+    //  what the next one needs.
+    let Some(generation) = runner.admit() else {
+        return Contained::Busy;
+    };
+    let (sender, mut receiver) = oneshot::channel::<T>();
+    let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
+        // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
+        //  unwinding, so a job that panics after the caller gave up does not keep the runner closed.
+        let release: Release<'static> = Release { runner, generation };
+        let value: T = job();
+        drop(release);
+        #[cfg(test)]
+        drop(runner.handoff_gate.lock());
+        // A caller that stopped waiting has no receiver: the value is dropped.
+        let _ = sender.send(value);
+    });
+    if let Err(error) = worker {
+        let _released: bool = runner.change(generation, RUNNING, IDLE);
+        return Contained::NoThread(crate::scoped_start::refused_thread_sentence("run the review of a commit", &error));
+    }
+    let waited: Result<T, oneshot::error::RecvError> = match tokio::time::timeout(ceiling, &mut receiver).await {
+        Ok(answer) => answer,
+        Err(_elapsed) => {
+            if runner.change(generation, RUNNING, ABANDONED) {
+                return Contained::CeilingReached(ceiling);
+            }
+            // The job released the runner between the ceiling and now. Its value is on its way or it panicked, so the wait is bounded
+            //  again and a value that does not come is a ceiling.
+            match tokio::time::timeout(runner.handoff_wait, &mut receiver).await {
+                Ok(answer) => answer,
+                Err(_late) => return Contained::CeilingReached(ceiling),
+            }
+        }
+    };
+    return match waited {
+        Ok(value) => Contained::Finished(value),
+        // The thread ended without a value: it panicked, and its guard released the runner.
+        Err(_closed) => Contained::Panicked,
+    };
 }
 
 /// Controls stay out of the release executable.

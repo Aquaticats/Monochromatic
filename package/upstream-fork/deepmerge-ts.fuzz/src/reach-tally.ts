@@ -57,15 +57,6 @@ export function minimumReach(numRuns: number,): number {
 }
 
 /**
- One event's tally as map iteration yields it: the event name and the runs
- that reached it.
- */
-type ReachCount = readonly [
-  event: string,
-  runs: number
-];
-
-/**
  Create a tally over `events`.
 
  @param events - Every event the property must reach.
@@ -110,10 +101,16 @@ export function reachTally(events: readonly string[],): ReachTally {
     },
     shortfalls(minimum,) {
       return [...counts,]
-        .filter(function below([, count,]: ReachCount,) {
+        .filter(function below([, count,]: readonly [
+          string,
+          number
+        ],) {
           return count < minimum;
         },)
-        .map(function describe([event, count,]: ReachCount,) {
+        .map(function describe([event, count,]: readonly [
+          string,
+          number
+        ],) {
           return `${event}: ${String(count,)} of ${String(minimum,)} runs`;
         },);
     },

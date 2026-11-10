@@ -7,7 +7,7 @@ import {
 import {
   extractLeadingTag,
   NO_LEADING_TAG,
-} from './structural-tags.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Length of the long repeated run used to exercise the scan boundary on big input. */
 const LONG_RUN = 1_000;

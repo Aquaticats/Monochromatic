@@ -80,6 +80,11 @@ import { verifySharedSource, } from './shared-analysis-verification.ts';
 export function createDemandDrivenEffectIndex(
   options: DemandDrivenEffectIndexOptions,
 ): EffectSummaryIndex {
+//region Index state
+// Everything one index build carries: the indexed sources, the closure resolver,
+// the shared-hit keys, the fingerprint, the summaries and their store queue, the
+// omission ledger, the loaded sources, and the foreign roots.
+
   /**
    Exact project,
    cache,
@@ -179,6 +184,12 @@ export function createDemandDrivenEffectIndex(
    
    @returns direct summaries and semantic source dependencies.
    */
+//endregion Index state
+
+//region Loading a source
+// Reading one source file into the index, expanding only the callables something
+// requested.
+
   function loadSource(sourceFile: SourceFile,): {
     readonly fileSummaries: ReadonlyMap<string, MutableEffectSummary>;
     readonly dependencies: readonly string[];
@@ -297,6 +308,12 @@ export function createDemandDrivenEffectIndex(
       dependencies,
     };
   }
+
+//endregion Loading a source
+
+//region Ensuring a source
+// The entry point that makes one source's summaries present before a caller
+// asks for them.
 
   /**
    Expands graph from one requested source and completes fixed points.
@@ -516,3 +533,4 @@ export function createDemandDrivenEffectIndex(
     },
   };
 }
+//endregion Ensuring a source

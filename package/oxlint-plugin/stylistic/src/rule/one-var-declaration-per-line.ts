@@ -15,6 +15,9 @@ import {
 } from '../utility/range.ts';
 import { isOnlyWhitespaceOrSeparator, } from '../utility/source-filler.ts';
 
+//region Constants
+// Statement parents whose init slot may hold several declarators on one line.
+
 /**
  Parent types under which a multi-declarator declaration is allowed inline.
  */
@@ -23,6 +26,10 @@ const FOR_PARENT_TYPES = new Set([
   'ForInStatement',
   'ForOfStatement',
 ],);
+//endregion Constants
+
+//region Rule
+// The exported rule: its metadata, and the per-declaration reporting callback.
 
 /**
  Enforces one declarator per line in `var`/`let`/`const`/`using` declarations.
@@ -204,3 +211,4 @@ export const oneVarDeclarationPerLine: CreateOnceRule = {
     };
   },
 };
+//endregion Rule

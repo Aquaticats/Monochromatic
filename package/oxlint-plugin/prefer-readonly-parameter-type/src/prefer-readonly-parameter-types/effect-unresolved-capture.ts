@@ -98,6 +98,9 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Capture opacity
+// Opacity for every capture handed to a call with no owned edge.
+
 /**
  Records opacity for every capture handed to a call with no owned edge.
  
@@ -152,6 +155,12 @@ export function recordUnresolvedCaptureOpacity({
       },);
   },);
 }
+
+//endregion Capture opacity
+
+//region Origins one actual exposes
+// The caller origins an actual exposes by carrying a callable, split out so a
+// channel can ask without recording.
 
 /**
  Names the caller origins one actual exposes by carrying a callable that can reach them.
@@ -236,6 +245,11 @@ function exposingCallables({
     },);
 }
 
+//endregion Origins one actual exposes
+
+//region Callables an expression can hold
+// Every callable one expression can hold, asked of both walks rather than one.
+
 /**
  Names every callable one expression can hold, by resolution and by value.
  
@@ -276,6 +290,12 @@ function heldCallables({
     },),
   ];
 }
+
+//endregion Callables an expression can hold
+
+//region Writable results
+// Whether invoking a callable, or completing a body, can hand back something
+// writable.
 
 /**
  Tests whether invoking one callable can hand back something writable.
@@ -428,6 +448,12 @@ function completionCanCarryState({
     },);
 }
 
+//endregion Writable results
+
+//region Body completions
+// Every expression one callable body can complete with, yields counted beside
+// returns.
+
 /**
  Names every expression one callable body can complete with.
  
@@ -462,3 +488,4 @@ function completionExpressions({ body, }: { readonly body: Node; },): readonly N
       return node.expression === undefined ? [] : [node.expression,];
     },);
 }
+//endregion Body completions

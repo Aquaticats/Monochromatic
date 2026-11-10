@@ -224,15 +224,6 @@ async function runTsc(dir: string,): Promise<string> {
 }
 
 /**
- One case's diagnostics as map iteration yields it: the case id and every
- diagnostic that case produced.
- */
-type CaseDiagnostics = readonly [
-  id: number,
-  messages: readonly string[]
-];
-
-/**
  Type-check cases and attribute diagnostics to cases.
 
  @param dir - Scratch directory to write into (created if missing).
@@ -363,7 +354,10 @@ export async function checkCases(
     );
   }
   return {
-    failures: [...byCase,].map(function toFailure([id, messages,]: CaseDiagnostics,) {
+    failures: [...byCase,].map(function toFailure([id, messages,]: readonly [
+      number,
+      readonly string[]
+    ],) {
       /**
        Span of this case, for quoting its source.
        */

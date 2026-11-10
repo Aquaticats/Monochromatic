@@ -14,6 +14,10 @@ import {
   lastNamedImportSpecifier,
 } from '../utility/comma-dangle.ts';
 
+//region Rule
+// The exported rule: metadata, one delegation per container kind, and the
+// visitor that maps every comma-delimited list onto its check.
+
 /**
  Requires trailing commas at every supported comma-delimited list tail.
  
@@ -58,6 +62,10 @@ export const commaDangle: CreateOnceRule = {
    ```
    */
   createOnce(context: ForeignBorrowed<Context>,): VisitorWithHooks {
+    //region Element, property, and argument lists
+    // `[...]`, `{...}`, and call arguments read their last item as a field of
+    // the container, with the container's own penultimate token as the anchor.
+
     /**
      Checks array element lists and array-pattern element lists.
      
@@ -117,6 +125,10 @@ export const commaDangle: CreateOnceRule = {
         useContainerPenultimateToken: true,
       },);
     }
+    //endregion Element, property, and argument lists
+
+    //region Parameter lists
+    // Every function-like node shares one check, which reads its `params` field.
 
     /**
      Checks function-like parameter lists.
@@ -136,6 +148,11 @@ export const commaDangle: CreateOnceRule = {
         },),
       },);
     }
+    //endregion Parameter lists
+
+    //region Import, export, and dynamic-import lists
+    // A declaration can carry two comma-delimited lists: its specifiers and its
+    // import attributes, so each check reports both.
 
     /**
      Checks import specifiers and import attributes.
@@ -223,6 +240,11 @@ export const commaDangle: CreateOnceRule = {
         useContainerPenultimateToken: true,
       },);
     }
+    //endregion Import, export, and dynamic-import lists
+
+    //region Enum and type lists
+    // TypeScript-only containers: enum members, type parameters, and tuple
+    // element types.
 
     /**
      Checks enum body members.
@@ -277,6 +299,10 @@ export const commaDangle: CreateOnceRule = {
         },),
       },);
     }
+    //endregion Enum and type lists
+
+    //region Visitor wiring
+    // One entry per container kind, several of them sharing a single check.
 
     return {
       ArrayExpression: checkElements,
@@ -303,5 +329,7 @@ export const commaDangle: CreateOnceRule = {
       TSConstructSignatureDeclaration: checkParams,
       TSConstructorType: checkParams,
     };
+    //endregion Visitor wiring
   },
 };
+//endregion Rule

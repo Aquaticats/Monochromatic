@@ -104,3 +104,94 @@ const plugin: Plugin = eslintCompatPlugin({
 },);
 
 export default plugin;
+
+//region Built-artifact exports
+// The scanners and per-rule helpers this package's own unit tests exercise. A
+// test reaches this package through the artifact it ships, which
+// `test-import/require-eventual-artifact` enforces, so every symbol such a test
+// needs must be reachable from the package entry. None of them carries a
+// compatibility promise.
+
+/**
+ Structural messages one comment yields, exposed for built-artifact verification.
+
+ @internal
+ */
+export { collectStructuralMessages, } from './tsdoc-structural-messages.ts';
+
+/**
+ TSDoc comment parsing, exposed for built-artifact verification.
+
+ @internal
+ */
+export { parseTsdocComment, } from './tsdoc-comments.ts';
+
+/**
+ Comment block splitting, exposed for built-artifact verification.
+
+ @internal
+ */
+export { splitDocComment, } from './tsdoc-blocks.ts';
+
+/**
+ File-extension filtering, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  IGNORED_EXTENSIONS,
+  shouldIgnoreFile,
+} from './tsdoc-utils.ts';
+
+/**
+ Tag and inline-code reading, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  collectTags,
+  stripInlineCodeSpans,
+} from './comment-text.ts';
+
+/**
+ Type-annotation reading, exposed for built-artifact verification.
+
+ @internal
+ */
+export { findTypeAnnotations, } from './rule/type-annotations.ts';
+
+/**
+ Leading-tag extraction, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  extractLeadingTag,
+  NO_LEADING_TAG,
+} from './rule/structural-tags.ts';
+
+/**
+ Access-tag detection, exposed for built-artifact verification.
+
+ @internal
+ */
+export { containsBoundedAccessTag, } from './rule/tag-validation.ts';
+
+/**
+ Comment-close escaping, exposed for built-artifact verification.
+
+ @internal
+ */
+export { hasUnescapedCommentClose, } from './rule/tag-escaping.ts';
+
+/**
+ Tagged-line parsing, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  parseTaggedLine,
+  UNTAGGED_LINE,
+} from './rule/empty-tags.ts';
+
+//endregion Built-artifact exports
