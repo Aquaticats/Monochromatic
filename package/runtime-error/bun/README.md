@@ -31,3 +31,14 @@ how the Bun runtime surfaces different failure modes.
 ```sh
 bun package/runtime-error/bun/src/abort.ts
 ```
+
+## Testing
+
+```sh
+mise run //package/runtime-error/bun:test:unit
+```
+
+`src/documented-outcome.unit.test.ts` runs every fixture under Bun
+and asserts the exit code,
+terminating signal,
+and error marker its TSDoc promises.
