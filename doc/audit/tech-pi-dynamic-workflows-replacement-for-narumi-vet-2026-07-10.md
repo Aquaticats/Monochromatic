@@ -946,7 +946,7 @@ Candidate source explicitly acknowledges the boundary failure at `src/workflow.t
 
 ```ts
 Using the vm realm's own Math/Date/Reflect (not host objects) means this adds
-no host-`Function` escape. Note: vm is not a security sandbox — an injected
+no host-`Function` escape. Note: vm is not a security sandbox; an injected
 bridge function's `.constructor` is still the host Function, so a determined
 script could bypass this. The guard is best-effort against ACCIDENTAL
 nondeterminism from trusted (user / guided-LLM) scripts, not a security wall.

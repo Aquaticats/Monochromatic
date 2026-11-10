@@ -90,7 +90,8 @@ correct,
 
 This is the exact same BUG-1 from the 2026-06-04 campaign.
  The developer
-claimed it was fixed but it was not — no commit between v0.6.9 and v0.6.12
+claimed it was fixed but it was not;
+no commit between v0.6.9 and v0.6.12
 touches the `attempt_rw_union_2` re-entrancy guard.
 
 ## Artifact

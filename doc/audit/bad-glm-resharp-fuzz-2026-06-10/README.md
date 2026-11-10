@@ -157,7 +157,8 @@ run on nosimd build,
     will abort the host on this input.
      Release builds fall back to
     `return None`,
-     which is correct but not a fix — the pattern is still
+     which is correct but not a fix;
+    the pattern is still
     rejected,
      not compiled.
      This is the same BUG-1 as finding 1 above but
@@ -172,11 +173,13 @@ run on nosimd build,
      Same for `(^|b)`,
      `\w+\b*` (x86_64
     rejects,
-     ARM64 flag-bundle allows through — see ARM64-BUG-3),
+     ARM64 flag-bundle allows through;
+    see ARM64-BUG-3),
     `(?<=$)` (parse error),
      `(|(?<=[a-z])b)` (rejected).
      These are not
-    fixes — they are restrictions that avoid the underlying engine defects.
+    fixes;
+    they are restrictions that avoid the underlying engine defects.
 
 ## Developer claim versus evidence
 
