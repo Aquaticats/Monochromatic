@@ -39,6 +39,11 @@ const BLOCKLIST_PREFIX = '[blocked-dep]';
 const POLICY_TABLE_FILE = '.pnpmfile.policies.json';
 
 /**
+ Action whose entry in the policy table substitutes this package for the blocked dependency.
+ */
+const THROW_ACTION = 'throw';
+
+/**
  Repository files that hold no per-package entry for a throwing substitution: the `readPackage` hook that applies
  the policy table, and the `overrides` block that owns removal cases.
  Searching either for a `throw`-policy package finds nothing, so the refusal must not send a reader there.
@@ -125,6 +130,17 @@ type PolicyEntry = {
 };
 
 /**
+ Whether a policy-table key names a package rather than carrying a comment.
+
+ @param key - Key as the table spells it
+
+ @returns `true` for a package name, `false` for a table comment
+ */
+function isPackageKey(key: string,): boolean {
+  return !(key.startsWith('//',));
+}
+
+/**
  Reads the repository's policy table, the data the install hook indexes by package name.
  Keys beginning with `//` are the table's own comments, which are not package entries.
 
@@ -203,11 +219,12 @@ await describe({
           fn: async () => {
             const message = refusalMessage();
             expect(message,).toContain(POLICY_TABLE_FILE,);
-            expect(existsSync(join(repositoryRoot, POLICY_TABLE_FILE,),),).toBe(true,);
+            const policyTablePath = join(repositoryRoot, POLICY_TABLE_FILE,);
+            expect(existsSync(policyTablePath,),).toBe(true,);
             const table = await readPolicyTable();
-            const throwEntries = Object.entries(table,).filter(([name, entry],) =>
-              !name.startsWith('//',) && entry.action === 'throw'
-            );
+            const throwEntries = Object.entries(table,)
+              .filter(([key,],) => isPackageKey(key,))
+              .filter(([, entry],) => entry.action === THROW_ACTION);
             expect(throwEntries.length,).toBeGreaterThan(0,);
           },
         },),
