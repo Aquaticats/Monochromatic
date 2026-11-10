@@ -38,6 +38,11 @@ const orderedStepCommands: readonly string[] = [
 ];
 
 /**
+ Offset `String.prototype.indexOf` returns when it finds no match.
+ */
+const absentOffset = -1;
+
+/**
  Delay before the fake compositor answers one control command, in milliseconds.
  
  Longer than the gap between two connections opened in the same tick, so a
@@ -100,29 +105,30 @@ function recordControlCommands(
   connection.setEncoding('utf8',);
 
   /**
-   Text received on this connection that is not yet a complete command line.
+   Receive buffer for this connection, wrapped so its contents advance without
+   a function-root binding.
    */
-  let pendingText = '';
+  const buffer = { pendingText: '', };
 
   connection.on('data', function receiveCommand(chunk: Buffer | string,): void {
-    pendingText += chunk.toString();
+    buffer.pendingText += chunk.toString();
 
     /**
      Offset of the line terminator that ends the first complete command.
      */
-    const lineEnd = pendingText.indexOf('\n',);
+    const lineEnd = buffer.pendingText.indexOf('\n',);
 
-    if (lineEnd === -1)
+    if (lineEnd === absentOffset)
       return;
 
     /**
      Command text without its line terminator.
      */
-    const command = pendingText.slice(
+    const command = buffer.pendingText.slice(
       0,
       lineEnd,
     );
-    pendingText = pendingText.slice(lineEnd + 1,);
+    buffer.pendingText = buffer.pendingText.slice(lineEnd + 1,);
     receivedCommands.push(command,);
     counters.outstandingCommands += 1;
     counters.peakOutstandingCommands = Math.max(

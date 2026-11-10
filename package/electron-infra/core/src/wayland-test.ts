@@ -125,12 +125,12 @@ export async function runBoundaryStep(
     readonly step: WaylandBoundaryStep;
   },
 ): Promise<void> {
-  await Promise.all((step.commands ?? []).map(function sendStepCommand(command,): Promise<void> {
-    return expectOkControlCommand({
+  for (const command of step.commands ?? [])
+    // oxlint-disable-next-line eslint/no-await-in-loop -- input events are order-dependent, so each command must be answered before the next is sent.
+    await expectOkControlCommand({
       command,
       socketPath,
     },);
-  },),);
   await waitForObservedState({
     expected: step.expected,
     statePath,
