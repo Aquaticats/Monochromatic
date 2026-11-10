@@ -18,8 +18,43 @@
 pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 
 /// The instants of a batch at which a kill is tested,
-/// in the order a batch reaches them.
-pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
+/// in the order a batch reaches them;
+/// the three `prestage-*` points are reached by the job that makes the next batch's marker,
+/// which runs beside the landing that started it.
+pub const FAULT_POINTS: [&str; 8] = [
+    "after-objects",
+    "after-intent",
+    PRESTAGE_START,
+    PRESTAGE_STAGED,
+    PRESTAGE_FLUSHED,
+    "after-ref",
+    "after-index",
+    "before-ack",
+];
+
+/// The instant the service starts making the marker of the next batch's index lock,
+/// before the marker's file exists.
+/// Why:
+///  The marker is made while a landing holds the lock,
+/// so a kill here leaves the batch's intent and nothing else:
+///  the next service settles it and the next commit needs no marker.
+pub const PRESTAGE_START: &str = "prestage-start";
+
+/// The instant the marker made ahead exists under its staging name and is recorded for the shutdown that removes it,
+/// before its flush.
+/// Why:
+///  The file is not the lock,
+/// so a kill here leaves a file the next service's `remove_dead_staging` collects and no lock
+///  that could block a commit.
+pub const PRESTAGE_STAGED: &str = "prestage-staged";
+
+/// The instant the marker made ahead is flushed and ready,
+/// before the landing whose commit may take it can go on.
+/// Why:
+///  A kill here leaves a complete marker under its staging name and still no lock,
+/// which the next service collects by the
+///  name it carries.
+pub const PRESTAGE_FLUSHED: &str = "prestage-flushed";
 
 /// The instant in the wrapper after the post-commit gate promoted a landed commit's held push into `pending`,
 /// and before the wake that would run it:

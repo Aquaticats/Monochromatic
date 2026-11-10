@@ -17,7 +17,13 @@
 //! it is removed when the service ends or the next batch is not the one it was made for,
 //! and it names this process,
 //! so the next service removes what a crash left (`remove_dead_staging`).
-//! A commit that arrives while the flush is still running waits for it and does not start a second.
+//! A commit that arrives while the flush is still running never waits for it:
+//! it stages its own marker the ordinary way,
+//! as a landing does when nothing was made ahead,
+//! and the marker that is still being flushed finishes beside it and is removed when it is done.
+//! The flush itself starts as early as the code allows,
+//! while the landing that made the batch before it still holds the lock and moves the branch,
+//! so it is usually finished before the next commit arrives.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -196,29 +202,42 @@ pub fn start(index: &Path, seq: u64) {
 /// which a control makes slow.
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    // Look at the slot without changing it: take it out, compare, and put it back.
-    let looked_at: Option<Slot> = take_slot();
-    let same: bool = matches!(&looked_at, Some(slot) if slot.lock == lock && slot.seq == seq);
-    put_slot(looked_at);
-    if same {
-        return;
+    // The slot is looked at without being dropped, because this runs on a landing's own path: a marker still being flushed
+    //  is left to finish there rather than waited for, and a finished one for another batch or index is removed, which
+    // waits for nothing.
+    match take_slot() {
+        // Made or being made for this batch and this index: one file, one flush.
+        Some(slot) if slot.lock == lock && slot.seq == seq => {
+            put_slot(Some(slot));
+            return;
+        }
+        Some(slot) if !slot.work.is_finished() => {
+            put_slot(Some(slot));
+            return;
+        }
+        Some(slot) => remove_unused(slot),
+        None => {}
     }
-    discard();
     let work_lock: PathBuf = lock.clone();
     // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
+        // The three points of the marker's own life, where a control kills the service: before its file exists, with the
+        //  file recorded and unflushed, and with it flushed and ready.
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_START);
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
         // The file is recorded before the flush, because the flush can take seconds on a loaded disk and a stop that
         // arrives while it runs must find the file: a record made after the flush would leave it behind.
         let (staged, held) = stage_marker(work_lock.as_path(), seq, marker.as_str())?;
         let made: Prestaged = Prestaged { staged, held, marker };
         publish(&made);
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_STAGED);
         if let Err(error) = sync(&made.held) {
             forget_made_ahead();
             drop(made.held);
             let _removed = std::fs::remove_file(made.staged.as_path());
             return Err(error);
         }
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_FLUSHED);
         return Ok(made);
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
@@ -285,7 +304,7 @@ fn remove_unused(slot: Slot) {
 /// or nothing when none was made for exactly that.
 /// Why:
 ///   A marker made for another batch or index is removed and the commit stages its own.
-/// A marker still being flushed is waited for.
+/// A marker still being flushed is no marker for this landing: it is left to finish and the commit stages its own.
 /// A file that is no longer the file that was flushed (the Git directory was replaced,
 /// or the pathname now names another file)
 /// is no marker,
@@ -301,6 +320,13 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     let slot: Slot = take_slot()?;
     #[cfg(test)]
     COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
+    // The flush has not returned: the landing stages its own marker the ordinary way and waits for nothing, because this
+    //  is on the commit's path. What is still being flushed stays in the slot, so it is removed once it is finished and no
+    // file is left behind.
+    if !slot.work.is_finished() {
+        put_slot(Some(slot));
+        return None;
+    }
     if slot.lock != lock_path_of(index) || slot.seq != seq {
         remove_unused(slot);
         return None;
@@ -313,6 +339,13 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     return Some(made);
 }
 
+/// Whether the marker made ahead is still being flushed,
+/// which no landing waits for.
+#[cfg(test)]
+pub fn is_flushing() -> bool {
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| { return state.prestaged_marker.borrow().as_ref().is_some_and(|held| { return !held.work.is_finished(); }); });
+}
+
 /// Whether the marker made ahead is finished,
 /// so that taking it waits for nothing.
 #[cfg(test)]
@@ -322,6 +355,10 @@ pub fn is_made() -> bool {
 
 /// Removes the marker made ahead,
 /// waiting for it first if it is still being made.
+/// Why:
+///  This is the service's end and the idle time between landings, where nothing of a commit waits for the disk;
+/// a landing stands aside from a flush still running rather than calling this.
+
 pub fn discard() {
     if let Some(slot) = take_slot() {
         remove_unused(slot);

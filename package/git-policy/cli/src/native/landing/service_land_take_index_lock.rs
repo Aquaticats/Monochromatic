@@ -65,7 +65,23 @@ pub(crate) fn take_index_lock(
         crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
     }
     match taken {
-        Ok(lock) => return Ok(lock),
+        Ok(lock) => {
+            // What:
+            //  The marker of the batch after this one is made and flushed now, while this landing holds the lock and moves the
+            //  branch.
+            // Why:
+            //  The flush is seconds long on a loaded disk, and it used to start after the landing's answer, so the next commit
+            //  met it still running and waited for it (`lock_stage_kind=pre`, 9 to 13 s measured 2026-11-10).
+            //  Starting it here spends the landing's own seconds on it and leaves the next commit a finished marker usually.
+            //  The batch after this one lands on this index and is numbered one more, which is known now.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const held = await takeIndexLock(...); prestage.start(first.index, seq + 1);
+            // ```
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(1));
+            return Ok(lock);
+        }
         Err(failure) => {
             // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
             //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.

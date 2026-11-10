@@ -30,7 +30,7 @@
 use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
-use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
+use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE, PRESTAGE_FLUSHED, PRESTAGE_STAGED, PRESTAGE_START};
 use git_policy_cli::service_instance::{instance_of, socket_path};
 use git_policy_cli::service_units_of_removed_worktrees::record_worktree;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
@@ -714,16 +714,43 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         // A kill at these points leaves the batch's objects on `refs/worktree/cli-git-service/<seq>` without an intent that
         //  names them; the branch takes the commit only from `after-ref` on.
         let before_the_branch_moved: bool = matches!(point, "after-objects" | "after-intent");
+        // What:
+        //  A point of the marker made ahead is reached by the job that makes it, beside the landing that started it.
+        // Why:
+        //  So a kill there may come down on either side of the branch's move,
+        // and this control's per-point reading of the side refs is
+        //  taken only where the point itself fixes that side;
+        // what the marker's own points must leave is read below, of the lock and of the files it
+        //  writes, and never of the order.
+        let at_the_marker: bool = matches!(point, PRESTAGE_START | PRESTAGE_STAGED | PRESTAGE_FLUSHED);
         let scratch_at_the_kill: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/worktree/cli-git-service/");
-        assert_eq!(scratch_at_the_kill.len(), usize::from(before_the_branch_moved), "{point}: the killed batch's scratch reference is what the kill left: {scratch_at_the_kill:?}");
+        if !at_the_marker {
+            assert_eq!(scratch_at_the_kill.len(), usize::from(before_the_branch_moved), "{point}: the killed batch's scratch reference is what the kill left: {scratch_at_the_kill:?}");
+        }
         let restarted: Service = start_service(&fixture, name.as_str(), None);
         let answered = answered_after_the_restart(client, point);
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of kill-1"), 1, "{point}: exactly once");
         assert_healthy(&fixture, &repo, point);
+        // What:
+        //  The marker made ahead is never the lock,
+        //  so a kill anywhere in its life leaves no lock and nothing that blocks the next commit.
+        // Why:
+        //  The staging name it is written under is the sweep's to collect and the lock's place is `index.lock`,
+        //  which only a rename makes;
+        //  a commit after the restart proves the difference where it matters, by landing through the same service and the
+        //  same repository.
+        assert!(!repo.join(".git/index.lock").exists(), "{point}: no index lock is left");
+        let after: CommitRequest = request(&fixture, &repo, "kill-2", "k2.txt", "k2\n");
+        let answered_next = submit_quietly(&config(name.as_str()), &after);
+        assert!(matches!(answered_next, Ok(Submitted::Landed { .. })), "{point}: the commit after the restart is not blocked by anything the kill left: {answered_next:?}");
         assert_eq!(side_refs(&fixture, &repo, "refs/worktree/cli-git-service/"), Vec::new(), "{point}: the restart removed the scratch reference of the batch no intent named");
         let kept: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/cli-git/kept/");
-        if before_the_branch_moved {
+        if at_the_marker {
+            // Nothing of the batch is lost either way: the commit is on the branch exactly once above, and a reference kept for a
+            //  batch the branch never took names that batch's own commit and nothing else.
+            assert!(kept.len() <= 1, "{point}: at most one kept reference: {kept:?}");
+        } else if before_the_branch_moved {
             assert_eq!(kept.len(), 1, "{point}: the commit of the batch that did not land is kept: {kept:?}");
             assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", kept[0].0.as_str()]), "message of kill-1", "{point}: the kept reference holds the batch's own commit");
         } else {

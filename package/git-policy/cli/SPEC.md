@@ -10218,18 +10218,28 @@ not by the age of the lock file:
 #### Removing the lock and what is made durable
 
 The marker of the next batch is made ahead.
-When a batch has been landed and answered,
+While a landing holds the index lock and moves the branch,
 the service makes the marker of the batch after it,
 which is numbered one more and lands on the same index:
 it creates the file,
 writes the marker and flushes it to storage,
-on a thread of its own while the service is idle.
+on a thread of its own.
 The next commit then only places that file (a rename that does not replace),
 so the flush is not on its path.
+The flush starts there because it is seconds long on a loaded disk and the landing's own work pays for it:
+a measured landing waited 9 to 13 seconds for a flush that had started after the landing before
+(`lock_stage_kind=pre`, 2026-11-10),
+against the owner's rule that a commit through the wrapper is not five seconds slower than native Git.
+A landing that finds the flush still running never waits for it:
+it stages its own marker the ordinary way,
+as one does when nothing was made ahead,
+and the marker that was still being flushed finishes beside it and is removed once it is finished,
+by the batch that follows or by the service's end.
 The file is the service's one:
 it is kept for the service thread,
 named with this process and the batch number,
-and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
+and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for,
+and a marker still being flushed is removed there and not on a landing's path.
 It is removed when the service ends,
 whichever way its loop ends,
 and what a killed service leaves is removed by the next acquisition,
@@ -10256,7 +10266,7 @@ The file's pathname is checked before it is placed:
 it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
 A pathname that names another file is that file's,
 and is not removed.
-A commit that arrives while the flush is still running waits for it and starts no second.
+A commit that arrives while the flush is still running starts no second flush of its own and waits for none.
 The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
