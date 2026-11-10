@@ -2124,7 +2124,8 @@ The branch reflog reads `merge <branch>: Fast-forward`.
 #### Carrying the person's own work
 
 The owner's answer for a merge over unsaved edits is "Carry edits forward (Recommended)"
-(`SPEC.md`, "Merges and commits never fail"),
+(`SPEC.md`,
+"Merges and commits never fail"),
 and the rules behind it are "Manual merge should never fail too."
 and "never discard user data".
 Native Git refuses such a merge
@@ -2134,20 +2135,24 @@ and so did the wrapper.
 Now the merge runs and the person's work is carried across it:
 
 - Every path the merge changes that holds the person's own work in the worktree or the index has its bytes
-  written as objects, and kept on `refs/cli-git/carried/<n>`,
+  written as objects,
+  and kept on `refs/cli-git/carried/<n>`,
   before the first byte of the checkout changes;
   the merge's record names them.
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
-- After the branch moved, each of the person's two layers is merged with the merge on its own:
+- After the branch moved,
+  each of the person's two layers is merged with the merge on its own:
   a staged edit stays staged and an unsaved edit stays unsaved.
   A layer the merge does not reach is written back byte for byte.
   A text both sides changed goes through the word-level second pass;
   a region it cannot resolve keeps both sides between conflict markers,
   the file is named on standard error,
   and the command still exits 0.
-- A binary file, a symbolic link, a mode the pass cannot take,
+- A binary file,
+  a symbolic link,
+  a mode the pass cannot take,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named.
