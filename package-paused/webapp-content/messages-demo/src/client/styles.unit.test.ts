@@ -93,7 +93,7 @@ function stripComments(css: string,): string {
    */
   let insideComment = false;
   for (let index = 0; index < css.length; index += 1) {
-    if (!insideComment && css.startsWith('/*', index,)) {
+    if ((!insideComment) && css.startsWith('/*', index,)) {
       insideComment = true;
       index += 1;
       continue;
@@ -247,8 +247,11 @@ function varCalls(value: string,): readonly string[] {
  ```
  */
 function varName(argument: string,): string {
-  return argument.split(',',)[0]
-    .trim();
+  /**
+   Column the fallback separator starts at, or -1 when the call passes no fallback.
+   */
+  const commaIndex = argument.indexOf(',',);
+  return ((commaIndex === (-1)) ? argument : argument.slice(0, commaIndex,)).trim();
 }
 
 //endregion Helpers
