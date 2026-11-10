@@ -370,41 +370,41 @@ the fifth being the binary-operator defect in
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-    Yes.
-   The crate parses `<<-` heredocs itself and states that it follows the HCL specifications
-    (`martinohmann/hcl-rs` issue #304,
-   maintainer comment of 2024-04-09);
-    the specification defines the stripped indent as the minimum over all lines.
-2. Can upstream fix it?
-    Yes.
-   The fix is two edits:
-   report zero instead of `None` for a column-zero line,
-    and keep the `<<-` marker when nothing is stripped.
-3. Are they supporting this use case?
-    Yes.
-   `crates/hcl-edit/src/template/tests.rs::dedent_template` and the crate's specsuite runner
-    cover `<<-` heredocs,
-   including templates with interpolations.
-4. Would the repo welcome our contribution?
-    Yes.
-   `CONTRIBUTING.md` invites pull requests,
-   asks for a regression test with each fix,
-    and says nothing about AI assistance;
-    external fixes were merged in 2026-07 and 2026-08 (#549,
-   #562).
-5. Will they likely fix it?
-    Likely.
-   Heredoc indentation has been fixed several times before
-    (#8,
-   #11,
-   #15,
-   #157),
-    which shows the maintainer treats these as bugs;
-    no won't-fix statement exists.
-6. Have we prototyped a minimal fix compatible with their architecture?
-    Yes,
-   see the diff and its verification.
+1.  Is it really upstream's fault?
+     Yes.
+    The crate parses `<<-` heredocs itself and states that it follows the HCL specifications
+     (`martinohmann/hcl-rs` issue #304,
+    maintainer comment of 2024-04-09);
+     the specification defines the stripped indent as the minimum over all lines.
+2.  Can upstream fix it?
+     Yes.
+    The fix is two edits:
+    report zero instead of `None` for a column-zero line,
+     and keep the `<<-` marker when nothing is stripped.
+3.  Are they supporting this use case?
+     Yes.
+    `crates/hcl-edit/src/template/tests.rs::dedent_template` and the crate's specsuite runner
+     cover `<<-` heredocs,
+    including templates with interpolations.
+4.  Would the repo welcome our contribution?
+     Yes.
+    `CONTRIBUTING.md` invites pull requests,
+    asks for a regression test with each fix,
+     and says nothing about AI assistance;
+     external fixes were merged in 2026-07 and 2026-08 (#549,
+    #562).
+5.  Will they likely fix it?
+     Likely.
+    Heredoc indentation has been fixed several times before
+     (#8,
+    #11,
+    #15,
+    #157),
+     which shows the maintainer treats these as bugs;
+     no won't-fix statement exists.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+     Yes,
+    see the diff and its verification.
 
 ### Duplicate search
 

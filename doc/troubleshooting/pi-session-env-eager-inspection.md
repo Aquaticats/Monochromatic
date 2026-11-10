@@ -236,31 +236,31 @@ The thread contains only the auto-close notice.
 
 Six-constraint walk:
 
-1. Really upstream's fault:
-   partially.
-   The guideline wording ("Inspect ...") invites eager execution,
-   but the eager first-call behavior is model-side,
-   and the approval prompt is the local guard,
-   not Pi.
-   The wording concern is upstream's.
-2. Can upstream fix it:
-   yes;
-   rewording or demoting the guideline is a one-line change
-   (`src/core/tools/bash.ts:329-331`).
-3. Supporting this use case:
-   yes;
-   the session environment is a documented 0.82.0 feature.
-4. Would the repo welcome the contribution:
-   unknown-to-cautious.
-   New-contributor issues are auto-closed and only reopened after maintainer review
-   (per the bot notice on #7128 and `CONTRIBUTING.md`).
-5. Will they likely fix it:
-   no signal yet;
-   #7128 awaits the daily maintainer review of auto-closed issues.
-6. Minimal fix prototyped:
-   not applicable;
-   the candidate change is a prompt-wording decision,
-   not a code defect with a verifiable patch.
+1.  Really upstream's fault:
+    partially.
+    The guideline wording ("Inspect ...") invites eager execution,
+    but the eager first-call behavior is model-side,
+    and the approval prompt is the local guard,
+    not Pi.
+    The wording concern is upstream's.
+2.  Can upstream fix it:
+    yes;
+    rewording or demoting the guideline is a one-line change
+    (`src/core/tools/bash.ts:329-331`).
+3.  Supporting this use case:
+    yes;
+    the session environment is a documented 0.82.0 feature.
+4.  Would the repo welcome the contribution:
+    unknown-to-cautious.
+    New-contributor issues are auto-closed and only reopened after maintainer review
+    (per the bot notice on #7128 and `CONTRIBUTING.md`).
+5.  Will they likely fix it:
+    no signal yet;
+    #7128 awaits the daily maintainer review of auto-closed issues.
+6.  Minimal fix prototyped:
+    not applicable;
+    the candidate change is a prompt-wording decision,
+    not a code defect with a verifiable patch.
 
 Decision:
  do not file a new issue;

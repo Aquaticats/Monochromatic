@@ -218,9 +218,9 @@ Slint 1.17.0 source tag `v1.17.0` at commit
 Tree/property reads inspect current state but do not request a rendered snapshot.
 A headless verification whose result depends on a timer or deferred layout must therefore:
 
-1. call `take_screenshot` as a frame-settlement probe;
-2. read the element tree and verify intended geometry;
-3. call `take_screenshot` again only if a retained evidence image is needed.
+1.  call `take_screenshot` as a frame-settlement probe;
+2.  read the element tree and verify intended geometry;
+3.  call `take_screenshot` again only if a retained evidence image is needed.
 
 Tradeoff:
 the first PNG is a probe and may show a transitional frame,
@@ -339,40 +339,40 @@ behavior for a reproducible test.
 `terminal-title-fork-parity-tests.md`),
  so the 6-constraint check applies.
 
-1. Really upstream's fault?
-    Partly.
-    The behavior is a consequence of `set_platform` bypassing the selector,
-    which is
-   defensible design (if you supply your own platform you opt out of the selector's extras).
-    The gap is that this is
-   undocumented:
-    the MCP docs assume `cargo run --features slint/mcp` with the default backend and never mention that
-   a custom `set_platform` disables the server.
-    So this reads as a documentation gap,
-    not a code defect.
-2. Can upstream fix it?
-    Yes,
-    cheaply (call the MCP init from a `set_platform` path too,
-    or document the interaction),
-   so this constraint does not fail.
-3. Supporting this use case?
-    The `mcp` feature clearly targets agent-driven UIs,
-    but nothing in the docs covers the
-   custom-platform combination;
-    support for it is unstated.
-4. Would the repo welcome the contribution?
-    Not established here;
-    a doc-only note is low value and the code change is
-   debatable design,
-    so this is weak.
-5. Will they likely fix it?
-    No signal either way;
-    plausibly "working as intended" for a self-set platform.
-6. Prototyped a minimal fix?
-    Not attempted.
-    The user-facing problem is fully solved consumer-side by the one-line
-   gate above,
-    which is the correct place for it (an app that opts into a custom platform opts into managing this).
+1.  Really upstream's fault?
+     Partly.
+     The behavior is a consequence of `set_platform` bypassing the selector,
+     which is
+    defensible design (if you supply your own platform you opt out of the selector's extras).
+     The gap is that this is
+    undocumented:
+     the MCP docs assume `cargo run --features slint/mcp` with the default backend and never mention that
+    a custom `set_platform` disables the server.
+     So this reads as a documentation gap,
+     not a code defect.
+2.  Can upstream fix it?
+     Yes,
+     cheaply (call the MCP init from a `set_platform` path too,
+     or document the interaction),
+    so this constraint does not fail.
+3.  Supporting this use case?
+     The `mcp` feature clearly targets agent-driven UIs,
+     but nothing in the docs covers the
+    custom-platform combination;
+     support for it is unstated.
+4.  Would the repo welcome the contribution?
+     Not established here;
+     a doc-only note is low value and the code change is
+    debatable design,
+     so this is weak.
+5.  Will they likely fix it?
+     No signal either way;
+     plausibly "working as intended" for a self-set platform.
+6.  Prototyped a minimal fix?
+     Not attempted.
+     The user-facing problem is fully solved consumer-side by the one-line
+    gate above,
+     which is the correct place for it (an app that opts into a custom platform opts into managing this).
 
 Constraints 3 to 5 are soft-to-weak and the clean fix is consumer-side,
  so this does not clear the bar to file,

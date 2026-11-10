@@ -128,10 +128,10 @@ The package should follow normal workspace package requirements:
 
 The daemon owns four loops:
 
-1. Source discovery loop.
-2. Chokidar event loop.
-3. Debounce timer loop.
-4. Snapshot worker loop.
+1.  Source discovery loop.
+2.  Chokidar event loop.
+3.  Debounce timer loop.
+4.  Snapshot worker loop.
 
 The daemon should not ask systemd to represent each source.
  Systemd supervises only the daemon.
@@ -143,22 +143,22 @@ source path -> idle | debounce-pending | queued | snapshot-running | rerun-queue
 
 When a filesystem event maps to a source:
 
-1. If the source is idle,
-    start its debounce timer.
-2. If debounce is already pending,
-    extend or keep the pending deadline.
-3. If the source is running,
-    mark one rerun as queued.
-4. If the source is disabled,
-    ignore the event and log the reason.
+1.  If the source is idle,
+     start its debounce timer.
+2.  If debounce is already pending,
+     extend or keep the pending deadline.
+3.  If the source is running,
+     mark one rerun as queued.
+4.  If the source is disabled,
+     ignore the event and log the reason.
 
 When a debounce deadline fires:
 
-1. Add the source to the snapshot queue.
-2. Run at most one Kopia snapshot by default.
-3. Execute `kopia snapshot create <source>`.
-4. If changes arrived while the snapshot ran,
-    schedule exactly one follow-up debounce.
+1.  Add the source to the snapshot queue.
+2.  Run at most one Kopia snapshot by default.
+3.  Execute `kopia snapshot create <source>`.
+4.  If changes arrived while the snapshot ran,
+     schedule exactly one follow-up debounce.
 
 Default global snapshot concurrency:
  1.
@@ -525,15 +525,15 @@ repository.
 
 ## Operational rollout
 
-1. Keep the hourly `kopia snapshot create --all` timer enabled.
-2. Build and test the package.
-3. Run `kopia-source-watch list` and inspect source discovery.
-4. Run `kopia-source-watch check`.
-5. Start the daemon manually with a temporary source and fake Kopia binary.
-6. Start the daemon against real sources after fake-binary behavior passes.
-7. Touch a file in one source and confirm only that source's snapshot command runs after debounce.
-8. Leave the hourly `--all` timer enabled for at least one week.
-9. Reassess whether the fs-change layer reduces enough work to justify keeping it.
+1.  Keep the hourly `kopia snapshot create --all` timer enabled.
+2.  Build and test the package.
+3.  Run `kopia-source-watch list` and inspect source discovery.
+4.  Run `kopia-source-watch check`.
+5.  Start the daemon manually with a temporary source and fake Kopia binary.
+6.  Start the daemon against real sources after fake-binary behavior passes.
+7.  Touch a file in one source and confirm only that source's snapshot command runs after debounce.
+8.  Leave the hourly `--all` timer enabled for at least one week.
+9.  Reassess whether the fs-change layer reduces enough work to justify keeping it.
 
 ## Open questions
 

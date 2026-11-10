@@ -81,7 +81,7 @@ and lists `-EBUSY` with a remedy that reads as though it were a transient condit
 
 "Please reset device first" is misleading here.
 `init_done()` is not a flag that a reset clears temporarily;
- it *is* the disksize:
+ it **is** the disksize:
 
 ```c
 /* drivers/block/zram/zram_drv.c:103-106 */

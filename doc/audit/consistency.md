@@ -247,7 +247,7 @@ Packages use a mix of `main`,
  and `bin` with no consistent pattern
 for similar package types:
 
-**Config packages**:
+Config packages:
  mixed approaches:
 
 - `config/dprint`:
@@ -263,7 +263,7 @@ for similar package types:
    `config/dotfiles`:
    none
 
-**Module packages**:
+Module packages:
  mixed approaches:
 
 - `module/es`:
@@ -273,7 +273,7 @@ for similar package types:
 - `module/test`:
    `exports` + `module`
 
-**CLI packages**:
+CLI packages:
  reasonably consistent (`main` + `bin`),
  except:
 
@@ -286,7 +286,7 @@ for similar package types:
    `cli/git`:
    `main` + `bin` (no `exports`)
 
-**Dev-script packages**:
+Dev-script packages:
  inconsistent:
 
 - `dev-script/file-enforcer`,

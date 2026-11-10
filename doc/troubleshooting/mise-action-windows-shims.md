@@ -98,21 +98,21 @@ The replacement workflow must pass these consumer-boundary steps on `windows-lat
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** Yes.
-   `mise-action` `4.0.1` discarded `mise-shim.exe` from the Windows archive.
-2. **Can upstream fix it?
-   ** Yes.
-   The action can install and repair the shim beside `mise.exe`.
-3. **Are they supporting this use case?
-   ** Yes.
-   The action documents Windows and defaults to adding the shims directory to `PATH`.
-4. **Would the repo welcome our contribution?
-   ** Already resolved upstream.
-5. **Will they likely fix it?
-   ** The fix merged on 2026-05-14 and shipped in `4.1.0`.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Upstream PR 476 supplied and tested the
-   architecture-compatible fix.
+1.  **Is it really upstream's fault?
+    ** Yes.
+    `mise-action` `4.0.1` discarded `mise-shim.exe` from the Windows archive.
+2.  **Can upstream fix it?
+    ** Yes.
+    The action can install and repair the shim beside `mise.exe`.
+3.  **Are they supporting this use case?
+    ** Yes.
+    The action documents Windows and defaults to adding the shims directory to `PATH`.
+4.  **Would the repo welcome our contribution?
+    ** Already resolved upstream.
+5.  **Will they likely fix it?
+    ** The fix merged on 2026-05-14 and shipped in `4.1.0`.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Upstream PR 476 supplied and tested the
+    architecture-compatible fix.
 
 Nothing should be filed upstream because issue 475 and PR 476 already resolved the defect.

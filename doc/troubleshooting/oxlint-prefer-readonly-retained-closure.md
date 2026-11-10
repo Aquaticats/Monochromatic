@@ -54,7 +54,7 @@ and both are asked of the callable that actually runs rather than of a declared 
 
 TypeScript permits assigning a value-returning function where a `void`-returning one is expected,
 and permits no other such substitution.
-So `() => void` on a *type* says nothing about what the value returns:
+So `() => void` on a **type** says nothing about what the value returns:
 
 ```ts
 function produceRow(): Row {
@@ -177,7 +177,7 @@ A contract documents effects that are known;
 it cannot make an unreadable implementation safe,
 and this rule says so in the diagnostic itself.
 
-Changing the closure's own return *annotation* while its body still completes with the parameter's state.
+Changing the closure's own return **annotation** while its body still completes with the parameter's state.
 The rule asks the body,
 not the annotation.
 That asymmetry is deliberate,

@@ -390,6 +390,7 @@ The retained verification control joins `711` selected scalar values,
 and all five private-original hashes.
 Its unauthenticated public run request also matches the actor and triggering-actor identities.
 The current archive includes that compact control as its `35th` source record.
+
 ## Terminal managed Mac and Windows allocation follow-on
 
 The owner seal `depot-current-host-owner-complete-2026-10-18.evidence.json.gz`
@@ -443,6 +444,7 @@ under a separate `USD 5` guard,
 but supplies no completed allocation identity here.
 The platform SSH probe is being resealed without a supplied allocation identity.
 None of those pending items contributes a cost row at this snapshot.
+
 ## Selector check and subsequent owner queue
 
 The [locked Mise selector receipt](../audit/depot-mise-locked-affected-2026-10-18.evidence.json)

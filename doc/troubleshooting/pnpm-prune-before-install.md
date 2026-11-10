@@ -8,16 +8,16 @@ and to enforce that from
 `.pnpmfile.mjs`.
 Two failure modes surfaced while answering it:
 
-1. There is no pnpmfile hook that runs before the install pipeline starts,
-   so a pnpmfile cannot
-   sequence any command ahead of `pnpm install`.
-2. The summary "`pnpm prune` is just install with `modulesCacheMaxAge: 0`,
-   `pruneDirectDependencies: true`,
-   `pruneStore: true`" is wrong for the binary in use.
-   It paraphrases `doc/handover/pnpm-modules-cache-benchmark.md` (a `pnpm11` TypeScript note) and even
-   there omits a fourth option.
-   `pnpm` here is the pacquet ELF (Rust) CLI,
-   whose prune is a separate entry point.
+1.  There is no pnpmfile hook that runs before the install pipeline starts,
+    so a pnpmfile cannot
+    sequence any command ahead of `pnpm install`.
+2.  The summary "`pnpm prune` is just install with `modulesCacheMaxAge: 0`,
+    `pruneDirectDependencies: true`,
+    `pruneStore: true`" is wrong for the binary in use.
+    It paraphrases `doc/handover/pnpm-modules-cache-benchmark.md` (a `pnpm11` TypeScript note) and even
+    there omits a fourth option.
+    `pnpm` here is the pacquet ELF (Rust) CLI,
+    whose prune is a separate entry point.
 
 ## Root cause
 
@@ -382,29 +382,29 @@ closed 2026-07-26) cover the lifecycle topics.
 
 Six-constraint walk:
 
-1. Is it really upstream's fault?
-   No.
-   The v12 behavior matches the v12 docs:
-   prune is documented as removing packages no longer in the
-   lockfile,
-   and the pnpmfile hook list documents no pre-install hook.
-   The inexactness was our paraphrase of `pnpm11` source and a handover note,
-   not a defect.
-2. Can upstream fix it?
-   Not applicable given 1;
-   nothing is broken.
-3. Are they supporting this use case?
-   The supported primitives are the lifecycle scripts (`pnpm:devPreinstall` runs "before any
-   dependency is installed",
-   [scripts docs][scripts-devpreinstall]) and settings
-   (`modulesCacheMaxAge`).
-4. Would the repo welcome our contribution?
-   Not reached.
-5. Will they likely fix it?
-   Not reached.
-6. Have we prototyped a minimal fix?
-   Not reached;
-   there is no fix to prototype.
+1.  Is it really upstream's fault?
+    No.
+    The v12 behavior matches the v12 docs:
+    prune is documented as removing packages no longer in the
+    lockfile,
+    and the pnpmfile hook list documents no pre-install hook.
+    The inexactness was our paraphrase of `pnpm11` source and a handover note,
+    not a defect.
+2.  Can upstream fix it?
+    Not applicable given 1;
+    nothing is broken.
+3.  Are they supporting this use case?
+    The supported primitives are the lifecycle scripts (`pnpm:devPreinstall` runs "before any
+    dependency is installed",
+    [scripts docs][scripts-devpreinstall]) and settings
+    (`modulesCacheMaxAge`).
+4.  Would the repo welcome our contribution?
+    Not reached.
+5.  Will they likely fix it?
+    Not reached.
+6.  Have we prototyped a minimal fix?
+    Not reached;
+    there is no fix to prototype.
 
 Verdict:
 nothing to add.

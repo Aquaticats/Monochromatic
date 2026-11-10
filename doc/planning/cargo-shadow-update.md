@@ -2452,8 +2452,8 @@ explicit approval.
 
 Next:
 
-1. The coordinator launches the certification pass again against the rebuilt bundles.
-2. Nothing is merged into main and nothing is published.
+1.  The coordinator launches the certification pass again against the rebuilt bundles.
+2.  Nothing is merged into main and nothing is published.
 
 ## Owner decisions of 2026-11-04
 
@@ -2548,57 +2548,57 @@ in the order the sixth pass asked (production defects,
 false greens,
 coverage):
 
-1. Run the full release gate with the installed shadow first on PATH (`$HOME/temp/agent/gate-final.sh`,
-   already pointed at the r21
-   worktree),
-   then rebuild the packets as cert7 under 250 KB each with the manifest,
-   and fix group 6's packet,
-   which had no test
-   bodies assigned.
-2. Group 5:
-   manifest-specific output-barrier failure (path-targeted);
-   refused output plus `CompletionSync` failure;
-   independent
-   syscall observation of the completion-parent barrier.
-3. Group 8:
-   preferred-directory link failure followed by fallback-stage and barrier faults (R2,
-   sibling fallback and stranded path);
-   recovery output barriers at the real file and directory syncs and their ordering;
-   post-exchange restore failure with the manifest;
-   manifest unchanged on a damaged-ready rejection;
-   update-caller continuation on a mandatory recovery failure;
-   counted swap
-   callbacks in the exchange tests.
-4. Group 9:
-   K2 retry after a failed own-directory barrier and after a failed parent-entry barrier in the same process.
-5. Groups 10 and 11:
-   negative boot-identity and replaced-identity cases through recovery and admission;
-   journal-view admission;
-   replace the masked legacy cross-journal and malformed-record tests with discriminating bodies;
-   live-scope admission must assert the
-   journal and snapshots are retained after the first refusal;
-   parent-view substitution through admission.
-6. Group 12:
-   pending-launcher preparation kill;
-   delegated-case skip wording.
-7. Group 13:
-   weaker-route record write and sync failures with the weaker route forced (no payload starts,
-   append then barrier then
-   spawn);
-   acknowledgement barriers at the real operations and the reader's failures through recovery and admission;
-   the CLI
-   acknowledgement protocol (lock,
-   durability,
-   quoting);
-   positive acknowledgement controls for the broader uncertainty classes.
-8. Group 14:
-   depth-aware append-only entry trace proving the second shadow is terminal and does not enter transaction preparation;
-   tests at the production start sites with a handshake between selection and check;
-   remove the stale bounded-fallback test reference.
-9. Group 1 wording only:
-   `assert_scope_record` proves the record,
-   not placement;
-   the double-fork probe has no reparenting handshake.
+1.  Run the full release gate with the installed shadow first on PATH (`$HOME/temp/agent/gate-final.sh`,
+    already pointed at the r21
+    worktree),
+    then rebuild the packets as cert7 under 250 KB each with the manifest,
+    and fix group 6's packet,
+    which had no test
+    bodies assigned.
+2.  Group 5:
+    manifest-specific output-barrier failure (path-targeted);
+    refused output plus `CompletionSync` failure;
+    independent
+    syscall observation of the completion-parent barrier.
+3.  Group 8:
+    preferred-directory link failure followed by fallback-stage and barrier faults (R2,
+    sibling fallback and stranded path);
+    recovery output barriers at the real file and directory syncs and their ordering;
+    post-exchange restore failure with the manifest;
+    manifest unchanged on a damaged-ready rejection;
+    update-caller continuation on a mandatory recovery failure;
+    counted swap
+    callbacks in the exchange tests.
+4.  Group 9:
+    K2 retry after a failed own-directory barrier and after a failed parent-entry barrier in the same process.
+5.  Groups 10 and 11:
+    negative boot-identity and replaced-identity cases through recovery and admission;
+    journal-view admission;
+    replace the masked legacy cross-journal and malformed-record tests with discriminating bodies;
+    live-scope admission must assert the
+    journal and snapshots are retained after the first refusal;
+    parent-view substitution through admission.
+6.  Group 12:
+    pending-launcher preparation kill;
+    delegated-case skip wording.
+7.  Group 13:
+    weaker-route record write and sync failures with the weaker route forced (no payload starts,
+    append then barrier then
+    spawn);
+    acknowledgement barriers at the real operations and the reader's failures through recovery and admission;
+    the CLI
+    acknowledgement protocol (lock,
+    durability,
+    quoting);
+    positive acknowledgement controls for the broader uncertainty classes.
+8.  Group 14:
+    depth-aware append-only entry trace proving the second shadow is terminal and does not enter transaction preparation;
+    tests at the production start sites with a handshake between selection and check;
+    remove the stale bounded-fallback test reference.
+9.  Group 1 wording only:
+    `assert_scope_record` proves the record,
+    not placement;
+    the double-fork probe has no reparenting handshake.
 10. The fifth-pass open list not covered by items 1 to 9:
     R2 stranded path,
     admission schedules for the remaining boot and unreadable records,

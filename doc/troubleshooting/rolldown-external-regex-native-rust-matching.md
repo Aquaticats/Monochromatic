@@ -386,13 +386,13 @@ stated so the choice stays auditable:
   anchored matchers into the JS callback path.
   Output equivalence means there is no functional gain to weigh against
   the cost.
-- **Plain string entries instead of patterns**:
+- Plain string entries instead of patterns:
   the string arm is exact equality
   (`is_external.rs:43`),
   so strings cannot cover `electron/<subpath>` or the open set of `node:`
   builtins without enumerating every specifier,
   which breaks on any new subpath import.
-- **Reading the audit criterion as satisfied "at similar time complexity"**:
+- Reading the audit criterion as satisfied "at similar time complexity":
   asymptotically both forms are linear per specifier,
   but the criterion compared pattern shapes while the two forms execute on
   different machines:
@@ -408,30 +408,30 @@ Nothing to file;
 this is not an upstream defect.
 Walk of the six constraints:
 
-1. **Is it really upstream's fault?**
-   No.
-   The split execution model is rolldown's deliberate design:
-   `RegExp` entries are explicitly decomposed and recompiled natively,
-   and rolldown's own docs comment in `js_callback.rs` describes the
-   threadsafe-function machinery as the intended way to run JS options.
-   The behaviour is the value proposition of a Rust bundler.
-2. **Can upstream fix it?**
-   Not applicable;
-   there is nothing to fix.
-   The predicate form's cost is inherent to calling JS from Rust.
-3. **Are they supporting this use case?**
-   Yes;
-   both forms are supported and documented in the type surface
-   (`ExternalOption = StringOrRegExp | StringOrRegExp[] | ExternalOptionFunction`).
-4. **Would the repo welcome our contribution?**
-   Not applicable without a defect or feature gap.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Not applicable;
-   the only change that would help this repository is on our side
-   (keeping the RegExp form),
-   and it is already in place.
+1.  **Is it really upstream's fault?**
+    No.
+    The split execution model is rolldown's deliberate design:
+    `RegExp` entries are explicitly decomposed and recompiled natively,
+    and rolldown's own docs comment in `js_callback.rs` describes the
+    threadsafe-function machinery as the intended way to run JS options.
+    The behaviour is the value proposition of a Rust bundler.
+2.  **Can upstream fix it?**
+    Not applicable;
+    there is nothing to fix.
+    The predicate form's cost is inherent to calling JS from Rust.
+3.  **Are they supporting this use case?**
+    Yes;
+    both forms are supported and documented in the type surface
+    (`ExternalOption = StringOrRegExp | StringOrRegExp[] | ExternalOptionFunction`).
+4.  **Would the repo welcome our contribution?**
+    Not applicable without a defect or feature gap.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Not applicable;
+    the only change that would help this repository is on our side
+    (keeping the RegExp form),
+    and it is already in place.
 
 `.out-of-scope/` was checked:
 no rolldown entry exists there,

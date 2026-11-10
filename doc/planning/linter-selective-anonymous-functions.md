@@ -78,17 +78,17 @@ so a suppression stays auditable.
 
 Report a closure unless both of these hold:
 
-1. `captured_items` is not empty,
-   so no named function can take its place.
-2. The callee requires the callable to outlive the call:
-   the closure is a direct argument whose parameter type
-   carries a `'static` bound (`thread::spawn`,
-   `Builder::spawn`,
-   `Timer::start`,
-   and the generated Slint `on_*`
-   setters).
-   Such a callee stores or runs the state later,
-   so a `for` loop or a `match` cannot replace the closure.
+1.  `captured_items` is not empty,
+    so no named function can take its place.
+2.  The callee requires the callable to outlive the call:
+    the closure is a direct argument whose parameter type
+    carries a `'static` bound (`thread::spawn`,
+    `Builder::spawn`,
+    `Timer::start`,
+    and the generated Slint `on_*`
+    setters).
+    Such a callee stores or runs the state later,
+    so a `for` loop or a `match` cannot replace the closure.
 
 A closure that captures nothing,
 a closure that only borrows for the duration of the call
@@ -400,22 +400,22 @@ Under `SourceOnly` it resolves 25 of the 67.
 
 ## Order of work if accepted
 
-1. Spike on the two unverified points,
-   with a positive control (a `thread::spawn(move || ..)` that must pass
-   and a capture-free closure that must be reported).
-2. Change 1 with tests,
-   a release,
-   and the config of this repository left unchanged.
-3. Change 2 with tests that include the adversarial cases (shadowed names,
-   nested closures,
-   closures in macro
-   token trees,
-   which the syntax frontend does not see),
-   a release,
-   then a lint run over every Rust package to
-   record how the count moves.
-4. In the IDE:
-   directive comments on the remaining sites,
-   then the `warn` to `error` switch the owner scheduled
-   on 2026-10-05 ("warn everywhere until no finding is left,
-   then error").
+1.  Spike on the two unverified points,
+    with a positive control (a `thread::spawn(move || ..)` that must pass
+    and a capture-free closure that must be reported).
+2.  Change 1 with tests,
+    a release,
+    and the config of this repository left unchanged.
+3.  Change 2 with tests that include the adversarial cases (shadowed names,
+    nested closures,
+    closures in macro
+    token trees,
+    which the syntax frontend does not see),
+    a release,
+    then a lint run over every Rust package to
+    record how the count moves.
+4.  In the IDE:
+    directive comments on the remaining sites,
+    then the `warn` to `error` switch the owner scheduled
+    on 2026-10-05 ("warn everywhere until no finding is left,
+    then error").

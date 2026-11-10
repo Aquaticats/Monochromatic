@@ -81,8 +81,7 @@ but the rejection-lane governance and the maintainer's stated focus on a separat
   ** `fabian-hiller/valibot` moved to `open-circle/valibot` on 2026-01-27 (PR #1395).
   Open Circle is Fabian's own umbrella org for Valibot and Formisch,
    not an acquisition.
-- **Documented `isolatedDeclarations` guidance.
-  **
+- **Documented `isolatedDeclarations` guidance.**
   Valibot ships `v.GenericSchema<TInput, TOutput>` as the sanctioned annotation type for explicit declarations
   (analogous to `z.ZodType<T>` but officially documented as the workaround).
   Fabian engages constructively in the related threads,
@@ -93,14 +92,12 @@ but the rejection-lane governance and the maintainer's stated focus on a separat
 
 ## Risks accepted
 
-- **Valibot bus factor 1.
-  **
+- **Valibot bus factor 1.**
   Fabian Hiller authored 132 of 188 substantive commits (70%) in the last 12 months;
   the next-most-active human had 2 commits.
   If Fabian stops,
    the project stalls.
-- **Funding gap.
-  **
+- **Funding gap.**
   Open Collective ~$2,428/year recurring against a $10k/month target.
   No corporate employer paying him to work on Valibot.
 - **Two open RFCs without resolution** (#1441 compiler,
@@ -201,11 +198,11 @@ Measured locally on 2026-05-09 with Bun's bundler + `gzip -9` on identical `stri
    63,518 B gzipped
 - `zod/mini` (our current baseline):
    6,850 B minified,
-   **2,753 B gzipped**
+   2,753 B gzipped
 - `valibot` (today,
    spec-violating):
    1,776 B minified,
-   **881 B gzipped**
+   881 B gzipped
 - `valibot` projected with #1343 fix applied (+60-80 gzipped bytes from modeling the diff against
   `_getStandardProps.ts:33-37`):
    ~940-960 B gzipped

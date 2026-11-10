@@ -124,29 +124,29 @@ GitHub searches for `registerEntryRenderer` in `earendil-works/pi` found no matc
 context,
  do not concern `ExtensionAPI` fixture compatibility.
 
-1. **Is it really upstream's fault?
-   ** No. Pi declares and implements the required method;
-    the consumer fake was
-   incomplete.
-2. **Can upstream fix it?
-   ** Pi could make the method optional,
-    but that would weaken its declared API contract and
-   would not correct the consumer fixture.
-3. **Are they supporting this use case?
-   ** Yes.
-    Pi documents entry renderers and includes an extension example that
-   calls `registerEntryRenderer`.
-4. **Would the repo welcome our contribution?
-   ** Not for this case.
-    Pi's `CONTRIBUTING.md` permits agent assistance
-   only with human understanding and disclosure,
-    and new-contributor issues are auto-closed by default.
-5. **Will they likely fix it?
-   ** No upstream fix is appropriate because the observed failure is consumer-owned.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream prototype is appropriate.
-   The consumer-side method was verified by the package type check,
-    Oxlint,
-    and built-extension verifier.
+1.  **Is it really upstream's fault?
+    ** No. Pi declares and implements the required method;
+     the consumer fake was
+    incomplete.
+2.  **Can upstream fix it?
+    ** Pi could make the method optional,
+     but that would weaken its declared API contract and
+    would not correct the consumer fixture.
+3.  **Are they supporting this use case?
+    ** Yes.
+     Pi documents entry renderers and includes an extension example that
+    calls `registerEntryRenderer`.
+4.  **Would the repo welcome our contribution?
+    ** Not for this case.
+     Pi's `CONTRIBUTING.md` permits agent assistance
+    only with human understanding and disclosure,
+     and new-contributor issues are auto-closed by default.
+5.  **Will they likely fix it?
+    ** No upstream fix is appropriate because the observed failure is consumer-owned.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream prototype is appropriate.
+    The consumer-side method was verified by the package type check,
+     Oxlint,
+     and built-extension verifier.
 
 Nothing is added to the upstream tracker.

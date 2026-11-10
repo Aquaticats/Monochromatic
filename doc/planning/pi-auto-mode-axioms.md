@@ -476,6 +476,7 @@ A nonzero-loss positive control passed;
 unresolved references and deterministic empty-grant values are excluded from model-quality scoring.
 Removing the committed probability upper-bound guard made the suite fail with `Missing expected exception`.
 Restoring it made the suite pass and the scratch tree was clean.
+
 ### Expanded Jev development result
 
 Process `proc_2b93` completed all 15 requests through the pinned native gateway route.

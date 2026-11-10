@@ -167,7 +167,7 @@ root-config work.
 
 Recording stamps every path in the global read set.
 `readFileStamps` returns the
-`ABSENT_FILE_STAMPS` sentinel if *any* path is absent
+`ABSENT_FILE_STAMPS` sentinel if **any** path is absent
 (`src/io/staleness-stamps.ts`),
 and `rememberFreshStalenessEntry` early-returns
 on that sentinel (`src/io/staleness.ts`).
