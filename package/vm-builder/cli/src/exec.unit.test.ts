@@ -1,10 +1,20 @@
 import {
+  mkdtempDisposable,
+  readFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
-import { exec, } from '../dist/final/node/exec.mjs';
+import {
+  exec,
+  execStreaming,
+} from '../dist/final/node/exec.mjs';
 
 /**
  Awaits a promise and returns its rejection reason so assertions can read error properties;
@@ -186,6 +196,82 @@ await describe({
         },),
 
         //endregion Timeout
+      ],
+    },),
+    describe({
+      name: execStreaming.name,
+      children: [
+        it({
+          name: 'resolves without a captured result when the command succeeds',
+          fn: async () => {
+            const result = await execStreaming({ cmd: 'true', },);
+            expect(result,).toBeUndefined();
+          },
+        },),
+        it({
+          name: 'rejects with the exit code in the message and on the error',
+          fn: async () => {
+            const error = await rejectionOf(execStreaming({
+              cmd: 'sh',
+              args: ['-c', 'exit 4',],
+            },),) as SubprocessFields;
+            expect(error.name,).toBe('SubprocessError',);
+            expect(error.message,).toBe("Command failed with exit code 4: sh -c 'exit 4'",);
+            expect(error.exitCode,).toBe(4,);
+          },
+        },),
+        it({
+          name: 'passes arguments without shell expansion',
+          fn: async () => {
+            await using fixture = await mkdtempDisposable(join(
+              scratchRoot(),
+              'vm-builder-streaming-running-',
+            ),);
+            /**
+             File the child writes its own argument to, which is how a run with inherited stdio is observed.
+             */
+            const argumentPath = join(
+              fixture.path,
+              'argument.txt',
+            );
+            /**
+             Argument carrying the characters a shell would expand.
+             */
+            const argument = '$HOME; echo injected';
+            await execStreaming({
+              cmd: process.execPath,
+              args: [
+                '-e',
+                'require("node:fs").writeFileSync(process.argv[1], process.argv[2])',
+                argumentPath,
+                argument,
+              ],
+            },);
+            expect(await readFile(
+              argumentPath,
+              'utf8',
+            ),).toBe(argument,);
+          },
+        },),
+        it({
+          name: 'terminates a command that outlives timeoutMs',
+          fn: async () => {
+            const timeoutMs = 100;
+            /**
+             Moment the command starts, so the case can show the kill happened well before the command's own sleep.
+             */
+            const startedAt = performance.now();
+            const error = await rejectionOf(execStreaming({
+              cmd: 'sleep',
+              args: ['30',],
+              timeoutMs,
+            },),) as SubprocessFields;
+            expect(error.name,).toBe('SubprocessError',);
+            expect(error.signalName,).toBe('SIGTERM',);
+            expect(performance.now() - startedAt,).toBeLessThan(10_000,);
+          },
+          timeout: 20_000,
+        },),
       ],
     },),
   ],
