@@ -25,9 +25,7 @@ use crate::shaped_text::TextShaper;
 /// The assembled record of one line's rows,
 ///  the sizes that fit a message row to the text area,
 ///  and the one cap that cuts a message to its row limit.
-use crate::virtual_row::{
-    Block, CONTINUATION_INDENT, MessageRow, ROW_TEXT, cap_message_rows,
-};
+use crate::virtual_row::{Block, CONTINUATION_INDENT, MessageRow, ROW_TEXT, cap_message_rows};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
 /// Why:

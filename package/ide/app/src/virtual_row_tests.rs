@@ -32,8 +32,8 @@ fn a_message_past_the_cap_keeps_its_first_rows_and_counts_the_rest() {
     let rows: Vec<MessageRow> = (0..total).map(row).collect();
     let capped = cap_message_rows(&rows);
     assert_eq!(capped.len(), MESSAGE_ROWS);
-    for index in 0..MESSAGE_ROWS - 1 {
-        assert_eq!(capped[index].text, format!("line {index}"));
+    for (index, kept) in capped[..MESSAGE_ROWS - 1].iter().enumerate() {
+        assert_eq!(kept.text, format!("line {index}"));
     }
     let counted = &capped[MESSAGE_ROWS - 1];
     assert_eq!(
@@ -55,7 +55,7 @@ fn a_message_within_the_cap_is_shown_whole() {
         assert!(
             capped
                 .iter()
-                .all(|shown| !shown.text.contains("more lines")),
+                .all(|shown| return !shown.text.contains("more lines")),
             "a message within the cap counts nothing"
         );
     }
