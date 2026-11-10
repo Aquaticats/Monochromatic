@@ -254,6 +254,52 @@ await describe({
 
             expect(result,).toContain('.shared',);
             expect(result,).not.toContain('@import',);
+            expect(result,).toContain('@layer base',);
+          },
+        },),
+
+        it({
+          name: 'wraps a media-conditioned import in its media query',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './print.css' print;\n.a { top: 0; }",
+                'print.css': '.p { color: black; }',
+              },
+            },);
+
+            expect(result,).toContain('@media print',);
+            expect(result,).toContain('.p { color: black; }',);
+          },
+        },),
+
+        it({
+          name: 'wraps a supports-conditioned import in its supports block',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './grid.css' supports(display: grid);",
+                'grid.css': '.g { display: grid; }',
+              },
+            },);
+
+            expect(result,).toContain('@supports (display: grid)',);
+            expect(result,).toContain('.g { display: grid; }',);
+          },
+        },),
+
+        it({
+          name: 'nests a layer and a media condition around one import',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './base.css' layer(base) screen;",
+                'base.css': '.b { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('@layer base',);
+            expect(result,).toContain('@media screen',);
           },
         },),
 

@@ -136,6 +136,12 @@ Imports resolve through package.json `exports` mappings,
 Specifiers are read from parsed tokens,
 so trailing conditions such as `layer(base)` or media queries
 never corrupt the target.
+Conditions the `@import` carries are preserved:
+the inlined rules are wrapped in the matching `@media`,
+`@layer`,
+or `@supports` block,
+nested in the order CSS reads them,
+so a print-only or layer-scoped import stays print-only or layer-scoped.
 Each file inlines once;
  circular imports resolve to nothing on revisit.
 
