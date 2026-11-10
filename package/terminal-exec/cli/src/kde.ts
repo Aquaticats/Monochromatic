@@ -6,6 +6,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
@@ -66,6 +67,7 @@ async function readFileOrAbsent(
     if (!(Error.isError(error,)))
       throw error;
 
+    l.debug(`kdeglobals '${path}' cannot be read: ${caughtValueText(error,)}`,);
     return KDEGLOBALS_UNREADABLE;
   }
 }

@@ -27,6 +27,15 @@ import type {
  are synchronous. Backends must implement {@link SyncStorageBackend}.
  Defaults to an in-memory `Map` when no backends are provided.
  
+ Hand-written twin of {@link createStore}, on the same deliberate split the
+ store pair uses: neither side is generated, and the two are not adapters
+ over one core. Merging them would need an abstraction over the sync-or-async
+ return, which this package deliberately avoids;
+ `doc/decision/memoize-sync-async-parallel-impls.md` records that choice. The
+ shared parts are `consensus.ts`, `serialize.ts`, and `lru-key-set.ts`; every
+ other decision below is made a second time here, on purpose, and must match
+ the async side.
+ 
  When {@link SyncStoreConfig.eviction} is set, the store tracks access order
  and evicts entries according to the configured policy.
  

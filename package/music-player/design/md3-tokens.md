@@ -1,4 +1,4 @@
-# Material Design 3 — verified token values
+# Material Design 3: verified token values
 
 **Why this file exists.**
  Three spec numbers were built from memory in phase one and
@@ -6,7 +6,8 @@ all three were wrong.
  Everything below was read from a source.
  If you need a value
 that is not here,
- read it — do not recall it.
+ read it,
+do not recall it.
 
 ---
 
@@ -17,7 +18,7 @@ that is not here,
 "This website requires JavaScript."
  **Google publishes the generated token files in a
 public repo instead**,
- and those files *are* the spec data:
+ and those files **are** the spec data:
 
 ```text
 repo:  github.com/material-components/material-web
@@ -31,7 +32,8 @@ The `latest/sass/_md-comp-*.scss` files are plain `$name: value;` declarations.
 them by token name (for example `container-height`,
  `handle-width`,
  `between-space`).
-The `v0_192` files wrap values in `if($exclude-hardcoded-values, null, 40px)` — the
+The `v0_192` files wrap values in `if($exclude-hardcoded-values, null, 40px)`,
+the
 second argument is the value.
 
 Second-source cross-checks that proved reliable:
@@ -53,7 +55,7 @@ corner-full        9999px   (pill)
 
 ---
 
-## Typescale (`_md-sys-typescale.scss`) — rem, at 16px root
+## Typescale (`_md-sys-typescale.scss`): rem, at 16px root
 
 ```text
                     size            line-height     weight
@@ -80,7 +82,7 @@ used in this project;
 
 ---
 
-## List item (`_md-comp-list.scss`) — the one that was wrong
+## List item (`_md-comp-list.scss`): the one that was wrong
 
 ```text
 list-item-one-line-container-height     56px
@@ -127,7 +129,7 @@ Read the token again before relying on either value.
 
 ---
 
-## Slider, updated M3 slider (`_md-comp-slider.scss`) — also was wrong
+## Slider, updated M3 slider (`_md-comp-slider.scss`): also was wrong
 
 ```text
 handle-width            4px
@@ -147,11 +149,13 @@ Size variants exist:
  `small` 24,
  `medium` 40,
  `large` 56,
-`xlarge` 96 — all with a 44px handle.
+`xlarge` 96,
+all with a 44px handle.
  This project uses the **default (16px track)**.
 
 **Do not use the v0.192 slider** (4px track,
- 20×20 round handle) — that is the
+ 20×20 round handle),
+that is the
 previous generation and looks nothing like the current component.
 
 Implementation note for HTML mocks:
@@ -252,7 +256,7 @@ Older candidates still carry the old hexes.
 deliberate project override,
  not a spec value.
 
-## Scrollbar — Compose Material 3 (`compose/material3/.../Scrollbar.kt`, androidx-main)
+## Scrollbar: Compose Material 3 (`compose/material3/.../Scrollbar.kt`, androidx-main)
 
 MD3 has **no scrollbar spec** on m3.material.io.
  The only Material source is the
@@ -275,7 +279,8 @@ shown only if           content > viewport
 
 Everything above is verbatim from the source.
  **Desktop needs an interactive bar and
-Material has none** — this project's extension (candidate scroll-a B):
+Material has none**,
+this project's extension (candidate scroll-a B):
  same
 geometry and colour,
  no fade,
@@ -379,24 +384,29 @@ Measured from the local archive after the user caught an improvised dropdown fie
   the picker's menu panel keeps the 4dp
   corner but exceeds the 280dp width cap because the D31 name wall needs the full panel.
 
-## Not yet read — look these up before using them
+## Not yet read: look these up before using them
 
-- ~~Colour role hexes~~ — now read,
+- ~~Colour role hexes~~:
+  now read,
    see "Colour roles (dark),
    verified" above.
-- **State-layer opacities** (hover / focus / pressed) — in `md-sys-state`.
-- **Elevation levels** — in `md-sys-elevation`.
+- **State-layer opacities** (hover / focus / pressed),
+  in `md-sys-state`.
+- **Elevation levels**:
+  in `md-sys-elevation`.
    Barely relevant here:
    a true-black
   theme leans on outlines rather than shadows.
-- ~~Menu dimensions~~ — baseline menu now read,
+- ~~Menu dimensions~~:
+  baseline menu now read,
   see "Outlined text field and baseline
   menu" below;
   snackbar,
   FAB,
   icon-button and top-app-bar dimensions remain unread.
 - **Motion tokens** (durations,
-   easing) — nothing animated has been designed yet.
+   easing),
+  nothing animated has been designed yet.
 
 ---
 

@@ -18,7 +18,7 @@
  @module
  */
 
-import path from 'node:path';
+import { resolve, } from 'node:path';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
@@ -86,7 +86,7 @@ function resolveConfigPath<T extends Record<string, unknown>>(options: PreparedO
    empty when the extension is empty.
    */
   const extensionSuffix = options.fileExtension === '' ? '' : `.${options.fileExtension}`;
-  return path.resolve(
+  return resolve(
     options.cwd,
     `${options.configName}${extensionSuffix}`,
   );
@@ -498,7 +498,6 @@ export function createConf<T extends Record<string, unknown> = Record<string, un
         /* oxlint-enable typescript/no-unsafe-type-assertion */
       }
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the implementation object satisfies Conf<T> member by member; the overload set is restated at this single factory edge because per-member overload assignability cannot be expressed on an object literal.
   } as unknown as Conf<T>;
   Object.freeze(conf,);
 
