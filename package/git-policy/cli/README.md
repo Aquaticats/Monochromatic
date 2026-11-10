@@ -4394,8 +4394,22 @@ The measurements and the cause are in `doc/troubleshooting/git-fsmonitor-daemon-
 
 What the wrapper does now:
 
-- It still never passes `-c core.fsmonitor=...` to any Git child,
-  never writes `core.fsmonitor` in any repository,
+- The Git it starts for its own work passes `-c core.fsmonitor=false`:
+  the commit's index builds and trees,
+  `read-tree`,
+  `diff-tree`,
+  `reset`,
+  the scratch commit,
+  the landing and service steps,
+  and its queries.
+  A Git that reads the index asks the file-watching daemon first and waits for it,
+  so a step that found no daemon
+  took 60 s twice in one commit.
+  The option is part of the prefix every real-Git start already carries,
+  so it adds no process and no start.
+- A command the person typed is forwarded with their configuration untouched,
+  so the person's `core.fsmonitor` stays for what they run themselves.
+- It never writes `core.fsmonitor` in any repository,
   and never starts,
   stops or kills `git fsmonitor--daemon`.
   The setting is the person's configuration,
@@ -4422,6 +4436,16 @@ What the wrapper does now:
   Doctor reads one more configuration listing with `--show-origin` for this,
   because the snapshot the commit path
   reads names scopes but not files.
+
+The wrapper's own Git is the exception,
+because the owner chose it on 2026-11-10:
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)".
+So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
+and never a command the person typed
+(`doc/handover/questions-for-the-owner.md`,
+"The wrapper's own Git and fsmonitor").
 
 The owner's earlier words,
 kept as history;

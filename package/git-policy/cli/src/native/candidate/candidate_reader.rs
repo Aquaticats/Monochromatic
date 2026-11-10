@@ -23,7 +23,9 @@ use crate::start_retry::RetryStart;
 use crate::candidate_object::ObjectId;
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
-/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
 use crate::hooks_off::StartOwner;
 /// The watch that announces a request that takes long and stops the process at the bound.
 use crate::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};

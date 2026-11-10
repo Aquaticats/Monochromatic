@@ -28,7 +28,8 @@ use crate::child_environment::{
 };
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
-/// Who a real-Git start runs for: the announced query is the command the person typed.
+/// Who a real-Git start runs for:
+/// the announced query is the command the person typed.
 use crate::hooks_off::StartOwner;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
 use crate::management::{host_filesystem_section, plan_management_with_section};

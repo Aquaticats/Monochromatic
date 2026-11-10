@@ -29,7 +29,9 @@ use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// The shadow request and the real-Git command builder.
 use crate::shadow_git::shadow_request;
 use crate::forwarding::git_command;
-/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
 use crate::hooks_off::StartOwner;
 use crate::signal_relay::SignalGuard;
 /// Context,

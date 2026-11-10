@@ -10191,6 +10191,18 @@ filing is the owner's decision).
 The earlier statements stay in `package/git-policy/cli/README.md`,
 "Git's own fsmonitor",
 as history.
+The decision was amended 2026-11-10,
+when the owner was asked
+"Should the wrapper switch fsmonitor off for its own internal Git commands only?"
+and chose "B:
+off for internal Git (Recommended)":
+every Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+(the prefix in `package/git-policy/cli/src/native/invocation/hooks_off.rs`,
+named `StartOwner::Wrapper` there),
+so a step that reads the index no longer waits for the daemon,
+while a command the person typed keeps the person's setting (`StartOwner::Person`).
+The wording is in `package/git-policy/cli/SPEC.md`,
+"Real Git starts with traditional hooks off".
 
 ### Worktree add and package managers
 

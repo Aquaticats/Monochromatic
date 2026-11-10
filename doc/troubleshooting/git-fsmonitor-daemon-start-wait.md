@@ -885,6 +885,21 @@ On the main checkout that cost about 7 ms more per status (16 ms against 9 ms),
 and it grows with the number of tracked and untracked paths;
 a repository far larger than this one pays more.
 
+### Switch it off for the wrapper's own Git only (adopted 2026-11-10)
+
+Asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)".
+The wrapper's own Git starts now carry `-c core.fsmonitor=false`
+(the prefix in `package/git-policy/cli/src/native/invocation/hooks_off.rs`),
+and a command the person typed keeps their setting.
+This is what makes a commit immune to the wait above even on a machine where the monitor is on:
+no start of the wrapper's own Git asks the daemon.
+What it does not fix:
+a forwarded command still waits,
+because its configuration is the person's,
+so the global disable above remains what protects interactive work.
+
 ### Run a Git built with the prototype patch (not adopted)
 
 [`git-fsmonitor-daemon-start-wait.patch`](git-fsmonitor-daemon-start-wait.patch) applies cleanly to `v2.56.0`

@@ -1,7 +1,7 @@
 //! Controls for the options every real-Git start carries:
 //! every hook switched off,
-//! and, for the Git the wrapper starts for its own work,
-//! Git's file-watching monitor switched off.
+//! and Git's file-watching monitor switched off
+//! for the Git the wrapper starts for its own work.
 //! Where the options go,
 //! which commands go without them,
 //! and what real Git does with them.
@@ -18,8 +18,8 @@ fn tokens(command: &Command) -> Vec<String> {
 /// The options as they are spelled on the command line:
 /// the hooks path,
 /// then one switch per event,
-/// and, for the Git the wrapper starts for its own work,
-/// the switch that keeps the file-watching monitor from starting.
+/// and the switch that keeps the file-watching monitor from starting,
+/// which only the Git the wrapper starts for its own work carries.
 fn prefix() -> Vec<String> {
     let mut tokens: Vec<String> = vec![
         String::from("-c"),

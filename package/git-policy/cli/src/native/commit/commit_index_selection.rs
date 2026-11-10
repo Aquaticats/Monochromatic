@@ -21,7 +21,9 @@ use crate::start_retry::RetryStart;
 use crate::transaction_journal::TransactionMode;
 /// Real-Git command builder shared with the forwarded commands.
 use crate::forwarding::git_command;
-/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
 use crate::hooks_off::StartOwner;
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;

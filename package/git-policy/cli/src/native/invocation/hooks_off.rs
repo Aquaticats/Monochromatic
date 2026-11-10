@@ -24,7 +24,8 @@
 //!  changes nothing about it.
 //!  They follow every global option of the caller and precede the subcommand,
 //! so no `-c` or `--config-env` of the caller
-//!  can switch a hook, the hooks path or the monitor back on.
+//!  can switch a hook,
+//! the hooks path or the monitor back on.
 //!  The options are part of the argument vector,
 //! so they add no system call and no process start.
 //!  The wrapper injects no hook of its own,

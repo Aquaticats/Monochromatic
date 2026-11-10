@@ -21,7 +21,9 @@
 //! ```
 
 use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
-/// Who a real-Git start runs for: the person's command, or the ladder's own step.
+/// Who a real-Git start runs for:
+/// the person's command,
+/// or the ladder's own step.
 use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;

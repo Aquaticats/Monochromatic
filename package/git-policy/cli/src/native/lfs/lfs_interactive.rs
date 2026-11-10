@@ -24,7 +24,9 @@
 use crate::commit_command::effective_directory;
 /// The builder of real-Git commands.
 use crate::forwarding::git_command;
-/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
 use crate::hooks_off::StartOwner;
 /// The refusal texts.
 use crate::lfs_pre_push::plan_failed_message;

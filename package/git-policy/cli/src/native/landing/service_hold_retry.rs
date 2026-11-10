@@ -25,7 +25,8 @@
 //! ```
 
 use crate::forwarding::{ChildOutcome, exit_code, git_command, outcome_of, run_real_git};
-/// Who a real-Git start runs for: this step reruns the command the person typed.
+/// Who a real-Git start runs for:
+/// this step reruns the command the person typed.
 use crate::hooks_off::StartOwner;
 use crate::scratch_location::scratch_file;
 use crate::service_index_wait::{foreign_holds, wait_for_service_hold_within};

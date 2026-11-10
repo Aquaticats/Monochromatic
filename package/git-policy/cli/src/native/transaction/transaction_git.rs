@@ -21,7 +21,9 @@
 
 /// Building a Git child from an argument array and an overlay.
 use crate::forwarding::git_command;
-/// Who a real-Git start runs for: the wrapper's own work, not the person's command.
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
 use crate::hooks_off::StartOwner;
 use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
