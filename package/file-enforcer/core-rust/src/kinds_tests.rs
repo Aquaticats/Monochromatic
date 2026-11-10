@@ -89,6 +89,58 @@ fn package_licenses_copies_required_texts_and_prunes_only_owned_ones() {
 }
 
 #[test]
+fn package_licenses_matches_whole_spdx_ids_not_substrings() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/GPL-3.0.txt", "gpl-3.0"),
+            ("LICENSES/GPL-3.0-or-later.txt", "gpl"),
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("LICENSES/CC-BY-SA-4.0.txt", "cc"),
+            ("package/agpl/copyleft/package.json", r#"{"license": "AGPL-3.0-or-later"}"#),
+            ("package/agpl/copyleft/LICENSES/GPL-3.0-or-later.txt", "stale"),
+            ("package/both/copyleft/package.json", r#"{"license": "LGPL-3.0-or-later AND CC-BY-SA-4.0"}"#),
+            ("package/prefix/copyleft/package.json", r#"{"license": "GPL-3.0-or-later"}"#),
+            ("package/grouped/copyleft/package.json", r#"{"license": "(MIT OR CC-BY-SA-4.0)"}"#),
+        ],
+    );
+    let config = r#"{"rules": [{"kind": "package-licenses", "id": "lic", "directory": "LICENSES",
+        "manifests": ["package/*/*/package.json"],
+        "texts": {"GPL-3.0": "LICENSES/GPL-3.0.txt", "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
+                  "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
+                  "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt"},
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
+                     {"operand": "GPL-3.0", "texts": ["GPL-3.0"]},
+                     {"operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    assert!(
+        !dir.path().join("package/agpl/copyleft/LICENSES/GPL-3.0-or-later.txt").exists(),
+        "AGPL-3.0-or-later is a different operand from GPL-3.0-or-later, so its stale owned text is pruned"
+    );
+    assert!(
+        !dir.path().join("package/agpl/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "AGPL-3.0-or-later is a different operand from GPL-3.0"
+    );
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/LGPL-3.0-or-later.txt"), "lgpl");
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/CC-BY-SA-4.0.txt"), "cc");
+    assert!(
+        !dir.path().join("package/prefix/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "an operand never matches as the prefix of a longer id"
+    );
+    assert_eq!(read_text(dir.path(), "package/prefix/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert_eq!(read_text(dir.path(), "package/grouped/copyleft/LICENSES/CC-BY-SA-4.0.txt"), "cc");
+    assert!(
+        !dir.path().join("package/grouped/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "parentheses separate operands and are not part of one"
+    );
+    let (code2, events2) = run_config(dir.path(), config, check());
+    assert_eq!(code2, 0, "{events2:?}");
+}
+
+#[test]
 fn mirror_makes_the_target_equal_and_leaves_siblings_alone() {
     let dir = scratch_dir();
     write_files(
