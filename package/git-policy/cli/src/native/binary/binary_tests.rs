@@ -235,6 +235,11 @@ mod word_merge;
 #[path = "binary_word_merge_pass_gate.rs"]
 mod word_merge_pass_gate;
 
+/// The gate's own control:
+/// a command that never asks for the attribute leaves the control woken by the command's end.
+#[path = "binary_word_merge_pass_gate_tests.rs"]
+mod word_merge_pass_gate_guard;
+
 /// The finish after the second pass:
 /// the operation ends like a clean run,
 /// and `--no-commit`,

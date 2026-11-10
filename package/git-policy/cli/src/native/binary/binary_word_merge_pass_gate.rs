@@ -71,6 +71,14 @@ pub(super) struct PassGate {
     reached: PathBuf,
     /// The pipe the control writes and the pass reads before it goes on.
     release: PathBuf,
+    /// The command lines the stand-in Git was started with,
+    /// one per start,
+    /// so a control can show the stand-in was the run's Git instead of assuming it.
+    starts: PathBuf,
+    /// The file the stand-in leaves at the query,
+    /// once,
+    /// which is also what stops it gating a second query of the same run.
+    marker: PathBuf,
 }
 
 impl PassGate {
@@ -96,13 +104,46 @@ impl PassGate {
         std::fs::create_dir_all(shim.as_path()).expect("the stand-in's own directory");
         let reached: PathBuf = root.join("reached.pipe");
         let release: PathBuf = root.join("release.pipe");
+        let starts: PathBuf = root.join("starts.log");
+        let marker: PathBuf = root.join("reached.marker");
         make_pipe(reached.as_path());
         make_pipe(release.as_path());
         executable(shim.join("git").as_path(), shim_script(root.as_path()).as_bytes());
         let mut path: OsString = fixture.root.join("bin").into_os_string();
         path.push(":");
         path.push(shim);
-        return PassGate { path, reached, release };
+        return PassGate { path, reached, release, starts, marker };
+    }
+
+    /// What:
+    ///  Whether the pass reached the query,
+    ///  read from the marker the stand-in leaves there.
+    /// Why:
+    ///   A run can be asked about after it ended instead of only while it waits.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// existsSync(join(root, 'reached.marker'))
+    /// ```
+    pub(super) fn reached_marker(&self) -> bool {
+        return self.marker.exists();
+    }
+
+    /// What:
+    ///  The command lines the stand-in Git was started with,
+    ///  one per start,
+    ///  and nothing when it was never started.
+    /// Why:
+    ///   A control that only waits for a word cannot show the stand-in was the run's Git at all;
+    /// the record lets it say which starts the run made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// readFileSync(join(root, 'starts.log'), 'utf8').trim().split('\n')
+    /// ```
+    pub(super) fn starts(&self) -> Vec<String> {
+        let Ok(text) = std::fs::read_to_string(self.starts.as_path()) else { return Vec::new() };
+        return text.lines().map(String::from).collect();
     }
 
     /// What:
@@ -226,11 +267,13 @@ fn shim_script(root: &Path) -> String {
     let marker: String = shell_word(root.join("reached.marker").as_path());
     let reached: String = shell_word(root.join("reached.pipe").as_path());
     let release: String = shell_word(root.join("release.pipe").as_path());
+    let starts: String = shell_word(root.join("starts.log").as_path());
     let real_git: String = shell_word(Path::new(REAL_GIT));
     return format!(
         "#!/bin/sh\n\
          # A stand-in for Git: the word-level second pass asks for the merge attribute once, and this file holds that\n\
          # one query until the control watching the pass says it may go on.\n\
+         printf '%s\\n' \"$*\" >> {starts}\n\
          query=no\n\
          standard_input=no\n\
          for argument in \"$@\"; do\n\
