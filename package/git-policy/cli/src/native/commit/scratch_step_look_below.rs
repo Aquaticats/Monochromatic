@@ -146,6 +146,25 @@ pub(crate) fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
     return entry.1.state == 'D';
 }
 
+/// What:
+///  The process of a look that the kernel is holding in a call a signal cannot end,
+///  and never a process the look found in any other state.
+/// Why:
+///   A `git commit` that started a signing program can be blocked through that program rather than itself,
+///  and a line that named the step for a state the step was never seen in states a false fact about it
+///  (finding 4 of the 2026-11-10 review of the held-step notice).
+///  The step comes first in a look,
+///  so a look that holds both names the step,
+///  which is the process the person started the wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = below.find(processIsBlocked); // { pid, name, state: 'D' } | undefined
+/// ```
+pub(crate) fn the_process_the_kernel_holds(below: &[(i32, ProcessUse)]) -> Option<&(i32, ProcessUse)> {
+    return below.iter().find(|entry| { return process_is_blocked(entry); });
+}
+
 /// The look and its controls stay out of the release executable.
 #[cfg(test)]
 #[path = "scratch_step_look_below_tests.rs"]

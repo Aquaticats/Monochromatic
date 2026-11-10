@@ -124,8 +124,8 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
             () = tokio::time::sleep(pause) => {}
         }
         match the_look(step) {
-            TheLook::Held if seen_held => {
-                let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited });
+            TheLook::Held(held) if seen_held => {
+                let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited, held });
                 // What: A line the writer could not take is said again as soon as it can take one.
                 // Why:  The queue holds one line, and an older advisory line may be sitting in it while the writer
                 //       holds the one before; a whole notice interval later is a wait that looked stuck to anyone who
@@ -136,7 +136,7 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
                     Err(TrySendError::Full(_untaken) | TrySendError::Disconnected(_untaken)) => AFTER_THE_STOP,
                 };
             }
-            TheLook::Held => {
+            TheLook::Held(_held) => {
                 seen_held = true;
                 pause = AFTER_THE_STOP;
             }
@@ -233,8 +233,9 @@ mod a_control_says_the_reap_has_not_returned {
 /// type TheLook = 'held' | 'not-held' | 'could-not-look';
 /// ```
 enum TheLook {
-    /// A process below the step is inside a call a signal cannot end.
-    Held,
+    /// The process the kernel is holding,
+    /// which is the step itself or a program it started.
+    Held(crate::scratch_step_held_by_the_kernel::HeldProgram),
     /// No process below the step is in that state,
     /// so the step is about to act on its signal.
     NotHeld,
@@ -254,13 +255,15 @@ enum TheLook {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = lookBelow(step); if (!look) return 'could-not-look'; return look.some(blocked) ? 'held' : 'not-held';
+/// const look = lookBelow(step); if (!look) return 'could-not-look'; const held = look.find(blocked); return held ? { held } : 'not-held';
 /// ```
 fn the_look(step: i32) -> TheLook {
-    return match crate::scratch_step_look_below::look_below(step) {
-        Some(below) if below.iter().any(crate::scratch_step_look_below::process_is_blocked) => TheLook::Held,
-        Some(_no_process_is_held) => TheLook::NotHeld,
-        None => TheLook::CouldNotLook,
+    let Some(below) = crate::scratch_step_look_below::look_below(step) else {
+        return TheLook::CouldNotLook;
+    };
+    return match crate::scratch_step_look_below::the_process_the_kernel_holds(below.as_slice()) {
+        Some((number, used)) => TheLook::Held(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *number, name: used.name.clone() }),
+        None => TheLook::NotHeld,
     };
 }
 
