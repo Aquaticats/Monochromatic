@@ -31,8 +31,9 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// Imports the shell exit codes the announcements pass through.
-use search_shadow::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
+/// Imports the shell exit codes the announcements pass through,
+/// and the cap and capped-run code every help section must name.
+use search_shadow::constants::{CAPPED_EXIT_CODE, EXEC_FAILED_EXIT_CODE, MAX_OUTPUT_BYTES, NOT_FOUND_EXIT_CODE};
 /// Imports `Command` (start a program),
 /// `Output` (its result) and `Stdio` (what its standard streams attach to).
 use std::process::{Command, Output, Stdio};
@@ -225,9 +226,12 @@ fn rg_help_is_the_real_help_then_the_full_section() {
              - refuses the short flag -r anywhere (in ripgrep it is --replace, not grep's recursive flag)\n\
              - refuses a pipe on standard input beside a named search path (ripgrep reads the path and never the pipe, so the piped lines would be dropped)\n\
              - refuses --hidden, --no-ignore*, -u or -. with no search path and no piped input from a git repository root, unless SEARCH_SHADOW_ALLOW_WIDE=1 is set for one deliberate walk\n\
+             - caps its standard output at {cap} bytes when that output is not a terminal: past the cap the real tool is stopped and the run ends with status {capped}\n\
              Run `search-shadow --help` for the shadow itself.\n",
             real = real_stdout("rg", &[flag]),
             header = header(root.path(), "rg"),
+            cap = MAX_OUTPUT_BYTES,
+            capped = CAPPED_EXIT_CODE,
         );
         assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "rg {flag}");
         assert_eq!(output.status.code(), Some(3));
@@ -247,6 +251,11 @@ fn every_tool_prints_the_real_help_output_then_one_section_naming_the_shadow() {
             assert!(stdout.starts_with(&prefix), "{name} {flag}: {stdout}");
             let rest = &stdout[prefix.len()..];
             assert!(rest.starts_with(&format!("The help above is the real {name}'s own.")), "{name} {flag}: {rest}");
+            // The cap belongs to every shadowed tool, so every section names it with the same figures.
+            let cap_line: String = format!(
+                "- caps its standard output at {MAX_OUTPUT_BYTES} bytes when that output is not a terminal: past the cap the real tool is stopped and the run ends with status {CAPPED_EXIT_CODE}\n"
+            );
+            assert!(rest.contains(&cap_line), "{name} {flag}: {rest}");
             assert!(rest.ends_with("Run `search-shadow --help` for the shadow itself.\n"), "{name} {flag}: {rest}");
             assert_eq!(output.status.code(), Some(3), "{name} {flag} must keep the real tool's exit code");
             assert_eq!(String::from_utf8_lossy(&output.stderr), "fixture stderr\n", "{name} {flag}");

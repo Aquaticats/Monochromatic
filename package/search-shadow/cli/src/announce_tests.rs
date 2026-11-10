@@ -18,7 +18,7 @@ use crate::announce::{Announcement, announced_flags, announcement_for, help_sect
 
 /// Imports the list of shadowed names,
 /// to prove the flag table covers every one.
-use crate::constants::SHADOWED_NAMES;
+use crate::constants::{CAPPED_EXIT_CODE, MAX_OUTPUT_BYTES, SHADOWED_NAMES};
 
 /// Imports the owned operating-system text type and the trait that builds one from raw bytes.
 use std::ffi::OsString;
@@ -189,4 +189,13 @@ fn the_help_section_starts_with_the_version_line_and_describes_the_tools_policy(
     let tree = help_section("tree", Path::new("/usr/bin/tree"));
     assert!(tree.contains("never refuses"), "{tree}");
     assert!(!tree.contains("--replace") && !tree.contains("-maxdepth"), "{tree}");
+
+    // The cap is the shadow's own and applies to every tool, so every section names it.
+    let cap_line: String = format!(
+        "- caps its standard output at {} bytes when that output is not a terminal: past the cap the real tool is stopped and the run ends with status {}",
+        MAX_OUTPUT_BYTES, CAPPED_EXIT_CODE
+    );
+    for section in [&rg, &grep, &find, &tree] {
+        assert!(section.contains(&cap_line), "{section}");
+    }
 }
