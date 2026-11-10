@@ -67,6 +67,63 @@ function ownerOf(file: string): string | null {
   return null;
 }
 
+// The import statement grammar below is scanned character by character; no pattern is
+// compiled. A whitespace character is one member of the ECMAScript `\s` set, and a
+// word character is one member of the `\w` set, so both match what the grammar they
+// replaced accepted.
+const IMPORT_KEYWORD = 'import';
+const WHITESPACE_CHARACTERS = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004'
+  + '\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+
+function isWhitespaceCharacter(character: string): boolean {
+  return (character !== '') && WHITESPACE_CHARACTERS.includes(character);
+}
+
+// The first index at or after `index` that holds a non-whitespace character, or the
+// end of the text.
+function skipWhitespace(
+  text: string,
+  index: number
+): number {
+  let cursor = index;
+  while (isWhitespaceCharacter(text.charAt(cursor))) cursor += 1;
+  return cursor;
+}
+
+// The content of a quoted run holding at least one character, `['"][^'"]+['"]`,
+// starting at `index`; null when no such run starts there.
+function quotedContentAt(
+  text: string,
+  index: number
+): string | null {
+  const opening = text.charAt(index);
+  if ((opening !== '"') && (opening !== "'")) return null;
+  let cursor = index + 1;
+  while ((cursor < text.length) && (text.charAt(cursor) !== '"')
+    && (text.charAt(cursor) !== "'")) cursor += 1;
+  if (cursor === (index + 1)) return null;
+  const closing = text.charAt(cursor);
+  if ((closing !== '"') && (closing !== "'")) return null;
+  return text.slice(
+    index + 1,
+    cursor
+  );
+}
+
+// `^import\s+['"][^'"]+['"]`: an import with no bindings, so no `from` clause.
+function isSideEffectImport(text: string): boolean {
+  if (!text.startsWith(IMPORT_KEYWORD)) return false;
+  const contentStart = skipWhitespace(
+    text,
+    IMPORT_KEYWORD.length
+  );
+  if (contentStart === IMPORT_KEYWORD.length) return false;
+  return quotedContentAt(
+    text,
+    contentStart
+  ) !== null;
+}
+
 // Parse top-level import statements. Each statement starts with `import` (maybe
 // `import type`), may span multiple lines, ends at the line containing `from '...';`
 // or (side-effect import) `import '...';`. Returns {isType, specifier} per stmt.
@@ -74,6 +131,7 @@ type ImportStmt = {
   isType: boolean;
   specifier: string
 };
+
 function parseImports(text: string): ImportStmt[] {
   const lines = text.split('\n');
   const out: ImportStmt[] = [];
@@ -87,7 +145,7 @@ function parseImports(text: string): ImportStmt[] {
       // collect until we see a closing `from '...'` or a bare `import '...'`
       let stmt = line;
       let j = i;
-      while ((!/from\s*['"][^'"]+['"]/.test(stmt)) && (!/^import\s+['"][^'"]+['"]/.test(stmt.trimStart()))
+      while ((!/from\s*['"][^'"]+['"]/.test(stmt)) && (!isSideEffectImport(stmt.trimStart()))
         && (j < (lines.length
           - 1))) {
         j += 1;
