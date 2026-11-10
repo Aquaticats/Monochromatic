@@ -4,7 +4,6 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import spawn from 'nano-spawn';
-import { exec, } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -317,43 +316,62 @@ await describe({
       },
     },),
     it({
-      name: 'handles command termination by signal',
+      name: 'reports the signal that terminated the command',
       skip: process.platform === 'win32',
       fn: async () => {
         const fixtures = setup();
         const { cliPath, testDir, } = fixtures;
 
-        // Create a script that sleeps and can be killed
-        const sleepScript = join(testDir, 'sleep-script.js',);
-        writeFileSync(sleepScript, `
-      process.on('SIGTERM', () => {
-        console.log('Received SIGTERM');
-        process.exit(0);
-      });
-      setTimeout(() => {}, 10000); // Sleep for 10 seconds
+        // The child kills itself, so the wrapper sees a command terminated by a
+        // signal. Signalling the wrapper's own PID would test neither the child's
+        // exit nor command.ts's signal branch.
+        const signalScript = join(testDir, 'signal-script.js',);
+        writeFileSync(signalScript, `
+      process.kill(process.pid, 'SIGTERM');
+      setTimeout(() => {}, 10000); // Stay alive long enough to be signalled
     `,);
 
-        // Start the command in background and kill it
-        const childProcess = exec(`node ${cliPath} -- node ${sleepScript}`,);
+        let failure: { readonly exitCode?: number; readonly stderr?: string; } | undefined;
+        try {
+          await execAsync(`node ${cliPath} -- node ${signalScript}`,);
+        }
+        catch (error: unknown) {
+          failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+        }
 
-        // Give it time to start
-        await new Promise(function delayResolve(resolve,): void {
-          setTimeout(resolve, 100,);
-        },);
+        expect(failure,).toBeDefined();
+        expect(failure?.exitCode,).toBe(1,);
+        expect(failure?.stderr,).toContain('Command terminated by signal: SIGTERM',);
+        expect(failure?.stderr,).not.toContain('Failed to execute command',);
 
-        // Kill the process
-        if ((childProcess.pid !== undefined) && (childProcess.pid !== 0))
-          process.kill(childProcess.pid, 'SIGTERM',);
+        if (existsSync(signalScript,))
+          unlinkSync(signalScript,);
 
-        // Wait for the process to finish
-        await new Promise((resolve, reject,) => {
-          childProcess.on('exit', resolve,);
-          childProcess.on('error', reject,);
-        },);
+        teardown(fixtures,);
+      },
+    },),
+    it({
+      name: 'reports the signal on a command allowed to fail and exits 0',
+      skip: process.platform === 'win32',
+      fn: async () => {
+        const fixtures = setup();
+        const { cliPath, testDir, } = fixtures;
 
-        // Clean up
-        if (existsSync(sleepScript,))
-          unlinkSync(sleepScript,);
+        const signalScript = join(testDir, 'signal-script-allow.js',);
+        writeFileSync(signalScript, `
+      process.kill(process.pid, 'SIGTERM');
+      setTimeout(() => {}, 10000); // Stay alive long enough to be signalled
+    `,);
+
+        const { stderr, } = await execAsync(
+          `node ${cliPath} --allowFailure -- node ${signalScript}`,
+        );
+
+        expect(stderr,).toContain('Command terminated by signal: SIGTERM',);
+        expect(stderr,).not.toContain('Failed to execute command',);
+
+        if (existsSync(signalScript,))
+          unlinkSync(signalScript,);
 
         teardown(fixtures,);
       },
@@ -419,11 +437,18 @@ await describe({
       }, 2000);
     `,);
 
-        await expect(
-          execAsync(`node ${cliPath} --timeout 500 -- node ${longScript}`,),
-        )
-          .rejects
-          .toThrow();
+        let failure: { readonly exitCode?: number; readonly stderr?: string; } | undefined;
+        try {
+          await execAsync(`node ${cliPath} --timeout 500 -- node ${longScript}`,);
+        }
+        catch (error: unknown) {
+          failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+        }
+
+        expect(failure,).toBeDefined();
+        expect(failure?.exitCode,).toBe(1,);
+        expect(failure?.stderr,).toContain('Command terminated by signal: SIGTERM',);
+        expect(failure?.stderr,).not.toContain('Failed to execute command',);
 
         // Clean up
         if (existsSync(longScript,))
@@ -447,11 +472,13 @@ await describe({
       }, 2000);
     `,);
 
-        const { stdout, } = await execAsync(
+        const { stdout, stderr, } = await execAsync(
           `node ${cliPath} --allowFailure --timeout 500 -- node ${longScript}`,
         );
 
         expect(stdout,).toContain('Starting long task',);
+        expect(stderr,).toContain('Command terminated by signal: SIGTERM',);
+        expect(stderr,).not.toContain('Failed to execute command',);
 
         // Clean up
         if (existsSync(longScript,))
