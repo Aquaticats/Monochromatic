@@ -82,6 +82,8 @@ await describe({ name: 'built default extension startup', children: scenarios.ma
         cwd: home.cwd, timeout: 15_000, maxBuffer: 1_048_576, encoding: 'utf8',
         env: { PATH: process.env.PATH ?? '', HOME: home.root, PI_CODING_AGENT_DIR: home.agentDir,
           PI_PACKAGE_DIR: fileURLToPath(new URL('../', hostEntry,),), PI_OFFLINE: '1',
+          /** Disposable log directory keeps the fixture cwd's missing node_modules out of stderr. */
+          MONOCHROMATIC_LOG_DIRECTORY: join(home.root, 'logs',),
           PI_OPENAI_FAST_AVAILABILITY_MARKER: marker,
           ...((authentication === 'environment') && nativeConfigured ? { OPENAI_API_KEY: 'sk-environment-fixture', } : {}), },
       },);

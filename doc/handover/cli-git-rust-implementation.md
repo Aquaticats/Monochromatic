@@ -59,26 +59,6 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-### A server refusal that cleared by itself (2026-11-09T23:32:48-05:00)
-
-The push of `29bae9bb87` to `main` was refused at 23:30:11 with `GH006: Protected branch update failed` and an empty reason,
-in the same minute that GitHub answered another push with `Internal Server Error` and a third with `GH009`.
-The commit is signed and `main` requires signatures.
-A plain `git push origin main` of the same commit,
-with nothing changed,
-then succeeded.
-GitHub's status API listed Git Operations as operational,
-so the cause on GitHub's side is not known.
-
-The wrapper's text in `plain_words` (`push/push_retry.rs:221`) says "Trying again would be refused the same way",
-which that push disproved.
-The behaviour stays,
-because it is the owner's decision ("auth and server hook declines stop until your next commit."),
-and `SPEC.md:3338-3349` also allows it.
-Only the sentence is wrong.
-Correcting it touches a path the release depends on,
-so it lands after the `0.6.1-alpha.6` bump commit is on main.
-
 ### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
 
 `0.6.1-alpha.6` is not published,

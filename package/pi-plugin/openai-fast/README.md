@@ -10,6 +10,16 @@ Legacy Codex ordinary and priority-request live checks passed on pi `1.0.0`,
 The additional native OpenAI mapping passes offline native HTTP and real CLI startup checks.
 No live new-sign-in or API-key billing verification was added.
 
+Note 2026-11-10:
+build,
+ type checking,
+ lint,
+ and the complete offline unit suite were re-verified against pi `1.5.1`
+ on the workspace lockfile.
+Pi stopped re-exporting TypeBox from `@earendil-works/pi-ai` at `1.5.0`,
+ so the tool fixtures import `Type` from the host-provided `typebox` package.
+Extension-host verification was not re-run.
+
 ## Pi dependency trust
 
 PZA:

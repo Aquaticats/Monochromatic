@@ -200,6 +200,33 @@ fn an_lfs_server_error_is_tried_again_by_the_plan() {
     }
 }
 
+/// What:
+///  The plain words of a failure that stops the retry say what is known,
+///  and nothing the wrapper cannot know.
+/// Why:
+///   GitHub refused a push of `main` at `2026-11-09T23:30:11-05:00` with
+///  GitHub's own words `GH006: Protected branch update failed for refs/heads/main.`,
+///  the wrapper said that trying again would be refused the same way,
+///  and a plain `git push origin main` moments later succeeded
+///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+/// The owner's decision keeps the retry's behaviour,
+/// so the words say the decline,
+///  that this branch waits for the next commit,
+///  and that a push by hand may still land.
+#[test]
+fn the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome() {
+    assert_eq!(plain_words(FinalFailure::Conflict), None, "a conflict's report already says what to do");
+    let login: &str = plain_words(FinalFailure::Login).expect("a login failure is worded");
+    assert!(login.contains("wants a login") && login.contains("until your next commit"), "{login}");
+    let declined: &str = plain_words(FinalFailure::Declined).expect("a decline is worded");
+    for said in ["a hook on the server", "declined it", "until your next commit", "may succeed"] {
+        assert!(declined.contains(said), "{said} in {declined}");
+    }
+    for absent in ["refused the same way", "would be refused"] {
+        assert!(!declined.contains(absent), "{absent} in {declined}");
+    }
+}
+
 /// A rejection by the server whose reason this release does not know stays retried,
 /// and is found so the journal can name it.
 #[test]

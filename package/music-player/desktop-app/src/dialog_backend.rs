@@ -2,15 +2,17 @@
 //! and what to tell the user when none can.
 //!
 //! What:
-//! `dialog_backend_missing` is true on Linux when neither the desktop portal nor `zenity` is available,
+//! `no_chooser_can_open` is true on Linux when neither the desktop portal nor `zenity` is available,
 //! the two
 //! ways the file dialog library opens a chooser there;
-//! `NO_DIALOG_MESSAGE` says how to proceed.
+//! `NO_DIALOG_MESSAGE` says how to proceed,
+//! and `resolve_on_path` finds the program to run.
 //! Why:
 //! with neither,
 //! `Open folder` did nothing and said nothing (the polish review finding PB5),
 //! because the library
 //! returns the same empty answer for "cancelled" and "no chooser exists".
+//! `src/folder_chooser.rs` runs the chooser with these facts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +22,25 @@
 /// Imports the operating-system string type that the program name search compares.
 use std::ffi::OsStr;
 /// Imports the path type that joins a program name onto each search directory.
-use std::path::Path;
+use std::path::PathBuf;
+
+/// What:
+///      `pub const ZENITY: &str`.
+///  The folder chooser program on Linux.
+/// Why:
+///       The program search,
+/// the message and the chooser runner all name the same program,
+/// so they cannot drift apart.
+pub const ZENITY: &str = "zenity";
+
+/// What:
+///      `pub const NO_DIALOG_REMEDY: &str`.
+///  The closing sentence of every message about a chooser that will not open.
+/// Why:
+///       Both the missing-chooser message and the failed-chooser message end with the two ways forward,
+/// and a test holds
+///       the longer message's ending to this text.
+pub const NO_DIALOG_REMEDY: &str = "Install zenity, or start the player with a folder: music-player /path/to/music";
 
 /// What:
 ///      `pub const NO_DIALOG_MESSAGE: &str`.
@@ -47,12 +67,33 @@ pub const NO_DIALOG_MESSAGE: &str = "This computer has no folder chooser for the
 /// const executableOnPath = (program: string, pathVariable: string) => pathVariable.split(delimiter).some((dir) => isFile(join(dir, program)));
 /// ```
 pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
+    return resolve_on_path(program, path_variable).is_some();
+}
+
+/// What:
+///      `pub fn resolve_on_path(program: &str, path_variable: &OsStr) -> Option<PathBuf>`.
+///  The first file called `program` in the folders listed in `path_variable`,
+///  as an absolute path;
+///  nothing when no folder holds one.
+/// Why:
+///       Running the found path instead of the bare name starts exactly the program the search found,
+///  even when the
+///       process's own `PATH` names another one;
+///  a test can then give a disposable folder list and be sure
+///       only its stub runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const resolveOnPath = (program: string, pathVariable: string) => pathVariable.split(delimiter).map((dir) => join(dir, program)).find((file) => isFile(file));
+/// ```
+pub fn resolve_on_path(program: &str, path_variable: &OsStr) -> Option<PathBuf> {
     for directory in std::env::split_paths(path_variable) {
-        if Path::new(&directory).join(program).is_file() {
-            return true;
+        let candidate: PathBuf = directory.join(program);
+        if candidate.is_file() {
+            return Some(candidate);
         }
     }
-    return false;
+    return None;
 }
 
 /// What:
@@ -63,7 +104,7 @@ pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
 /// The bus is only read;
 /// no portal call is made.
 #[cfg(target_os = "linux")]
-fn portal_is_available() -> bool {
+pub(crate) fn portal_is_available() -> bool {
     /// Well-known bus name of the desktop portal,
     /// which a folder chooser needs on Linux.
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
@@ -110,33 +151,6 @@ fn portal_is_available() -> bool {
 /// ```
 pub fn no_chooser_can_open(zenity: bool, portal: bool) -> bool {
     return !zenity && !portal;
-}
-
-/// What:
-///      `pub fn dialog_backend_missing() -> bool`.
-///  True when a folder chooser cannot open on this computer.
-/// Why:
-///       Only Linux can lack one:
-/// macOS and Windows have native choosers.
-/// On Linux the chooser needs the portal or `zenity`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const dialogBackendMissing = () => process.platform === "linux" && !portalAvailable() && !executableOnPath("zenity", process.env.PATH ?? "");
-/// ```
-pub fn dialog_backend_missing() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let path_variable = std::env::var_os("PATH").unwrap_or_default();
-        let zenity: bool = executable_on_path("zenity", &path_variable);
-        let portal: bool = portal_is_available();
-        tracing::info!(zenity, portal, "folder chooser backends");
-        return no_chooser_can_open(zenity, portal);
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        return false;
-    }
 }
 
 /// Unit tests of `dialog_backend`,

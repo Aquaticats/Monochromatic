@@ -26,6 +26,128 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Which package owns the small helpers that many packages copy?, asked 2026-11-10T01:52:36-05:00
+
+Four small shapes are written out again in package after package,
+and open issues ask for one owner each:
+`isRecord` (issue 1671,
+58 declarations),
+the absence sentinel `unique symbol` (issue 1669,
+76 declarations by the issue's count),
+a named error class setting `this.name` (issue 1668 and its duplicate 666,
+413 sites),
+and `isErrnoException` (issue 1670,
+six implementations).
+Nothing can move until a home is named.
+The families can each take a different answer,
+so "A for `isRecord`,
+C for the sentinel" is valid.
+
+#### A: one new package for these helpers
+
+For example `import { isRecord, isErrnoException } from '@monochromatic-dev/type-guard-core'`.
+Every copy goes,
+and the one definition has a name that says what it holds.
+It adds a package and a workspace dependency to dozens of packages.
+
+#### B: the existing `or-throw` package
+
+`package/or-throw/core` already holds small checks that many packages import,
+so no package is added.
+Its name stops describing its contents,
+because `isRecord` throws nothing.
+
+#### C: keep the copies under one written rule
+
+A written convention fixes the name and spelling of each shape,
+and each copy stays.
+No dependency is added and no package changes shape,
+and build-isolated packages need no exception.
+A defect in the shape still has to be fixed at every copy.
+
+Ranking:
+A > B > C,
+because A gives every family an honest name where B bends one,
+and B still removes the copies that C leaves.
+
+### What does deleting a JSONC array index past the end do?, asked 2026-11-10T01:52:36-05:00
+
+Issue 1409 asks that get,
+set and delete agree on every path.
+Commit `19cdbffeb5` fixed negative and fractional indexes.
+One path is left.
+With `{"list": [1]}`,
+deleting `['list', 5]` leaves the document unchanged in TypeScript,
+and returns `PathNotFound` in the Rust port (`package/jsonc-edit/core-rust/src/edit_spine.rs:450`).
+Both already treat deleting a missing object key as doing nothing.
+
+#### A: Rust does nothing too
+
+Deleting an address that holds nothing is then always a no-op,
+in both languages,
+for keys and indexes alike.
+Get and set still report the missing path where delete does not,
+so the issue's "agree on every path" is met only by amending it.
+
+#### B: TypeScript reports `JsoncPathNotFoundError`
+
+Delete then agrees with get and set on array indexes,
+which is what the issue asked.
+Within delete,
+a missing index throws while a missing key does nothing,
+and a TypeScript caller that deletes defensively starts to fail.
+
+#### C: leave the two languages different
+
+Nothing changes,
+and the difference stays documented.
+The issue stays unmet.
+
+Ranking:
+A > B > C,
+because A gives one rule a caller can rely on in both languages,
+and B at least removes the difference that C keeps.
+
+### May the prose rules be applied inside `doc/decision/`?, asked 2026-11-10T01:52:36-05:00
+
+Issues 1699,
+1700,
+1702,
+1703,
+1704,
+1705 and 1706 report prose-rule breaks such as em-dashes,
+italics,
+unpadded list markers and bold-label bullets.
+The rest of the tree is being fixed,
+and what remains is inside `doc/decision/`,
+which agents may not edit without your approval.
+
+#### A: yes, for the form only
+
+Punctuation,
+emphasis,
+list markers and headings change,
+your quoted words and every other word stay,
+and each file's words are compared before and after.
+The issues can then close.
+The records' history gains one formatting commit each.
+
+#### B: exempt `doc/decision/` from those rules
+
+The records stay as they were written,
+the issues close on a recorded exemption,
+and the linter needs that exemption too.
+
+#### C: fix each record only when it is next edited
+
+No sweep happens.
+The issues stay open for a long time.
+
+Ranking:
+A > B > C,
+because A keeps every record's words and meets the rules,
+and B at least ends the issues where C leaves them open.
+
 ### May a commit take its private repository from a pool made ahead?, asked 2026-11-09T23:21:48-05:00
 
 Every commit builds a private "shadow" repository first,

@@ -45,7 +45,7 @@ const CHILD_TIMEOUT_MS = 20_000;
  const mise = await resolveMise();
  ```
  */
-async function resolveMise(): Promise<string> {
+export async function resolveMise(): Promise<string> {
   /**
    Platform executable name avoids invoking an interactive shell alias.
    */
@@ -112,7 +112,7 @@ async function resolveMise(): Promise<string> {
  fixtureEnvironment({ root: '/tmp/fixture', mise: '/usr/bin/mise', });
  ```
  */
-function fixtureEnvironment({
+export function fixtureEnvironment({
   root,
   mise,
 }: {

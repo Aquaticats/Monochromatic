@@ -84,14 +84,23 @@ const INDEX_COUNT_AT: usize = 8;
 ///   The count is the header's,
 /// so a file that cannot be read or does not begin with the index magic proves nothing,
 /// and a count of zero says the tree the checkout wrote has nothing in it to write into the worktree.
+/// The index is Git's file in the destination's administrative directory,
+/// so it is opened by the
+///  plain-file reader,
+/// which waits for no writer and follows no link:
+/// a name left as a named pipe in a
+///  directory this command did not make must end the proof at once,
+/// which is a record kept,
+/// never a
+///  command that waits for a writer that may never come ("nothing should ever wait forever or indefinitely").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const header = readSync(index).subarray(0, 12); return header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : undefined;
+/// const header = openPlainFile(index).read(12); return header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : undefined;
 /// ```
 fn index_entry_count(index: &Path) -> Option<usize> {
     let mut header = [0_u8; INDEX_HEADER_BYTES];
-    let mut file = std::fs::File::open(index).ok()?;
+    let mut file = crate::plain_file::open_plain_file(index).ok()?;
     std::io::Read::read_exact(&mut file, &mut header).ok()?;
     if header[..INDEX_MAGIC.len()] != INDEX_MAGIC {
         return None;
@@ -274,15 +283,25 @@ fn add_is_finished(destination: &Path, admin: &Path) -> bool {
 /// or one whose target is
 ///  not there,
 /// proves nothing and is no registration.
+/// The pointer is Git's own file,
+/// so it is read by the plain-file reader,
+/// which waits for no
+///  writer,
+/// follows no link and reads no more than `GIT_FILE_LIMIT`:
+/// the destination is a directory
+///  anything may write,
+/// and a name left there as a named pipe must end the proof at once rather than
+///  hold a command on an open that waits for a writer that may never come
+/// ("nothing should ever wait forever or indefinitely").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const line = readFileSync(join(destination, '.git'), 'utf8'); return line.startsWith('gitdir: ') ? resolve(destination, line.slice(8).trim()) : undefined;
+/// const line = readPlainFile(join(destination, '.git'), GIT_FILE_LIMIT).toString(); return line.startsWith('gitdir: ') ? resolve(destination, line.slice(8).trim()) : undefined;
 /// ```
 pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
     // Git's own reader, on bytes (`worktree_add_binding::pointer_target`): the rest of the file after the prefix, with only
     //  its trailing newlines removed, so a path holding a newline is whole and the remedy never names another repository.
-    let pointer: Vec<u8> = std::fs::read(destination.join(POINTER)).ok()?;
+    let pointer: Vec<u8> = crate::plain_file::read_plain_file(destination.join(POINTER).as_path(), crate::worktree_convert_inspection::GIT_FILE_LIMIT).ok()?;
     let resolved: PathBuf = crate::worktree_add_binding::pointer_target(destination, pointer.as_slice()).ok()?;
     return resolved.is_dir().then_some(resolved);
 }
