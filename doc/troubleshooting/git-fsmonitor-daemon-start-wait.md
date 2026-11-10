@@ -8,6 +8,8 @@ then succeeds.
 Any Git command that reads the index can be the one that stalls (`status`,
 `commit`,
 `diff`,
+`diff-tree`,
+which reads the index before it walks anything,
 editor and prompt integrations),
 because the stall happens in the client's fsmonitor query when no daemon is listening.
 
@@ -766,6 +768,227 @@ with large uncertainty
 (real trees have files and uneven depth).
 The stalls seen on the host were about 6.5 s and about 50 s.
 
+### Fails: a tree-only step pays the wait too, and that is where the 60 s steps came from
+
+Recorded 2026-11-10T14:40-05:00.
+
+One commit on the main checkout on 2026-11-03 held two Git children of about 60 s each,
+`diff-tree` and `reset -q --pathspec-from-file`.
+`doc/handover/cli-git-rust-implementation.md` kept that open,
+because only a command that reads the index was expected to ask the daemon,
+and `diff-tree` was assumed not to.
+Measured:
+`git diff-tree` reads the index before it walks anything,
+whatever its arguments,
+so it asks the daemon and waits like every other index reader.
+
+The chain in Git 2.56.0:
+
+- `cmd_diff_tree` reads the index:
+  `if (repo_read_index(the_repository) < 0) die(_("index file corrupt"));`
+  ([`builtin/diff-tree.c:133`][src-diff-tree-index]);
+  a `--stdin` walk with rename detection reads it again
+  ([`builtin/diff-tree.c:212-213`][src-diff-tree-stdin-index]).
+- The read ends in `post_read_index_from` (`read-cache.c:1962-1968`),
+  which calls `tweak_fsmonitor` (`read-cache.c:1967`).
+- When the index carries the monitor's bitmap,
+  `tweak_fsmonitor` marks the saved entries dirty and calls `refresh_fsmonitor`
+  (`fsmonitor.c:792-812`,
+  the call at `fsmonitor.c:811`).
+- `refresh_fsmonitor` sends the query (`fsmonitor.c:506` and `fsmonitor.c:537`,
+  the `fsm_client`/`query` region at `fsmonitor-ipc.c:88`),
+  which spawns the daemon and waits for it
+  ([`fsmonitor-ipc.c:58-71`][src-ipc-spawn] and [`fsmonitor-ipc.c:105-124`][src-ipc-retry]),
+  up to `fsmonitor.startTimeout`,
+  60 s by default
+  ([`builtin/fsmonitor--daemon.c:39-40`][src-timeout-config]).
+
+The trace2 stream of one cold `git diff-tree` shows that order and nothing else of consequence:
+`index`/`do_read_index` (`read-cache.c:2374`) at 19:40:46.826085Z,
+`fsm_client`/`query` (`fsmonitor-ipc.c:88`) at 19:40:46.826525Z,
+the daemon's `ipc-server`/`create-listener_socket`
+(`compat/simple-ipc/ipc-unix-socket.c:814`) at 19:40:49.518686Z,
+and `fsmonitor`/`apply_results` (`fsmonitor.c:658`) at 19:40:49.523991Z.
+
+The same trace2 stream also answers why the bound held the whole time:
+the daemon's socket is created only after its registration ends
+(`compat/fsmonitor/fsm-listen-linux.c:426-440`,
+then `builtin/fsmonitor--daemon.c:1387-1394`
+and `builtin/fsmonitor--daemon.c:1224-1233`).
+
+Measured with the harness at the end of this section,
+Git 2.56.0,
+a disposable repository of 60,000 directories,
+`core.fsmonitor` given per command,
+no daemon listening before each arm:
+
+- `git diff-tree -r --name-only -z --no-renames HEAD~1 HEAD`:
+  14.4 ms with the monitor off and no daemon started;
+  2,707.6 ms with the monitor on and the default bound;
+  1,186.6 ms with `fsmonitor.startTimeout=1`.
+- `git reset -q HEAD --pathspec-from-file=-`:
+  23.8 ms with the monitor off;
+  2,272.8 ms and 2,628.4 ms with the monitor on;
+  5,974.6 ms with `fsmonitor.startTimeout=1`.
+- With the monitor on,
+  each step started `fsmonitor--daemon start` itself.
+
+A lowered bound ends the start's wait and not the step's:
+the client then waits for the socket with `wait_if_not_found = 1`
+([`fsmonitor-ipc.c:105-124`][src-ipc-retry]),
+which appears only when the registration ends,
+so the 6 s arm is the bound plus the rest of a registration that a lowered bound does not shorten.
+
+So a cold step waits for the smaller of the registration and the bound,
+and the 60 s pair is the bound rather than a registration of exactly 60 s:
+this checkout held 2,269,377 directories,
+about 43 s at the 19 microseconds per directory measured in
+"Fails:
+one cold client blocks for the registration",
+and 261 daemons of the user shared the CPU,
+so the registration outlasted 60 s and both steps gave up at the bound.
+
+What the wrapper can do about it:
+nothing without passing an fsmonitor setting,
+which the owner's decision forbids.
+The setting is the person's;
+the wrapper passes no `core.fsmonitor` to a child and starts no daemon,
+by the owner's decision of
+2026-11-03 (`package/git-policy/cli/README.md`,
+"Git's own fsmonitor"),
+and `git monochromatic-git-policy-cli doctor` reports a configuration that turns it on.
+What the wrapper does control is how many Git children it starts that read the index,
+and a tree-only `diff-tree` child counts among them although it needs nothing from the index:
+the landing runs two of them (`src/native/landing/service_land_follow.rs:128`,
+`src/native/landing/service_land_git_steps_and_import_stream.rs:343`).
+On 0.5.26 the landing's follow-up `git reset -q <commit> --pathspec-from-file=-`
+held the landing's `index.lock` for 59 s;
+that update is written in process now (`src/native/index/index_reset_file.rs`)
+and keeps the monitor's bitmap itself (`src/native/index/index_full_write.rs:104-112`),
+falling back to Git's own `reset --no-refresh`
+(`src/native/landing/service_land_follow.rs:213`) when it cannot reproduce the index form.
+The commit path's index readers are
+`git read-tree` in the commit index build (`src/native/commit/commit_index.rs`)
+and `git commit` in the shadow repository (`src/native/commit/commit_preparation.rs`).
+Every one of them would still wait on a cold daemon with the monitor configured on a large checkout.
+
+Harness,
+saved as `step-waits.ts` and run from its own directory inside a capped scope:
+
+```sh
+# Bounds: six CPU threads, 4 GiB of memory, 512 tasks, disk weight 10.
+systemd-run --user --scope --quiet --property=CPUQuota=600% --property=MemoryMax=4G \
+  --property=TasksMax=512 --property=IOWeight=10 node step-waits.ts 60000
+```
+
+```ts
+// step-waits.ts
+// How long the two steps of the 120 s commit wait for a cold fsmonitor daemon, and where the wait ends.
+// Disposable repository only; it stops every daemon it started and never touches a real repository.
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const git = '/usr/bin/git';
+const directoryCount = Number(process.argv[2] ?? 60000);
+const scratch = join(homedir(), 'temp/agent/fsmonitor-steps');
+mkdirSync(scratch, { recursive: true });
+const root = realpathSync(mkdtempSync(join(scratch, 'wait.')));
+// The marker finds this harness's daemons by environment, never by process name.
+const baseEnv = { ...process.env, FSM_PROBE: root, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+
+function run(args: readonly string[], environment = baseEnv) {
+  return spawnSync(git, ['-C', root, ...args], { env: environment, encoding: 'utf8' });
+}
+
+function required(args: readonly string[]) {
+  const result = run(args);
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
+  return result.stdout;
+}
+
+function census(): { pid: string }[] {
+  const found: { pid: string }[] = [];
+  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name))) {
+    try {
+      if (!readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('fsmonitor--daemon\0run')) continue;
+      if (!readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(`FSM_PROBE=${root}`)) continue;
+    } catch {
+      continue;
+    }
+    found.push({ pid });
+  }
+  return found;
+}
+
+function stopDaemons() {
+  run(['fsmonitor--daemon', 'stop']);
+  const deadline = Date.now() + 30000;
+  while (census().length > 0 && Date.now() < deadline) spawnSync('sleep', ['0.05']);
+  for (const { pid } of census()) process.kill(Number(pid), 'SIGTERM');
+  const killDeadline = Date.now() + 30000;
+  while (census().length > 0 && Date.now() < killDeadline) spawnSync('sleep', ['0.05']);
+  if (census().length > 0) throw new Error(`daemons left running: ${JSON.stringify(census())}`);
+}
+
+// One arm: wall milliseconds of the step, and whether its own trace2 stream shows a daemon start.
+function arm(label: string, settings: readonly string[], args: readonly string[], input?: string) {
+  stopDaemons();
+  const trace = join(scratch, `wait.${label}.trace2.json`);
+  const started = process.hrtime.bigint();
+  const result = spawnSync(git, ['-C', root, ...settings, ...args], {
+    env: { ...baseEnv, GIT_TRACE2_EVENT: trace },
+    encoding: 'utf8',
+    input,
+  });
+  const wallMs = Number(process.hrtime.bigint() - started) / 1e6;
+  const lines: string[] = readFileSync(trace, 'utf8').split('\n');
+  const starts: string[] = lines.filter((line) => line.includes('child_start') && line.includes('fsmonitor--daemon'));
+  console.log(JSON.stringify({ arm: label, status: result.status, wallMs: Number(wallMs.toFixed(1)), daemonStarts: starts.length }));
+}
+
+try {
+  required(['init', '--quiet']);
+  for (let index = 0; index < directoryCount; index += 1) {
+    mkdirSync(join(root, `d${index % 100}`, `e${index}`), { recursive: true });
+  }
+  writeFileSync(join(root, 'tracked.txt'), 'one\n');
+  required(['add', '.']);
+  required(['-c', 'user.name=h', '-c', 'user.email=h@example.invalid', 'commit', '--quiet', '--message', 'first']);
+  writeFileSync(join(root, 'tracked.txt'), 'two\n');
+  required(['add', '.']);
+  required(['-c', 'user.name=h', '-c', 'user.email=h@example.invalid', 'commit', '--quiet', '--message', 'second']);
+  const on = ['-c', 'core.fsmonitor=true'];
+  const off = ['-c', 'core.fsmonitor=false'];
+  console.log(JSON.stringify({ directories: directoryCount, git: required(['--version']).trim() }));
+  arm('diff-tree-off', off, ['diff-tree', '-r', '--name-only', '-z', '--no-renames', 'HEAD~1', 'HEAD']);
+  arm('reset-off', off, ['reset', '-q', 'HEAD', '--pathspec-from-file=-'], 'tracked.txt\n');
+  arm('diff-tree-on', on, ['diff-tree', '-r', '--name-only', '-z', '--no-renames', 'HEAD~1', 'HEAD']);
+  arm('reset-on', on, ['reset', '-q', 'HEAD', '--pathspec-from-file=-'], 'tracked.txt\n');
+  arm('reset-on-again', on, ['reset', '-q', 'HEAD', '--pathspec-from-file=-'], 'tracked.txt\n');
+  arm('diff-tree-bound-1s', [...on, '-c', 'fsmonitor.startTimeout=1'], ['diff-tree', '-r', '--name-only', '-z', '--no-renames', 'HEAD~1', 'HEAD']);
+  arm('reset-bound-1s', [...on, '-c', 'fsmonitor.startTimeout=1'], ['reset', '-q', 'HEAD', '--pathspec-from-file=-'], 'tracked.txt\n');
+} finally {
+  try {
+    stopDaemons();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+```
+
+Limits of this measurement:
+
+- The 60 s pair itself was not re-run;
+the daemon load behind it (261 daemons,
+  4,591,335 watches) is not reproducible now that the
+person's global configuration says `core.fsmonitor = false` by the owner's decision.
+- One host and one Git release;
+the macOS and Windows listeners differ.
+- The steps were measured as plain Git commands;
+an intermediate release ran the same two commands as children of the wrapper.
+
 ### Fails: concurrent clients start concurrent daemons
 
 Three clients started together with no daemon listening,
@@ -1297,6 +1520,8 @@ the rest of the test suite.
 [contrib]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/.github/CONTRIBUTING.md?plain=1#L1-L6
 [pr-template]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/.github/PULL_REQUEST_TEMPLATE.md?plain=1#L1-L6
 [pr2147]: https://github.com/git/git/pull/2147#:~:text=While%20inotify%20has%20the%20limitation%20of%20requiring%20a%20separate%20watch%20on%20every%20directory
+[src-diff-tree-index]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/builtin/diff-tree.c#L133
+[src-diff-tree-stdin-index]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/builtin/diff-tree.c#L212-L213
 [src-ipc-spawn]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/fsmonitor-ipc.c#L58-L71
 [src-ipc-retry]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/fsmonitor-ipc.c#L105-L124
 [src-timeout-config]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/builtin/fsmonitor--daemon.c#L39-L40
