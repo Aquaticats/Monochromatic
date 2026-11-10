@@ -12,9 +12,6 @@
   "files": [
     "dist"
   ],
-  "scripts": {
-    "test": "echo 'no tests yet'"
-  },
   "dependencies": {
     "@monochromatic-dev/figma-kiwi": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
