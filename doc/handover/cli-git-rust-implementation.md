@@ -10114,6 +10114,17 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   So merge gated work as it passes and dispatch again with everything combined.
   A release builds from origin's main:
   check `main...origin/main` and that fetch works before trusting a release's contents.
+  Land nothing that touches a path the release depends on until the bump commit is on main:
+  the workflow pushes its bump against the commit it checked out,
+  and it refuses when such a path moved after that checkout,
+  with "PUSH REFUSED:
+  Paths the release depends on changed on main since".
+  Run `42745449815` ended that way after a wrapper branch landed during the run,
+  and nothing was published.
+  Other packages' landings do not trigger the refusal.
+  `native:release:wait` takes `<run> <version>`.
+  A dry run publishes nothing,
+  so read its result with `gh run view`.
 - Gates:
   `node ~/temp/agent/gate/launch-gate.ts <worktree name or path> <label of lowercase letters, digits and hyphens>`
   starts the container gate as its own systemd unit `gpc-gate-<label>-<timestamp>`;
