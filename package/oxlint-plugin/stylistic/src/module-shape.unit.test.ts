@@ -172,9 +172,10 @@ const NESTED_BRACKETS: ReadonlyMap<string, string> = new Map([
 const MEANINGLESS_NAME_LENGTH = 1;
 
 /**
- Column no bracket occupies, reported when a bracket pair never closes.
+ Column no scan reaches, reported when a bracket pair never closes, a search
+ finds nothing, or a text ends first.
  */
-const UNBALANCED_BRACKET = -1;
+const NOT_FOUND_COLUMN = -1;
 
 /**
  Module text holding a single-character parameter, a comment that mentions one,
@@ -199,7 +200,8 @@ const SCANNER_FIXTURE = [
   '  return value;',
   '}',
   '',
-  'const message = \'a function named s(\';',
+  '// function commented(s: string,) {}',
+  'const message = \'function quoted(s: string,)\';',
   '',
 ].join('\n',);
 
@@ -237,7 +239,7 @@ function identifierPrefix(text: string,): string {
   const end = text.split('',).findIndex(function endsIdentifier(character,) {
     return !(IDENTIFIER_CHARACTERS.includes(character,));
   },);
-  return (end === UNBALANCED_BRACKET) ? text : text.slice(0, end,);
+  return (end === NOT_FOUND_COLUMN) ? text : text.slice(0, end,);
 }
 
 /**
@@ -359,7 +361,7 @@ function splitParameters(text: string,): readonly string[] {
 
  @param from - column of the opening parenthesis
 
- @returns column of the matching closing parenthesis, or `UNBALANCED_BRACKET`
+ @returns column of the matching closing parenthesis, or `NOT_FOUND_COLUMN`
  */
 function matchingParenthesisColumn(text: string, from: number,): number {
   for (let cursor = from, depth = 0; cursor < text.length; cursor += 1) {
@@ -379,7 +381,7 @@ function matchingParenthesisColumn(text: string, from: number,): number {
         return cursor;
     }
   }
-  return UNBALANCED_BRACKET;
+  return NOT_FOUND_COLUMN;
 }
 
 /**
@@ -391,7 +393,7 @@ function matchingParenthesisColumn(text: string, from: number,): number {
 
  @param from - column of the opening angle bracket
 
- @returns column of the matching closing angle bracket, or `UNBALANCED_BRACKET`
+ @returns column of the matching closing angle bracket, or `NOT_FOUND_COLUMN`
  */
 function matchingAngleColumn(text: string, from: number,): number {
   for (let cursor = from, depth = 0; cursor < text.length; cursor += 1) {
@@ -411,7 +413,7 @@ function matchingAngleColumn(text: string, from: number,): number {
         return cursor;
     }
   }
-  return UNBALANCED_BRACKET;
+  return NOT_FOUND_COLUMN;
 }
 
 /**
@@ -421,16 +423,16 @@ function matchingAngleColumn(text: string, from: number,): number {
 
  @param from - column the type parameter list may open at
 
- @returns column past the list, `from` when no list opens, or `UNBALANCED_BRACKET`
+ @returns column past the list, `from` when no list opens, or `NOT_FOUND_COLUMN`
  */
 function columnAfterTypeParameters(text: string, from: number,): number {
   if (text[from] !== TYPE_PARAMETER_LIST_OPENER)
     return from;
   /**
-   Column of the closing angle bracket, or `UNBALANCED_BRACKET`.
+   Column of the closing angle bracket, or `NOT_FOUND_COLUMN`.
    */
   const closeAngle = matchingAngleColumn(text, from,);
-  return (closeAngle === UNBALANCED_BRACKET) ? UNBALANCED_BRACKET : closeAngle + 1;
+  return (closeAngle === NOT_FOUND_COLUMN) ? NOT_FOUND_COLUMN : closeAngle + 1;
 }
 
 /**
@@ -491,10 +493,10 @@ function meaninglessParameterNamesAfter(text: string, from: number,): readonly s
    */
   const nameEnd = markerEnd + identifierPrefix(text.slice(markerEnd,),).length;
   /**
-   Column just past the type parameter list, or `UNBALANCED_BRACKET`.
+   Column just past the type parameter list, or `NOT_FOUND_COLUMN`.
    */
   const typeParameterEnd = columnAfterTypeParameters(text, skipWhitespace(text, nameEnd,),);
-  if (typeParameterEnd === UNBALANCED_BRACKET)
+  if (typeParameterEnd === NOT_FOUND_COLUMN)
     return [];
   /**
    Column the parameter list opens at.
@@ -503,10 +505,10 @@ function meaninglessParameterNamesAfter(text: string, from: number,): readonly s
   if (text[listOpener] !== PARAMETER_LIST_OPENER)
     return [];
   /**
-   Column the parameter list closes at, or `UNBALANCED_BRACKET`.
+   Column the parameter list closes at, or `NOT_FOUND_COLUMN`.
    */
   const listCloser = matchingParenthesisColumn(text, listOpener,);
-  if (listCloser === UNBALANCED_BRACKET)
+  if (listCloser === NOT_FOUND_COLUMN)
     return [];
   return splitParameters(text.slice(listOpener + 1, listCloser,),)
     .map(parameterName,)
@@ -589,7 +591,7 @@ function stripComments(state: StripState, line: string,): StripState {
    Column where a block comment opens on this line, or -1.
    */
   const blockOpener = line.indexOf(BLOCK_COMMENT_OPENER,);
-  if (blockOpener === UNBALANCED_BRACKET) {
+  if (blockOpener === NOT_FOUND_COLUMN) {
     return {
       lines: [...state.lines, line.trimStart().startsWith(LINE_COMMENT_OPENER,) ? '' : line,],
       insideBlockComment: false,
@@ -599,6 +601,31 @@ function stripComments(state: StripState, line: string,): StripState {
     lines: [...state.lines, line.slice(0, blockOpener,),],
     insideBlockComment: !(line.includes(BLOCK_COMMENT_CLOSER, blockOpener,)),
   };
+}
+
+/**
+ Drop every comment from a module text, keeping every line so a reported line
+ matches the file a reader opens.
+
+ @param text - module text as written
+
+ @returns module text with comment content removed
+
+ @example
+ ```ts
+ withoutComments('/** takes no tag *\/ const untagged = 1;');
+ ```
+ */
+function withoutComments(text: string,): string {
+  return text
+    .split('\n',)
+    .reduce<StripState>(
+    function step(state, line,) {
+      return stripComments(state, line,);
+    },
+    { lines: [], insideBlockComment: false, },
+    ).lines
+    .join('\n',);
 }
 
 /**
@@ -615,19 +642,7 @@ function stripComments(state: StripState, line: string,): StripState {
  ```
  */
 async function commentFreeText(path: string,): Promise<string> {
-  /**
-   Module text as written.
-   */
-  const text = await readFile(path, 'utf8',);
-  return text
-    .split('\n',)
-    .reduce<StripState>(
-    function step(state, line,) {
-      return stripComments(state, line,);
-    },
-    { lines: [], insideBlockComment: false, },
-    ).lines
-    .join('\n',);
+  return withoutComments(await readFile(path, 'utf8',),);
 }
 
 /**
@@ -710,7 +725,9 @@ await describe({
         it({
           name: 'reports a declared single-character parameter and ignores comment prose',
           fn: async () => {
-            expect(singleCharacterParameterNames(SCANNER_FIXTURE,),).toStrictEqual([
+            expect(
+              singleCharacterParameterNames(withoutComments(SCANNER_FIXTURE,),),
+            ).toStrictEqual([
               { name: 's', line: SCANNER_FIXTURE_OFFENDER_LINE, },
             ],);
           },
@@ -726,7 +743,11 @@ await describe({
               '  return line;',
               '}',
             ].join('\n',);
-            expect(singleCharacterParameterNames(text,),).toStrictEqual([],);
+            /**
+             Offending names the scan finds in that module.
+             */
+            const names = singleCharacterParameterNames(withoutComments(text,),);
+            expect(names,).toStrictEqual([],);
           },
         },),
       ],
