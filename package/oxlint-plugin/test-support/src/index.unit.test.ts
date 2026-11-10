@@ -470,6 +470,18 @@ await describe({
           },
         },),
         it({
+          name: 'falls back to the oxlint command line when the failure carries a command that is not a string',
+          fn: async () => {
+            expect(outputFromSpawnError({ error: { command: null, stdout: '[]', }, },).command,).toBe('oxlint',);
+          },
+        },),
+        it({
+          name: 'falls back to no standard error when the failure carries a standard error that is not a string',
+          fn: async () => {
+            expect(outputFromSpawnError({ error: { stdout: '[]', stderr: null, }, },).stderr,).toBe('',);
+          },
+        },),
+        it({
           name: 'names the missing stdout when the failure is not an object',
           fn: async () => {
             /**
