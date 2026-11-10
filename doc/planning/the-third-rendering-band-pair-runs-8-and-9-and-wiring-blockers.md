@@ -327,8 +327,13 @@ and whether a shipped consolidation is wrapped depends on what the producer happ
 
 Seven of the 11 shipped consolidations in run 8 lost the wrapping the lanes had,
 and seven of 12 in run 9.
-It is not even stable between runs:
-`Weideriche_#1` lost it in run 8 and kept it in run 9 on identical inputs.
+The pair does not measure the wrapping varying between two runs.
+`Weideriche_#1` lost the wrapping in run 8 and kept it in run 9,
+but run 9 recorded `declined-indecision` at that slice,
+and a declined gate ships the standing text,
+which is lane output and already wrapped.
+The wrapping was re-derived once at that slice, not twice,
+so its two runs contrast a consolidation with an untouched standing text.
 
 So wiring this stage as it stands would regress line structure on roughly three slices in five
 that it touches.
