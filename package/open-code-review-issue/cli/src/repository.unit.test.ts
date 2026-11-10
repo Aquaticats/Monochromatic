@@ -11,6 +11,25 @@ import {
   type BoundedProcessRunner,
 } from '../dist/final/node/index.mjs';
 
+/**
+ Asserts that a repository selector is refused as a selection error.
+ 
+ @param value - Candidate `--repo` value.
+ */
+function expectRefused(value: string,): void {
+  /**
+   Captured repository validation failure.
+   */
+  let caught: unknown;
+  try {
+    parseRepositoryUrl(value,);
+  }
+  catch (error: unknown) {
+    caught = error;
+  }
+  expect(caught,).toBeInstanceOf(RepositorySelectionError,);
+}
+
 await describe({
   name: parseRepositoryUrl.name,
   children: [
@@ -39,18 +58,32 @@ await describe({
           'https://example.com/Aquaticat/issues-api',
         ];
         for (const value of values) {
-          /**
-           Captured repository validation failure.
-           */
-          let caught: unknown;
-          try {
-            parseRepositoryUrl(value,);
-          }
-          catch (error: unknown) {
-            caught = error;
-          }
-          expect(caught,).toBeInstanceOf(RepositorySelectionError,);
+          expectRefused(value,);
         }
+      },
+    },),
+    it({
+      name: 'rejects a non-ASCII owner character',
+      fn: async () => {
+        expectRefused('https://github.com/Aquaticat\u00E9/issues-api',);
+      },
+    },),
+    it({
+      name: 'rejects a supplementary plane owner character',
+      fn: async () => {
+        expectRefused('https://github.com/Aquaticat\u{1F600}/issues-api',);
+      },
+    },),
+    it({
+      name: 'rejects a supplementary plane repository name character',
+      fn: async () => {
+        expectRefused('https://github.com/Aquaticat/issues\u{1F600}-api',);
+      },
+    },),
+    it({
+      name: 'rejects a lone surrogate in the repository name',
+      fn: async () => {
+        expectRefused('https://github.com/Aquaticat/issues\uD800-api',);
       },
     },),
     it({

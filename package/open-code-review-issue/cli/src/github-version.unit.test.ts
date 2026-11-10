@@ -9,6 +9,25 @@ import {
   parseGitHubCliVersion,
 } from '../dist/final/node/index.mjs';
 
+/**
+ Asserts that version output is refused as a version error.
+ 
+ @param stdout - Captured `gh --version` output.
+ */
+function expectRefused(stdout: string,): void {
+  /**
+   Captured version validation failure.
+   */
+  let caught: unknown;
+  try {
+    parseGitHubCliVersion({ stdout, },);
+  }
+  catch (error: unknown) {
+    caught = error;
+  }
+  expect(caught,).toBeInstanceOf(GitHubCliVersionError,);
+}
+
 await describe({
   name: parseGitHubCliVersion.name,
   children: [
@@ -37,18 +56,26 @@ await describe({
           'unexpected output',
         ];
         for (const stdout of values) {
-          /**
-           Captured version validation failure.
-           */
-          let caught: unknown;
-          try {
-            parseGitHubCliVersion({ stdout, },);
-          }
-          catch (error: unknown) {
-            caught = error;
-          }
-          expect(caught,).toBeInstanceOf(GitHubCliVersionError,);
+          expectRefused(stdout,);
         }
+      },
+    },),
+    it({
+      name: 'rejects a fullwidth digit in a version component',
+      fn: async () => {
+        expectRefused('gh version \uFF12.97.0',);
+      },
+    },),
+    it({
+      name: 'rejects a supplementary plane digit look-alike in a version component',
+      fn: async () => {
+        expectRefused('gh version 2.97.\u{1D7D8}',);
+      },
+    },),
+    it({
+      name: 'rejects an Arabic-Indic digit in a version component',
+      fn: async () => {
+        expectRefused('gh version 2.\u0669\u0667.0',);
       },
     },),
   ],
