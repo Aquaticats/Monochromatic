@@ -12,9 +12,12 @@ import {
 
 import {
   type BudgetModel,
+  findFastestCandidate,
   firstAuthenticatedCandidate,
   NO_AUTH,
+  NO_CANDIDATE,
   NoBudgetModelError,
+  scoreModelSpeed,
   selectBudgetModel,
   type BudgetModelAuth,
 } from '../dist/final/node/index.mjs';
@@ -69,6 +72,12 @@ const anyProviderHighspeedModel = fixtureModel({
   provider: 'moonshotai',
   id: 'kimi-k2.7-code-highspeed',
   inputCost: NEAR_ACTIVE_INPUT_COST,
+},);
+
+/** Model id with no version token, which major-version filtering drops. */
+const versionlessModel = fixtureModel({
+  provider: 'openai',
+  id: 'faux-model',
 },);
 
 /** All budget test models. */
@@ -259,6 +268,86 @@ await describe({
         },);
         expect(noAuth,).toBeInstanceOf(NoBudgetModelError,);
         expect((noAuth as Error).message,).toContain('no API key available',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: findFastestCandidate.name,
+  children: [
+    it({
+      name: 'returns NO_CANDIDATE when the registry has no model',
+      fn: async function testEmptyRegistry(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Sentinel result for an empty registry.
+         */
+        const candidate = findFastestCandidate({
+          allModels: [],
+          majorVersions: 1,
+          hasConfiguredAuth: function reportAuthForEmptyRegistry({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).toBe(NO_CANDIDATE,);
+        expect(askedModels,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'returns NO_CANDIDATE when major-version filtering drops every model',
+      fn: async function testVersionlessRegistry(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Sentinel result for a registry whose ids carry no version token.
+         */
+        const candidate = findFastestCandidate({
+          allModels: [versionlessModel,],
+          majorVersions: 1,
+          hasConfiguredAuth: function reportAuthForVersionlessRegistry({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).toBe(NO_CANDIDATE,);
+        expect(askedModels,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'returns the fastest provider head with its configured-auth flag',
+      fn: async function testFastestProviderHead(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Fastest cross-provider candidate metadata.
+         */
+        const candidate = findFastestCandidate({
+          allModels,
+          majorVersions: 1,
+          hasConfiguredAuth: function reportConfiguredAuth({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).not.toBe(NO_CANDIDATE,);
+        expect(candidate,).toEqual({
+          provider: sameProviderModel.provider,
+          modelId: sameProviderModel.id,
+          speedScore: scoreModelSpeed(sameProviderModel,),
+          costInput: sameProviderModel.cost.input,
+          costOutput: sameProviderModel.cost.output,
+          hasApiKey: true,
+        },);
+        expect(askedModels,).toEqual([sameProviderModel,],);
       },
     },),
   ],
