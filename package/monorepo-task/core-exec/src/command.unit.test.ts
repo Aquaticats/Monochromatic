@@ -331,18 +331,19 @@ await describe({
       setTimeout(() => {}, 10000); // Stay alive long enough to be signalled
     `,);
 
-        let failure: { readonly exitCode?: number; readonly stderr?: string; } | undefined;
+        let reportedFailure = false;
         try {
           await execAsync(`node ${cliPath} -- node ${signalScript}`,);
         }
         catch (error: unknown) {
-          failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+          reportedFailure = true;
+          const failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+          expect(failure.exitCode,).toBe(1,);
+          expect(failure.stderr,).toContain('Command terminated by signal: SIGTERM',);
+          expect(failure.stderr,).not.toContain('Failed to execute command',);
         }
 
-        expect(failure,).toBeDefined();
-        expect(failure?.exitCode,).toBe(1,);
-        expect(failure?.stderr,).toContain('Command terminated by signal: SIGTERM',);
-        expect(failure?.stderr,).not.toContain('Failed to execute command',);
+        expect(reportedFailure,).toBe(true,);
 
         if (existsSync(signalScript,))
           unlinkSync(signalScript,);
@@ -437,18 +438,19 @@ await describe({
       }, 2000);
     `,);
 
-        let failure: { readonly exitCode?: number; readonly stderr?: string; } | undefined;
+        let reportedFailure = false;
         try {
           await execAsync(`node ${cliPath} --timeout 500 -- node ${longScript}`,);
         }
         catch (error: unknown) {
-          failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+          reportedFailure = true;
+          const failure = error as { readonly exitCode?: number; readonly stderr?: string; };
+          expect(failure.exitCode,).toBe(1,);
+          expect(failure.stderr,).toContain('Command terminated by signal: SIGTERM',);
+          expect(failure.stderr,).not.toContain('Failed to execute command',);
         }
 
-        expect(failure,).toBeDefined();
-        expect(failure?.exitCode,).toBe(1,);
-        expect(failure?.stderr,).toContain('Command terminated by signal: SIGTERM',);
-        expect(failure?.stderr,).not.toContain('Failed to execute command',);
+        expect(reportedFailure,).toBe(true,);
 
         // Clean up
         if (existsSync(longScript,))
