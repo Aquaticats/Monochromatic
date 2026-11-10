@@ -388,6 +388,12 @@ Read-only commands,
    `mono/dependent-version-bump`,
    `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
+  One of them adds content:
+   a hand-raised workspace manifest makes `mono/dependent-version-bump` bump every dependent it reaches
+   and put those manifests in the same commit,
+   and the worktree copies follow the committed bytes while they still hold what the bump was computed on.
+  A dependent whose copy holds anything else is left out of the commit and named on standard error,
+   so the commit lands and nobody's work is overwritten.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
   The wrapper checks the committed bytes again,
@@ -2631,6 +2637,19 @@ Listing one with a severity is the only way to turn it on,
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+  A wrapped `git commit` of a hand-raised manifest carries its dependents' patch bumps in the same commit,
+   through the whole chain of dependents,
+   and brings their worktree copies to the committed bytes
+   while those copies still match `HEAD`.
+  A dependent whose worktree or index copy holds something else is left out of the commit and named on standard error,
+   with the reason and both remedies,
+   so the commit lands with the rest and nothing is overwritten.
+  A publish set the commit cannot read,
+   or a dependent whose version cannot be bumped automatically,
+   is named the same way;
+   a commit never fails over the ripple.
+  `git monochromatic-git-policy-cli check` and
+   `git monochromatic-git-policy-cli fix` report the same ripple for the worktree.
 - `mono/catalog-specifiers`:
    default `error`,
    no options.

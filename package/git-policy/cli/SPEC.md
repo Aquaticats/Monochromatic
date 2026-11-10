@@ -227,18 +227,33 @@ The engine does not compare a correction's bytes with the candidate's:
 a pass counts as changed only when its resulting state differs from the preceding state
 (see "Whole-sequence fixing").
 
-A correction for a tracked file that the fix did not select (an added path) exists only for a direct fix.
-It is valid only when `HEAD` holds the file as an ordinary file with the blob the correction was computed against,
+A correction for a tracked file that the lifecycle did not select (an added path) is valid only when `HEAD` holds the file as an ordinary file with the blob the correction was computed against,
 the real index holds that same blob with `HEAD`'s mode,
+the lifecycle's own index holds that same entry,
 and the worktree copy is a regular file whose bytes and executable bit match that blob.
-Otherwise the engine exits `2` with `patch-conflict`,
+A direct fix applies such a correction to the worktree file and refuses one that fails the precondition:
+the engine exits `2` with `patch-conflict`,
 naming the path,
 which state differs,
 and the remedies:
 include the path in the fix pathspecs so the fix applies to its worktree copy,
 or restore it to match `HEAD` (`git restore --staged --worktree -- <path>`).
 A commit adds no paths of its own:
-only the paths it selected reach the landing.
+only the paths it selected reach the landing,
+with one exception,
+named by the owner on 2026-11-10 in the question tool as the answer
+"A commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`",
+to the question recorded in
+`doc/handover/questions-for-the-owner.md`,
+and decided on 2026-09-15
+(`doc/decision/private-npm-registry.md:158-177`):
+a hand bump of a workspace manifest carries its dependents' patch bumps in the same commit,
+and every one of those manifests is a path the commit adds
+(see "Dependent version bump").
+That exception is the only added path a commit takes,
+and it keeps the precondition above rather than the fix's refusal:
+a dependent whose copies hold anything else is left out of the commit and named in a note,
+so the commit lands with the rest of the ripple instead of failing.
 
 ## Configuration validation
 
@@ -8323,6 +8338,25 @@ Stable state with errors exits `1`.
 Cycle and pass-limit failures exit `2`.
 Only events derived from the stable pass are emitted as findings.
 
+### Notes a check leaves
+
+A check answers with findings,
+and sometimes with notes beside them
+(`PolicyOutcome::FindingsWithNotes`,
+`policy_engine.rs`).
+A note names one piece of work the check left alone and why,
+carries the file in its own `path` field,
+and never stops the command:
+the engine writes it as an engine-failure event with code `policy-incomplete` and a chosen hint saying the command
+is not stopped and nothing was discarded (`LEFT_ALONE_HINT`),
+whatever severity the policy holds,
+and the pass goes on.
+A policy uses a note for work it must not do rather than for work it could not do:
+a commit that may not overwrite a dependent's manifest keeps its landing and names the file,
+which is what the owner's "commits should never fail" and "never discard user data" ask of it together.
+The notes of the stable pass are the ones emitted,
+so a check that proposes a correction and is asked again reports each left-alone file once.
+
 ## JSONL schema version 1
 
 Each event is one compact JSON object followed by LF.
@@ -11050,9 +11084,9 @@ and revert conclusions use index-commit semantics only.
 
 #### Added paths
 
-A commit adds no paths of its own:
-only the selected paths reach the landing,
-and a rewrite a policy made is installed into the worktree by the wrapper after the landing.
+A commit adds no paths of its own but the dependents of a hand bump,
+and every rewrite a policy made is installed into the worktree by the wrapper after the landing,
+only while the worktree copy still holds the bytes the correction replaced.
 
 Direct fix admits added paths under the precondition in "Finding and patch validation":
 `HEAD`,
@@ -11063,6 +11097,19 @@ converged bytes of added paths join the direct-fix worktree installation.
 Precondition failures are `patch-conflict` with direct-fix remedies
 (include the path in the pathspecs,
 or restore it to `HEAD`).
+
+The commit path admits them under the same precondition,
+checked against the commit's own index as well
+(`policy_added_path::commit_refusal`),
+and the run of dependents is planned from that index,
+so a correction is computed against the bytes the commit holds.
+It differs from the fix in what a failed precondition costs:
+nothing is refused,
+the dependent is left out of the commit and named in a note
+(see "Dependent version bump"),
+and the commit lands with the dependents it could take.
+The landing then writes the commit's entries into the real index,
+which is why the real index must already hold them.
 
 ### Sequencer conclusion state
 
@@ -13664,11 +13711,47 @@ and an unjudged ripple therefore never reads as a clean workspace.
 The diagnostic names the file,
 the cause,
 and the escape hatch.
-No commit,
-push or landed commit reads the publish set:
-the policy plans only on `direct-check` and `direct-fix`,
-so no publish configuration can fail a commit,
-and an unreadable one is reported by `check` and `fix` alone.
+
+#### What a commit does with the ripple
+
+A wrapped `git commit` plans the same ripple as `check` and `fix`,
+as the owner's answer of 2026-11-10 decides
+(quoted in "Finding and patch validation")
+and the decision of 2026-09-15 records
+(`doc/decision/private-npm-registry.md:158-177`).
+When a workspace manifest's `version` differs from the base the commit recorded,
+every publishable dependent is patch-bumped,
+transitively,
+and its manifest joins the commit as an added path
+(`policy_added_path::commit_refusal`,
+"Added paths").
+After the landing the wrapper writes each committed manifest into the worktree
+while that copy still holds the bytes the bump was computed against
+(`commit_worktree_records.rs`,
+`worktree_completion.rs`);
+a copy that moved in the meantime is kept and reported.
+
+A commit never fails over the ripple.
+Each of the following is a note,
+never a finding that blocks and never an engine failure that exits `2`:
+
+- a dependent whose `HEAD`,
+  commit-index,
+  real-index and worktree copies do not all hold the
+  manifest the bump was computed against,
+  which is somebody's unstaged or staged work,
+  so the dependent alone is left out of the commit and keeps its version;
+- a dependent whose version cannot be patch-bumped automatically;
+- a publish set the commit cannot read,
+  or any other input the planner cannot use.
+
+A note prints as an engine-failure event with code `policy-incomplete` whose chosen hint says the command
+is not stopped and nothing was discarded (`LEFT_ALONE_HINT`,
+`policy/policy_events.rs`),
+and the pass goes on whatever the policy's severity.
+The policy reports it on the commit path only:
+`git add` and every other forwarded command still apply no correction,
+so they plan nothing.
 
 ### Forbidden root context
 
