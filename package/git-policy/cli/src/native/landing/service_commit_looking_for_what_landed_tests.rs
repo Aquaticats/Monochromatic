@@ -221,3 +221,42 @@ fn a_request_of(repo: &Path) -> CommitRequest {
         captured: 0,
     };
 }
+
+/// What:
+///  The record of a commit the open batch of this request left held is found,
+///  and a record of another batch or another journal is not.
+/// Why:
+///  A service that answered `held` into a connection that broke left the commit made and kept,
+///  and only the record of the hold says so:
+///  a command that looked only at the branch would report a commit that was made as a failure.
+#[test]
+fn the_held_record_of_the_open_batch_of_a_request_is_found() {
+    let journal: PathBuf = a_journal("looking-held");
+    let git_dir: PathBuf = journal.parent().expect("the control's root").join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
+    let held_commit: String = "3".repeat(40);
+    let record: Intent = a_record(9, "refs/heads/main", &"4".repeat(40), held_commit.as_str(), &[ID], &[held_commit.as_str()]);
+    write_intent(journal.as_path(), &record).expect("the open record");
+    let held: crate::held_commit_record::Held = crate::held_commit_record::Held {
+        seq: 9,
+        journal: journal.clone(),
+        repository: git_dir.parent().expect("the worktree").to_path_buf(),
+        common_dir: git_dir.clone(),
+        git_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        old: record.old.clone(),
+        new: held_commit.clone(),
+        commits: vec![held_commit.clone()],
+        index: git_dir.join("index"),
+        reflog: b"commit: held".to_vec(),
+        locks: vec![git_dir.join("refs/heads/main.lock")],
+        created: String::from("2026-01-01T00:00:00+00:00"),
+    };
+    crate::held_commit_record::write(git_dir.as_path(), &held).expect("the record of the hold");
+    assert_eq!(a_held_batch_of(journal.as_path(), git_dir.as_path(), ID).map(|found| { return found.new; }), Some(held_commit), "the record of this batch is the one found");
+    let elsewhere: PathBuf = journal.parent().expect("the control's root").join("other-journal");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("another journal");
+    assert_eq!(a_held_batch_of(elsewhere.as_path(), git_dir.as_path(), ID), None, "a record of another journal is not this request's");
+    assert_eq!(a_held_batch_of(journal.as_path(), git_dir.as_path(), "another-request"), None, "a record of another request is not this one's");
+    remove(journal.parent().expect("the control's root"));
+}

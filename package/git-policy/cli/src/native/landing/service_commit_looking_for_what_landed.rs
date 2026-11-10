@@ -21,6 +21,7 @@
 //! const commit = await lookingForWhatLanded({ context, cwd, journal, id, wait });
 //! ```
 
+use crate::held_commit_record::Held;
 use crate::service_branch_shows::what_the_branch_shows;
 use crate::service_messages::WhatTheBranchShows;
 use crate::service_journal::{Intent, OPEN_EXTENSION, list_intents_read_only, newest_finished_batches_read_only};
@@ -170,6 +171,31 @@ fn an_open_batch_making(journal: &Path, id: &str) -> Option<(Intent, String)> {
         let Some(parsed) = record else { continue };
         if let Some(commit) = the_commit_of(&parsed, id) {
             return Some((parsed, commit));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The commit the open batch of `id` left held behind a reference lock,
+///  nothing when no record of the worktree names that batch.
+/// Why:
+///   The service writes the record of the hold before it answers,
+///  so a service that answered `held` into a connection that broke left the commit made and kept,
+///  which is the state a received answer exits `0` in.
+///  The record is the worktree's own,
+///  and the batch it names is the one the journal lists for this request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const intent = openBatchMaking(journal, id); return heldRecords(gitDir).find((held) => held.seq === intent.seq && held.journal === journal)
+/// ```
+pub(crate) fn a_held_batch_of(journal: &Path, git_dir: &Path, id: &str) -> Option<Held> {
+    let (intent, _commit): (Intent, String) = an_open_batch_making(journal, id)?;
+    let (records, _damaged) = crate::held_commit_record::list(git_dir);
+    for held in records {
+        if held.seq == intent.seq && held.journal == journal {
+            return Some(held);
         }
     }
     return None;
