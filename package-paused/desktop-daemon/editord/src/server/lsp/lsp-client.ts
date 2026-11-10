@@ -21,11 +21,28 @@ import {
   type JsonRpcMessage,
 } from './json-rpc.ts';
 import { buildInitializeParams, } from './lsp-client-init.ts';
+import type {
+  LspClient,
+  LspClientExit,
+  LspClientNotification,
+  LspClientOptions,
+  LspClientState,
+  LspInitializeOptions,
+  LspNotifyOptions,
+  LspRequestOptions,
+} from './lsp-client-types.ts';
 import {
   type PendingLspRequest,
   routeJsonRpcMessage,
 } from './lsp-client-routing.ts';
 import type { LspServerCapabilities, } from './types.ts';
+
+export type {
+  LspClient,
+  LspClientExit,
+  LspClientNotification,
+  LspClientOptions,
+} from './lsp-client-types.ts';
 
 /**
  * Timeout for LSP feature requests such as hover, completion,
@@ -37,184 +54,12 @@ import type { LspServerCapabilities, } from './types.ts';
 export const LSP_FEATURE_TIMEOUT_MS = 10_000;
 
 /**
- * Server-initiated notification callback payload.
+ * Bound on the `shutdown` handshake. Well inside the daemon's 5 s SIGINT
+ * watchdog (`SHUTDOWN_WATCHDOG_SECONDS` in `../index.ts`), so a wedged server
+ * still leaves time to kill the child and close the HTTP server before the
+ * watchdog fires.
  */
-export type LspClientNotification = {
-  /**
-   * LSP notification method name.
-   */
-  readonly method: string;
-  /**
-   * LSP notification params.
-   */
-  readonly params: unknown;
-};
-
-/**
- * Child-process exit callback payload.
- */
-export type LspClientExit = {
-  /**
-   * Whether the process exited without an explicit shutdown request.
-   */
-  readonly unexpected: boolean;
-  /**
-   * Exit code reported by Node, or null when signal-only.
-   */
-  readonly code: number | null;
-  /**
-   * Rolling stderr tail captured before exit.
-   */
-  readonly recentStderr: string;
-};
-
-/**
- * Options for {@link createLspClient}.
- */
-export type LspClientOptions = {
-  /**
-   * Executable path or name.
-   */
-  readonly command: string;
-  /**
-   * Command-line arguments.
-   */
-  readonly args: readonly string[];
-  /**
-   * Display name for logging.
-   */
-  readonly name: string;
-  /**
-   * Working directory for the child process.
-   */
-  readonly cwd: string;
-  /**
-   * Environment variables for the child process.
-   */
-  readonly env: Readonly<Record<string, string | undefined>>;
-  /**
-   * Parent logger to compose tags from.
-   */
-  readonly l: Logger;
-  /**
-   * Callback for server-initiated notifications.
-   */
-  readonly onNotification: (event: LspClientNotification,) => void;
-  /**
-   * Callback invoked when the process exits.
-   */
-  readonly onExit: (event: LspClientExit,) => void;
-};
-
-/**
- * Initialize request payload for {@link LspClient.initialize}.
- */
-type LspInitializeOptions = {
-  /**
-   * Workspace root URI such as `file:///home/user/project`.
-   */
-  readonly rootUri: string;
-  /**
-   * Server-specific initialization options.
-   */
-  readonly initializationOptions?: Readonly<Record<string, unknown>>;
-};
-
-/**
- * JSON-RPC request payload for {@link LspClient.request}.
- */
-type LspRequestOptions = {
-  /**
-   * LSP method name such as `textDocument/hover`.
-   */
-  readonly method: string;
-  /**
-   * Method parameters.
-   */
-  readonly params: unknown;
-  /**
-   * Optional per-request timeout in milliseconds.
-   */
-  readonly timeoutMs?: number;
-};
-
-/**
- * JSON-RPC notification payload for {@link LspClient.notify}.
- */
-type LspNotifyOptions = {
-  /**
-   * LSP method name such as `textDocument/didOpen`.
-   */
-  readonly method: string;
-  /**
-   * Notification parameters.
-   */
-  readonly params: unknown;
-};
-
-/**
- * Mutable LSP client state captured by the factory closure.
- */
-type LspClientState = {
-  /**
-   * Counter for generating unique JSON-RPC request IDs.
-   */
-  nextId: number;
-  /**
-   * Rolling buffer of recent stderr output.
-   */
-  stderrBuffer: string;
-  /**
-   * Whether the LSP initialize handshake has completed.
-   */
-  initialized: boolean;
-  /**
-   * Whether a graceful shutdown has been initiated.
-   */
-  shuttingDown: boolean;
-  /**
-   * Whether the child process has exited.
-   */
-  dead: boolean;
-  /**
-   * Server capabilities reported during initialization.
-   */
-  capabilities: LspServerCapabilities;
-};
-
-/**
- * Client for a single LSP server process.
- */
-export type LspClient = Readonly<{
-  /**
-   * Server capabilities reported during initialization.
-   */
-  readonly capabilities: LspServerCapabilities;
-  /**
-   * Whether the LSP initialize handshake has completed.
-   */
-  readonly initialized: boolean;
-  /**
-   * Whether the child process has exited.
-   */
-  readonly dead: boolean;
-  /**
-   * Performs the LSP initialize handshake.
-   */
-  readonly initialize: (opts: LspInitializeOptions,) => Promise<LspServerCapabilities>;
-  /**
-   * Sends a JSON-RPC request and waits for the correlated response.
-   */
-  readonly request: (opts: LspRequestOptions,) => Promise<unknown>;
-  /**
-   * Sends a JSON-RPC notification.
-   */
-  readonly notify: (opts: LspNotifyOptions,) => void;
-  /**
-   * Gracefully shuts down the LSP server.
-   */
-  readonly shutdown: () => Promise<void>;
-}>;
+const LSP_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 /**
  * Maximum bytes kept in the rolling stderr buffer.
@@ -367,6 +212,13 @@ export function createLspClient({
     params,
     timeoutMs,
   }: LspRequestOptions,): Promise<unknown> {
+    if (state.dead) {
+      /**
+       * No response can arrive once the child is gone, so reject instead of
+       * registering a pending entry nothing will ever settle.
+       */
+      return Promise.reject(new Error(`${method} not sent: LSP server exited`,));
+    }
     /**
      * Monotonic JSON-RPC request id; incremented after capture so each request gets a fresh value.
      */
@@ -490,6 +342,7 @@ export function createLspClient({
       await request({
         method: 'shutdown',
         params: null,
+        timeoutMs: LSP_SHUTDOWN_TIMEOUT_MS,
       },);
       notify({
         method: 'exit',
@@ -554,6 +407,27 @@ export function createLspClient({
     },
   );
 
+  /**
+   * Rejects and clears every pending request, so no caller waits for a
+   * response an exited server can no longer send.
+   *
+   * @param reason - message describing why the requests were abandoned
+   *
+   * @example
+   * ```ts
+   * settleAllPending('LSP server exited');
+   * ```
+   */
+  function settleAllPending(reason: string,): void {
+    pending.forEach(function rejectPending(entry,): void {
+      if (entry.timeoutId
+        !== null)
+        clearTimeout(entry.timeoutId,);
+      entry.reject(new Error(reason,),);
+    },);
+    pending.clear();
+  }
+
   proc.on(
     'exit',
     function handleExit(code,) {
@@ -562,22 +436,20 @@ export function createLspClient({
        * True when the exit was not preceded by an explicit `shutdown()`; signals a crash to `onExit`.
        */
       const unexpected = !state.shuttingDown;
-      if (unexpected) {
+      if (unexpected)
         clientLog.error(`crashed with code ${String(code,)}`,);
-        /**
-         * Reject all pending requests so callers don't hang forever.
-         */
-        pending.forEach(function rejectPending(entry,): void {
-          if (entry.timeoutId
-            !== null)
-            clearTimeout(entry.timeoutId,);
-          entry.reject(new Error(`LSP server crashed (exit code ${String(code,)})`,),);
-        },);
-        pending.clear();
-      }
-      else {
+      else
         clientLog.info(`exited with code ${String(code,)}`,);
-      }
+      /**
+       * Reject every pending request in both branches: a graceful exit settles
+       * no promise either, so leaving them pending hung the shutdown handshake
+       * and every caller waiting on a feature request.
+       */
+      settleAllPending(
+        unexpected
+          ? `LSP server crashed (exit code ${String(code,)})`
+          : `LSP server exited before answering (exit code ${String(code,)})`,
+      );
       onExit({
         unexpected,
         code,

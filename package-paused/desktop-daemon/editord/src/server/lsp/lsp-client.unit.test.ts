@@ -178,9 +178,10 @@ async function delay(ms: number,): Promise<void> {
 }
 
 /**
- * Waits up to `windowMs` for a promise to settle.
+ * Waits up to `windowMs` for a promise to settle, counting a rejection as
+ * settling so the caller can assert on it afterwards.
  *
- * @param promise - promise under test; its rejection is treated as settling
+ * @param promise - promise under test
  *
  * @param windowMs - milliseconds allowed before the promise counts as hung
  *
@@ -188,7 +189,7 @@ async function delay(ms: number,): Promise<void> {
  *
  * @example
  * ```ts
- * const settled = await settledWithin(pending.catch(() => null), 1000);
+ * const settled = await settledWithin(pending, 1000);
  * ```
  */
 async function settledWithin(promise: Promise<unknown>, windowMs: number,): Promise<boolean> {
@@ -211,9 +212,14 @@ async function settledWithin(promise: Promise<unknown>, windowMs: number,): Prom
     );
   },);
   const winner = await Promise.race([
-    promise.then(function settled() {
-      return undefined;
-    },),
+    promise.then(
+      function settled() {
+        return undefined;
+      },
+      function rejected() {
+        return undefined;
+      },
+    ),
     window,
   ],);
   clearTimeout(timer.handle,);
@@ -224,6 +230,29 @@ await describe({
   name: createLspClient.name,
   concurrency: 1,
   children: [
+    it({
+      name: 'rejects a request issued after the child exited',
+      async fn() {
+        const fixture = await createClientFixture(GRACEFUL_EXIT_SCRIPT,);
+        await fixture.whenExited;
+        /**
+         * Request issued against a client whose child is gone; it must reject
+         * instead of waiting for a response that can never arrive.
+         */
+        const request = fixture.client.request({
+          method: 'textDocument/hover',
+          params: {},
+        },);
+        const requestSettled = await settledWithin(
+          request,
+          SETTLE_WINDOW_MS,
+        );
+        expect(requestSettled,).toBe(true,);
+        await expect(request,).rejects.toThrow('exited',);
+        expect(fixture.exits.length,).toBe(1,);
+        await fixture.dispose();
+      },
+    },),
     it({
       name: 'survives a notify written after the child closed its stdin',
       async fn() {
@@ -245,6 +274,49 @@ await describe({
           SETTLE_WINDOW_MS,
         );
         expect(exited,).toBe(true,);
+        await fixture.dispose();
+      },
+    },),
+    it({
+      name: 'settles in-flight requests when the child exits gracefully',
+      async fn() {
+        const fixture = await createClientFixture(GRACEFUL_EXIT_SCRIPT,);
+        /**
+         * Shutdown handshake started first, so the client considers the exit
+         * graceful rather than a crash.
+         */
+        const shutdown = fixture.client.shutdown();
+        /**
+         * Request left pending with no timeout of its own, exactly like a
+         * feature request issued while the server was still answering.
+         */
+        const hover = fixture.client.request({
+          method: 'textDocument/hover',
+          params: {},
+        },);
+        const hoverSettled = await settledWithin(
+          hover,
+          SETTLE_WINDOW_MS,
+        );
+        expect(hoverSettled,).toBe(true,);
+        await expect(hover,).rejects.toThrow('exited',);
+        const shutdownSettled = await settledWithin(
+          shutdown,
+          SETTLE_WINDOW_MS,
+        );
+        expect(shutdownSettled,).toBe(true,);
+        await fixture.dispose();
+      },
+    },),
+    it({
+      name: 'settles the shutdown handshake when the child never answers',
+      async fn() {
+        const fixture = await createClientFixture(SILENT_SCRIPT,);
+        const shutdownSettled = await settledWithin(
+          fixture.client.shutdown(),
+          SETTLE_WINDOW_MS,
+        );
+        expect(shutdownSettled,).toBe(true,);
         await fixture.dispose();
       },
     },),
