@@ -3,6 +3,10 @@
  
  The renderer runs sandboxed with context isolation on and Node integration
  off, so the main process is the only place a listing request can be refused.
+ The check is not lexical alone: a symbolic link inside the root still reports
+ a path under it, so both the request and the root are canonicalised and the
+ canonical pair is compared as well. A symbolic link whose target lies under
+ the root stays listable; one that points elsewhere is refused.
  
  @example
  ```ts
@@ -12,6 +16,7 @@
  @packageDocumentation
  */
 
+import { realpath, } from 'node:fs/promises';
 import {
   resolve,
   sep,
@@ -81,8 +86,11 @@ export class ListingOutsideRootError extends Error {
 /**
  Confines a renderer-supplied path under the root directory.
  
- The request is folded lexically and compared against the root, so `..`
- segments and absolute paths elsewhere are refused before any filesystem call.
+ The lexical pass rejects the cheap escapes (`..` segments, absolute paths
+ elsewhere) before any filesystem call; the canonical pass then rejects a
+ request that is lexically under the root but resolves outside it through a
+ symbolic link. The returned path is the lexically resolved request, so the
+ renderer keeps seeing the paths it named.
  
  @param path - Renderer-supplied directory path.
  
@@ -90,14 +98,16 @@ export class ListingOutsideRootError extends Error {
  
  @returns Resolved absolute path safe to read.
  
- @throws ListingOutsideRootError when the path escapes the root.
+ @throws ListingOutsideRootError when the path escapes the root, lexically or canonically.
+ 
+ @throws Error when the path or the root cannot be canonicalised, such as a path that does not exist.
  
  @example
  ```ts
  await confinePath({ path: '/home/docs', rootDirectory: '/home' });
  ```
  */
-export function confinePath(
+export async function confinePath(
   {
     path,
     rootDirectory,
@@ -105,7 +115,7 @@ export function confinePath(
     readonly path: string;
     readonly rootDirectory: string;
   },
-): string {
+): Promise<string> {
   /**
    Configured root with relative segments folded away.
    */
@@ -119,6 +129,23 @@ export function confinePath(
   if (!isWithinRoot({
     candidate: resolved,
     root,
+  },))
+    throw new ListingOutsideRootError({
+      path,
+      rootDirectory: root,
+    },);
+
+  /**
+   Root and request with every symbolic link expanded.
+   */
+  const [canonicalRoot, canonicalPath,] = await Promise.all([
+    realpath(root,),
+    realpath(resolved,),
+  ],);
+
+  if (!isWithinRoot({
+    candidate: canonicalPath,
+    root: canonicalRoot,
   },))
     throw new ListingOutsideRootError({
       path,
