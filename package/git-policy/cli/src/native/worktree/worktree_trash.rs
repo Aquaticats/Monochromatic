@@ -103,7 +103,8 @@ fn new_trash_name() -> Result<String, String> {
 }
 
 /// What the leave-out made and moved,
-/// and how many directories it set aside.
+/// how many directories it set aside,
+/// and how many of them an earlier add had left in the trash parent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Pruned {
     /// How many directories were set aside,
@@ -112,6 +113,12 @@ pub struct Pruned {
     /// The trash directory with the identity of every directory moved into it;
     /// absent when nothing was moved into a trash.
     pub trash: Option<TrashManifest>,
+    /// How many of the directories moved into the trash came from an earlier add's trash,
+    /// which no other command
+    ///  of this add would ever empty.
+    ///  A routine add takes over none:
+    /// the stand-ins and the `.git` copy it hands over are its own.
+    pub taken_over: usize,
 }
 
 /// What:
@@ -476,11 +483,13 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     // A trash an earlier add left is not this add's, and nothing would ever empty it once the snapshot became a worktree: the
     //  disposal is handed only this add's manifest. Its directories go into this add's trash, so the emptying that runs before
     //  this command returns covers them and no snapshot carries a trash folder forward.
+    let mut taken_over: usize = 0;
     for inherited in inherited_trash_entries(stage, &aside)? {
         if tracked.contains(inherited.as_os_str().as_bytes()) {
             continue;
         }
         aside.put(inherited.as_path())?;
+        taken_over += 1;
     }
     for relative in &nested_copies {
         unlink_pointer(stage.join(relative).as_path())?;
@@ -535,7 +544,7 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         None => None,
     };
     debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
-    return Ok(Pruned { count, trash: manifest });
+    return Ok(Pruned { count, trash: manifest, taken_over });
 }
 
 /// Unlink the `.git` file of a copied directory,

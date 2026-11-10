@@ -43,7 +43,7 @@ fn worktree_with_planted_trash(label: &str, name: &str, count: usize) -> (PathBu
 
 /// The trash of a snapshot waiting to be handed over.
 fn pending_of(worktree: &Path, common: &Path, manifest: TrashManifest) -> PendingTrash {
-    return PendingTrash { destination: worktree.to_path_buf(), common_dir: common.to_path_buf(), manifest, quiet: false };
+    return PendingTrash { destination: worktree.to_path_buf(), common_dir: common.to_path_buf(), manifest, taken_over: 0, quiet: false };
 }
 
 /// A route finder that names no service,

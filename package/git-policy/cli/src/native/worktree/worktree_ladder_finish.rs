@@ -137,10 +137,10 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
     let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
     end_step(take_snapshot_entered);
-    let (state, trash): (CopyState, Option<TrashManifest>) = match take_snapshot_outcome {
+    let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {
             *made = Some(taken.stage);
-            (taken.state, taken.trash)
+            (taken.state, taken.trash, taken.taken_over)
         }
         Err(failure) => {
             *made = failure.stage;
@@ -172,7 +172,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  does not wait for it. Nothing is set aside for a linked worktree.
     let mut pending: Option<PendingTrash> = None;
     if let Some(manifest) = trash {
-        pending = Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet });
+        pending = Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, taken_over, quiet: plan.quiet });
     }
     crate::worktree_snapshot::record_made_of_the_stage(source, stage, *made);
     let exchange_entered: bool = begin_step("exchange");

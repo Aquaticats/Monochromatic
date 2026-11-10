@@ -373,7 +373,7 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let Some(stage_id) = made else {
         return Err(SnapshotFailure { reason: String::from("the stage cannot be examined"), stage: None });
     };
-    return Ok(Snapshotted { stage: stage_id, trash: hand_over.finish(), state });
+    return Ok(Snapshotted { stage: stage_id, trash: hand_over.finish(), taken_over: pruned.taken_over, state });
 }
 
 /// What a snapshot that was taken left for the steps after it.
@@ -386,6 +386,9 @@ pub struct Snapshotted {
     /// the disposal after the swap
     ///  empties exactly that.
     pub trash: Option<TrashManifest>,
+    /// How many of the trash's directories came from an earlier add's trash,
+    /// which the hand-over names to the person.
+    pub taken_over: usize,
     /// What the index step settled about the copy.
     pub state: CopyState,
 }

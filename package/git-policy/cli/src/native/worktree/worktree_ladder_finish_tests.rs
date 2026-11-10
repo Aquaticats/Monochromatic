@@ -319,7 +319,7 @@ fn a_trash_whose_record_cannot_be_written_is_emptied_before_the_rung_returns() {
     // The queue has nowhere to go: the directory the records are written in is a plain file.
     std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the queue's parent");
     std::fs::write(common.join(crate::work_item::WORK_DIRECTORY), b"not a directory\n").expect("a file where the queue's directory would be");
-    let pending: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common.clone(), manifest, quiet: false };
+    let pending: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common.clone(), manifest, taken_over: 0, quiet: false };
     assert_eq!(record_before_the_rung_returns(pending), None, "a trash with no record travels no further");
     assert!(!worktree.join(crate::worktree_trash::TRASH_PARENT).exists(), "and the add empties it before it returns");
     remove(root.as_path());

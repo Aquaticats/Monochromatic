@@ -633,7 +633,7 @@ fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
-    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), quiet: false };
+    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
     let mut notices: Vec<u8> = Vec::new();
     let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no service is in reach");
     assert!(reason.contains("no commit service can be started from this session") && reason.contains("when it next runs for this repository"), "the reason is the missing service, and the record still empties the trash later: {reason}");

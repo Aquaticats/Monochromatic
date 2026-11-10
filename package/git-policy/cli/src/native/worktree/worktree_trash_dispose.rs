@@ -135,6 +135,13 @@ pub struct PendingTrash {
     pub common_dir: PathBuf,
     /// What the leave-out made and moved.
     pub manifest: TrashManifest,
+    /// How many of the trash's directories came from an earlier add's trash,
+    /// which nothing of this add would ever
+    ///  have emptied;
+    /// the hand-over says so when it is more than none,
+    /// because every add hands over at least the stand-ins and the
+    ///  `.git` copy it made itself.
+    pub taken_over: usize,
     /// Whether the person's `--quiet` silences the notices of the hand-over.
     pub quiet: bool,
 }
