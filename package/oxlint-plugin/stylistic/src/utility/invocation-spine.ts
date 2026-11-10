@@ -3,6 +3,11 @@ import type { Span, } from '@oxlint/plugins';
 
 import { at, } from './range.ts';
 
+//region Structural AST view
+// The node fields the invocation-depth walk reads; `parent` is the walker link,
+// and nullable oxlint fields are typed non-null here and reconciled at the read
+// site so the view carries no `T | null` union.
+
 /**
  AST node fields the invocation-depth walk reads.
  
@@ -54,6 +59,11 @@ export type SpineNode = Span & {
    */
   readonly parent?: SpineNode;
 };
+//endregion Structural AST view
+
+//region Spine stop and wrapper kinds
+// The sentinel that ends a walk, and the two wrapper families the spine passes
+// through without counting them.
 
 /**
  Spine-stop sentinel returned where a walk has no further node.
@@ -92,6 +102,11 @@ const WRAPPER_ARGUMENT_TYPES: ReadonlySet<string> = new Set([
   'YieldExpression',
   'SpreadElement',
 ],);
+//endregion Spine stop and wrapper kinds
+
+//region Invocation heads and wrapper descent
+// Which node kinds count toward a line's invocation total, and how the walk
+// steps through the wrappers around them.
 
 /**
  Reports whether a node is one of the counted invocation heads.
@@ -168,6 +183,11 @@ function descendWrappers(node: ForeignBorrowed<SpineNode>,): SpineNode | typeof 
     cursor = inner;
   }
 }
+//endregion Invocation heads and wrapper descent
+
+//region Single-operand access
+// The operand a spine step reads, raw for the autofix and thrown-on for a
+// reported owner.
 
 /**
  Returns the raw single operand of a counted invocation, or {@link STOP}.
@@ -242,6 +262,11 @@ export function operandOrThrow(node: ForeignBorrowed<SpineNode>,): SpineNode {
   }
   return operand;
 }
+//endregion Single-operand access
+
+//region Spine walking
+// Steps down the operand spine, up through enclosing wrappers, and collects one
+// root's whole spine.
 
 /**
  Returns the next counted invocation down a node's operand spine, or {@link STOP}.
@@ -368,3 +393,4 @@ export function collectSpine(root: ForeignBorrowed<SpineNode>,): readonly SpineN
   }
   return spine;
 }
+//endregion Spine walking

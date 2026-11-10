@@ -380,7 +380,10 @@ if (import.meta.main) {
         : [];
     },),
   ],);
-  await Promise.all([...trees,].map(async function extract([name, revision,],) {
+  await Promise.all([...trees,].map(async function extract([name, revision,]: readonly [
+    string,
+    string
+  ],) {
     await extractTree({
       clone,
       name,
