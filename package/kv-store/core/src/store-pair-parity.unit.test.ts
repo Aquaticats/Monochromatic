@@ -20,6 +20,7 @@ import {
   ABSENT,
   createStore,
   createSyncStore,
+  EmptyKeyError,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -136,6 +137,44 @@ await describe({
         expect(await asyncStore.get('orphan',),).toBe(ABSENT,);
         expect(syncStore.get('orphan',),).toBe(ABSENT,);
         expect(snapshotBackends(syncBackends,),).toBe(snapshotBackends(asyncBackends,),);
+      },
+    },),
+
+    it({
+      name: 'rejects an empty key for set, get and delete in both variants',
+      fn: async () => {
+        /** Backend of the async store, kept empty so a write would show up. */
+        const asyncBackend = new Map<string, string>();
+        /** Backend of the sync store, in the same starting shape as the async one. */
+        const syncBackend = new Map<string, string>();
+        /** Async store under test. */
+        const asyncStore = await createStore({
+          storeId: 'parity-empty-key-async',
+          backends: [asyncBackend,],
+        },);
+        /** Sync store under test. */
+        const syncStore = createSyncStore({
+          storeId: 'parity-empty-key-sync',
+          backends: [syncBackend,],
+        },);
+        /** Value both stores refuse to persist under an empty key. */
+        const value = 'unaddressable';
+
+        await expect(asyncStore.set('', value,),).rejects.toThrow(EmptyKeyError,);
+        expect(function setEmptySyncKey() {
+          syncStore.set('', value,);
+        },).toThrow(EmptyKeyError,);
+        await expect(asyncStore.get('',),).rejects.toThrow(EmptyKeyError,);
+        expect(function getEmptySyncKey() {
+          syncStore.get('',);
+        },).toThrow(EmptyKeyError,);
+        await expect(asyncStore.delete('',),).rejects.toThrow(EmptyKeyError,);
+        expect(function deleteEmptySyncKey() {
+          syncStore.delete('',);
+        },).toThrow(EmptyKeyError,);
+
+        expect(snapshotBackends([syncBackend,],),).toBe(snapshotBackends([asyncBackend,],),);
+        expect(asyncBackend.size,).toBe(0,);
       },
     },),
 

@@ -8,6 +8,7 @@ import {
   ABSENT,
   configureDefaultBackendsBuilder,
   createStore,
+  EmptyKeyError,
 } from '../dist/final/node/index.mjs';
 
 await describe({
@@ -83,20 +84,46 @@ await describe({
     },),
 
     it({
-      name: 'derives a content hash key when the key is empty',
+      name: 'rejects an empty key on set and writes nothing',
       fn: async () => {
         const backend = new Map<string, string>();
         const store = await createStore({
-          storeId: 'empty-key',
+          storeId: 'empty-key-set',
           backends: [backend,],
         },);
 
-        await store.set('', 'value-without-key',);
+        await expect(store.set('', 'value-without-key',),).rejects.toThrow(EmptyKeyError,);
+        await expect(store.set('', 'value-without-key',),).rejects.toThrow('empty key',);
+        expect(backend.size,).toBe(0,);
+      },
+    },),
 
-        expect(backend.size,).toBe(1,);
-        /** Sole key written by the empty-key set; expected to be a 64-char hex SHA-256 digest. */
-        const [writtenKey,] = [...backend.keys(),];
-        expect(writtenKey?.length,).toBe(64,);
+    it({
+      name: 'rejects an empty key on get',
+      fn: async () => {
+        const backend = new Map<string, string>();
+        const store = await createStore({
+          storeId: 'empty-key-get',
+          backends: [backend,],
+        },);
+
+        await expect(store.get('',),).rejects.toThrow(EmptyKeyError,);
+      },
+    },),
+
+    it({
+      name: 'rejects an empty key on delete without touching the backends',
+      fn: async () => {
+        const backend = new Map<string, string>();
+        const store = await createStore({
+          storeId: 'empty-key-delete',
+          backends: [backend,],
+        },);
+        /** Entry a direct backend write could leave under the literal empty key. */
+        backend.set('', '"legacy-empty-key"',);
+
+        await expect(store.delete('',),).rejects.toThrow(EmptyKeyError,);
+        expect(backend.has('',),).toBe(true,);
       },
     },),
 
