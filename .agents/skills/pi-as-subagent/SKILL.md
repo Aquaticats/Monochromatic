@@ -130,6 +130,13 @@ from the owner's "Kimi alone" and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+When Synthetic answers 429,
+the run moves to Neuralwatt's flex pool and resumes its session there
+(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get, counted against the flex pool's 22 slots),
+under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+Synthetic sets no limit on runs at once;
+its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
+so retrying on Synthetic fails until the quota comes back.
 The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
 and the trial caught none,
 so rerun a finding's reproduction before believing it,
