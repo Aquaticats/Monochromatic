@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/toml-edit-core": "workspace:*",
     "nano-spawn": "catalog:",
     "string-dedent": "catalog:",
     "yaml": "catalog:"

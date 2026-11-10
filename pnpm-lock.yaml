@@ -1344,9 +1344,15 @@ importers:
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
         version: link:../../async-time/core
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/toml-edit-core':
+        specifier: workspace:*
+        version: link:../../toml-edit/core
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0

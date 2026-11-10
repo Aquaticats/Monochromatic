@@ -52,6 +52,8 @@ const TASK_CLI_ENTRY = join(
 
  @throws {@link MissingCiBuildTaskError} when the package declares a build only in `mise.toml`, which CI cannot run.
 
+ @throws {@link MiseTomlParseError} when the package's `mise.toml` is not valid TOML.
+
  @example
  ```ts
  await buildIfDeclared({ entry });

@@ -2,6 +2,7 @@
 // The package declares no entry points, so it never publishes itself.
 export {
   type BuildPlan,
+  MiseTomlParseError,
   MissingCiBuildTaskError,
   planPackageBuild,
 } from './build-plan.ts';

@@ -5,7 +5,13 @@ import {
 import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  parseTomlEdit,
+  tomlHas,
+  TomlEditError,
+} from '@monochromatic-dev/toml-edit-core/ts';
 
 import {
   fieldOf,
@@ -35,6 +41,44 @@ export type BuildPlan =
      */
       readonly kind: 'none';
     };
+
+/**
+ Error for a package whose `mise.toml` the TOML parser rejects.
+
+ The publish job reads that file only to learn whether the package has a build, so unreadable file
+ contents leave the answer unknown; packing without the build its manifest points at would publish a
+ tarball whose `exports` resolve to nothing.
+ */
+export class MiseTomlParseError extends Error {
+  /**
+   Creates the error naming the unreadable file and the parser's own message.
+
+   @param directory - Repository-relative package directory.
+
+   @param cause - Failure the TOML parser reported.
+
+   @example
+   ```ts
+   throw new MiseTomlParseError({ directory: 'package/zip-writer/core', cause: error });
+   ```
+   */
+  constructor(
+    {
+      directory,
+      cause,
+    }: {
+      readonly directory: string;
+      readonly cause: unknown;
+    },
+  ) {
+    super(
+      `${directory}/mise.toml is not valid TOML, so pnpr cannot tell whether the package declares a build task: `
+        + `${caughtValueText(cause,)}. Fix that file's syntax.`,
+      { cause, },
+    );
+    this.name = 'MiseTomlParseError';
+  }
+}
 
 /**
  Error for a package whose build exists only in `mise.toml`, which the mise-free CI cannot run.
@@ -132,18 +176,30 @@ async function taskFileDeclaresBuild({ packageDirectory, }: { readonly packageDi
 }
 
 /**
- Whether the package's `mise.toml` declares a `build` task.
+ Whether the package's `mise.toml` declares a `build` task, read as TOML rather than as text.
 
  @param packageDirectory - Absolute package directory.
 
- @returns `true` when `mise.toml` has a `[tasks.build]` table.
+ @param directory - Repository-relative package directory, for diagnostics.
+
+ @returns `true` when the file's `tasks` table holds a `build` key, written any way TOML allows.
+
+ @throws {@link MiseTomlParseError} when the file is not valid TOML.
 
  @example
  ```ts
- await miseFileDeclaresBuild({ packageDirectory: '/repo/package/logger/core' });
+ await miseFileDeclaresBuild({ packageDirectory: '/repo/package/logger/core', directory: 'package/logger/core' });
  ```
  */
-async function miseFileDeclaresBuild({ packageDirectory, }: { readonly packageDirectory: string; },): Promise<boolean> {
+async function miseFileDeclaresBuild(
+  {
+    packageDirectory,
+    directory,
+  }: {
+    readonly packageDirectory: string;
+    readonly directory: string;
+  },
+): Promise<boolean> {
   /**
    The package's local task file.
    */
@@ -160,16 +216,34 @@ async function miseFileDeclaresBuild({ packageDirectory, }: { readonly packageDi
     miseFile,
     'utf8',
   );
-  return miseToml.split('\n',)
-    .some(function isBuildTask(line,) {
-      return (line.trim() === '[tasks.build]') || (line.trim() === '[tasks."build"]');
+  try {
+    /**
+     The file as a document tree; only the presence of one key is read from it.
+     */
+    const edit = parseTomlEdit({ source: miseToml, },);
+    return tomlHas({
+      edit,
+      path: [
+        'tasks',
+        'build',
+      ],
     },);
+  }
+  catch (error) {
+    if (error instanceof TomlEditError) {
+      throw new MiseTomlParseError({
+        directory,
+        cause: error,
+      },);
+    }
+    throw error;
+  }
 }
 
 /**
  Decides how a package builds before it is packed.
 
- The CI task file `task.ts` is the only build source CI can run; `mise.toml` is read only to refuse a silent skip.
+ The CI task file `task.ts` is the only build source CI can run; `mise.toml` is parsed as TOML, only to refuse a silent skip.
 
  @param packageDirectory - Absolute package directory.
 
@@ -178,6 +252,8 @@ async function miseFileDeclaresBuild({ packageDirectory, }: { readonly packageDi
  @returns `task` when `task.ts` declares `build`, `none` when no file declares one.
 
  @throws {@link MissingCiBuildTaskError} when only `mise.toml` declares `build`.
+
+ @throws {@link MiseTomlParseError} when `mise.toml` is not valid TOML.
 
  @example
  ```ts
@@ -197,7 +273,14 @@ export async function planPackageBuild(
     moduleLogger.debug(`${directory}: task.ts declares build`,);
     return { kind: 'task', };
   }
-  if (await miseFileDeclaresBuild({ packageDirectory, },))
+  /**
+   Whether the package's own `mise.toml` declares a build task.
+   */
+  const miseDeclaresBuild = await miseFileDeclaresBuild({
+    packageDirectory,
+    directory,
+  },);
+  if (miseDeclaresBuild)
     throw new MissingCiBuildTaskError({ directory, },);
   moduleLogger.debug(`${directory}: no build task in task.ts or mise.toml`,);
   return { kind: 'none', };
