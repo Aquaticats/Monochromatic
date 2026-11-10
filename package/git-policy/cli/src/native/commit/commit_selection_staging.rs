@@ -82,10 +82,7 @@ pub(crate) fn add_selected_paths(
 /// await git(['add', '--', ...exactFiles]); await git(['add', '--update', '--', ...patterns]);
 /// ```
 fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), GitFailure> {
-    let literal: bool = crate::conflict_side_modes::glob_characters_are_literal(crate::conflict_side_modes::modes_in_effect(
-        context.global_prefix.as_slice(),
-        context.overlay.as_slice(),
-    ).as_slice());
+    let literal: bool = pattern_characters_are_literal(context);
     let mut named_files: Vec<&OsString> = Vec::new();
     let mut patterns: Vec<&OsString> = Vec::new();
     for item in items {
@@ -124,7 +121,7 @@ fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items
 /// ```ts
 /// type Selected = { kind: 'items', items: string[] } | { kind: 'file' } | { kind: 'unreadable' };
 /// ```
-enum Selected {
+pub(crate) enum Selected {
     /// The selection's elements,
     /// from the command line or from a pathspec file.
     Items(Vec<OsString>),
@@ -156,7 +153,7 @@ const ITEMS_BYTES_LIMIT: u64 = 64 * 1024;
 /// ```ts
 /// const selected = pathspecFile ? readFile(pathspecFile).length <= LIMIT ? items(pathspecsOfFile(...)) : { kind: 'file' } : items(pathspecs);
 /// ```
-fn selection_items(selection: &IndexSelection) -> Selected {
+pub(crate) fn selection_items(selection: &IndexSelection) -> Selected {
     let Some(file) = selection.pathspec_file else {
         if selection.pathspecs.is_empty() {
             return Selected::Empty;
@@ -181,6 +178,31 @@ fn size_of(held: std::fs::Metadata) -> u64 {
     return held.len();
 }
 
+/// Whether one byte is a pattern character of the glob mode:
+/// `*`,
+/// `?` or `[`.
+fn is_pattern_character(byte: &u8) -> bool {
+    return matches!(*byte, b'*' | b'?' | b'[');
+}
+
+/// What:
+///  Whether the pathspec modes in effect make a glob character ordinary text,
+/// so `st*r.txt` names the file of that name.
+/// Why:
+///   The elements the person named decide both which paths this stage takes from the worktree and which of them an
+/// ignore rule can refuse,
+///  so both ask one owner rather than each reading the modes again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const literal = globCharactersAreLiteral(modesInEffect(globalPrefix, overlay));
+/// ```
+pub(crate) fn pattern_characters_are_literal(context: &GitContext) -> bool {
+    return crate::conflict_side_modes::glob_characters_are_literal(
+        crate::conflict_side_modes::modes_in_effect(context.global_prefix.as_slice(), context.overlay.as_slice()).as_slice(),
+    );
+}
+
 /// What:
 ///  Whether one pathspec token names one file of the worktree rather than a directory or a pattern.
 /// Why:
@@ -194,11 +216,7 @@ fn size_of(held: std::fs::Metadata) -> u64 {
 /// ```ts
 /// const namesOneFile = (cwd, token, literal) => !token.startsWith(':') && (literal || !/[*?[]/.test(token)) && lstat(join(cwd, token)).isFile();
 /// ```
-fn is_pattern_character(byte: &u8) -> bool {
-    return matches!(*byte, b'*' | b'?' | b'[');
-}
-
-fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
+pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
     let bytes: &[u8] = token.as_encoded_bytes();
     if bytes.first() == Some(&b':') {
         return false;

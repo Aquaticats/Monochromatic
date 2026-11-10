@@ -3598,6 +3598,9 @@ everything not listed above.
 Refusals that may still end a commit or merge with an error:
 policy errors at error severity,
 an empty message,
+a named path an ignore rule matches while no index entry tracks it
+(the `explicit-path-commit/named-path-ignored` finding,
+"Core finding event"),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -8710,14 +8713,17 @@ export type CoreFindingEvent = EventBase & {
   readonly coreId:
     | 'commit-only'
     | 'commit-normalization'
-    | 'concurrent-commit';
+    | 'concurrent-commit'
+    | 'explicit-path-commit';
   readonly code:
     | 'commit-only/all-flag'
     | 'commit-only/pathspec-required'
     | 'commit-only/staged-changes-ignored'
+    | 'commit-only/staged-deletion-worktree-present'
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
-    | 'concurrent-commit/already-committed';
+    | 'concurrent-commit/already-committed'
+    | 'explicit-path-commit/named-path-ignored';
   readonly message: string;
 };
 ```
@@ -8739,6 +8745,23 @@ and cannot be disabled or assigned a severity through repository config.
 - `concurrent-commit/already-committed`:
   the captured change merged onto the branch equals the branch,
   because a commit that landed meanwhile already holds it.
+- `commit-only/staged-deletion-worktree-present`:
+  an explicit-path commit names a path whose deletion the real index stages while an entry still exists at that
+  worktree path,
+  so the pathspec cannot record the deletion.
+  The message names the paths and both ways forward
+  (`commit_staged_deletions.rs`).
+- `explicit-path-commit/named-path-ignored`:
+  an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
+  so the private staging would refuse it.
+  It is decided from the selection's own elements before any `git add` runs,
+  the commit is not made,
+  nothing is staged by it,
+  and the message names every rejected path with both ways forward:
+  leave the file out of the commit's paths,
+  or stage it with `git add --force -- <path>` when it is meant to become tracked
+  (`commit_named_ignored_files.rs`;
+  issue 6278).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -11369,8 +11392,23 @@ For injected commit-only semantics:
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
-    and a path that an ignore rule matches and that no index stages is refused with the message that says
-    to stage it with `git add --force` first.
+    and a path that an ignore rule matches and that no index stages is refused before that staging runs,
+    with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
+    the selection's own elements that name one file are asked of
+    `git check-ignore -z --stdin` under the real index,
+    so nothing depends on the words of a Git message and a path the real index tracks is left out,
+    as `git add` leaves it out.
+    The commit is not made,
+    nothing is staged by it,
+    and the message names every rejected path with both ways forward:
+    leave the file out of the commit's paths,
+    or stage it with `git add --force -- <path>` when it is meant to become tracked.
+    Real Git 2.56.0 on a disposable repository refuses the same command line either way:
+    `git commit -- <untracked ignored path>` exits 1,
+    its pathspec matching no file Git knows,
+    and `git add -- <the same path>` exits 1 with
+    "The following paths are ignored by one of your .gitignore files"
+    and the force-add hint.
     A backslash is Git's escape and not a pattern character:
     `a\b.txt` names the file whose pathname spells it when one is there.
     Every other element is a directory,
