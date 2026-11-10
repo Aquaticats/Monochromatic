@@ -21,6 +21,7 @@ import {
   glob,
   readFile,
 } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 //region Reading a workflow's triggers
 
@@ -114,9 +115,15 @@ type Workflow = {
 };
 
 /**
+ The repository root, which the task runner does not leave as the working directory: a test file runs from its package
+ folder, so a glob without this would match nothing and the control below would be the only thing that noticed.
+ */
+const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url,),);
+
+/**
  Repository-relative paths of every workflow file, in sorted order so a message does not depend on directory order.
  */
-const workflowPaths = (await Array.fromAsync(glob('.github/workflows/*.yml',),)).toSorted();
+const workflowPaths = (await Array.fromAsync(glob('.github/workflows/*.yml', { cwd: repositoryRoot, },),)).toSorted();
 
 /**
  Every workflow of the repository.

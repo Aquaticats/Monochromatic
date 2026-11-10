@@ -19,6 +19,7 @@ import {
   glob,
   readFile,
 } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 //region Reading the workflows
 
@@ -31,9 +32,15 @@ type Workflow = {
 };
 
 /**
+ The repository root, which the task runner does not leave as the working directory: a test file runs from its package
+ folder, so a glob without this would match nothing and every override would go unseen.
+ */
+const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url,),);
+
+/**
  Repository-relative paths of every workflow file, in sorted order so a message does not depend on directory order.
  */
-const workflowPaths = (await Array.fromAsync(glob('.github/workflows/*.yml',),)).toSorted();
+const workflowPaths = (await Array.fromAsync(glob('.github/workflows/*.yml', { cwd: repositoryRoot, },),)).toSorted();
 
 /**
  Every workflow of the repository.
@@ -66,6 +73,12 @@ const overridableInputs: readonly { readonly input: string; readonly lockRow: st
 await describe({
   name: 'workflow toolchain versions',
   children: [
+    it({
+      name: 'finds the workflows it reads, so an empty selection cannot pass the checks below',
+      fn: async function findsItsSubjects() {
+        expect(workflowPaths.length,).toBeGreaterThan(0,);
+      },
+    },),
     it({
       name: 'leave every version input of the setup action empty, so each job installs the toolchain the lock records',
       fn: async function noOverrides() {

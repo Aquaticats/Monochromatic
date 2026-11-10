@@ -17,13 +17,20 @@ import {
   glob,
   readFile,
 } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 //region The build files and the lock
 
 /**
+ The repository root, which the task runner does not leave as the working directory: a test file runs from its package
+ folder, so a glob without this would match no build file at all.
+ */
+const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url,),);
+
+/**
  Repository-root build files, which build with the repository root as their context.
  */
-const buildFilePaths = (await Array.fromAsync(glob('*Dockerfile',),)).toSorted();
+const buildFilePaths = (await Array.fromAsync(glob('*Dockerfile', { cwd: repositoryRoot, },),)).toSorted();
 
 /**
  The lock every tool version comes from.
@@ -57,7 +64,7 @@ const lowercaseLetters = 'abcdefghijklmnopqrstuvwxyz';
 /**
  Shells a build could pipe a download into.
  */
-const shells: readonly string[] = ['sh', 'bash'];
+const shells = new Set(['sh', 'bash',]);
 
 /**
  The command a pipe feeds on one line: the word after the `|`, or an empty text when nothing follows it or the line has
@@ -101,7 +108,7 @@ function commandAfterPipe(line: string,): string {
 function pipesIntoShell(text: string,): boolean {
   return text.split('\n',)
     .some(function feedsAShell(line,) {
-      return shells.includes(commandAfterPipe(line,),);
+      return shells.has(commandAfterPipe(line,),);
     },);
 }
 
