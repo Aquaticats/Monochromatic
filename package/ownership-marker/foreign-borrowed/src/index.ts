@@ -37,6 +37,10 @@ export type ForeignBorrowed<Value> = Value & {
 /**
  Marks foreign host capability whose implementation cannot be inspected.
  
+ Composes {@link ForeignBorrowed}, which owns the foreign-ownership property,
+ and adds only the host-capability key.
+ A further marker type composes one of these two rather than repeating a key.
+ 
  Use only at runtime boundaries after source or source-map inference fails.
  Readonly parameter analysis accepts unresolved effects reaching this marker
  only when callable documents corresponding `@mutates` contract.
@@ -52,8 +56,7 @@ export type ForeignBorrowed<Value> = Value & {
  }
  ```
  */
-export type ForeignHostCapability<Value> = Value & {
-  readonly [FOREIGN_BORROWED_MARKER]?: true;
+export type ForeignHostCapability<Value> = ForeignBorrowed<Value> & {
   readonly [FOREIGN_HOST_CAPABILITY_MARKER]?: true;
 };
 
