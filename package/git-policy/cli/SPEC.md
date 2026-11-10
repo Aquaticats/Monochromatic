@@ -8961,7 +8961,10 @@ and cannot be disabled or assigned a severity through repository config.
   an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
   so the private staging would refuse it.
   It is decided from the selection's own elements before any `git add` runs,
-  the commit is not made,
+  and the index it asks about is the real one,
+  read in process:
+  a commit whose named paths the index all holds asks Git nothing.
+  The commit is not made,
   nothing is staged by it,
   and the message names every rejected path with both ways forward:
   leave the file out of the commit's paths,
@@ -11167,6 +11170,13 @@ and the file a command stages a lock in
 is never linked:
 a shadow Git that wrote one would collide with the real holder,
 and every command of a repository stages a marker of its own while it runs.
+The wrapper's own state never is either:
+the repository scratch root,
+which holds the shadow itself,
+and the pool of finished shadows beside it,
+which holds the private trees of other commits.
+A link to either would let one shadow reach another's tree,
+and whether the pool exists would decide what a member has to hold.
 A per-worktree entry that Git resolves in the owning worktree's Git directory,
 such as a linked worktree's `info/sparse-checkout`,
 is copied;
@@ -11231,8 +11241,20 @@ and makes its creation exactly as it did before when it does not:
 an empty pool is not a failure,
 and nothing about a claim can fail a commit.
 
-The pool lives in `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+The pool lives in `<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`,
 one folder per worktree because a member's `config` names the worktree root the commit runs in.
+It is its own folder beside the repository scratch directory and never an entry of it:
+a member is standing state the owner asked for,
+not scratch,
+so the check that a commit leaves no scratch behind keeps meaning what it says,
+and neither the sweep a command that takes scratch runs
+(`prepare_repository_scratch`),
+nor the release of a commit's scratch tree after its landing,
+nor the reclamation of a removed worktree's scratch treats a pooled shadow as a leftover.
+The folder is a private shadow entry of the same kind as the scratch root,
+so no shadow links it
+(`shadow_links.rs`,
+`is_private_shadow_entry`).
 A member is everything the creation makes that does not depend on the commit:
 the skeleton,
 the private mode,
@@ -11270,8 +11292,10 @@ from this invocation's own capture.
   and stops at two members for a worktree.
 - A fill that a stop interrupts leaves a folder named as a fill,
   which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
-  The wrapper's own sweep of the repository scratch folder removes a pool that has gone unused for longer,
-  and the next landing fills it again.
+  Nothing else collects the pool:
+  it is not scratch,
+  so no age a sweep uses reaches a member,
+  and a pool left unused keeps its members until the next landing fills it again or a person removes the folder.
 
 `buildParts` names the claim `shadow pool`:
 a build that took a member names no `shadow skeleton`,
@@ -11600,10 +11624,15 @@ For injected commit-only semantics:
     where native Git refuses the pathspec,
     and a path that an ignore rule matches and that no index stages is refused before that staging runs,
     with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
-    the selection's own elements that name one file are asked of
-    `git check-ignore -z --stdin` under the real index,
+    the real index is read in process,
+    and the selection's own elements that name one file and that the index holds no entry at are asked of
+    `git check-ignore -z --stdin` under the real index in one start,
     so nothing depends on the words of a Git message and a path the real index tracks is left out,
     as `git add` leaves it out.
+    A commit whose named paths the index all holds starts no Git for this question,
+    which the spawn budget of `binary_budget_tests.rs` counts;
+    a reader that declines the index leaves every name to Git,
+    as before.
     The commit is not made,
     nothing is staged by it,
     and the message names every rejected path with both ways forward:

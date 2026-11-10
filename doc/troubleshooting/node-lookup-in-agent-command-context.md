@@ -35,6 +35,28 @@ else
   exec node  "$basedir/../@monochromatic-dev/git-policy-cli/dist/final/node/index.mjs" "$@"
 ```
 
+Note 2026-11-10T13:16:00-05:00:
+`node_modules/.bin/git` is not in the tree any more.
+`pnpm install` writes every shim in that directory
+from a workspace package's `bin` field,
+and the package that supplied this one was
+`package/git-policy/cli`,
+whose manifest read `"bin": {"git": "dist/final/node/index.mjs"}`;
+it was deleted with the rest of the TypeScript wrapper
+on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow).
+The line numbers above belong to that deleted shim.
+The installed pnpm 12.18.0 still writes the same node-resolution chain
+for a workspace bin,
+in a newer template:
+`elif [ -x "$basedir/node" ]`,
+then `elif command -v node`,
+then `elif [ -n "$exe" ] && command -v node.exe`,
+and last the bare `exec node` that produced the diagnostic above.
+
 The diagnostic and failed lookup establish the boundary that failed.
 They do not establish which component constructed that command's `PATH`.
 No claim is made that Node was uninstalled globally,

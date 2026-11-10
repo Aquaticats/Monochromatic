@@ -8,11 +8,16 @@ most recently on 2026-11-10:
 Earlier the same day:
 "Focus on the wrapper itself.",
 "You focus on the git wrapper.",
-"Wait for Pants. And you focus on the git wrapper.",
-and "None for now. Focus on the git wrapper. Open a gh issue about this instead."
+"Wait for Pants.
+And you focus on the git wrapper.",
+and "None for now.
+Focus on the git wrapper.
+Open a gh issue about this instead."
 So every agent slot,
 review and audit goes to `package/git-policy/cli` and what it directly depends on to be fast and correct
-(the btrfs volume it runs on, LFS through the wrapper, its release and install).
+(the btrfs volume it runs on,
+LFS through the wrapper,
+its release and install).
 Other packages' issues wait,
 however many slots are free,
 unless the owner names that work.
@@ -354,7 +359,8 @@ and `cargo-shadow-lean.timer` is running again.
 The old trees,
 the source snapshots and the received first-pass copies of the move were deleted on 2026-11-10,
 under the owner's "860 move:
-You delete it." and "Delete both (Recommended)".
+You delete it."
+and "Delete both (Recommended)".
 No rollback to the NVMe remains.
 
 #### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
@@ -3294,6 +3300,24 @@ the exit inventory,
 and four owner questions,
 picked under the delegation in `75cf58f345`
 ("Picks made under the owner's delegation").
+Where main stands on the first of the three,
+checked 2026-11-10T14:55-05:00
+(the control passed in 42.3 s with 920 tests skipped):
+a Git child that shows no work is ended at its class's quiet window
+(60 s for a query step,
+300 s for a bulk step,
+`src/native/push/child_class.rs`),
+the step is redone once,
+and a child that hangs twice ends the commit with a nonzero status;
+that is what `src/native/binary/binary_child_bound_tests.rs`
+(`a_git_step_past_its_bound_fails_the_commit_and_names_the_class`) proves,
+and it is listed under "What can still end a commit with a nonzero status" in
+`package/git-policy/cli/README.md`.
+So nothing waits for ever,
+and a deterministic hang still fails the commit:
+only the embedded path would land it,
+which is the design work on
+`fix/git-policy-cli-commits-never-fail`.
 Sixth cross-vendor review started 2026-11-03T09:50-05:00
 (`~/temp/agent/reviews/commits-never-fail-sol-6.txt`,
 prompt `commits-never-fail-prompt-6.txt` beside it).
@@ -3444,16 +3468,25 @@ Unexplained and still open:
 why `diff-tree` and `reset -q --pathspec-from-file` took about 60 s each in the 120 s commit
 (read Git's source and cite file and line,
 per the owner's "git itself being OSS" rule under "Owner decisions in force").
-Candidate cause,
-not confirmed:
-with `core.fsmonitor = true`,
-a Git command that finds no daemon starts one and waits up to `fsmonitor.startTimeout`,
-60 s by default (`builtin/fsmonitor--daemon.c` lines 39-40 in 2.56.0),
-the same length as each step.
-Confirming it needs a trace of such a step waiting on the daemon,
-in a disposable repository with fsmonitor set in its own config;
-fsmonitor is now off globally,
-so main no longer shows it.
+Resolved 2026-11-10T14:40-05:00:
+both steps wait for a cold fsmonitor daemon,
+and the wait ends at `fsmonitor.startTimeout` (60 s by default),
+which this checkout's registration of 2,269,377 directory watches outlasted.
+`git diff-tree` asks the daemon because it reads the index before it walks anything
+(`builtin/diff-tree.c:133` in 2.56.0);
+`reset` reads the index as its work.
+The trace,
+  the measurement and every Git citation are in
+`doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`,
+"Fails:
+  a tree-only step pays the wait too".
+Nothing in the wrapper shortens the wait:
+the setting is the person's,
+the wrapper passes no `core.fsmonitor` and starts no daemon by the owner's decision of 2026-11-03,
+and `doctor` reports a configuration that turns it on.
+What the wrapper does control,
+  the number of index-reading Git children in a commit,
+shrank when the landing's follow-up `git reset` and the merge's `git diff-index` moved in process.
 
 ### Commits that stalled on an unproven index.lock (2026-11-07)
 
@@ -4056,10 +4089,22 @@ file-by-file work on two filesystems.
   so the
 58.5 s add was not slower than native in absolute terms,
 and the wrapper's own non-repair steps were 3.7 s then.
-No opt-out of the repair exists for a person who wants a fast add:
-`RepairSwitch` only records the person's `--quiet` and
-`--no-checkout` (a no-checkout add has nothing to repair),
-and a search of `README.md` found no key that turns it off.
+One switch runs no repair at all:
+`git worktree add --no-worktree-copy` forwards the add to Git alone,
+so the ignored-state copy,
+the ladder and the repair all do not run
+(`README.md`,
+"Repairing package-manager state in a new worktree" and "Wrapper-only options";
+`SPEC.md`,
+"Package-manager repair of a new worktree"),
+and `no_checkout_and_the_opt_out_start_nothing`
+(`binary_package_repair_tests.rs`) controls it.
+What that gives up is the copy and the snapshot beside the repair.
+Neither a switch nor a key of the settings file skips the repair alone:
+`RepairSwitch` records only the person's `--quiet` and `--no-checkout`
+(a no-checkout add has nothing to repair),
+and no settings key names a repair.
+Whether a switch that skips the repair by itself is wanted has not been decided.
 Not done (proposals for the owner,
 not decided),
 with what each would save measured where it was cheap:
@@ -4090,6 +4135,23 @@ about an eighth of the copy),
 so against the `cargoCloneTree` 66305 ms of worker time recorded on 2026-11-08 it is an estimated 58 s of worker time saved and
 some wall time,
 since those clones already run beside each other.
+
+Note 2026-11-10T14:46:39-05:00:
+two of those proposals belong to no branch of this one.
+The repair's time on the add's waiting path belongs to the agent
+`worktree-add-package-repair-off-the-waiting-path`,
+running since 2026-11-10,
+whose brief counts the same `cargo metadata` reads,
+so the start of the source's reads waits for that branch.
+The per-workspace build-directory snapshot saves nothing here until the owner decides its precondition:
+a sample of 41 of the 26935 build directories below `/var/mnt/encrypted/cargo-build`
+holds no subvolume
+(`btrfs subvolume show` answers "Not a Btrfs subvolume" for each,
+2026-11-10T14:42:04-05:00),
+so that branch would fire for nobody.
+The stand-in removals and the trash hand-over's review findings belong to
+`worktree-add-placeholders-off-the-waiting-path` and
+`worktree-trash-hand-over-review-findings`.
 
 Done (2026-11-08,
 `b1e1818bab`
@@ -4183,6 +4245,18 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   with the wait 3237 and 2999 ms and the disposal 5871 and 5658 ms beside a repair of 2632 and 2657 ms.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
+
+Note 2026-11-10T14:46:39-05:00:
+neither of the two step names above exists in the tree.
+`87dd970d99` (2026-11-10T07:13:08-05:00) makes an add hand the snapshot's trash to the commit service
+as the step `handOverTrash` and return,
+so the service empties the trash after the command has ended
+and an add no longer waits for a disposal:
+the steps of the add's timing record today are `copyIgnored`,
+`handOverTrash` and `repair`
+(`SPEC.md`,
+"Timing logs").
+Every figure in this section that names `disposeTrash` or `disposeTrashWait` describes a release before that commit.
 
 ### The copy route stops failing an add for a live checkout's ignored churn (2026-11-09T15:20:00-05:00)
 

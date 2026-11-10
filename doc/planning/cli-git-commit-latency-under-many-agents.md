@@ -3645,6 +3645,97 @@ and the commit makes its creation as it did before.
   beside the landing and never inside it,
   which no commit waits for.
 
+## Where the pool lives, and the leak check that found it (2026-11-10T15:57:02-05:00)
+
+What this answers:
+where the pool of finished shadows sits now,
+why it moved out of the repository scratch directory,
+and what the two controls that failed on `main` prove about it.
+
+### The two controls that failed
+
+The pool was built inside the repository scratch directory,
+at `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+and two controls of the release gate on `main` at `483bbc6587` said what that costs.
+Both are the check that catches leaked scratch:
+
+- `markdown::a_commit_keeps_its_git_input_in_the_repository_scratch_directory`
+  (`src/native/binary/binary_markdown_tests.rs`) failed with
+  `nothing is left in .../repo/.git/monochromatic-git-policy-cli-scratch after 30s: ["shadow-pool"]`;
+- `service_scratch::a_commit_leaves_no_scratch_directory_once_its_landing_is_over`
+  (`src/native/binary/binary_service_scratch_tests.rs`) failed with
+  `the repository scratch directory holds nothing`.
+
+Neither control is wrong.
+A member of the pool is standing state the owner asked for
+("Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.",
+`doc/handover/questions-for-the-owner.md`,
+"The private repository every commit builds"),
+and the owner did not say where it lives.
+A directory whose emptiness is the wrapper's own proof that nothing leaked
+cannot also hold the one thing the wrapper keeps on purpose.
+
+### What moved
+
+The pool is now its own folder inside the Git common directory and beside the scratch directory:
+`<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`
+(`SHADOW_POOL_FOLDER` in `wrapper_names_old_and_new.rs`,
+`pool_root_for` in `shadow_pool.rs`).
+The name is a fresh one this release is the first to write,
+so it has no earlier spelling.
+
+Every pass that removes scratch was read for what it would do with it,
+and each one leaves a member alone by construction rather than by a list:
+
+- the sweep a command that takes scratch runs
+  (`scratch_location.rs`,
+  `prepare_repository_scratch`)
+  reaches entries of the scratch directory only,
+  and of the earlier directory an earlier release made
+  (`sweep_earlier_repository_scratch`);
+- the release of a commit's scratch tree after its landing
+  (`service_scratch_release_removal.rs`)
+  refuses a name that is not under the scratch directory or the worktree's Git directory,
+  and that does not carry the wrapper's commit-tree prefix
+  (`is_scratch_path`);
+- the age decision both of them share
+  (`service_scratch_abandonment.rs`,
+  `may_go`)
+  is asked about an entry of a scratch place and about nothing else;
+- `doctor` and the reclamation of a removed worktree's state read no scratch entry at all
+  (searched:
+  no read of the scratch directory or of the pool in `invocation/management*.rs`,
+  `health/`,
+  or `service_units_of_removed_worktrees.rs`).
+
+One thing moving the pool out of scratch did need:
+the folder is a private shadow entry now,
+like the scratch root beside it
+(`shadow_links.rs`,
+`is_private_shadow_entry`).
+Without that,
+a creation would link the pool into every shadow,
+so one shadow could reach every other member,
+and whether the folder existed would decide what a claimed member has to hold:
+the first fill of a repository would refuse the member it had just made.
+
+### What says it works
+
+- The two controls above pass,
+  and `service_scratch::a_landed_commit_leaves_the_pool_of_finished_shadows_alone`
+  is the same check from the other side:
+  after a landed commit the scratch directory holds nothing,
+  and a mark left in the pool's folder still holds its bytes,
+  so the release and the sweep leave standing state alone.
+- `shadow::shadow_pool::tests::the_pool_is_its_own_folder_beside_the_scratch_directory`
+  pins the place,
+  and `a_pooled_shadow_survives_a_sweep_of_the_scratch_directory`
+  shows a stale tree of the scratch directory removed while a member older still stays.
+- `shadow::shadow_links::tests::the_pool_of_finished_shadows_never_reaches_the_shadow`
+  pins the link rule.
+
 ## What a commit waited for under fifty agents, and the two waits that were silence (2026-11-10T19:20:00Z)
 
 What this answers:

@@ -12,6 +12,8 @@ use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_na
 use crate::private_index_request::CaptureIndexes;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template, take_or_create_shadow};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::scratch_location::{SCRATCH_STALE_AFTER, prepare_repository_scratch};
+use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SERVICE_SCRATCH_PREFIX, SHADOW_POOL_FOLDER};
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
@@ -299,5 +301,60 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
         .collect();
     assert_eq!(built[0].1, built[1].1, "the same commit object");
     assert_eq!(built[0].0, built[1].0, "the same stored bytes");
+    remove(root.as_path());
+}
+
+/// What:
+///  The pool is its own folder beside the repository scratch directory,
+///  and never an entry of it.
+/// Why:
+///  A commit's scratch directory is emptied once its landing is over,
+///  and the check that it is empty is the one that catches leaked scratch
+///  (`binary_service_scratch_tests.rs`,
+///  `binary_markdown_tests.rs`).
+///  A member is standing state the owner asked for,
+///  so it stays where a scratch sweep,
+/// a release of a commit's tree and a reclamation of a removed worktree cannot call it a leftover.
+#[test]
+fn the_pool_is_its_own_folder_beside_the_scratch_directory() {
+    let root: PathBuf = fixture("shadow-pool-place");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH.current);
+    let (template, member) = a_member(repo.as_path());
+    let pool: PathBuf = pool_root(&template);
+    assert_eq!(pool, common.join(SHADOW_POOL_FOLDER).join("main"), "the pool's own folder, named after the worktree");
+    assert_eq!(member.parent(), Some(pool.as_path()), "a member is inside the pool");
+    assert!(!pool.starts_with(scratch.as_path()), "the pool is not inside the scratch directory");
+    assert!(!member.starts_with(scratch.as_path()), "and neither is a member");
+    assert!(pool.starts_with(common.as_path()), "the pool is the repository's own state, on its device");
+    remove(root.as_path());
+}
+
+/// What:
+///  A pooled shadow survives a sweep of the repository scratch directory,
+///  while a stale entry of that directory does not.
+/// Why:
+///  A sweep of that directory runs at the start of each command that takes scratch
+///  (`prepare_repository_scratch`),
+///  and it removes an entry of it once the entry is old enough.
+///  A member is not an entry of it at all,
+///  so no age and no removal the sweep makes reaches one.
+#[test]
+fn a_pooled_shadow_survives_a_sweep_of_the_scratch_directory() {
+    let root: PathBuf = fixture("shadow-pool-survives-sweep");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    let common: PathBuf = repo.join(".git");
+    let scratch: PathBuf = prepare_repository_scratch(common.as_path()).expect("the repository scratch directory");
+    assert_eq!(scratch, common.join(REPOSITORY_SCRATCH.current), "the scratch directory a command takes");
+    // The stale tree is one a killed command left, and the member beside the directory is older still.
+    let stale: PathBuf = scratch.join(format!("{SERVICE_SCRATCH_PREFIX}a-command-that-was-killed"));
+    std::fs::create_dir(stale.as_path()).expect("a stale tree");
+    std::fs::File::open(stale.as_path()).expect("open").set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3).expect("its age");
+    std::fs::File::open(member.as_path()).expect("open").set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3).expect("its age");
+    let _again: PathBuf = prepare_repository_scratch(common.as_path()).expect("the scratch directory again");
+    assert!(std::fs::symlink_metadata(stale.as_path()).is_err(), "the sweep removed the stale scratch tree");
+    assert_eq!(members(pool_root(&template).as_path()), vec![member.clone()], "and left the pooled shadow alone");
     remove(root.as_path());
 }

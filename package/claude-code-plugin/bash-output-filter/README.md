@@ -26,14 +26,13 @@ Combined,
 ## How it works
 
 The hook intercepts Bash tool calls at PreToolUse and rewrites the command to pipe
-through a TypeScript filter:
+its merged output through a filter beside the hook bundle:
 
 ```text
-original_command 2>&1 | node ccbof-filter.mjs; _bof=${PIPESTATUS[0]}; (exit $_bof)
+set -o pipefail && original_command 2>&1 | node filter.mjs && true
 ```
 
-**Key design decisions:
-**
+**Key design decisions:**
 
 - **Filter-by-default with denylist**:
    all commands are filtered unless they match
@@ -45,12 +44,17 @@ original_command 2>&1 | node ccbof-filter.mjs; _bof=${PIPESTATUS[0]}; (exit $_bo
    the filter executes as the right side of a pipe,
   inheriting the sandbox's filesystem and network restrictions
 - **Preserves exit codes**:
-   `PIPESTATUS[0]` captures the original command's exit code
-  and replays it via `(exit $_bof)` so Claude Code sees failures correctly
+   `set -o pipefail` makes the pipeline report the original command's status
+  rather than the filter's,
+   so a failure still reaches Claude Code while the filter reads the whole stream
 - **Works with the pipe bug**:
    the sandbox's `< /dev/null` redirect
-  lands on `(exit $_bof)` (the last simple command),
+  lands on `true` (the last simple command),
    not the filter
+
+The retired wrapper replayed `PIPESTATUS[0]` after a `;` boundary instead;
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) records why the sandbox made that form fail
+(its "Constraint 2").
 
 ## Filter transformations
 
@@ -90,7 +94,8 @@ Commands matching these patterns are **not** filtered:
    etc.)
 - Output redirections (`> file`,
    `>> file`)
-- Commands already using the filter (`ccbof-filter`)
+- Commands already piping through the filter (`filter.mjs`,
+   `filter.ts`)
 - Background commands (`&`,
    `nohup`,
    `setsid`)

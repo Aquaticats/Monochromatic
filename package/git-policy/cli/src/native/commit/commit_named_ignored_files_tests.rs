@@ -59,6 +59,64 @@ fn refused(repo: &Path, base: &str, pathspecs: &[&str], file: Option<&Path>) -> 
         .collect();
 }
 
+/// What:
+///  A Git context whose executable logs every start and then runs the real Git,
+///  with the in-process readers on and a scratch directory beside the fixture.
+/// Why:
+///  The shared recording context switches the readers off,
+/// which sends this question to Git by design,
+///  so a control that counts the starts of the saved answer needs them on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { ...recordingContext(root), overlay: isolatedOverlay(), commonDir: join(root, 'repo/.git') }
+/// ```
+#[cfg(unix)]
+fn recording_context_with_readers_on(root: &Path) -> (GitContext, PathBuf) {
+    let (recorded, log): (GitContext, PathBuf) = crate::recording_git::recording_context(root);
+    let context: GitContext = GitContext {
+        overlay: crate::test_support::isolated_overlay(),
+        common_dir: Some(root.join("repo").join(".git")),
+        ..recorded
+    };
+    return (context, log);
+}
+
+/// The `check-ignore` starts a recording context logged.
+#[cfg(unix)]
+fn check_ignore_starts(log: &Path) -> Vec<String> {
+    return crate::recording_git::recorded_starts(log)
+        .into_iter()
+        .filter(|start: &String| { return start.starts_with("check-ignore"); })
+        .collect();
+}
+
+/// A commit whose named paths the real index holds asks Git nothing,
+/// because no `git add` can refuse a path the index already tracks,
+/// and the commit with the fewest possible starts is the one that starts no
+///  `check-ignore` at all.
+///  The same context records the question for a path no entry holds,
+/// which is what proves the recorder would have shown it.
+#[cfg(unix)]
+#[test]
+fn a_commit_of_tracked_paths_starts_no_check_ignore() {
+    let (root, repo, base) = ignored_repository("named-ignored-tracked-starts");
+    let (recording, log): (GitContext, PathBuf) = recording_context_with_readers_on(root.as_path());
+    let tracked: Vec<OsString> = ["a.txt", "lib/_a.js"].iter().map(OsString::from).collect();
+    let choice: IndexSelection<'_> = selection(tracked.as_slice(), None, base.as_str());
+    let refused: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+        .expect("the question is answered");
+    assert_eq!(refused, Vec::<Vec<u8>>::new(), "no tracked path is refused");
+    assert_eq!(check_ignore_starts(log.as_path()), Vec::<String>::new(), "a commit of tracked paths starts no check-ignore");
+    let untracked: Vec<OsString> = ["lib/_c.js"].iter().map(OsString::from).collect();
+    let other: IndexSelection<'_> = selection(untracked.as_slice(), None, base.as_str());
+    let refused_untracked: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &other)
+        .expect("the question is answered");
+    assert_eq!(refused_untracked, vec![b"lib/_c.js".to_vec()], "a path no entry holds is still refused");
+    assert_eq!(check_ignore_starts(log.as_path()).len(), 1, "the recorder sees the question the saved case did not ask");
+    remove(root.as_path());
+}
+
 /// A file the worktree holds,
 /// that no index entry tracks and that an ignore rule matches,
 /// is the refusal the commit stops with.
@@ -89,6 +147,19 @@ fn every_named_file_an_ignore_rule_matches_is_named() {
 fn a_named_file_the_index_tracks_is_not_refused() {
     let (root, repo, base) = ignored_repository("named-ignored-tracked");
     assert_eq!(refused(repo.as_path(), base.as_str(), &["lib/_a.js"], None), Vec::<String>::new());
+    remove(root.as_path());
+}
+
+/// A repository that has no index at all tracks nothing,
+/// so every named path is measured against the ignore rules:
+/// a file nothing ignores is taken,
+/// and an ignored one is refused.
+#[test]
+fn a_repository_with_no_index_tracks_nothing() {
+    let (root, repo, base) = ignored_repository("named-ignored-no-index");
+    std::fs::remove_file(repo.join(".git").join("index")).expect("the index the fixture's commits wrote");
+    assert_eq!(refused(repo.as_path(), base.as_str(), &["a.txt"], None), Vec::<String>::new());
+    assert_eq!(refused(repo.as_path(), base.as_str(), &["lib/_c.js"], None), vec!["lib/_c.js".to_owned()]);
     remove(root.as_path());
 }
 
