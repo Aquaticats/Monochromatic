@@ -13,6 +13,7 @@ import {
   delimiter,
   resolve,
 } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { DesktopEntry, } from './desktop-entry.ts';
@@ -69,6 +70,7 @@ async function executableExists({ name, }: { readonly name: string; },): Promise
       if (!(Error.isError(error,)))
         throw error;
 
+      l.debug(`executable '${name}' cannot be used: ${caughtValueText(error,)}`,);
       return false;
     }
   }
@@ -111,6 +113,7 @@ async function which(name: string,): Promise<string | typeof EXECUTABLE_NOT_ON_P
       if (!(Error.isError(error,)))
         throw error;
 
+      l.debug(`PATH candidate '${candidate}' cannot be used: ${caughtValueText(error,)}`,);
       continue;
     }
   }
