@@ -8270,7 +8270,11 @@ the container gate,
   `refactor/git-policy-cli-tokio-recovery-seam-and-claim-renewal` in
   `.claude/worktrees/pi-tokio-recovery-seam-and-claim-renewal`,
   from main at `de4f941a05`,
-  and main merged into it at `8e24183ae1` once the branch was done.
+  and main merged into it three times while the run went on
+  (`8b81d605d7`,
+  `8e24183ae1`,
+  `224c193ed8`),
+  the last at main `6c9ad05c97`.
   Commits `3119b082ad` (the folder's awaited Git),
   `56ac3e5cff` (the sink through the caller and the completed fast-forward),
   `9ae3763224` (the renewal's stop)
@@ -8427,7 +8431,8 @@ in this order:
   `service_claim` and
   `landing`:
   1253 of 1253 passed in 32.5 s,
-  and 1261 of 1261 in 31.8 s and again in 30.9 s at the merged tip
+  and 1261 of 1261 in 31.8 s,
+  30.9 s and 30.6 s at the merged tip
   (`8e24183ae1`,
   main merged at `6c0f52b543` and then at `cc31ef8afa`),
   where the eight more are the tests main brought into these folders.
