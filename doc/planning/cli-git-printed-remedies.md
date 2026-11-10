@@ -162,7 +162,7 @@ which runs and keeps the ignored files:
 
 ```text
 To delete only untracked files and keep the ignored ones, pass --no-enforce-worktree directly after
-clean (git clean --no-enforce-worktree -fd), because a clean that deletes files is refused in the
+clean (`git clean --no-enforce-worktree -fd`), because a clean that deletes files is refused in the
 main worktree, and in a linked worktree while it holds uncommitted changes or untracked files.
 ```
 
