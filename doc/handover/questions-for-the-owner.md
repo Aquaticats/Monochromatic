@@ -26,35 +26,6 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
-### Does the translation-repair family keep importing its siblings' built output? (issue 1652), asked 2026-11-10T04:28:34-05:00
-
-Issue 1652 wants packages to import workspace siblings through their `/ts` source subpath,
-as `doc/decision/workspace-ts-source-imports.md` requires.
-A survey found 2060 imports of built output left,
-and 1984 of them are inside `package/translation-repair/*`.
-`doc/planning/translation-repair-package-split.md` records why that family differs:
-its library builds keep siblings external,
-so 46 `instanceof` checks hold and a process holds one copy of each module.
-That page calls the exception "open to veto".
-The accepted decision record says nothing about it.
-
-#### A: make the exception a decision record and narrow issue 1652 to outside the family
-
-The `instanceof` checks keep working with no change to any of the 1984 imports,
-and the issue can close once the other sites are done.
-The cost is a standing exception to a rule that is otherwise repository-wide.
-
-#### B: veto the exception and convert the 1984 imports
-
-One import rule holds everywhere.
-The single copy per process then has to come from somewhere else,
-such as a shared runtime external,
-and that design does not exist yet.
-
-Ranking:
-A > B,
-because A keeps behaviour that works today and B needs a new design before it can start.
-
 ### Does the translation-repair family keep its own character predicates? (issue 1673), asked 2026-11-10T04:28:34-05:00
 
 Issue 1673 asks that nothing outside `@monochromatic-dev/agent-harness-shared-text-scan` declares a character predicate.
@@ -202,74 +173,6 @@ Ranking:
 A > B > C,
 because A keeps every record's words and meets the rules,
 and B at least ends the issues where C leaves them open.
-
-### May a commit take its private repository from a pool made ahead?, asked 2026-11-09T23:21:48-05:00
-
-Every commit builds a private "shadow" repository first,
-and that build is where commits fall behind native Git while agents are busy.
-Over 60 alternating commits on this host,
-17 wrapped commits took more than 5 s and no native commit did,
-against the owner's "commits vs native git should not take 5s longer."
-Of 22,657 ms of build time in those wrapped commits,
-creating the shadow's links held 11,383 ms,
-and one commit waited 9,217 ms on them alone.
-The sampled kernel functions say why:
-calls that create a directory entry wait in the volume's own transaction and space reservation
-(`wait_current_trans`,
-`handle_reserve_ticket`),
-and reads never waited there.
-The volume is 95% full.
-The measurements and the full ranking are in `doc/planning/cli-git-commit-latency-under-many-agents.md`,
-section "The ranking".
-Nothing is built yet,
-because each option changes where a commit's private tree lives or who owns it.
-No option is claimed to reach 5 s alone:
-the landing writes to the same volume,
-and it reached 33,748 ms in the records.
-The options do not exclude each other,
-so "A,
-then B" is a valid answer.
-
-#### A: a pool the resident service fills ahead
-
-Today a commit makes about 34 entries on the stalled volume.
-With a pool it renames one finished shadow into place,
-and makes them inline as today when the pool is empty.
-It adds a standing folder inside the wrapper's own scratch tree.
-Its new risk is trusting a tree made earlier,
-which a test can hold:
-a member is exactly what a creation makes,
-or it is refused.
-
-#### B: the shadow on another volume
-
-It removes the most,
-40% of the blocking calls a commit makes,
-and trusts nothing made earlier.
-It moves a commit's private state out of the repository,
-against the recorded reason for repository-local scratch,
-and the landing's writes stay on the stalled volume.
-
-#### C: one shadow per worktree, reset between commits
-
-It saves the same calls after a worktree's first commit,
-but the reset makes the same kind of call it saves.
-A kill during the reset leaves a half-reset shadow,
-which needs a proof the other options do not need under "never discard user data".
-
-#### D: change nothing in the wrapper
-
-It costs nothing and adds no risk.
-Commits keep stalling whenever the volume does.
-
-Ranking:
-A > B > C > D,
-because A keeps the commit's state where the records put it and behaves as today when empty,
-which B does not;
-B needs no new proof,
-while C's reset needs one and saves less;
-and C at least shortens the stall,
-which D does not.
 
 ### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
 
@@ -610,96 +513,6 @@ A > B > C,
 because A costs one small package and spares every consumer a wider dependency,
 and B still removes the lines that C keeps.
 
-### OpenAI flagged the review of the merge carry: how should it continue?, asked 2026-11-09T20:03:17-05:00
-
-The merge carry landed on main as `3a1368a777`:
-a `git merge` over a person's unsaved or staged edits now keeps them and finishes,
-as you decided ("Carry edits forward (Recommended)").
-It is not released yet.
-
-To check it,
-the session started one narrow `codex` review asking whether a kill,
-or a write the person saves while the merge runs,
-can lose those edits.
-The provider ended that run with the message the earlier audit got:
-"This content was flagged for possible cybersecurity risk."
-The session did not restart it,
-reword it,
-or hand it to another model.
-
-The run left one script behind,
-`~/temp/agent/codex-runs/review-merge-carry-round-1/reproductions/carry-interruption.ts`.
-The script stops the merge under a debugger at `merge_isolation_carry_apply.rs:555` and asserts these outcomes:
-
-- `write-after-check`:
-  a file the person saves after the carry's check is overwritten.
-- A kill during the carry:
-  the unsaved edit is not put back,
-  while the capture's ref and record are removed all the same.
-
-Nothing shows whether either one happens.
-The run was flagged before it reported a result,
-and the session has not run the script.
-The merge carry's own controls cover a path written after the capture and a merge that did not land,
-each shown failing with its guard removed;
-that is the evidence there is today.
-
-Your standing word is that reviews never block publishing,
-so this does not hold the next alpha unless you say it should.
-
-#### A: the session runs that script here
-
-It reads the script whole,
-runs it on disposable repositories with no model involved,
-and a Pi agent fixes whatever reproduces.
-
-- Pro:
-  answers the exact scenarios,
-  and nothing goes to a provider's filter.
-- Con:
-  the script came from the flagged run,
-  so this carries that run's work forward,
-  which is why the session asks first.
-- Con:
-  covers only these scenarios.
-
-#### B: a Claude Sonnet audit of the same question
-
-This is the `AGENTS.md` `LHZ` route for long reviews.
-
-- Pro:
-  wider than these scenarios.
-- Con:
-  it hands the flagged work to another model,
-  which the session will not do without your word.
-- Con:
-  costs a long run.
-
-#### C: request the access the message names
-
-The message points at "Daybreak access" in the organization's OpenAI settings.
-
-- Pro:
-  would also let the earlier stopped audit continue.
-- Con:
-  only you can do it,
-  and how long it takes is unknown.
-
-#### D: leave it as tested
-
-- Pro:
-  no further work.
-- Con:
-  these scenarios stay unknown on the code that touches unsaved work.
-
-Ranking:
-A > B > C > D,
-because A settles the named scenarios soonest and B then costs far more to cover them;
-B needs no one to wait on a third party,
-which C does;
-and C at least gets an answer,
-which D does not.
-
 ### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
 
 Issue 1540:
@@ -731,214 +544,6 @@ Ranking:
 A > B,
 because the colour carries the verdict,
 and B gives that up to save a pair of tokens.
-
-### Should a commit land when a killed Git left a branch's lock behind?, asked 2026-11-09T18:30:54-05:00
-
-A Claude Sonnet audit killed `git update-ref` during a commit.
-The kill left `refs/heads/main.lock`,
-and every later commit on that branch exited 1 with a false reason
-("The branch main changed 3 times").
-Evidence:
-`~/temp/agent/sonnet-audits/commit-kills-and-concurrency/findings.md`.
-
-The branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-moved-branch` fixes the false reason.
-Such a commit now waits up to 7 s,
-then fails naming the lock and giving the exact `rm --` that clears it.
-The run measured 7,356 ms to that message.
-That is better than today,
-so it is being tested for landing whatever you pick.
-
-It does not make the commit land,
-and your rule is "Commits should never fail."
-Clearing the lock automatically needs proof that the Git holding it has ended.
-The agent's report states that the repository has no such proof for a reference lock,
-because reviews removed every rule based on a process number,
-birth time,
-emptiness or boot time as able to remove a live Git's lock.
-Your earlier pick,
-"Keep narrowed removal (Recommended)"
-(`doc/handover/cli-git-rust-implementation.md:7348-7353`),
-now has no removal to keep
-(`doc/handover/cli-git-rust-implementation.md:1022`).
-
-#### Option A: make the commit and hold it until the lock is gone
-
-The commit is written and kept on a side ref.
-The command exits 0,
-says the branch has not moved yet,
-and names the lock.
-The next command that finds the lock gone moves the branch.
-
-Pros:
-it meets "Commits should never fail."
-and removes nothing,
-and it matches what you chose for a merge behind a held `index.lock`
-(`package/git-policy/cli/SPEC.md:3320-3328`).
-
-Cons:
-it is not built and adds a mechanism to the commit path,
-the branch does not show the commit until the lock goes,
-and held commits collect if nobody removes the lock.
-
-#### Option B: keep what the branch does
-
-The commit fails after the bounded wait and names the lock and the command.
-
-Pros:
-it is built and tested,
-and nothing is hidden.
-
-Cons:
-the commit fails,
-against the rule,
-and every later commit fails until someone removes the lock.
-
-#### Option C: remove the lock once it has stood for a fixed time
-
-Pros:
-commits recover with nobody acting.
-
-Cons:
-nothing proves the holder has ended,
-so a Git stopped for longer than the limit loses its lock,
-and two Gits can then both write the branch.
-The reviews rejected rules of this kind.
-
-Ranking:
-A > B > C,
-because A alone meets the rule without deleting anything,
-and B fails honestly where C can damage a branch under a live Git.
-
-To answer,
-write A,
-B or C under this question and save.
-
-### Should the next command remove the snapshot a killed `git worktree add` left behind?, asked 2026-11-09T17:05:48-05:00
-
-A Claude Sonnet audit killed `git worktree add --detach <path>` ten times on a main checkout that is a subvolume.
-Two of those kills left a folder named `.cli-git-worktree-copy-<uuid>` beside the destination.
-Each one is a complete snapshot of the main checkout:
-`.env` and `secrets/key.pem` (mode `0600` kept),
-caches,
-`node_modules`,
-and a full copy of `.git`.
-Every later command in a linked worktree prints that the folder was left by an interrupted add and that you should remove it yourself,
-and nothing ever does.
-`package/git-policy/cli/SPEC.md:2317` says "The stage is the person's to remove".
-Removing it is a deletion,
-so this is your call.
-Evidence:
-`~/temp/agent/sonnet-audits/worktree-lifecycle/findings.md`,
-finding `F-H`.
-
-- A.
-  The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
-  and prints what it removed.
-  Pro:
-  nothing piles up,
-  and a second copy of credentials goes away by itself.
-  Con:
-  it deletes a folder without being asked,
-  so anything someone put there by hand after the kill goes with it.
-- B.
-  As A,
-  but the stage moves to the worktree's trash folder first and is emptied later.
-  Pro:
-  a mistaken reap can still be undone.
-  Con:
-  the credentials stay on disk for longer,
-  and there is one more place to clean.
-- C.
-  Keep today's rule:
-  a notice on every command,
-  and the person deletes it.
-  Pro:
-  the wrapper never deletes a folder on its own.
-  Con:
-  the snapshot and its credentials stay until someone acts,
-  and the notice repeats on every command.
-
-Ranking:
-A > B > C,
-because A clears the extra copy of credentials with proof of ownership,
-B keeps that copy around to guard against a mistake the record already rules out,
-and C leaves the problem in place.
-The same audit found small records of killed adds piling up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`;
-under A or B the same sweep would remove them.
-
-### How should a fuzz sidecar that stops compiling get caught?, asked 2026-11-09T16:25:06-05:00
-
-The wrapper's fuzz sidecar (`package/git-policy/cli.fuzz`) stopped compiling because later wrapper changes moved the code it uses,
-and nothing ran it,
-so nobody noticed until an agent looked.
-The wrapper's `lint:sidecar-locks` checks only its lockfile and never compiles the sidecar,
-and no CI job or hook runs that lint.
-`doc/planning/catching-a-stale-fuzz-sidecar-lockfile.md` holds the full comparison.
-Nothing here is built yet.
-
-- A.
-  The wrapper's `lint` also runs `mise run //package/git-policy/cli.fuzz:lint:types`.
-  Pro:
-  it catches a stale lock and a wrapper change on the branch that made it,
-  before the merge.
-  Con:
-  it adds about 18 s to a warm lint (5.2 s check and 13.1 s Clippy).
-- B.
-  A as well as a path-filtered workflow like `toml-edit-fuzz.yml`.
-  Pro:
-  it also catches a branch that skipped the local lint.
-  Con:
-  another workflow to keep.
-- C.
-  A workflow only.
-  Pro:
-  no cost locally.
-  Con:
-  it finds the break after the push.
-
-Ranking:
-A > B > C,
-because A catches it earliest at the smallest cost,
-B adds a backstop nothing has yet needed,
-and C finds it latest.
-Please also say whether `lint:sidecar-locks` should stay separate once A makes the compile catch the lock too,
-and whether `toml-edit-fuzz.yml` and `logger-fuzz.yml` should gain the same check for their sidecars,
-which have the same second lockfile.
-
-### May the ignored-state rule say what a copy does with a file that never settles?, asked 2026-11-09T16:22:51-05:00
-
-`doc/decision/cli-git-policies-platform.md`,
-section "Linked-worktree ignored state",
-requires exact final source-to-stage equivalence.
-The branch that fixes the live `git worktree add` failures keeps that for every entry the stage holds,
-and treats two cases differently:
-a file that keeps changing while the copy runs stays in its source and is named to the person,
-and a file the source removed during the copy is left out.
-Without that,
-a busy checkout fails the whole add,
-which is the live failure "ignored source entry changed while copying".
-This session may not edit `doc/decision/` without you.
-
-- A.
-  Add to the rule that equivalence holds for every entry the stage holds,
-  and that an entry which never settled during the copy stays in its source and is named.
-  Pro:
-  the record matches what ships and an add on a busy checkout succeeds.
-  Con:
-  the added worktree can lack a file that was changing at that moment.
-- B.
-  Keep the rule as it is and have the add fail when any ignored file keeps changing.
-  Pro:
-  a finished add always holds everything.
-  Con:
-  on this repository,
-  where builds rewrite ignored files all the time,
-  adds keep failing.
-
-Ranking:
-A > B,
-because B brings back a failure seen live in this session,
-and A loses nothing since the file stays in its source and the person is told its name.
 
 ### Who should own task definitions, `mise.toml` or `task.ts`? (issues 5500 and 2103), asked 2026-11-09T16:22:51-05:00
 
@@ -1011,107 +616,6 @@ Ranking:
 A > B,
 because a comment costs one line per entry and B throws away the versions paused packages were last tested with.
 
-### OpenAI stopped one audit with a cybersecurity flag: how should it continue?, asked 2026-11-09T06:03:57-05:00
-
-The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about 14 minutes with this error from the provider:
-"This content was flagged for possible cybersecurity risk.
-If this seems wrong,
-try rephrasing your request.
-If you're doing authorized security work that requires more cyber permissive safeguards,
-apply for Daybreak access via <https://platform.openai.com/settings/organization/status-and-access> before retrying."
-The error does not say which content was flagged.
-The audit was reading and running the wrapper on throwaway repositories.
-
-The session did not restart the audit,
-reword it,
-or hand the same audit to another model,
-because that would be getting around the flag,
-and whether to do so is the owner's call.
-What it wrote is kept:
-`doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md` is committed as `dbb8087dfe`
-on the branch `docs/planning-cli-git-invocation-and-argument-audit`,
-and that file's section "Verification still in progress" names what was unfinished.
-Its worktree also holds one uncommitted test file of the audit's,
-`package/git-policy/cli/src/native/invocation/forwarded_command_tests.rs`,
-left as it was.
-
-The other `gpt-6.1-sol` audit and the reviews are still running.
-If one of them is flagged it is treated the same way.
-
-Options,
-best first:
-
-- Keep auditing without that access.
-  The findings already written are defects in the owner's own tool,
-  so they go to a fix agent like every other audit's findings,
-  and the unfinished part stays unfinished.
-  Nothing else is needed from the owner.
-- The owner applies for the access the error names,
-  then says so here,
-  and the session resumes the audit from its saved session.
-  This covers the unfinished part,
-  and it is an application made on the owner's OpenAI account,
-  so only the owner can make it.
-- The owner says the audit may be finished on the DeepSeek model.
-  That covers the unfinished part with no application,
-  and it is the route the session will not take unasked.
-
-Ranking:
-the first over the second because no work waits on it;
-the second over the third because it keeps the auditor the owner chose
-("Please use gpt-6.1-sol with the openai provider for audits and reviews.").
-
-### What should the next push do with a commit its checks blocked?, asked 2026-11-09T05:03:17-05:00
-
-`package/git-policy/cli/README.md:2194` promises this:
-"A landed commit that a post-commit policy then blocks exits `2` and stays local."
-It stays local only until the next push on that branch,
-because a queued push sends the whole branch
-(`git push <remote> <branch>:<target>`,
-`package/git-policy/cli/src/native/push/auto_push.rs:243-245`).
-The landing agent reproduced this with real Git for a commit held with no verdict:
-commit A was held,
-commit B was pushed by that command,
-and A was then on the remote.
-Its report says a commit a policy blocked goes the same way,
-for the same reason.
-
-The example both options use:
-commit A is blocked,
-exits `2`,
-and sits on `main`.
-A minute later another agent lands commit B on `main`,
-and B's checks pass.
-
-Option A stops the automatic push at the commit before the blocked one.
-Commits older than A still go out.
-A and B stay on this machine,
-and every command in that repository says in one line which commit is holding the branch back and why.
-The automatic push resumes once A is no longer on the branch's way out.
-What a person's own `git push` does is unchanged by this option.
-For it:
-it makes the README true,
-and automation can never publish a commit a policy refused.
-Against it:
-with many agents on `main`,
-one blocked commit keeps every later commit off GitHub until someone acts,
-so those commits have no copy off this machine in the meantime.
-
-Option C keeps today's behaviour and corrects the README to say the blocked commit's own push is skipped and the next push on the branch carries it.
-For it:
-nothing ever stalls.
-Against it:
-a refusal lasts one commit,
-and if the policy refused a secret,
-that secret reaches GitHub and cannot be taken back.
-
-Ranking:
-A > C,
-because a stalled push can be released with one word from you,
-and a published commit cannot be withdrawn.
-Nothing changes until you answer:
-write "A" or "C" here.
-
 ### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
 
 The owner,
@@ -1159,42 +663,6 @@ The median model turn was 3937 ms against 3153 ms in the two hours before,
 and that difference has not been compared with the run-to-run spread,
 so it may be noise.
 
-### What should a commit do when a step of it is stuck inside the kernel?
-
-The signed scratch commit has the ceiling you chose,
-about 16 seconds,
-and at the ceiling the wrapper sends `SIGKILL`.
-A process in uninterruptible sleep does not end until its kernel call returns,
-for example one waiting on a dead NFS server or a stopped FUSE daemon.
-So today that commit waits with no bound after the ceiling,
-against "nothing should ever wait forever or indefinitely".
-This rests on the kernel's documented behaviour and on reading the code,
-because no test on this host can produce that state.
-The write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`,
-on the branch `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`.
-
-Option B leaves after the ceiling and a short grace.
-The commit exits nonzero and says the step could not be stopped,
-and the killed process is reaped by the system later.
-It is the only option that bounds the wait.
-The cost is a failed commit in that case,
-against "Commits should never fail",
-and a dead process holding the scratch folder open until the kernel lets go,
-which holds none of your files.
-
-Option A keeps waiting and says so.
-After the ceiling the commit prints that the stop was sent and the kernel has not released the step.
-Nothing fails,
-but the terminal stays stuck for as long as the kernel call does,
-which can be forever.
-
-Ranking:
-B > A,
-because a failed commit that says why can be run again,
-and a stuck terminal cannot be acted on at all.
-Nothing changes until you answer:
-write "A" or "B" here.
-
 ### A commit whose command died before its checks ran now stays local, changed 2026-11-09T04:26:58-05:00
 
 A landing moves the branch first and runs the post-commit checks after,
@@ -1226,42 +694,6 @@ Write "push it" here to overrule this.
 
 The same fact raises a question that does need you,
 `What should the next push do with a commit its checks blocked?`.
-
-### Should a commit stop when the repair of a stale index cannot be made?
-
-After a commit lands and its index update fails,
-the next commit from that worktree starts from a stale index,
-and would record the landed file as reverted or deleted.
-A repair takes the stale entries out first.
-The landing branch now stops the commit,
-naming the reason,
-when that repair cannot be carried out.
-You wrote "Commits should never fail."
-and "never discard user data",
-and here they pull against each other.
-
-- A,
-  stop with a named reason,
-  which is what the branch does:
-  the person runs the commit again once the cause is gone.
-  No landed change is lost.
-  The commit fails,
-  which is what your first rule forbids.
-- B,
-  land anyway and warn:
-  the commit succeeds,
-  and the warning names the path.
-  The commit can record a landed file as reverted,
-  which a later commit then publishes unless someone reads the warning.
-
-Ranking:
-A > B,
-because a commit that stops can be repeated,
-and a silently reverted file is the failure the repair exists to prevent.
-That is the session's judgment.
-The moved-worktree case the review found is being fixed either way,
-so this is about the causes that remain:
-an index the wrapper cannot read or write.
 
 ### Should forced checkouts and resets refuse when they would replace an ignored file?
 
@@ -1299,41 +731,6 @@ and a worktree with `node_modules` is refused.
 It follows from "never discard user data",
 and it changes a common way of getting a fresh build.
 Write "allow it in linked worktrees" here if you want the old behaviour back.
-
-### Should a commit add the manifests of dependents it bumps?
-
-Your decision of 2026-09-15 and `SPEC.md` say opposite things.
-`doc/decision/private-npm-registry.md:158-160` says:
-"A cli-git commit policy bumps dependents by patch,
-transitively,
-in the same commit as a hand bump."
-It rejects "a read-only check plus a `version:bump` command (two steps when forgotten)".
-`doc/decision/cli-git-policies-platform.md:751-754` says the same.
-`package/git-policy/cli/SPEC.md:207-208` says:
-"A commit adds no paths of its own:
-only the paths it selected reach the landing."
-
-The code follows `SPEC.md`,
-and an audit reproduced the result
-(`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
-finding 2).
-A hand bump of `a` commits only `a`'s manifest,
-and nothing says the dependents were left behind.
-After that commit,
-`check` and `fix` are silent too,
-because the raise now equals `HEAD`.
-So a published package can depend on an older version of a package it was meant to follow.
-
-Recommended:
-build what the decision says,
-so a commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`.
-It is the only option where a forgotten step cannot leave a stale dependent,
-at the price of a commit touching paths the person did not name.
-The alternative keeps `SPEC.md`,
-changes the decision,
-and makes a commit warn loudly that dependents were left behind.
-That is much less code,
-and the person has one more step to remember.
 
 ### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
 
@@ -1402,31 +799,6 @@ because the original words stay and the records stop pointing nowhere.
 The alternative is to leave those issues open,
 and each stays a dead reference.
 
-### Should upstream forks keep their own MIT text? (issue 1645)
-
-The rule that writes license files knows no MIT text,
-so the MIT files of the packages under `upstream-fork/` are neither written nor removed by it.
-All carry the same copyright line,
-naming Sindre Sorhus.
-
-Recommended:
-keep one text per package and teach the rule to seed it,
-because a shared text would put that copyright on any other MIT project added later.
-The alternative,
-one shared root `LICENSES/MIT.txt`,
-is simpler and is only correct while every MIT fork has the same author.
-
-Update at 2026-11-10T04:28:34-05:00:
-a Pi agent built the alternative on `fix/file-enforcer-issue-1645` while this question was open,
-because the issue's acceptance names the shared root text.
-That branch is not on `main`,
-and landing it would answer this question for you.
-The same branch fixes a separate defect:
-a license requirement matched part of an SPDX identifier,
-so an `AGPL-3.0-or-later` expression pulled in the GPL text.
-That fix is being taken out alone,
-so it does not wait for this answer.
-
 ### Should 30 packages declare a license? (issue 2994)
 
 30 `package/*/*/package.json` files have no `license` field,
@@ -1482,24 +854,6 @@ None of these has been asked yet,
 and none is holding up running work.
 Each record is cited so the context is one read away.
 
-- Does the 2026-11-04 pause still cover the commit protocol that makes commits unable to fail by construction?
-  Your words then:
-  "aside from layout + linting fixes,
-  pause everything else - but let work already in flight run to their natural
-  conclusions".
-  Other wrapper work has resumed since,
-  but `feat/git-policy-cli-commit-protocol-models` and `fix/git-policy-cli-commits-never-fail` have not moved.
-  This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
-  and an identical retry succeeded,
-  against your "Commits should never fail."
-- Should the Claude Code guardrail be registered in `~/.claude/settings.json`?
-  A real-Git commit from the coordinator's session went through on 2026-11-08,
-  because `~/.claude/settings.json` does not name the guardrail;
-  fed directly,
-  the hook refuses it.
-  Pi agents are covered.
-  Details:
-  `doc/handover/pi-agents-blocked-from-real-git.md`.
 - Pi agents started through the driver no longer inherit a credential-named variable (`9ae27d221e`).
   Three choices follow from it.
   Should interactive Pi sessions get the same rule as a plugin?
@@ -1507,16 +861,6 @@ Each record is cited so the context is one read away.
   since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
   Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
   Nothing has proved it necessary.
-- `doc/decision/cli-git-concurrent-commits.md` (line 158 and lines 190 to 205) still says an `index.lock` owner proven alive gets an unbounded wait.
-  The shipped code bounds that wait at one minute for a merge and at the service hold ceiling for the service,
-  following the owner's later "nothing should ever wait forever or indefinitely".
-  May the decision record be amended to say so?
-- `LOCK_CEILING` (600 s) no longer bounds any wait;
-  it only feeds `FOREIGN_OWNER_PATIENCE` (1,200 s).
-  The longest lock wait in 4,386 landings that ended by release was 11.49 s.
-  Both values are kept as they were;
-  lowering the patience changes when another namespace's record counts as abandoned,
-  so that stays open.
 - Should `AGENTS.md` gain this rule?
   "A control's verdict comes from the order of events:
   release its fixture from the wait's own line,
@@ -1546,14 +890,7 @@ Each record is cited so the context is one read away.
   The reason is that a kill during a worktree add on the copy route silently loses that worktree's ignored files,
   and recovery can fill a registration the command did not create.
   Two agents are building it.
-  Is a repository shared by two hosts supported?
-  If it is,
-  a foreign host's process reads as dead to the copy,
-  which the audit could not settle alone.
   A new `git worktree add` from a worktree still being filled now gets no ignored-state copy and one line saying so.
-  The only remedy today is to remove that worktree and add it again,
-  because Git refuses an existing path and the wrapper has no way to copy ignored state on demand.
-  Should the wrapper gain a command that fills an existing worktree?
   Two gaps stay open:
   a copy still staging records no destination,
   so it is not detected until the record written before Git is on `main`;
@@ -1614,9 +951,6 @@ Each record is cited so the context is one read away.
 - Does "never discard user data" cover the audit history?
   The timing logs and the push trigger log keep one older generation,
   so a rotation drops the one before it.
-- Should the unmerged branch `worktree-agent-ab3dd6294f9d91284` be kept or dropped,
-  and should the lock-based copy modules main still ships be reviewed?
-  The branch holds open review findings and fixes that exist nowhere else.
 - Should `package-paused/dev-script/inference-canary`,
   `package-paused/webapp-edu/paper2vn` and the wrapper's own test runners get the container limits?
 - Should the mount unit's stop block guard its `luksClose`?
@@ -1624,42 +958,168 @@ Each record is cited so the context is one read away.
   (`doc/handover/repository-move-dangling-link-items.md`).
 - May the stale detached worktrees under `.claude/worktrees/` be removed?
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
-- Should there be an operator override that forces the native Git route when the commit service misbehaves?
-- Rotate `MISE_GITHUB_TOKEN`?
-  A second exposure on 2026-11-08:
-  the agent `tokio-step-t12` read `/proc/<pid>/environ` of a cargo process to find its build directory,
-  and that printed the same variable into its session,
-  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/tokio-step-t12-1/summary.json`.
-  That run started at 2026-11-08T15:03:15-05:00,
-  before the driver began removing credential-named variables (`9ae27d221e`,
-  2026-11-08T18:09:11-05:00).
-  A process that another session started still carries them,
-  so the rule against reading another process's environment stays in force.
-  A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
-  The value is in that agent's session file,
-  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,
-  and tool output goes to the model provider.
-  The count of matches was read without printing the value.
-  Every running agent has since been told never to print the environment,
-  and `pi-as-subagent` now requires that sentence in every prompt.
 - May the root `vm-builder` run replace the existing VM?
   `mise run //package/vm-builder/cli:run` overwrites `/var/lib/libvirt/images/monochromatic-dev.qcow2`,
   dated 2026-03-31,
   and force-stops and undefines any domain of that name.
   Your authorization of `sudo` did not name that,
   so only the build half (`image:build`) was run.
-- How long should `FOREIGN_OWNER_PATIENCE` be?
-  It ships at twenty minutes,
-  stated as twice the longest a merge waits,
-  but a merge has waited at most one minute since 2026-11-07,
-  so that basis would give two
-  (`doc/planning/cli-git-shipped-limits-audit.md`).
 
 Checked and not asked,
 because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in the question tool, recorded 2026-11-10T05:40:16-05:00
+
+The owner answered these after restarting Claude Code.
+Each entry gives the choice as the owner made it and where the work went.
+
+### A commit behind a branch lock a killed Git left
+
+"Make it,
+hold until lock goes (Recommended)".
+The commit is written and kept on a side ref,
+the command exits 0,
+says the branch has not moved yet and names the lock,
+and the next command that finds the lock gone moves the branch.
+Agent `commit-held-behind-a-dead-branch-lock` builds it.
+
+### The automatic push and a commit a policy blocked
+
+"Hold the push at A (Recommended)".
+The automatic push stops at the commit before the blocked one,
+every command says which commit holds the branch back and why,
+and a person's own `git push` is unchanged.
+Agent `auto-push-stops-before-a-blocked-commit` builds it.
+
+### The private repository every commit builds
+
+"Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter."
+Agent `commit-needs-no-shadow-when-it-can-avoid-one` first measures which commits need a shadow at all,
+then builds the route that avoids one and the pool for the rest.
+
+### The snapshot a killed `git worktree add` leaves
+
+"Next command deletes it (Recommended)".
+The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
+and prints what it removed.
+Agent `next-command-removes-a-dead-worktree-stage` builds it.
+
+### A commit step stuck inside the kernel
+
+"Keep waiting and say so".
+This is the owner's explicit exception to "nothing should ever wait forever or indefinitely",
+for a step the kernel will not release.
+Agent `stuck-step-says-the-kernel-holds-it` builds the message.
+
+### A stale index the repair cannot fix
+
+"Stop with a named reason (Recommended)".
+The code already does this,
+so nothing changes.
+This is the owner's explicit exception to "Commits should never fail."
+for an index the wrapper cannot read or write.
+
+### The manifests of dependents a commit bumps
+
+"Build what the decision says (Recommended)".
+A commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`.
+Agent `commit-adds-the-dependents-it-bumps` builds it.
+
+### The ignored-state rule and a file that never settles
+
+"Amend the rule (Recommended)".
+`doc/decision/cli-git-policies-platform.md`,
+section "Linked-worktree ignored state",
+now says so.
+
+### The flagged merge-carry review
+
+"Run that script here (Recommended)".
+The session runs the script on disposable repositories with no model involved,
+and a Pi agent fixes whatever reproduces.
+
+### The stopped audit of command lines
+
+"New Claude Sonnet audit (Recommended)".
+It is running as `invocation-and-arguments`.
+
+### One MIT text per package
+
+"One text per package (Recommended)".
+Agent `file-enforcer-mit-text-per-package` builds it,
+and `fix/file-enforcer-issue-1645` stays off main.
+
+### Built-output imports in the translation-repair family
+
+"You focus on the git wrapper.
+Open a gh issue about this one.
+I'm leaning on veto."
+That is issue 6275.
+
+### The commit protocol paused on 2026-11-04
+
+"Resume after tokio's step (Recommended)".
+Once the commit path is on the runtime,
+`feat/git-policy-cli-commit-protocol-models` and `fix/git-policy-cli-commits-never-fail` are compared with main and with these answers before anything is built.
+
+### The real-Git guard in Claude Code
+
+"What?
+We already have a bash output filter pkg for Claude.
+And how come Pi agents are already covered?"
+Then,
+after the explanation:
+"Focus on the wrapper itself.
+Open a gh issue about this instead."
+That is issue 6276.
+
+### A switch that forces native Git
+
+"No switch,
+/usr/bin/git is it (Recommended)".
+
+### The unbounded lock wait in the decision record
+
+"Amend the record (Recommended)".
+`doc/decision/cli-git-concurrent-commits.md`,
+section "Locks",
+now names the bounds.
+
+### `MISE_GITHUB_TOKEN`
+
+"Leave it".
+The token was not rotated.
+Its value was printed twice on 2026-11-08,
+into the session files named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/tokio-step-t12-1/summary.json` and `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`.
+
+### A command that fills an existing worktree
+
+"No,
+remove and add again".
+No such command is built,
+and removing and adding the worktree stays the remedy.
+
+### A repository shared by two hosts
+
+"Not supported (Recommended)".
+
+### Catching a fuzz sidecar that stops compiling
+
+"Workflow only".
+
+### `FOREIGN_OWNER_PATIENCE`
+
+"Two minutes (Recommended)".
+
+### The branch `worktree-agent-ab3dd6294f9d91284`
+
+"Triage,
+then delete (Recommended)".
 
 ## Answered in the question tool, recorded 2026-11-09T01:14:41-05:00
 
