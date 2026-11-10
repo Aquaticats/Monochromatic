@@ -55,11 +55,26 @@ export class GitHubCliVersionError extends Error {
 }
 
 /**
+ Checks one ASCII decimal digit.
+ 
+ @param character - One character of a version component.
+ 
+ @returns Whether character lies in the ASCII decimal range.
+ */
+function isAsciiDecimalDigit(character: string,): boolean {
+  return (character >= '0') && (character <= '9');
+}
+
+/**
  Checks one non-empty ASCII decimal version component.
+ 
+ The grammar is ASCII, so `for...of` walking characters rather than UTF-16 code
+ units reaches the same verdict: a look-alike digit outside the range is
+ refused whole.
  
  @param component - Major, minor, or patch text.
  
- @returns Whether every code unit is decimal digit.
+ @returns Whether every character is decimal digit.
  
  @example
  ```ts
@@ -70,12 +85,8 @@ function isDecimalComponent(component: string,): boolean {
   if (component === '') {
     return false;
   }
-  for (let index = 0; index < component.length; index += 1) {
-    /**
-     Current UTF-16 code unit; version grammar is ASCII-only.
-     */
-    const character = component.charAt(index,);
-    if ((character < '0') || (character > '9')) {
+  for (const character of component) {
+    if (!isAsciiDecimalDigit(character,)) {
       return false;
     }
   }

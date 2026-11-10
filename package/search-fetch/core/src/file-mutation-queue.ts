@@ -76,6 +76,31 @@ const UNQUEUED_TAIL: Promise<void> = Promise.resolve();
 
 //endregion State
 
+//region Helpers
+
+/**
+ Build the scope that drops a settled tail when no later mutation replaced it.
+
+ @param input - resolved path key and published tail
+
+ @returns disposable removing the tail entry on scope exit
+
+ @example
+ ```ts
+ using cleanup = createTailCleanup({ key, tail });
+ ```
+ */
+function createTailCleanup(input: TailCleanupInput,): Disposable {
+  return {
+    [Symbol.dispose](): void {
+      if (mutationTails.get(input.key,) === input.tail)
+        mutationTails.delete(input.key,);
+    },
+  };
+}
+
+//endregion Helpers
+
 //region Public API
 
 /**
@@ -141,28 +166,3 @@ export async function withFileMutationQueue<MutationResult>(
 }
 
 //endregion Public API
-
-//region Helpers
-
-/**
- Build the scope that drops a settled tail when no later mutation replaced it.
-
- @param input - resolved path key and published tail
-
- @returns disposable removing the tail entry on scope exit
-
- @example
- ```ts
- using cleanup = createTailCleanup({ key, tail });
- ```
- */
-function createTailCleanup(input: TailCleanupInput,): Disposable {
-  return {
-    [Symbol.dispose](): void {
-      if (mutationTails.get(input.key,) === input.tail)
-        mutationTails.delete(input.key,);
-    },
-  };
-}
-
-//endregion Helpers

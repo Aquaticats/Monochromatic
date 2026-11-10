@@ -1,11 +1,15 @@
-import { createStore, } from '@monochromatic-dev/kv-store-core/ts';
+import {
+  ABSENT,
+  createStore,
+  type Store,
+} from '@monochromatic-dev/kv-store-core';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { memoizeAsync, } from './index.ts';
+import { memoizeAsync, } from '../dist/final/node/index.mjs';
 
 await describe({
   name: memoizeAsync.name,
@@ -133,6 +137,195 @@ await describe({
 
         await memoized({ args: [1,], salt: 'v1', },);
         expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear during an in-flight computation leaves the cache empty',
+      fn: async () => {
+        const gate = Promise.withResolvers<number>();
+        const started = Promise.withResolvers<void>();
+        const calls: number[] = [];
+        async function slowDoubler(x: number,): Promise<number> {
+          calls.push(x,);
+          started.resolve();
+          return await gate.promise;
+        }
+        const memoized = await memoizeAsync({ fn: slowDoubler, keyFn: String, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await started.promise;
+        await memoized.clear();
+        gate.resolve(2,);
+
+        expect(await pending,).toBe(2,);
+        expect(await memoized.store.get('1:v1',),).toBe(ABSENT,);
+
+        // The wiped key recomputes instead of being served from the repopulated cache.
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(2,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'delete during an in-flight computation leaves the deleted key absent',
+      fn: async () => {
+        const gate = Promise.withResolvers<number>();
+        const started = Promise.withResolvers<void>();
+        const calls: number[] = [];
+        async function slowDoubler(x: number,): Promise<number> {
+          calls.push(x,);
+          started.resolve();
+          return await gate.promise;
+        }
+        const memoized = await memoizeAsync({ fn: slowDoubler, keyFn: String, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await started.promise;
+        await memoized.delete('1:v1',);
+        gate.resolve(2,);
+
+        expect(await pending,).toBe(2,);
+        expect(await memoized.store.get('1:v1',),).toBe(ABSENT,);
+
+        // The deleted key recomputes instead of being served from the restored cache.
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(2,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear waits for a cache write already in progress before emptying the store',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-clear-during-write', },);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(key: string, value: unknown,): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            return await base.set(key, value,);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const clearing = memoized.clear();
+        writeGate.resolve();
+        await clearing;
+
+        expect(await pending,).toBe(2,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
+      },
+    },),
+
+    it({
+      name: 'clear leaves the deduplication entry of a later call in place',
+      fn: async () => {
+        const firstStart = Promise.withResolvers<void>();
+        const secondStart = Promise.withResolvers<void>();
+        const firstGate = Promise.withResolvers<number>();
+        const secondGate = Promise.withResolvers<number>();
+        const calls: number[] = [];
+        async function firstTwoGatedDoublers(x: number,): Promise<number> {
+          calls.push(x,);
+          if (calls.length
+            === 1) {
+            firstStart.resolve();
+            return await firstGate.promise;
+          }
+          if (calls.length
+            === 2) {
+            secondStart.resolve();
+            return await secondGate.promise;
+          }
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: firstTwoGatedDoublers, keyFn: String, },);
+
+        const first = memoized({ args: [1,], salt: 'v1', },);
+        await firstStart.promise;
+        await memoized.clear();
+        const second = memoized({ args: [1,], salt: 'v1', },);
+        await secondStart.promise;
+
+        // Settles after the wipe, so its cleanup runs while the second computation is registered.
+        firstGate.resolve(2,);
+        expect(await first,).toBe(2,);
+
+        // Joins the second computation: a dropped deduplication entry would recompute and
+        // answer 2 instead of the second computation's 4.
+        secondGate.resolve(4,);
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(4,);
+        expect(await second,).toBe(4,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear keeps wiping when a store write it waited for was rejected',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-clear-during-rejected-write', },);
+        await base.set('stale:v1', 99,);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            throw new Error('cache write rejected',);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const clearing = memoized.clear();
+        writeGate.resolve();
+
+        await expect(pending,).rejects.toThrow('cache write rejected',);
+        await clearing;
+        expect(await base.get('stale:v1',),).toBe(ABSENT,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
+      },
+    },),
+
+    it({
+      name: 'delete waits for a cache write already in progress for that key',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-delete-during-write', },);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(key: string, value: unknown,): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            return await base.set(key, value,);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const deleting = memoized.delete('1:v1',);
+        writeGate.resolve();
+        await deleting;
+
+        expect(await pending,).toBe(2,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
       },
     },),
 

@@ -10,6 +10,8 @@
  
  @throws when vectors have different lengths
  
+ @throws when either vector holds an `undefined` element at some index (a hole in a sparse array, or an explicit `undefined` smuggled through the `number[]` type), because the terms before that index are not the whole dot product
+ 
  @example
  ```ts
  const sim = dotProduct({ a: [1, 0], b: [0, 1] }); // 0
@@ -41,15 +43,20 @@ export function dotProduct({
   for (let loopIndex = 0; loopIndex < a
     .length; loopIndex++) {
     /**
-     Element from the first vector at index `i`; guarded against jagged-array sparsity.
+     Element from the first vector at `loopIndex`.
      */
     const ai = a[loopIndex];
     /**
-     Element from the second vector at index `i`; guarded against jagged-array sparsity.
+     Element from the second vector at `loopIndex`.
      */
     const bi = b[loopIndex];
-    if ((ai === undefined) || (bi === undefined))
-      break;
+    if ((ai === undefined) || (bi === undefined)) {
+      throw new TypeError(
+        `Vector element at index ${String(loopIndex,)} is undefined (a[${
+          String(loopIndex,)
+        }]=${String(ai,)}, b[${String(loopIndex,)}]=${String(bi,)}); a sparse vector has no dot product, and returning the terms before it would be indistinguishable from a complete result`,
+      );
+    }
     sum += ai * bi;
   }
   return sum;

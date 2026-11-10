@@ -22,11 +22,19 @@ const ABSENT_PATH_ERROR_CODES: ReadonlySet<string> = new Set([
 /**
  Checks whether an error says the probed path holds no entry.
  
+ Callers that read a file fall back to older state when it is absent, so the
+ distinction this makes decides whether a failure is answered or rethrown.
+ 
  @param error - caught value from the probe
  
  @returns whether the path is absent rather than uninspectable
+ 
+ @example
+ ```ts
+ isAbsentPathError(Object.assign(new Error('missing'), { code: 'ENOENT' })); // true
+ ```
  */
-function isAbsentPathError(error: unknown,): boolean {
+export function isAbsentPathError(error: unknown,): boolean {
   if (!(Error.isError(error,)))
     return false;
   if (!('code' in error))
