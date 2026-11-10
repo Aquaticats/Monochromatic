@@ -389,7 +389,7 @@ dir = "{{config_root}}"
 run = "node selected-search-question.mjs validate"
 
 [tasks."test:unit"]
-description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans and the shared evidence text scans"
+description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans and the shared evidence scans"
 dir = "{{config_root}}"
 run = [
   "node selected-search-question.mjs validate",
@@ -397,12 +397,18 @@ run = [
   "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
   "node evidence-text-scan-test.mjs",
+  "node evidence-html-scan-test.mjs",
 ]
 
 [tasks."test:evidence-text-scan"]
 description = "Exercise the shared evidence text scans on fixtures the removed patterns define"
 dir = "{{config_root}}"
 run = "node evidence-text-scan-test.mjs"
+
+[tasks."test:evidence-html-scan"]
+description = "Exercise the shared evidence HTML scans on fixtures the removed patterns define"
+dir = "{{config_root}}"
+run = "node evidence-html-scan-test.mjs"
 
 [tasks."test:prose:dashes"]
 description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"

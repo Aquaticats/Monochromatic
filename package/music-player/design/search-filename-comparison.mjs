@@ -4,7 +4,8 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { isSearchFilenameCaptureName } from './evidence-text-scan.mjs';
+import { containsAnyLiteral, isSearchFilenameCaptureName } from './evidence-text-scan.mjs';
+import { hasTagAttribute } from './evidence-html-scan.mjs';
 
 //region Provenance, only committed sanitized images enter the offline review
 const root = process.cwd();
@@ -276,8 +277,17 @@ if (command === 'build') {
   ]) {
     if (!html.includes(marker)) throw new Error(`Filename review is missing ${marker}.`);
   }
-  if (/__FILENAME_REVIEW_IMAGES__|<script\b[^>]*\bsrc=|<link\b[^>]*\bhref=|<img\b[^>]*\bsrc="https?:/i.test(html) ||
-    ((html.match(/<form\b/g) ?? []).length !== 1)) {
+  if (containsAnyLiteral({ text: html, candidates: ['__filename_review_images__'], ignoreAsciiCase: true })
+    || hasTagAttribute({ text: html, tagName: 'script', attributeName: 'src', valuePrefixes: ['='], ignoreAsciiCase: true })
+    || hasTagAttribute({ text: html, tagName: 'link', attributeName: 'href', valuePrefixes: ['='], ignoreAsciiCase: true })
+    || hasTagAttribute({
+      text: html,
+      tagName: 'img',
+      attributeName: 'src',
+      valuePrefixes: ['="http:', '="https:'],
+      ignoreAsciiCase: true
+    })
+    || ((html.match(/<form\b/g) ?? []).length !== 1)) {
     throw new Error('Filename review is not a self-contained evidence-only form with optional observations.');
   }
   if (/<input\b[^>]*\btype="radio"|name="placement"|name="visibility"|data\.get\('(placement|visibility)'\)|<textarea\b(?:[^"'<>]|"[^"]*"|'[^']*')*?\srequired(?:\s|=|>)/i.test(html)) {

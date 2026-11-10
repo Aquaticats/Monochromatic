@@ -35,6 +35,73 @@ const SEARCH_FILENAME_CAPTURE_SOURCES = [
 
 //endregion Constants
 
+//region ASCII case folding
+
+// Lower-cases one ASCII letter and leaves every other code unit alone.
+//
+// A Unicode `toLowerCase()` would fold code points the validators never wrote, and the `i` flag these scans replace
+// only ever decided ASCII letters in the literals they matched.
+function asciiLoweredCharacter({ character }) {
+  if ((character >= 'A') && (character <= 'Z'))
+    return String.fromCharCode((character.charCodeAt(0) + ('a'.charCodeAt(0) - 'A'.charCodeAt(0))));
+  return character;
+}
+
+// Whether `needle` sits at `at` in `haystack` under the requested ASCII case folding.
+export function matchesAtWithin({ haystack, needle, at, ignoreAsciiCase }) {
+  if ((at < 0) || ((at + needle.length) > haystack.length))
+    return false;
+  for (let offset = 0; offset < needle.length; offset += 1) {
+    const haystackCharacter = haystack.charAt(at + offset);
+    const needleCharacter = needle.charAt(offset);
+    if (needleCharacter === haystackCharacter)
+      continue;
+    if (!ignoreAsciiCase)
+      return false;
+    if (asciiLoweredCharacter({ character: haystackCharacter })
+      !== asciiLoweredCharacter({ character: needleCharacter }))
+      return false;
+  }
+  return true;
+}
+
+// First position in `[from, to - needle.length]` where `needle` occurs, or -1 when it occurs nowhere in that range.
+export function findWithin({ haystack, needle, from, to, ignoreAsciiCase }) {
+  for (let at = from; (at + needle.length) <= to; at += 1) {
+    if (matchesAtWithin({
+      haystack,
+      needle,
+      at,
+      ignoreAsciiCase
+    }))
+      return at;
+  }
+  return -1;
+}
+
+// Whether the document holds any of `candidates`.
+//
+// The pattern an alternation of literals wrote becomes a list of those literals: one left-to-right pass per candidate
+// over the same text, which is the order the alternation tried them in and keeps the cost linear.
+export function containsAnyLiteral({ text, candidates, ignoreAsciiCase }) {
+  for (const candidate of candidates) {
+    if (candidate.length === 0)
+      return true;
+    if (findWithin({
+      haystack: text,
+      needle: candidate,
+      from: 0,
+      to: text.length,
+      ignoreAsciiCase
+    })
+    !== -1)
+      return true;
+  }
+  return false;
+}
+
+//endregion ASCII case folding
+
 //region Base64 payloads
 
 // Whether one UTF-16 code unit belongs to the base64 alphabet.
