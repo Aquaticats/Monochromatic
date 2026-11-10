@@ -9041,6 +9041,189 @@ cleared.
   for the reason the previous section gives.
 
 
+## Step T12, the round's lanes measured in the gate's container, and the claim set without a lock, 2026-11-10T02:41:50-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
+  `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`.
+  Main was merged into it as `842c57a9e5` when `origin/main` had moved to
+  `26e8148971`,
+  after the coordinator's gate on the merge `13967bfec9`.
+  The commit that carries this section is named in it.
+  Not merged into main.
+- The whole-suite gate on the merge `13967bfec9` ran 6962 tests,
+  6960 passed and two failed
+  (`${HOME}/temp/agent/gate/gpc-gate-wrapper-tokio-drain-and-landing-round-20261110T014146-0500.log`):
+  `landing::service_round::tests::repositories_are_drained_side_by_side` and
+  `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`.
+
+### The round's lanes, measured where the gate runs them
+
+The gate container runs the suite with `--memory 2g`,
+`--cpus 2` and `--pids-limit 512`
+(`${HOME}/temp/agent/gate/launch-gate.ts`),
+and the wrapper sizes the process's runtime and its bound on blocking jobs from
+the CPUs it may use
+(`lazy_runtime.rs`,
+`max_blocking_threads`;
+`blocking_jobs_within_the_budget.rs`,
+`decide_the_budget`).
+This run ran the gate's own image
+(`localhost/git-policy-native-test:gpc-gate-wrapper-tokio-drain-and-landing-round-20261110T014146-0500`)
+with those limits and the test binary of this tree,
+the control instrumented for one run,
+and the measurement is:
+
+```text
+PROBE lane=.../repository1/common reached-its-push room=2
+PROBE lane=.../repository0/common reached-its-push room=2
+PROBE lane=.../repository1/common job-started
+PROBE lane=.../repository3/common reached-its-push room=2
+PROBE lane=.../repository0/common job-started
+PROBE lane=.../repository1/common job-ended            (10.0 s later)
+PROBE lane=.../repository3/common job-started          (10.0 s later)
+PROBE lane=.../repository0/common job-ended
+PROBE lane=.../repository2/common reached-its-push     (10.0 s later)
+PROBE lane=.../repository2/common job-started
+PROBE lane=.../repository2/common job-ended            (27 ms)
+PROBE lane=.../repository3/common job-ended
+```
+
+- `room=2` is `budgeted_blocking_jobs()`:
+  the process may run two blocking jobs
+  at once in that container,
+  and its runtime's blocking pool is built with the same figure.
+- Three of the four lanes reached their push within the first milliseconds,
+  which is the round doing what it is for:
+  the lanes are tasks,
+  each awaited its storage steps,
+  and none waited for another.
+- The fourth lane reached its push only after the first two *pushes* ended,
+  because the control's own push held a place of the process's two for its
+  whole ten-second wait,
+  and the lane's next storage step had to wait for a place.
+- The four pushes therefore ran in two waves of two,
+  and the control's point on the pool was passed by two of them.
+- The product does not have that shape:
+  a push takes a place only for its short storage steps
+  (`lfs/lfs_bounded_push.rs:210` and `:232`,
+  `lfs/lfs_upload.rs:359`),
+  and its Git wait is awaited on the runtime.
+  So the failing control measured the process's bound on blocking jobs,
+  which the owner chose ("Build size + job limit",
+  `doc/planning/git-policy-cli-full-tokio.md`,
+  "The owner's answers at 2026-11-07"),
+  and not the round's lanes.
+
+### What changed for the round's control
+
+`repositories_are_drained_side_by_side` now puts its point on the runtime
+(`tokio::sync::Barrier`,
+one participant per repository),
+where the shipped handlers wait for their Git,
+and the round runs inside `test_support::finished_within_at`:
+a round that ran its lanes in turn never brings all of them to the point,
+so it never finishes and the control fails by name
+(`the round brought every repository to the point within 10s, so its lanes ran side by side`)
+rather than passing on a patience.
+That is a stronger control than the one it replaces,
+which could pass on a patience and reported only a count of arrivals.
+The double keeps the pool's waiting for the controls that measure the pool's
+own bound
+(`the_budget_of_the_host_bounds_the_overlap`,
+`the_directories_of_one_repository_are_drained_one_after_another`),
+so nothing there changed.
+Measured in the gate's image and limits,
+before and after:
+`left: 2, right: 4` in 10.05 s at `13967bfec9`,
+and 10 of 10 of `landing::service_round` in 0.44 s with
+`push_ms=0` for all four pushes after this change.
+
+### The claim set without a lock
+
+`HeldClaims` (`landing/service_claim_renewal.rs`) kept its two collections
+behind a `Mutex` after the previous section,
+which the lock inventory refused
+(`a_lock_stands_only_in_a_file_on_the_inventory`:
+"locks outside the inventory ...
+["landing/service_claim_renewal.rs"]").
+The lock is gone,
+and no lock replaced it:
+the set has **one owner at a time**,
+and the owner hands the whole set to the step that reads or renames a claim and
+takes it back
+(`service_work_storage_awaited.rs`:
+`settle_all_awaiting` and `still_held_awaiting` take `HeldClaims` and return
+it).
+The two collections are `RefCell`s again,
+which is sound because the value is moved between threads and never shared,
+and the hand-over to the renewal is still a channel.
+What a refused job costs is now stated and paid:
+a job the system refuses a thread for does not run,
+so the set goes with it and nothing is answered,
+and the drain ends its round there
+(`service_work_drain_pending_claims.rs`,
+the labelled `'round` loop)
+with the reason in the log,
+leaving every record it had claimed to its lease for the next round.
+That is the same promise as before ("nothing is lost"),
+made in one place instead of behind a lock.
+
+### Checks
+
+- The selection this branch ran before,
+  plus both controls the gate named,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+  over `the_drain`,
+  `service_work`,
+  `landing`,
+  `drain`,
+  `a_lock_stands_only_in_a_file_on_the_inventory`,
+  `worktree_trash` and
+  `service_claim_renewal`:
+  922 of 922 passed in 99.8 s at the unmerged tip and 922 of 922 in 167.0 s at
+  the merged tip (`842c57a9e5`).
+- `landing::service_round` alone in the gate's image and limits
+  (`podman run --pids-limit 512 --cpus 2 --memory 2g`,
+  the binary of this tree):
+  10 of 10 passed in 0.44 s,
+  with `push_ms=0` for the four pushes of the overlap control.
+- `source_guard` and `service_lock_inventory` on the host:
+  47 of 47 passed in 0.9 s,
+  the inventory test among them.
+  They read this tree's sources,
+  so they do not run in a container that holds no sources.
+- `native:clippy` clean on every target
+  (`Finished \`dev\` profile ... in 9.15s` at the unmerged tip).
+- `//:lint:monochromatic-lint --max-warnings 0` on the four files this run
+  touched:
+  0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote the two breaks it asked for.
+- Not run:
+  the whole `native:test:host` suite and the container gate (the coordinator
+  runs them),
+  `native:perf` (nothing of this run is in a forwarded command's path),
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+- Still blocking on the runtime,
+  unchanged by this run:
+  the service's work loop is a thread that calls `run_round` and enters the
+  runtime once,
+  `landing/service_land.rs` and the commit path are untouched,
+  and T13's guards are not started.
+  One thing this run measured and did not change:
+  a lane's storage steps and a handler's blocking work share the process's one
+  bound,
+  so on a host whose bound is two a long blocking job in one lane delays
+  another lane's storage steps by its own ceiling.
+  Nothing waits for ever there,
+  and the shipped push does not hold a place while it waits on Git,
+  but a handler that holds one for its whole run would.
+
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
