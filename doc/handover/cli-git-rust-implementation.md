@@ -59,6 +59,37 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
+
+`0.6.1-alpha.6` is not published,
+so the installed wrapper still stops a signed scratch commit at 3006 ms.
+The release gate on `cfce0bc84e` failed 2 of 6,909 tests
+(`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-cfce0bc84e-20261109T215524-0500.log`).
+
+`push::child_watch::tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling` failed with
+"Its watch could not end it:
+nothing proved which process to stop",
+in a test that refuses the watch nothing.
+`push/child_watch.rs:585` gives the watch the step's ceiling,
+and `push/child_watch.rs:595` gives the wait for the output the same ceiling,
+so the reading to test is that a watch thread scheduled late loses to its own backstop,
+which makes the sentence untrue and `is_ceiling` false.
+That reading rests on the source and this one failure.
+Branch `fix/git-policy-cli-step-ceiling-watch-and-output-wait-race` owns reproducing and fixing it.
+
+`fault_trace::a_worktree_copy_killed_at_each_unlink_leaves_a_recoverable_repository` failed at kill positions 2 and 3 with
+"the worktree has no ignored rules file,
+no stage is left,
+and no recovery pass named it".
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` makes an add whose copy cannot finish stay named on every command.
+Whether it removes this failure is being measured by alternating that sweep between main and the branch.
+
+No release run is in flight,
+so the finished wrapper branches land first,
+and then one gate runs on main for the alpha.
+From that gate's start,
+nothing touching a path the release depends on lands until the bump commit is on main.
+
 ### Where the work stands (2026-11-09T00:11:22-05:00)
 
 Merged since the last record here:
@@ -1607,11 +1638,6 @@ Seen only inside a larger run,
 passing alone,
 and open under `AGENTS.md` `SUF`:
 
-- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
-  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
-  timed out at 300 s in a run of 341 tests that took 932 s.
-- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
-  it passed alone in 2 s and in a rerun of its set.
 - `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
   failed on main and in two landing runs.
   The agent `oxlint-findings-left-on-main` owns it,

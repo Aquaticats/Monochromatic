@@ -12075,6 +12075,12 @@ null when the command made none),
 `exitCode`,
 `totalMs`,
 the disjoint phases
+`routeMs`
+(what the command spent before its first preparation began:
+finding the worktree's route to a service,
+this commit's identity,
+the standard input a pathspec file is read from,
+and the client's settings),
 `prepareMs`,
 `buildMs`,
 `provisionMs`,
@@ -12126,6 +12132,12 @@ each figure the time the stretch spent without a Git child,
 because the steps are recorded apart,
 a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
 at most 64 entries with the rest counted in `preparePartsDropped`),
+`buildParts`
+(the build phase's stretches by name,
+in the same shape as `prepareParts` and with the same rule,
+its own list and its own bound stated in `buildPartsDropped`:
+a build's name is never read as a preparation's),
+`buildPartsDropped`
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
@@ -12179,8 +12191,23 @@ and within `submitMs` the reach (`reachMs`,
 The record carries two accounts of the preparation,
 and they answer different questions:
 `prepareSpans` names the work a site in the wrapper measured around itself,
-`prepareParts` names the stretches no Git child covered,
+`prepareParts` and `buildParts` name the stretches no Git child covered,
 and a Git child that a span started is inside that span and outside every part.
+The build phase's names are `branch`,
+`message`,
+`amend tree`,
+`fitting request`,
+`request`,
+`shadow`,
+`shadow skeleton`,
+`shadow config`,
+`shadow links`,
+`shadow conclusion`,
+`shadow refs`,
+`client build`,
+`commit read back` and `amend fields`,
+and a build that stops inside itself closes the phase where the command stops,
+so its time is stated by `buildMs` and never left to `otherMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
