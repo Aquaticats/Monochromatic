@@ -3547,8 +3547,13 @@ A merge over that work that would open an editor opens it here
 `builtin/merge.c`;
 `src/native/merge/merge_isolation_editor.rs`):
 the message Git writes is put in `<git-dir>/MERGE_MSG` with the help lines Git adds under it,
-the program `git var GIT_EDITOR` names runs on it through `/bin/sh` with this command's terminal
-and no ceiling,
+the program `git var GIT_EDITOR` names runs on it with this command's terminal and no ceiling,
+and its arguments are the words of that command line made here as a shell makes them,
+because the wrapper starts no shell and writes no shell text (`merge_isolation_editor_words.rs`);
+a line that asks for an expansion,
+a tilde,
+a glob,
+a control operator or a comment is not guessed and stays native Git's whole,
 and what it leaves is cleaned with `git stripspace --strip-comments`,
 which is `COMMIT_MSG_CLEANUP_ALL`.
 A comment character other than `#` opens the message alone,

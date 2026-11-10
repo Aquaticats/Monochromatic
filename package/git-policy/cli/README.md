@@ -2199,9 +2199,22 @@ this wrapper opens the editor itself:
   `core.commentString`) opens the message alone,
   because those help lines would not be stripped then.
 - The program is the one `git var GIT_EDITOR` names,
-  run through `/bin/sh`,
+  and its arguments are the words of that command line,
+  made here as a shell makes them:
+  blanks separate them,
+  single quotes hold their bytes,
+  double quotes hold
+  theirs,
+  and a backslash escapes the next byte (`merge_isolation_editor_words.rs`).
+  No shell is started,
+  since the wrapper writes no shell text,
   so `code --wait` and `emacsclient -nw` work as under Git.
-  It gets this command's terminal,
+  A line that asks for an expansion,
+  a tilde,
+  a glob,
+  a control operator or a comment is not guessed:
+  that merge is native Git's whole.
+  The editor gets this command's terminal,
   and no ceiling.
 - What it leaves is cleaned the way a commit that opens an editor cleans it
   (`git stripspace --strip-comments`),

@@ -15,6 +15,7 @@
 //! ```
 
 use super::*;
+use crate::merge_isolation_editor_words::editor_words;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
@@ -25,6 +26,12 @@ fn scripted_editor(parent: &Path, name: &str, body: &str) -> PathBuf {
     let path: PathBuf = parent.join(name);
     executable(path.as_path(), body.as_bytes());
     return path;
+}
+
+/// The words of a script's path,
+/// as `git var GIT_EDITOR` answers a command line that has no spaces in it.
+fn words_of(editor: &Path) -> Vec<OsString> {
+    return editor_words(editor.to_str().expect("the script's path is text")).expect("one word");
 }
 
 /// The session of a control,
@@ -50,7 +57,7 @@ fn the_editor_reads_gits_message_file_and_its_message_is_cleaned() {
     let editor: PathBuf = scripted_editor(parent.as_path(), "editor", body.as_str());
     let session: Session = session_in(repo.as_path());
     let place: EditorPlace<'_> = EditorPlace { session: &session, git_dir: git_dir.as_path() };
-    let edited: Vec<u8> = edit_with(&place, b"Merge branch 'feature'\n", editor.to_str().expect("the script's path is text"))
+    let edited: Vec<u8> = edit_with(&place, b"Merge branch 'feature'\n", words_of(editor.as_path()).as_slice())
         .expect("the editor ran");
     assert_eq!(
         std::fs::read_to_string(written.as_path()).expect("what the editor read"),
@@ -78,7 +85,7 @@ fn another_comment_character_opens_the_message_alone() {
     let session: Session = session_in(repo.as_path());
     let git_dir: PathBuf = repo.join(".git");
     let place: EditorPlace<'_> = EditorPlace { session: &session, git_dir: git_dir.as_path() };
-    let edited: Vec<u8> = edit_with(&place, b"Merge branch 'feature'\n", editor.to_str().expect("the script's path is text"))
+    let edited: Vec<u8> = edit_with(&place, b"Merge branch 'feature'\n", words_of(editor.as_path()).as_slice())
         .expect("the editor ran");
     assert_eq!(
         std::fs::read_to_string(written.as_path()).expect("what the editor read"),
@@ -137,7 +144,7 @@ fn an_editor_that_ends_with_a_failure_stops_the_merge() {
     let editor: PathBuf = scripted_editor(parent.as_path(), "editor", "#!/bin/sh\nexit 3\n");
     let session: Session = session_in(repo.as_path());
     let place: EditorPlace<'_> = EditorPlace { session: &session, git_dir: git_dir.as_path() };
-    let refused: EditorRefusal = edit_with(&place, b"Merge branch 'feature'\n", editor.to_str().expect("the script's path is text"))
+    let refused: EditorRefusal = edit_with(&place, b"Merge branch 'feature'\n", words_of(editor.as_path()).as_slice())
         .expect_err("the editor failed");
     let EditorRefusal::Stopped(detail) = refused else {
         panic!("a failing editor is reported as what stopped: {refused:?}");
@@ -162,7 +169,7 @@ fn an_editor_that_leaves_nothing_stops_the_merge() {
     let editor: PathBuf = scripted_editor(parent.as_path(), "editor", "#!/bin/sh\nprintf '# only a comment\\n' > \"$1\"\n");
     let session: Session = session_in(repo.as_path());
     let place: EditorPlace<'_> = EditorPlace { session: &session, git_dir: git_dir.as_path() };
-    let refused: EditorRefusal = edit_with(&place, b"Merge branch 'feature'\n", editor.to_str().expect("the script's path is text"))
+    let refused: EditorRefusal = edit_with(&place, b"Merge branch 'feature'\n", words_of(editor.as_path()).as_slice())
         .expect_err("the editor left no message");
     assert!(matches!(refused, EditorRefusal::Empty), "{refused:?}");
     assert!(!git_dir.join("MERGE_MSG").exists(), "no message file is left");

@@ -16,11 +16,14 @@
 //! so the editor the merge would have opened is this file's:
 //! the message is written to `<git-dir>/MERGE_MSG` with the help lines
 //!  Git adds,
-//! the program `git var GIT_EDITOR` names runs on it through the shell,
-//! as `launch_editor` runs one,
+//! the program `git var GIT_EDITOR` names runs on it,
 //!  and what it leaves is cleaned the way a commit that opens an editor cleans it
 //! (`COMMIT_MSG_CLEANUP_ALL`:
 //!  comment lines and trailing whitespace go).
+//!  The editor's words are made without a shell (`merge_isolation_editor_words.rs`),
+//! because the wrapper
+//!  starts no shell and writes no shell text;
+//! a command line that would need one stays native Git's whole.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,9 +36,14 @@ use crate::merge_isolation_git_reads::Session;
 use crate::transaction_git::GitOutput;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// The words of the editor command,
+/// which no shell makes.
+use crate::merge_isolation_editor_words::editor_words;
 /// The editor runs as the person's own program,
 /// with the terminal and the streams they gave this command.
 use std::process::{Command, ExitStatus};
+/// Owned operating-system text of raw bytes.
+use std::ffi::OsString;
 
 /// What:
 ///  The help lines Git writes under the merge message when the editor opens,
@@ -57,19 +65,6 @@ const HELP_LINES: &str = concat!(
     "# Lines starting with '#' will be ignored, and an empty message aborts\n",
     "# the commit.\n",
 );
-
-/// What:
-///  The shell Git starts an editor through.
-/// Why:
-///   `run-command.c` runs an editor as `sh -c '<editor> "$@"' '<editor>' <file>`,
-/// so an editor configured as
-///  `code --wait` or `emacsclient -nw` receives its file the way it does under native Git.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const SHELL = '/bin/sh';
-/// ```
-const SHELL: &str = "/bin/sh";
 
 /// What:
 ///  The place the editor of a merge opens its file in.
@@ -103,8 +98,12 @@ pub struct EditorPlace<'a> {
 /// ```
 #[derive(Debug)]
 pub enum EditorRefusal {
-    /// Git resolved no editor for this environment;
-    /// native Git is the command,
+    /// No editor this command starts:
+    /// this environment resolves none,
+    /// or its command line needs a shell to make its words,
+    /// which this
+    ///  wrapper never starts.
+    /// Native Git is the command,
     /// and it dies its own way.
     NoEditor,
     /// The message file could not be written,
@@ -159,7 +158,10 @@ pub fn edit_message(place: &EditorPlace<'_>, message: &[u8]) -> Result<Vec<u8>, 
     let Some(editor) = editor_command(place.session) else {
         return Err(EditorRefusal::NoEditor);
     };
-    return edit_with(place, message, editor.as_str());
+    let Some(words) = editor_words(editor.as_str()) else {
+        return Err(EditorRefusal::NoEditor);
+    };
+    return edit_with(place, message, words.as_slice());
 }
 
 /// What:
@@ -196,7 +198,7 @@ pub fn asked_once(kept: &mut Option<Vec<u8>>, place: &EditorPlace<'_>, message: 
 /// ```ts
 /// const message = editWith({ session, gitDir }, message, editor); // throws EditorRefusal
 /// ```
-pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], editor: &str) -> Result<Vec<u8>, EditorRefusal> {
+pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], words: &[OsString]) -> Result<Vec<u8>, EditorRefusal> {
     let path: PathBuf = place.git_dir.join("MERGE_MSG");
     let mut template: Vec<u8> = message.to_vec();
     if let Some(lines) = help_lines(place.session) {
@@ -205,7 +207,7 @@ pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], editor: &str) -> Resul
     if let Err(error) = std::fs::write(path.as_path(), template.as_slice()) {
         return Err(EditorRefusal::Stopped(format!("the merge message file {} could not be written: {error}", path.display())));
     }
-    let ended: Result<ExitStatus, String> = launch(editor, path.as_path());
+    let ended: Result<ExitStatus, String> = launch(words, path.as_path());
     // The message file is this command's while the merge is unfinished: Git keeps `MERGE_MSG` for the length of the
     //  merge and removes it with the merge's state, and a merge that is not made here leaves none behind.
     let left: std::io::Result<Vec<u8>> = std::fs::read(path.as_path());
@@ -215,7 +217,7 @@ pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], editor: &str) -> Resul
         Err(detail) => return Err(EditorRefusal::Stopped(detail)),
     };
     if !status.success() {
-        return Err(EditorRefusal::Stopped(format!("there was a problem with the editor {editor} ({status})")));
+        return Err(EditorRefusal::Stopped(format!("there was a problem with the editor {} ({status})", words[0].to_string_lossy())));
     }
     let written: Vec<u8> = match left {
         Ok(bytes) => bytes,
@@ -236,17 +238,24 @@ pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], editor: &str) -> Resul
 /// "a commit that opens the person's
 ///  editor prints nothing and has no ceiling");
 /// its own exit status says what happened.
+/// The program and its arguments come from the words of the editor's command line,
+/// and the
+///  message file is the last argument,
+/// as `launch_editor` passes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// spawn('/bin/sh', ['-c', `${editor} "$@"`, editor, path], { stdio: 'inherit' }).status
+/// spawn(words[0], [...words.slice(1), path], { stdio: 'inherit' }).status
 /// ```
-fn launch(editor: &str, path: &Path) -> Result<ExitStatus, String> {
-    let mut command: Command = Command::new(SHELL);
-    command.arg("-c").arg(format!("{editor} \"$@\"")).arg(editor).arg(path);
+fn launch(words: &[OsString], path: &Path) -> Result<ExitStatus, String> {
+    let Some(program) = words.first() else {
+        return Err(String::from("the editor command holds no program"));
+    };
+    let mut command: Command = Command::new(program);
+    command.args(&words[1..]).arg(path);
     return match command.status() {
         Ok(status) => Ok(status),
-        Err(error) => Err(format!("the editor {editor} could not be started: {error}")),
+        Err(error) => Err(format!("the editor {} could not be started: {error}", program.to_string_lossy())),
     };
 }
 
