@@ -512,6 +512,7 @@ pub(crate) fn the_amends_tree(
     let written = run_git_checked(
         invocation.context,
         &indexed_request(
+            invocation.context,
             invocation.cwd,
             &["write-tree"],
             Some(native_inputs.commit_index.as_path()),

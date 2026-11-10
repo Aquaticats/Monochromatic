@@ -187,7 +187,7 @@ fn rooted(context: &GitContext) -> GitContext {
 /// const runner = { run: (args, input, index) => startGit(rooted(context), root, args, input, index) };
 /// ```
 fn runner_of<'a>(context: &'a GitContext, root: &'a Path) -> ContextRunner<'a> {
-    return ContextRunner { context, cwd: root, without_prefix: true, object_directory: None, environment: Vec::new() };
+    return ContextRunner { context, cwd: root, without_prefix: true, repository: Vec::new(), object_directory: None, environment: Vec::new() };
 }
 
 /// What:

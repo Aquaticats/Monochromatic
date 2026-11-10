@@ -5008,6 +5008,19 @@ and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
 
+The repository is the one the command line names.
+`-C` moves the wrapper,
+and `--git-dir`,
+`--work-tree` and `--bare` (or the `GIT_DIR` and `GIT_WORK_TREE` variables) select the repository,
+read from the directory the `-C` chain reaches,
+as Git reads them.
+A commit whose Git directory sits beside its work tree,
+or one an environment variable names,
+lands in that repository,
+and the one the shell happens to be in gains no object and no commit.
+The wrapper's own Git starts run in the directory the `-C` chain reached,
+so they receive the caller's other global options without that `-C`.
+
 When the manager stops the service (`SIGTERM`),
 the unit's `KillMode=mixed` makes it signal the service alone.
 The service then ends the Git processes it waits on (pushes,
