@@ -35,9 +35,12 @@ Same generated spec on both implementations,
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/upstream-fork/pify.fuzz:<task>`.
 
-The run budget per property comes from `PIFY_FORK_FUZZ_RUNS`
- (`fuzz-budget.ts`),
- defaulting to `200` so the unit suite stays fast.
+The run budget per property comes from `PIFY_FORK_FUZZ_RUNS`,
+ named in `fuzz-budget.ts`,
+ and the count,
+its default of `200` and the policy for a value that does not parse come from
+ `@monochromatic-dev/fuzz-core`,
+ so the unit suite stays fast.
 
 ### Coverage gate
 

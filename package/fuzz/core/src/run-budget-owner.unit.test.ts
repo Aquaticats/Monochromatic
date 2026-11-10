@@ -182,8 +182,8 @@ await describe({
            The sidecar's run-budget file.
            */
           const text = textOf(path,);
-          return !text.includes(SHARED_SPECIFIER,)
-            || !text.includes('fuzzRunsFromEnvironment(',)
+          return (!text.includes(SHARED_SPECIFIER,))
+            || (!text.includes('fuzzRunsFromEnvironment(',))
             || text.includes('Number.',);
         },);
         expect(ownParses,).toEqual([],);

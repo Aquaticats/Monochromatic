@@ -409,7 +409,8 @@ package/
   dev-script/               Developer utilities (file-enforcer, catalog-tighten,
                               deps-cube, page-weight, vm-builder, watch-restart)
   figma/                    Figma and Penpot tooling (kiwi parser, to-penpot converter)
-  fuzz/                     Coverage-guided fuzzing harnesses (forbidden-strings)
+  fuzz/                     Shared fuzz tooling (the run budget) and coverage-guided
+                              fuzzing harnesses (forbidden-strings)
   git-policy/               Policy-aware git wrapper (native Rust executable) and its fuzz sidecar
   intellij-plugin/          IntelliJ plugins (islands-black theme)
   kwin/                     KWin scripting (key-helper script and service)

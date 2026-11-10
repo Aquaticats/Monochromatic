@@ -15,6 +15,36 @@ import {
 const ENV_NAME = 'FUZZ_CORE_UNIT_TEST_RUNS';
 
 /**
+ Sets an environment variable for the duration of a `using` scope, restoring what it held before.
+
+ @param name - variable to set for the scope
+
+ @param value - value the scope sets
+
+ @returns the scope's disposable, which puts the earlier value back, or removes the variable when the process never had it
+
+ @example
+ ```ts
+ using _environment = withEnvironmentVariable('FUZZ_CORE_UNIT_TEST_RUNS', '5000');
+ ```
+ */
+function withEnvironmentVariable(name: string, value: string,): Disposable {
+  /**
+   Value the variable held before the scope started, which is absent when the process never set it.
+   */
+  const previous = process.env[name];
+  process.env[name] = value;
+  return {
+    [Symbol.dispose]: function restoreEnvironmentVariable(): void {
+      if (previous === undefined)
+        Reflect.deleteProperty(process.env, name,);
+      else
+        process.env[name] = previous;
+    },
+  };
+}
+
+/**
  One sidecar's budget over a stated environment, which keeps the process's own out of every case.
 
  @param raw - variable value to state, or nothing for an unset variable
@@ -49,7 +79,11 @@ await describe({
          Count a campaign asks for, well above the default so the two cannot be confused.
          */
         const campaignCount = DEFAULT_FUZZ_RUNS * 10;
-        expect(runsOver(String(campaignCount,),),).toBe(campaignCount,);
+        /**
+         Count the budget resolves from the campaign the environment states.
+         */
+        const requested = runsOver(String(campaignCount,),);
+        expect(requested,).toBe(campaignCount,);
       },
     },),
     it({
@@ -124,22 +158,11 @@ await describe({
       name: 'reads the process environment when none is given',
       fn: async () => {
         /**
-         Variable the process's own environment carries for this case, restored after it.
-         */
-        /**
          Count the process's own environment states for this case.
          */
         const campaignCount = DEFAULT_FUZZ_RUNS * 3;
-        const prior = process.env[ENV_NAME];
-        process.env[ENV_NAME] = String(campaignCount,);
-        try {
-          expect(fuzzRunsFromEnvironment({ envName: ENV_NAME, },),).toBe(campaignCount,);
-        } finally {
-          if (prior === undefined)
-            delete process.env[ENV_NAME];
-          else
-            process.env[ENV_NAME] = prior;
-        }
+        using _environment = withEnvironmentVariable(ENV_NAME, String(campaignCount,),);
+        expect(fuzzRunsFromEnvironment({ envName: ENV_NAME, },),).toBe(campaignCount,);
       },
     },),
   ],

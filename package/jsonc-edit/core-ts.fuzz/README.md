@@ -13,8 +13,9 @@ It holds:
   comment-safety guard proving an arbitrary comment body always emits parseable,
    fixpoint JSONC.
 - `fuzz-budget.ts`:
-   the per-property run count,
-   overridable with `JSONC_EDIT_FUZZ_RUNS`.
+   names `JSONC_EDIT_FUZZ_RUNS`,
+   the variable that raises the per-property run count
+   `@monochromatic-dev/fuzz-core` supplies.
 - The deterministic V8 coverage-reachability gate (`coverage-driver.ts`,
    `coverage-report.ts`,
   `coverage-baseline.json`):
