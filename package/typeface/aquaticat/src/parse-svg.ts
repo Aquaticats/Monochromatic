@@ -53,6 +53,80 @@ type MutableCell = {
 
 //endregion Types
 
+//region Whitespace
+
+/**
+ Every character JavaScript's `\s` class matches: the five ASCII whitespace controls, the space,
+ the line terminators, and the space separators and byte-order mark beyond ASCII.
+ 
+ Written as one string rather than as code ranges because the class is not contiguous.
+ */
+const WHITESPACE_CHARACTERS = '\t\n\v\f\r \u00A0\u1680'
+  + '\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A'
+  + '\u2028\u2029\u202F\u205F\u3000\uFEFF';
+
+/**
+ Reports one index as absent, which is what {@link String.prototype.indexOf} answers.
+ 
+ The name exists because the linter reads a bare `-1` inside a comparison as a nested binary
+ expression, and because every site here is asking the same question: where did this literal
+ first appear, or is it not in the text at all.
+ */
+const NOT_FOUND = -1;
+
+/**
+ Checks whether one character is whitespace, counting the empty string as not.
+ 
+ The empty string is what {@link String.charAt} reports where an index falls outside the text, and
+ treating it as non-whitespace is what ends a run at either edge without a bounds check.
+ 
+ @param character - one character, or the empty string where an index falls outside the text
+ 
+ @returns whether the character is one JavaScript's `\s` class matches
+ 
+ @example
+ ```ts
+ isWhitespaceCharacter('\n'); // true
+ isWhitespaceCharacter(''); // false
+ ```
+ */
+function isWhitespaceCharacter(character: string,): boolean {
+  return (character !== '')
+    && WHITESPACE_CHARACTERS.includes(character,);
+}
+
+/**
+ Finds where the whitespace run starting at one index ends.
+ 
+ @param text - text to scan
+ 
+ @param start - index the run begins at, whose character the caller already found to be whitespace
+ 
+ @returns index one past the last whitespace character of the run
+ 
+ @example
+ ```ts
+ whitespaceRunEnd({ text: '<rect  width', start: 5 }); // 7
+ ```
+ */
+function whitespaceRunEnd({
+  text,
+  start,
+}: {
+  readonly text: string;
+  readonly start: number;
+},): number {
+  /**
+   Index the scan has reached.
+   */
+  let cursor = start;
+  while (isWhitespaceCharacter(text.charAt(cursor,),))
+    cursor += 1;
+  return cursor;
+}
+
+//endregion Whitespace
+
 /**
  Sentinel returned by {@link attr} when the named attribute is genuinely
  absent. A `unique symbol` because an empty string is a valid attribute
@@ -106,6 +180,165 @@ function attr({
   return ATTRIBUTE_ABSENT;
 }
 
+//region Element scanning
+
+/**
+ One self-closing element the master strip draws.
+ */
+type SelfClosingElement = {
+  /**
+   Element name, one of the two names the master strip uses.
+   */
+  readonly tag: 'rect' | 'path';
+  /**
+   Raw attribute text between the element name and the closing `/>`.
+   */
+  readonly attrs: string;
+};
+
+/**
+ Element names the master strip draws, in the order the pattern this scan replaces listed them.
+ */
+const RECT_ELEMENT_NAME = 'rect';
+
+/**
+ Name of the other element the master strip draws; both names are the same length.
+ */
+const PATH_ELEMENT_NAME = 'path';
+
+/**
+ Reports the element name one opening holds, or the empty string when it holds neither name.
+ 
+ The empty string stands in for absence here because no element name is empty, so the two cases
+ cannot be confused; that is the one thing an attribute value could not promise at
+ {@link ATTRIBUTE_ABSENT}.
+ 
+ @param svgContent - full SVG file content
+ 
+ @param start - index one past the opening `<`, where the name belongs
+ 
+ @returns element name at that index, or the empty string when no name starts there
+ 
+ @example
+ ```ts
+ elementNameAt({ svgContent: '<rect width="1" />', start: 1 }); // 'rect'
+ ```
+ */
+function elementNameAt({
+  svgContent,
+  start,
+}: {
+  readonly svgContent: string;
+  readonly start: number;
+},): string {
+  if (svgContent.startsWith(
+    RECT_ELEMENT_NAME,
+    start,
+  ))
+    return RECT_ELEMENT_NAME;
+  if (svgContent.startsWith(
+    PATH_ELEMENT_NAME,
+    start,
+  ))
+    return PATH_ELEMENT_NAME;
+  return '';
+}
+
+/**
+ Reads every self-closing `<rect .../>` and `<path .../>` element in strip order.
+ 
+ One cursor replaces the global pattern this scan used to run through `matchAll`. An element needs
+ an opening `<`, a name, one whitespace character, and a `/>` terminator with no `>` between the
+ name and it, so the scan resumes at the next `<` unless all of those hold. The first `>` at or
+ after the name decides each attempt and that search only moves forward, so an export whose last
+ opener never terminates costs one pass of the document rather than a rescan per opener.
+ 
+ @param svgContent - full SVG file content
+ 
+ @returns self-closing elements in the order they appear
+ 
+ @example
+ ```ts
+ selfClosingElements('<rect width="1" /><path d="M0 0" />').length; // 2
+ ```
+ */
+function selfClosingElements(svgContent: string,): SelfClosingElement[] {
+  /**
+   Elements found so far, in the order they appear.
+   */
+  const elements: SelfClosingElement[] = [];
+  /**
+   Index of the next `<` the scan has not ruled out.
+   */
+  let cursor = 0;
+  /**
+   Index of the first `>` at or after the element name under examination, or `NOT_FOUND` when the
+   document holds no further `>`.
+   */
+  let closingAngle = svgContent.indexOf('>',);
+  while (cursor < svgContent.length) {
+    /**
+     Index of the opening `<` this attempt reads from.
+     */
+    const opening = svgContent.indexOf(
+      '<',
+      cursor,
+    );
+    if (opening === NOT_FOUND)
+      break;
+    /**
+     Index one past the opening `<`, where the element name belongs.
+     */
+    const nameStart = opening + 1;
+    /**
+     Element name at the opening, or the empty string when the `<` starts something else.
+     */
+    const tag = elementNameAt({
+      svgContent,
+      start: nameStart,
+    },);
+    if (tag === '') {
+      cursor = nameStart;
+      continue;
+    }
+    /**
+     Index one past the name, where the separator whitespace belongs.
+     */
+    const attrsStart = nameStart + tag.length;
+    if (!isWhitespaceCharacter(svgContent.charAt(attrsStart,),)) {
+      cursor = nameStart;
+      continue;
+    }
+    if (closingAngle < attrsStart) {
+      closingAngle = svgContent.indexOf(
+        '>',
+        attrsStart,
+      );
+    }
+    // Without a `>` ahead no later opener can terminate either, so the scan is finished.
+    if (closingAngle === NOT_FOUND)
+      break;
+    if (svgContent.charAt(closingAngle - 1,) !== '/') {
+      cursor = nameStart;
+      continue;
+    }
+    elements.push({
+      tag: tag === RECT_ELEMENT_NAME ? 'rect' : 'path',
+      attrs: svgContent.slice(
+        whitespaceRunEnd({
+          text: svgContent,
+          start: attrsStart,
+        },),
+        closingAngle - 1,
+      ),
+    },);
+    cursor = closingAngle + 1;
+  }
+  return elements;
+}
+
+//endregion Element scanning
+
 /**
  Parse the master glyph strip SVG and return one {@link Cell} per glyph position.
  Cells are delimited by `<rect>` elements; all `<path>` elements between two
@@ -128,28 +361,16 @@ export function parseSvg(svgContent: string,): Cell[] {
    Accumulator of parsed cells, filled in strip order as `<rect>` tags are encountered.
    */
   const cells: MutableCell[] = [];
-  /* oxlint-disable no-restricted-syntax/no-regex -- SVG element tokenizer scoped to two literal tag names; lazy `([^>]*?)` is bounded by the next `/>` and the input is a Figma-exported master strip (bounded size). Linear: every char is visited at most twice across the alternation. */
-  /**
-   Matches a self-closing `<rect ... />` or `<path ... />` tag and captures its tag name and attributes.
-   */
-  const elementRegex = /<(?<tag>rect|path)\s+(?<attrs>[^>]*?)\/>/gu;
-  /* oxlint-enable no-restricted-syntax/no-regex */
 
-  for (const match of svgContent.matchAll(elementRegex,)) {
+  for (const element of selfClosingElements(svgContent,)) {
     /**
-     Named capture groups from the current match: `tag` is the element name and `attrs` the raw attribute string.
+     Element name (`rect` or `path`) of the element under examination.
      */
-    const { groups, } = match;
+    const { tag, } = element;
     /**
-     Element name (`rect` or `path`) captured from the matched tag.
+     Raw attribute substring between the element name and the self-closing `/>`.
      */
-    const tag = groups?.tag;
-    /**
-     Raw attribute substring captured between the tag name and the self-closing `/>`.
-     */
-    const attrs = groups?.attrs;
-    if (attrs === undefined)
-      continue;
+    const { attrs, } = element;
 
     if (tag === 'rect') {
       /**

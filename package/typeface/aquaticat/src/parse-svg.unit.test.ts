@@ -220,6 +220,64 @@ await describe({
 
         //endregion Stroke detection
 
+        //region Element boundaries
+
+        it({
+          name: 'needs whitespace between the element name and its attributes',
+          fn: async () => {
+            /**
+             Parsed cells for a rect whose name runs straight into its attributes, beside one real cell.
+             */
+            const cells = parseSvg(svgDocument({
+              elements: `<rectwidth='605' height='1000' fill='white' />${cellRect({ xOffset: '', },)}`,
+            },),);
+
+            expect(cells.length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'reads no cell from an element whose attribute value holds a closing angle bracket',
+          fn: async () => {
+            /**
+             Parsed cells for one rect whose title holds the `>` the terminator search must not cross.
+             */
+            const cells = parseSvg(svgDocument({
+              elements: `<rect title='a>b' width='605' height='1000' fill='white' />`,
+            },),);
+
+            expect(cells,).toStrictEqual([],);
+          },
+        },),
+
+        it({
+          name: 'reads a cell whose attributes start on the following line',
+          fn: async () => {
+            /**
+             Parsed cells for a rect the export wrapped across three lines.
+             */
+            const cells = parseSvg(svgDocument({
+              elements: `<rect\n  width='605' height='1000'\n  fill='white' />`,
+            },),);
+
+            expect(cells.length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'reads no cell from an export truncated before any element terminates',
+          fn: async () => {
+            /**
+             Opener repeated the way a truncated Figma export ends, with no `>` anywhere after it.
+             */
+            const truncated = '<rect '.repeat(2_000,);
+
+            expect(parseSvg(truncated,),).toStrictEqual([],);
+          },
+        },),
+
+        //endregion Element boundaries
+
         //region Unexpected input
 
         it({
