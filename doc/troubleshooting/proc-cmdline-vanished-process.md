@@ -203,6 +203,10 @@ processIdsWithCmdline({
   that swallows `EACCES`,
   `ENOMEM` from the kernel's page allocation in `get_mm_cmdline`,
   and every programming error with it.
+- Signalling a listed process without tolerating that it already exited:
+  `process.kill` answers `ESRCH` for the same window,
+  with `syscall: 'kill'`,
+  so a scan-then-signal cleanup loop needs the same guard as the scan.
 
 ## Upstream filing
 
