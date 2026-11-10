@@ -9563,35 +9563,46 @@ and its steps are awaited:
   the process-identity inspector (`process/process_identity.rs`) and
   the package repair's tool (`repair/package_repair_command.rs`,
   which now awaits `spawn_retrying_without_blocking`).
-  The three storage calls inside a task (`50aa12d788`):
-  the split removal's walk and the directories above the split depth
+  The two storage calls of the walk in a task (`50aa12d788`, `f0eefdfc8c`):
+  the split removal walks a stage on the blocking pool now
   (`worktree_copying/worktree_copy_journal_removal.rs`),
-  which are two jobs of the blocking pool now,
-  in the order the synchronous version kept (the subtrees by their own jobs,
-  then the directories above them).
+  and runs the walk in turn where the system refuses a thread,
+  as the control that runs the removal with no thread to start requires.
+  The removals of the directories above the split depth stay on the caller,
+  inside a helper the scan does not follow,
+  and the code says why:
+  they are a handful of known directories that hold nothing,
+  and the sweep that kills the copy at each `rmdir`
+  (`binary/binary_fault_trace_tests.rs`,
+  `copy_flow`)
+  traces the wrapper's own thread only,
+  so moving them would have traded a covered instruction for an uncovered one.
 - The exceptions,
   and what each one is waiting for:
   forty-six sites are listed in `ALLOWED` by file and rule,
-  each with the reason it stays and what removes it.
-  Seventeen files start a thread the move has not converted (the watchers,
+  each with the reason it stays and what removes it:
+  seventeen files start a thread the move has not converted (the watchers,
   the reapers,
   the guarded Markdown linter,
   the scoped runner,
   the review's contained thread,
-  and the bounded runtime build of open choice 9),
+  and the bounded runtime build of open choice 9);
   twenty pauses still sleep on a synchronous clock (the landing loop's waits,
   the index and reference lock waits,
   the client's connects,
-  and the one pause the plan keeps in `push/start_retry.rs` for the forwarded command),
+  and the one pause the plan keeps in `push/start_retry.rs` for the forwarded command);
   seven files of the merge's carry and second pass do one metadata look,
-  read or removal of a known small file inside a task,
+  read or removal of a known small file inside a task;
   and two files start a child on macOS or Windows only,
   which the owner's "Ignore Win and mac until I say so." keeps unconverted.
   An entry whose code is gone fails the suite,
   so the list shrinks as the move lands.
 - What the guards do not see:
-  they read one file at a time,
-  so a call into a helper in another file is found only where that helper does the blocking work;
+  they read one file at a time and follow no call at all,
+  so a call into a helper is found only where that helper does the blocking work,
+  in this file or another;
+  moving blocking work into a named function therefore hides it from the scan,
+  which is why the split removal's own comment says why its shallow removals stay;
   a command built in one function and started in another is found only where the word `Command` reaches the second
   one,
   which is why the builder rule (`git_command`) exists beside it;
