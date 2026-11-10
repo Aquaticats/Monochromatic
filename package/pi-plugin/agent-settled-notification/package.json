@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-agent-settled-notification",
   "description": "Pi extension that sends a Freedesktop desktop notification after an agent fully settles",
   "type": "module",

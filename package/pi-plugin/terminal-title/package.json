@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-terminal-title",
   "description": "Terminal tab title extension for pi: shows current tool, session state, and user prompt in the terminal window title",
   "type": "module",

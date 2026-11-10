@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-auto-mode",
   "description": "Complete-group tool-call review through Pi's public plugin API",
   "type": "module",

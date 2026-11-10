@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/dsh-plugin-advisor",
   "description": "In-process DSH Advisor plugin: consults scoped reviewer models through ctx.llm with the unified pi-advisor.json config, the advisor tool, and /advisor command parity",
   "type": "module",

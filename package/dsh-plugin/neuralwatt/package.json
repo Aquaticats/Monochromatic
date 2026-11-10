@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/dsh-plugin-neuralwatt",
   "description": "NeuralWatt provider for DSH: owns the neuralwatt pi-ai route over the shipped llm-pi-ai adapter, with the model list fetched live from the NeuralWatt API carrying accurate context windows and thinking levels, and a checked-in snapshot standing in while the API is unreachable",
   "type": "module",

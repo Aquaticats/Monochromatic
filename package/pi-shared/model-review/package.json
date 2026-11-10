@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-shared-model-review",
   "description": "Shared structured model-review transport and availability fallback orchestration for pi plugins",
   "type": "module",

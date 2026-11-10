@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-thinking-default",
   "description": "Model-aware thinking default extension for pi: GPT models use xhigh, and other models use xhigh when supported and high otherwise",
   "type": "module",

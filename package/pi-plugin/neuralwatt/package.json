@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-neuralwatt",
   "description": "NeuralWatt provider for pi: serves the checked-in model listing as the baseline catalog, refreshes it from the live listing at session start, and resolves the API key from pi's credential, the encrypted env store, then the environment",
   "type": "module",

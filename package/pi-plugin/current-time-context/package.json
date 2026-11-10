@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-current-time-context",
   "description": "Hidden current local time context extension for pi: injects <time>HH:MM</time> before every agent turn",
   "type": "module",

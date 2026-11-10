@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-spawn",
   "description": "Visible child Pi session spawner with automatic parent result forwarding.",
   "type": "module",

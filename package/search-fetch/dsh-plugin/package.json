@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/search-fetch-dsh-plugin",
   "description": "DSH bundle connecting the shared search and fetch MCP server so dsh agents get Exa-first web_search and blocklist-enforced web_fetch",
   "version": "0.0.1",

@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-model-retirement",
   "description": "Pi extension that retires superseded models from the live catalog so the model picker stops offering them",
   "type": "module",

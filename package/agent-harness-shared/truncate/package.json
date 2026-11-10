@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/agent-harness-shared-truncate",
   "description": "Neutral tool-output truncation and size formatting with pi-identical semantics.",
   "type": "module",

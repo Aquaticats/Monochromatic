@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/search-fetch-pi-plugin",
   "description": "Exa-first search and Linkup-first fetch extension for pi with global host blocklist enforcement",
   "type": "module",

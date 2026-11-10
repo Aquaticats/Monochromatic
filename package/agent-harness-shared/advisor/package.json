@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/agent-harness-shared-advisor",
   "description": "Host-neutral Advisor core: scoped reviewer selection, serialized review context, and bounded completion recovery on model-resolution, transcript, and theme ports",
   "type": "module",

@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-goal",
   "description": "Repository-owned Pi stop hook for one independently reviewed active objective",
   "type": "module",

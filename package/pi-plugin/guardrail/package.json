@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-guardrail",
   "description": "Tool-call guardrails for pi: block misleading bun test invocations, mutating Git through an absolute real-Git path, and config-driven edits or writes to protected paths",
   "type": "module",

@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-ask-user-question",
   "description": "Pi extension that blocks the model while the user writes a free-form answer in the default editor",
   "type": "module",

@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-cost-dismissal",
   "description": "Shadow-records cost dismissals found in pi sessions: assistant prose is folded for size-dismissal sentences and recorded at tool_call, tool_result and turn_end, locally and as metadata only",
   "type": "module",

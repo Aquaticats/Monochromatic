@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-openai-fast",
   "description": "Native pi virtual OpenAI companions requesting priority through existing provider authentication",
   "type": "module",

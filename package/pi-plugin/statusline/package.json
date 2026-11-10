@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-plugin-statusline",
   "description": "Pi footer status extension that warns when provider usage is projected to overflow",
   "type": "module",

@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/agent-harness-shared-model-selection",
   "description": "Shared model selection logic for pi plugins and harness-neutral agent packages",
   "type": "module",

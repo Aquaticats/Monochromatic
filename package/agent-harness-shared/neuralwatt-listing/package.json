@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/agent-harness-shared-neuralwatt-listing",
   "description": "Harness-neutral NeuralWatt listing core: listing-to-facts mapping, thinking-level expansion, the checked-in snapshot, and the bounded listing fetch shared by the DSH and pi NeuralWatt plugins",
   "type": "module",
