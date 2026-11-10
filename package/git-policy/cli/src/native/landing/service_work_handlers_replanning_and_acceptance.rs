@@ -20,7 +20,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry::{RetryChange, Retrying, cause_line, pause_before};
 use crate::service_instance::GitDirUnreachable;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use crate::service_claim_renewal::HeldClaims;
@@ -478,6 +478,8 @@ impl Replanning {
 ///  failure record carries.
 /// Why:
 ///   The journal line names the cause,
+/// which is the first of Git's own lines that gives a reason rather than
+///  the remote it pushed to (`cause_line`),
 /// the number of the try that is planned and the pause before it,
 /// so the service's quiet
 ///  between tries is explained;
@@ -532,7 +534,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     ];
     log_entry(
         Priority::Warning,
-        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
+        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), cause_line(text).unwrap_or_default()).as_str(),
         &fields,
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in

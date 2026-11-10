@@ -36,7 +36,7 @@ use crate::service_work_storage_awaited::{
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, Retrying};
+use crate::push_retry::{Due, Retrying, cause_line};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -189,7 +189,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 }
             }
             Verdict::Failed(text) => {
-                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
+                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, cause_line(text.as_str()).unwrap_or_default());
                 replanning.forget(git_dir, branch);
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
