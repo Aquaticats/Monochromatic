@@ -46,6 +46,8 @@ export {
   CommandFailedError,
   KeyHelperError,
   NoAppIdentityError,
+  NoNvimSocketError,
+  NoRuntimeDirectoryError,
   UnknownKeyError,
 } from './errors.ts';
 
@@ -59,6 +61,17 @@ export {
   keysToEvdev,
   sendKeys,
 } from './keys.ts';
+
+/**
+ Neovim listen-socket discovery and the msgpack-rpc input sender.
+
+ @internal
+ */
+export {
+  findNewestNvimSocket,
+  nvimSocketDirectory,
+  sendNvimInput,
+} from './nvim.ts';
 
 /**
  The pure double-shift detector and sysfs bitmap parser.

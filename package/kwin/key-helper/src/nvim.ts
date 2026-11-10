@@ -21,7 +21,10 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { encode } from '@msgpack/msgpack';
 
-import { NoNvimSocketError } from './errors.ts';
+import {
+  NoNvimSocketError,
+  NoRuntimeDirectoryError,
+} from './errors.ts';
 
 //region Logging
 
@@ -49,21 +52,81 @@ const RPC_TIMEOUT_MS = 500;
 const NVIM_SOCK_PREFIX = 'nvim.';
 
 /**
- UID fallback when `process.getuid` is unavailable and `$UID` is unset.
+ Name of the environment variable Neovim reads the runtime directory from.
  */
-const DEFAULT_UID = 1_000;
+const RUNTIME_DIRECTORY_VARIABLE = 'XDG_RUNTIME_DIR';
 
 /**
- Current UID, used to locate the per-user runtime directory.
+ Directory a per-user runtime directory sits in, which systemd-logind manages.
  */
-const UID = process.getuid?.() ?? Number(process.env
-  .UID
-  ?? DEFAULT_UID);
+const PER_USER_RUNTIME_ROOT = '/run/user';
 
 /**
- Runtime directory Neovim writes its listen sockets into.
+ Directory Neovim writes its default listen socket into.
+ 
+ Neovim uses `$XDG_RUNTIME_DIR` for that (neovim/neovim#3517), so a session that
+ points the variable somewhere else, as a non-systemd login or a container does,
+ keeps its sockets outside `/run/user/<uid>`. The per-user runtime directory is
+ the fallback only when the variable is absent.
+
+ Both candidates arrive as arguments rather than being read here, so the
+ precedence between them is testable without changing the test process's
+ environment or stubbing its user id.
+ 
+ @param xdgRuntimeDirectory - Value of `$XDG_RUNTIME_DIR`, or the empty string when unset
+ 
+ @param perUserRuntimeDirectory - Per-user runtime directory, or the empty string when the runtime names none
+ 
+ @returns Absolute path of the directory to look for listen sockets in
+ 
+ @throws {@link NoRuntimeDirectoryError} when neither candidate names one
+ 
+ @example
+ ```ts
+ nvimSocketDirectory({ xdgRuntimeDirectory: '/run/user/1000', perUserRuntimeDirectory: '' });
+ ```
  */
-const NVIM_SOCK_DIR = `/run/user/${UID}`;
+export function nvimSocketDirectory({
+  xdgRuntimeDirectory,
+  perUserRuntimeDirectory,
+}: {
+  readonly xdgRuntimeDirectory: string;
+  readonly perUserRuntimeDirectory: string;
+}): string {
+  if (xdgRuntimeDirectory !== '') {
+    return xdgRuntimeDirectory;
+  }
+  if (perUserRuntimeDirectory !== '') {
+    return perUserRuntimeDirectory;
+  }
+  throw new NoRuntimeDirectoryError();
+}
+
+/**
+ The runtime directory this session names, read per call.
+ 
+ Reading it per call rather than at import keeps a daemon that started before
+ the variable was set able to find the session's sockets.
+ 
+ @returns Absolute path of the directory to look for listen sockets in
+ 
+ @throws {@link NoRuntimeDirectoryError} when neither source names one
+ 
+ @example
+ ```ts
+ sessionSocketDirectory();
+ ```
+ */
+function sessionSocketDirectory(): string {
+  /**
+   User id the runtime reports, or `undefined` when it reports none.
+   */
+  const uid = process.getuid?.();
+  return nvimSocketDirectory({
+    xdgRuntimeDirectory: process.env[RUNTIME_DIRECTORY_VARIABLE] ?? '',
+    perUserRuntimeDirectory: uid === undefined ? '' : `${PER_USER_RUNTIME_ROOT}/${String(uid)}`,
+  });
+}
 
 /**
  Mutable holder for the monotonically increasing msgpack-rpc message id, a
@@ -88,20 +151,28 @@ type SocketEntry = {
 /**
  Find the most recently modified Neovim listen socket.
  
+ @param directory - Runtime directory to scan, resolved from the session by default
+ 
  @returns Absolute path of the newest Neovim listen socket
  
  @throws {@link NoNvimSocketError} when no Neovim socket is present
+ 
+ @throws {@link NoRuntimeDirectoryError} when no runtime directory can be named
  
  @example
  ```ts
  const sock = await findNewestNvimSocket();
  ```
  */
-export async function findNewestNvimSocket(): Promise<string> {
+export async function findNewestNvimSocket({
+  directory = sessionSocketDirectory(),
+}: {
+  readonly directory?: string;
+} = {}): Promise<string> {
   /**
-   All entries in the per-user runtime directory.
+   All entries in the runtime directory.
    */
-  const entries = await readdir(NVIM_SOCK_DIR);
+  const entries = await readdir(directory);
   /**
    Entry names matching the Neovim socket prefix.
    */
@@ -117,7 +188,7 @@ export async function findNewestNvimSocket(): Promise<string> {
       /**
        Absolute path of this candidate socket.
        */
-      const full = `${NVIM_SOCK_DIR}/${entry}`;
+      const full = `${directory}/${entry}`;
       try {
         /**
          File info used to read the modification time.

@@ -100,3 +100,24 @@ export class NoAppIdentityError extends KeyHelperError {
     this.name = 'NoAppIdentityError';
   }
 }
+
+/**
+ Thrown when neither `$XDG_RUNTIME_DIR` nor the process UID is available, so
+ there is no way to name the directory Neovim writes its listen sockets into.
+ Scanning a guessed path would look in another user's directory, so discovery
+ fails instead.
+ 
+ @example
+ ```ts
+ throw new NoRuntimeDirectoryError();
+ ```
+ */
+export class NoRuntimeDirectoryError extends KeyHelperError {
+  /**
+   Construct with a fixed, descriptive message.
+   */
+  constructor() {
+    super('no runtime directory: neither XDG_RUNTIME_DIR nor a process UID is available');
+    this.name = 'NoRuntimeDirectoryError';
+  }
+}
