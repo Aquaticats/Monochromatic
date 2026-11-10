@@ -71,6 +71,31 @@ const r = createRequire('/home/user/.local/share/pnpm/store/v11/links/@earendil-
 console.log(r.resolve('proper-lockfile'))"
 ```
 
+## Seen again on 1.5.1 across every worktree
+
+Probed on 2026-11-10 in the `pi-plugin-registration-and-spawn-issues` worktree,
+where `@earendil-works/pi-coding-agent` resolved to `1.5.1/<hash>`:
+
+- The breakage surfaced as a unit-test failure of `package/pi-plugin/spawn`:
+  its `src/index.unit.test.ts` loads the Pi extension API, and the run died with
+  the `ERR_MODULE_NOT_FOUND` above naming `settings-manager.js`.
+- 22 of the 23 `1.5.1/<hash>` store link directories in this store carried a
+  dangling `proper-lockfile` entry.
+  The one intact entry was the main checkout's,
+  which is why the breakage shows up only inside a worktree.
+- The dangling target overshoots the filesystem root by exactly one directory:
+  resolved from the real parent it yields `/var/var/mnt/...`.
+  Repointing the entry at the main checkout's shim,
+  as the repair above does,
+  restored resolution and the suite.
+- `import.meta.resolve('proper-lockfile')` run from a package directory does not
+  probe this entry:
+  package resolution walks that package's own `node_modules` chain and never
+  reaches the store link directory.
+  Probe with `createRequire` on
+  `<store-link-dir>/node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js`
+  instead.
+
 ## Limits
 
 - The store link directory is machine-global state,
