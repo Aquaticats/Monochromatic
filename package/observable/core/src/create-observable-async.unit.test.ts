@@ -13,7 +13,7 @@ import {
 import {
   createObservableAsync,
   type ObservableAsync,
-} from './create-observable-async.ts';
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: createObservableAsync.name,
