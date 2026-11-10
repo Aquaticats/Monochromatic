@@ -109,6 +109,9 @@ Self-elevation intentionally authorizes current user-owned runtime,
 bundle,
 and the paired repository build of the companion for root execution;
 use root-owned installed artifacts when workspace integrity is not trusted.
+The detached route watcher reads the clearnet host list from the data file beside its bundle again at every refresh,
+and reads it only as data,
+from a regular file that root or the user the tunnel was started for owns and no other account can write.
 
 See
 [sudo privilege troubleshooting](../../../doc/troubleshooting/sudo-1-9-secure-path-workspace-cli.md)
@@ -1068,7 +1071,7 @@ and a test fails if one appears in either wg package.
    This is how a Pi agent run stays outside the tunnel,
    its driver and every child process with it.
 3. The update hosts:
-   Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
+   Traffic to the hosts in `src/clearnet-hosts.data.json` bypasses the tunnel for every program,
    browsers included.
    The list holds every host named by `toolchain.plan.jsonc`,
    `toolchain.lock.json`,
@@ -1079,7 +1082,7 @@ and a test fails if one appears in either wg package.
    `index.crates.io` and `static.crates.io`.
    A test scans those sources and fails when a host appears there that the list lacks.
 4. The model provider hosts of Pi:
-   Traffic to the hosts in `src/provider-hosts.data.ts` bypasses the tunnel for every program,
+   Traffic to the hosts in `src/clearnet-hosts.data.json` bypasses the tunnel for every program,
    browsers included,
    and the list is kept apart from the update hosts because they leave the tunnel for another reason:
    they carry the requests of the agents.
@@ -1250,6 +1253,55 @@ An address leaves the rules only after it was absent from two consecutive refres
 because round-robin DNS and CDNs drop an address from one answer and return it in the next.
 The first refresh runs during `up`,
 so the rules exist before traffic flows.
+
+#### A newer build's host lists apply without a restart
+
+The watcher reads the hosts it installs rules for from the data file the build emits beside its own bundle,
+`dist/final/node/clearnet-hosts.data.json`,
+at every refresh.
+A release that adds,
+drops or renames an update host or a model provider host therefore reaches a tunnel that is already up,
+with nothing for a person to do:
+the next refresh installs the rules of the new list.
+A rule that both lists name is never removed,
+so a connection through it is not moved into the tunnel and does not change its source address.
+A host the new list no longer names loses its rule after two consecutive refreshes without it,
+the same rule that keeps a rotating CDN address alive,
+so such a rule lingers at most two refresh intervals,
+between 30 seconds and 15 minutes each.
+No interface is recreated and no watcher is replaced for a list change.
+
+The file is data and not code:
+the watcher parses it and never executes it,
+opens it without following a link at the last component the way the `wg-quicker-exempt` install roots are read,
+and reads only a regular file owned by root or by the user the tunnel was started for,
+which no other account can write.
+The file names both lists and one schema version,
+and a file that is missing,
+unreadable,
+of another version,
+or naming something that is not a bare lowercase hostname is refused as a whole,
+because installing one list without the other would remove the other list's rules.
+
+A refused file leaves the rules of the list this watcher read last in force:
+nothing is added,
+nothing is removed,
+no routing is removed,
+and a line that starts with `POLICY NOT IN FORCE` reaches the journal and the desktop of the user who started
+the tunnel through `sudo`,
+naming the file,
+what is wrong with it,
+and that the next attempt is in 30 seconds.
+`up` reads the same file for its own first refresh;
+a start whose data file cannot be read installs the hosts compiled into that build,
+says so,
+and goes on.
+
+A tunnel whose watcher was started by a build that predates this behaviour keeps the list compiled into that build,
+because the running process is that build's code.
+Starting that watcher again is the only case in which a changed host list still needs a `down` and an `up`
+or a replaced route watcher;
+every watcher started by a build with this behaviour follows the installed list from then on.
 
 ### Warned on every start, loud when not in force
 

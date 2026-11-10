@@ -114,6 +114,14 @@ loudly".
 This watcher enforces two of the three methods the user chose;
 the update-host list is enforced by `wg-quicker`'s route watcher
 (see the [wg-quicker README](../cli-quicker/README.md#update-traffic-policy)).
+That watcher reads both host lists,
+the update hosts and Pi's model provider hosts,
+from the data file `wg-quicker` emits beside it,
+again at every refresh,
+so a newer build's host lists reach a tunnel that is already up without a restart and without a person doing anything.
+What this watcher applies is compiled into the running companion instead:
+its process matchers,
+its install roots and its socket-marking rules change only when its own watcher is started again.
 
 - The process watch:
   A process that is an update entry point is moved into `app-monochromatic\x2dupdates.slice`.
