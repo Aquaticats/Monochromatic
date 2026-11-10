@@ -317,7 +317,8 @@ impl ClaimWatch {
     /// or gave no answer within its ceiling,
     /// wrote the note or did not,
     /// and nothing here can read which:
-    /// the directory is tried again either way, which writes the same note twice at worst.
+    /// the directory is tried again either way,
+    /// which writes the same note twice at worst.
     /// A watch kept in memory only records it at once,
     /// as `remember` does.
     ///
@@ -326,11 +327,21 @@ impl ClaimWatch {
     /// watch.aNoteThatMayBeMissing(gitDir)
     /// ```
     pub fn a_note_that_may_be_missing(&mut self, git_dir: &Path) {
-        if self.store.is_none() || self.known.iter().any(|known| known == git_dir) || self.unwritten.iter().any(|kept| kept == git_dir) {
+        if self.store.is_none() || self.holds(git_dir) {
             return;
         }
         self.unwritten.push(git_dir.to_path_buf());
         self.failures = self.failures.saturating_add(1);
+    }
+
+    /// Whether `git_dir` is already one of the notes this watch holds or owes.
+    fn holds(&self, git_dir: &Path) -> bool {
+        for kept in self.known.iter().chain(self.unwritten.iter()) {
+            if kept == git_dir {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Tries again what failed:

@@ -607,10 +607,10 @@ impl PushRetries {
     /// the list changes here and the journal keeps what it holds.
     /// Why:
     ///   A caller that polls the runtime may not write storage itself,
-    /// and a job the system gives no thread for wrote nothing;
-    ///  the worker of each plan has already written the file it promised,
-    /// so the list is what this call must keep.
-    /// The next round writes the plan's files again when a thread can start.
+    /// and a job the system gave no thread for wrote nothing,
+    ///  while the worker of each plan already wrote the file it promised:
+    /// the list is what this call must keep,
+    /// and the next round writes the plan's files again when a thread can start.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

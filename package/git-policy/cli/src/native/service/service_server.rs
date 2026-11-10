@@ -187,7 +187,7 @@ pub struct ServeSettings {
     pub own_worktree_check: Duration,
     /// How long the plan of the pushes waiting for a new try and the repositories an earlier service was woken for
     /// are read for before the service starts without them
-    /// (`the_journal_restored_within`);
+    /// (`service_journal_restored_at_start.rs`);
     /// a control shortens it.
     pub journal_restore_ceiling: Duration,
     /// What the service does when that directory is gone:
@@ -222,7 +222,7 @@ impl ServeSettings {
 ///  without its after-commit work never pushes the person's commits,
 /// while an ended service is started again by the manager.
 /// The plan and the watch are read before this call,
-///  by a thread of their own (`the_journal_restored_within`),
+///  by a thread of their own (`service_journal_restored_at_start.rs`),
 /// so the task starts with what the service that stopped last left and no storage wait of
 ///  that reading holds a worker.
 fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
@@ -243,35 +243,6 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
 ///  remembers (`DONE_RETAINED`),
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
-
-/// What:
-///  The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
-/// read from this instance's journal on a thread of its own,
-/// and nothing learned when that thread gives no answer within `ceiling`.
-/// Why:
-///   Both are storage: the plan is one file per waiting branch and the watch one file per repository,
-/// and a filesystem that stopped answering holds a read of either in the kernel with no end.
-/// The landing thread reads neither itself, so a journal that is slow delays the after-commit work and never
-///  the greeting of a client or the answer to a commit.
-/// A read that gives no answer leaves the service with nothing restored,
-///  which loses no commit: the plan only repeats a push the person's failure record already names,
-/// and the watch only saves a wake.
-fn the_journal_restored_within(ceiling: Duration, plan_directory: PathBuf, watch_directory: PathBuf, instance: Option<String>) -> (PushRetries, ClaimWatch) {
-    let restored = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
-        let retries: PushRetries = PushRetries::restored_from_environment(plan_directory.as_path());
-        let watch: ClaimWatch = ClaimWatch::restored(watch_directory.as_path(), instance.as_deref());
-        return (retries, watch);
-    });
-    return match restored {
-        Some(pair) => pair,
-        None => {
-            crate::service_warn!(
-                "the plan of the pushes waiting for a new try and the repositories an earlier service was woken for gave no answer within {ceiling:?}, so this service starts without them: a push that was waiting is planned again by the next round that names its branch, and the repositories of an earlier wake are looked at when a commit names them again"
-            );
-            (PushRetries::from_environment(), ClaimWatch::in_memory())
-        }
-    };
-}
 
 /// What:
 ///  Whether this service should stop serving because the worktree whose units are its own is gone.
@@ -382,7 +353,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     );
     // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
     //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
-    let (started_retries, started_watch): (PushRetries, ClaimWatch) = the_journal_restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
+    let (started_retries, started_watch): (PushRetries, ClaimWatch) =
+        crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.

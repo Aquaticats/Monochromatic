@@ -185,29 +185,23 @@ fn lane_key(directory: &Path) -> PathBuf {
 /// const keys = await laneKeysAwaiting(directories);
 /// ```
 async fn lane_keys_awaiting(directories: &[Assignment]) -> TheAnswerOfAJobAwaited<Vec<PathBuf>> {
-    let asked: Vec<PathBuf> = directories.iter().map(|assignment| { return assignment.directory.clone(); }).collect();
+    let mut asked: Vec<PathBuf> = Vec::with_capacity(directories.len());
+    for assignment in directories {
+        asked.push(assignment.directory.clone());
+    }
     return run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, asked, lane_keys_in_a_job).await;
 }
 
 /// `lane_keys_awaiting`'s work,
 /// as the job of the pool takes it.
 fn lane_keys_in_a_job(directories: Vec<PathBuf>) -> Vec<PathBuf> {
-    return directories.iter().map(|directory| { return lane_key(directory.as_path()); }).collect();
+    let mut keys: Vec<PathBuf> = Vec::with_capacity(directories.len());
+    for directory in &directories {
+        keys.push(lane_key(directory.as_path()));
+    }
+    return keys;
 }
 
-/// What:
-///  The lanes of the round:
-/// one lane per repository,
-/// each holding its directories in the order they were named.
-/// Why:
-///   Two directories of one repository share a work directory and its upkeep,
-/// so they are drained one after another;
-///  directories of different repositories share nothing and run side by side.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lanes = lanesOf(keys);
-/// ```
 /// What:
 ///  The round's directories in one lane,
 /// which is every directory one after another,
@@ -228,10 +222,18 @@ fn one_lane_of(count: usize) -> Vec<Vec<usize>> {
 }
 
 /// What:
-///  The lanes of the round from the key of each directory,
-/// one lane per repository.
+///  The lanes of the round:
+/// one lane per repository,
+/// each holding its directories in the order they were named.
 /// Why:
-///  See `drain_directories_awaiting`.
+///   Two directories of one repository share a work directory and its upkeep,
+/// so they are drained one after another;
+///  directories of different repositories share nothing and run side by side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lanes = lanesOf(keys);
+/// ```
 fn lanes_of(keys: &[PathBuf]) -> Vec<Vec<usize>> {
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();

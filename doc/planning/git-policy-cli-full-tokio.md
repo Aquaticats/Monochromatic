@@ -9441,6 +9441,283 @@ and its steps are awaited:
   so a task that reads them reads the host and the clock itself.
   Neither holds a file open beyond its own read.
 
+## Step T12, the loop's own storage steps leave the worker, and the acceptor starts before the journal, 2026-11-10T15:38:48-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-next-step-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-next-step-on-the-runtime`,
+  from main at `b3d00b3be4`.
+  `4c8f2d7c6e` is the acceptor and the journal's own thread;
+  `87bd4ade9e` is the loop's state steps and the review's findings 1,
+  2,
+  4 and 5.
+  Not merged into main.
+- What this run was asked to do,
+  in the plan's own order:
+  the next leaf-first piece of T12 that nobody had started,
+  which the previous section leaves as "the service loop's own waits",
+  before the landing and the commit path,
+  together with the review of `b3d00b3be4`
+  (`${HOME}/temp/agent/kimi-reviews/tokio-after-commit-loop-1/review.md`).
+  T13's guards are still not started,
+  for the reason the previous section gives.
+
+### The five findings, and which ones reproduced
+
+The review found all five by reading.
+This run reproduced findings 3 and 5,
+and the consequences of 1 and 2,
+and could not reproduce the race that starts 1 and 2:
+
+- Finding 3 (the landing thread reads the journal before the acceptor starts)
+  reproduced with a pipe where a plan file of the journal would be:
+  with the readings on the landing thread the client was never greeted
+  (the control failed after the read timeout of 3 s at
+  `service_server_greets_before_the_journal_is_restored_tests.rs`),
+  and with the acceptor first the greeting,
+  the beats and the landing all happen while that read has not returned.
+- Finding 5 (the round reads `commondir` on a worker) reproduced by
+  standing a pipe at a linked worktree's `commondir` and running the
+  round on a runtime of one worker:
+  with the read on the task the task beside it never ran,
+  and with the read a job of the pool it ran in 0.3 s.
+- Findings 1 and 2 (a started job's value is replaced by a clone made
+  before it) reproduced in consequence,
+  by stating the answer the pool gives in that case:
+  the round's plan lost the retry its worker promised,
+  and the watch lost the note it owed,
+  although the job's own log line said it would be tried again.
+- The race itself did not reproduce,
+  and no control can arrange it:
+  the caller takes the claim on the job's work while the pool has no
+  thread to take it
+  (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+  `spawn_task` queues the
+  job and then asks for a thread),
+  so `StartedAfterItsThreadWasRefused` needs a pool thread that both
+  exists and picks the queued job up between the refused start and that
+  claim.
+  Reads of the pool's source,
+  not a run,
+  are what this run can offer for the window;
+  the controls therefore state the answer
+  (`foundation/the_answer_a_control_states.rs`),
+  which is the mechanism the two call sites act on.
+
+### What moved
+
+The loop's own state steps are now storage the pool does,
+and no step of the loop runs storage on a worker:
+
+- `run_a_job_awaited_no_longer_than`
+  (`foundation/blocking_jobs_within_the_budget.rs`) runs one job of the
+  pool with a place of the process's bound held,
+  awaits it no longer than its ceiling,
+  and answers which of three things happened:
+  the value,
+  `NotRun` (the system gave no thread and the job will do nothing),
+  or `NoAnswer` (it started on another thread,
+  or outlasted its ceiling).
+  Finding 4 is this helper:
+  `run_a_job_or_in_turn`'s `NoThreadToStart` arm runs the work on the
+  awaiting task,
+  which is a storage call on a worker,
+  so the loop's three steps no longer ask it.
+  `run_a_job_or_in_turn` keeps that fallback for its other callers,
+  which is the owner's choice 11 A;
+  the loop's steps are not among them any more.
+- `apply_awaiting` (`landing/service_work_run_round.rs`) answers a
+  refusal by keeping the round's changes in the list without writing the
+  journal (`PushRetries::apply_without_writing`).
+  The worker of each plan wrote the file it promised before the person
+  was told a retry comes,
+  so a round that writes no file loses no promise,
+  and the round after it writes that one's.
+- `remember_awaiting` and `retry_awaiting`
+  (`service/service_server_work_loop_awaiting.rs`) answer a refusal by
+  keeping the directory as a note the watch writes after the loop's
+  pause (`ClaimWatch::a_note_that_may_be_missing`),
+  so the schedule keeps a retry for it.
+- `lane_keys_awaiting` (`landing/service_round.rs`) reads each
+  directory's `commondir` as a job of the pool,
+  and a read that gives no answer drains the round's directories one
+  after another (`one_lane_of`),
+  which never puts two directories of one repository side by side.
+- `AFTER_COMMIT_STATE_CEILING` (`service/wait_ceilings.rs`) is the wait
+  each of those steps is granted:
+  `START_CEILING`,
+  with the owner's "nothing should ever wait forever or indefinitely"
+  beside it and no measurement,
+  because the value bounds a wait rather than serving a workload.
+- The service starts the acceptor before it reads the journal of its
+  after-commit work (`service/service_journal_restored_at_start.rs`,
+  `restored_within`):
+  the plan and the watch are read on one thread of their own,
+  awaited no longer than `ServeSettings::journal_restore_ceiling`
+  (shipped as `START_CEILING`),
+  and a read that gives no answer starts the service with nothing
+  restored,
+  which loses no commit:
+  the plan repeats a push the person's failure record already names.
+  The landing thread reads neither file itself any more.
+
+### What pins it
+
+- `a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer`
+  (`service/service_server_greets_before_the_journal_is_restored_tests.rs`):
+  a pipe stands where a plan file would be,
+  a client writes a commit request,
+  and the control requires the greeting,
+  a beat,
+  the landing and the retirement.
+  Written first,
+  against the readings on the landing thread,
+  it failed at the greeting:
+
+  ```text
+  thread '...' panicked at src/native/service/service_server_greets_before_the_journal_is_restored_tests.rs:200:5:
+  the service greets a client although the plan of its pushes gave no answer
+  ```
+
+  after the 3 s read timeout,
+  and it passes now (20.894 s,
+  most of it the landing's journal syncs on this host).
+- `a_plan_job_given_no_answer_keeps_the_retry_its_worker_promised`
+  (`landing/service_work_run_round_tests.rs`) fails against the code that
+  kept the clone made before the job:
+
+  ```text
+  thread '...' panicked at src/native/landing/service_work_run_round_tests.rs:64:5:
+  a plan job that gave no answer kept the retry its worker promised, so that round's directory has a wake
+  ```
+
+  and passes now (0.009 s).
+- `a_note_given_no_answer_is_tried_again_after_the_loops_pause`
+  (`service/service_server_work_loop_awaiting_tests.rs`) writes into a
+  journal directory nobody may write in,
+  which is the review's own case,
+  and fails against the code that kept the clone:
+
+  ```text
+  monochromatic-git-policy-cli-service: /srv/repo/.git could not be kept for a restart, so it is tried again after a pause: writing the note failed: Permission denied (os error 13)
+  thread '...' panicked at src/native/service/service_server_work_loop_awaiting_tests.rs:49:5:
+  a note that gave no answer is tried again, so the loop keeps a retry for it in its schedule
+  ```
+
+  It passes now (0.019 s).
+- `a_common_directory_that_gives_no_answer_does_not_hold_the_rounds_worker`
+  (`landing/service_round_tests.rs`) runs the reading on a runtime of one
+  worker and requires a task beside it to run.
+  With the read on the task it failed:
+
+  ```text
+  thread '...' panicked at src/native/landing/service_round_tests.rs:759:5:
+  the task beside a common directory that gives no answer still runs, so no worker is held by that read
+  ```
+
+  after `THE_PATIENCE` of 10 s,
+  and it passes now (0.304 s).
+- `a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling`
+  (`service/service_journal_restored_at_start_tests.rs`) stands a pipe
+  where a plan file would be and requires the read to end at its 100 ms
+  ceiling with no plan and no watch,
+  so a journal that stopped answering costs a push its retry and never a
+  commit.
+- Finding 4 has no control of its own:
+  telling "the work ran on the awaiting task" from "the work ran on the
+  pool" needs a process the system refuses every thread,
+  and the loop's three steps no longer have a path that runs the work on
+  the task at all,
+  which the source shows and which `run_a_job_or_in_turn`'s absence from
+  them states.
+
+### Checks
+
+- `native:test:host` filtered to `service::` and `landing::`,
+  in a `systemd-run --user --scope` at `CPUQuota=800%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=${HOME}/temp/agent/cli-git-fixtures/root`:
+  1156 of 1156 passed (one slow) in 175.620 s on the first run,
+  and 1157 of 1157 passed in 47.333 s after the formatter and the move of
+  the journal read into its own file,
+  which is one control more than the first run had.
+  This run's four controls are among them.
+- `native:test:binary:host` filtered to `service` and `landing`,
+  at the same limits and with `-j 3`:
+  197 tests match the filters.
+  The first run at the default parallelism failed three of them,
+  `service::the_settle_command_finishes_a_batch_the_earlier_helper_left_open`,
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero`
+  and
+  `service::the_settle_command_is_not_held_by_a_service_another_control_is_starting`,
+  each after about 63 s with
+  "1 batch the earlier release's commit service left open for this worktree was not settled,
+  because the
+  sockets and processes of the earlier helper could not be looked at in time".
+  That is `PROCESS_LOOK_CEILING` (10 s) spent on the look at every running
+  process while the host's load average was 68 and the suite ran its tests
+  side by side,
+  not a step this run moved:
+  the four `the_settle_command` controls passed serially in 68.541 s
+  (`-j 1`).
+  The look's ceiling is worth a measurement of its own under this load,
+  which this run did not make.
+  The whole filtered suite then ran at `-j 3`:
+  197 run,
+  196 passed,
+  one failed,
+  `service_scratch::a_commit_leaves_no_scratch_directory_once_its_landing_is_over`,
+  which fails the same way at `6ad29d302d`,
+  the commit this branch starts from,
+  in a worktree of that commit
+  (3.247 s,
+  "the repository scratch directory holds nothing"):
+  a failure on main that this branch inherits,
+  not one it makes.
+- `native:clippy` on every target:
+  `Finished` of the `dev` profile in
+  48.08 s,
+  after it refused two closures without `return` in
+  `service_claim_watch.rs`,
+  which are now one `holds` helper.
+- `//:lint:monochromatic-lint --max-warnings 0 package/git-policy/cli`
+  on this run's files:
+  LINT_RESULT.
+
+### What is left
+
+- The landing's steps,
+  then the loop that lands (`serve_in_a_landing`),
+  then the commit path,
+  in the plan's own order:
+  the awaited Git seam exists (`transaction_git_awaiting.rs`) and no
+  production landing step uses it,
+  so a person's commit is still landed by one thread whose every Git step
+  is synchronous.
+- The bounds this run did not add:
+  `HostResources::read()` and `ClaimTime::read()` still run on the task
+  that asks for them,
+  as the previous section measured,
+  and `reap_abandoned_children` is a `waitpid` with no storage behind it.
+  None of them can wait on a filesystem.
+- A `spawn_blocking` job that outlasts `AFTER_COMMIT_STATE_CEILING` keeps
+  its place of the process's bound until its work ends
+  (`blocking_jobs_within_the_budget.rs`),
+  and the caller stops waiting at the ceiling:
+  the bound then counts one job less than the process runs for as long as
+  that job lasts,
+  which is the cost of bounding the wait and is recorded here rather than
+  measured.
+- The service did not stop answering because of a step this run moved,
+  as far as this run can tell.
+  The one path of this run that could have stopped it,
+  finding 3,
+  is a read on the landing thread before the acceptor starts,
+  which needs a journal that does not answer for the client to read
+  silence,
+  and today's live reports are a service under dozens of agents,
+  which the agent `commit-waiting-path-with-dozens-of-agents` measures.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;

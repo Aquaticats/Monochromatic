@@ -46,18 +46,18 @@ use std::time::{Duration, Instant};
 /// Why:
 ///   A change writes or removes a plan's own file in the instance's journal,
 /// so it is storage,
-/// and a worker that waited on that write
-///  would hold a thread the runtime needs.
+/// and a task of the runtime never does it itself:
+///  a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a timer cannot end a write on that worker.
 /// The plan has one owner at a time,
 /// so the job takes it and hands it back,
 /// and nothing locks it.
-/// A task of the runtime never writes the plan itself:
-///  a filesystem that stopped answering would hold a worker the runtime needs,
-/// and a job the system gives no thread for,
-/// or that starts on another thread,
+/// A job the system gives no thread for,
+/// or one that starts on another thread,
 /// is answered by keeping the round's own changes in the list,
 /// which is what the loop's next wake reads.
-/// The plan's files are the workers' own: each wrote the plan it promised before the person was told a retry
+/// The plan's files are the workers' own:
+/// each wrote the plan it promised before the person was told a retry
 ///  comes,
 /// so a round that writes nothing loses no promise,
 /// and the round after it writes the files again.

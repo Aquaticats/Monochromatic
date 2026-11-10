@@ -26,9 +26,12 @@ use std::cell::Cell;
 /// The answer a control states.
 #[derive(Clone, Copy)]
 pub(crate) enum AStatesAnswer {
-    /// The system gave no thread, so the job will do nothing.
+    /// The system gave no thread,
+    /// so the job will do nothing.
     NotRun,
-    /// The job started on another thread, or outlasted its ceiling, so its value cannot be read.
+    /// The job started on another thread,
+    /// or outlasted its ceiling,
+    /// so its value cannot be read.
     NoAnswer,
 }
 

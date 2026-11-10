@@ -8,11 +8,16 @@ most recently on 2026-11-10:
 Earlier the same day:
 "Focus on the wrapper itself.",
 "You focus on the git wrapper.",
-"Wait for Pants. And you focus on the git wrapper.",
-and "None for now. Focus on the git wrapper. Open a gh issue about this instead."
+"Wait for Pants.
+And you focus on the git wrapper.",
+and "None for now.
+Focus on the git wrapper.
+Open a gh issue about this instead."
 So every agent slot,
 review and audit goes to `package/git-policy/cli` and what it directly depends on to be fast and correct
-(the btrfs volume it runs on, LFS through the wrapper, its release and install).
+(the btrfs volume it runs on,
+LFS through the wrapper,
+its release and install).
 Other packages' issues wait,
 however many slots are free,
 unless the owner names that work.
@@ -81,6 +86,34 @@ when it lands,
 move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
+
+### Tokio: the loop's own storage leaves the worker, and the acceptor starts before the journal (2026-11-10T15:38:48-05:00)
+
+Branch `refactor/git-policy-cli-tokio-next-step-on-the-runtime`
+(`4c8f2d7c6e` the acceptor and the journal's own thread,
+`87bd4ade9e` the loop's state steps),
+ahead of `main` at `b3d00b3be4`.
+The service reads the plan of the pushes waiting for a new try and the repositories an earlier service was woken for
+on a thread of their own,
+after the acceptor started,
+so a journal that stopped answering delays a push and never a client.
+The after-commit loop's three state steps run only on the blocking pool with `AFTER_COMMIT_STATE_CEILING`,
+and a refusal keeps the plan's changes and the watch's owed notes,
+which fixes findings 1,
+2 and 4 of the Kimi review of `b3d00b3be4`;
+the round reads each `commondir` off the pool,
+which fixes finding 5.
+The records,
+the controls and their before-and-after output are in
+`doc/planning/git-policy-cli-full-tokio.md` ("Step T12,
+the loop's own storage steps leave the worker").
+Still to come,
+in the plan's order:
+the landing's steps,
+then the loop that lands (`serve_in_a_landing`),
+then the commit path.
+The whole commit under dozens of agents is measured by the agent `commit-waiting-path-with-dozens-of-agents`,
+not here.
 
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
@@ -354,7 +387,8 @@ and `cargo-shadow-lean.timer` is running again.
 The old trees,
 the source snapshots and the received first-pass copies of the move were deleted on 2026-11-10,
 under the owner's "860 move:
-You delete it." and "Delete both (Recommended)".
+You delete it."
+and "Delete both (Recommended)".
 No rollback to the NVMe remains.
 
 #### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)

@@ -20,7 +20,8 @@ use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
 /// The most a control waits for the service:
-/// far beyond what the greeting, the beats and the landing need,
+/// far beyond what the greeting,
+/// the beats and the landing need,
 /// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
@@ -125,7 +126,8 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
 /// Why:
 ///  A read of a pipe's other end waits in the kernel until a writer opens it,
 /// which is the one way to make a read of a plan file hold a thread with no end
-///  (`push_retry_store.rs`, `load`),
+///  (`push_retry_store.rs`,
+/// `load`),
 /// and finding 3 of the review of `b3d00b3be4` is a service whose landing thread sat in that read
 /// while its clients read the silence as a service that stopped.
 fn stall_the_plan(journal: &Path) -> PathBuf {
@@ -147,9 +149,11 @@ fn stall_the_plan(journal: &Path) -> PathBuf {
 ///  That read is abandoned,
 /// never cancelled (`work_awaited_within_a_ceiling.rs`),
 /// so the thread that holds it ends only when a writer appears;
-/// a control that left it would keep one thread of the test binary, and no more.
+/// a control that left it would keep one thread of the test binary,
+/// and no more.
 /// The open does not wait for a reader:
-///  a pipe with no reader is reported instead, and the control tries again until `PATIENCE`.
+///  a pipe with no reader is reported instead,
+/// and the control tries again until `PATIENCE`.
 fn release_the_pipe(path: &Path) {
     let began: Instant = Instant::now();
     while began.elapsed() < PATIENCE {
@@ -180,7 +184,8 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 ///  while that read waits,
 ///  which is a commit that reads as a service that stopped.
 /// The acceptor starts first and the plan is read on a thread of its own,
-/// so the greeting, the beats and the landing all happen while that read has not returned.
+/// so the greeting,
+/// the beats and the landing all happen while that read has not returned.
 #[test]
 fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer() {
     let world: World = world("restore-stalled");
