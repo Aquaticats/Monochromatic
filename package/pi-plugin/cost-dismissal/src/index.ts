@@ -73,6 +73,42 @@ function whitespaceAt(
 }
 
 /**
+ Offset of the first character after one closed sentence, past the whitespace
+ that separates it from the next.
+
+ @param text - Text the closed sentence came from
+
+ @param offset - Offset just past the closed sentence's punctuation
+
+ @returns offset of the next sentence's first character, or the text's end
+
+ @example
+ ```ts
+ sentenceStartAfter({ text: 'One. Two.', offset: 4 }); // => 5
+ ```
+ */
+function sentenceStartAfter(
+  {
+    text,
+    offset,
+  }: {
+    readonly text: string;
+    readonly offset: number;
+  },
+): number {
+  /**
+   Offset walked past every separating whitespace character.
+   */
+  let start = offset;
+  while (whitespaceAt({
+    text,
+    offset: start,
+  },))
+    start += 1;
+  return start;
+}
+
+/**
  Splits prose into sentences in one left-to-right pass.
 
  @param prose - Text to split
@@ -93,8 +129,13 @@ function sentencesOf(prose: string,): readonly string[] {
    Start offset of the sentence being accumulated.
    */
   let start = 0;
-  for (let index = 0; index < prose.length; index += 1) {
-    if (!SENTENCE_END.has(prose.charAt(index,))) continue;
+  /**
+   Prose split into UTF-16 code units, so an index into this list is also an
+   offset into {@link prose} itself.
+   */
+  const characters = prose.split('',);
+  for (const [index, character] of characters.entries()) {
+    if (!SENTENCE_END.has(character,)) continue;
     /**
      Offset just past this punctuation character.
      */
@@ -123,18 +164,10 @@ function sentencesOf(prose: string,): readonly string[] {
       after,
     );
     sentences.push(sentence,);
-    /**
-     Offset of the next sentence's first character.
-     */
-    let next = after;
-    while (whitespaceAt({
+    start = sentenceStartAfter({
       text: prose,
-      offset: next,
-    },)) {
-      next += 1;
-    }
-    index = next - 1;
-    start = next;
+      offset: after,
+    },);
   }
   /**
    True when text remains after the last sentence-ending punctuation.

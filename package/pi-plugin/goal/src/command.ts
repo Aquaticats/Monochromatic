@@ -28,6 +28,11 @@ export const REMOVED_COMMAND_PREFIXES = [
 //region Parsing
 
 /**
+ Index `findIndex` returns when no inspected character matched.
+ */
+const NO_BOUNDARY_FOUND = -1;
+
+/**
  Return first whitespace-delimited token without regular expression parsing.
  
  @param text - normalized command text
@@ -40,18 +45,24 @@ export const REMOVED_COMMAND_PREFIXES = [
  ```
  */
 function firstToken(text: string,): string {
-  for (let cursor = 0; cursor < text.length; cursor++) {
-    /**
-     Character inspected for token boundary.
-     */
-    const character = text[cursor];
-    if ((character !== undefined) && (character.trim() === ''))
-      return text.slice(
-        0,
-        cursor,
-      );
-  }
-  return text;
+  /**
+   Command text split into UTF-16 code units, so an index into this list is
+   also an offset into {@link text} itself.
+   */
+  const characters = text.split('',);
+  /**
+   Offset of the first whitespace character, or {@link NO_BOUNDARY_FOUND} when
+   the text holds none.
+   */
+  const boundary = characters.findIndex(function isWhitespace(character: string,): boolean {
+    return character.trim() === '';
+  },);
+  if (boundary === NO_BOUNDARY_FOUND)
+    return text;
+  return text.slice(
+    0,
+    boundary,
+  );
 }
 
 /**

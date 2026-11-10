@@ -169,6 +169,11 @@ export type ModelIdParse = {
 export const NO_NUMERIC_RUN: unique symbol = Symbol('token carries no numeric run',);
 
 /**
+ Index `findIndex` returns when no inspected character matched.
+ */
+const NO_LETTER_FOUND = -1;
+
+/**
  Outcome of reading one numeric run inside a token.
  */
 type NumericRun = {
@@ -364,9 +369,7 @@ export function readNumericRun(
       start,
       cursor,
     ),];
-    for (;;) {
-      if ((cursor >= text.length) || (text.charAt(cursor,) !== COMPONENT_SEPARATOR))
-        break;
+    while ((cursor < text.length) && (text.charAt(cursor,) === COMPONENT_SEPARATOR)) {
       /**
        Index just past the component separator.
        */
@@ -402,11 +405,21 @@ export function readNumericRun(
  */
 function alphaPrefixLength(token: string,): number {
   return (function countPrefix(): number {
-    for (let index = 0; index < token.length; index += 1) {
-      if (!isLowerAsciiLetter(token.charAt(index,),))
-        return index;
-    }
-    return token.length;
+    /**
+     Token split into UTF-16 code units, so a position here is also an offset
+     into {@link token} itself.
+     */
+    const characters = token.split('',);
+    /**
+     Count of leading lower-case letters, or {@link NO_LETTER_FOUND} when the
+     token starts with anything else.
+     */
+    const prefixLength = characters.findIndex(function endsPrefix(character: string,): boolean {
+      return !isLowerAsciiLetter(character,);
+    },);
+    if (prefixLength === NO_LETTER_FOUND)
+      return token.length;
+    return prefixLength;
   })();
 }
 
