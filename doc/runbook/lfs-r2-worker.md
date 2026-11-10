@@ -9,7 +9,8 @@ Background and rationale live in `package/config/lfs-r2-worker/README.md`.
 
 This runbook is the operator procedure for the parts a human runs by hand:
 deploy or redeploy the Worker,
-set or rotate the upload token,
+add or revoke a machine's upload credential,
+retire the shared upload secret,
 prepare a machine to push new images,
 confirm README images render on GitHub,
 and confirm the GitHub LFS bill actually drops.
@@ -117,6 +118,11 @@ TODO
    Expected:
     the output ends with `--dry-run: exiting now.` and never prints `Deployed`.
 
+3. A deploy that ships code reading the `clients` table needs the table to exist first.
+    Run "Create the clients table" before step 1;
+    an empty table keeps the shared secret working,
+    so the switch from the shared secret to per-machine tokens stays a single deploy.
+
 ### Create or rebuild the presence index
 
 The Worker answers batches from the D1 database `monochromatic-lfs-index` (binding `INDEX`)
@@ -194,82 +200,142 @@ each event carries `cpuTime`,
 A healthy 100-object batch reads 1 to 8 ms;
 `outcome: exceededCpu` is the Error 1102 case.
 
-### Set or rotate the upload token
+One write authorization costs 0.043 ms of the 10 ms a Workers Free request may spend,
+measured over 2000 calls against the real `clients` schema with SQLite standing in for D1
+(0.031 ms at the median,
+0.070 ms at the 95th percentile).
+That figure covers the Worker's own work:
+parsing the header,
+one sha256 digest of the presented token,
+one primary-key row read,
+and the constant-time comparison.
+It excludes the D1 service's own latency and the log sink,
+which the `cpuTime` of a `wrangler tail` event includes.
+Read one upload batch after the migration and expect a few milliseconds in total.
 
-The upload token gates writes to R2.
-Rotate it whenever it may have leaked,
-or set it on first provisioning.
+### Create the clients table
 
-`wrangler secret put` reads the value from stdin when stdin is not a terminal,
-and it stores an **empty** secret without complaint when stdin delivers nothing.
-A blank `LFS_WRITE_TOKEN` used to be worse than an absent one:
-`authorized()` in `package/config/lfs-r2-worker/src/authorize.ts` refused only an `undefined` secret,
-so a blank one matched an empty Basic-auth password and let anyone upload objects.
-It now refuses absent and blank secrets alike
-(deployed 2026-10-01,
- Worker version `b0009f5d-9b00-4719-bbb4-1b6e5902867f`),
-so a blank secret fails closed and every push gets `401`.
-That is still a silent breakage,
-so supply the value by shell redirection from a private file
-and verify the live Worker before trusting the rotation.
-The failure mode,
- its measurements,
- and its source trace are recorded in
-`doc/troubleshooting/wrangler-secret-put-empty-stdin.md`.
+Writes are authorized by one row per machine in the `clients` table of the
+`monochromatic-lfs-index` D1 database,
+the database the presence index already uses.
+`clients.sql` creates it and is safe to run again.
 
-1. Generate a token into a private file with no trailing newline,
+1. Apply the migration.
+   Run it before deploying Worker code that reads the table:
+   an empty table keeps the shared secret working,
+   and code that queries a table that does not exist yet refuses every write.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   mise run "//package/config/lfs-r2-worker:clients:schema"
+   ```
+
+   Expected:
+    wrangler reports one statement run in the remote database.
+
+2. Read the rows without their hashes.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler d1 execute monochromatic-lfs-index --remote --command \
+     "SELECT id, label, scope, created, expires, revoked FROM clients"
+   ```
+
+   Expected on a fresh migration:
+    no rows.
+   The first row written here is what retires the shared secret (see "Retire the
+   shared secret").
+
+### Add a machine's upload credential
+
+Each machine gets its own token.
+The Worker stores only its sha256,
+so a copy of the table is useless to anyone,
+and revoking one row leaves every other machine able to push.
+
+1. Generate the token into a private file with no trailing newline,
    so the value never reaches terminal scrollback or shell history.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
    umask 077
-   openssl rand -hex 32 | tr -d '\n' > "${HOME}/temp/lfs-write-token.txt"
+   openssl rand -hex 32 | tr -d '\n' > "${HOME}/temp/lfs-client-token.txt"
    ```
 
    Expected:
     the file holds 64 hexadecimal characters and no newline.
-   Record the same value in your password manager;
-   every pushing machine needs it.
+   That exact text,
+   with no newline,
+   is the password this machine will send.
 
-2. Upload it through the mise task,
-   redirecting the file into the task's stdin.
+2. Compute the hash the row stores.
+   The Worker digests the presented password with sha256 and compares that,
+   so the row's `hash` is the sha256 of the file's bytes.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
-   mise run "//package/config/lfs-r2-worker:secret:write-token" < "${HOME}/temp/lfs-write-token.txt"
+   sha256sum "${HOME}/temp/lfs-client-token.txt" | cut -d' ' -f1
    ```
 
-   The task runs `wrangler secret put LFS_WRITE_TOKEN`.
    Expected:
-    `✨ Success! Uploaded secret LFS_WRITE_TOKEN`.
-   That message reports only that Cloudflare accepted a value,
-   not that the value was the one you intended,
-   so the verification step is mandatory.
+    one line of 64 lowercase hex characters.
+   That line is not a secret and may appear on a command line.
 
-3. Verify the live Worker against three credentials:
-   the new token,
-   an empty password,
-   and a wrong token.
+3. Pick a client id.
+   It is the HTTP Basic user name of this machine,
+   so it has to be one line with no whitespace.
+   A random UUID keeps two machines from ever colliding.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   node --input-type=module -e 'console.log(crypto.randomUUID())'
+   ```
+
+   Expected:
+    one UUID,
+   for example `5f0d0c4e-...`.
+   Record the id and the token in your password manager,
+   labelled with the machine they belong to.
+
+4. Write the row.
+   `created` and `expires` are epoch milliseconds;
+   `expires` may be `NULL` for a machine that never expires.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler d1 execute monochromatic-lfs-index --remote --command \
+     "INSERT INTO clients (id, label, scope, hash, created, expires, revoked) VALUES ('<client id>', '<label>', 'write', '<hash>', $(date +%s%3N), $(date +%s%3N) + 7776000000, NULL)"
+   ```
+
+   `7776000000` milliseconds is ninety days.
+   Expected:
+    wrangler reports one row written.
+
+5. Verify the live Worker against three credentials:
+   this machine's id and token,
+   the same id with a wrong token,
+   and the same id with an empty password.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
    node --input-type=module -e '
    import { readFileSync } from "node:fs";
    const token = readFileSync(process.argv[1], "utf8").trim();
+   const id = process.argv[2];
    const body = JSON.stringify({ operation: "upload", transfers: ["basic"], objects: [{ oid: "0".repeat(64), size: 1 }] });
-   for (const password of [token, "", "definitely-wrong-token"]) {
+   for (const password of [token, "definitely-wrong-token", ""]) {
      const response = await fetch("https://monochromatic-lfs.aquaticat.workers.dev/objects/batch", {
        method: "POST",
        headers: {
          Accept: "application/vnd.git-lfs+json",
          "Content-Type": "application/vnd.git-lfs+json",
-         Authorization: `Basic ${Buffer.from(`lfs:${password}`).toString("base64")}`,
+         Authorization: `Basic ${Buffer.from(`${id}:${password}`).toString("base64")}`,
        },
        body,
      });
      console.log(response.status);
    }
-   ' "${HOME}/temp/lfs-write-token.txt"
+   ' "${HOME}/temp/lfs-client-token.txt" "<client id>"
    ```
 
    Expected,
@@ -277,52 +343,164 @@ The failure mode,
    `200`,
    `401`,
    `401`.
-   Three `401` responses mean the stored secret is blank or differs from the file;
-   repeat the upload from a file that provably holds the token.
-   A `200` for the empty password means the deployed Worker predates the blank-secret guard;
-   redeploy it.
+   Three `401` responses mean the row's hash does not match the file,
+   the row is revoked or expired,
+   or the deployed Worker predates the clients table;
+   the Worker's log names which.
    The probe asks for an upload action but never sends a `PUT`,
    so it stores nothing.
 
-4. Destroy the file.
+6. Hand the token to that machine and delete the file here.
+   The next procedure stores it on the machine;
+   the token is typed or piped there,
+   never into a command line.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
-   shred -u "${HOME}/temp/lfs-write-token.txt"
+   shred -u "${HOME}/temp/lfs-client-token.txt"
    ```
 
-   A rotated token invalidates every machine's previously stored push credential,
-   so update each pushing machine (next procedure) after rotating.
+### Revoke a machine
 
-   Expected after updating a pushing machine:
-    a test push (below) succeeds again.
+Revoking takes effect on the next request,
+because the Worker reads the row on
+every write.
+
+1. Mark the row revoked with the current time.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler d1 execute monochromatic-lfs-index --remote --command \
+     "UPDATE clients SET revoked = $(date +%s%3N) WHERE id = '<client id>'"
+   ```
+
+   Expected:
+    wrangler reports one row written.
+
+2. Verify that the machine's token is refused,
+   using the three-credential probe in "Add a machine's upload credential" step 5.
+
+   Expected first status:
+    `401`.
+
+Never delete a row to cancel a machine.
+`revoked` takes the machine out of service and keeps the record,
+and the table holding any row at all,
+revoked ones included,
+is what keeps the shared secret retired.
+
+### Retire the shared secret
+
+The shared `LFS_WRITE_TOKEN` secret is accepted only while the `clients` table
+holds no row,
+so writing the first machine's row already retires it:
+no second deploy and no flag.
+The secret itself is then dead weight that a later mistake could revive
+(a binding removed,
+a table dropped),
+so delete it once every machine holds a row.
+
+1. Write the rows for every pushing machine (see "Add a machine's upload credential").
+
+2. Delete the secret.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler secret delete LFS_WRITE_TOKEN
+   ```
+
+   Expected:
+    `Successfully deleted secret LFS_WRITE_TOKEN`.
+
+3. Verify that the old shared token is refused and a machine's token is accepted.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   node --input-type=module -e '
+   const body = JSON.stringify({ operation: "upload", transfers: ["basic"], objects: [{ oid: "0".repeat(64), size: 1 }] });
+   for (const [id, password] of [["lfs", process.argv[1]], [process.argv[2], process.argv[3]]]) {
+     const response = await fetch("https://monochromatic-lfs.aquaticat.workers.dev/objects/batch", {
+       method: "POST",
+       headers: {
+         Accept: "application/vnd.git-lfs+json",
+         "Content-Type": "application/vnd.git-lfs+json",
+         Authorization: `Basic ${Buffer.from(`${id}:${password}`).toString("base64")}`,
+       },
+       body,
+     });
+     console.log(response.status);
+   }
+   ' "<old shared token>" "<client id>" "<that machine's token>"
+   ```
+
+   Expected,
+    in order:
+   `401`,
+   `200`.
+
+While the secret exists,
+`wrangler secret put` stores an **empty** value without complaint when its stdin
+delivers nothing,
+and `authorized()` refuses an absent or blank secret,
+so a blank one fails closed and every push gets `401`.
+That failure mode and its measurements are in
+`doc/troubleshooting/wrangler-secret-put-empty-stdin.md`.
 
 ### Configure a machine to push new images
 
 Downloads are anonymous,
  so only machines that add images need this.
-The token lives in a Git credential helper,
- never in a Git config value,
+That machine's token lives in a private file,
+ and one clone's own Git settings point at it,
+ never a global setting,
+ a Git config value,
  a URL or a file under the repository
 (the incident that ended the old practice is `doc/troubleshooting/lfs-credential-in-url.md`).
 
-1. Point a credential helper at the Worker host.
-   The stock `git credential-store` with a file scoped to this host needs nothing installed;
-   a keyring helper can replace it.
+1. In the clone that should be able to push,
+    run the login task.
+    It reads the Worker URL from that repository's `.lfsconfig`,
+    writes one `credential.<worker host>.helper` key in the repository's local
+    scope,
+    and does nothing in any other repository.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
-   mkdir --parents --mode 700 "${HOME}/.config/monochromatic-lfs"
-   git config --global credential.https://monochromatic-lfs.aquaticat.workers.dev.helper \
-     "store --file ${HOME}/.config/monochromatic-lfs/credentials"
+   mise run "//package/config/lfs-r2-worker:login:use-here"
    ```
 
    Expected:
-    no output.
-   The config value holds a helper command and a path,
-   never the token.
+    lines naming the repository,
+   the config file it wrote,
+   the key `credential.https://monochromatic-lfs.aquaticat.workers.dev.helper`,
+   the helper command `store --file '<path>'`,
+   and last either `installed` or `already installed; nothing changed`.
+   A refusal names `not a Git work tree` or a `.lfsconfig` that does not name the
+   Worker,
+   and nothing is written.
 
-2. Leave `lfs.url` unset locally,
+2. Store this machine's token.
+    The task reads it from standard input,
+    creates the file at mode `0600` in a directory at `0700`,
+    writes it through `git credential approve` with every other helper cleared,
+    and reads it back to prove the file answers it.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   printf '%s' "<that machine's token>" | mise run "//package/config/lfs-r2-worker:login:store-token" -- "<client id>"
+   ```
+
+   The token is never an argument and never echoed by the task.
+   Expected:
+    the credential file path,
+   the key,
+   the client id,
+   and `stored and read back; the token is in that file alone`.
+   A terminal without a pipeline is refused,
+   because a pasted token would be
+   echoed there.
+
+3. Leave `lfs.url` unset locally,
    so the committed `.lfsconfig` supplies the plain URL.
    Optionally keep git-lfs from asking a Worker that has no locks API:
 
@@ -331,12 +509,11 @@ The token lives in a Git credential helper,
    git config --local lfs.https://monochromatic-lfs.aquaticat.workers.dev.locksverify false
    ```
 
-3. Add an image and push it normally.
+4. Add an image and push it normally.
    The pre-push hook runs `git lfs push` against the Worker.
-   On the first upload `git-lfs` asks `git credential fill` for the credential,
-   finds none,
-   prompts at the terminal for a user name (any value) and the token,
-   and hands the pair to the helper once the Worker accepts it.
+   `git-lfs` asks `git credential fill` for the pair,
+   the helper this clone names answers from the private file,
+   and the Worker accepts it.
 
    ```sh
    git add path/to/new-image.png
@@ -348,7 +525,7 @@ The token lives in a Git credential helper,
     the push log includes a line like
    `Uploading LFS objects: 100% (1/1), ... done`.
 
-4. Confirm that no Git config scope carries a credential.
+5. Confirm that no Git config scope carries a credential.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
@@ -362,12 +539,15 @@ The token lives in a Git credential helper,
 
 ### Move a token out of an existing clone's `lfs.url`
 
-A clone configured before 2026-11-07 may hold the token in `lfs.url` and in the name of a
-`lfs.<url>.locksverify` key.
+A clone configured before 2026-11-07 may hold the old shared token in `lfs.url` and in the
+name of a `lfs.<url>.locksverify` key.
+Retiring the shared secret (above) makes that value useless,
+and the check in "Configure a machine to push new images" names the keys that remain.
 Never print either key unmasked:
 the key name embeds the token.
-Rotating the token (above) makes the old value useless,
-and the check in the previous procedure names the keys that remain.
+Unset both,
+then run the login task,
+which supplies what the clone actually needs.
 The status of this machine's migration is recorded in `doc/troubleshooting/lfs-credential-in-url.md`.
 
 ### Migrate an existing clone after the Worker URL changes
@@ -444,12 +624,12 @@ TODO
    not pointer text.
 
 4. The write path accepts the configured push credential and refuses everyone else.
-   This needs a machine whose credential helper holds the token,
+   This needs a machine whose clone names the private credential file,
    and it re-uploads an object that already exists,
    so it stores nothing new:
    objects are content-addressed,
    and putting identical bytes under the same oid is a no-op.
-   The script asks `git credential fill` for the credential in memory and prints no credential.
+   The script asks `git credential fill` for the pair in memory and prints no credential.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
@@ -471,10 +651,14 @@ TODO
 
    Expected exact output:
    `oid match: true; authenticated PUT: 200; unauthenticated PUT: 401`.
-   An authenticated `401` means the credential in the helper no longer matches the Worker secret,
-   or that the secret is blank,
-   since a blank secret fails closed;
-   the three-credential probe in "Set or rotate the upload token" tells those apart.
+   An authenticated `401` means the row this machine's id names is revoked,
+   expired,
+   or
+   stores a digest of another token;
+   the three-credential probe in "Add a machine's upload credential" tells those apart,
+   and the Worker's log names the refusal.
+   A `401` from a Worker with no client rows at all means the shared secret is gone and no
+   row replaced it.
 
 5. A fresh clone resolves LFS from the Worker and verifies clean.
 

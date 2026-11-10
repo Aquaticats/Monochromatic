@@ -2,6 +2,17 @@
 
 This silently opens LFS uploads.
 
+Status 2026-11-10:
+the shared secret this note is about is being retired.
+Writes are authorized by per-machine rows in the `clients` table,
+and the shared secret answers only while that table holds no row
+(`package/config/lfs-r2-worker/src/authorize.ts`,
+`doc/runbook/lfs-r2-worker.md`).
+The empty-value trap still applies to any secret set with `wrangler secret put`,
+and the blank check still refuses a blank shared secret,
+so this note stays as the record of the mechanism and of the measurements;
+no step of the migration sets a secret.
+
 This note records a 2026-10-01 diagnosis against wrangler 4.136.1
 (installed by mise as `npm:wrangler`,
  bundle at

@@ -91,6 +91,9 @@ console.log('next: mise run //package/config/lfs-r2-worker:login:store-token -- 
 
 [tasks."login:store-token"]
 description = "Store one machine's LFS upload token, read from standard input, in the private credential file at mode 0600. The token is never an argument and never echoed."
+# `mise run` hands a task no standard input unless the task joins the terminal
+# directly, and this task exists to read one value from a pipe.
+raw = true
 usage = '''
 arg "<client_id>" help="client id of this machine's row in the clients table"
 flag "--host <url>" help="LFS host the credential is for, defaulting to the url of this repository's committed .lfsconfig"

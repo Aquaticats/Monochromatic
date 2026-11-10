@@ -1,8 +1,16 @@
 # LFS upload token written into `lfs.url` and copied into Git config, key names, logs and backups
 
 Status:
-the owner paused this thread on 2026-11-07 ("pause the lfs thread until I say unpause lfs").
-Everything below marked **waiting for the owner** is undecided and unstarted.
+unpaused by the owner on 2026-11-10 ("Unpause LFS.").
+The owner chose per-machine tokens held only as hashes ("Per machine"),
+stored in a D1 `clients` table and revocable one machine at a time,
+and a login that lives in one repository's own Git settings ("Repo + per-clone command"),
+pointed at a private credential file by one command run in the clone.
+That is option B of "Decision 1" plus the repository-scoped half of "Decision 3".
+The Worker and the two login tasks are implemented on branch
+`feat/config-lfs-r2-worker-per-machine-tokens-and-repo-login`;
+what a coordinator still has to run against the live account and this machine is
+"Still open" at the end of this file.
 This file holds no credential:
 every value is withheld,
 and every count comes from a scan that printed paths and
@@ -317,12 +325,17 @@ no upload".
 
 ## State of this machine (unchanged on purpose)
 
-The owner's pause means the local migration was not done.
+The owner's pause meant the local migration was not done,
+and unpausing did not change this machine:
 `.git/config` of the main checkout still holds the token in `lfs.url` and in the locksverify key name,
 and the Worker
 secret is unchanged.
 Nothing else was edited:
 no copy listed above was edited or deleted.
+The branch named in the status above changes the Worker and the login tooling;
+the steps below are the coordinator's,
+and the first of them retires the old value
+by writing the first per-machine row.
 The planned steps,
 to run after the owner says to continue:
 
@@ -344,9 +357,16 @@ to run after the owner says to continue:
     bounded requests whose output is redacted,
     delete the file.
 
-## Open decisions (waiting for the owner)
+## Decisions
 
 ### Decision 1: authentication design
+
+Decided 2026-11-10:
+the owner picked option B,
+per-machine tokens held only as hashes.
+No GitHub OIDC verifier was built:
+no workflow in this repository touches LFS,
+and option C remains a superset to add when one does.
 
 What the Worker does today:
 one long-lived shared secret;
@@ -439,8 +459,15 @@ cons and why each ranks where it does:
   JWKS fetch on a cold isolate;
   more code to maintain for CI that uses no LFS today.
 
-#### Option B: per-client revocable tokens only
+#### Option B: per-client revocable tokens only (chosen)
 
+- Implemented in `package/config/lfs-r2-worker/src/clients.ts` and
+  `src/authorize.ts`,
+  with the table in `clients.sql`,
+  the operator procedure in `doc/runbook/lfs-r2-worker.md`,
+  and the login tasks below.
+  The shared secret is accepted only while the table holds no row,
+  so the switch costs one deploy and needs no flag.
 - The same table without the OIDC verifier;
   CI,
   if it ever pushes LFS,
@@ -545,6 +572,20 @@ the table gains a `read` scope and the batch download branch must check it.
 
 ### Decision 3: credential helper on this machine
 
+Decided 2026-11-10:
+the owner picked "Repo + per-clone command".
+One command run inside a clone writes that repository's own
+`credential.<worker host>.helper` key,
+which every linked worktree of that repository reads,
+and points it at a private file at mode `0600`.
+No global scope is written,
+so no other repository on the machine is affected,
+and a clone where the command was not run has no upload credential at all.
+The stock `git credential-store` is the helper,
+so nothing has to be installed for it.
+The global-helper recommendation below is what the owner rejected and is kept as
+the rejected reading:
+
 No helper serves this host yet (`gh auth git-credential` answers only for GitHub hosts).
 Available here:
 `git credential-store` (plaintext file with mode 0600 on the encrypted volume),
@@ -600,6 +641,10 @@ a Rust change that was not started.
 - This machine (main checkout and 339 linked worktrees share one `.git/config`):
   pushes through the wrapper's pre-push
   `git lfs push`;
+  the login is one key in that shared config,
+  written by
+  `mise run //package/config/lfs-r2-worker:login:use-here` in the main checkout,
+  with the token stored by `login:store-token`;
   verify with `check:no-credential-in-git-config` printing `credential-free: yes`,
   `git lfs fsck --pointers`,
   and the runbook's write-path check printing
@@ -627,10 +672,38 @@ a Rust change that was not started.
   the migration should run first.
   No other pushing machine is named anywhere in the repository.
 
+## Still open
+
+The coordinator runs these against the live account and this machine;
+each is one step of `doc/runbook/lfs-r2-worker.md`.
+
+1. Apply `clients.sql` to the `monochromatic-lfs-index` database
+   (`mise run //package/config/lfs-r2-worker:clients:schema`).
+2. Deploy the Worker once (`mise run //package/config/lfs-r2-worker:deploy`).
+3. Write this machine's row,
+   add up to a few machines' rows,
+   and give each machine its
+   token through `login:store-token`.
+   The first row retires the shared secret.
+4. Unset `lfs.url` and the `lfs.<url>.locksverify` key of the old host in the main
+   checkout,
+   run `login:use-here` there,
+   and confirm `check:no-credential-in-git-config` prints `credential-free: yes`.
+5. Delete the shared secret and prove the old token is refused.
+6. The owner's remaining choices:
+   whether to delete the tool logs and push records listed in the inventory,
+   and whether to expire the kopia snapshots that hold the old value.
+   Rotation makes both harmless without either action.
+
 ## What could not be done
 
-- The local migration,
-  the rotation and any Worker auth change:
-  paused by the owner.
+- The live migration,
+  the deploy and the deletion of the shared secret:
+  they need the Cloudflare account and the main checkout,
+  which the agent that
+  wrote the branch must not touch.
+  "Still open" lists them in order.
+- The 339 linked worktrees of the main checkout were not edited:
+  the migration is one write to the config they all share.
 - Opening the kopia snapshots of `~/.claude`,
   `~/.pi` and `~/.config`.

@@ -37,9 +37,19 @@ The decision and its context are recorded in `doc/planning/lfs-readme-image-rend
 
 - Download is anonymous,
   so public `git clone` and `git lfs pull` need no credentials and `.lfsconfig` carries no secrets.
-- Upload is gated by the `LFS_WRITE_TOKEN` Worker secret.
-  git-lfs sends it as HTTP Basic auth (any username,
-  password is the token).
+- Upload is gated by one row per machine in the `clients` table of the
+  `monochromatic-lfs-index` D1 database.
+  git-lfs sends the row's id as the HTTP Basic user name and that machine's token
+  as the password;
+  the row stores only the sha256 of the token,
+  and a row that is revoked or expired is refused.
+- The `LFS_WRITE_TOKEN` Worker secret this Worker shipped with is still read,
+  but only while the `clients` table holds no row:
+  writing the first per-machine row retires it,
+  so the old shared token stops working without a second deploy.
+  Once every machine holds a row the secret can be deleted,
+  and then no code path
+  accepts it at all.
 - Objects live in the `monochromatic-lfs` R2 bucket,
   keyed by their 64-hex sha256 oid,
   reached through the Worker's `BUCKET` binding.
@@ -72,8 +82,68 @@ Routes:
   so a URL never changes meaning.
 - `HEAD` on the same paths returns the headers without a body.
 - `PUT /<oid>`:
-  store an object in R2 (requires the upload token).
+  store an object in R2 (requires a client row whose scope grants `write`).
   A path suffix is rejected on `PUT`.
+
+## Upload clients
+
+One row per machine may store objects.
+The table lives in the same D1 database as the presence index (`clients.sql`),
+because a Worker binds that database already:
+
+- `id`:
+  the HTTP Basic user name,
+  also the machine's name in the runbook;
+- `label`:
+  how a person recognises the machine;
+- `scope`:
+  what the row may do;
+  `write` is the only scope the Worker accepts,
+  because downloads are anonymous;
+- `hash`:
+  the lowercase hex sha256 of that machine's token,
+  never the token;
+- `created`,
+  `expires`,
+  `revoked`:
+  epoch milliseconds.
+  `NULL` in `expires` means the row never expires,
+  and `NULL` in `revoked` means it still stands.
+
+A write is authorized by digesting the presented password and comparing it to the
+row's `hash` in constant time.
+A row that is revoked,
+expired,
+out of scope,
+or holds a digest that does not
+match refuses the write,
+and a known id never falls back to the shared secret.
+
+Rows are added and revoked by hand with `wrangler d1 execute`,
+so there is no admin
+endpoint and no new secret to protect on the server:
+
+```sh
+# doc/runbook/lfs-r2-worker.md
+mise run //package/config/lfs-r2-worker:clients:schema
+```
+
+The add and revoke procedure,
+including where the token is generated and how its
+hash is computed,
+is `doc/runbook/lfs-r2-worker.md`.
+`doc/troubleshooting/lfs-credential-in-url.md` records why the tokens are per
+machine and why the login lives in one repository's own configuration.
+
+One authorization costs 0.043 ms of the 10 ms a Workers Free request may spend,
+measured over 2000 calls against the real `clients` schema with SQLite standing in
+for D1:
+0.031 ms at the median,
+0.070 ms at the 95th percentile.
+Most of that is the sha256 digest (0.016 ms),
+then one primary-key row read.
+That measurement excludes the D1 service's own latency and the log sink;
+`wrangler tail --format json` reports the live `cpuTime` the runbook's checks read.
 
 ## Presence index
 
@@ -137,26 +207,36 @@ and `Content-Length` equal to the pointer size.
 
 Deploy,
 dry run,
-and secret rotation are mise tasks;
+and the two D1 migrations are mise tasks;
 each needs a prior `wrangler login`.
 The operator procedure is `doc/runbook/lfs-r2-worker.md`.
 
 ```sh
+mise run //package/config/lfs-r2-worker:clients:schema
 mise run //package/config/lfs-r2-worker:deploy
 mise run //package/config/lfs-r2-worker:deploy:dry-run
-mise run //package/config/lfs-r2-worker:secret:write-token < "${HOME}/temp/lfs-write-token.txt"
 ```
 
+`secret:write-token` still exists for the shared secret,
+and is not part of any migration step:
+that secret is what the per-machine rows replace.
+
+The first deploy of a Worker that reads client rows needs the table to exist first,
+so the migration is applied before the code that queries it ships.
+An empty table keeps the shared secret working,
+which is what makes the switch a single deploy:
+run the migration,
+deploy once,
+write the first row,
+and from that moment the shared secret is refused and the per-machine tokens answer.
+
 `wrangler secret put` stores an **empty** secret without complaint when its stdin delivers no value.
-`authorized()` refuses an absent or blank `LFS_WRITE_TOKEN`,
-so a blank secret fails closed and every push gets `401`;
+`authorized()` refuses an absent or blank shared secret,
+so a blank one fails closed and every push gets `401`;
 before that guard landed on 2026-10-01,
 a blank secret accepted an empty Basic-auth password and opened uploads to any anonymous caller.
-Redirect the value from a private file,
-then verify the live Worker against three credentials (correct,
- empty,
- wrong) before trusting a rotation.
-`doc/runbook/lfs-r2-worker.md` carries the procedure;
+The guard still applies while the shared secret exists.
+`doc/runbook/lfs-r2-worker.md` carries the order of steps and the checks;
 `doc/troubleshooting/wrangler-secret-put-empty-stdin.md` carries the measurements and the source trace.
 
 The R2 bucket is created once with `cf r2 buckets create --name monochromatic-lfs`
@@ -164,29 +244,48 @@ The R2 bucket is created once with `cf r2 buckets create --name monochromatic-lf
 
 ## Pushing new images
 
-A machine that adds images needs the upload token in a Git credential helper,
-never in a Git config value.
-The committed `.lfsconfig` already names the plain Worker URL,
-so no local `lfs.url` is needed.
-`git-lfs` sends the token as the Basic-auth password when the Worker answers an upload batch with
-`401` and `LFS-Authenticate: Basic`;
-it asks `git credential fill` for it,
-and a credential helper answers.
+A machine that adds images needs that machine's token in a private credential file,
+and its own clone pointed at that file.
+Nothing global changes,
+so every other repository on the machine keeps asking
+nobody,
+and a clone where the command was not run has no upload credential at all.
+
+Two mise tasks do it,
+run inside the clone:
 
 ```sh
 # package/config/lfs-r2-worker/README.md
-mkdir --parents --mode 700 "${HOME}/.config/monochromatic-lfs"
-git config --global credential.https://monochromatic-lfs.aquaticat.workers.dev.helper \
-  "store --file ${HOME}/.config/monochromatic-lfs/credentials"
+# 1. point this repository's own Git settings at the private file
+mise run //package/config/lfs-r2-worker:login:use-here
+
+# 2. store this machine's token, read on stdin, never on a command line
+printf '%s' "${LFS_TOKEN}" | mise run //package/config/lfs-r2-worker:login:store-token -- <client id>
 ```
 
-On the first push `git-lfs` prompts for the user name (any value) and the password (the token) and hands them to the
-helper,
-so the token never passes through a command line,
-a Git config value or a URL.
-`doc/runbook/lfs-r2-worker.md` lists the helper choices and the verification.
-The helper above is the stock `git credential-store` with a file scoped to this host;
-a keyring-backed helper is a drop-in replacement.
+`login:use-here` writes exactly one key,
+`credential.<worker host>.helper`,
+in the repository's local scope,
+which every linked worktree of that repository reads;
+it refuses a directory whose `.lfsconfig` does not name the Worker,
+it never writes a global or system setting,
+and a second run reports that nothing changed.
+`login:store-token` creates the private file at mode `0600` in a directory at
+`0700`,
+writes it through `git credential approve`,
+and reads the credential back
+through `git credential fill` to prove the file answers it.
+Both default to `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-lfs/credentials`
+and accept `--file` and `--host`.
+
+The committed `.lfsconfig` already names the plain Worker URL,
+so no local `lfs.url` is needed.
+`git-lfs` asks `git credential fill` for the pair when the Worker answers an upload
+batch with `401` and `LFS-Authenticate: Basic`,
+and the helper git finds is the one that clone's configuration names.
+A cancelled machine is one revoked row,
+which needs nothing on any other machine.
+`doc/runbook/lfs-r2-worker.md` carries the procedure and the verification.
 
 With that set,
 the normal flow uploads to R2 automatically,
