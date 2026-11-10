@@ -60,6 +60,10 @@ import {
   formalActualPositions,
 } from './effect-formal-actual-mapping.ts';
 
+//region Slot sentinels
+// The marker for a formal no single actual fills, the marker for a slot standing
+// for a whole parameter, and the key type those two make up.
+
 /**
  Sentinel marking a formal that no single actual argument fills.
  */
@@ -76,6 +80,11 @@ const SLOT_IS_WHOLE_PARAMETER: unique symbol = Symbol(
  Property key one slot names, or the sentinel for a whole-parameter slot.
  */
 type SlotPropertyKey = string | typeof SLOT_IS_WHOLE_PARAMETER;
+
+//endregion Slot sentinels
+
+//region Adding an edge
+// Adding one owned call edge carrying caller-relative parameter roots.
 
 /**
  Adds one owned call edge with caller-relative parameter roots.
@@ -391,6 +400,11 @@ export function addOwnedCallEdge({
     },);
 }
 
+//endregion Adding an edge
+
+//region Inverting the callee's keys
+// Inverting the callee's per-parameter key maps into one key per slot.
+
 /**
  Inverts the callee's per-parameter key maps into one key per slot.
  
@@ -424,6 +438,11 @@ function slotPropertyKeys(
     },);
   return keys;
 }
+
+//endregion Inverting the callee's keys
+
+//region Resolving a callback formal
+// The callback filling one formal, when exactly one actual fills it.
 
 /**
  Resolves the callback filling one formal, when exactly one actual fills it.
@@ -460,3 +479,4 @@ function soleCallback({
     return OWNED_CALLABLE_UNAVAILABLE;
   return callbacks[position] ?? OWNED_CALLABLE_UNAVAILABLE;
 }
+//endregion Resolving a callback formal

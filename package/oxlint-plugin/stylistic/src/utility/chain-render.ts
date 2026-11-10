@@ -1,6 +1,10 @@
 import { baseIndentAt, } from './indent.ts';
 import { at, } from './range.ts';
 
+//region Segment shapes
+// What one flattened chain segment is: an attached step, or a break point
+// carrying the offsets its continuation line needs.
+
 /**
  One continuation-line break of a flattened chain.
  
@@ -48,6 +52,11 @@ export type ChainSegment =
      */
       readonly anchorOffset: number;
     };
+//endregion Segment shapes
+
+//region Break selection
+// A break point opens a line once two or more segments precede it, which the
+// segment index alone decides.
 
 /**
  Selects the breaks that actually begin a continuation line.
@@ -89,6 +98,11 @@ export function selectBreaks(
       : [];
   },);
 }
+//endregion Break selection
+
+//region Slice lookup
+// Slices partition the region, so the slice holding an offset is the last break
+// at or before it.
 
 /**
  Parameters for {@link sliceIndexOf}.
@@ -159,6 +173,11 @@ function sliceIndexOf({
   }
   return found;
 }
+//endregion Slice lookup
+
+//region Anchor indentation
+// Two columns past the line carrying a break's anchor, which is either a
+// rendered line the caller placed or a verbatim interior line of the source.
 
 /**
  Parameters for {@link anchorIndentOf}.
@@ -251,6 +270,11 @@ function anchorIndentOf({
       index: sliceIndex,
     },);
 }
+//endregion Anchor indentation
+
+//region Canonical rendering
+// Slice the source at the break offsets so comments and operand text survive
+// verbatim, and indent each continuation past its anchor's line.
 
 /**
  Parameters for {@link renderCanonical}.
@@ -414,3 +438,4 @@ export function renderCanonical({
   },);
   return `${head}${continuations.join('',)}`;
 }
+//endregion Canonical rendering

@@ -86,7 +86,7 @@ pub trait OrderedAwaitingWork<T, R>: Send + Sync {
 /// ```ts
 /// type OrderedAwaitingRunOfOwned<T, R> = { items: T[]; lanes: number[][]; workers: number; work: OrderedAwaitingWork<T, R>; onEvent: OrderedEvents<R> };
 /// ```
-pub struct OrderedRunOfAwaitingOwned<'run, T, R> {
+pub struct OrderedRunOfAwaitingOwned<'run, T, R, E: OrderedEvents<R> + ?Sized> {
     /// The items,
     /// in the order their output is reported.
     pub items: Arc<[T]>,
@@ -106,7 +106,10 @@ pub struct OrderedRunOfAwaitingOwned<'run, T, R> {
     pub work: Arc<dyn OrderedAwaitingWork<T, R>>,
     /// The consumer,
     /// called on the calling task only.
-    pub on_event: &'run mut dyn OrderedEvents<R>,
+    /// Named as the caller's own type rather than as a `dyn` value,
+    /// so a run whose work and consumer are `Send` is a future a task may await:
+    /// a consumer that lends a sink which is not `Send` stays what it was.
+    pub on_event: &'run mut E,
 }
 
 /// What one lane reads:
@@ -189,10 +192,11 @@ async fn run_counted_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lan
 /// # Panics
 /// When a lane names an index that is not an item,
 /// or the lanes do not cover every item exactly once.
-pub async fn run_ordered_awaiting_on_the_runtime<T, R>(run: OrderedRunOfAwaitingOwned<'_, T, R>) -> Result<(), OrderedRunError>
+pub async fn run_ordered_awaiting_on_the_runtime<T, R, E>(run: OrderedRunOfAwaitingOwned<'_, T, R, E>) -> Result<(), OrderedRunError>
 where
     T: Send + Sync + 'static,
     R: Send + 'static,
+    E: OrderedEvents<R> + ?Sized,
 {
     let OrderedRunOfAwaitingOwned { items, lanes, workers, work, on_event } = run;
     refuse_lanes_that_do_not_cover_every_item(items.len(), lanes.as_ref());

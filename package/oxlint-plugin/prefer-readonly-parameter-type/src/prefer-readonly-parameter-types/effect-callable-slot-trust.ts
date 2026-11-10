@@ -47,6 +47,10 @@ import {
   typeCanCarryMutableState,
 } from './effect-primitive-origin.ts';
 
+//region Result trust
+// Whether one call's result can carry mutable state when no owned callee
+// answered.
+
 /**
  Tests whether one call's result can carry mutable state when no owned callee answered.
  
@@ -103,6 +107,12 @@ export function unresolvedResultCanCarryState({
     },);
   },);
 }
+
+//endregion Result trust
+
+//region Ambient promise values
+// What the ambient promise resolves to, since every `async` function's declared
+// return type is an object.
 
 /**
  Names what the ambient promise resolves to, when a result is one.
@@ -178,6 +188,12 @@ function ambientPromiseResolutions({
     .getTypeArguments(type,);
 }
 
+//endregion Ambient promise values
+
+//region Void expressions
+// Whether an expression's type is `void`, asked apart from the leaf test that
+// would call it a primitive.
+
 /**
  Tests whether one expression's type is `void`.
  
@@ -210,6 +226,12 @@ function resultIsVoid({
   return (type !== undefined)
     && ((type.flags & TypeFlags.Void) !== 0);
 }
+
+//endregion Void expressions
+
+//region Callee declarations
+// Whether a callee expression names callable declarations rather than a slot
+// holding one.
 
 /**
  Tests whether one callee expression names callable declarations rather than a slot holding one.
@@ -263,3 +285,5 @@ function calleeNamesCallableDeclaration({
       && isFunctionLikeDeclaration(resolved,);
   },);
 }
+
+//endregion Callee declarations

@@ -32,6 +32,10 @@ export {
   stripCommentLineMarker,
 } from '../comment-text.ts';
 
+//region Visitor parameter shapes
+// One params type per helper below, so every visitor constructor takes the
+// single destructured object the coding standards ask for.
+
 /**
  Parameters for {@link shouldSkipIgnoredFile}.
  */
@@ -74,6 +78,11 @@ type CreateDocumentableVisitorParams = {
   readonly check: (node: ForeignBorrowed<Span>) => void;
 };
 
+//endregion Visitor parameter shapes
+
+//region File exclusion
+// Whether the file under lint is one the TSDoc rules are told to leave alone.
+
 /**
  Checks whether current file is excluded from TSDoc validation, delegating
  to {@link shouldIgnoreFile}.
@@ -94,6 +103,12 @@ export function shouldSkipIgnoredFile(params: ForeignBorrowed<IgnoredFileBeforeH
   const { context, } = params;
   return shouldIgnoreFile(context.filename,);
 }
+
+//endregion File exclusion
+
+//region Report locations
+// Building mutable report locations from a comment's span, whole or anchored to
+// one line inside it.
 
 /**
  Builds a fresh report location from a comment's span.
@@ -169,6 +184,12 @@ export function commentLineReportLoc(
   };
 }
 
+//endregion Report locations
+
+//region Documentable-node walk
+// The visitor that reaches every documentable node type and skips ignored
+// files before any handler runs.
+
 /**
  Creates a visitor over every documentable node type, skipping ignored
  files via {@link shouldSkipIgnoredFile}.
@@ -219,6 +240,12 @@ function createDocumentableVisitor(params: ForeignBorrowed<CreateDocumentableVis
     },
   } as VisitorWithHooks;
 }
+
+//endregion Documentable-node walk
+
+//region Rule visitors
+// Constructors for the visitors the rules use: raw nodes, nodes with parsed
+// TSDoc, and function-like nodes with parsed TSDoc.
 
 /**
  Parameters for {@link createTsdocVisitor}.
@@ -458,3 +485,5 @@ export function createFunctionTsdocVisitor(
   } as VisitorWithHooks;
   return visitor;
 }
+
+//endregion Rule visitors

@@ -13,6 +13,7 @@ import agentSettledNotification, {
   NOTIFICATION_ARGUMENTS,
   NOTIFICATION_COMMAND,
   NOTIFICATION_TIMEOUT_MS,
+  NotificationUnavailableError,
   invokeNotification,
   notifyAgentSettled,
   registerAgentSettledNotification,
@@ -26,6 +27,33 @@ import {
   createRecordingLogger,
   getOnlyHandler,
 } from './test-fixtures.ts';
+
+//region Fixtures
+
+/**
+ Boundary failure whose diagnostic text cannot be read.
+ 
+ The notification wrapper builds its message from the failure it caught, so a
+ failure that refuses to describe itself breaks that construction rather than
+ the delivery, which is the state this suite needs to reach.
+ */
+class UnreadableBoundaryFailureError extends Error {
+  /**
+   Stable error classification independent of minification.
+   */
+  override readonly name = 'UnreadableBoundaryFailureError';
+
+  /**
+   Refuses the diagnostic text every wrapper reads when describing a failure.
+   
+   @throws Error naming the refusal, which is what reaches the handler
+   */
+  override get message(): string {
+    throw new Error('unreadable boundary failure',);
+  }
+}
+
+//endregion Fixtures
 
 await describe({
   name: '',
@@ -134,6 +162,73 @@ await describe({
         },),
 
         it({
+          name: 'absorbs delivery failure so settlement continues',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw new Error('notify-send unavailable',);
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            // Awaiting a rejection here fails this test, which is the claim: a
+            // desktop failure must not escape Pi's lifecycle hook.
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            expect(recording.calls.warn,).toHaveLength(1,);
+          },
+        },),
+
+        it({
+          name: 'surfaces a boundary failure this package cannot describe',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+            /**
+             Inject boundary failure whose own diagnostic text throws, so building the
+             desktop-refusal error fails instead of the delivery it describes.
+             */
+            const unreadable = new UnreadableBoundaryFailureError();
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw unreadable;
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            // A defect this package cannot turn into a desktop refusal must stay
+            // visible rather than read as an expected desktop outage.
+            await expect(handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            ),).rejects.toThrow('unreadable boundary failure',);
+            expect(recording.calls.warn,).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'warns once about unavailable delivery and logs repeats at debug',
           fn: async () => {
             /** Fake Pi registration harness. */
@@ -169,7 +264,9 @@ await describe({
             expect(recording.calls.warn[0],).toContain('settled-agent desktop notification unavailable',);
             expect(recording.calls.warn[0],).toContain(unavailable.message,);
             expect(recording.calls.debug,).toHaveLength(1,);
-            expect(recording.calls.debug[0],).toContain('settled-agent desktop notification remains unavailable',);
+            expect(recording.calls.debug[0],).toContain(
+              'settled-agent desktop notification remains unavailable',
+            );
           },
         },),
       ],
@@ -216,22 +313,39 @@ await describe({
       name: notifyAgentSettled.name,
       children: [
         it({
-          name: 'returns delivery failure without throwing',
+          name: 'resolves after successful delivery',
           fn: async () => {
-            /** Delivery failure returned by an unavailable desktop-notification executable. */
+            await notifyAgentSettled({
+              invoke: function acceptNotification(): Promise<void> {
+                return Promise.resolve();
+              },
+            },);
+          },
+        },),
+
+        it({
+          name: 'throws NotificationUnavailableError carrying the desktop failure',
+          fn: async () => {
+            /** Delivery failure raised by an unavailable desktop-notification executable. */
             const unavailable = new Error('notify-send unavailable',);
 
-            /** Settled-notification result after injected delivery failure. */
-            const delivery = await notifyAgentSettled({
+            /** Settled-notification attempt refused by the injected desktop boundary. */
+            const delivery = notifyAgentSettled({
               invoke: async function rejectNotification(): Promise<void> {
                 throw unavailable;
               },
             },);
 
-            expect(delivery,).toEqual({
-              delivered: false,
-              error: unavailable,
-            },);
+            await expect(delivery,).rejects.toBeInstanceOf(NotificationUnavailableError,);
+            await expect(delivery,).rejects.toHaveProperty('cause', unavailable,);
+            await expect(delivery,).rejects.toSatisfy(
+              function carriesBoundaryFailure(refusal: unknown,): boolean {
+                if (!(refusal instanceof NotificationUnavailableError))
+                  return false;
+                return refusal.message.includes(unavailable.message,)
+                  && refusal.message.includes(NOTIFICATION_COMMAND,);
+              },
+            );
           },
         },),
       ],

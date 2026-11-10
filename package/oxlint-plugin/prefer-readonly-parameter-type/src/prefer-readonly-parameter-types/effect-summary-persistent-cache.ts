@@ -41,6 +41,10 @@ import {
   serializeEffectSummaries,
 } from './effect-summary-serialization.ts';
 
+//region Logger and size bounds
+// The module logger, the unit conversions, and the entry size accepted before
+// JSON decoding.
+
 /**
  Persistent cache logger.
  */
@@ -67,6 +71,12 @@ const MAX_CACHE_ENTRY_MEBIBYTES = 16;
 const MAX_CACHE_ENTRY_BYTES = MAX_CACHE_ENTRY_MEBIBYTES
   * KIBIBYTES_PER_MEBIBYTE
   * BYTES_PER_KIBIBYTE;
+
+//endregion Logger and size bounds
+
+//region Cache address and hit shapes
+// The sentinel for an unprovable hit, the address reads and writes share, the
+// closure snapshot an entry carries, and a validated hit.
 
 /**
  Sentinel returned when persistent cache cannot prove an exact hit.
@@ -123,6 +133,11 @@ export type PersistentEffectCacheHit = {
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
   readonly externalOmissions: readonly ExternalOmissionRecord[];
 };
+
+//endregion Cache address and hit shapes
+
+//region Identity and path
+// The exact identity and file path one source snapshot is stored at.
 
 /**
  Builds exact cache identity and path for source snapshot.
@@ -195,6 +210,12 @@ function cacheIdentity(
     ),
   };
 }
+
+//endregion Identity and path
+
+//region Reading and writing
+// Reading a direct summary from an entry validated against program state, and
+// writing one atomically.
 
 /**
  Reads direct summaries from persistent entry validated against program state.
@@ -406,3 +427,4 @@ export function writePersistentEffectSummaries({
     }
   }
 }
+//endregion Reading and writing

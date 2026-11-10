@@ -37,6 +37,10 @@ import {
 } from './effect-slot-identity.ts';
 import { addForeignBorrowedCallEdge, } from './foreign-borrowed-call-edge.ts';
 
+//region Ownership seed
+// The seed the foreign ownership fixed point needs: resolved owned calls and
+// arguments, before any propagation.
+
 /**
  Creates ownership seed needed by foreign ownership fixed point.
  
@@ -153,6 +157,11 @@ export function foreignBorrowedOwnershipSeed({
   return summary;
 }
 
+//endregion Ownership seed
+
+//region Direct facts
+// The marker and owned-call facts one callable contributes directly.
+
 /**
  Creates direct marker and owned-call facts for one callable.
  
@@ -223,3 +232,4 @@ export function foreignBorrowedDirectSummary({
     },);
   return summary;
 }
+//endregion Direct facts

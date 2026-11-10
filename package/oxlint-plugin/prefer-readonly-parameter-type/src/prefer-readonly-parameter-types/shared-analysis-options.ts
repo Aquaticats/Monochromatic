@@ -11,6 +11,10 @@ import {
   updateHashString,
 } from './effect-hash-value.ts';
 
+//region Options outside the key
+// The resolved values that name project-specific paths or only steer module
+// resolution, and so change nothing about one file's analysis.
+
 /**
  Options whose resolved values name project-specific paths or only steer module resolution.
  
@@ -35,6 +39,12 @@ const RESOLUTION_ONLY_OPTIONS: ReadonlySet<string> = new Set([
   'tsBuildInfoFile',
   'typeRoots',
 ],);
+
+//endregion Options outside the key
+
+//region Options inside the key
+// The resolved values that are part of the key, checking options included
+// because they change what the checker concludes.
 
 /**
  Options whose resolved values are part of the key.
@@ -147,6 +157,12 @@ const KEYED_OPTIONS: ReadonlySet<string> = new Set([
   'verbatimModuleSyntax',
 ],);
 
+//endregion Options inside the key
+
+//region Classifying the options
+// The outcome of classifying one project's resolved options, and the digest of
+// the keyed ones or the first option nobody classified.
+
 /**
  Outcome of classifying a project's resolved compiler options.
  
@@ -224,3 +240,4 @@ export function checkingOptionsKey(compilerOptions: object,): CheckingOptionsKey
     digest: digest.digest('hex',),
   };
 }
+//endregion Classifying the options

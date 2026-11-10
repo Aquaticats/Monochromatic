@@ -33,7 +33,7 @@
 
 pub use crate::service_work_handlers_replanning_and_acceptance::*;
 pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
-pub(crate) use crate::service_work_drain_pending_claims::drain_pending;
+pub use crate::service_work_drains_awaiting::{drain_common_records_planned_awaiting, drain_planned_awaiting, drain_planned_with_awaiting};
 use crate::auto_push::push_once_awaiting;
 use crate::auto_push_single_flight::PushGit;
 use crate::child_environment::{environment_with_overlay, service_child_overlay};
@@ -50,12 +50,11 @@ use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejec
 use crate::push_failure_notice::record_push_report;
 use crate::auto_push_reconcile_basics_and_limits::RECONCILE_LINE_PREFIX;
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_review::{options_for, review_item, review_variables};
+use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -149,21 +148,28 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
     return drain_planned_with(git_dir, handlers, now, CLAIM_LEASE, Renewal::Timed, retrying);
 }
 
-/// `drain_planned` with the lease and the renewal given.
+/// What:
+///  `drain_planned` with the lease and the renewal given,
+/// its waits made by entering the runtime once.
+/// Why:
+///   The body is the awaited one (`service_work_drains_awaiting.rs`),
+/// so the two faces cannot drain differently;
+/// a caller inside the
+///  runtime cannot enter it and is told so,
+/// which leaves every record it holds to its lease.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
+/// ```
 pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
-    // A directory that cannot be reached runs nothing and keeps its push plans (plan item W3).
-    if let Err(unreachable) = crate::service_instance::try_instance_of(git_dir) {
-        return keep_plans_while_unreachable(git_dir, retrying, &unreachable);
-    }
-    let work_dir: PathBuf = work_directory(git_dir);
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    // The notice is written before the item moves to `failed`: nothing scans `failed`, so the order is the only thing that
-    //  keeps a kill in between from abandoning the branch in silence.
-    let _recovered: Recovered = requeue_expired_reporting_telling(work_dir.as_path(), now, lease, MAX_TRIES, &SkipNotice(git_dir));
-    run_due_push_retries(git_dir, handlers, retrying.due.as_slice(), &mut replanning);
-    drain_pending(git_dir, handlers, lease, renewal, &mut replanning);
-    let wait: Option<Duration> = next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
-    return Drained { wait, changes: replanning.changes };
+    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying)) {
+        Ok(drained) => drained,
+        Err(refusal) => {
+            crate::diagnostic_log::debug("drainPlanned", format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str());
+            Drained::default()
+        }
+    };
 }
 
 /// What:
@@ -209,43 +215,27 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// when one is due;
 /// that wake drains the common directory as a directory of its own,
 /// which has no `commondir`.
+/// What:
+///  The same drain,
+/// its waits made by entering the runtime once.
+/// Why:
+///   The body is the awaited one (`service_work_drains_awaiting.rs`);
+/// a caller inside the runtime cannot enter it and is told so,
+/// which leaves
+///  the records where they are until their lease ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
+/// ```
 pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    let Some(common) = common_directory_of(git_dir) else {
-        return Drained::default();
-    };
-    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
-        return Drained::default();
-    }
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    let _recovered: Recovered = requeue_expired_reporting_telling(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES, &SkipNotice(common.as_path()));
-    drain_pending(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning);
-    let wait: Option<Duration> = next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
-    return Drained { wait, changes: replanning.changes };
-}
-
-/// The common directory a linked worktree's Git directory names in its `commondir` file,
-/// or nothing for any other directory.
-pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
-    let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
-    let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
-    if named.as_os_str().is_empty() {
-        return None;
-    }
-    // Resolved by the text alone, so the result spells the path the way the worktree's own Git directory does, which is how the
-    //  records name their directory.
-    let mut resolved: PathBuf = PathBuf::new();
-    for part in git_dir.join(named).components() {
-        match part {
-            std::path::Component::ParentDir => {
-                if !resolved.pop() {
-                    return None;
-                }
-            }
-            std::path::Component::CurDir => {}
-            other => resolved.push(other.as_os_str()),
+    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying)) {
+        Ok(drained) => drained,
+        Err(refusal) => {
+            crate::diagnostic_log::debug("drainCommonRecords", format!("the drain of the common records of {} was not run: {refusal}", git_dir.display()).as_str());
+            Drained::default()
         }
-    }
-    return Some(resolved);
+    };
 }
 
 /// The handlers that run real Git.
@@ -500,6 +490,25 @@ impl WorkHandlers for GitHandlers {
         return crate::worktree_trash::empty_trash(item);
     }
 
+    /// What:
+    ///  The same emptying,
+    /// its entry removals awaited on the runtime.
+    /// Why:
+    ///   The drain of a round is a task of the runtime,
+    /// and the synchronous face enters the runtime for
+    /// `remove_entries`,
+    /// which is refused there:
+    /// the trash would stay and the item would settle as failed.
+    /// The record and the reasons are the synchronous face's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trashAwaiting(item) { return emptyTrashAwaiting(item); }
+    /// ```
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
+    }
+
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,
@@ -526,6 +535,35 @@ impl WorkHandlers for GitHandlers {
             options.endpoint = endpoint.clone();
         }
         return review_item(&self.context, item, options);
+    }
+
+    /// What:
+    ///  The same review,
+    /// its wait for the contained job made on the runtime.
+    /// Why:
+    ///   The round of the service's work is tasks of the runtime
+    /// (`service_round.rs`),
+    /// and the synchronous wait for a review's job blocks the thread that asks,
+    ///  which a worker may not do:
+    /// the job starts Git.
+    /// The key,
+    /// the options and the endpoint are the synchronous face's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reviewAwaiting(item) { return reviewItemAwaiting(context, item, optionsOf(item)); }
+    /// ```
+    fn review_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
+            #[cfg_attr(not(test), expect(unused_mut, reason = "only a test replaces the endpoint"))]
+            let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
+            #[cfg(test)]
+            if let Some(endpoint) = self.review_endpoint.as_ref() {
+                options.endpoint = endpoint.clone();
+            }
+            return review_item_awaiting(&self.context, item, options).await;
+        });
     }
 }
 

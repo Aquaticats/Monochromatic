@@ -6,7 +6,7 @@
   "private": true,
   "main": "src/index.ts",
   "bin": {
-    "vmsync": "dist/final/node/index.mjs"
+    "vmsync": "dist/final/node/cli.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

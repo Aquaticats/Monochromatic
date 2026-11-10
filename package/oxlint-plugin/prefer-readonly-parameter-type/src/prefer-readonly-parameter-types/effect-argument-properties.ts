@@ -49,6 +49,10 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Literal property vocabulary
+// The key whose plain assignment form sets a prototype instead of an own
+// property, the sentinel for an unreadable actual, and the two property views.
+
 /**
  Property name whose plain assignment form sets a prototype instead of an own property.
  */
@@ -79,6 +83,12 @@ type PropertyContribution = {
 export type ArgumentPropertyView = {
   readonly contributions: readonly PropertyContribution[];
 };
+
+//endregion Literal property vocabulary
+
+//region Argument shape
+// Unwrapping the wrappers that change nothing about the value an argument
+// holds, and the two literal shapes that defeat the reverse walk.
 
 /**
  Unwraps the wrappers that change nothing about the value an argument holds.
@@ -176,6 +186,12 @@ function definesAccessor(
         || isSetAccessorDeclaration(property,);
     },);
 }
+
+//endregion Argument shape
+
+//region Decomposing one property
+// Reducing one authored property to the key it fills and the origins it
+// contributes, then resolving a key's origins by walking the literal backwards.
 
 /**
  Reduces one authored property to the key it fills and the origins it contributes.
@@ -288,6 +304,12 @@ function propertyContribution({
   };
 }
 
+//endregion Decomposing one property
+
+//region One actual's structure
+// Reading the authored property structure of a call argument, and the origins
+// one of its keys can hold.
+
 /**
  Reads the authored property structure of one call argument.
  
@@ -386,3 +408,5 @@ export function originsOfPropertyKey({
   }
   return [...origins,];
 }
+
+//endregion One actual's structure

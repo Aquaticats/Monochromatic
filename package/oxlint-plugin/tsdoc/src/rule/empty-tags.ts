@@ -24,6 +24,10 @@ import {
   stripCommentLineMarker,
 } from './tsdoc-visitors.ts';
 
+//region Tagged line shape
+// The absence marker for a line that is not `@tag <text>` form, and the parsed
+// shape a tagged line reduces to.
+
 /**
  Absence marker for {@link parseTaggedLine} meaning "line is not `@tag <text>`
  form"; never a parsed tagged line.
@@ -51,6 +55,12 @@ type TaggedLine = {
    */
   rest: string;
 };
+
+//endregion Tagged line shape
+
+//region Parsing one line
+// The linear scan over the leading `@word` run, the whitespace gap, and the
+// rest of the line.
 
 /**
  Parses a TSDoc line of the form `@tag <whitespace> <rest>`.
@@ -104,6 +114,12 @@ export function parseTaggedLine(s: string,): TaggedLine | typeof UNTAGGED_LINE {
     rest,
   };
 }
+
+//endregion Parsing one line
+
+//region The rule
+// The exported rule, which reports the modifier tags that should carry no
+// content but do.
 
 /**
  Enforces that TSDoc tags which should not have content are empty.
@@ -204,3 +220,5 @@ export const emptyTags: CreateOnceRule = {
     },);
   },
 };
+
+//endregion The rule

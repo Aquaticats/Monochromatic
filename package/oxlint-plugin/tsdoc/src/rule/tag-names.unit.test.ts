@@ -7,7 +7,7 @@ import {
 import {
   collectTags,
   stripInlineCodeSpans,
-} from './tag-names.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Count of repeated units used to exercise the scans on long input. */
 const LONG_RUN = 1_000;

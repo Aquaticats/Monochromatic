@@ -17,6 +17,11 @@ import {
   type ReadonlyClassification,
 } from './readonly-classification-model.ts';
 
+//region Collection vocabulary
+// The sentinel for a type this module does not handle, the standard readonly
+// generic owners, and the callback one reached collection value is
+// classified with.
+
 /**
  Sentinel when type is not a collection shape handled by this module.
  */
@@ -36,6 +41,12 @@ const READONLY_GENERIC_COLLECTION_OWNERS: ReadonlySet<string> = new Set([
  Classifier callback for recursively reached collection values.
  */
 type NestedReadonlyClassifier = (type: Type) => ReadonlyClassification;
+
+//endregion Collection vocabulary
+
+//region Per-shape classification
+// One classifier per collection shape: mutable array, readonly array, generic
+// collection, and tuple.
 
 /**
  Classifies mutable array container and nested indexed values.
@@ -205,6 +216,12 @@ function classifyTuple({
   ],);
 }
 
+//endregion Per-shape classification
+
+//region The entry point
+// The dispatch that classifies a collection shape and returns the sentinel for
+// an ordinary object.
+
 /**
  Classifies collection shape or returns unavailable sentinel for ordinary objects.
  
@@ -265,3 +282,4 @@ export function classifyReadonlyCollection({
   }
   return READONLY_COLLECTION_CLASSIFICATION_UNAVAILABLE;
 }
+//endregion The entry point

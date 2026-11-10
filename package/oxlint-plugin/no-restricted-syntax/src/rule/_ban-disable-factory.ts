@@ -6,6 +6,10 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Directive vocabulary
+// The disable-directive prefix and every keyword spelling oxlint reads, longest
+// first so `-next-line` is never cut down to `-line`.
+
 /**
  Text prefix common to every oxlint disable directive.
  */
@@ -20,6 +24,12 @@ const DISABLE_DIRECTIVE_KEYWORDS = [
   'oxlint-disable-line',
   DISABLE_DIRECTIVE_PREFIX,
 ] as const;
+
+//endregion Directive vocabulary
+
+//region Reading a directive
+// Cutting an entry at its first whitespace, so only the rule id survives, and
+// listing the ids after a keyword in the comma-separated tail.
 
 /**
  Cuts text at its first whitespace character, so a directive entry keeps only
@@ -72,6 +82,12 @@ function ruleIdsInDirectiveTail({ tail, }: { readonly tail: string; },): readonl
       return ruleId.length > 0;
     },);
 }
+
+//endregion Reading a directive
+
+//region Matching the banned rule
+// Whether an entry names the banned rule under any plugin prefix, and the ids a
+// comment disables as a whole.
 
 /**
  Checks whether a directive entry names the banned rule, under any plugin
@@ -143,6 +159,11 @@ function disabledRuleIds({ value, }: { readonly value: string; },): readonly str
   }
   return [];
 }
+
+//endregion Matching the banned rule
+
+//region The factory
+// The exported factory, which builds one ban rule per banned rule id.
 
 /**
  Creates an oxlint rule that bans inline disable directives targeting a
@@ -224,3 +245,5 @@ export function banDisableRule({
     },
   };
 }
+
+//endregion The factory

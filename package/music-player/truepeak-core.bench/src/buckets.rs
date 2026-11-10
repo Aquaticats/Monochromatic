@@ -24,8 +24,8 @@
 use crate::corpus::Track;
 /// Imports the bench's one dBTP conversion.
 use crate::levels::peak_dbtp_or_silence;
-/// Imports the max-heap driving the frontier expansion.
-use std::collections::BinaryHeap;
+/// Imports the bridge to the production probe selection.
+use crate::probe_bins::select_over_bin_peaks;
 /// Imports the tag and profile join maps.
 use std::collections::HashMap;
 /// Imports the line-by-line side-file readers.
@@ -41,8 +41,9 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 /// Imports the shared dB conversion,
 ///  the policy,
-///  and the engine's bucket types.
-use truepeak_core::{BucketProbe, Policy, TrackProvenance};
+///  the engine's bucket types,
+///  and the production selection's grid.
+use truepeak_core::{BucketProbe, Policy, ProbeGrid, TrackProvenance};
 
 /// One row of the embedded-tag sweep (analysis/tags-sweep.mjs output).
 #[derive(Deserialize)]
@@ -187,79 +188,34 @@ pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>
 }
 
 /// The hybrid probe:
-///  optional bones seed slots (each ±1),
+///  optional bones seed slots (each with its neighbour),
 ///  an even pass,
-///  then frontier
-/// zoom until the bin budget is spent;
-///  returns the loudest decoded bin and decoded secs.
+///  then the production frontier
+/// climb;
+///  returns the loudest measured bin and decoded secs.
 ///
 /// What:
-///  the same climb as `zoom.rs`,
+///  the shipped selection,
 ///  seeded by byte-rate hot spots when a profile
-/// exists.
-///  Why:
+/// exists and otherwise climbing from the even pass alone.
+/// Why:
 ///  for lossless codecs the byte profile points at loud passages,
-///  so the
-/// climb starts on the right hills at a fraction of the coverage.
+///  so the climb
+/// starts on the right hills at a fraction of the coverage,
+///  and scoring it through the production
+/// selection is what keeps this evidence equal to playback's.
 fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<&Vec<usize>>) -> (f64, f64) {
     let bins = &track.bin_peaks;
-    let n = bins.len();
-    let budget_bins = ((coverage * n as f64).floor() as usize).max(1);
-    let mut decoded = vec![false; n];
-    // Non-negative f32 bit patterns order like the values; the heap pops loudest first.
-    let mut heap: BinaryHeap<(u32, usize)> = BinaryHeap::new();
-    let mut used = 0usize;
-    let mut peak = 0.0f32;
-    let decode = |index: usize,
-                  decoded_flags: &mut Vec<bool>,
-                  loud_heap: &mut BinaryHeap<(u32, usize)>,
-                  used_count: &mut usize,
-                  peak_value: &mut f32| {
-        decoded_flags[index] = true;
-        *used_count += 1;
-        if bins[index] > *peak_value {
-            *peak_value = bins[index];
-        }
-        loud_heap.push((bins[index].to_bits(), index));
-    };
-    if let Some(slots) = bones {
-        for &slot in slots {
-            let lo = slot.saturating_sub(1);
-            let hi = (slot + 1).min(n.saturating_sub(1));
-            for index in lo..=hi {
-                if !decoded[index] && used < budget_bins {
-                    decode(index, &mut decoded, &mut heap, &mut used, &mut peak);
-                }
-            }
-        }
-    }
-    let count = ((even_coverage * n as f64).round() as usize).max(1);
-    let span = n - 1;
-    for step in 0..count {
-        if used >= budget_bins {
-            break;
-        }
-        let index = if count <= 1 {
-            span / 2
-        } else {
-            ((step as f64 / (count - 1) as f64) * span as f64).round() as usize
-        };
-        if !decoded[index] {
-            decode(index, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-    }
-    while used < budget_bins {
-        let Some((_, index)) = heap.pop() else {
-            break;
-        };
-        if index > 0 && !decoded[index - 1] && used < budget_bins {
-            decode(index - 1, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-        if index + 1 < n && !decoded[index + 1] && used < budget_bins {
-            decode(index + 1, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-    }
-    return (f64::from(peak), used as f64 * track.bin_seconds)
+    let selection = select_over_bin_peaks(
+        ProbeGrid {
+            bin_count: bins.len(),
+            coverage_fraction: coverage,
+            even_coverage_fraction: even_coverage,
+            bones_hot_bins: bones.map(|slots| return slots.as_slice()),
+        },
+        bins,
+    );
+    return (f64::from(selection.peak), selection.used_bins as f64 * track.bin_seconds)
 }
 
 /// One probed long track under the composite:

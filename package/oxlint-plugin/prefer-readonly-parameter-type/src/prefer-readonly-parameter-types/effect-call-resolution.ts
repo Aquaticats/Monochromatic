@@ -47,6 +47,9 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Parameter roots of a value
+// Every callable parameter one expression's value can be reached from.
+
 /**
  Maps an expression to every callable parameter its value can be reached from.
  
@@ -80,6 +83,11 @@ export function rootParameterOrigins({
     node,
   },);
 }
+
+//endregion Parameter roots of a value
+
+//region Caller origins in an argument
+// Every caller parameter origin packaged inside one call argument.
 
 /**
  Collects every caller parameter origin packaged inside one call argument.
@@ -295,6 +303,12 @@ export function parameterIndexes({
   return [...origins,];
 }
 
+//endregion Caller origins in an argument
+
+//region Resolving call targets
+// Resolving a call target or callback expression to the owned function-like
+// declaration it names.
+
 /**
  Resolves call target or callback expression to owned function-like declaration.
  
@@ -402,6 +416,12 @@ export function callableDeclaration({
   return OWNED_CALLABLE_UNAVAILABLE;
 }
 
+//endregion Resolving call targets
+
+//region Unresolved external effects
+// Recording the unresolved external effect and callable provenance that keep a
+// summary opaque.
+
 /**
  Records unresolved external effect and callable provenance.
  
@@ -444,3 +464,5 @@ export function addOpaqueEffect({
     provenanceFacts,
     );
 }
+
+//endregion Unresolved external effects

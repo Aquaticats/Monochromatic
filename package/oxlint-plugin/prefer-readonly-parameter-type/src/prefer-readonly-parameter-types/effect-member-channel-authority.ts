@@ -4,6 +4,11 @@
  @module
  */
 
+//region Channel vocabulary
+// The verified user-code channels one default-library member can open, from none
+// at all through own-index reads to species construction, the sentinel for an
+// unverified one, and the union they form.
+
 /**
  Member reaching no user code at all, reading and writing internal slots only.
  
@@ -128,6 +133,12 @@ export type MemberUserCodeChannel =
     | typeof MEMBER_CHANNEL_RECEIVER_INDEX
     | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_SPECIES
     | typeof MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION;
+
+//endregion Channel vocabulary
+
+//region The channel table
+// Verified channels by interface owner and member, the lookup index built from
+// them, and the count pinned so silent table growth fails the guard.
 
 /**
  Default-library collection members whose user-code channel is verified, by owner.
@@ -308,6 +319,12 @@ export const MEMBER_CHANNELS_BY_INTERFACE: ReadonlyMap<
  */
 export const VERIFIED_MEMBER_CHANNEL_COUNT = 81;
 
+//endregion The channel table
+
+//region Iterator and observer members
+// Members returning an iterator, whose entries claim creation and drainage
+// together, and members that invoke a caller-supplied observer.
+
 /**
  Members returning an iterator, whose entries claim creation and drainage together.
  
@@ -388,6 +405,12 @@ export const OBSERVER_BEARING_MEMBER_NAMES: ReadonlySet<string> = new Set([
   'toSorted',
 ],);
 
+//endregion Iterator and observer members
+
+//region Lookups
+// The member names this rule recognises, whether a member invokes an observer,
+// and the channel a member is verified to open.
+
 /**
  Every default-library collection member name this rule recognises, for any purpose.
  
@@ -448,3 +471,4 @@ export function collectionMemberUserCodeChannel({
     ?.get(memberName,)
     ?? MEMBER_CHANNEL_UNPROVEN;
 }
+//endregion Lookups
