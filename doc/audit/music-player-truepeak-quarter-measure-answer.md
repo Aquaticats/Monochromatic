@@ -183,7 +183,11 @@ reading only headers) puts the crest's slot at the median at the 8.3rd byte-rank
  so frame bytes must
 be spread overlap-proportionally into 0.1 s slots;
  binning by start time aliases into a
-sawtooth and halves the correlation (`analysis/flac-bones.mjs`).
+sawtooth and halves the correlation (`analysis/flac-bones.mjs`;
+that script was retired on 2026-11-10,
+and the measurement now comes from
+`truepeak-core-bench <corpus> --bones <out.jsonl>`,
+which walks through `truepeak_core::flac_bones_profile`).
  A bones-seeded probe at
 roughly 9% coverage nearly matches an even probe at 24% (p90 under-read 0.23 vs 0.20 dB),
 which is what lets the flac bucket run at 7% coverage in the decided table.
@@ -343,6 +347,12 @@ branch `truepeak-quarter-answer`,
    and `--buckets`
   (17 clamps / 0.367 / 0.50;
    commit c60ee60f8).
+  The profile half of that recipe changed on 2026-11-10:
+  `analysis/flac-bones.mjs` was retired,
+  and `out/flac-profiles.jsonl` now comes from
+  `mise run //package/music-player/truepeak-core.bench:run -- <corpus> --bones out/flac-profiles.jsonl`,
+  which walks through the shared `truepeak_core::flac_bones_profile`.
+  On a sample of the corpus the retired script and the bench wrote identical rows.
 - Uniform zoom layer:
    `--zoom` with the corpus and metadata (commit 0bda0177f).
 - The searches and dead ends:
@@ -352,7 +362,8 @@ branch `truepeak-quarter-answer`,
    `analysis/adaptive.mjs`,
   `analysis/anatomy.mjs`,
    `analysis/correlate.mjs` with `analysis/bones-*.mjs`,
-  `analysis/flac-bones.mjs`,
+  `analysis/flac-bones.mjs` (retired 2026-11-10;
+  the bench's `--bones` mode runs the shared walk),
    `analysis/album-prior.mjs`,
    `analysis/duplicates.mjs`,
   `analysis/levers.mjs`,

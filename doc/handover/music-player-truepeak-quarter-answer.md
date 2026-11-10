@@ -179,7 +179,10 @@ Bucket round results (committed 77fcc0ef0,
    match on gain-sensitivity,
    never correlation.
 - FLAC bones CONFIRMED (analysis/flac-bones.mjs,
-   commits 4a3db5dd2+3b4c782d4):
+   commits 4a3db5dd2+3b4c782d4;
+  that script was retired on 2026-11-10,
+  and the bench's `--bones` mode now walks through the shared
+  `truepeak_core::flac_bones_profile`):
   lossless frame sizes track signal level,
    unlike perceptual codecs.
    1272 of
@@ -202,7 +205,9 @@ Bucket round results (committed 77fcc0ef0,
    FLAC keeps its
   accuracy at about a third of the decode cost.
    Profiles regenerate to
-  out/flac-profiles.jsonl (not committed).
+  out/flac-profiles.jsonl (not committed);
+  since 2026-11-10 the writer is
+  `mise run //package/music-player/truepeak-core.bench:run -- <corpus> --bones out/flac-profiles.jsonl`.
 - FINAL COMPOSITE WIRED (compose-final.mjs + src/buckets.rs,
    commit c60ee60f8;
   clippy + rust-linter clean).
@@ -310,7 +315,10 @@ cache identity from default_policy().cache_identity(decoder_stack_id()).
    bench --buckets reproduces 17 clamps / 0.367 / 0.50 in
   budget (side files copied into main's gitignored out/;
    regenerable via
-  analysis/tags-sweep.mjs and analysis/flac-bones.mjs extract),
+  analysis/tags-sweep.mjs and analysis/flac-bones.mjs extract;
+   the profile half is
+  `mise run //package/music-player/truepeak-core.bench:run -- <corpus> --bones out/flac-profiles.jsonl`
+  since analysis/flac-bones.mjs was retired on 2026-11-10),
    desktop 78/78
   (mise run test).
    Android native verified via cargo-ndk cross-build on the
@@ -383,7 +391,9 @@ exact-decoded-window verification of the bin-level corpus numbers.
   platforms can compute bones from raw file bytes (reference implementation:
   bench analysis/flac-bones.mjs,
    overlap-proportional slot spreading,
-  CRC-8-verified frame walk).
+  CRC-8-verified frame walk;
+  the reference script was retired on 2026-11-10,
+  and `truepeak-core-bench <corpus> --bones <out.jsonl>` is the one walk left).
    Consumers pass provenance from their decoders
   (lossless flag at minimum;
    store/purl default false degrades safely into

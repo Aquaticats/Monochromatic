@@ -2506,7 +2506,9 @@ recording):
 - Package completion:
   `w4-desktop-app` finished the music-player campaign end to end.
   The truepeak-core.bench sidecar closed with full reads of variants.mjs (391 live),
-  duplicates.mjs (736) and flac-bones.mjs (1121);
+  duplicates.mjs (736) and flac-bones.mjs (1121;
+  that script was retired on 2026-11-10,
+  and the bench's `--bones` mode runs the shared walk);
   `pkgobs-bench-uncovered.txt` is empty.
   `pkg-observable.jsonl` final:
   142 rows,
