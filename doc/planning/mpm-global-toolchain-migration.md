@@ -283,9 +283,9 @@ npm policy is unchanged:
 Hard switch after a successful full global sync,
 with the Mise installs left in place as rollback:
 
-1. Seed the config stack from the old declarations
+1.  Seed the config stack from the old declarations
  and provision with `toolchain:sync:global`.
-2. Edit `~/.config/mise/config.toml`:
+2.  Edit `~/.config/mise/config.toml`:
  delete `[tools]`,
  `[settings.pipx]`,
  `[settings.npm]`,
@@ -295,14 +295,14 @@ with the Mise installs left in place as rollback:
  and `[env]`;
  add the `_.path` entry pointing at the farm;
  repoint `GH_PATH` at the farm's `gh` link.
-3. Verify the user boundary:
+3.  Verify the user boundary:
  every declared tool resolves through the farm,
  `git` still runs the policy wrapper,
  `gh` honors `GH_PATH`,
  and the old shims do not shadow the farm
  (PATH order measured,
  not assumed).
-4. Record the cutover in the decision,
+4.  Record the cutover in the decision,
  the planning records,
  and `doc/planning/cli-git-global-install.md`'s rollback wording.
 
@@ -341,8 +341,8 @@ with the Mise installs left in place as rollback:
 
 ## Verification
 
-1. `mise run toolchain:status:global` clean after the sync on this machine.
-2. Disposable home (`mktemp -d`,
+1.  `mise run toolchain:status:global` clean after the sync on this machine.
+2.  Disposable home (`mktemp -d`,
  `HOME=`,
  `XDG_DATA_HOME=`,
  `XDG_CONFIG_HOME=`,
@@ -354,11 +354,11 @@ with the Mise installs left in place as rollback:
  `rustup toolchain list`,
  `go version`,
  one `bin`-sourced binary).
-3. User boundary on this machine:
+3.  User boundary on this machine:
  `command -v` for a sample of declared tools resolves to the farm,
  `git` wrapper policies still fire,
  and `mise run` tasks still work.
-4. No synthetic host load;
+4.  No synthetic host load;
  every probe reports the command,
  working directory and exit status.
 

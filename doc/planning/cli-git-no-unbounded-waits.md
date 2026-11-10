@@ -116,91 +116,91 @@ Status words:
 
 ### Locks
 
-1. `src/native/service_index_attempts.rs` `wait_and_place` (landing waits for a foreign `index.lock`).
-   Waits for the lock to go;
-   ended today by release or a dead owner (a PID file naming a gone process),
-   nothing else.
-   Bound:
-   `LOCK_CEILING`.
-   At the bound:
-   the batch is withdrawn before the branch moved,
-   the built commit is kept on a side ref,
-   the client exits non-zero naming the holder and the command to run again.
-   Built.
-2. `src/native/index_holder_wait.rs:119` `wait_for_index_release` (a merge waits for any `index.lock`).
-   Ended by release or a dead owner.
-   Bound:
-   `LOCK_CEILING`.
-   At the bound:
-   the merge stops,
-   nothing changed,
-   non-zero,
-   naming
-   the holder.
-   Built.
-3. `src/native/service_index_wait.rs:162` `wait_for_service_hold` (a forwarded `git add`,
-   `rm` or `mv` waits for the service's
-   hold).
-   Ended by release,
-   a mark naming a gone holder,
-   or a hold of `UNASKABLE_HOLD_AGE` whose holder cannot be asked about.
-   Bound:
-   `SERVICE_HOLD_CEILING`.
-   At the bound:
-   the command runs and reports what Git says.
-   Built.
-4. `src/native/service_land_follow.rs:157` `update_index` (index reconciliation of a commit with no change left),
-   through
-   `wait_for_index_release_here`.
-   Bound:
-   the bound of entry 2.
-   At the bound:
-   the command ends,
-   non-zero as it always does.
-   Built.
-5. `src/native/service_hold_retry.rs:103` `run_again_while_service_holds` (up to `ATTEMPTS` 50 reruns,
-   each preceded by entry 3).
-   Bounded by count,
-   not by time:
-   the worst case is 50 times the bound of entry 3.
-   Proposed bound:
-   one deadline over the whole
-   loop,
-   `SERVICE_HOLD_CEILING`.
-   Built.
-6. `src/native/service_index_lock.rs:97` `try_acquire` and `src/native/index_reset_support.rs:209`:
-   one attempt,
-   no wait.
-   Bounded.
-7. Reference locks:
-   `src/native/auto_push.rs:46` `PUSH_LOCK_RETRIES` 3 with `PUSH_LOCK_PAUSE` 250 ms;
-   the stale lock judges
-   (`stale_ref_lock_*.rs`) read and decide without waiting.
-   Bounded.
-8. Lane and owner locks:
-   `src/native/worktree_convert_journal.rs:290` uses `flock(LOCK_EX | LOCK_NB)`,
-   which never waits.
-   The discard audit appends (`discard_audit.rs:335`) loop only on an interrupted write.
-   Bounded.
+1.  `src/native/service_index_attempts.rs` `wait_and_place` (landing waits for a foreign `index.lock`).
+    Waits for the lock to go;
+    ended today by release or a dead owner (a PID file naming a gone process),
+    nothing else.
+    Bound:
+    `LOCK_CEILING`.
+    At the bound:
+    the batch is withdrawn before the branch moved,
+    the built commit is kept on a side ref,
+    the client exits non-zero naming the holder and the command to run again.
+    Built.
+2.  `src/native/index_holder_wait.rs:119` `wait_for_index_release` (a merge waits for any `index.lock`).
+    Ended by release or a dead owner.
+    Bound:
+    `LOCK_CEILING`.
+    At the bound:
+    the merge stops,
+    nothing changed,
+    non-zero,
+    naming
+    the holder.
+    Built.
+3.  `src/native/service_index_wait.rs:162` `wait_for_service_hold` (a forwarded `git add`,
+    `rm` or `mv` waits for the service's
+    hold).
+    Ended by release,
+    a mark naming a gone holder,
+    or a hold of `UNASKABLE_HOLD_AGE` whose holder cannot be asked about.
+    Bound:
+    `SERVICE_HOLD_CEILING`.
+    At the bound:
+    the command runs and reports what Git says.
+    Built.
+4.  `src/native/service_land_follow.rs:157` `update_index` (index reconciliation of a commit with no change left),
+    through
+    `wait_for_index_release_here`.
+    Bound:
+    the bound of entry 2.
+    At the bound:
+    the command ends,
+    non-zero as it always does.
+    Built.
+5.  `src/native/service_hold_retry.rs:103` `run_again_while_service_holds` (up to `ATTEMPTS` 50 reruns,
+    each preceded by entry 3).
+    Bounded by count,
+    not by time:
+    the worst case is 50 times the bound of entry 3.
+    Proposed bound:
+    one deadline over the whole
+    loop,
+    `SERVICE_HOLD_CEILING`.
+    Built.
+6.  `src/native/service_index_lock.rs:97` `try_acquire` and `src/native/index_reset_support.rs:209`:
+    one attempt,
+    no wait.
+    Bounded.
+7.  Reference locks:
+    `src/native/auto_push.rs:46` `PUSH_LOCK_RETRIES` 3 with `PUSH_LOCK_PAUSE` 250 ms;
+    the stale lock judges
+    (`stale_ref_lock_*.rs`) read and decide without waiting.
+    Bounded.
+8.  Lane and owner locks:
+    `src/native/worktree_convert_journal.rs:290` uses `flock(LOCK_EX | LOCK_NB)`,
+    which never waits.
+    The discard audit appends (`discard_audit.rs:335`) loop only on an interrupted write.
+    Bounded.
 
 ### The commit service, client side
 
-9. `src/native/service_client.rs:416` `submit_loop` (the client waits for the answer,
-   with heartbeats).
-   Ended by an answer,
-   a silence of `HEARTBEAT_SILENCE`,
-   or a close;
-   nothing ends it while the service keeps sending.
-   Bound:
-   `ANSWER_CEILING`.
-   At the bound:
-   the client withdraws the request (below),
-   exits non-zero naming what the service was
-   waiting for when it could tell,
-   with the side ref and the command to run again;
-   if the request had landed,
-   success.
-   Built.
+9.  `src/native/service_client.rs:416` `submit_loop` (the client waits for the answer,
+    with heartbeats).
+    Ended by an answer,
+    a silence of `HEARTBEAT_SILENCE`,
+    or a close;
+    nothing ends it while the service keeps sending.
+    Bound:
+    `ANSWER_CEILING`.
+    At the bound:
+    the client withdraws the request (below),
+    exits non-zero naming what the service was
+    waiting for when it could tell,
+    with the side ref and the command to run again;
+    if the request had landed,
+    success.
+    Built.
 10. `src/native/service_client.rs:220` `reach` with a manager watch (waits for the service to start).
     Ended by a greeting or two `failed` answers of the manager;
     nothing else.

@@ -142,57 +142,57 @@ what matters for the findings below is the shape of each one.
 A conversion,
 `convert_worktree` (`worktree_convert.rs:147`):
 
-1. `inspect` reads the worktree's `.git` file,
-   its administrative directory and
-   the back-pointer (`worktree_convert_inspection.rs:83`).
-2. A numbered claim file gives one command the conversion
-   (`single_owner_claim.rs:348`).
-3. The journal is created exclusively in the administrative directory
-   (`worktree_convert.rs:255`).
-4. `copy_phase` (`worktree_convert_phases.rs:215`)
-   creates `<path>.cli-git-converting` as a subvolume,
-   records its identity,
-   copies with cloned data,
-   takes Git's `index.lock` with its token (`:227`),
-   and copies a second time with deletions to prove the copy equals the source
-   (`:229`).
-5. `swap_phase` exchanges the two directories (`:311`).
-6. `verify_swap` checks the installed identity and the `.git` bytes (`:353`).
-7. `index_phase` rewrites the index stat fields under the held lock and
-   releases it (`:375`).
-8. `removal_phase` reads the process table,
-   compares the old tree with the installed one
-   (`worktree_convert_remove.rs:99`),
-   and deletes the old tree only when nothing differs (`:104-120`).
-9. `finish` drops the journal (`:453`).
+1.  `inspect` reads the worktree's `.git` file,
+    its administrative directory and
+    the back-pointer (`worktree_convert_inspection.rs:83`).
+2.  A numbered claim file gives one command the conversion
+    (`single_owner_claim.rs:348`).
+3.  The journal is created exclusively in the administrative directory
+    (`worktree_convert.rs:255`).
+4.  `copy_phase` (`worktree_convert_phases.rs:215`)
+    creates `<path>.cli-git-converting` as a subvolume,
+    records its identity,
+    copies with cloned data,
+    takes Git's `index.lock` with its token (`:227`),
+    and copies a second time with deletions to prove the copy equals the source
+    (`:229`).
+5.  `swap_phase` exchanges the two directories (`:311`).
+6.  `verify_swap` checks the installed identity and the `.git` bytes (`:353`).
+7.  `index_phase` rewrites the index stat fields under the held lock and
+    releases it (`:375`).
+8.  `removal_phase` reads the process table,
+    compares the old tree with the installed one
+    (`worktree_convert_remove.rs:99`),
+    and deletes the old tree only when nothing differs (`:104-120`).
+9.  `finish` drops the journal (`:453`).
 
 A migration,
 `migrate` (`subvolume_migrate.rs:349`):
 
-1. A claim file gives one command the checkout
-   (`subvolume_command.rs:171`).
-2. `Run::open` loads the journal and the unreadable-file list
-   (`subvolume_run.rs:73`).
-3. Preflight refuses a non-btrfs root,
-   a mount point,
-   too little free space,
-   an unfinished Git operation,
-   a live conversion,
-   and leftovers no journal records
-   (`subvolume_preflight.rs:228`).
-4. `<root>.subvol-new` is created and filled by two passes plus a delta,
-   the last of them under `index.lock` of the checkout and of every registered
-   worktree (`subvolume_migrate.rs:189-233`).
-5. `RENAME_EXCHANGE` swaps the two directories,
-   the original tree is renamed `<root>.before-subvolume`,
-   newer files are carried back,
-   the indexes are rewritten,
-   the locks are released
-   (`:275-298`).
-6. The original tree is kept until `--remove-old`
-   (`subvolume_rollback.rs:299`),
-   and `--rollback` swaps back and destroys the new subvolume
-   (`:210-252`).
+1.  A claim file gives one command the checkout
+    (`subvolume_command.rs:171`).
+2.  `Run::open` loads the journal and the unreadable-file list
+    (`subvolume_run.rs:73`).
+3.  Preflight refuses a non-btrfs root,
+    a mount point,
+    too little free space,
+    an unfinished Git operation,
+    a live conversion,
+    and leftovers no journal records
+    (`subvolume_preflight.rs:228`).
+4.  `<root>.subvol-new` is created and filled by two passes plus a delta,
+    the last of them under `index.lock` of the checkout and of every registered
+    worktree (`subvolume_migrate.rs:189-233`).
+5.  `RENAME_EXCHANGE` swaps the two directories,
+    the original tree is renamed `<root>.before-subvolume`,
+    newer files are carried back,
+    the indexes are rewritten,
+    the locks are released
+    (`:275-298`).
+6.  The original tree is kept until `--remove-old`
+    (`subvolume_rollback.rs:299`),
+    and `--rollback` swaps back and destroys the new subvolume
+    (`:210-252`).
 
 ## Findings ranked by what they risk losing
 
@@ -217,29 +217,29 @@ and nothing else does before the deletion
 
 Sequence:
 
-1. `convert-worktree-to-subvolume W` copies W,
-   takes `index.lock`,
-   and its proving pass finds nothing left to copy
-   (`worktree_convert_phases.rs:229-234`),
-   so the journal records `synced` (`:245`).
-   The copy of the tree is now the only copy that will survive.
-2. Before the removal phase,
-   a person or a program changes a file in W:
-   `chmod +x` on a script,
-   `chgrp`,
-   `setfacl` to withdraw a colleague's access,
-   or a `user.*` attribute.
-3. `swap_phase` exchanges the directories (`:319`),
-   so the copy is at W and the source,
-   with the change,
-   is at
-   `W.cli-git-converting`.
-4. `removal_phase` (`:421`)
-   compares and gets `Ok(None)`,
-   because size and modification time did not change,
-   and deletes the old tree (`worktree_convert_remove.rs:104-120`).
-5. `finish` removes the journal (`worktree_convert_phases.rs:453`),
-   and the command exits 0.
+1.  `convert-worktree-to-subvolume W` copies W,
+    takes `index.lock`,
+    and its proving pass finds nothing left to copy
+    (`worktree_convert_phases.rs:229-234`),
+    so the journal records `synced` (`:245`).
+    The copy of the tree is now the only copy that will survive.
+2.  Before the removal phase,
+    a person or a program changes a file in W:
+    `chmod +x` on a script,
+    `chgrp`,
+    `setfacl` to withdraw a colleague's access,
+    or a `user.*` attribute.
+3.  `swap_phase` exchanges the directories (`:319`),
+    so the copy is at W and the source,
+    with the change,
+    is at
+    `W.cli-git-converting`.
+4.  `removal_phase` (`:421`)
+    compares and gets `Ok(None)`,
+    because size and modification time did not change,
+    and deletes the old tree (`worktree_convert_remove.rs:104-120`).
+5.  `finish` removes the journal (`worktree_convert_phases.rs:453`),
+    and the command exits 0.
 
 Wrong result:
 the change is gone,
@@ -307,27 +307,27 @@ in either pass.
 
 Sequence:
 
-1. A worktree holds a file owned by another user,
-   for example one a root shell or a colleague's process created,
-   or one carrying a POSIX ACL.
-   It is readable,
-   so the refusal that exists for unreadable files does not
-   fire (`worktree_convert_phases.rs:166`,
-   `require_complete`).
-2. The copy sets the owner and the ACLs and the kernel refuses them
-   (`subvolume_sync_attrs.rs:314`,
-   `settle`,
-   which counts `EPERM` and `EACCES` instead of failing).
-3. `copy_phase` prints only the entry count,
-   so the counts of what was lost are never said.
-4. `swap_phase`,
-   `index_phase` and `removal_phase` run as usual;
-   the comparison does not look at the owner (`worktree_convert_compare.rs:66`),
-   so the old tree is deleted
-   (`worktree_convert_remove.rs:120`).
-5. The worktree is now a subvolume whose files have the caller's owner and
-   none of the ACLs,
-   and nothing has said so.
+1.  A worktree holds a file owned by another user,
+    for example one a root shell or a colleague's process created,
+    or one carrying a POSIX ACL.
+    It is readable,
+    so the refusal that exists for unreadable files does not
+    fire (`worktree_convert_phases.rs:166`,
+    `require_complete`).
+2.  The copy sets the owner and the ACLs and the kernel refuses them
+    (`subvolume_sync_attrs.rs:314`,
+    `settle`,
+    which counts `EPERM` and `EACCES` instead of failing).
+3.  `copy_phase` prints only the entry count,
+    so the counts of what was lost are never said.
+4.  `swap_phase`,
+    `index_phase` and `removal_phase` run as usual;
+    the comparison does not look at the owner (`worktree_convert_compare.rs:66`),
+    so the old tree is deleted
+    (`worktree_convert_remove.rs:120`).
+5.  The worktree is now a subvolume whose files have the caller's owner and
+    none of the ACLs,
+    and nothing has said so.
 
 Wrong result:
 an ownership or ACL change the person never asked for,
@@ -363,32 +363,32 @@ the block under "Reproductions" quotes both rounds and the abandon.
 
 Sequence:
 
-1. A registered linked worktree W holds a Unix socket,
-   for example a development server's or an editor's.
-2. `convert-worktree-to-subvolume W` passes its refusals:
-   the socket is untracked and holds no process,
-   so neither the cleanliness proof nor the process scan objects
-   (`worktree_convert_inspection.rs:263-306`).
-3. The copy skips the socket
-   (`subvolume_sync.rs:182`,
-   `special_skipped`),
-   so the proving pass finds nothing to change
-   (`worktree_convert_phases.rs:160`,
-   `pass_changed`),
-   and the swap happens.
-4. `removal_phase` compares,
-   finds the socket missing from the installed tree
-   (`worktree_convert_compare.rs:54`),
-   and refuses with `Differs`
-   (`worktree_convert_remove.rs:101`):
-   the old tree is kept,
-   the journal stays,
-   the command exits 2.
-5. Every later run reads a journal at or past `exchanged`,
-   skips the copy and the swap (`worktree_convert.rs:257-270`),
-   and reaches the same refusal at the same step.
-6. `--abandon` refuses as well,
-   because it acts only before the swap (`worktree_convert.rs:112-114`).
+1.  A registered linked worktree W holds a Unix socket,
+    for example a development server's or an editor's.
+2.  `convert-worktree-to-subvolume W` passes its refusals:
+    the socket is untracked and holds no process,
+    so neither the cleanliness proof nor the process scan objects
+    (`worktree_convert_inspection.rs:263-306`).
+3.  The copy skips the socket
+    (`subvolume_sync.rs:182`,
+    `special_skipped`),
+    so the proving pass finds nothing to change
+    (`worktree_convert_phases.rs:160`,
+    `pass_changed`),
+    and the swap happens.
+4.  `removal_phase` compares,
+    finds the socket missing from the installed tree
+    (`worktree_convert_compare.rs:54`),
+    and refuses with `Differs`
+    (`worktree_convert_remove.rs:101`):
+    the old tree is kept,
+    the journal stays,
+    the command exits 2.
+5.  Every later run reads a journal at or past `exchanged`,
+    skips the copy and the swap (`worktree_convert.rs:257-270`),
+    and reaches the same refusal at the same step.
+6.  `--abandon` refuses as well,
+    because it acts only before the swap (`worktree_convert.rs:112-114`).
 
 Wrong result:
 a conversion that can never finish on that worktree.
@@ -426,19 +426,19 @@ the consequence for a second command is read from the code.
 
 Sequence:
 
-1. A named pipe sits at `<parent>/.cli-git-migrate-<name>.journal.json`,
-   the path the command reads its journal from
-   (`subvolume_preflight.rs:174-190`).
-   The file sits beside the checkout,
-   so any process that can write that directory can create it,
-   and nothing in the command checks its type before reading it.
-2. `migrate-to-subvolume` takes the claim
-   (`subvolume_command.rs:171`),
-   then `migrate` calls `Run::open` (`subvolume_migrate.rs:359`),
-   which reads the journal with `std::fs::read_to_string`
-   (`subvolume_journal.rs:181`).
-3. `open` on a named pipe for reading waits for a writer,
-   and no writer comes.
+1.  A named pipe sits at `<parent>/.cli-git-migrate-<name>.journal.json`,
+    the path the command reads its journal from
+    (`subvolume_preflight.rs:174-190`).
+    The file sits beside the checkout,
+    so any process that can write that directory can create it,
+    and nothing in the command checks its type before reading it.
+2.  `migrate-to-subvolume` takes the claim
+    (`subvolume_command.rs:171`),
+    then `migrate` calls `Run::open` (`subvolume_migrate.rs:359`),
+    which reads the journal with `std::fs::read_to_string`
+    (`subvolume_journal.rs:181`).
+3.  `open` on a named pipe for reading waits for a writer,
+    and no writer comes.
 
 Wrong result:
 the command waits with no end and no output,
@@ -517,59 +517,59 @@ Every line here was read from the code.
 The conversion's states,
 in order:
 
-1. After `ensure_stage` created the subvolume and before the journal records its
-   identity:
-   an empty directory the journal cannot prove,
-   which every later run refuses with a message asking for `--abandon`
-   (`worktree_convert_phases.rs:130-145`).
-   Nothing is lost:
-   the stage is empty.
-2. Inside the first copy:
-   a file may be half written under `.cli-git-migrate-partial` in one
-   destination directory
-   (`subvolume_sync_pass_state_and_checks.rs:34`),
-   and the next pass in any directory removes that name before it writes
-   (`subvolume_sync.rs:112`).
-   A rerun copies from the start.
-3. Between the two passes:
-   `index.lock` is taken with the token
-   (`worktree_convert_phases.rs:227`),
-   so a Git writer to the index is held out from here to the end of the rewrite.
-   A kill here leaves the lock and a journal before `synced`,
-   and the rerun accepts its own lock (`worktree_convert.rs:219-223`)
-   and proves the copy again.
-4. Inside the proving pass:
-   the journal still says `creating`,
-   so a kill is repaired by repeating both passes,
-   never by trusting a partial proof.
-5. Between the end of the proving pass and the swap:
-   finding 1's window.
-   A content change here is caught by the removal comparison and keeps the old
-   tree with a message naming the entry;
-   a mode,
-   owner or attribute change is not.
-   A process that appears here is caught by `refusals_after_lock`
-   (`worktree_convert_phases.rs:315`),
-   which re-reads the process table just before the exchange.
-6. Between the exchange and its journal line:
-   the journal is one phase behind,
-   and the recorded identity of the old root says where the old tree is
-   (`worktree_convert.rs:190-206`),
-   so a rerun neither exchanges back nor loses the tree.
-7. Between the exchange and `verify_swap`:
-   the checkout holds a subvolume that may not be the one this command created,
-   and `verify_swap` refuses with the old tree kept
-   (`worktree_convert_phases.rs:353-372`).
-8. Inside the index rewrite:
-   the new index is written into the held lock file and the lock is renamed over
-   the index,
-   so the index is either the old or the new one.
-   A kill leaves the lock held and the journal before `refreshed`,
-   and the rerun takes the lock again (`worktree_convert.rs:262-266`).
-9. Between the lock release and the removal:
-   another command may remove the worktree from here,
-   which is the earlier
-   page's finding 3.
+1.  After `ensure_stage` created the subvolume and before the journal records its
+    identity:
+    an empty directory the journal cannot prove,
+    which every later run refuses with a message asking for `--abandon`
+    (`worktree_convert_phases.rs:130-145`).
+    Nothing is lost:
+    the stage is empty.
+2.  Inside the first copy:
+    a file may be half written under `.cli-git-migrate-partial` in one
+    destination directory
+    (`subvolume_sync_pass_state_and_checks.rs:34`),
+    and the next pass in any directory removes that name before it writes
+    (`subvolume_sync.rs:112`).
+    A rerun copies from the start.
+3.  Between the two passes:
+    `index.lock` is taken with the token
+    (`worktree_convert_phases.rs:227`),
+    so a Git writer to the index is held out from here to the end of the rewrite.
+    A kill here leaves the lock and a journal before `synced`,
+    and the rerun accepts its own lock (`worktree_convert.rs:219-223`)
+    and proves the copy again.
+4.  Inside the proving pass:
+    the journal still says `creating`,
+    so a kill is repaired by repeating both passes,
+    never by trusting a partial proof.
+5.  Between the end of the proving pass and the swap:
+    finding 1's window.
+    A content change here is caught by the removal comparison and keeps the old
+    tree with a message naming the entry;
+    a mode,
+    owner or attribute change is not.
+    A process that appears here is caught by `refusals_after_lock`
+    (`worktree_convert_phases.rs:315`),
+    which re-reads the process table just before the exchange.
+6.  Between the exchange and its journal line:
+    the journal is one phase behind,
+    and the recorded identity of the old root says where the old tree is
+    (`worktree_convert.rs:190-206`),
+    so a rerun neither exchanges back nor loses the tree.
+7.  Between the exchange and `verify_swap`:
+    the checkout holds a subvolume that may not be the one this command created,
+    and `verify_swap` refuses with the old tree kept
+    (`worktree_convert_phases.rs:353-372`).
+8.  Inside the index rewrite:
+    the new index is written into the held lock file and the lock is renamed over
+    the index,
+    so the index is either the old or the new one.
+    A kill leaves the lock held and the journal before `refreshed`,
+    and the rerun takes the lock again (`worktree_convert.rs:262-266`).
+9.  Between the lock release and the removal:
+    another command may remove the worktree from here,
+    which is the earlier
+    page's finding 3.
 10. Inside the removal walk:
     entries are unlinked one at a time
     (`worktree_convert_remove.rs:110-113`).
@@ -592,63 +592,63 @@ in order:
 The migration's states,
 adding what the earlier page's walk does not name:
 
-1. Between `acquire_all` of the checkout and `mark("lock", "started")`
-   (`subvolume_migrate.rs:205-211`):
-   `index.lock` files holding the journal's token exist while the journal has no
-   `lock` step.
-   They are this command's own,
-   because the token is the journal's start time
-   (`subvolume_lock.rs:74`),
-   which the `create` step persisted long before
-   (`subvolume_migrate.rs:142`,
-   `subvolume_journal.rs:297`),
-   so the rerun's `is_ours` exempts them
-   (`subvolume_preflight.rs:334-388`)
-   and `acquire` accepts them (`subvolume_lock.rs:146-160`).
-   Until the rerun or the rollback,
-   a person's Git commands in the checkout fail
-   on that file,
-   and the failure message names the journal.
-2. Between `mark("exchange", "started")` and the exchange call
-   (`subvolume_migrate.rs:211-214`):
-   the journal claims the exchange began while both directories are still in
-   place.
-   The rerun finds the checkout is not a subvolume,
-   so it repeats the delta,
-   the lock acquisition and the exchange,
-   which is `RENAME_EXCHANGE` on the same two names and idempotent.
-3. Inside `create_subvolumes` for the nested worktrees
-   (`subvolume_migrate.rs:140-165`):
-   each nested subvolume is created and none is journaled.
-   A kill leaves some of them made and the journal without `nested`,
-   and a rerun skips the ones that exist.
-4. Inside a copy pass:
-   a partially written entry is at `.cli-git-migrate-partial` in one destination
-   directory and is removed by the next pass
-   (`subvolume_sync_pass_state_and_checks.rs:34`);
-   a pass interrupted anywhere is repeated whole.
-5. Between the exchange and the rename of `<root>.subvol-new` to
-   `<root>.before-subvolume`:
-   the checkout is the new subvolume and the old tree still sits at
-   `<root>.subvol-new`.
-   The rerun renames it (`subvolume_migrate.rs:196-205`),
-   and `--rollback` finishes the same bookkeeping before it swaps back
-   (`subvolume_rollback.rs:220-227`).
-6. Inside `--remove-old`'s `remove_tree`:
-   the old tree is partly deleted and the journal still records `verify`.
-   A rerun carries the late writes and deletes the rest.
-   A `--rollback` from that state refills the hole from the checkout before it
-   swaps back,
-   which is the first block under "Reproductions".
-   I expected the opposite here and measured it instead;
-   the refill is the `update_only` pass copying every entry the destination
-   lacks (`subvolume_rollback.rs:168`).
-7. Inside the rollback's own exchange:
-   the journal records `rollback-swap` started,
-   and the checkout path tells the rerun which side it is on
-   (`subvolume_rollback.rs:160`):
-   a subvolume there means the exchange did not happen,
-   anything else means only the rename and the record are left.
+1.  Between `acquire_all` of the checkout and `mark("lock", "started")`
+    (`subvolume_migrate.rs:205-211`):
+    `index.lock` files holding the journal's token exist while the journal has no
+    `lock` step.
+    They are this command's own,
+    because the token is the journal's start time
+    (`subvolume_lock.rs:74`),
+    which the `create` step persisted long before
+    (`subvolume_migrate.rs:142`,
+    `subvolume_journal.rs:297`),
+    so the rerun's `is_ours` exempts them
+    (`subvolume_preflight.rs:334-388`)
+    and `acquire` accepts them (`subvolume_lock.rs:146-160`).
+    Until the rerun or the rollback,
+    a person's Git commands in the checkout fail
+    on that file,
+    and the failure message names the journal.
+2.  Between `mark("exchange", "started")` and the exchange call
+    (`subvolume_migrate.rs:211-214`):
+    the journal claims the exchange began while both directories are still in
+    place.
+    The rerun finds the checkout is not a subvolume,
+    so it repeats the delta,
+    the lock acquisition and the exchange,
+    which is `RENAME_EXCHANGE` on the same two names and idempotent.
+3.  Inside `create_subvolumes` for the nested worktrees
+    (`subvolume_migrate.rs:140-165`):
+    each nested subvolume is created and none is journaled.
+    A kill leaves some of them made and the journal without `nested`,
+    and a rerun skips the ones that exist.
+4.  Inside a copy pass:
+    a partially written entry is at `.cli-git-migrate-partial` in one destination
+    directory and is removed by the next pass
+    (`subvolume_sync_pass_state_and_checks.rs:34`);
+    a pass interrupted anywhere is repeated whole.
+5.  Between the exchange and the rename of `<root>.subvol-new` to
+    `<root>.before-subvolume`:
+    the checkout is the new subvolume and the old tree still sits at
+    `<root>.subvol-new`.
+    The rerun renames it (`subvolume_migrate.rs:196-205`),
+    and `--rollback` finishes the same bookkeeping before it swaps back
+    (`subvolume_rollback.rs:220-227`).
+6.  Inside `--remove-old`'s `remove_tree`:
+    the old tree is partly deleted and the journal still records `verify`.
+    A rerun carries the late writes and deletes the rest.
+    A `--rollback` from that state refills the hole from the checkout before it
+    swaps back,
+    which is the first block under "Reproductions".
+    I expected the opposite here and measured it instead;
+    the refill is the `update_only` pass copying every entry the destination
+    lacks (`subvolume_rollback.rs:168`).
+7.  Inside the rollback's own exchange:
+    the journal records `rollback-swap` started,
+    and the checkout path tells the rerun which side it is on
+    (`subvolume_rollback.rs:160`):
+    a subvolume there means the exchange did not happen,
+    anything else means only the rename and the record are left.
 
 ## Locks, waits and their ceilings
 
@@ -1047,15 +1047,15 @@ So that nobody repeats it:
 Inspect,
 in this order:
 
-1. finding 1 against `worktree_convert_compare.rs:40-72`,
-   `worktree_convert_remove.rs:99-120` and `subvolume_index.rs:554`,
-   with the first block under "Reproductions";
-2. finding 2 against `worktree_convert_phases.rs:222-224` and
-   `subvolume_run.rs:196-212`,
-   and the socket block that shows the silence;
-3. finding 3 against the socket block's two rounds and the abandon line;
-4. finding 4 against the named-pipe block and `subvolume_journal.rs:181`;
-5. finding 5 against the last line of the rollback block.
+1.  finding 1 against `worktree_convert_compare.rs:40-72`,
+    `worktree_convert_remove.rs:99-120` and `subvolume_index.rs:554`,
+    with the first block under "Reproductions";
+2.  finding 2 against `worktree_convert_phases.rs:222-224` and
+    `subvolume_run.rs:196-212`,
+    and the socket block that shows the silence;
+3.  finding 3 against the socket block's two rounds and the abandon line;
+4.  finding 4 against the named-pipe block and `subvolume_journal.rs:181`;
+5.  finding 5 against the last line of the rollback block.
 
 Respond with:
 

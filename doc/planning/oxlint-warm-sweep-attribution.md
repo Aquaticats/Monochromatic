@@ -419,27 +419,27 @@ It is snapshot generations,
 
 ### Claims withdrawn, with their causes
 
-1. A 47.3 per cent cache miss rate:
+1.  A 47.3 per cent cache miss rate:
  the probe edited the plugin,
  which is in the linted
 workspace and feeds the cache key.
-2. `source` at ninety-five per cent of phases:
+2.  `source` at ninety-five per cent of phases:
  single instrumented run,
  so it measured
 repopulation.
-3. No waste left inside the rule:
+3.  No waste left inside the rule:
  verification was classified by its position in the call tree
 rather than opened.
-4. The fingerprint memo being worth fifteen seconds:
+4.  The fingerprint memo being worth fifteen seconds:
  cost measured,
  reuse ratio never
 measured.
-5. Five separate timing attributions of three to six seconds each,
+5.  Five separate timing attributions of three to six seconds each,
  made from one run per
 configuration before the run-to-run band was ever measured.
 It is 4.6s.
 Listed under "What these timings can and cannot support".
-6. Reducing the scope derivation meaning fewer worker-project pairs,
+6.  Reducing the scope derivation meaning fewer worker-project pairs,
  and being Oxlint's file
 distribution rather than this rule:
  the 0.3 per cent reuse was read as a property of the value,
@@ -581,14 +581,14 @@ Both fixes remove a way for the answer to depend on something that is not the co
 
 ### How to measure this safely
 
-1. Instrumenting the plugin changes the cache key,
+1.  Instrumenting the plugin changes the cache key,
  so run twice and read the second run only.
-2. Register any probe's writer where every call reaches,
+2.  Register any probe's writer where every call reaches,
  never on the path being measured.
-3. Recorded spans are summed across workers and exceed wall time;
+3.  Recorded spans are summed across workers and exceed wall time;
  only proportions compare.
-4. The rule's own phase labels cover a fraction of its warm work.
-5. Verify a byte-identical sweep for any change to caching,
+4.  The rule's own phase labels cover a fraction of its warm work.
+5.  Verify a byte-identical sweep for any change to caching,
  since the failure mode is wrong
 diagnostics rather than a slow run.
 
@@ -1053,14 +1053,14 @@ Run it with the two-run method like everything else here,
 The three cautions this document has earned,
  in the order they bit:
 
-1. Instrumenting the plugin changes the cache key,
+1.  Instrumenting the plugin changes the cache key,
  because the key derives from a
 project-level fingerprint and the plugin's sources are in the linted workspace.
 Run twice and read the second run.
-2. Recorded spans are summed across parallel workers,
+2.  Recorded spans are summed across parallel workers,
  so they exceed wall time and only
 proportions are comparable.
-3. The rule's own phase labels cover a small fraction of its warm work,
+3.  The rule's own phase labels cover a small fraction of its warm work,
  so a breakdown of them
 is not a breakdown of the rule.
 
@@ -1347,17 +1347,17 @@ keeps a fourth caching layer from acquiring a fourth invalidation story.
 
 So the change is now fully specified:
 
-1. Memoise the ownership-filtered map per project object and `projectKey`,
+1.  Memoise the ownership-filtered map per project object and `projectKey`,
  beside
 `finalIndexesByProject`.
-2. Per call,
+2.  Per call,
  test whether the active file is in the memoised set;
  reuse its digest when it is
 and digest the union when it is not.
-3. Sound because the filter is active-file independent,
+3.  Sound because the filter is active-file independent,
  which
 "The filter does not depend on the active file" establishes by reading it.
-4. Expected to remove most of 63.8 warm worker-seconds,
+4.  Expected to remove most of 63.8 warm worker-seconds,
  which is the measured cost of the work
 before the cache check.
 
@@ -1596,15 +1596,15 @@ The lever is therefore to widen that memo's lifetime rather than to compute less
 What has to hold for it to be safe,
  and what to check before writing it:
 
-1. Type IDs are stable only within one checker or project instance,
+1.  Type IDs are stable only within one checker or project instance,
  so the shared store must be
 keyed on that,
-    as `effect-final-index-cache.ts` and the inclusion-scope memo already are.
-2. `CLASSIFICATION_ACTIVE` is a traversal marker,
+     as `effect-final-index-cache.ts` and the inclusion-scope memo already are.
+2.  `CLASSIFICATION_ACTIVE` is a traversal marker,
  not a result,
  and must never be published to
 a later call.
-3. Whatever the classification depends on besides the type itself must be part of the key.
+3.  Whatever the classification depends on besides the type itself must be part of the key.
 `classifyReadonlyType` takes `checker` and `project` alongside `type`,
  and whether the result
 can differ for one type across those is the thing to establish by reading rather than assuming,
@@ -1976,12 +1976,12 @@ land.
 
 The shape for whoever writes it:
 
-1. Module-level `WeakMap<Project, EffectProjectFingerprint>`,
+1.  Module-level `WeakMap<Project, EffectProjectFingerprint>`,
  keyed as the other three stores
 are.
-2. Compare `activeSourceFile.text` against that one file's disk text.
-3. Reuse the stored fingerprint only when they match.
-4. Store only from a call where they already matched,
+2.  Compare `activeSourceFile.text` against that one file's disk text.
+3.  Reuse the stored fingerprint only when they match.
+4.  Store only from a call where they already matched,
  so what is kept is always the all-disk
 fingerprint and never one carrying an overlay.
 

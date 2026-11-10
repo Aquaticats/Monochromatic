@@ -163,37 +163,37 @@ Details and citations:
 
 Ranked most severe first.
 
-1. Rust dependency resolution conflicts with the recorded no-workspace architecture;
-   `crate_universe` refuses it,
-   verified in source.
-2. The design depends on behavior Bazel documents only in source or one-line flag help:
-   cancellation,
-   build event upload failure,
-   cgroup fallback,
-   and freezing.
-   Bazel's documentation already failed the user's confusion rule.
-3. Android parity is lost:
-   no instrumentation tests,
-   no Android Lint,
-   no Bazel Android support in the IntelliJ IDEA setup the repository uses,
-   and preview-quality rules.
-4. Sandboxed lint actions discard the `prefer-readonly-parameter-type` cache,
-   so every lint action starts cold;
-   repository records put cold whole-repository sweeps at 261 to 305 seconds.
-5. Cgroup sandboxing is experimental,
-   limit-dependent,
-   and fails open,
-   against the user's requirement that cgroup sandboxing is a must.
-6. Host system libraries such as GTK,
-   PipeWire,
-   Wayland,
-   and Qt are untracked inputs,
-   so system upgrades can leave stale outputs.
-7. Cargo remains for publishing and fuzzing,
-   so Rust keeps two build definitions.
-8. pnpm `overrides` shims and `.pnpmfile.mjs` stubs are expected
-   to reference package-store targets rules_js never creates;
-   this is from source reading and needs a prototype.
+1.  Rust dependency resolution conflicts with the recorded no-workspace architecture;
+    `crate_universe` refuses it,
+    verified in source.
+2.  The design depends on behavior Bazel documents only in source or one-line flag help:
+    cancellation,
+    build event upload failure,
+    cgroup fallback,
+    and freezing.
+    Bazel's documentation already failed the user's confusion rule.
+3.  Android parity is lost:
+    no instrumentation tests,
+    no Android Lint,
+    no Bazel Android support in the IntelliJ IDEA setup the repository uses,
+    and preview-quality rules.
+4.  Sandboxed lint actions discard the `prefer-readonly-parameter-type` cache,
+    so every lint action starts cold;
+    repository records put cold whole-repository sweeps at 261 to 305 seconds.
+5.  Cgroup sandboxing is experimental,
+    limit-dependent,
+    and fails open,
+    against the user's requirement that cgroup sandboxing is a must.
+6.  Host system libraries such as GTK,
+    PipeWire,
+    Wayland,
+    and Qt are untracked inputs,
+    so system upgrades can leave stale outputs.
+7.  Cargo remains for publishing and fuzzing,
+    so Rust keeps two build definitions.
+8.  pnpm `overrides` shims and `.pnpmfile.mjs` stubs are expected
+    to reference package-store targets rules_js never creates;
+    this is from source reading and needs a prototype.
 
 ## Result
 
