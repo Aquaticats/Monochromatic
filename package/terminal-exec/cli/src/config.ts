@@ -6,6 +6,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
@@ -108,6 +109,7 @@ export async function parseConfigFiles(
       if (!(Error.isError(error,)))
         throw error;
 
+      l.debug(`config '${path}' cannot be read: ${caughtValueText(error,)}`,);
       continue;
     }
 

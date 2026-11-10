@@ -43,6 +43,44 @@ const TEST_FILE_SUFFIX = '.unit.test.ts';
 const LOG_FILE_SUFFIX = '.log.jsonl';
 
 /**
+ Name of the environment variable that carries the file sink destination.
+ */
+const LOG_DIRECTORY_VARIABLE = 'MONOCHROMATIC_LOG_DIRECTORY';
+
+/**
+ Statements that hand a caught failure back to the caller or skip it
+ entirely, either of which makes the catch block swallow the value.
+ */
+const SWALLOW_MARKERS: readonly string[] = ['return ', 'continue;',];
+
+/**
+ Call that records a caught failure at debug level.
+ */
+const LOG_MARKER = 'l.debug(';
+
+/**
+ Whether one text contains another.
+
+ Wrapped so the scan reads as a question about markers rather than substring
+ plumbing, and so each text is probed by exactly one `includes` call.
+
+ @param text - Text to search.
+
+ @param marker - Text to look for.
+
+ @returns `true` when the marker appears in the text.
+ */
+function containsText({
+  text,
+  marker,
+}: {
+  readonly text: string;
+  readonly marker: string;
+},): boolean {
+  return text.includes(marker,);
+}
+
+/**
  One catch block that swallows its caught value without logging it.
  */
 type SilentCatch = {
@@ -151,11 +189,22 @@ function silentCatchesIn({
       scan - 1,
     );
     /**
-     Whether the body hides the caught value from the operator.
+     Whether the body hands the caught value back or skips it.
      */
-    const swallows = body.includes('return ',)
-      || body.includes('continue;',);
-    if (swallows && !body.includes('l.debug(',))
+    const swallows = SWALLOW_MARKERS.some(function namesStatement(marker,) {
+      return containsText({
+        text: body,
+        marker,
+      },);
+    },);
+    /**
+     Whether the body records the caught value before it does so.
+     */
+    const logs = containsText({
+      text: body,
+      marker: LOG_MARKER,
+    },);
+    if (swallows && (!logs))
       silent.push({
         line: lineAt({
           text,
@@ -183,7 +232,7 @@ async function debugMessages(): Promise<readonly string[]> {
   /**
    Destination the harness chose for this run.
    */
-  const directory = process.env['MONOCHROMATIC_LOG_DIRECTORY'];
+  const directory = process.env[LOG_DIRECTORY_VARIABLE];
   if (directory === undefined)
     throw new Error('MONOCHROMATIC_LOG_DIRECTORY is unset: the test harness must redirect the logger file sink',);
 
@@ -250,7 +299,7 @@ await describe({
          Every TypeScript file the package ships, excluding its tests.
          */
         const files = (await readdir(SOURCE_DIRECTORY,)).filter(function isProduction(file,) {
-          return file.endsWith('.ts',) && !file.endsWith(TEST_FILE_SUFFIX,);
+          return (file.endsWith('.ts',)) && (!file.endsWith(TEST_FILE_SUFFIX,));
         },);
         /**
          File name paired with its source text, read concurrently.
