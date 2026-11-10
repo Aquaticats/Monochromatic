@@ -46,6 +46,19 @@ const WRITER_DECLARATION_TEXT = `export async function ${writeJsonFileAtomically
 const WRITER_MODULE_PATH = '@monochromatic-dev/electron-infra-core/ts/atomic-json';
 
 /**
+ The call form of the rename a duplicate writes itself. The bare word does not
+ match, so a comment naming the operation stays legal.
+ */
+const OWN_RENAME_CALL_TEXT = 'rename(';
+
+/**
+ The temporary-path template a duplicate builds itself, as the destination, the
+ process id, the clock and the `.tmp` suffix. A comment naming the temporary file
+ does not match.
+ */
+const OWN_TEMP_PATH_TEXT = 'Date.now()}.tmp';
+
+/**
  Repository root, four folders above this test file.
  */
 const repositoryRoot = join(
@@ -167,9 +180,9 @@ function callsTheSharedWriter(
  ```
  */
 function writesItsOwnTemporaryFile({ text, }: { readonly text: string; },): boolean {
-  if (text.includes('rename',))
+  if (text.includes(OWN_RENAME_CALL_TEXT,))
     return true;
-  return text.includes('.tmp',);
+  return text.includes(OWN_TEMP_PATH_TEXT,);
 }
 
 /**
