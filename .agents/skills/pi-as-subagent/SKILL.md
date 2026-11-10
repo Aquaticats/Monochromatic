@@ -86,6 +86,24 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
+A run on another provider's account is outside it.
+The owner on 2026-11-10:
+"Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+The owner the same day:
+"You can use -flex postfix on neuralwatt models.
+They have their own separate pool of 22 slots.
+They're around 100% slower than standard in practice."
+So `neuralwatt/deepseek-v4.1-flash-flex` is a pool of its own.
+Picking all three pools,
+standard Neuralwatt,
+flex and `opencode-go`,
+the owner wrote:
+"In practice,
+opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
+so prefer neuralwatt."
+New runs fill standard Neuralwatt,
+then flex with twice the wall clock,
+then `opencode-go`.
 Audits and reviews sit outside that limit and use another model.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
