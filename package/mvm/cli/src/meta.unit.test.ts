@@ -29,6 +29,7 @@ import {
 import {
   DEFAULT_IMAGE,
   IMAGES,
+  type ImageSpec,
   readVmMeta,
 } from '../dist/final/node/index.mjs';
 
@@ -49,6 +50,24 @@ const LEGACY_IMAGE_FILE_NAME = 'image';
  fallback to the legacy file is visible as a different OS family.
  */
 const LEGACY_IMAGE = 'windows';
+
+/**
+ Spec of {@link LEGACY_IMAGE}, which the expectations below derive their
+ values from.
+
+ @returns the registry entry the legacy file names
+
+ @throws {Error} when the registry no longer lists {@link LEGACY_IMAGE}
+ */
+function legacyImageSpec(): ImageSpec {
+  /**
+   Registry entry the test's legacy file names.
+   */
+  const spec = IMAGES[LEGACY_IMAGE];
+  if (spec === undefined)
+    throw new Error(`the image registry no longer lists ${LEGACY_IMAGE}`,);
+  return spec;
+}
 
 /**
  Disposable VM directory for one test.
@@ -274,10 +293,10 @@ await describe({
 
             expect(await readVmMeta(vm.path,),).toEqual({
               createdAt: '',
-              defaultUser: IMAGES[LEGACY_IMAGE].defaultUser,
+              defaultUser: legacyImageSpec().defaultUser,
               image: LEGACY_IMAGE,
-              osFamily: IMAGES[LEGACY_IMAGE].osFamily,
-              shell: IMAGES[LEGACY_IMAGE].shell,
+              osFamily: legacyImageSpec().osFamily,
+              shell: legacyImageSpec().shell,
             },);
           },
         },),
