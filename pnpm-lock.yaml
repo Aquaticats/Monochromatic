@@ -752,6 +752,9 @@ importers:
 
   package/agent-harness-shared/shell-command-analyzer:
     dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/git-executable-core':
         specifier: workspace:*
         version: link:../../git-executable/core
