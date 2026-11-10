@@ -341,7 +341,7 @@ js + npm to fetch the onsenui package;
   allow-jit.
    That page is a macOS HARDENED RUNTIME entitlement;
    it does not govern iOS and does not state the WKWebView/iOS restriction attributed to it.
-   (The Mozilla platform-tilt issue #3 explicitly frames allow-jit as the *macOS* model that iOS does NOT extend
+   (The Mozilla platform-tilt issue #3 explicitly frames allow-jit as the **macOS** model that iOS does NOT extend
 to third parties.
   ) The actual iOS mechanism is the private dynamic-codesigning entitlement (plus com.
   apple.

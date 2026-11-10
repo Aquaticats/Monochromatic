@@ -254,7 +254,7 @@ works).
 
 Playwright drives Chromium/Firefox/WebKit through its own protocols and bundled browser
 builds.
- To attach to an *existing* embedded webview you need `connectOverCDP`,
+ To attach to an **existing** embedded webview you need `connectOverCDP`,
  and the docs
 state plainly:
  **"Connecting over the Chrome DevTools Protocol is only supported for

@@ -181,7 +181,7 @@ never has one.
 that callee invokes,
  which `propagateCallbackRelations` then resolves in the caller.
  The relation needed here
-runs from the receiver's *elements* to a callback the caller passes directly,
+runs from the receiver's **elements** to a callback the caller passes directly,
  with no owned callee anywhere.
 
 So the caller's summary gains `elementApplications`,

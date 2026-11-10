@@ -159,7 +159,7 @@ The reason is NativeScript's own start-up order,
  The app's flag string is read into `Constants::V8_STARTUP_FLAGS` at
 `Runtime.cpp:231-232`,
  but it is not pushed to V8 until `V8::SetFlagsFromString(...)` at `Runtime.cpp:591`,
-which executes *after* the isolate is created by `Isolate::New(create_params)` at `Runtime.cpp:571` (both
+which executes **after** the isolate is created by `Isolate::New(create_params)` at `Runtime.cpp:571` (both
 calls are in the same `PrepareV8Runtime` body,
  top to bottom:
  `InitializeV8`/`V8::Initialize` at 567,

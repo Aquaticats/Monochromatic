@@ -257,7 +257,7 @@ Verified by deleting every plugin `dist` and running all five suites,
  which build and pass.
 
 `readAliasEffect` is that control.
-Every other claim in the case is that some parameter is *not* offered,
+Every other claim in the case is that some parameter is **not** offered,
 which a fixture nothing linted would satisfy equally well,
 so one parameter that must be offered is what proves the file reached the rule.
 This was not hypothetical:

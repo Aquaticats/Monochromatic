@@ -153,7 +153,7 @@ Multi-module Gradle build.
    so CI
   itself would no longer pass on a clean checkout.
 - Coverage:
-   JaCoCo is wired for the *user's* fuzzing reports;
+   JaCoCo is wired for the **user's** fuzzing reports;
    no published coverage badge
   for the library's own test suite.
 

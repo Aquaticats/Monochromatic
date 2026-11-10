@@ -177,7 +177,7 @@ What it exposes:
  `context_info` and `compact_context` only.
 
 Rejection reason:
- it does not let the active model *manage* context in the agentic sense.
+ it does not let the active model **manage** context in the agentic sense.
  There are no checkpoints,
  no tags,
  no timeline inspection,
@@ -219,7 +219,7 @@ Validation:
 
 Rejection reason:
  Pi already auto-compacts and lets the user navigate the session tree,
- but the *model* cannot proactively checkpoint or compact without a plugin.
+ but the **model** cannot proactively checkpoint or compact without a plugin.
  The user explicitly wants the active model to manage its own context,
  so the built-in tooling alone does not satisfy the requirement.
 

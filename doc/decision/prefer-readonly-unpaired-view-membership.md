@@ -82,7 +82,7 @@ Both halves landed.
 `ArrayBuffer`,
  driven with plain numeric arguments on purpose,
  since a recording argument would report
-its own coercion and the question here is what the member reaches on the *receiver*.
+its own coercion and the question here is what the member reaches on the **receiver**.
  The species
 recorder the probe already installs proves no constructor hook is consulted.
 

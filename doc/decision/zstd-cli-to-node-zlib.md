@@ -183,7 +183,7 @@ including process startup and file writes,
  output dir cleared before each run.
  Times are mean +/-
 stddev.
- The key comparison is at *matched* compression (level 19),
+ The key comparison is at **matched** compression (level 19),
  since the current `--adapt`
 command's speed comes entirely from it choosing a weak level.
 
@@ -309,7 +309,7 @@ deliberately because they behave very differently.
 - **zstd CLI,
    in-frame multithreading** (`-T<n>`,
    with `-T0` meaning all cores):
-   splits a *single*
+   splits a **single**
   file into jobs across worker threads.
    When compressing a directory recursively,
    the CLI processes
@@ -519,7 +519,7 @@ long-distance matching (LDM) can matter,
   </tbody>
 </table>
 
-LDM dramatically helps *low* levels on a large redundant file (level 1:
+LDM dramatically helps **low** levels on a large redundant file (level 1:
  14.95% to 0.57%) but is
 neutral or slightly worse at high levels (whose windows are already large),
  and it does nothing for
@@ -532,7 +532,7 @@ measured here only to rule it out.
 ### incompressible (8,388,608 bytes raw, 1 file)
 
 At every level the compressed output is 8,388,806 bytes,
- which is 198 bytes *larger* than the raw
+ which is 198 bytes **larger** than the raw
 input (zstd frame overhead on already-random data).
  The keep-if-smaller policy therefore keeps the
 raw 8,388,608 bytes and writes no `.zst`.
@@ -716,7 +716,7 @@ What this shows:
    Process-per-file is simply the wrong model.
 - **`node-par` is slow and erratic**:
    on `many` it ranges from 13 seconds (T16) to 60 seconds (T1).
-  Notably its *slowest* point is concurrency 1,
+  Notably its **slowest** point is concurrency 1,
    which rules out a "too much concurrency" explanation.
 
 ### Experiment C: in-frame multithreading on the 32 MiB file
@@ -892,7 +892,7 @@ cause was not isolated.
 
 - At level 19 on the 138-file `real` set it takes ~1.0 second,
    versus Bun's 72 ms (about 14x slower)
-  and Node's own *sequential* `zstdCompressSync` at 257 ms (so parallel is ~4x slower than
+  and Node's own **sequential** `zstdCompressSync` at 257 ms (so parallel is ~4x slower than
   sequential on the same runtime).
 - It worsens sharply with level:
    tmpfs `real` goes 580 ms (L12),
@@ -926,7 +926,7 @@ synchronous worker path avoids the async overhead measured here.
   ** All numbers are from one AMD Ryzen 7 8700F.
    Absolute
   times will differ elsewhere;
-   the *relative* conclusions (Bun parallel beats the CLI at high
+   the **relative** conclusions (Bun parallel beats the CLI at high
   levels;
    CLI cross-file and Node parallel are catastrophic;
    in-frame MT is useless for small files)

@@ -54,8 +54,8 @@ and no diagnostic names the `JSON.stringify` that one of them lets state escape 
 The call and its result are separate questions,
 and an earlier sketch of this work conflated them.
 
-- The structure claim and the verified member channel answer what happens *during* the call.
-- Result provenance answers what *later* expressions can reach.
+- The structure claim and the verified member channel answer what happens **during** the call.
+- Result provenance answers what **later** expressions can reach.
 - Arguments stay independent,
    as `effect-opaque-boundary.ts` already documents.
 
@@ -160,7 +160,7 @@ Mutation tests,
   `expected [ 'Array.slice' ] to deeply equal []`,
    and independently fails the
   fresh-container exclusion.
-- Adding a seventh entry *and* editing `VERIFIED_RESULT_RELATION_COUNT` to match still
+- Adding a seventh entry **and** editing `VERIFIED_RESULT_RELATION_COUNT` to match still
   fails the architecture guard with `expected 7 to equal 6`,
    because the registry in
   `catalog-free-architecture.unit.test.ts` holds the count as a literal.
@@ -473,7 +473,7 @@ What the increments were,
   `Array.isArray`.
 - A defect that increment exposed:
    `callResultElementReceiver` compared the result's type argument at
-  the *receiver's* position,
+  the **receiver's** position,
    so `Map.values` was inert on arrival because `MapIterator` has no position 1.
   The element relation now carries its own `resultTypeArgumentIndex`.
 - `RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED` for `entries`,
@@ -526,7 +526,7 @@ and semantic failures at 0.
    34 `reduce`,
    30 `filter`,
    15 `find`:
-   observer-bearing members whose *result* is unaccounted.
+   observer-bearing members whose **result** is unaccounted.
   Not,
    as this list first said,
    members whose observer cannot be resolved.
@@ -568,7 +568,7 @@ It is false for the form without an initial value.
  `Array.prototype.reduce` called with only a callback
 takes the receiver's first element as the accumulator and never calls the callback for it,
  so over a
-one-element receiver the result *is* a receiver element that never passed through the observer.
+one-element receiver the result **is** a receiver element that never passed through the observer.
  An entry
 claiming observer-derived provenance for that is claiming something the specification contradicts.
 
@@ -598,7 +598,7 @@ the useful part.
 the probe extended two ways:
  a member returning one observer result satisfies the relation by identity
 where a member returning a container satisfies it by membership,
- and a `seededOnly` entry must *fail* its
+ and a `seededOnly` entry must **fail** its
 own relation unseeded or the condition is decoration.
  The unseeded fold hands the sentinel straight back,
 so the condition is load-bearing and now provably so.
@@ -656,7 +656,7 @@ into a call" was never the mechanism for an argument position at all,
 Second,
  and this is the useful part:
  the no-relation branch fires for `filter`,
- which *has* a relation.
+ which **has** a relation.
 So that branch does not mean "no table entry".
  It means neither relation was *verified at this call
 site*,
@@ -737,7 +737,7 @@ locals,
 finding at all.
  Counting refusals counts those too.
 
-So the denominator has to be refusals whose receiver *is* parameter-derived,
+So the denominator has to be refusals whose receiver **is** parameter-derived,
  which is the only kind that
 can report.
  That subset is 13:
@@ -913,7 +913,7 @@ Attempted 2026-08-07 and reverted,
 together they cross the line this work has held all session.
 
 The halves are the ones the trace named.
- `unobservedArgument` asks whether an argument's *type* can
+ `unobservedArgument` asks whether an argument's **type** can
 carry state,
  so a fold's `[]` seed is refused although it holds nothing at the moment of the call;
 asking instead whether the argument has parameter origins is the provenance question rather than the
@@ -1048,7 +1048,7 @@ the offsets says otherwise.
  50 in `package/i18n-compose/core`,
  points at
 declarations like `(phrase: NounPhrase<S, N>,) => string`:
- function *types* on parameters,
+ function **types** on parameters,
  not functions
 missing bodies.
 
@@ -1491,7 +1491,7 @@ Same harness,
 `viewResultUnaccounted` asked two questions,
  whether the result came from the observer and whether it is a
 container of receiver elements,
- and a member whose result *is* one receiver element matched neither.
+ and a member whose result **is** one receiver element matched neither.
  So
 `find` and `findLast` fell through to the aliasing fallback and failed closed,
  while `at` carries the very

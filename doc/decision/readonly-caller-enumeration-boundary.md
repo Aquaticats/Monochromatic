@@ -89,7 +89,7 @@ The provenance fixture suggested otherwise only because every callable in it is 
 The precise notion,
  and rejected on the measurement rather than on principle.
 
-Twenty-seven refusals is the *upper* bound on what it could recover,
+Twenty-seven refusals is the **upper** bound on what it could recover,
  and the real figure is
 lower:
  a refusal becomes an offer only when no other path charges the parameter,
