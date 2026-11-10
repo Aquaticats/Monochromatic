@@ -55,7 +55,7 @@ pub const AUDIT_FILE: &str = DISCARD_AUDIT_LOG.current;
 /// `doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Audit log rotation,
 /// 1 MiB and one generation".
-const ROTATE_AT_BYTES: u64 = 1024 * 1024;
+pub const ROTATE_AT_BYTES: u64 = 1024 * 1024;
 
 /// The bytes of audit generations that name no saved copy still on disk,
 /// kept beside the live file.

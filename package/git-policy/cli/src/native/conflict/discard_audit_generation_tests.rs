@@ -415,6 +415,79 @@ fn a_timing_log_keeps_one_generation() {
     }
 }
 
+/// Every log of the wrapper keeps its rotations as numbered generations,
+/// not one `.1` that the next rotation replaces:
+/// a timing log's third rotation still reads its first.
+#[test]
+fn a_timing_log_keeps_every_rotation_as_a_generation() {
+    for file in [TIMING_FILE, crate::add_timing::ADD_TIMING_FILE, crate::push_trigger_log::TRIGGER_FILE] {
+        let root: PathBuf = fixture(&format!("generations-every-timing-{file}"));
+        let target: PathBuf = root.join(file);
+        for name in ["first", "second", "third"] {
+            rotate_once(target.as_path(), name);
+        }
+        assert_eq!(generations(target.as_path()), vec![1, 2, 3], "{file} keeps every rotation");
+        assert_eq!(first_line_of(target.as_path(), 1), marker("first"), "{file}: the oldest rotation still reads");
+        assert_eq!(first_line_of(target.as_path(), 3), marker("third"), "{file}: and the newest");
+        remove(root.as_path());
+    }
+}
+
+/// A writer whose rotation loses the race to another writer's whole rotation,
+/// while several generations already stand beside the log,
+/// keeps every generation and gives the other writer's new file back:
+/// the check of the file it opened is what saves them.
+#[test]
+fn a_rotation_that_loses_the_race_with_more_than_one_generation_keeps_them_all() {
+    for file in [AUDIT_FILE, TIMING_FILE] {
+        let root: PathBuf = fixture(&format!("generations-race-many-{file}"));
+        let target: PathBuf = root.join(file);
+        for number in 1..=3 {
+            write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+        }
+        std::fs::write(&target, full_file(&[marker("full")])).expect("a full live file");
+        let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+        move_aside_between(target.as_path(), &seen_full, &mut |step| {
+            if step == RotationStep::BeforeMove {
+                // The other writer's whole rotation, and its own line after it.
+                move_aside_between(target.as_path(), &seen_full, &mut |_inner: RotationStep| {}).expect("the other writer's rotation");
+                std::fs::write(&target, b"{\"theirs\":1}\n").expect("the other writer's new file");
+            }
+        })
+        .expect("no error");
+        assert_eq!(generations(target.as_path()), vec![1, 2, 3, 4], "{file}: no generation was replaced or lost");
+        assert_eq!(first_line_of(target.as_path(), 1), marker("g1"), "{file}: the oldest generation keeps its line");
+        assert_eq!(first_line_of(target.as_path(), 4), marker("full"), "{file}: the other writer's rotation kept the full file");
+        assert_eq!(std::fs::read(&target).expect("live file"), b"{\"theirs\":1}\n", "{file}: the new file is back at its name");
+        assert_eq!(private_names(root.as_path()), Vec::<String>::new(), "{file}: nothing stays at a private name");
+        remove(root.as_path());
+    }
+}
+
+/// Another writer that takes the number this writer was about to give its own file,
+/// while three generations already stand beside the log,
+/// loses neither file: each gets the next free generation.
+#[test]
+fn a_number_taken_by_another_writer_beside_three_generations_keeps_both() {
+    let root: PathBuf = fixture("generations-number-race-many");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    for number in 1..=3 {
+        write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    std::fs::write(&target, full_file(&[marker("ours")])).expect("a full live file");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    move_aside_between(target.as_path(), &seen_full, &mut |step| {
+        if step == RotationStep::AfterMove {
+            write_generation(target.as_path(), 4, &[marker("theirs")]);
+        }
+    })
+    .expect("moved");
+    assert_eq!(generations(target.as_path()), vec![1, 2, 3, 4, 5]);
+    assert_eq!(first_line_of(target.as_path(), 4), marker("theirs"), "the other writer keeps the number it took");
+    assert_eq!(first_line_of(target.as_path(), 5), marker("ours"), "and this writer the one after");
+    remove(root.as_path());
+}
+
 /// A `saved-conflict` line that cannot be parsed (a write cut short) or that names a place the writer could not show as text
 /// might name a copy that exists,
 /// so its generation stays.

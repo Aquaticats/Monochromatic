@@ -363,3 +363,20 @@ fn numbered_copies_of_an_earlier_rotating_log_are_kept_beside_the_current_ones()
     assert_eq!(std::fs::read_to_string(git.join(format!("{}.2", COMMIT_TIMING_LOG.current))).expect("moved"), "earlier second copy");
     std::fs::remove_dir_all(git.parent().expect("root")).expect("remove only the fixture");
 }
+
+/// The numbered older copies of an earlier push trigger log go beside the current ones too:
+/// every log of the wrapper keeps generations, so the copies the rename left behind are history a reader needs.
+#[test]
+fn numbered_copies_of_an_earlier_push_trigger_log_are_kept_beside_the_current_ones() {
+    let world: World = world("numbered-push");
+    let git: &Path = world.git_dir.as_path();
+    std::fs::write(git.join(format!("{}.1", PUSH_TRIGGER_LOG.earlier)), "earlier copy").expect("earlier copy");
+    std::fs::write(git.join(format!("{}.1", PUSH_TRIGGER_LOG.current)), "current copy").expect("current copy");
+    fold_kept_names(git, &NAMES, &world.surroundings, &mut NeverStopped);
+    assert_eq!(std::fs::read_to_string(git.join(format!("{}.1", PUSH_TRIGGER_LOG.current))).expect("kept"), "current copy");
+    assert_eq!(
+        std::fs::read_to_string(git.join(format!("{}.1{KEPT_BESIDE_SUFFIX}", PUSH_TRIGGER_LOG.current))).expect("beside"),
+        "earlier copy"
+    );
+    std::fs::remove_dir_all(git.parent().expect("root")).expect("remove only the fixture");
+}
