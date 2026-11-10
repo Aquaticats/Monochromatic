@@ -20,10 +20,8 @@ import {
 import {
   JSON_RPC_INVALID_PARAMS,
   type JsonRpcErrorResponse,
-  type JsonRpcInbound,
   type JsonRpcResponse,
-  META_PROTOCOL_VERSION,
-  PROTOCOL_VERSION,
+  protocolVersionRequest,
   type ToolContent,
 } from '@monochromatic-dev/mcp-stdio/ts';
 import {
@@ -76,38 +74,6 @@ const OVERSIZED_FETCH_RESPONSE = { markdown: 'x'.repeat(200_000,) };
 //endregion Fixtures
 
 //region Helpers
-
-/**
- Build a request carrying the protocol revision metadata every served request needs.
-
- @param id - request id echoed back in the response
-
- @param method - MCP method to invoke
-
- @param params - method params merged alongside the generated `_meta`
-
- @returns inbound request ready for `handleMessage`
-
- @example
- ```ts
- serverRequest(1, 'tools/list');
- ```
- */
-function serverRequest(
-  id: number,
-  method: string,
-  params: Readonly<Record<string, unknown>> = {},
-): JsonRpcInbound {
-  return {
-    jsonrpc: '2.0',
-    id,
-    method,
-    params: {
-      ...params,
-      _meta: { [META_PROTOCOL_VERSION]: PROTOCOL_VERSION, },
-    },
-  };
-}
 
 /**
  Build a server over stub provider responses.
@@ -181,7 +147,7 @@ await describe({
              Discovery response declaring capabilities.
              */
             const response = await server
-              .handleMessage(serverRequest(1, 'server/discover',),) as JsonRpcResponse;
+              .handleMessage(protocolVersionRequest({ id: 1, method: 'server/discover', },),) as JsonRpcResponse;
             /**
              Discovery payload read from the response.
              */
@@ -207,7 +173,7 @@ await describe({
              Listing response carrying tool definitions.
              */
             const response = await server
-              .handleMessage(serverRequest(1, 'tools/list',),) as JsonRpcResponse;
+              .handleMessage(protocolVersionRequest({ id: 1, method: 'tools/list', },),) as JsonRpcResponse;
             /**
              Tool definitions read from the response.
              */
@@ -236,17 +202,17 @@ await describe({
              Tool call response carrying warning and response content.
              */
             const response = await server
-              .handleMessage(serverRequest(
-                1,
-                'tools/call',
-                {
+              .handleMessage(protocolVersionRequest({
+                id: 1,
+                method: 'tools/call',
+                params: {
                   name: 'web_search',
                   arguments: {
                     query: 'docs',
                     depth: 'deep',
                   },
                 },
-              ),) as JsonRpcResponse;
+              },),) as JsonRpcResponse;
             /**
              Content items read from the tool result.
              */
@@ -268,14 +234,14 @@ await describe({
              Tool call response carrying the blocklist failure.
              */
             const response = await server
-              .handleMessage(serverRequest(
-                1,
-                'tools/call',
-                {
+              .handleMessage(protocolVersionRequest({
+                id: 1,
+                method: 'tools/call',
+                params: {
                   name: 'web_fetch',
                   arguments: { url: `https://${BLOCKED_HOST}/page`, },
                 },
-              ),) as JsonRpcResponse;
+              },),) as JsonRpcResponse;
             /**
              Tool result read from the response.
              */
@@ -298,14 +264,14 @@ await describe({
              Tool call response carrying truncated content.
              */
             const response = await server
-              .handleMessage(serverRequest(
-                1,
-                'tools/call',
-                {
+              .handleMessage(protocolVersionRequest({
+                id: 1,
+                method: 'tools/call',
+                params: {
                   name: 'web_fetch',
                   arguments: { url: 'https://example.com/big', },
                 },
-              ),) as JsonRpcResponse;
+              },),) as JsonRpcResponse;
             /**
              Content items read from the tool result.
              */
@@ -329,11 +295,11 @@ await describe({
              Resource read response carrying the full text.
              */
             const readResponse = await server
-              .handleMessage(serverRequest(
-                2,
-                'resources/read',
-                { uri: resourceLink.uri, },
-              ),) as JsonRpcResponse;
+              .handleMessage(protocolVersionRequest({
+                id: 2,
+                method: 'resources/read',
+                params: { uri: resourceLink.uri, },
+              },),) as JsonRpcResponse;
             /**
              Resource contents read from the response.
              */
@@ -354,7 +320,7 @@ await describe({
              Error response read from dispatch.
              */
             const response = await server
-              .handleMessage(serverRequest(1, 'resources/read',),) as JsonRpcErrorResponse;
+              .handleMessage(protocolVersionRequest({ id: 1, method: 'resources/read', },),) as JsonRpcErrorResponse;
             expect(response.error.code,).toBe(JSON_RPC_INVALID_PARAMS,);
           },
         },),

@@ -55,6 +55,11 @@ pub mod process_use;
 /// read from the kernel's own copy of the descriptor.
 pub mod open_file_of_a_descriptor;
 
+/// The same attributes of the file of another process's descriptor,
+/// read in a child that the caller stops waiting for at a ceiling,
+/// for a mount whose file system this process cannot ask in its own name.
+pub mod open_file_of_a_descriptor_in_a_child;
+
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;

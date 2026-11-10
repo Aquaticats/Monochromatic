@@ -4,6 +4,8 @@
  @module
  */
 
+//region Helpers -- primitive text joining without caller methods
+
 /**
  Join primitive diagnostic text without invoking methods on caller arrays.
  
@@ -38,6 +40,10 @@ function joinText(
   }
   return output.value;
 }
+
+//endregion Helpers -- primitive text joining without caller methods
+
+//region Public API -- exhausted-reviewer error with complete attempt audit
 
 /**
  Exhausted structured reviewer error with complete attempt audit.
@@ -103,5 +109,7 @@ class ReviewUnavailableError extends Error {
     this.diagnostics = [...diagnostics,];
   }
 }
+
+//endregion Public API -- exhausted-reviewer error with complete attempt audit
 
 export { ReviewUnavailableError, };

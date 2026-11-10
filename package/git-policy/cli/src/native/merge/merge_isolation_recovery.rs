@@ -39,6 +39,7 @@ pub use crate::merge_isolation_recovery_reads::{
     holds_the_merge, holds_the_merges_entry, paths_the_branch_does_not_hold, resolve_commit, symbolic_ref,
 };
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
+use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
@@ -476,8 +477,13 @@ pub fn settle_failed_merge(
         return Err(MergeRefusal { error: staged_work_on_the_merges_paths(target, root, staged.as_slice(), record), began });
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
-    //  same merge (the recovery is idempotent).
+    //  same merge (the recovery is idempotent). A merge with nothing of itself in the checkout did not wait at all, so the
+    //  command has to say where that merge is.
     if complete(place, root, record, intent, &changes, &judgements, began, out)? == Installed::IndexHeld {
+        if intent.side_ref.is_some() {
+            let line: String = saved_merge_waits_for_the_index_lock(target, intent.side_ref.as_deref().unwrap_or("its side ref"), place.git_dir.join("index.lock").as_path());
+            let _noted = out.write_all(line.as_bytes());
+        }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes.

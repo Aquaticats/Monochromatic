@@ -4,6 +4,10 @@
  @module
  */
 
+import {
+  isAsciiWhitespace,
+  splitSeparatedTokens,
+} from './token-splitting.ts';
 import type { ModelPricing, } from './types.ts';
 
 //region Score constants
@@ -212,29 +216,10 @@ function speedSignalScore(
 function splitSpeedTokens(
   value: string,
 ): string[] {
-  /**
-   Completed lowercase tokens.
-   */
-  const tokens: string[] = [];
-  /**
-   Characters collected for current token.
-   */
-  let currentTokenCharacters: string[] = [];
-  for (const character of value.toLowerCase()) {
-    if (isSpeedTokenSeparator(character,)) {
-      if (currentTokenCharacters.length
-        > 0) {
-        tokens.push(currentTokenCharacters.join('',),);
-        currentTokenCharacters = [];
-      }
-      continue;
-    }
-    currentTokenCharacters.push(character,);
-  }
-  if (currentTokenCharacters.length
-    > 0)
-    tokens.push(currentTokenCharacters.join('',),);
-  return tokens;
+  return splitSeparatedTokens({
+    value: value.toLowerCase(),
+    isSeparator: isSpeedTokenSeparator,
+  },);
 }
 
 /**
@@ -283,15 +268,4 @@ function isSpeedTokenSeparator(
  
  @returns whether character is whitespace used by model ids
  */
-function isAsciiWhitespace(
-  character: string,
-): boolean {
-  return (character === ' ')
-    || (character === '\t')
-    || (character === '\n')
-    || (character === '\r')
-    || (character === '\f')
-    || (character === '\v');
-}
-
 //endregion Signal extraction

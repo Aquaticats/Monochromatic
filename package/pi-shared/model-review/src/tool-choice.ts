@@ -4,6 +4,8 @@
  @module
  */
 
+//region Types -- provider tool-choice request
+
 /**
  Options for provider tool-choice projection.
  
@@ -22,6 +24,10 @@ type ToolChoiceForApiOptions = {
    */
   readonly toolName: string;
 };
+
+//endregion Types -- provider tool-choice request
+
+//region Public API -- forced tool choice per Pi AI API
 
 /**
  Return provider-specific forced tool choice.
@@ -57,6 +63,8 @@ function toolChoiceForApi(
   }
   return 'any';
 }
+
+//endregion Public API -- forced tool choice per Pi AI API
 
 export { toolChoiceForApi, };
 export type { ToolChoiceForApiOptions, };
