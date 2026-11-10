@@ -45,6 +45,17 @@ await describe({
       },
     },),
     it({
+      name: 'reads the parameters up to the first letter that ends them',
+      fn: async ({ expect, }) => {
+        // The parameters run to the 'm'; the text after it stays.
+        expect(stripAnsi('\u001B[12;34mok',),).toBe('ok',);
+        // A letter that is not 'm' ends no color sequence, so the segment stays whole.
+        expect(stripAnsi('\u001B[32Kx',),).toBe('\u001B[32Kx',);
+        // Parameters that reach the end of the text without a final letter.
+        expect(stripAnsi('ok\u001B[1;',),).toBe('ok\u001B[1;',);
+      },
+    },),
+    it({
       name: 'handles a long line with many sequences in linear time',
       fn: async ({ expect, }) => {
         expect(
