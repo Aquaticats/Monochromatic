@@ -124,14 +124,19 @@ function declaredFunctionName(line: string,): string {
   if (!(asynchronous.startsWith(FUNCTION_KEYWORD,)))
     return '';
   /**
-   Signature between the `function` keyword and the declared name: `*` for a
-   generator, and the separating space in either form.
+   Text after the `function` keyword, which is either the separating space of a
+   plain declaration or the `*` of a generator.
    */
-  const signature = asynchronous
-    .slice(FUNCTION_KEYWORD.length,)
-    .replace(/^\*/u, '',);
-  if (!(signature.startsWith(' ',)))
+  const afterKeyword = asynchronous.slice(FUNCTION_KEYWORD.length,);
+  const isGenerator = afterKeyword.startsWith('*',);
+  if (!(isGenerator || afterKeyword.startsWith(' ',)))
     return '';
+  /**
+   Text from the declared name onward, with a generator's `*` removed.
+   */
+  const signature = isGenerator
+    ? afterKeyword.slice(1,)
+    : afterKeyword;
   return identifierPrefix(signature.trimStart(),);
 }
 
@@ -288,7 +293,7 @@ await describe({
       children: [
         it({
           name: 'reads a function declaration out of this package',
-          fn: () => {
+          fn: async () => {
             /**
              Declarations the scan recognises across every product module.
              */
@@ -308,57 +313,57 @@ await describe({
           },
         },),
         ...modules.map(function mapModule(module,) {
-        /**
-         Module text with comment content removed.
-         */
-        const { file, lines, } = module;
-        return it({
-          name: `declares every ${file} function before calling it`,
-          fn: () => {
-            /**
-             Line each function is declared on, by name.
-             */
-            const declarations = new Map<string, number>();
-            for (const [index, line,] of lines.entries()) {
+          /**
+           Module text with comment content removed.
+           */
+          const { file, lines, } = module;
+          return it({
+            name: `declares every ${file} function before calling it`,
+            fn: async () => {
               /**
-               Function name this line declares, empty for any other line.
+               Line each function is declared on, by name.
                */
-              const name = declaredFunctionName(line,);
-              if (name !== '')
-                declarations.set(name, index + 1,);
-            }
-
-            /**
-             One report line per call that precedes its declaration, in
-             declaration order.
-             */
-            const callsBeforeDeclaration = [...declarations,]
-              .map(function toFirstCall([name, declaredAt,],) {
+              const declarations = new Map<string, number>();
+              for (const [index, line,] of lines.entries()) {
                 /**
-                 Line of the first call, 1-based, or 0 when never called.
+                 Function name this line declares, empty for any other line.
                  */
-                const firstCall = lines.findIndex(function mentions(line,) {
-                  return callsFunction(line, name,);
-                },) + 1;
-                return { name, declaredAt, firstCall, };
-              },)
-              .filter(function isOutOfOrder(entry,) {
-                // A zero line means the module never calls the function itself:
-                // an export its consumers call is not a forward reference.
-                return (entry.firstCall > 0) && (entry.firstCall < entry.declaredAt);
-              },)
-              .map(function toReport(entry,) {
-                return [
-                  `${file}:${String(entry.firstCall,)}`,
-                  `calls ${entry.name},`,
-                  `declared at ${String(entry.declaredAt,)}`,
-                ].join(' ',);
-              },);
+                const name = declaredFunctionName(line,);
+                if (name !== '')
+                  declarations.set(name, index + 1,);
+              }
 
-            expect(callsBeforeDeclaration.join('\n',),).toBe('',);
-          },
-        },);
-      },),
+              /**
+               One report line per call that precedes its declaration, in
+               declaration order.
+               */
+              const callsBeforeDeclaration = [...declarations,]
+                .map(function toFirstCall([name, declaredAt,],) {
+                  /**
+                   Line of the first call, 1-based, or 0 when never called.
+                   */
+                  const firstCall = lines.findIndex(function mentions(line,) {
+                    return callsFunction(line, name,);
+                  },) + 1;
+                  return { name, declaredAt, firstCall, };
+                },)
+                .filter(function isOutOfOrder(entry,) {
+                  // A zero line means the module never calls the function itself:
+                  // an export its consumers call is not a forward reference.
+                  return (entry.firstCall > 0) && (entry.firstCall < entry.declaredAt);
+                },)
+                .map(function toReport(entry,) {
+                  return [
+                    `${file}:${String(entry.firstCall,)}`,
+                    `calls ${entry.name},`,
+                    `declared at ${String(entry.declaredAt,)}`,
+                  ].join(' ',);
+                },);
+
+              expect(callsBeforeDeclaration.join('\n',),).toBe('',);
+            },
+          },);
+        },),
       ],
     },),
   ],

@@ -110,6 +110,51 @@ const JSON_SCHEMA_TARGET = 'draft-2020-12';
 const ROOT_TYPE = 'object';
 
 /**
+ Runs the converter, restating failures against the tool that caused them.
+ 
+ @param schema - Valibot schema declared by this tool
+ 
+ @param toolName - Tool name, quoted into failure messages
+ 
+ @returns Raw converted schema as the converter models it
+ 
+ @throws ToolSchemaError when the converter rejects this schema
+ 
+ @example
+ ```ts
+ convertSchema({ schema: v.strictObject({}), toolName: 'list_vms' });
+ ```
+ */
+function convertSchema(
+  {
+    schema,
+    toolName,
+  }: {
+    readonly schema: ToolArgumentsSchema;
+    readonly toolName: string;
+  },
+): JsonSchema {
+  // Deliberate catch-and-rethrow: the converter names the offending valibot schema type but
+  // not the tool, which is the only handle an author has to find it among many.
+  try {
+    return toJsonSchema(
+      schema,
+      {
+        target: JSON_SCHEMA_TARGET,
+        errorMode: 'throw',
+      },
+    );
+  }
+  catch (error: unknown) {
+    throw new ToolSchemaError(
+      `Tool "${toolName}" declares a schema that cannot be advertised as JSON Schema: ${
+        caughtValueText(error,)
+      }`,
+    );
+  }
+}
+
+/**
  Converts a tool's valibot schema into the JSON Schema advertised for it.
  
  Conversion runs with `errorMode: 'throw'` so a schema the converter cannot express, such
@@ -198,54 +243,44 @@ export function toolInputSchema(
   return advertised as ToolInputSchema;
 }
 
-/**
- Runs the converter, restating failures against the tool that caused them.
- 
- @param schema - Valibot schema declared by this tool
- 
- @param toolName - Tool name, quoted into failure messages
- 
- @returns Raw converted schema as the converter models it
- 
- @throws ToolSchemaError when the converter rejects this schema
- 
- @example
- ```ts
- convertSchema({ schema: v.strictObject({}), toolName: 'list_vms' });
- ```
- */
-function convertSchema(
-  {
-    schema,
-    toolName,
-  }: {
-    readonly schema: ToolArgumentsSchema;
-    readonly toolName: string;
-  },
-): JsonSchema {
-  // Deliberate catch-and-rethrow: the converter names the offending valibot schema type but
-  // not the tool, which is the only handle an author has to find it among many.
-  try {
-    return toJsonSchema(
-      schema,
-      {
-        target: JSON_SCHEMA_TARGET,
-        errorMode: 'throw',
-      },
-    );
-  }
-  catch (error: unknown) {
-    throw new ToolSchemaError(
-      `Tool "${toolName}" declares a schema that cannot be advertised as JSON Schema: ${
-        caughtValueText(error,)
-      }`,
-    );
-  }
-}
-
 //endregion
 
 //region Validation: gating a call on the same schema that was advertised
+
+/**
+ Renders validation issues as one message a client can act on.
+ 
+ Each issue is prefixed with the path it failed at, since a bare "expected string" gives
+ no way to tell which argument is wrong when several share a type.
+ 
+ @param issues - Issues valibot reported for one parse
+ 
+ @returns Semicolon-separated descriptions, path first
+ 
+ @example
+ ```ts
+ describeIssues(outcome.issues);
+ // 'name: Invalid key: Expected "name" but received undefined'
+ ```
+ */
+function describeIssues(
+  issues: readonly [
+    v.BaseIssue<unknown>,
+    ...v.BaseIssue<unknown>[],
+  ],
+): string {
+  return issues
+    .map(function describeIssue(issue,): string {
+      /**
+       Dotted path to the failing value; absent when the whole argument bag failed.
+       */
+      const path = v.getDotPath(issue,);
+      if (path === null)
+        return issue.message;
+      return `${path}: ${issue.message}`;
+    },)
+    .join('; ',);
+}
 
 /**
  Checks `tools/call` arguments against the tool's declared schema.
@@ -285,41 +320,6 @@ export function validateToolArguments(
   if (outcome.success)
     return TOOL_ARGUMENTS_VALID;
   return describeIssues(outcome.issues,);
-}
-
-/**
- Renders validation issues as one message a client can act on.
- 
- Each issue is prefixed with the path it failed at, since a bare "expected string" gives
- no way to tell which argument is wrong when several share a type.
- 
- @param issues - Issues valibot reported for one parse
- 
- @returns Semicolon-separated descriptions, path first
- 
- @example
- ```ts
- describeIssues(outcome.issues);
- // 'name: Invalid key: Expected "name" but received undefined'
- ```
- */
-function describeIssues(
-  issues: readonly [
-    v.BaseIssue<unknown>,
-    ...v.BaseIssue<unknown>[],
-  ],
-): string {
-  return issues
-    .map(function describeIssue(issue,): string {
-      /**
-       Dotted path to the failing value; absent when the whole argument bag failed.
-       */
-      const path = v.getDotPath(issue,);
-      if (path === null)
-        return issue.message;
-      return `${path}: ${issue.message}`;
-    },)
-    .join('; ',);
 }
 
 //endregion
