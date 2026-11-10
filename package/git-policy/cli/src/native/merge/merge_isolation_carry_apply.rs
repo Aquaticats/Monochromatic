@@ -1,6 +1,7 @@
 //! What:
-//!  What decides, path by path, how a merge carries a person's own work:
-//! putting the merge's paths back to the branch before
+//!  How one merge carries a person's own work,
+//!  path by path:
+//!  putting the merge's paths back to the branch before
 //!  Git updates them,
 //! merging each of the person's two layers with the merge afterwards,
 //! and putting their
