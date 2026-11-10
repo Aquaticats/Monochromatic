@@ -29,5 +29,8 @@ extends = "format:oxlint"
 extends = "lint:types"
 hide = true
 
+# The suite imports the built bundle, so the artifact must exist before any test
+# file loads; without this a fresh worktree's run fails on a missing dist file.
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["//package/figma/to-penpot:build"]
