@@ -203,6 +203,13 @@ export { PIPELINE_GLOB, } from './lib/pipeline-glob.ts';
 export { generateLanguageRss, } from './lib/rss.ts';
 
 /**
+ Rehype plugin that pre-computes Lezer highlight ranges.
+
+ @internal
+ */
+export { default as rehypeHighlight, } from './lib/rehype-highlight.ts';
+
+/**
  Logger subset the diagnostics accept.
 
  @internal

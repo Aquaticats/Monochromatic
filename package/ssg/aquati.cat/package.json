@@ -35,6 +35,7 @@
     "@lezer/highlight": "catalog:",
     "@lezer/html": "catalog:",
     "@lezer/javascript": "catalog:",
+    "@lezer/json": "catalog:",
     "@lezer/markdown": "catalog:",
     "@lezer/rust": "catalog:",
     "@lezer/xml": "catalog:",
