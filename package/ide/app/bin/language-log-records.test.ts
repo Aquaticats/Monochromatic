@@ -8,7 +8,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isBareShutdownError, isServerStandardErrorEnd, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
+import {
+  isBareShutdownError,
+  isMootErrorAnswer,
+  isServerStandardErrorEnd,
+  isServerStandardErrorLine,
+  levelOf,
+  withoutColourSequences
+} from './language-log-records.ts';
 
 test(
   'removes the colour sequence a tracing record carries',
@@ -332,6 +339,55 @@ test(
   () => {
     assert.equal(
       isServerStandardErrorEnd('helix_lsp::transport: a helix_lsp::transport: b err: <- StreamClosed'),
+      true
+    );
+  }
+);
+
+test(
+  'reads the two answers helix-lsp treats as a moot error',
+  () => {
+    // src/logging/relabel.rs keeps these two codes as its MOOT_ANSWERS, and the records are the ones the troubleshooting
+    // document captured.
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: rust-analyzer <- ServerError(-32801): content modified'), true);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32800): request cancelled'), true);
+  }
+);
+
+test(
+  'reads a moot error answer from a record that carries its level in front of the module path',
+  () => {
+    assert.equal(isMootErrorAnswer('ERROR helix_lsp::transport: scripted-ls <- ServerError(-32800): request cancelled'), true);
+  }
+);
+
+test(
+  'reads a moot error answer that states no content',
+  () => {
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32801): '), true);
+  }
+);
+
+test(
+  'reads no moot error answer from another code or another wording',
+  () => {
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32803): request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32802): request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-3280): request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-328011): request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32801):request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- ServerError(-32801):'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls <- servererror(-32801): request failed'), false);
+    assert.equal(isMootErrorAnswer('helix_lsp::transport: scripted-ls err <- "line"'), false);
+    assert.equal(isMootErrorAnswer(''), false);
+  }
+);
+
+test(
+  'reads a moot error answer from a record that holds the module path twice',
+  () => {
+    assert.equal(
+      isMootErrorAnswer('helix_lsp::transport: a helix_lsp::transport: b <- ServerError(-32801): content modified'),
       true
     );
   }

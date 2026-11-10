@@ -1,7 +1,8 @@
 // The readers a language-server lifetime check applies to the application's log, written as cursor scans.
 // What: the text of a record without the colour escapes it carries, the level a record states, whether the text
 // reports its own shutdown as a failure, and which of the three record shapes a healthy server prints it is: a
-// standard error line, the end of a standard error, and a moot error answer.
+// standard error line, the end of a standard error, and a moot error answer, which is one of the two answers the
+// application's relabelling keeps (src/logging/relabel.rs).
 // Why: the application colours every record for a terminal, so a lifetime check that reads a record's level or the
 // shape helix-lsp wrote would read the escape instead of the field when the escape is left in place, and it accepts
 // a run only when no record states ERROR.
@@ -276,4 +277,33 @@ const STANDARD_ERROR_END = ' err: <- StreamClosed';
  */
 export function isServerStandardErrorEnd(line: string): boolean {
   return someHelixTransportTail(line, tail => tail === STANDARD_ERROR_END);
+}
+
+/// The wording an answer carries after the server's name, up to the digits of its code.
+const MOOT_ERROR_ANSWER = ' <- ServerError(-3280';
+
+/// The wording that follows the code of an answer the application treats as moot.
+const MOOT_ERROR_ANSWER_REST = '): ';
+
+/**
+ Whether a record is an error answer the application treats as moot.
+ 
+ What: the transport prefix, the server's name, the answer wording, the one digit that completes `-32800` or `-32801`
+ and the text that follows it; the answer an unanchored `helix_lsp::transport: \S+ <- ServerError\(-3280[01]\): `
+ match gave to the same record.
+ 
+ Why: the two codes are the answers a healthy server produces when a request is cancelled or modified, so the lifetime
+ check has to tell them from an answer that reports a failure, and the other codes stay a failure.
+ 
+ @param line - one record of the application's log, with its colour sequences already removed
+ @returns whether the record is an error answer the application treats as moot
+ */
+export function isMootErrorAnswer(line: string): boolean {
+  return someHelixTransportTail(line, tail => {
+    if (!tail.startsWith(MOOT_ERROR_ANSWER)) return false;
+    const afterWording = tail.slice(MOOT_ERROR_ANSWER.length);
+    const digit = afterWording.slice(0, 1);
+    if ((digit !== '0') && (digit !== '1')) return false;
+    return afterWording.slice(1).startsWith(MOOT_ERROR_ANSWER_REST);
+  });
 }

@@ -15,7 +15,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { isBareShutdownError, isServerStandardErrorEnd, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, isMootErrorAnswer, isServerStandardErrorEnd, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
 import { isProcessNumberName } from './process-number-name.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
@@ -105,7 +105,7 @@ const bareLevels = new Set<string | undefined>(['WARN', 'ERROR', undefined]);
 const helixShapes: [string, (line: string) => boolean][] = [
   ['server standard error line', isServerStandardErrorLine],
   ['end of server standard error', isServerStandardErrorEnd],
-  ['moot error answer', line => /helix_lsp::transport: \S+ <- ServerError\(-3280[01]\): /.test(line)],
+  ['moot error answer', isMootErrorAnswer],
 ];
 const tomlTable = (variables: Record<string, string>): string => '{ ' + Object.entries(variables).map(([name, value]) => name + ' = ' + JSON.stringify(value)).join(', ') + ' }';
 // endregion
