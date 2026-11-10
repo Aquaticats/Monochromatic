@@ -867,3 +867,48 @@ fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
     assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
     remove(root.as_path());
 }
+
+/// What:
+///  A trash whose record a kill prevented is still recorded and emptied by the next pass,
+/// because the trash carries its
+///  own manifest.
+/// Why:
+///   The work item is written after the snapshot is published,
+/// so a `SIGKILL` in between leaves a trash no record names,
+///  and nothing would ever empty it.
+/// The manifest inside the trash travels with it through the swap,
+/// so the next command in that worktree
+///  records the trash and the service empties it,
+/// and the trash is never deleted on a guess:
+/// only a manifest
+///  whose identities are the directory's own proves the wrapper made it.
+/// This control plants the state that kill leaves,
+/// a real snapshot whose record was never written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stage, trash } = await snapshotOf(repo); deletePendingRecord(common, trash.name);
+/// nameUnaccountedTrash(common, stage); expect(pendingRecord(common, trash.name)).toBeDefined();
+/// expect(await emptyTrash(itemOf(stage, common, trash))).toBe('done'); expect(existsSync(trashPath)).toBe(false);
+/// ```
+#[test]
+fn btrfs_a_trash_whose_record_a_kill_prevented_is_recorded_and_emptied_by_the_next_pass() {
+    let Some(root) = btrfs_fixture("trash-killed-before-record") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("admin");
+    std::fs::write(stage.join(".git"), format!("gitdir: {}\n", common.join("worktrees/topic").display())).expect("pointer");
+    let work: PathBuf = work_directory(common.as_path());
+    assert!(std::fs::read_dir(state_directory(work.as_path(), "pending")).is_err(), "the kill left no record");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(common.as_path(), stage.as_path(), &mut say);
+    let record: PathBuf = state_directory(work.as_path(), "pending").join(format!("trash-{}", manifest.name));
+    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the next pass records a trash that says what it is").as_str()).expect("a work item");
+    assert_eq!(item.parent, manifest.encode(), "the record carries the identities the trash itself wrote");
+    assert_eq!(item.repository, stage, "and names the worktree that holds it");
+    assert_eq!(empty_trash(&item), Verdict::Done, "so the handler empties it");
+    assert!(!stage.join(TRASH_PARENT).exists(), "and nothing is left behind: {}", stage.display());
+    remove(root.as_path());
+}
