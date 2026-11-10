@@ -87,7 +87,7 @@ fn captured_of(history: &History, captured: u64, landed: Vec<LandedCapture>) -> 
 /// The same capture of a base the case names,
 /// for a history whose base is not the fixture's first commit.
 fn captured_of_kind(base: &str, captured: u64, landed: Vec<LandedCapture>) -> Captured {
-    return Captured { base: base.to_string(), tree: String::from("0".repeat(40)), captured, landed, conclusion: None };
+    return Captured { base: base.to_string(), unborn: false, tree: String::from("0".repeat(40)), captured, landed, conclusion: None };
 }
 
 /// The path of the `number`th file of a history.

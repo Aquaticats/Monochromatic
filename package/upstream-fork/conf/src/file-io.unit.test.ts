@@ -20,9 +20,11 @@ import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   ensureDirectory,
+  isFileStateEqual,
   isMissingFileError,
   pathExists,
   readFileBytes,
+  readFileState,
   readFileText,
   removeFileIfExists,
   stringToBytes,
@@ -462,6 +464,58 @@ await describe({
             return entry.includes('.tmp',);
           },);
         expect(leftovers,).toHaveLength(0,);
+      },
+    },),
+
+    it({
+      name: 'readFileState separates an absent path, an atomic rewrite, and an unchanged file',
+      fn: async () => {
+        /**
+         Temp directory holding the watched file.
+         */
+        const directory = createTempDirectory();
+        /**
+         Absolute path whose state the case compares.
+         */
+        const filePath = path.join(
+          directory,
+          'config.json',
+        );
+        expect(isFileStateEqual({
+          before: readFileState({ path: filePath, },),
+          after: { kind: 'absent', },
+        },),).toBe(true,);
+
+        writeFileAtomic({
+          path: filePath,
+          data: '{"foo":1}',
+          mode: 0o600,
+        },);
+        /**
+         State of the file as first written.
+         */
+        const first = readFileState({ path: filePath, },);
+        expect(isFileStateEqual({
+          before: first,
+          after: readFileState({ path: filePath, },),
+        },),).toBe(true,);
+
+        // Same length, so only the inode and the modification time can tell
+        // the rewrite apart; the atomic write replaces the inode.
+        writeFileAtomic({
+          path: filePath,
+          data: '{"foo":2}',
+          mode: 0o600,
+        },);
+        expect(isFileStateEqual({
+          before: first,
+          after: readFileState({ path: filePath, },),
+        },),).toBe(false,);
+
+        expect(isFileStateEqual({
+          before: readFileState({ path: filePath, },),
+          after: { kind: 'absent', },
+        },),).toBe(false,);
       },
     },),
   ],

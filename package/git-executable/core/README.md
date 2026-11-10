@@ -15,6 +15,11 @@ PE,
 Mach-O,
 and universal Mach-O executables from their headers.
 
+A failed lookup names every candidate it rejected for its file shape:
+candidates that are not regular files,
+and non-native scripts larger than the inspection bound,
+appear in the error with their paths and their own remediation.
+
 Successful resolutions are cached by their effective absolute candidate sequence.
 The cache retains 16 least-recently-used successful sequences.
 Concurrent calls for the same sequence share one lookup.

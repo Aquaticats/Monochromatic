@@ -6,6 +6,36 @@ import {
 
 import { nameFromPath, } from './import.ts';
 
+/**
+ First printable ASCII code point, `!`; below it lie control characters only.
+ */
+const FIRST_PRINTABLE_CODE_POINT = 0x21;
+
+/**
+ Last printable ASCII code point, `~`.
+ */
+const LAST_PRINTABLE_CODE_POINT = 0x7E;
+
+/**
+ Every printable ASCII character, in code-point order.
+ */
+const PRINTABLE_ASCII: readonly string[] = Array.from(
+  { length: (LAST_PRINTABLE_CODE_POINT - FIRST_PRINTABLE_CODE_POINT) + 1, },
+  function codePointAt(_, offset,) {
+    return String.fromCodePoint(FIRST_PRINTABLE_CODE_POINT + offset,);
+  },
+);
+
+/**
+ The VM-name character contract: lowercase and uppercase ASCII letters,
+ digits, underscore, and hyphen. Written out here so a divergence on the
+ sanitising side fails against an expectation independent of
+ `validateName` and `isVmNameChar`.
+ */
+const ALLOWED_NAME_CHARACTERS: ReadonlySet<string> = new Set(
+  Array.from('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-',),
+);
+
 //region nameFromPath: derives VM names from image file paths
 
 await describe({
@@ -71,6 +101,21 @@ await describe({
       name: 'replaces consecutive special chars with hyphens',
       fn: async () => {
         expect(nameFromPath('/tmp/a@b#c.qcow2',),).toBe('a-b-c',);
+      },
+    },),
+
+    it({
+      name: 'preserves exactly the characters the name contract allows',
+      fn: async () => {
+        for (const c of PRINTABLE_ASCII) {
+          // A slash is a path separator, so it never reaches the basename.
+          if (c === '/')
+            continue;
+          const expected = ALLOWED_NAME_CHARACTERS.has(c,)
+            ? `x${c}`
+            : 'x-';
+          expect(nameFromPath(`/tmp/x${c}.img`,),).toBe(expected,);
+        }
       },
     },),
   ],

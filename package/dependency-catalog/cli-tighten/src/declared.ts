@@ -19,6 +19,9 @@ import {
 } from 'node:path';
 
 import {
+  isAbsentPathError,
+} from './absent-path-error.ts';
+import {
   discoverWorkspaceRoots,
 } from './version-resolve.ts';
 
@@ -49,12 +52,18 @@ type ManifestDeps = {
 
 /**
  Reads the union of direct-dependency names declared across every dependency
- field of one `package.json`. A missing or unreadable manifest contributes no
- names, so a stripped-down importer simply declares nothing.
+ field of one `package.json`. A missing manifest contributes no names, so a
+ stripped-down importer simply declares nothing.
+ 
+ A manifest that exists but cannot be read or parsed is not the same thing and
+ is thrown: folding it into "declares nothing" would let `UNDCL` accuse a
+ package the importer does declare, which this module exists to prevent.
  
  @param pkgJsonPath - absolute path to a `package.json`
  
  @returns set of declared dependency names
+ 
+ @throws Error when the manifest exists but cannot be read or is not valid JSON
  
  @example
  ```ts
@@ -73,8 +82,10 @@ async function readDeclaredDeps(pkgJsonPath: string,): Promise<ReadonlySet<strin
     /**
      Manifest narrowed to the dependency-field maps whose keys name direct dependencies.
      */
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON structure from package.json is well-known
-    const parsed = JSON.parse(content,) as ManifestDeps;
+    const parsed = parseDeclaredDeps({
+      pkgJsonPath,
+      content,
+    },);
     return new Set([
       ...Object.keys(parsed.dependencies
         ?? {},),
@@ -90,7 +101,51 @@ async function readDeclaredDeps(pkgJsonPath: string,): Promise<ReadonlySet<strin
     if (!(Error.isError(error,)))
       throw error;
 
-    return new Set();
+    // Only a genuinely absent manifest declares nothing; every other failure reaches the caller.
+    if (isAbsentPathError(error,))
+      return new Set();
+
+    throw error;
+  }
+}
+
+/**
+ Parses manifest text into the dependency-field maps the check reads.
+ 
+ @param pkgJsonPath - path the text came from, named in the failure message
+ 
+ @param content - raw `package.json` text
+ 
+ @returns manifest narrowed to its dependency fields
+ 
+ @throws Error when the text is not valid JSON
+ 
+ @example
+ ```ts
+ parseDeclaredDeps({ pkgJsonPath: '/repo/package.json', content: '{"dependencies":{"picomatch":"catalog:"}}', }) // { dependencies: { picomatch: 'catalog:' } }
+ ```
+ */
+function parseDeclaredDeps(
+  {
+    pkgJsonPath,
+    content,
+  }: {
+    readonly pkgJsonPath: string;
+    readonly content: string;
+  },
+): ManifestDeps {
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON structure from package.json is well-known
+    return JSON.parse(content,) as ManifestDeps;
+  }
+  catch (error) {
+    if (!(Error.isError(error,)))
+      throw error;
+
+    throw new Error(
+      `importer manifest ${pkgJsonPath} is not valid JSON: it cannot be read as declaring nothing, because that would label a package it declares as undeclared`,
+      { cause: error, },
+    );
   }
 }
 
@@ -106,6 +161,9 @@ async function readDeclaredDeps(pkgJsonPath: string,): Promise<ReadonlySet<strin
  @param monorepoRoot - absolute path to the monorepo root
  
  @returns whether a live importer declares any candidate directly
+ 
+ @throws Error when an importer manifest exists but cannot be read or parsed,
+ or a workspace directory cannot be scanned
  
  @example
  ```ts

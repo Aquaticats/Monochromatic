@@ -4,8 +4,14 @@
  Mirrors upstream `conf` 15.1.0's platform split:
  directory watching with a short debounce on Windows and macOS (atomic
  writes arrive as rename events on the directory),
- file watching with a longer debounce elsewhere,
- where upstream found `fs.watchFile` more reliable.
+ file polling with a longer debounce elsewhere,
+ where upstream found polling more reliable than the directory events
+ those platforms do not raise.
+ 
+ The polling watcher takes its baseline through one synchronous read before
+ it returns. Node's `fs.watchFile` would read that baseline on a thread-pool
+ thread instead, and libuv silences the first stat, so a write landing in
+ between became the baseline and was never reported at all.
  
  @module
  */
@@ -15,17 +21,18 @@ import {
   dirname,
 } from 'node:path';
 import process from 'node:process';
-import {
-  unwatchFile,
-  watch,
-  watchFile,
-} from 'node:fs';
+import { watch, } from 'node:fs';
 import {
   tagged,
   type Logger,
 } from '@monochromatic-dev/logger-core/ts';
 
 import { debounce, } from './debounce.ts';
+import {
+  type FileState,
+  isFileStateEqual,
+  readFileState,
+} from './file-io.ts';
 
 //region Types
 
@@ -62,7 +69,7 @@ const DIRECTORY_EVENT_DEBOUNCE_WAIT = 100;
 
 /**
  Debounce for polling platforms,
- sized to the `fs.watchFile` polling cadence.
+ sized to the polling cadence.
  
  @example
  ```ts
@@ -70,6 +77,20 @@ const DIRECTORY_EVENT_DEBOUNCE_WAIT = 100;
  ```
  */
 const FILE_EVENT_DEBOUNCE_WAIT = 1_000;
+
+/**
+ Interval between file-state reads on polling platforms.
+ 
+ Matches the default interval of Node's `fs.watchFile`,
+ which upstream `conf` relied on and this fork keeps for the same reason: a
+ config file on a network filesystem raises no directory events.
+ 
+ @example
+ ```ts
+ FILE_POLL_INTERVAL_MILLISECONDS; // 5007
+ ```
+ */
+const FILE_POLL_INTERVAL_MILLISECONDS = 5_007;
 
 //endregion Constants
 
@@ -101,10 +122,23 @@ export function createConfigWatcher({
   path: filePath,
   onChange,
   logger,
+  readState = readFileState,
 }: {
   readonly path: string;
   readonly onChange: () => void;
   readonly logger?: Logger;
+  /**
+   File-state reader for the polling platforms.
+   
+   Defaults to the synchronous file read,
+   which is what keeps the baseline ahead of anything the caller does after
+   this factory returns. A caller that already knows the state the watched
+   file was last seen in supplies its own reader to compare against it.
+   */
+  readonly readState?: (request: {
+    readonly path: string;
+    readonly logger?: Logger;
+  },) => FileState;
 },): ConfigWatcher {
   /**
    Logger wrapped with this factory's name so watch diagnostics name their
@@ -168,20 +202,47 @@ export function createConfigWatcher({
     fn: onChange,
     wait: FILE_EVENT_DEBOUNCE_WAIT,
   },);
-  watchFile(
-    filePath,
-    {
-      persistent: false,
-    },
-    function onFileEvent(): void {
+  /**
+   Last seen file state, which each poll compares against.
+   */
+  const poll = {
+    // Read here, before the return: the state the watcher starts from must be
+    // fixed synchronously, or a write made while arming becomes the baseline
+    // and is never reported.
+    baseline: readState({
+      path: filePath,
+      logger: log,
+    },),
+  };
+  /**
+   Running poll, cleared when the watcher closes.
+   */
+  const timer = setInterval(
+    function pollFileState(): void {
+      /**
+       File state as this tick sees it.
+       */
+      const current = readState({
+        path: filePath,
+        logger: log,
+      },);
+      if (isFileStateEqual({
+        before: poll.baseline,
+        after: current,
+      },))
+        return;
+      poll.baseline = current;
       debounced.trigger();
     },
+    FILE_POLL_INTERVAL_MILLISECONDS,
   );
-  log.debug(`watching ${filePath} via fs.watchFile`,);
+  timer
+    .unref();
+  log.debug(`watching ${filePath} by polling its file state`,);
   return {
     close: function closeFileWatcher(): void {
       debounced.cancel();
-      unwatchFile(filePath,);
+      clearInterval(timer,);
     },
   };
 }
