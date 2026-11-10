@@ -4,6 +4,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import { canonicalSlug, } from './model-id.ts';
 import {
   findExactModelReferenceMatch,
@@ -73,22 +75,6 @@ const DATE_SUFFIX_DIGITS = 8;
  Total characters in pi model date suffix including leading hyphen.
  */
 const DATE_SUFFIX_TOTAL_LENGTH = DATE_SUFFIX_DIGITS + 1;
-
-/**
- ASCII digit characters accepted in pi model date suffixes.
- */
-const ASCII_DIGITS: ReadonlySet<string> = new Set([
-  '0',
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-],);
 
 //endregion Types and constants
 
@@ -467,23 +453,10 @@ function isAsciiDigitString(
   value: string,
 ): boolean {
   for (const character of value) {
-    if (!isAsciiDigit(character,))
+    if (!isDigit(character,))
       return false;
   }
   return true;
-}
-
-/**
- Check whether one character is an ASCII digit.
- 
- @param character - single-character string
- 
- @returns whether character is between zero and nine inclusive
- */
-function isAsciiDigit(
-  character: string,
-): boolean {
-  return ASCII_DIGITS.has(character,);
 }
 
 //endregion Internal helpers

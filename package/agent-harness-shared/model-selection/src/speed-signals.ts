@@ -4,10 +4,9 @@
  @module
  */
 
-import {
-  isAsciiWhitespace,
-  splitSeparatedTokens,
-} from './token-splitting.ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
+import { splitSeparatedTokens, } from './token-splitting.ts';
 import type { ModelPricing, } from './types.ts';
 
 //region Score constants
@@ -258,14 +257,7 @@ function isSpeedTokenSeparator(
     || (character === '-')
     || (character === '/')
     || (character === ':')
-    || isAsciiWhitespace(character,);
+    || isWhitespace(character,);
 }
 
-/**
- Check whether a character is ASCII whitespace.
- 
- @param character - character to check
- 
- @returns whether character is whitespace used by model ids
- */
 //endregion Signal extraction

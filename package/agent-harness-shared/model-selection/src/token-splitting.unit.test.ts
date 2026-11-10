@@ -10,10 +10,9 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import {
-  isAsciiWhitespace,
-  splitSeparatedTokens,
-} from '../dist/final/node/index.mjs';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
+import { splitSeparatedTokens, } from '../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -39,7 +38,7 @@ function isModelTextSeparator(
   character: string,
 ): boolean {
   return PUNCTUATION_SEPARATORS.has(character,)
-    || isAsciiWhitespace(character,);
+    || isWhitespace(character,);
 }
 
 //endregion Fixtures
@@ -109,33 +108,6 @@ await describe({
           'a\u{1F600}b',
           'c',
         ],);
-      },
-    },),
-  ],
-},);
-
-await describe({
-  name: isAsciiWhitespace.name,
-  children: [
-    it({
-      name: 'accepts exactly the six ASCII whitespace characters',
-      fn: async function testAsciiWhitespaceCharacters(): Promise<void> {
-        for (const character of [
-          ' ',
-          '\t',
-          '\n',
-          '\r',
-          '\f',
-          '\v',
-        ])
-          expect(isAsciiWhitespace(character,),).toBe(true,);
-        for (const character of [
-          'a',
-          '0',
-          '\u00A0',
-          '',
-        ])
-          expect(isAsciiWhitespace(character,),).toBe(false,);
       },
     },),
   ],

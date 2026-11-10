@@ -7,40 +7,6 @@
  @module
  */
 
-//region Separator predicates
-
-/**
- Check whether a character is ASCII whitespace.
-
- Covers the six characters that the model-id and speed-signal separator
- predicates share. Non-ASCII spaces such as the no-break space stay inside
- tokens because model registries never use them as separators.
-
- @param character - character to check
-
- @returns whether character is ASCII whitespace
-
- @example
- ```typescript
- isAsciiWhitespace('\t'); // true
- isAsciiWhitespace('\u00A0'); // false
- ```
-
- @internal
- */
-export function isAsciiWhitespace(
-  character: string,
-): boolean {
-  return (character === ' ')
-    || (character === '\t')
-    || (character === '\n')
-    || (character === '\r')
-    || (character === '\f')
-    || (character === '\v');
-}
-
-//endregion Separator predicates
-
 //region Token splitting
 
 /**

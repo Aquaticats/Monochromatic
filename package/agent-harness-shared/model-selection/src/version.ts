@@ -8,9 +8,11 @@
  */
 
 import {
-  isAsciiWhitespace,
-  splitSeparatedTokens,
-} from './token-splitting.ts';
+  isDigit,
+  isWhitespace,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
+import { splitSeparatedTokens, } from './token-splitting.ts';
 import type { ModelPricing, } from './types.ts';
 
 //region Constants
@@ -290,7 +292,7 @@ function isModelIdSeparator(
     || (character === '_')
     || (character === '-')
     || (character === ':')
-    || isAsciiWhitespace(character,);
+    || isWhitespace(character,);
 }
 
 /**
@@ -321,7 +323,7 @@ function firstDigitRun(
    */
   const digits: string[] = [];
   for (const character of token) {
-    if (isAsciiDigit(character,)) {
+    if (isDigit(character,)) {
       digits.push(character,);
       continue;
     }
@@ -350,30 +352,10 @@ function containsOnlyDigits(
   if (value === '')
     return false;
   for (const character of value) {
-    if (!isAsciiDigit(character,))
+    if (!isDigit(character,))
       return false;
   }
   return true;
 }
 
-/**
- Check whether a character is an ASCII digit.
- 
- @param character - character to check
- 
- @returns whether character is between zero and nine inclusive
- */
-function isAsciiDigit(
-  character: string,
-): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
- Check whether a character is ASCII whitespace.
- 
- @param character - character to check
- 
- @returns whether character is whitespace used by model ids
- */
 //endregion Token scanning
