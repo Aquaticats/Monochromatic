@@ -271,17 +271,17 @@ the pattern is established but rare.
 
 Only three sites use an `oxlint-disable` for `prefer-const` or `no-let`:
 
-1. `webapp-productivity/done-h-css-test/src/client/components/task-detail-autofill.ts:100`:
-   `using _loadingGuard = { ... }` declared via `using` binding (TS5 explicit-resource-management).
-   `using` is structurally `let`-like per spec;
-    the disable preserves the keyword.
-2. `module/es/src/types/.../backends.ts:69`:
-   `let defaultBackendsBuilder: DefaultBackendsBuilder | undefined`,
-   commented "Intentional:
-    configured once at module load by platform entry.
-   "
-3. `module/es/src/types/.../customParsers.dispatch.ts:29`:
-   Same module-init pattern.
+1.  `webapp-productivity/done-h-css-test/src/client/components/task-detail-autofill.ts:100`:
+    `using _loadingGuard = { ... }` declared via `using` binding (TS5 explicit-resource-management).
+    `using` is structurally `let`-like per spec;
+     the disable preserves the keyword.
+2.  `module/es/src/types/.../backends.ts:69`:
+    `let defaultBackendsBuilder: DefaultBackendsBuilder | undefined`,
+    commented "Intentional:
+     configured once at module load by platform entry.
+    "
+3.  `module/es/src/types/.../customParsers.dispatch.ts:29`:
+    Same module-init pattern.
 
 The `AGENTS.md` rule "comment any deviation from immutability" is universally unmet across the other 782 declarations.
 
@@ -594,26 +594,26 @@ they have not been calibrated against actually doing a sample slice.
 
 Reasoning:
 
-1. The current `prefer-const: 'warn'` already enforces "don't mutate what you don't have to.
-   "
-   The remaining 785 lets are genuinely reassigned;
-   none are accidentally mutable.
-2. The user's IIFE point identifies the actual concern:
-   not mutability per se,
-    but mutable variables leaking past their useful lifetime
-   into the rest of a function's scope.
-   Option B's AST selector directly targets that.
-3. Option C (module-level) is a separate cleanup
-   that benefits from a dedicated audit and migration to `memoize` independent of any new lint rule.
-   Most module-level lets have undocumented cache invariants;
-   migrating them to `memoize` simultaneously documents intent and removes the `let`.
-4. Option A (blanket ban) generates hundreds of low-value disable comments
-   for cases (loop counters,
-    intentional state machine state)
-   that have no better alternative.
-   The noise floor argues against it.
-5. Option D rules are useful as a follow-up to refine specific catch sets
-   once Option B reveals which scope-leak shapes recur in practice.
+1.  The current `prefer-const: 'warn'` already enforces "don't mutate what you don't have to.
+    "
+    The remaining 785 lets are genuinely reassigned;
+    none are accidentally mutable.
+2.  The user's IIFE point identifies the actual concern:
+    not mutability per se,
+     but mutable variables leaking past their useful lifetime
+    into the rest of a function's scope.
+    Option B's AST selector directly targets that.
+3.  Option C (module-level) is a separate cleanup
+    that benefits from a dedicated audit and migration to `memoize` independent of any new lint rule.
+    Most module-level lets have undocumented cache invariants;
+    migrating them to `memoize` simultaneously documents intent and removes the `let`.
+4.  Option A (blanket ban) generates hundreds of low-value disable comments
+    for cases (loop counters,
+     intentional state machine state)
+    that have no better alternative.
+    The noise floor argues against it.
+5.  Option D rules are useful as a follow-up to refine specific catch sets
+    once Option B reveals which scope-leak shapes recur in practice.
 
 A one-shot audit-and-refactor pass for the ~50 to 150 highest-value cases
 (module-level caches,
@@ -633,19 +633,19 @@ deciding on the permanent rule is easier with the refactored codebase as the sta
    visits `FunctionDeclaration` and `FunctionExpression`;
    reports each `let` declared as a direct child of the function body.
    Two AST-level allowlists:
-  1. **IIFE callee**:
-      the function's `parent.type === 'CallExpression' && parent.callee === fn`.
-      Covers both named-function IIFEs `(function () { let x; })()`
-      and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
-      prefer the named form).
-  2. **Helper-function shape**:
-      the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
-      (`let`,
-      `const`,
-      or `function`).
-      `concat()` in `package/webapp-forge/stress/src/scenarios/force-push.ts` is the paradigm.
-      Conservative on purpose:
-      `return total * 2` or `return { a, b }` does NOT match.
+  1.  **IIFE callee**:
+       the function's `parent.type === 'CallExpression' && parent.callee === fn`.
+       Covers both named-function IIFEs `(function () { let x; })()`
+       and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
+       prefer the named form).
+  2.  **Helper-function shape**:
+       the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
+       (`let`,
+       `const`,
+       or `function`).
+       `concat()` in `package/webapp-forge/stress/src/scenarios/force-push.ts` is the paradigm.
+       Conservative on purpose:
+       `return total * 2` or `return { a, b }` does NOT match.
 - `no-module-root-let` (`src/rules/no-module-root-let.ts`):
    visits `Program`;
    reports each `let` declared at the top level,

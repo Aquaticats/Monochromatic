@@ -318,14 +318,14 @@ pure overhead.
 
 ## Do these four things
 
-1. Push `main` at end of session.
-    Stop carrying 71-deep unpushed backlogs.
-2. Prune the branch graveyard;
-    delete or tag-then-delete everything 500-plus behind,
-    and kill
-   `refactor(vitest)`.
-3. Pass real newlines to commit bodies;
-    find and fix the agent recipe that emitted literal `\n`.
-4. Keep treating caches and generated blobs as un-committable (already true);
-    only reach for
-   `filter-repo` if 82 MB starts to hurt.
+1.  Push `main` at end of session.
+     Stop carrying 71-deep unpushed backlogs.
+2.  Prune the branch graveyard;
+     delete or tag-then-delete everything 500-plus behind,
+     and kill
+    `refactor(vitest)`.
+3.  Pass real newlines to commit bodies;
+     find and fix the agent recipe that emitted literal `\n`.
+4.  Keep treating caches and generated blobs as un-committable (already true);
+     only reach for
+    `filter-repo` if 82 MB starts to hurt.

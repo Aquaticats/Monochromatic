@@ -1552,13 +1552,13 @@ Cons:
 
 ### Ranking
 
-1. `@narumitw/pi-subagents` `0.13.0` (incumbent) beats
-   `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
-   fails six hard gates that the incumbent's subprocess model does not fail in the same way.
-    The incumbent actually
-   kills children on timeout and routes tool policy through the real `pi` runtime.
-2. `@quintinshaw/pi-dynamic-workflows` `2.12.1` is excluded.
-    Its feature breadth is irrelevant once hard gates fail.
+1.  `@narumitw/pi-subagents` `0.13.0` (incumbent) beats
+    `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
+    fails six hard gates that the incumbent's subprocess model does not fail in the same way.
+     The incumbent actually
+    kills children on timeout and routes tool policy through the real `pi` runtime.
+2.  `@quintinshaw/pi-dynamic-workflows` `2.12.1` is excluded.
+     Its feature breadth is irrelevant once hard gates fail.
 
 This ranking is conditional and incomplete.
  It compares only the incumbent and the single user-named candidate.

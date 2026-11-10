@@ -74,95 +74,95 @@ run on nosimd build,
 
 ## Root-cause bug index (10 confirmed)
 
-1. [BUG-1](bug-01-reentrant-union-panic-v0.6.12.md):
-    re-entrancy guard panic
-   in `attempt_rw_union_2` at `resharp-algebra/src/lib.rs:2724`.
-    Compile time.
-   Found by the `diff_regex` target on ARM64.
-    Same site as 06-04 BUG-1.
-   Developer claimed fixed;
-    it was not.
+1.  [BUG-1](bug-01-reentrant-union-panic-v0.6.12.md):
+     re-entrancy guard panic
+    in `attempt_rw_union_2` at `resharp-algebra/src/lib.rs:2724`.
+     Compile time.
+    Found by the `diff_regex` target on ARM64.
+     Same site as 06-04 BUG-1.
+    Developer claimed fixed;
+     it was not.
 
-2. [ARM64-BUG-1](arm64-bug-01-unicode-property-compile-blowup.md):
-    Unicode
-   property class compile blowup.
-    `\P{L}2` takes 7.25s under ASAN on ARM64
-   (162ms on x86_64).
-    24 distinct timeout/slow-unit artifacts across three
-   build variants.
-    Root:
-    `RegexBuilder::der` at `lib.rs:1379` recurses deeply
-   on Unicode property class minterm enumeration.
-    Same root as BUG-11/17 but
-   on a class family the v0.6.12 fix did not cover.
+2.  [ARM64-BUG-1](arm64-bug-01-unicode-property-compile-blowup.md):
+     Unicode
+    property class compile blowup.
+     `\P{L}2` takes 7.25s under ASAN on ARM64
+    (162ms on x86_64).
+     24 distinct timeout/slow-unit artifacts across three
+    build variants.
+     Root:
+     `RegexBuilder::der` at `lib.rs:1379` recurses deeply
+    on Unicode property class minterm enumeration.
+     Same root as BUG-11/17 but
+    on a class family the v0.6.12 fix did not cover.
 
-3. [ARM64-BUG-2](arm64-bug-02-word-boundary-compile-blowup.md):
-    Word boundary
-   + bounded repeat compile blowup.
-      `\b\w+` under flag-bundle config causes
-   slow compiles.
-      Likely same derivative blowup root.
+3.  [ARM64-BUG-2](arm64-bug-02-word-boundary-compile-blowup.md):
+     Word boundary
+    + bounded repeat compile blowup.
+       `\b\w+` under flag-bundle config causes
+    slow compiles.
+       Likely same derivative blowup root.
 
-4. [ARM64-BUG-3](arm64-bug-03-wb-star-compile-timeout.md):
-    `\w+\b*` timeout
-   on ARM64 under flag-bundle config,
-    but rejected in ~1ms on x86_64.
-    The
-   parser's "unsupported pattern" check for `\b` inside a star does not fire
-   under all `RegexOptions` configurations.
+4.  [ARM64-BUG-3](arm64-bug-03-wb-star-compile-timeout.md):
+     `\w+\b*` timeout
+    on ARM64 under flag-bundle config,
+     but rejected in ~1ms on x86_64.
+     The
+    parser's "unsupported pattern" check for `\b` inside a star does not fire
+    under all `RegexOptions` configurations.
 
-5. **ARM64-BUG-4**:
-    `\B` timeout under full-unicode config.
-    The nosimd
-   build found `0xff5c42` (option byte 0xff,
-    config index 3 = full) which
-   decodes to `\B`.
-    On x86_64 this compiles in ~831µs;
-    on ARM64 under ASAN
-   it exceeds the 10-second timeout.
-    The word-boundary negation class under
-   full-unicode mode has a much steeper compile cost on ARM64.
+5.  **ARM64-BUG-4**:
+     `\B` timeout under full-unicode config.
+     The nosimd
+    build found `0xff5c42` (option byte 0xff,
+     config index 3 = full) which
+    decodes to `\B`.
+     On x86_64 this compiles in ~831µs;
+     on ARM64 under ASAN
+    it exceeds the 10-second timeout.
+     The word-boundary negation class under
+    full-unicode mode has a much steeper compile cost on ARM64.
 
-6. **ARM64-BUG-5**:
-    `div>~(\p{L}iv>_*)C/div>` compile timeout.
-    Found by fork
-   build in default config.
-    Complement `~(...)` over a Unicode property class
-   with trailing literal triggers super-linear derivative.
-    Same root as
-   ARM64-BUG-1 but triggered via complement.
+6.  **ARM64-BUG-5**:
+     `div>~(\p{L}iv>_*)C/div>` compile timeout.
+     Found by fork
+    build in default config.
+     Complement `~(...)` over a Unicode property class
+    with trailing literal triggers super-linear derivative.
+     Same root as
+    ARM64-BUG-1 but triggered via complement.
 
-7. **ARM64-BUG-6**:
-    `\p{L}\x1ehv...Hu?nter2024...` slow-unit in flag-bundle
-   config.
-    The Unicode property class followed by non-ASCII bytes and literal
-   text causes slow compilation.
-    The `ignore_whitespace` flag may alter
-   tokenisation,
-    allowing more of the pattern to be interpreted.
+7.  **ARM64-BUG-6**:
+     `\p{L}\x1ehv...Hu?nter2024...` slow-unit in flag-bundle
+    config.
+     The Unicode property class followed by non-ASCII bytes and literal
+    text causes slow compilation.
+     The `ignore_whitespace` flag may alter
+    tokenisation,
+     allowing more of the pattern to be interpreted.
 
-8. **ARM64-BUG-7**:
-    `A-Z\p{L}5]8...` timeout in hardened config.
-    Bracketed
-   ASCII range followed by Unicode property class in a character class
-   structure causes derivative blowup.
-    Combines the bracketed-class and
-   property-class cost factors.
+8.  **ARM64-BUG-7**:
+     `A-Z\p{L}5]8...` timeout in hardened config.
+     Bracketed
+    ASCII range followed by Unicode property class in a character class
+    structure causes derivative blowup.
+     Combines the bracketed-class and
+    property-class cost factors.
 
-9. **BUG-1 (suppressed)**:
-    `.*(.+)*.+` still panics in debug builds.
-    The
-   `reentrant-assert` feature is a default feature,
-    so every debug build
-   will abort the host on this input.
-    Release builds fall back to
-   `return None`,
-    which is correct but not a fix — the pattern is still
-   rejected,
-    not compiled.
-    This is the same BUG-1 as finding 1 above but
-   counted separately because the `compile` target's option-sweep triggers
-   it differently (direct recursion vs `diff_regex`'s generated pattern).
+9.  **BUG-1 (suppressed)**:
+     `.*(.+)*.+` still panics in debug builds.
+     The
+    `reentrant-assert` feature is a default feature,
+     so every debug build
+    will abort the host on this input.
+     Release builds fall back to
+    `return None`,
+     which is correct but not a fix — the pattern is still
+    rejected,
+     not compiled.
+     This is the same BUG-1 as finding 1 above but
+    counted separately because the `compile` target's option-sweep triggers
+    it differently (direct recursion vs `diff_regex`'s generated pattern).
 
 10. **BUG-4 suppressed (not fixed)**:
      `~(_*$)` complement with anchors now
@@ -270,19 +270,19 @@ This is a setup defect,
  not an engine defect.
  A future campaign should:
 
-1. Filter the `match_invariants` seed corpus to exclude known-timeout
-   patterns before starting the fuzz run.
-2. Use a shorter per-input timeout (e.g. 2s) for `match_invariants`,
-   since match-level bugs manifest quickly once the regex compiles.
-3. Run `match_invariants` on the suppressed fork (which demotes BUG-1
-   panics to `return None`),
-    so the target does not abort on re-entrancy
-   inputs.
-4. Use a separate,
-    minimal seed corpus for `match_invariants` containing
-   only patterns that compile within 1s on ARM64,
-    rather than inheriting
-   the `compile` target's corpus.
+1.  Filter the `match_invariants` seed corpus to exclude known-timeout
+    patterns before starting the fuzz run.
+2.  Use a shorter per-input timeout (e.g. 2s) for `match_invariants`,
+    since match-level bugs manifest quickly once the regex compiles.
+3.  Run `match_invariants` on the suppressed fork (which demotes BUG-1
+    panics to `return None`),
+     so the target does not abort on re-entrancy
+    inputs.
+4.  Use a separate,
+     minimal seed corpus for `match_invariants` containing
+    only patterns that compile within 1s on ARM64,
+     rather than inheriting
+    the `compile` target's corpus.
 
 ## Reproducible artifacts
 

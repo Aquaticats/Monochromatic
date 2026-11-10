@@ -85,13 +85,13 @@ No soft evidence may eliminate either candidate.
 
 ### Walkthrough
 
-1. Classify A and B as inspectable open-source local technologies.
-2. Activate no extra overlay.
-3. Freeze streaming and license as hard constraints.
-4. Record every query and the one expansion round.
-5. Mark every source class saturated.
-6. Promote both hard-gate survivors to finalist validation.
-7. Create the vet report when targeted repository evidence promotes serious alternatives.
+1.  Classify A and B as inspectable open-source local technologies.
+2.  Activate no extra overlay.
+3.  Freeze streaming and license as hard constraints.
+4.  Record every query and the one expansion round.
+5.  Mark every source class saturated.
+6.  Promote both hard-gate survivors to finalist validation.
+7.  Create the vet report when targeted repository evidence promotes serious alternatives.
 
 ### Simulated report delta
 
@@ -142,13 +142,13 @@ The evaluation finishes a report and recommends none.
 
 ### Walkthrough
 
-1. Classify candidates as managed service or SaaS.
-2. Activate sensitive-data,
-   compliance,
-   and geography overlays.
-3. Record the cap and every alternate enumeration attempt.
-4. Refuse to apply the two-empty-page rule because the provider never exposed complete pages.
-5. Enter the discovery-blocked terminal outcome.
+1.  Classify candidates as managed service or SaaS.
+2.  Activate sensitive-data,
+    compliance,
+    and geography overlays.
+3.  Record the cap and every alternate enumeration attempt.
+4.  Refuse to apply the two-empty-page rule because the provider never exposed complete pages.
+5.  Enter the discovery-blocked terminal outcome.
 
 ### Simulated report delta
 
@@ -200,12 +200,12 @@ The workflow does not invent a second live option.
 
 ### Walkthrough
 
-1. Classify all candidates as local technologies.
-2. Apply native/prebuilt overlay to C.
-3. Exit B for hard-constraint failure.
-4. Exit C for the no-native hard constraint.
-5. Record `saturated with one survivor`.
-6. Promote A and run every applicable finalist gate.
+1.  Classify all candidates as local technologies.
+2.  Apply native/prebuilt overlay to C.
+3.  Exit B for hard-constraint failure.
+4.  Exit C for the no-native hard constraint.
+5.  Record `saturated with one survivor`.
+6.  Promote A and run every applicable finalist gate.
 
 ### Simulated report delta
 
@@ -255,11 +255,11 @@ and identifies the named constraints that could be changed.
 
 ### Walkthrough
 
-1. Activate the browser-baseline overlay.
-2. Screen each candidate against all hard constraints.
-3. Record three hard-gate exits.
-4. Enter the no-serious-alternative terminal outcome.
-5. Ask only whether the user wants to change a named hard constraint.
+1.  Activate the browser-baseline overlay.
+2.  Screen each candidate against all hard constraints.
+3.  Record three hard-gate exits.
+4.  Enter the no-serious-alternative terminal outcome.
+5.  Ask only whether the user wants to change a named hard constraint.
 
 ### Simulated report delta
 
@@ -332,21 +332,21 @@ B remains the stable recommendation after the resolved preference.
 
 ### Walkthrough
 
-1. Classify A,
-   B,
-   and C as SaaS.
-2. Activate sensitive-data,
-   geography,
-   and residency overlays.
-3. Exit C on primary terms.
-4. Inspect every retained and direct SaaS domain for A and B.
-5. Mark the unrelated layoff event `irrelevant` rather than scored.
-6. Compute initial totals:
-   A is 13 of 16,
-   B is 14 of 16.
-7. Run the complete one-at-a-time matrix and detect the reliability-weight reversal.
-8. Ask only the controlling priority.
-9. Refreeze weights to reflect export and support priority.
+1.  Classify A,
+    B,
+    and C as SaaS.
+2.  Activate sensitive-data,
+    geography,
+    and residency overlays.
+3.  Exit C on primary terms.
+4.  Inspect every retained and direct SaaS domain for A and B.
+5.  Mark the unrelated layoff event `irrelevant` rather than scored.
+6.  Compute initial totals:
+    A is 13 of 16,
+    B is 14 of 16.
+7.  Run the complete one-at-a-time matrix and detect the reliability-weight reversal.
+8.  Ask only the controlling priority.
+9.  Refreeze weights to reflect export and support priority.
 10. Rerun baseline,
     every equal-default weight,
     every medium/low confidence adjustment,
@@ -409,19 +409,19 @@ No replacement is recommended merely because the prompt mentions replacement.
 
 ### Walkthrough
 
-1. Classify I,
-   A,
-   and B as inspectable open-source local technologies.
-2. Apply replacement parity to every candidate.
-3. Inventory every consumed incumbent path.
-4. Audit all candidates to the same source,
-   dependency,
-   maintenance,
-   upstream,
-   and consumer depth.
-5. Exit A for a consumed-path failure.
-6. Score I and B only after both validate.
-7. Rank I over B based on measured dependency and migration surface.
+1.  Classify I,
+    A,
+    and B as inspectable open-source local technologies.
+2.  Apply replacement parity to every candidate.
+3.  Inventory every consumed incumbent path.
+4.  Audit all candidates to the same source,
+    dependency,
+    maintenance,
+    upstream,
+    and consumer depth.
+5.  Exit A for a consumed-path failure.
+6.  Score I and B only after both validate.
+7.  Rank I over B based on measured dependency and migration surface.
 
 ### Simulated report delta
 
@@ -476,11 +476,11 @@ B fails unknown provenance before runtime validation.
 
 ### Walkthrough
 
-1. Classify A and B as local technologies.
-2. Activate native/prebuilt overlay for both.
-3. Record A's source-to-artifact chain and reproducible checksum.
-4. Exit B on unknown build provenance.
-5. Continue A through full validation.
+1.  Classify A and B as local technologies.
+2.  Activate native/prebuilt overlay for both.
+3.  Record A's source-to-artifact chain and reproducible checksum.
+4.  Exit B on unknown build provenance.
+5.  Continue A through full validation.
 
 ### Simulated report delta
 
@@ -532,16 +532,16 @@ A may outrank B because unused breadth receives no positive score.
 
 ### Walkthrough
 
-1. Apply high-trust execution and sensitive-data overlays.
-2. Exit C before finalist validation.
-3. Measure source,
-   dependency,
-   control-flow,
-   generated-code,
-   and credential surfaces for A and B.
-4. Validate A and B equally.
-5. Score measured auditability and exclude unused feature breadth from benefit.
-6. Rank A over B.
+1.  Apply high-trust execution and sensitive-data overlays.
+2.  Exit C before finalist validation.
+3.  Measure source,
+    dependency,
+    control-flow,
+    generated-code,
+    and credential surfaces for A and B.
+4.  Validate A and B equally.
+5.  Score measured auditability and exclude unused feature breadth from benefit.
+6.  Rank A over B.
 
 ### Simulated report delta
 
@@ -592,11 +592,11 @@ The exception is explicit and does not claim P is inspectable.
 
 ### Walkthrough
 
-1. Apply open-source precedence.
-2. Exit A and B with exact hard-constraint evidence.
-3. Record the proprietary exception naming both failures.
-4. Apply proprietary local gates to P.
-5. Validate P without relabeling it open source.
+1.  Apply open-source precedence.
+2.  Exit A and B with exact hard-constraint evidence.
+3.  Record the proprietary exception naming both failures.
+4.  Apply proprietary local gates to P.
+5.  Validate P without relabeling it open source.
 
 ### Simulated report delta
 
@@ -646,11 +646,11 @@ Only C advances.
 
 ### Walkthrough
 
-1. Freeze license L and untrusted-input safety as hard constraints.
-2. Use primary license text for A.
-3. Use source plus advisory evidence for B.
-4. Record both hard failures outside scoring.
-5. Validate C.
+1.  Freeze license L and untrusted-input safety as hard constraints.
+2.  Use primary license text for A.
+3.  Use source plus advisory evidence for B.
+4.  Record both hard failures outside scoring.
+5.  Validate C.
 
 ### Simulated report delta
 
@@ -697,16 +697,16 @@ A routes to every available required target and browser check.
 
 ### Walkthrough
 
-1. Record exact required platforms and repository browser baseline.
-2. Apply multi-platform and browser overlays.
-3. Exit B on its published target matrix.
-4. Route A to Linux,
-   macOS,
-   Windows,
-   and browser validation.
-5. Record that scenario routing,
-   not cross-machine Markdown execution,
-   is under test.
+1.  Record exact required platforms and repository browser baseline.
+2.  Apply multi-platform and browser overlays.
+3.  Exit B on its published target matrix.
+4.  Route A to Linux,
+    macOS,
+    Windows,
+    and browser validation.
+5.  Record that scenario routing,
+    not cross-machine Markdown execution,
+    is under test.
 
 ### Simulated report delta
 
@@ -757,11 +757,11 @@ Silence is not called health.
 
 ### Walkthrough
 
-1. Inspect both issues because the sample is at most 20.
-2. Record zero maintainer tracker responses.
-3. Separately measure maintainer-authored work and release cadence.
-4. Mark tracker evidence low-signal.
-5. Score maintenance using the broader evidence with stated confidence.
+1.  Inspect both issues because the sample is at most 20.
+2.  Record zero maintainer tracker responses.
+3.  Separately measure maintainer-authored work and release cadence.
+4.  Mark tracker evidence low-signal.
+5.  Score maintenance using the broader evidence with stated confidence.
 
 ### Simulated report delta
 
@@ -809,17 +809,17 @@ Each receives the same applicable source and execution depth before scoring.
 
 ### Walkthrough
 
-1. Promote A,
-   B,
-   and C after hard-gate confirmation.
-2. Ignore preliminary soft ranking for promotion.
-3. Audit source,
-   maintenance,
-   default CI,
-   integration,
-   Windows,
-   and consumer boundaries for all three.
-4. Score only after all validation records are complete.
+1.  Promote A,
+    B,
+    and C after hard-gate confirmation.
+2.  Ignore preliminary soft ranking for promotion.
+3.  Audit source,
+    maintenance,
+    default CI,
+    integration,
+    Windows,
+    and consumer boundaries for all three.
+4.  Score only after all validation records are complete.
 
 ### Simulated report delta
 
@@ -869,14 +869,14 @@ A can remain validated for the scoped claim.
 
 ### Walkthrough
 
-1. Run the complete default CI-equivalent path and record failure.
-2. Diagnose the exact failing job and source boundary.
-3. Prove the failed widget path is outside every claimed and consumed path.
-4. Record exact command,
-   output,
-   path trace,
-   and rationale.
-5. Continue relevant validation.
+1.  Run the complete default CI-equivalent path and record failure.
+2.  Diagnose the exact failing job and source boundary.
+3.  Prove the failed widget path is outside every claimed and consumed path.
+4.  Record exact command,
+    output,
+    path trace,
+    and rationale.
+5.  Continue relevant validation.
 
 ### Simulated report delta
 
@@ -922,10 +922,10 @@ the evaluation recommends none.
 
 ### Walkthrough
 
-1. Confirm the unavailable suite is relevant by reading its source.
-2. Attempt inspectable substitute paths and record their absence.
-3. Fail A rather than treating unavailability as a soft concern.
-4. Enter the relevant-execution-unavailable terminal outcome.
+1.  Confirm the unavailable suite is relevant by reading its source.
+2.  Attempt inspectable substitute paths and record their absence.
+3.  Fail A rather than treating unavailability as a soft concern.
+4.  Enter the relevant-execution-unavailable terminal outcome.
 
 ### Simulated report delta
 
@@ -971,11 +971,11 @@ The model does not invent points or a tiebreaker.
 
 ### Walkthrough
 
-1. Validate both finalists equally.
-2. Remove criteria irrelevant to the whole decision.
-3. Record score not applicable for both.
-4. Inspect factual tradeoffs and confirm they do not order candidates.
-5. Ask the unresolved preference.
+1.  Validate both finalists equally.
+2.  Remove criteria irrelevant to the whole decision.
+3.  Record score not applicable for both.
+4.  Inspect factual tradeoffs and confirm they do not order candidates.
+5.  Ask the unresolved preference.
 
 ### Simulated report delta
 
@@ -1024,18 +1024,18 @@ R2 completes conditional rankings and recommends none.
 
 ### Walkthrough
 
-1. Run every equal-default weight from 1 through 5.
-2. Move both medium-confidence exact ratings down and up one step.
-3. Test both endpoints of A's range.
-4. Detect order changes.
-5. For R1,
-   record the preference,
-   refreeze,
-   rerun baseline and every sensitivity input,
-   and recommend only if stable.
-6. For R2,
-   publish which weights produce A and B,
-   then recommend none.
+1.  Run every equal-default weight from 1 through 5.
+2.  Move both medium-confidence exact ratings down and up one step.
+3.  Test both endpoints of A's range.
+4.  Detect order changes.
+5.  For R1,
+    record the preference,
+    refreeze,
+    rerun baseline and every sensitivity input,
+    and recommend only if stable.
+6.  For R2,
+    publish which weights produce A and B,
+    then recommend none.
 
 ### Simulated report delta
 
@@ -1119,15 +1119,15 @@ Corruption blocks writing.
 
 ### Walkthrough
 
-1. Normalize every string to NFC.
-2. Apply subject/scope outer trimming only.
-3. Sort set-valued arrays and deployment keys as specified.
-4. Serialize to the exact bytes shown.
-5. Verify the expected SHA-256.
-6. Scan the slug by ASCII policy and obtain `tech-caf-build`.
-7. Extend F2's qualifier from eight to 12 characters.
-8. Block the full-hash corruption fixture.
-9. Recompute after mutable metadata changes and confirm unchanged identity.
+1.  Normalize every string to NFC.
+2.  Apply subject/scope outer trimming only.
+3.  Sort set-valued arrays and deployment keys as specified.
+4.  Serialize to the exact bytes shown.
+5.  Verify the expected SHA-256.
+6.  Scan the slug by ASCII policy and obtain `tech-caf-build`.
+7.  Extend F2's qualifier from eight to 12 characters.
+8.  Block the full-hash corruption fixture.
+9.  Recompute after mutable metadata changes and confirm unchanged identity.
 
 ### Simulated report delta
 
@@ -1184,13 +1184,13 @@ Only the old absent lock is stale.
 
 ### Walkthrough
 
-1. Match reports by full fingerprint.
-2. Select R2 by greatest last-updated date.
-3. Record R1 as a duplicate.
-4. Create R3's incompatible path with progressive qualifier extension.
-5. Refuse deletion of the first two locks because both stale conditions do not hold.
-6. Permit stale handling only for the third lock.
-7. Rerun selection after lock acquisition and compare pre-edit hashes before rename.
+1.  Match reports by full fingerprint.
+2.  Select R2 by greatest last-updated date.
+3.  Record R1 as a duplicate.
+4.  Create R3's incompatible path with progressive qualifier extension.
+5.  Refuse deletion of the first two locks because both stale conditions do not hold.
+6.  Permit stale handling only for the third lock.
+7.  Rerun selection after lock acquisition and compare pre-edit hashes before rename.
 
 ### Simulated report delta
 
@@ -1252,11 +1252,11 @@ or decision records.
 
 ### Walkthrough
 
-1. Apply the decision-verb policy.
-2. Create the vet report at threshold crossing.
-3. Update and commit report checkpoints.
-4. Keep recommendation separate from adoption.
-5. Reject every simulated product or decision mutation.
+1.  Apply the decision-verb policy.
+2.  Create the vet report at threshold crossing.
+3.  Update and commit report checkpoints.
+4.  Keep recommendation separate from adoption.
+5.  Reject every simulated product or decision mutation.
 
 ### Simulated scoped diff
 
@@ -1316,26 +1316,26 @@ The later prompt may update product integration and the decision record with pro
 
 ### Walkthrough
 
-1. During evaluation,
-   finish only the vet report and recommendation.
-2. On the later action request,
-   verify it targets the completed report and candidate A.
-3. Create or update the project or package decision record.
-4. Include candidate version,
-   revision,
-   adoption date,
-   authorizing request,
-   linked report,
-   skill revision,
-   constraints,
-   weights,
-   full ranking,
-   rejected alternatives,
-   integration,
-   migration,
-   exit,
-   rollback,
-   and revisit triggers.
+1.  During evaluation,
+    finish only the vet report and recommendation.
+2.  On the later action request,
+    verify it targets the completed report and candidate A.
+3.  Create or update the project or package decision record.
+4.  Include candidate version,
+    revision,
+    adoption date,
+    authorizing request,
+    linked report,
+    skill revision,
+    constraints,
+    weights,
+    full ranking,
+    rejected alternatives,
+    integration,
+    migration,
+    exit,
+    rollback,
+    and revisit triggers.
 
 ### Simulated decision-record content
 

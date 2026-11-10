@@ -72,57 +72,57 @@ A repo-owned annotation is not an external contract.
 Enumeration had to see justified sites too,
  so suppression directives could not simply be honoured.
 
-1. Mirror every `.ts`,
-   `.tsx`,
-   `.mts`,
-   `.cts`,
-   `.js`,
-   `.jsx`,
-   `.mjs`,
-   and `.cjs` file in the working tree into a scratch tree
-   (`build-mirror.mjs`,
-   6996 files),
-   rewriting `oxlint-disable` to `oxlint-xisable` and `oxlint-enable` to `oxlint-xnable`.
-   Both replacements are the same byte length,
-   so line and column positions are unchanged.
-2. Run the repository's own `no-restricted-syntax/no-regex` rule over the mirror with a
-   scratch config whose `ignorePatterns` is empty and whose only enabled rule is `no-regex`.
-   The detector is therefore the parser-backed rule the gate uses,
-   not a text search.
-3. Map each diagnostic back to the original path and slice the exact source text on UTF-8
-   byte offsets.
-   oxlint spans are byte offsets,
-   so slicing code units drifts on any file containing non-ASCII;
-   an early version of this harness had that bug and mis-sliced every pattern in
-   `package/music-player/design/settings-pane.mjs`.
-4. Dedupe on `(offset, length)`.
-   Chained calls such as `md.replaceAll(/a/, '').replaceAll(/b/, '')` report one diagnostic
-   per call with the same start offset and different lengths,
-   and the regex belonging to a given call is the last literal inside its span.
-   Keying on line and column instead collapsed 14 distinct sites into 4 and would have
-   published duplicate issue bodies.
-5. Recompute directive ranges from the original text
-   (block `disable` to matching `enable` or end of file,
-   plus `disable-next-line` and `disable-line`),
-   so each site is attributed to the justification that actually covers it.
-6. Classify necessity,
-   derive the replacement shape from a tokenizer over the pattern body
-   (literals,
-   character classes,
-   quantifiers,
-   groups,
-   anchors,
-   boundaries,
-   lookbehind),
-   and resolve the owning package from the nearest `mise.toml` and `package.json`.
-7. Cover the surfaces a JavaScript rule cannot see:
-   extract every `<script>` block from tracked HTML,
-   Vue,
-   and Astro files into mirror `.js` files and scan them with the same rule
-   (`extract-html.mjs`,
-   102 blocks from 162 files),
-   and enumerate Kotlin and inline YAML script strings by text search with each hit read
-   individually.
+1.  Mirror every `.ts`,
+    `.tsx`,
+    `.mts`,
+    `.cts`,
+    `.js`,
+    `.jsx`,
+    `.mjs`,
+    and `.cjs` file in the working tree into a scratch tree
+    (`build-mirror.mjs`,
+    6996 files),
+    rewriting `oxlint-disable` to `oxlint-xisable` and `oxlint-enable` to `oxlint-xnable`.
+    Both replacements are the same byte length,
+    so line and column positions are unchanged.
+2.  Run the repository's own `no-restricted-syntax/no-regex` rule over the mirror with a
+    scratch config whose `ignorePatterns` is empty and whose only enabled rule is `no-regex`.
+    The detector is therefore the parser-backed rule the gate uses,
+    not a text search.
+3.  Map each diagnostic back to the original path and slice the exact source text on UTF-8
+    byte offsets.
+    oxlint spans are byte offsets,
+    so slicing code units drifts on any file containing non-ASCII;
+    an early version of this harness had that bug and mis-sliced every pattern in
+    `package/music-player/design/settings-pane.mjs`.
+4.  Dedupe on `(offset, length)`.
+    Chained calls such as `md.replaceAll(/a/, '').replaceAll(/b/, '')` report one diagnostic
+    per call with the same start offset and different lengths,
+    and the regex belonging to a given call is the last literal inside its span.
+    Keying on line and column instead collapsed 14 distinct sites into 4 and would have
+    published duplicate issue bodies.
+5.  Recompute directive ranges from the original text
+    (block `disable` to matching `enable` or end of file,
+    plus `disable-next-line` and `disable-line`),
+    so each site is attributed to the justification that actually covers it.
+6.  Classify necessity,
+    derive the replacement shape from a tokenizer over the pattern body
+    (literals,
+    character classes,
+    quantifiers,
+    groups,
+    anchors,
+    boundaries,
+    lookbehind),
+    and resolve the owning package from the nearest `mise.toml` and `package.json`.
+7.  Cover the surfaces a JavaScript rule cannot see:
+    extract every `<script>` block from tracked HTML,
+    Vue,
+    and Astro files into mirror `.js` files and scan them with the same rule
+    (`extract-html.mjs`,
+    102 blocks from 162 files),
+    and enumerate Kotlin and inline YAML script strings by text search with each hit read
+    individually.
 
 ## Results
 

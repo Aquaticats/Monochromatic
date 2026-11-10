@@ -349,15 +349,15 @@ JSON in a Biome 2.2.5 application run.
 Terminal outcome for the frozen schedule:
  **saturated with two survivors.**
 
-1. The repository-owned parser and emitter translation,
-   validated through the bounded suites,
-   independent oracle controls,
-   external consumer lifecycle,
-   conformance corpus and workload-shape timings recorded in this report.
-2. The `biome_json_parser` 0.5.7 syntax source plus the scratch projection adapter,
-   validated at the same depth,
-   with the preparse depth preflight,
-   diagnostics gate and unsafe-surface findings recorded here.
+1.  The repository-owned parser and emitter translation,
+    validated through the bounded suites,
+    independent oracle controls,
+    external consumer lifecycle,
+    conformance corpus and workload-shape timings recorded in this report.
+2.  The `biome_json_parser` 0.5.7 syntax source plus the scratch projection adapter,
+    validated at the same depth,
+    with the preparse depth preflight,
+    diagnostics gate and unsafe-surface findings recorded here.
 
 Every other candidate either failed a hard gate as published
  (surrogate rejection,

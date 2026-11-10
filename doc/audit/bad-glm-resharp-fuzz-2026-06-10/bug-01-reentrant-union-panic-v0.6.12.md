@@ -78,13 +78,13 @@ of panicking.
 The developer may consider this "by design" since the release fallback is
 correct,
  but:
-1. The `reentrant-assert` feature is a **default feature**,
-    so debug builds
-   (which every developer and test suite uses) will panic on user input.
-2. The panic message says "this is a bug",
-    confirming the developer's own
-   assessment that this is a bug,
-    not intended behaviour.
+1.  The `reentrant-assert` feature is a **default feature**,
+     so debug builds
+    (which every developer and test suite uses) will panic on user input.
+2.  The panic message says "this is a bug",
+     confirming the developer's own
+    assessment that this is a bug,
+     not intended behaviour.
 
 ## Relationship to 06-04 campaign
 

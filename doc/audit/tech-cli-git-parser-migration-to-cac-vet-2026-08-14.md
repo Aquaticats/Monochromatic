@@ -235,10 +235,10 @@ and handovers.
 
 After the initial schedule:
 
-1. Collect every new problem-class synonym in candidate metadata.
-2. Append one de-duplicated query round to each applicable source.
-3. Freeze the expanded schedule.
-4. Record later terms without adding queries.
+1.  Collect every new problem-class synonym in candidate metadata.
+2.  Append one de-duplicated query round to each applicable source.
+3.  Freeze the expanded schedule.
+4.  Record later terms without adding queries.
 
 ## Query ledger and saturation
 
