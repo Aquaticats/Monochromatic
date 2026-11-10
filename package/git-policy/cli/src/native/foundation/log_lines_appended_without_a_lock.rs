@@ -82,6 +82,7 @@ type OpenLogFile = fn(&Path) -> std::io::Result<std::fs::File>;
 pub fn append_line(target: &Path, bytes: &[u8], retention: &LogRetention) -> std::io::Result<()> {
     return append_block(target, bytes, retention, open_beside_the_git_directory, true);
 }
+
 /// What:
 ///  Append one whole entry to a log the wrapper creates in its own folder,
 /// as one write,

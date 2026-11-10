@@ -3307,6 +3307,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   generation can leave
   a saved copy with no line that names it.
   By contrast the standards-review shadow log "has no rotation" (`README.md:2010`) and is unbounded.
+  Since 2026-11-10 it rotates into numbered generations under the same 32 MiB bound as every other log.
 - Conflict:
   possible with "never discard user data" (`SPEC.md:1645`);
   see "The audit and timing logs' history" in the
@@ -3349,7 +3350,12 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   option C (the coordinator's pick under the owner's delegation,
   open to the owner's
   veto):
-  implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`.
+  implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`,
+  which on 2026-11-10 became
+  `foundation/log_lines_appended_without_a_lock.rs` and
+  `foundation/log_generations_kept_to_a_bound.rs`,
+  with the four mebibytes replaced by the owner's 32 MiB
+  (see "The audit and timing logs' history").
   - Each rotation of the audit file keeps its file under the next free number
     (`.1`,
     `.2`,
@@ -3382,6 +3388,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   - The timing logs and the push trigger log keep one generation,
     `.1`,
     as before.
+    Since 2026-11-10 they keep numbered generations up to 32 MiB too, as every log of the wrapper does.
   - The 4 MiB is derived,
     not measured:
     the busiest measured
