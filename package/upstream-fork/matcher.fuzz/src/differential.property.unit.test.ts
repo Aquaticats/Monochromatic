@@ -1,6 +1,6 @@
 /**
  Differential property tests: the fork must produce the same observable
- verdicts as upstream `matcher` 6.1.0 on the same generated cases.
+ verdicts as upstream `matcher` 7.0.0 on the same generated cases.
  
  The oracle is upstream itself: every wildcard, negation, escaping, case
  folding, option-mode, and validation behavior this fork claims is checked

@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/upstream-fork-matcher.fuzz",
-  "description": "Property-based fuzz campaign for module-matcher-fork: matching invariants, input totality, and a differential oracle against upstream matcher 6.1.0.",
+  "description": "Property-based fuzz campaign for the matcher fork: matching invariants, input totality, and a differential oracle against upstream matcher 7.0.0.",
   "type": "module",
   "version": "0.0.0",
   "private": true,

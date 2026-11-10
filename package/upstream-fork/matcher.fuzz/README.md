@@ -42,7 +42,7 @@ never another failure mode.
 
 #### Upstream differential oracle
 
-The same generated cases drive upstream `matcher` 6.1.0
+The same generated cases drive upstream `matcher` 7.0.0
  (the dependency
 this fork replaces) and the fork:
  `matcher` verdicts,
