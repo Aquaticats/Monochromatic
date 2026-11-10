@@ -470,7 +470,7 @@ pattern over the identical bytes in 4.3 ms cold / 3.1 ms warm,
 
 This is the crux of "adjust the upper limit of the left-to-right path":
  at these shapes the bounded
-path is the *better* matcher (16.3 ms vs 25.2 ms warm on run1k at the n=25/26 boundary;
+path is the **better** matcher (16.3 ms vs 25.2 ms warm on run1k at the n=25/26 boundary;
  **24 ms vs
 27 s cold on multilingual**),
  and its BDFA is 2 states.
@@ -634,7 +634,7 @@ orthogonal to the compile question.
 these rules were ported defensively (no set algebra) because of past resharp fragility,
  so they
 exercise resharp only on regex-shaped patterns;
- and much of what a betterleaks rule *means*
+ and much of what a betterleaks rule **means**
 (stopword/allowlist filters,
  `required` co-occurrence) is deliberately not in the regex,
  because
@@ -856,7 +856,7 @@ A split decision on speed (literal-anchored:
  class-shaped with no
 literal:
  the single resharp pattern wins),
- but the single pattern buys *semantics*:
+ but the single pattern buys **semantics**:
  the
 password-policy decomposition is wrong (a line containing an 8-char token,
  a digit somewhere,
@@ -900,7 +900,7 @@ What the measurements do pin down:
     ** At default config the regex crate compiles typical rules
     in 0.1-6 ms,
      the worst accepted pattern in this campaign in ~67 ms,
-     and *refuses* rather than
+     and **refuses** rather than
     stalls.
      resharp is already inside "not too much slower than regex" everywhere except
     wide-Unicode bounded repeats:

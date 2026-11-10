@@ -127,7 +127,7 @@ worth keeping,
 
 Caveat discovered while cleaning up:
  the local merged branches delete fine,
- but every *remote* delete is
+ but every **remote** delete is
 rejected with `GH006 Cannot delete this branch`.
  The cause is a classic branch-protection rule on the
 wildcard pattern `*` with `allowsDeletions: false` (a second rule pins `main` the same way).
