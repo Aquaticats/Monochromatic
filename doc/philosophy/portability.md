@@ -1,4 +1,4 @@
-# Portability and Core Principles
+# Portability and core principles
 
 ## Portability and interoperability
 
