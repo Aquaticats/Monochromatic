@@ -53,6 +53,34 @@ const CONFIG: LinkupConfig = {
 const EMPTY_RESPONSE = { results: [], };
 
 /**
+ One registered tool whose forwarding of host callbacks the tests exercise.
+ */
+type ForwardingCase = {
+  /**
+   Registered tool name.
+   */
+  readonly toolName: typeof LINKUP_WEB_SEARCH_TOOL_NAME | typeof LINKUP_WEB_FETCH_TOOL_NAME;
+  /**
+   Minimal valid params for that tool.
+   */
+  readonly params: Readonly<Record<string, string>>;
+};
+
+/**
+ Tools whose execute must forward host callbacks to shared execution.
+ */
+const FORWARDING_CASES: readonly ForwardingCase[] = [
+  {
+    toolName: LINKUP_WEB_SEARCH_TOOL_NAME,
+    params: { query: 'forwarded', },
+  },
+  {
+    toolName: LINKUP_WEB_FETCH_TOOL_NAME,
+    params: { url: 'https://example.com', },
+  },
+];
+
+/**
  Exact metadata search response fixture expected to render its object results as JSONL.
  */
 const METADATA_SEARCH_RESPONSE = {
@@ -97,6 +125,79 @@ await describe({
           LINKUP_WEB_FETCH_TOOL_NAME,
         ],);
       },
+    },),
+    it({
+      name: 'both tools share one execute implementation',
+      fn: async () => {
+        /**
+         Mock client whose responses never leave the test.
+         */
+        const mock = mockClient({
+          searchResponse: EMPTY_RESPONSE,
+          fetchResponse: { markdown: 'ok', },
+        },);
+        /**
+         Registered tools in registration order.
+         */
+        const [searchTool, fetchTool,] = createLinkupTools({
+          config: CONFIG,
+          client: mock.client,
+        },);
+        if ((searchTool === undefined) || (fetchTool === undefined))
+          throw new Error('missing registered tool',);
+
+        /**
+         Execute implementations read without binding them to their tool objects.
+         */
+        const searchExecute: unknown = Reflect.get(searchTool, 'execute',);
+        const fetchExecute: unknown = Reflect.get(fetchTool, 'execute',);
+
+        // One registration shape has to own both tools, because a second copy
+        // must be edited twice and drifts silently when it is not.
+        expect(String(searchExecute,),).toBe(String(fetchExecute,),);
+      },
+    },),
+    ...FORWARDING_CASES.map(function forwardingCase(testCase,) {
+      return it({
+        name: `${testCase.toolName} forwards the abort signal and progress callback to shared execution`,
+        fn: async () => {
+          /**
+           Mock client recording the call the tool makes.
+           */
+          const mock = mockClient({
+            searchResponse: EMPTY_RESPONSE,
+            fetchResponse: { markdown: 'ok', },
+          },);
+          /**
+           Cancellation signal the host supplies to this call.
+           */
+          const controller = new AbortController();
+          /**
+           Count of progress updates shared execution pushed back.
+           */
+          let updateCount = 0;
+          function countProgressUpdate(): void {
+            updateCount += 1;
+          }
+
+          await toolNamed({
+            client: mock.client,
+            name: testCase.toolName,
+          },).execute(
+            `tool-call-forward-${testCase.toolName}`,
+            testCase.params,
+            controller.signal,
+            countProgressUpdate,
+            await fakeExtensionToolContext(),
+          );
+
+          expect(forwardedCall({
+            mock,
+            toolName: testCase.toolName,
+          },).signal,).toBe(controller.signal,);
+          expect(updateCount,).toBe(1,);
+        },
+      },);
     },),
     it({
       name: 'search ignored params produce model-visible warnings and do not reach client',
@@ -436,6 +537,10 @@ type SearchCall = {
    Search input passed to client.
    */
   readonly input: LinkupWebSearchInput;
+  /**
+   Cancellation signal the tool forwarded, when it forwarded one.
+   */
+  readonly signal?: AbortSignal;
 };
 
 /**
@@ -446,6 +551,10 @@ type FetchCall = {
    Fetch input passed to client.
    */
   readonly input: LinkupWebFetchInput;
+  /**
+   Cancellation signal the tool forwarded, when it forwarded one.
+   */
+  readonly signal?: AbortSignal;
 };
 
 /**
@@ -495,14 +604,20 @@ function mockClient(
   return {
     client: {
       async search(options,) {
-        searchCalls.push({ input: options.input, },);
+        searchCalls.push({
+          input: options.input,
+          ...(options.signal === undefined ? {} : { signal: options.signal, }),
+        },);
         return {
           provider: 'exa',
           response: searchResponse,
         };
       },
       async fetch(options,) {
-        fetchCalls.push({ input: options.input, },);
+        fetchCalls.push({
+          input: options.input,
+          ...(options.signal === undefined ? {} : { signal: options.signal, }),
+        },);
         return {
           provider: 'linkup',
           response: fetchResponse,
@@ -568,6 +683,67 @@ function searchToolFrom(client: SearchFetchToolClient,) {
   if (tool === undefined)
     throw new Error('missing search tool',);
   return tool;
+}
+
+/**
+ Return the named tool from a fresh tool set.
+
+ @param client - mock client
+
+ @param name - registered tool name
+
+ @returns tool definition with that name
+ */
+function toolNamed(
+  {
+    client,
+    name,
+  }: {
+    readonly client: SearchFetchToolClient;
+    readonly name: string;
+  },
+) {
+  /**
+   Local value for tool.
+   */
+  const tool = createLinkupTools({
+    config: CONFIG,
+    client,
+  },).find(function isNamedTool(candidate,) {
+    return candidate.name === name;
+  },);
+  if (tool === undefined)
+    throw new Error(`missing ${name} tool`,);
+  return tool;
+}
+
+/**
+ Return the client call the named tool made.
+
+ @param mock - mock client harness
+
+ @param toolName - registered tool name whose call to read
+
+ @returns recorded call for that tool
+ */
+function forwardedCall(
+  {
+    mock,
+    toolName,
+  }: {
+    readonly mock: MockClient;
+    readonly toolName: string;
+  },
+): { readonly signal?: AbortSignal } {
+  /**
+   Recorded call for the routed tool.
+   */
+  const [call,] = (toolName === LINKUP_WEB_SEARCH_TOOL_NAME)
+    ? mock.searchCalls
+    : mock.fetchCalls;
+  if (call === undefined)
+    throw new Error(`missing ${toolName} client call`,);
+  return call;
 }
 
 /**
