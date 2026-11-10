@@ -25,6 +25,7 @@
 //! const retries = await drainDirectories({ directories, handlers, now, host });
 //! ```
 
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::claim_time::ClaimTime;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::Event;
@@ -34,6 +35,7 @@ use crate::parallel_runner_on_the_runtime::OrderedRunError;
 use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned_awaiting, drain_planned_awaiting};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -168,6 +170,86 @@ fn lane_key(directory: &Path) -> PathBuf {
 }
 
 /// What:
+///  The lane of each directory of the round,
+/// read as a job of the blocking pool and awaited no longer than the after-commit work's own state.
+/// Why:
+///   `lane_key` reads the `commondir` file of each directory,
+/// which is storage,
+/// and the round is awaited by a task of the runtime:
+///  a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a timer cannot end a read on that worker (finding 5
+///  of the review of `b3d00b3be4`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keys = await laneKeysAwaiting(directories);
+/// ```
+async fn lane_keys_awaiting(directories: &[Assignment]) -> TheAnswerOfAJobAwaited<Vec<PathBuf>> {
+    let mut asked: Vec<PathBuf> = Vec::with_capacity(directories.len());
+    for assignment in directories {
+        asked.push(assignment.directory.clone());
+    }
+    return run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, asked, lane_keys_in_a_job).await;
+}
+
+/// `lane_keys_awaiting`'s work,
+/// as the job of the pool takes it.
+fn lane_keys_in_a_job(directories: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut keys: Vec<PathBuf> = Vec::with_capacity(directories.len());
+    for directory in &directories {
+        keys.push(lane_key(directory.as_path()));
+    }
+    return keys;
+}
+
+/// What:
+///  The round's directories in one lane,
+/// which is every directory one after another,
+/// and nothing at all for no directory.
+/// Why:
+///  A lane key that could not be read may not put two directories of one repository side by side,
+/// and one lane never does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lanes = oneLaneOf(directories.length);
+/// ```
+fn one_lane_of(count: usize) -> Vec<Vec<usize>> {
+    if count == 0 {
+        return Vec::new();
+    }
+    return vec![(0..count).collect()];
+}
+
+/// What:
+///  The lanes of the round:
+/// one lane per repository,
+/// each holding its directories in the order they were named.
+/// Why:
+///   Two directories of one repository share a work directory and its upkeep,
+/// so they are drained one after another;
+///  directories of different repositories share nothing and run side by side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lanes = lanesOf(keys);
+/// ```
+fn lanes_of(keys: &[PathBuf]) -> Vec<Vec<usize>> {
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();
+    for (index, key) in keys.iter().enumerate() {
+        match lane_of.get(key) {
+            Some(&lane) => lanes[lane].push(index),
+            None => {
+                lane_of.insert(key.clone(), lanes.len());
+                lanes.push(vec![index]);
+            }
+        }
+    }
+    return lanes;
+}
+
+/// What:
 ///  The drain of one directory:
 /// the records of the directory itself and those of the common directory of a bare repository,
 /// awaited
@@ -283,17 +365,19 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
     let directories: &[Assignment] = request.directories;
     let now: &ClaimTime = request.now;
     let host: &HostResources = request.host;
-    let mut lanes: Vec<Vec<usize>> = Vec::new();
-    let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();
-    for (index, assignment) in directories.iter().enumerate() {
-        match lane_of.get(&lane_key(assignment.directory.as_path())) {
-            Some(&lane) => lanes[lane].push(index),
-            None => {
-                lane_of.insert(lane_key(assignment.directory.as_path()), lanes.len());
-                lanes.push(vec![index]);
-            }
+    // The lane of each directory is read off the pool, and a read that gives no answer puts every directory in one lane: the
+    //  directories of one repository must never be drained side by side, and one lane is always that.
+    let lanes: Vec<Vec<usize>> = match lane_keys_awaiting(directories).await {
+        TheAnswerOfAJobAwaited::Ran(keys) => lanes_of(keys.as_slice()),
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the common directory of each repository of this round was not read, because the system gave no thread for it, so the round drains its directories one after another");
+            one_lane_of(directories.len())
         }
-    }
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the common directory of each repository of this round gave no answer, so the round drains its directories one after another");
+            one_lane_of(directories.len())
+        }
+    };
     let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
     let mut answer: RoundAnswer = RoundAnswer::default();
     let finished: Result<(), OrderedRunError> = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {

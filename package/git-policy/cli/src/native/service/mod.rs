@@ -86,6 +86,10 @@ pub mod service_signal;
 /// and ends the process by the signal.
 pub mod service_server_shutdown_after_a_stop;
 
+/// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
+/// read at a service's start on a thread of its own.
+pub mod service_journal_restored_at_start;
+
 /// The commit service's loop.
 pub mod service_server;
 
