@@ -4,6 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  EmptyDelimiterError,
   stripBetweenDelims,
   stripLinesStartingWith,
 } from './index.ts';
@@ -65,6 +66,68 @@ await describe({
             },),).toBe('start  mid "bad\nnewline" end',);
           },
         },),
+
+        //region Empty delimiters
+
+        // An empty delimiter matches at the cursor, so the scan never advances.
+        // These cases pin the validation that replaces the resulting non-termination.
+
+        it({
+          name: 'rejects an empty open and close delimiter pair',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              stripBetweenDelims({
+                text: 'abc',
+                openDelim: '',
+                closeDelim: '',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(EmptyDelimiterError,);
+            expect((caught as Error).message,).toContain('openDelim',);
+          },
+        },),
+        it({
+          name: 'rejects an empty open delimiter with a non-empty close delimiter',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              stripBetweenDelims({
+                text: 'abc',
+                openDelim: '',
+                closeDelim: '`',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(EmptyDelimiterError,);
+            expect((caught as Error).message,).toContain('openDelim',);
+          },
+        },),
+        it({
+          name: 'rejects an empty close delimiter with a non-empty open delimiter',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              stripBetweenDelims({
+                text: 'abc',
+                openDelim: '`',
+                closeDelim: '',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(EmptyDelimiterError,);
+            expect((caught as Error).message,).toContain('closeDelim',);
+          },
+        },),
+
+        //endregion Empty delimiters
       ],
     },),
     describe({
