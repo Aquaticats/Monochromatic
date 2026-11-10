@@ -14138,9 +14138,12 @@ never a finding that blocks and never an engine failure that exits `2`:
   each named with the reason Git gave.
 
 A note prints as an engine-failure event with code `policy-incomplete` whose chosen hint says the command
-is not stopped and nothing was discarded (`LEFT_ALONE_HINT`,
-`policy/policy_events.rs`),
-and the pass goes on whatever the policy's severity.
+is not stopped and nothing was discarded,
+and which remedy fits:
+`LEFT_ALONE_HINT` asks the person to commit the file a copy holds or to restore it,
+and `UNPROVEN_RIPPLE_HINT` asks for the Git read that failed to answer first
+(`policy/policy_events.rs`).
+The pass goes on whatever the policy's severity.
 The policy reports it on the commit path only:
 `git add` and every other forwarded command still apply no correction,
 so they plan nothing.
