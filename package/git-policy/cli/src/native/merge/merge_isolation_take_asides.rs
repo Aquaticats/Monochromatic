@@ -19,17 +19,24 @@
 //! and a file written after the take checked it is kept rather than removed.
 //!  The steps live in a file of their own so the file that installs the merge stays readable.
 //!
+//!  Every step that reads Git is two faces of one body:
+//! the awaited one a task of the runtime calls,
+//! and the synchronous one a caller outside it keeps,
+//!  which enters the runtime once.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const taken = takeAside(location, judged); ... finishAsides(taken, stderr);
+//! const taken = await takeAside(location, judged); ... await finishAsides(taken, stderr);
 //! ```
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
-use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to, worktree_path};
+use crate::lazy_runtime::run_on_runtime;
+use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to_awaiting, worktree_path};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
-use crate::transaction_git::{GitOutput, GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{GitOutput, GitRequest};
+use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -184,7 +191,7 @@ fn asides_of(location: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// for (const location of locations) for (const aside of asidesOf(location)) if (free(location)) { renameNoReplace(aside, location); say(`put back ${location}`); } else say(`${aside} holds ...`);
 /// ```
-pub fn put_back_stranded_takes(root: &Path, changes: &[Change], out: &mut dyn Write) {
+pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, changes: &[Change], out: &mut W) {
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
         for aside in asides_of(location.as_path()) {
@@ -264,13 +271,13 @@ pub struct TakeFailure {
 /// ```ts
 /// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
 /// ```
-fn raw_bytes_of(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
+async fn raw_bytes_of_awaiting(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
     if std::fs::symlink_metadata(location).ok()?.file_type().is_symlink() {
-        return the_objects_a_link_hashes_to(&place.git, root, location).ok();
+        return the_objects_a_link_hashes_to_awaiting(&place.git, root, location).await.ok();
     }
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
     request.arguments.push(location.as_os_str().to_os_string());
-    let output: GitOutput = run_git(&place.git, &request).ok()?;
+    let output: GitOutput = run_git_awaiting(&place.git, &request).await.ok()?;
     if !output.succeeded() {
         return None;
     }
@@ -291,19 +298,19 @@ fn raw_bytes_of(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<S
 /// ```ts
 /// theBranchsFileForm(place, root, path, expected): string | undefined; // cat-file --filters --path=<path> <expected> | hash-object --no-filters --stdin
 /// ```
-fn the_branchs_file_form(place: &RecoveryPlace, root: &Path, path: &[u8], expected: &str) -> Option<String> {
+async fn the_branchs_file_form_awaiting(place: &RecoveryPlace, root: &Path, path: &[u8], expected: &str) -> Option<String> {
     let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
     named.push(worktree_path(Path::new(""), path).into_os_string());
     let mut cat: GitRequest = GitRequest::new(root, &["cat-file", "--filters"]);
     cat.arguments.push(named);
     cat.arguments.push(std::ffi::OsString::from(expected));
-    let filtered: GitOutput = run_git(&place.git, &cat).ok()?;
+    let filtered: GitOutput = run_git_awaiting(&place.git, &cat).await.ok()?;
     if !filtered.succeeded() {
         return None;
     }
     let mut hash: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
     hash.input = Some(filtered.stdout);
-    let output: GitOutput = run_git_checked(&place.git, &hash).ok()?;
+    let output: GitOutput = run_git_checked_awaiting(&place.git, &hash).await.ok()?;
     return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
 }
 
@@ -318,9 +325,9 @@ fn the_branchs_file_form(place: &RecoveryPlace, root: &Path, path: &[u8], expect
 /// ```ts
 /// areTheBranchsBytes(place, root, path, location, expected): boolean | undefined;
 /// ```
-fn are_the_branchs_bytes(place: &RecoveryPlace, root: &Path, path: &[u8], location: &Path, expected: &str) -> Option<bool> {
-    let taken: String = raw_bytes_of(place, root, location)?;
-    let branch: String = the_branchs_file_form(place, root, path, expected)?;
+async fn are_the_branchs_bytes_awaiting(place: &RecoveryPlace, root: &Path, path: &[u8], location: &Path, expected: &str) -> Option<bool> {
+    let taken: String = raw_bytes_of_awaiting(place, root, location).await?;
+    let branch: String = the_branchs_file_form_awaiting(place, root, path, expected).await?;
     return Some(taken == branch);
 }
 
@@ -373,7 +380,7 @@ pub enum Take {
 /// ```ts
 /// function takeAside(location: string, judged?: FileIdentity): Take; // renameNoReplace; identityOf(aside) === judged ? aside : putBack
 /// ```
-pub fn take_aside(
+pub async fn take_aside_awaiting(
     place: &RecoveryPlace,
     root: &Path,
     path: &[u8],
@@ -401,7 +408,7 @@ pub fn take_aside(
     if judged.identity.is_none() || taken != judged.identity {
         return put_back_and_report(location, aside);
     }
-    match are_the_branchs_bytes(place, root, path, aside.as_path(), expected) {
+    match are_the_branchs_bytes_awaiting(place, root, path, aside.as_path(), expected).await {
         Some(true) => {}
         Some(false) => return put_back_and_report(location, aside),
         // A read that fails cannot prove the bytes, so the file goes back rather than be replaced.
@@ -532,12 +539,30 @@ pub struct TakenOnDisk {
 /// for (const entry of taken) await rm(entry.aside, { force: true });
 /// ```
 pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+    return match run_on_runtime(finish_asides_awaiting(place, root, taken, out)) {
+        Ok(found) => found,
+        Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same removal of the private names of taken files,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The synchronous face enters the runtime around the bytes it reads before each removal,
+/// which a task cannot do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function finishAsides({ place, root, taken, stderr }): Promise<void>;
+/// ```
+pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let _ = (place, root);
     for entry in taken {
         // `may_remove` proves that nothing can write into the file any more;
         // a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
-        if !may_remove(place, root, entry) {
+        if !may_remove_awaiting(place, root, entry).await {
             let _noted = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
@@ -595,7 +620,7 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// ```ts
 /// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
 /// ```
-fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
+async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
     // The scan comes first, and the two looks come after it, as the last steps before the unlink: a writer that still holds
     //  the file is seen by the scan, a writer that let go has already written so the bytes and the identity then show it, and
     //  the identity is read because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
@@ -611,7 +636,7 @@ fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    return are_the_branchs_bytes(place, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()) == Some(true);
+    return are_the_branchs_bytes_awaiting(place, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()).await == Some(true);
 }
 
 /// What:
@@ -629,7 +654,7 @@ fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
 /// ```ts
 /// for (const entry of taken) if (!exists(entry.location)) renameNoReplace(entry.aside, entry.location); else keepOrDrop(entry);
 /// ```
-pub fn restore_what_git_did_not_write(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+pub async fn restore_what_git_did_not_write_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let mut written: Vec<TakenOnDisk> = Vec::new();
     for entry in taken {
         if std::fs::symlink_metadata(entry.location.as_path()).is_err() {
@@ -654,28 +679,5 @@ pub fn restore_what_git_did_not_write(place: &RecoveryPlace, root: &Path, taken:
             expected: entry.expected.clone(),
         });
     }
-    return finish_asides(place, root, written.as_slice(), out);
-}
-
-
-/// What:
-///  Remove the directories a deleted path leaves empty up to the worktree top.
-/// Why:
-///   Git removes a deleted file's emptied directories too,
-/// and the take has already removed the file itself;
-/// a
-///  directory that still holds anything stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
-/// ```
-pub fn remove_empty_parents(root: &Path, file: &Path) {
-    let mut directory: Option<&Path> = file.parent();
-    while let Some(current) = directory {
-        if current == root || !current.starts_with(root) || std::fs::remove_dir(current).is_err() {
-            break;
-        }
-        directory = current.parent();
-    }
+    return finish_asides_awaiting(place, root, written.as_slice(), out).await;
 }
