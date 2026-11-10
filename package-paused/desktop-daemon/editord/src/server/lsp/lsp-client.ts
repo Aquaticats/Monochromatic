@@ -310,12 +310,35 @@ export function createLspClient({
     },
   );
 
+  proc.stdin
+    ?.on(
+    'error',
+    function handleStdinError(error,) {
+      /**
+       * A broken stdin pipe means the server can receive no further messages.
+       * The child may still be on its way out, so mark this client dead here:
+       * without a listener Node raises this EPIPE as an unhandled `error` event
+       * and takes the whole daemon down.
+       */
+      state.dead = true;
+      clientLog.error(`stdin write failed: ${String(error,)}`,);
+    },
+    );
+
   /**
    * Writes a JSON-RPC message to the child process stdin.
    *
    * @param message - message object to encode and send
    */
   function send(message: unknown,): void {
+    if (state.dead) {
+      /**
+       * Nothing can answer any more, so the write is dropped instead of failing
+       * again against a closed pipe.
+       */
+      clientLog.warn('dropped message: LSP server is no longer running',);
+      return;
+    }
     /**
      * Length-prefixed JSON-RPC frame ready for stdin; produced by the framing encoder.
      */
