@@ -61,7 +61,8 @@ each from an archive whose SHA-256 is pinned in `ghostty-offline-inputs.json`.
 Everything lands in `target/ghostty-offline`,
 the file `ready` last.
 That marker records the pins it was written from and counts only while the inputs it promises are on disk,
-so a worktree that kept the gitignored marker without the Ghostty source tree fetches again instead of reporting itself current.
+so a worktree that kept the gitignored marker without the Ghostty source tree fetches again,
+instead of reporting itself current.
 The task refuses a Ghostty commit that differs from the crate's,
 so a `libghostty-rs` update stops there until the manifest is re-derived.
 The cargo tasks of this package run it first (a no-op when current) and pass `GHOSTTY_SOURCE_DIR` and
