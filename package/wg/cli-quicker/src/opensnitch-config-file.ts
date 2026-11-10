@@ -6,7 +6,10 @@ import {
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { OpenSnitchConfigError, } from './errors.ts';
+import {
+  OpenSnitchConfigError,
+  isErrnoException,
+} from './errors.ts';
 import { parseOpenSnitchConfig, } from './opensnitch-config-tree.ts';
 
 /**
@@ -20,22 +23,6 @@ const l = tagged({ tag: 'opensnitch-config-file', },);
 export const OPENSNITCH_CONFIG_ABSENT: unique symbol = Symbol(
   'OpenSnitch system-firewall config absent',
 );
-
-/**
- Reports whether unknown failure carries Node filesystem code.
- 
- @param error - Unknown caught value.
- 
- @returns Whether value is Node error with optional code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' });
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return Error.isError(error,);
-}
 
 /**
  Narrows config-read result to exact absence sentinel.

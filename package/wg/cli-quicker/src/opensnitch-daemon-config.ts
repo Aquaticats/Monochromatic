@@ -1,7 +1,10 @@
 import { readFile, } from 'node:fs/promises';
 import { isAbsolute, } from 'node:path';
 
-import { OpenSnitchConfigError, } from './errors.ts';
+import {
+  OpenSnitchConfigError,
+  isErrnoException,
+} from './errors.ts';
 
 /**
  OpenSnitch release default daemon config path.
@@ -51,22 +54,6 @@ function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
   if (value === null)
     return false;
   return !Array.isArray(value,);
-}
-
-/**
- Reports whether unknown failure carries Node filesystem code.
- 
- @param error - Unknown caught value.
- 
- @returns Whether value is Node error with optional code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' });
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return Error.isError(error,);
 }
 
 /**
