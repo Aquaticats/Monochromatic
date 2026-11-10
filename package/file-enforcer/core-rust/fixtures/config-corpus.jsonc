@@ -40,6 +40,32 @@
         },
       ],
     },
+    "package-licenses with a text each package carries": {
+      "rules": [
+        {
+          "kind": "package-licenses",
+          "id": "p",
+          "manifests": ["package/*/*/package.json"],
+          "directory": "LICENSES",
+          "texts": { "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt" },
+          "packageTexts": { "MIT": "LICENSES/MIT.txt" },
+          "requires": [{ "operand": "MIT", "texts": ["MIT"] }],
+        },
+      ],
+    },
+    "package-licenses with packageTexts null": {
+      "rules": [
+        {
+          "kind": "package-licenses",
+          "id": "p",
+          "manifests": [],
+          "directory": "L",
+          "texts": {},
+          "packageTexts": null,
+          "requires": [],
+        },
+      ],
+    },
     "mirror": { "rules": [{ "kind": "mirror", "id": "m", "from": "a", "to": "b" }] },
     "toml-keys minimal": { "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [], "blocks": [] }] },
     "toml-keys full": {
@@ -124,6 +150,16 @@
     "package-licenses texts value not a string": {
       "rules": [{ "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": { "A": 1 }, "requires": [] }],
     },
+    "package-licenses packageTexts value not a string": {
+      "rules": [
+        { "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": {}, "packageTexts": { "A": 1 }, "requires": [] },
+      ],
+    },
+    "package-licenses packageTexts not an object": {
+      "rules": [
+        { "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": {}, "packageTexts": "x", "requires": [] },
+      ],
+    },
     "package-licenses requirement missing operand": {
       "rules": [
         { "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": {}, "requires": [{ "texts": [] }] },
@@ -202,6 +238,86 @@
             "directory": "L",
             "texts": { "MIT": "LICENSES/MIT.txt" },
             "requires": [{ "operand": "GPL", "texts": ["GPL"] }],
+          },
+        ],
+      },
+    },
+    "requirement names a text each package carries, and no package texts are declared": {
+      "reason": "JSON Schema cannot require array items to be keys of a sibling object that may be absent",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": {},
+            "packageTexts": null,
+            "requires": [{ "operand": "MIT", "texts": ["MIT"] }],
+          },
+        ],
+      },
+    },
+    "package text path is absolute": {
+      "reason": "JSON Schema cannot say a string is a relative path inside each package directory",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": {},
+            "packageTexts": { "MIT": "/etc/MIT.txt" },
+            "requires": [],
+          },
+        ],
+      },
+    },
+    "package text path has a parent segment": {
+      "reason": "JSON Schema cannot say a string has no .. segment",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": {},
+            "packageTexts": { "MIT": "../MIT.txt" },
+            "requires": [],
+          },
+        ],
+      },
+    },
+    "two package texts name one path": {
+      "reason": "JSON Schema cannot compare the values of one object's members",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": {},
+            "packageTexts": { "MIT": "LICENSES/MIT.txt", "MIT-0": "LICENSES/MIT.txt" },
+            "requires": [],
+          },
+        ],
+      },
+    },
+    "requirement names a text in both tables": {
+      "reason": "JSON Schema cannot compare array items with the keys of two sibling objects",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "L",
+            "texts": { "MIT": "LICENSES/MIT.txt" },
+            "packageTexts": { "MIT": "LICENSES/MIT.txt" },
+            "requires": [{ "operand": "MIT", "texts": ["MIT"] }],
           },
         ],
       },

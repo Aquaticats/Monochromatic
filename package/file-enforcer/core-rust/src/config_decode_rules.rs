@@ -131,23 +131,17 @@ fn decode_mode_only(reader: &mut Reader, object: &Map<String, Value>, pointer: &
 /// Decodes the fields of a `package-licenses` rule into a `RuleConfig`,
 /// recording every problem in the reader.
 fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
-    reader.reject_unknown(object, pointer, &["kind", "id", "manifests", "directory", "texts", "requires"]);
+    reader.reject_unknown(
+        object,
+        pointer,
+        &["kind", "id", "manifests", "directory", "texts", "packageTexts", "requires"],
+    );
     let manifests = reader.text_list(object, "manifests", pointer);
     let directory = reader.text(object, "directory", pointer);
-    let mut texts: BTreeMap<String, String> = BTreeMap::new();
-    match object.get("texts") {
-        Some(Value::Object(map)) => {
-            for (license, source) in map {
-                match source.as_str() {
-                    Some(path) => {
-                        texts.insert(license.clone(), path.to_string());
-                    }
-                    None => reader.error(&format!("{pointer}/texts/{}", pointer_segment(license)), "must be a string"),
-                }
-            }
-        }
-        Some(_) => reader.error(&format!("{pointer}/texts"), "must be an object"),
-        None => reader.error(pointer, "is missing the required key \"texts\""),
+    let texts = reader.text_map(object, "texts", pointer);
+    let package_texts = reader.optional_text_map(object, "packageTexts", pointer);
+    if let Some(map) = &package_texts {
+        check_package_text_paths(reader, map, pointer);
     }
     let mut requires: Vec<LicenseRequirement> = Vec::new();
     let items = reader.array(object, "requires", pointer);
@@ -158,14 +152,73 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
             let operand = reader.text(entry, "operand", &item_pointer);
             let needed = reader.text_list(entry, "texts", &item_pointer);
             for license in &needed {
-                if !texts.contains_key(license) {
-                    reader.error(&format!("{item_pointer}/texts"), &format!("{license:?} is not a key of texts"));
-                }
+                check_one_text_source(reader, &texts, package_texts.as_ref(), license, &item_pointer);
             }
             requires.push(LicenseRequirement { operand, texts: needed });
         }
     }
-    return RuleConfig::PackageLicenses { id, manifests, directory, texts, requires };
+    return RuleConfig::PackageLicenses { id, manifests, directory, texts, package_texts, requires };
+}
+
+/// What:
+///  Report a package text whose path stays outside the package,
+///  or two ids that name one path.
+/// Why:
+///  A package text's path is relative to each package directory,
+///  so an absolute path or a `..` segment would write outside the package,
+///  and two ids over one path would leave which text owns the file undecided.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkPackageTextPaths(reader: Reader, packageTexts: Record<string, string>, pointer: string): void
+/// ```
+fn check_package_text_paths(reader: &mut Reader, package_texts: &BTreeMap<String, String>, pointer: &str) {
+    let mut owners: BTreeMap<&str, &str> = BTreeMap::new();
+    for (license, relative) in package_texts {
+        let license_pointer = format!("{pointer}/packageTexts/{}", pointer_segment(license));
+        if !is_repo_relative(relative) {
+            let message = format!("{relative:?} must be a relative path without empty, . or .. segments");
+            reader.error(&license_pointer, &message);
+        }
+        if let Some(previous) = owners.insert(relative.as_str(), license.as_str()) {
+            let message = format!("{previous:?} and {license:?} both name {relative:?}; one path holds one text");
+            reader.error(&license_pointer, &message);
+        }
+    }
+}
+
+/// What:
+///  Report a requirement that names a text in neither table,
+///  or in both.
+/// Why:
+///  Each id is either one repository-wide text or the text each package carries,
+///  and a requirement that names neither can never be satisfied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkOneTextSource(reader: Reader, texts: Record<string, string>, packageTexts: Record<string, string> | undefined, license: string, pointer: string): void
+/// ```
+fn check_one_text_source(
+    reader: &mut Reader,
+    texts: &BTreeMap<String, String>,
+    package_texts: Option<&BTreeMap<String, String>>,
+    license: &str,
+    pointer: &str,
+) {
+    let shared = texts.contains_key(license);
+    let per_package = package_texts.is_some_and(|map| return map.contains_key(license));
+    let texts_pointer = format!("{pointer}/texts");
+    match (shared, per_package) {
+        (true, true) => reader.error(
+            &texts_pointer,
+            &format!("{license:?} is a key of both texts and packageTexts; keep it in one of them"),
+        ),
+        (false, false) => reader.error(
+            &texts_pointer,
+            &format!("{license:?} is not a key of texts or packageTexts"),
+        ),
+        (true, false) | (false, true) => {},
+    }
 }
 
 /// Decodes the fields of a `mirror` rule into a `RuleConfig`,

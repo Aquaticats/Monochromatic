@@ -42,6 +42,8 @@ use crate::diagnostic::Diagnostic;
 /// Imports `Map`,
 /// `Value` from `serde_json`.
 use serde_json::{Map, Value};
+/// Imports `BTreeMap` from `std::collections`.
+use std::collections::BTreeMap;
 
 /// What:
 ///  The error collector and the readers that fill it.
@@ -250,6 +252,52 @@ impl<'a> Reader<'a> {
     }
 
     /// What:
+    ///  Read a required member whose values are all text.
+    /// Why:
+    ///  A table of ids to paths,
+    ///  such as license ids to license texts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// textMap(object, key, pointer): Record<string, string>
+    /// ```
+    pub fn text_map(&mut self, object: &Map<String, Value>, key: &str, pointer: &str) -> BTreeMap<String, String> {
+        match object.get(key) {
+            Some(Value::Object(map)) => {
+                let map_pointer = format!("{pointer}/{key}");
+                return self.text_map_of(map, &map_pointer);
+            }
+            Some(_) => self.error(&format!("{pointer}/{key}"), "must be an object"),
+            None => self.error(pointer, &format!("is missing the required key {key:?}")),
+        }
+        return BTreeMap::new();
+    }
+
+    /// What:
+    ///  Read an optional member whose values are all text;
+    /// `null` counts as absent,
+    /// as the schema allows.
+    /// Why:
+    ///  `packageTexts` is optional,
+    /// so a config written before it existed still decodes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// optionalTextMap(object, key, pointer): Record<string, string> | undefined
+    /// ```
+    pub fn optional_text_map(
+        &mut self,
+        object: &Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> Option<BTreeMap<String, String>> {
+        match object.get(key) {
+            None | Some(Value::Null) => return None,
+            Some(_) => return Some(self.text_map(object, key, pointer)),
+        }
+    }
+
+    /// What:
     ///  Read an optional array of text;
     /// `null` counts as absent.
     /// Why:
@@ -264,6 +312,28 @@ impl<'a> Reader<'a> {
             None | Some(Value::Null) => return None,
             Some(_) => return Some(self.text_list(object, key, pointer)),
         }
+    }
+
+    /// What:
+    ///  Convert the members of an object to text,
+    /// recording a problem for each value that is not text.
+    /// Why:
+    ///  Shared by the map readers above.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// textMapOf(map: Record<string, unknown>, pointer: string): Record<string, string>
+    /// ```
+    fn text_map_of(&mut self, map: &Map<String, Value>, pointer: &str) -> BTreeMap<String, String> {
+        let mut texts: BTreeMap<String, String> = BTreeMap::new();
+        for (name, value) in map {
+            if let Some(text) = value.as_str() {
+                texts.insert(name.clone(), text.to_string());
+            } else {
+                self.error(&format!("{pointer}/{}", pointer_segment(name)), "must be a string");
+            }
+        }
+        return texts;
     }
 
     /// What:

@@ -107,6 +107,11 @@ pub enum RuleConfig {
         /// License id to the repo-relative path of its text;
         /// only these ids are ever pruned.
         texts: BTreeMap<String, String>,
+        /// License id to the path of that text inside each package directory;
+        /// the package's own file is the text,
+        /// so no two packages ever share one copy;
+        /// only these ids are ever pruned.
+        package_texts: Option<BTreeMap<String, String>>,
         /// Which texts a license expression needs.
         requires: Vec<LicenseRequirement>,
     },

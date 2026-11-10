@@ -4,16 +4,20 @@
 //! Why:
 //!  Each package's manifest license expression decides which texts must ship in its artifact;
 //! texts the tool owns
-//!  (the keys of `texts`) that are no longer required are removed,
+//!  (the keys of `texts` and of `packageTexts`) that are no longer required are removed,
 //! and any other file in the directory is left alone.
 //!  A manifest with no license expression is not managed at all.
 //!  A requirement names a whole SPDX id of the expression,
 //! never a substring of it,
 //! so an `AGPL-3.0-or-later` manifest never pulls the `GPL-3.0-or-later` text.
+//!  A text under `texts` comes from one repository-wide source and serves every package (own).
+//!  A text under `packageTexts` is the copy each package carries itself:
+//! the rule adopts those bytes and never writes one package's text into another,
+//! because an MIT text names the author of the crate a package forked.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! function packageLicensesRule(manifests: string[], directory: string, texts: Record<string, string>, requires: Requirement[]): Rule
+//! function packageLicensesRule(manifests: string[], directory: string, texts: Record<string, string>, packageTexts: Record<string, string>, requires: Requirement[]): Rule
 //! ```
 
 /// Imports `LicenseRequirement` from `crate::config_parts`.
@@ -54,8 +58,11 @@ pub struct PackageLicensesRule {
     pub manifests: Vec<String>,
     /// Directory name beside each manifest.
     pub directory: String,
-    /// License id to source path.
+    /// License id to the repository-wide source path of its text.
     pub texts: BTreeMap<String, String>,
+    /// License id to the path of the text inside each package directory;
+    /// each package's own copy is that text.
+    pub package_texts: BTreeMap<String, String>,
     /// Which texts an expression needs.
     pub requires: Vec<LicenseRequirement>,
 }
@@ -209,7 +216,59 @@ impl Rule for PackageLicensesRule {
                     plan.changes.push(Change::Remove { path: target });
                 }
             }
+            for (license, relative) in &self.package_texts {
+                let target = format!("{package_dir}/{relative}");
+                if wanted.contains(license) {
+                    let content = own_text(view, &target)?;
+                    plan.changes.push(Change::Write { path: target, content, mode: None });
+                } else if view.mode_of(&target)?.is_some() {
+                    plan.changes.push(Change::Remove { path: target });
+                }
+            }
         }
         return Ok(plan);
     }
+}
+
+/// What:
+///  The bytes of a text one package carries itself.
+/// Why:
+///  This text names the author of the crate the package forked,
+/// and the rule knows no such author,
+/// so it never writes one package's text into another.
+/// A package that needs the text and carries none stops the run,
+/// and so does a text that states nothing,
+/// because either way the package would publish without a usable license text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownText(view: View, target: string): Uint8Array
+/// ```
+fn own_text(view: &mut View, target: &str) -> Result<Vec<u8>, Diagnostic> {
+    let Some(content) = view.read_bytes(target)? else {
+        let message = format!(
+            "{target} does not exist, and a package text is the copy its package carries: the copyright line in it names the author of the crate the package forked. Copy that author's license text from the upstream package to {target}."
+        );
+        return Err(Diagnostic::new("license-text-missing", &message).with_path(target));
+    };
+    if is_blank(&content) {
+        let message = format!(
+            "{target} holds no text, so the package would ship a license file that grants nothing. Write the author's license text there."
+        );
+        return Err(Diagnostic::new("license-text-blank", &message).with_path(target));
+    }
+    return Ok(content);
+}
+
+/// What:
+///  Whether a text holds nothing but whitespace.
+/// Why:
+///  An empty license file says nothing about the terms it is meant to carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isBlank(content: Uint8Array): boolean
+/// ```
+fn is_blank(content: &[u8]) -> bool {
+    return content.iter().all(u8::is_ascii_whitespace);
 }

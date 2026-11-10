@@ -80,12 +80,13 @@ impl RuleBuilder for BuiltinBuilder {
                 return Ok(Box::new(ConcatRule::new(id, output, parts, mode)));
             }
             RuleConfig::ModeOnly { id, path, mode } => return Ok(Box::new(ModeOnlyRule::new(id, path, mode))),
-            RuleConfig::PackageLicenses { id, manifests, directory, texts, requires } => {
+            RuleConfig::PackageLicenses { id, manifests, directory, texts, package_texts, requires } => {
                 return Ok(Box::new(PackageLicensesRule {
                     id: id.clone(),
                     manifests: manifests.clone(),
                     directory: directory.clone(),
                     texts: texts.clone(),
+                    package_texts: package_texts.clone().unwrap_or_default(),
                     requires: requires.clone(),
                 }));
             }
