@@ -52,7 +52,7 @@ const ARCHIVE_ROOTS = [
 /**
  Signature opening a local file header.
  */
-const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04_03_4B_50;
 
 /**
  Bytes a local file header spends before its name, extra field and content.
@@ -125,7 +125,7 @@ type HeaderTimestamp = Readonly<{
  */
 async function makeFixture(): Promise<Fixture> {
   const path = await mkdtemp(join(scratchRoot(), 'islands-black-reproducible-',),);
-  for (const root of ARCHIVE_ROOTS) {
+  await Promise.all(ARCHIVE_ROOTS.map(async function copyRoot(root: string,): Promise<void> {
     await cp(
       new URL(root, PACKAGE_ROOT_URL,),
       join(
@@ -134,7 +134,7 @@ async function makeFixture(): Promise<Fixture> {
       ),
       { recursive: true, },
     );
-  }
+  },),);
   return {
     path,
     async [Symbol.asyncDispose]() {
