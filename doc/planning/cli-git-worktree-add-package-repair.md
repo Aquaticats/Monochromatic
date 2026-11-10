@@ -24,18 +24,18 @@ named in `doc/planning/cli-git-worktree-add-route-findings-on-main.md:256-263`).
 The repairs are three waits of one task (`package/git-policy/cli/src/native/repair/package_repair.rs:230-247`):
 
 - pnpm:
-`pnpm install --offline --frozen-lockfile` in the worktree
+  `pnpm install --offline --frozen-lockfile` in the worktree
   (`package_repair_pnpm.rs:40`).
 - toolchain:
-`mpm-shadow install --frozen-lockfile` in the worktree,
+  `mpm-shadow install --frozen-lockfile` in the worktree,
   which rewrites the launchers that still name another checkout's lock
   (`package_repair_toolchain.rs:5-6`,
   `:338`).
 - Cargo:
-for every Cargo workspace of the worktree,
+  for every Cargo workspace of the worktree,
   `cargo metadata --locked --offline --no-deps` on the workspace and on its source counterpart,
   then `cargo clean --offline --package <member>` in the worktree
-  (`package_repair_cargo.rs:162-169`,
+  (`package_repair_cargo.rs:173-180`,
   `package_repair_cargo_workspaces.rs:266`).
 
 The `cargo clean` calls that the trace shows are the wrapper's own,
@@ -152,7 +152,7 @@ Two limits the build directory's layout puts on any replacement:
 
 A shared build directory is not a hazard here:
 `plan_build_state` refuses a clean when the source and the worktree name one build directory
-(`package_repair_cargo.rs:128-130`),
+(`package_repair_cargo.rs:139-141`),
 and the trace's cleans touched only the worktree's own hash
 (`e6/e1a60d246f5b3a`),
 never the main checkout's (`ae/b0b48f8399eb6a`).
@@ -218,7 +218,7 @@ from the add's timing record
 (`<git-common-dir>/monochromatic-git-policy-cli-worktree-add-timing.jsonl`):
 
 - Before,
-three runs:
+  three runs:
   `cargoCloneTree` 12,758 ms,
 12,780 ms and 3,932 ms over three clones,
   `cargoClean` 6,513 ms,
@@ -226,7 +226,7 @@ three runs:
   `repairCargo` 7,641 ms,
 6,923 ms and 2,662 ms.
 - After,
-three runs:
+  three runs:
   no clone and no clean at all,
   `cargoPrewarmHandOver` 102 ms,
 106 ms and 72 ms,
@@ -237,11 +237,11 @@ The system calls of the same six adds,
 from `strace -f -c`:
 
 - Before:
-110,621 calls in 20.18 s of system-call time,
+  110,621 calls in 20.18 s of system-call time,
   84,401 in 9.80 s,
   and 59,008 in 11.37 s.
 - After:
-18,458 calls in 2.69 s,
+  18,458 calls in 2.69 s,
   18,450 in 2.27 s,
   and 18,938 in 4.10 s.
 
