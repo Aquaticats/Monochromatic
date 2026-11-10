@@ -869,8 +869,12 @@ because a live checkout removes and rewrites its
  ignored files while the copy runs:
 a source entry that is gone when its turn comes has nothing left to copy and
  leaves the manifest,
+whether the walk that lists the entries or the copy that fills them finds it gone,
+and a directory the source removed takes the staged entries below it with it,
 an entry that changed under the copy is copied again,
 twice at most,
+and a directory whose permission bits changed has those bits applied instead,
+because its content belongs to the entries below it,
 and an entry that is
  still changing after that is left where it is,
 untouched,

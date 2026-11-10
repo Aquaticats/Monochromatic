@@ -28,9 +28,10 @@
 
 use crate::worktree_copy_compare::{FinalCheck, differences_from_the_source_sync};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_manifest::{FileStamp, WorktreeCopyEntry, apply_entry_modes};
+use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, retained_mode};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
 use std::path::{Path, PathBuf};
 
@@ -225,10 +226,15 @@ fn next_pass(pass: usize, dropped: &[Vec<u8>]) -> Result<usize, WorktreeCopyErro
 /// so the staged copy of an entry that
 ///  changed has to go before it can be copied again;
 /// the source is only ever read.
+/// A directory's only mutable property is its mode and its content belongs to the entries below it,
+/// so a
+///  changed directory has its mode applied once this pass copied the leaves,
+/// never its staged tree removed:
+///  a removal there would take the staged children with it and re-copy nothing into their place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const path of changed) { rm(join(stageRoot, path), { force: true }); const slot = entries.findIndex((e) => e.relativePath === path); stamps[slot] = copyOneLeaf(...); }
+/// for (const path of changed) { const entry = entries.find((e) => e.relativePath === path); if (entry.kind === 'directory') { reMode.push(entry); continue; } rm(join(stageRoot, path), { recursive: true, force: true }); stamps[slot] = copyOneLeaf(...); } for (const entry of reMode) reMode(entry);
 /// ```
 fn copy_again(
     entries: &mut [WorktreeCopyEntry],
@@ -238,8 +244,13 @@ fn copy_again(
     stage_root: &Path,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<(), WorktreeCopyError> {
+    let mut re_mode: Vec<Vec<u8>> = Vec::new();
     for path in changed {
         let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        if entries[index].kind == EntryKind::Directory {
+            re_mode.push(path.clone());
+            continue;
+        }
         let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
         remove_the_staged_copy(stage_path.as_path())?;
         let entry: WorktreeCopyEntry = entries[index].clone();
@@ -252,6 +263,15 @@ fn copy_again(
             // The source removed it between the comparison and this copy, so the next pass drops it.
             CopiedLeaf::Gone => None,
         };
+    }
+    for path in re_mode {
+        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        let source_path: PathBuf = filesystem_path(source_root, path.as_slice())?;
+        // A directory the source removed in the meantime is the next pass's to drop, with the staged tree below it.
+        let Some(metadata) = lstat_or_absent(source_path.as_path())? else { continue };
+        entries[index].mode = retained_mode(&metadata);
+        let entry: WorktreeCopyEntry = entries[index].clone();
+        apply_entry_modes(stage_root, std::slice::from_ref(&entry))?;
     }
     return Ok(());
 }
@@ -307,19 +327,30 @@ fn index_of_path(entries: &[WorktreeCopyEntry], path: &[u8]) -> Option<usize> {
 
 /// What:
 ///  Remove one staged copy of an entry,
+/// with the entries below it when it is a directory,
 /// and say nothing when it is already gone.
 /// Why:
 ///   The stage is this command's private folder,
-/// and an entry that was never copied has nothing there.
+/// and an entry that was never copied has nothing there;
+/// a
+///  directory the source removed takes the staged children it holds with it,
+/// because the stage keeps one tree
+///  per directory entry,
+/// and `remove_file` on a directory fails with `EISDIR`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rmSync(path, { force: true })
+/// rmSync(path, { recursive: true, force: true })
 /// ```
 fn remove_the_staged_copy(stage_path: &Path) -> Result<(), WorktreeCopyError> {
-    return match std::fs::remove_file(stage_path) {
+    let removed: std::io::Result<()> = match std::fs::symlink_metadata(stage_path) {
+        Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(stage_path),
+        Ok(_) => std::fs::remove_file(stage_path),
+        Err(error) => Err(error),
+    };
+    return match removed {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) if crate::worktree_copy_vanished_entry::went_away(&error) => Ok(()),
         Err(error) => Err(crate::worktree_copy_error::failure_with_cause(
             format!("{} cannot be removed from the private stage ({error})", stage_path.display()).as_str(),
             None,
