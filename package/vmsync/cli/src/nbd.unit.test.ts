@@ -22,8 +22,9 @@ const MIB = 1_048_576;
 const SECTOR_SIZE = 512;
 
 /**
- Builds a `qemu-img map` region descriptor whose block-map fields are unset,
- since only `start` and `length` reach the dd argument list.
+ Builds a `qemu-img map` region descriptor for a transfer test, with every
+ block-map field set to the value a changed data region carries; only `start`
+ and `length` reach the dd argument list.
  
  @param start - byte offset of the region in the image
  
