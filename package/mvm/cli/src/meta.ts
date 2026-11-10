@@ -172,151 +172,134 @@ export async function writeVmMeta({
 //region Record validation
 
 /**
- What a parsed `meta.json` value provided, or why it cannot be used.
- */
-type MetaVerdict =
-  | {
-    readonly meta: VmMeta;
-    readonly usable: true;
-  }
-  | {
-    readonly problem: string;
-    readonly usable: false;
-  };
-
-/**
  Reads a field a metadata record must carry as non-empty text.
 
- @param field - field name, named in the refusal that follows a miss
+ The record is rebuilt by its caller from the values this returns, so a wrong
+ shape cannot reach exec or file transfer as metadata whose fields are
+ `undefined`.
+
+ @param field - field name, named in the refusal
+
+ @param metaPath - metadata file, named in the refusal
 
  @param parsed - parsed record
 
- @returns the field's text, or `undefined` when it is missing, not text, or empty
+ @returns the field's text
+
+ @throws {@link InvalidVmMetaError} when the field is missing, not text, or empty
 
  @example
  ```ts
- requiredText({ field: 'image', parsed: { image: 'ubuntu' } }); // 'ubuntu'
+ requiredText({ field: 'image', metaPath: '/vm/meta.json', parsed: { image: 'ubuntu' } }); // 'ubuntu'
  ```
  */
 function requiredText({
   field,
+  metaPath,
   parsed,
 }: {
   readonly field: string;
+  readonly metaPath: string;
   readonly parsed: object;
-},): string | undefined {
-  if (!(field in parsed))
-    return undefined;
+},): string {
   /**
    Value the record carries under this field, usable only when it is non-empty text.
    */
-  const value: unknown = Reflect.get(
-    parsed,
-    field,
-  );
-  if (((typeof value) !== 'string') || (value === ''))
-    return undefined;
+  const value: unknown = (field in parsed)
+    ? Reflect.get(
+      parsed,
+      field,
+    )
+    : undefined;
+  if (((typeof value) !== 'string') || (value === '')) {
+    throw new InvalidVmMetaError({
+      metaPath,
+      problem: `the field \`${field}\` is missing, not text, or empty`,
+    },);
+  }
   return value;
 }
 
 /**
- Reads a metadata record into the fields its callers use, or says why the
- value is not one.
+ Reads a metadata record into the fields its callers use.
 
- The record is rebuilt from the fields this function checked, so a caller never
- receives metadata whose fields were never tested: a corrupt record would
- otherwise decide the exec shell and the file-transfer route from `undefined`.
+ @param metaPath - metadata file, named in any refusal
 
  @param parsed - value `JSON.parse` produced from `meta.json`
 
- @returns the metadata the record holds, or what it fails to provide
+ @returns the metadata the record holds
+
+ @throws {@link InvalidVmMetaError} when the value is not a metadata record
 
  @example
  ```ts
- metaVerdict({});
- // => { usable: false, problem: 'the field `createdAt` is missing, not text, or empty' }
+ vmMetaRecord({ metaPath: '/vm/meta.json', parsed: JSON.parse('{}') });
+ // throws: the field `createdAt` is missing, not text, or empty
  ```
  */
-function metaVerdict(parsed: unknown,): MetaVerdict {
+function vmMetaRecord({
+  metaPath,
+  parsed,
+}: {
+  readonly metaPath: string;
+  readonly parsed: unknown;
+},): VmMeta {
   if (((typeof parsed) !== 'object') || (parsed === null)) {
-    return {
+    throw new InvalidVmMetaError({
+      metaPath,
       problem: `it holds ${typeof parsed}, not a JSON object`,
-      usable: false,
-    };
+    },);
   }
 
   /**
-   Creation timestamp the record carries; only ever reported back to the caller.
+   Creation timestamp the record carries; reported back to callers only.
    */
   const createdAt = requiredText({
     field: 'createdAt',
+    metaPath,
     parsed,
   },);
-  if (createdAt === undefined) {
-    return {
-      problem: 'the field `createdAt` is missing, not text, or empty',
-      usable: false,
-    };
-  }
-
   /**
    Login user the record carries; decides which account a guest command runs as.
    */
   const defaultUser = requiredText({
     field: 'defaultUser',
+    metaPath,
     parsed,
   },);
-  if (defaultUser === undefined) {
-    return {
-      problem: 'the field `defaultUser` is missing, not text, or empty',
-      usable: false,
-    };
-  }
-
   /**
    Image identifier the record carries; named when a VM is listed or cloned.
    */
   const image = requiredText({
     field: 'image',
+    metaPath,
     parsed,
   },);
-  if (image === undefined) {
-    return {
-      problem: 'the field `image` is missing, not text, or empty',
-      usable: false,
-    };
-  }
-
   /**
    Shell the record carries; decides the interpreter a guest command runs under.
    */
   const shell = requiredText({
     field: 'shell',
+    metaPath,
     parsed,
   },);
-  if (shell === undefined) {
-    return {
-      problem: 'the field `shell` is missing, not text, or empty',
-      usable: false,
-    };
-  }
-
   /**
    OS family the record carries, which dispatches exec and domain XML.
    */
   const osFamily = requiredText({
     field: 'osFamily',
+    metaPath,
     parsed,
   },);
   if ((osFamily !== 'linux') && (osFamily !== 'windows')) {
-    return {
-      problem: `the field \`osFamily\` is ${String(osFamily,)} rather than linux or windows`,
-      usable: false,
-    };
+    throw new InvalidVmMetaError({
+      metaPath,
+      problem: `the field \`osFamily\` is ${osFamily} rather than linux or windows`,
+    },);
   }
 
   /**
-   File-transfer route the record carries; absent in metadata written before
+   File-transfer route the record carries, absent in metadata written before
    the guest agent route existed, which means the shared directory.
    */
   const fileTransfer: unknown = ('fileTransfer' in parsed)
@@ -330,28 +313,32 @@ function metaVerdict(parsed: unknown,): MetaVerdict {
       || (fileTransfer === 'guest-agent')
       || (fileTransfer === 'virtiofs'))
   ) {
-    return {
-      problem: `the field \`fileTransfer\` is ${String(fileTransfer,)} rather than guest-agent or virtiofs`,
-      usable: false,
-    };
+    throw new InvalidVmMetaError({
+      metaPath,
+      problem: `the field \`fileTransfer\` is ${JSON.stringify(fileTransfer,)} `
+        + 'rather than guest-agent or virtiofs',
+    },);
   }
 
   return {
-    meta: {
-      createdAt,
-      defaultUser,
-      ...(fileTransfer === undefined ? {} : { fileTransfer, }),
-      image,
-      osFamily,
-      shell,
-    },
-    usable: true,
+    createdAt,
+    defaultUser,
+    ...(fileTransfer === undefined ? {} : { fileTransfer, }),
+    image,
+    osFamily,
+    shell,
   };
 }
 
 //endregion Record validation
 
 //region Read
+
+/**
+ Answer for a `meta.json` that is not there, so absence travels as a distinct
+ symbol rather than a nullish union.
+ */
+const META_FILE_ABSENT: unique symbol = Symbol('no meta.json in the VM directory',);
 
 /**
  Path of a VM's metadata file, named once so every message and probe agrees.
@@ -377,11 +364,13 @@ function vmMetaPath(vmDir: string,): string {
  
  @param metaPath - Absolute path of the metadata file
  
- @returns The file's text, or `undefined` when no file stands there
+ @returns The file's text, or {@link META_FILE_ABSENT} when no file stands there
  
  @throws {@link UnreadableVmMetaError} When the file is there and cannot be read
  */
-async function readMetaFile(metaPath: string,): Promise<string | undefined> {
+async function readMetaFile(
+  metaPath: string,
+): Promise<string | typeof META_FILE_ABSENT> {
   try {
     return await readFile(
       metaPath,
@@ -390,7 +379,7 @@ async function readMetaFile(metaPath: string,): Promise<string | undefined> {
   }
   catch (error) {
     if (isAbsentPathError(error,))
-      return undefined;
+      return META_FILE_ABSENT;
     throw new UnreadableVmMetaError({
       cause: error,
       metaPath,
@@ -399,27 +388,25 @@ async function readMetaFile(metaPath: string,): Promise<string | undefined> {
 }
 
 /**
- Parses the text of a VM's `meta.json` into metadata, refusing anything else.
+ Parses the text of a VM's `meta.json`, refusing text that is not JSON.
  
- @param args - file path and the text read from it
+ @param content - text read from the metadata file
  
- @returns The metadata the file holds
+ @param metaPath - Absolute path of the metadata file, named in the refusal
  
- @throws {@link InvalidVmMetaError} When the text is not JSON or not a metadata record
+ @returns The value the text parses to, which the caller still has to check
+ 
+ @throws {@link InvalidVmMetaError} When the text is not JSON
  */
-function parseVmMeta({
+function parseJsonText({
   content,
   metaPath,
 }: {
   readonly content: string;
   readonly metaPath: string;
-},): VmMeta {
-  /**
-   Value the file's text parses to, which is only metadata if it has the shape below.
-   */
-  let parsed: unknown;
+},): unknown {
   try {
-    parsed = JSON.parse(content,);
+    return JSON.parse(content,);
   }
   catch (error) {
     throw new InvalidVmMetaError({
@@ -428,19 +415,6 @@ function parseVmMeta({
       problem: `its text is not JSON (${caughtValueText(error,)})`,
     },);
   }
-
-  /**
-   What the parsed value provided, or why it is not metadata.
-   */
-  const verdict = metaVerdict(parsed,);
-  if (!verdict.usable) {
-    throw new InvalidVmMetaError({
-      metaPath,
-      problem: verdict.problem,
-    },);
-  }
-
-  return verdict.meta;
 }
 
 /**
@@ -481,16 +455,19 @@ export async function readVmMeta(vmDir: string,): Promise<VmMeta> {
    */
   const metaPath = vmMetaPath(vmDir,);
   /**
-   Text of `meta.json`, or `undefined` when the file is not there.
+   Text of `meta.json`, or {@link META_FILE_ABSENT} when the file is not there.
    */
-  const content = await readMetaFile(metaPath,);
-  if (content !== undefined) {
+  const metaText = await readMetaFile(metaPath,);
+  if ((typeof metaText) === 'string') {
     /**
      Metadata the file holds, refused here when the text is not usable metadata.
      */
-    const meta = parseVmMeta({
-      content,
+    const meta = vmMetaRecord({
       metaPath,
+      parsed: parseJsonText({
+        content: metaText,
+        metaPath,
+      },),
     },);
     rl.debug(`read VM metadata from ${metaPath}`,);
     return meta;
@@ -513,11 +490,11 @@ export async function readVmMeta(vmDir: string,): Promise<VmMeta> {
       /**
        Raw legacy file contents; trimmed because old writers added a trailing newline.
        */
-      const content = await readFile(
+      const legacyContent = await readFile(
         legacyImagePath,
         'utf8',
       );
-      return content.trim();
+      return legacyContent.trim();
     }
     catch (error) {
       if (!isAbsentPathError(error,)) {
