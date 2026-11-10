@@ -64,8 +64,14 @@ pub(crate) enum Waiting {
     /// the write may be tried again.
     Gone,
     /// Locks stand that nothing proves gone,
-    /// and `words` names them with the command that clears each.
-    Blocked(String),
+    /// and `words` names them with the command that clears each,
+    /// while `locks` is the same set as paths.
+    Blocked {
+        /// The sentence a person reads.
+        words: String,
+        /// The locks that stand.
+        locks: Vec<PathBuf>,
+    },
 }
 
 /// What:
@@ -104,7 +110,7 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
             return Waiting::Gone;
         }
         if !outcome.left.is_empty() || !outcome.displaced.is_empty() {
-            return Waiting::Blocked(words_of(&outcome, standing.as_slice()));
+            return Waiting::Blocked { words: words_of(&outcome, standing.as_slice()), locks: standing };
         }
         // Every lock standing is younger than the margin, so a live holder may still be at work: look again.
         if Instant::now() >= deadline {
@@ -113,7 +119,7 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
                 return Waiting::Gone;
             }
             let left: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(the_lock_of).collect();
-            return Waiting::Blocked(words_of(&last, left.as_slice()));
+            return Waiting::Blocked { words: words_of(&last, left.as_slice()), locks: left };
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
     }

@@ -38,6 +38,10 @@ import {
   writeAutostartEntry,
 } from '../dist/final/node/testing.mjs';
 
+//region Fixtures
+// The checkout whose path carries the characters an entry has to survive, the
+// relative places a step writes to, and the environment the execution case needs.
+
 /**
  Prefix every disposable folder starts with.
  */
@@ -127,6 +131,10 @@ const DAEMON_MARKER_TEXT = 'daemon ran';
  */
 const SYSTEMD_CAT_EXIT_CODE = 0;
 
+//endregion Fixtures
+
+//region A folder per case
+
 /**
  A disposable folder that removes itself when disposed.
  
@@ -174,6 +182,12 @@ async function makeFolder(): Promise<ScratchFolder> {
     },
   };
 }
+
+//endregion A folder per case
+
+//region Reading the desktop entry back
+// A launcher's reading of `Exec` written out here, so a case can assert on the
+// command the entry hands it instead of on the entry's text.
 
 /**
  Split an `Exec` value into arguments the way the Desktop Entry Specification
@@ -297,6 +311,12 @@ function withFieldCodesExpanded({ argument }: {
   );
 }
 
+//endregion Reading the desktop entry back
+
+//region The case's environment
+// `PATH` and the two marker files reach the install steps through the process
+// environment, which a case sets and disposes.
+
 /**
  Environment variables the execution case needs, restored when it ends.
  
@@ -338,6 +358,10 @@ function overrideEnvironment({
   };
 }
 
+//endregion The case's environment
+
+//region Writing a stand-in program
+
 /**
  Install a stand-in program that runs one line of shell.
  
@@ -363,6 +387,11 @@ async function writeProgram({ path, body }: {
     EXECUTABLE_FILE_MODE,
   );
 }
+
+//endregion Writing a stand-in program
+
+//region Cases
+// The autostart entry, the KWin script link, and the install that runs both.
 
 await describe({
   name: '',
@@ -730,3 +759,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

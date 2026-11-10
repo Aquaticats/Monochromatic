@@ -77,20 +77,20 @@ Share winit's Wayland connection and run a second event queue on a dedicated
 thread (the exact pattern `smithay-clipboard` uses to add clipboard to winit
 apps):
 
-1. Get winit's `wl_display`/`wl_surface` from the Slint window via the winit raw
-   handle (`dnd_native::wayland_handles`).
-2. `Backend::from_foreign_display(display)` + `Connection::from_backend` wrap that
-   existing connection without opening a new one.
-3. `registry_queue_init` makes this thread's own event queue on the shared
-   connection.
-4. Co-bind our own `wl_seat` + `wl_pointer` (and later `wl_keyboard`) to observe
-   the same button presses winit sees,
-    tracking the latest press **serial**.
-5. Drive `wl_data_device` via smithay-client-toolkit's `data_device_manager`:
-   outbound `create_drag_and_drop_source(["text/uri-list"], Copy|Move)` +
-   `start_drag(&data_device, &origin_surface, None, serial)`;
-    inbound
-   `DragOffer` accept/`set_actions`/`receive` then read the `text/uri-list` pipe.
+1.  Get winit's `wl_display`/`wl_surface` from the Slint window via the winit raw
+    handle (`dnd_native::wayland_handles`).
+2.  `Backend::from_foreign_display(display)` + `Connection::from_backend` wrap that
+    existing connection without opening a new one.
+3.  `registry_queue_init` makes this thread's own event queue on the shared
+    connection.
+4.  Co-bind our own `wl_seat` + `wl_pointer` (and later `wl_keyboard`) to observe
+    the same button presses winit sees,
+     tracking the latest press **serial**.
+5.  Drive `wl_data_device` via smithay-client-toolkit's `data_device_manager`:
+    outbound `create_drag_and_drop_source(["text/uri-list"], Copy|Move)` +
+    `start_drag(&data_device, &origin_surface, None, serial)`;
+     inbound
+    `DragOffer` accept/`set_actions`/`receive` then read the `text/uri-list` pipe.
 
 The window only has a live winit window once the event loop is active,
  so the
@@ -428,29 +428,29 @@ Smithay clone for reference (throwaway,
 
 ## Remaining milestones
 
-1. DONE:
-    automated inbound test in the nested compositor (`drop-file`,
-    `28e9bb00a`).
-   The inbound co-bound `wl_data_device` path is verified working end to end;
-    the real
-   dolphin symptom is environment-specific,
-    not an app-code defect (see RESOLVED).
-2. App OUTBOUND drag:
-    `create_drag_and_drop_source` + `start_drag(latest_serial)` +
-   fill the `DataSourceHandler` send/finish/cancelled stubs;
-    verify with a new
-   compositor `drag X1 Y1 X2 Y2` command (observe via `ClientDndGrabHandler`),
-    or drop
-   onto dolphin.
-3. macOS (`ssh m1`):
-    outbound `NSDraggingSource`/`NSPasteboard` file URLs via objc2;
-   inbound via winit `on_winit_window_event` + `DroppedFile` (winit HAS DnD on
-   macOS,
-    unlike Wayland).
-4. Windows (`ssh x13-win`):
-    outbound `DoDragDrop`/`IDataObject` `CF_HDROP` via the
-   `windows` crate;
-    inbound via winit `DroppedFile`.
+1.  DONE:
+     automated inbound test in the nested compositor (`drop-file`,
+     `28e9bb00a`).
+    The inbound co-bound `wl_data_device` path is verified working end to end;
+     the real
+    dolphin symptom is environment-specific,
+     not an app-code defect (see RESOLVED).
+2.  App OUTBOUND drag:
+     `create_drag_and_drop_source` + `start_drag(latest_serial)` +
+    fill the `DataSourceHandler` send/finish/cancelled stubs;
+     verify with a new
+    compositor `drag X1 Y1 X2 Y2` command (observe via `ClientDndGrabHandler`),
+     or drop
+    onto dolphin.
+3.  macOS (`ssh m1`):
+     outbound `NSDraggingSource`/`NSPasteboard` file URLs via objc2;
+    inbound via winit `on_winit_window_event` + `DroppedFile` (winit HAS DnD on
+    macOS,
+     unlike Wayland).
+4.  Windows (`ssh x13-win`):
+     outbound `DoDragDrop`/`IDataObject` `CF_HDROP` via the
+    `windows` crate;
+     inbound via winit `DroppedFile`.
 
 ## Key files and commands
 

@@ -169,6 +169,16 @@ pub(crate) struct AmendedCommit {
     quiet: bool,
 }
 
+/// The fields of a commit made again,
+/// and whether it carries a signature.
+impl AmendedCommit {
+    /// Whether the commit whose fields these are carries a signature,
+    /// so a commit made again is signed again.
+    pub(crate) fn is_signed(&self) -> bool {
+        return self.signed;
+    }
+}
+
 /// What:
 ///  The amended commit of a command line the service built itself.
 /// Why:
@@ -512,6 +522,7 @@ pub(crate) fn the_amends_tree(
     let written = run_git_checked(
         invocation.context,
         &indexed_request(
+            invocation.context,
             invocation.cwd,
             &["write-tree"],
             Some(native_inputs.commit_index.as_path()),

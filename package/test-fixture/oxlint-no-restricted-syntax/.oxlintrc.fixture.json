@@ -20,6 +20,7 @@
     "no-restricted-syntax/no-hasownproperty": "error",
     "no-restricted-syntax/no-immediate-mutation": "error",
     "no-restricted-syntax/no-low-information-symbol-description": "error",
+    "no-restricted-syntax/no-main-wrapper": "error",
     "no-restricted-syntax/no-module-root-let": "error",
     "no-restricted-syntax/no-nullish-union": "error",
     "no-restricted-syntax/catch-binding": "error",

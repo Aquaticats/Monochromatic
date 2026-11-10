@@ -31,121 +31,121 @@ Background and source analysis are in
 Status:
 TODO
 
-1. On the affected Linux KDE Plasma desktop,
-   open **JetBrains Toolbox**.
-   The Toolbox window should list installed JetBrains applications.
-2. Find **IntelliJ IDEA Ultimate** or **IntelliJ IDEA**.
-   The entry should show an installed version rather than only **Install**.
-3. If IDEA is not installed,
-   select **Install**.
-   The entry should change to an installed version with a **Launch** action.
-   Stop this runbook because a missing installation is not the stuck-shutdown failure.
-4. Open a terminal with **Ctrl+Alt+T**.
-   A shell prompt should appear in the active terminal window.
-5. Define the Toolbox installation paths:
+1.  On the affected Linux KDE Plasma desktop,
+    open **JetBrains Toolbox**.
+    The Toolbox window should list installed JetBrains applications.
+2.  Find **IntelliJ IDEA Ultimate** or **IntelliJ IDEA**.
+    The entry should show an installed version rather than only **Install**.
+3.  If IDEA is not installed,
+    select **Install**.
+    The entry should change to an installed version with a **Launch** action.
+    Stop this runbook because a missing installation is not the stuck-shutdown failure.
+4.  Open a terminal with **Ctrl+Alt+T**.
+    A shell prompt should appear in the active terminal window.
+5.  Define the Toolbox installation paths:
 
-   ```bash
-   export IDEA_ROOT="$HOME/.local/share/JetBrains/Toolbox/apps/intellij-idea"
-   export IDEA_BIN="$IDEA_ROOT/bin/idea"
-   printf 'IDEA_ROOT=%s\nIDEA_BIN=%s\n' "$IDEA_ROOT" "$IDEA_BIN"
-   test -x "$IDEA_BIN" && printf '%s\n' 'IDEA executable found'
-   ```
+    ```bash
+    export IDEA_ROOT="$HOME/.local/share/JetBrains/Toolbox/apps/intellij-idea"
+    export IDEA_BIN="$IDEA_ROOT/bin/idea"
+    printf 'IDEA_ROOT=%s\nIDEA_BIN=%s\n' "$IDEA_ROOT" "$IDEA_BIN"
+    test -x "$IDEA_BIN" && printf '%s\n' 'IDEA executable found'
+    ```
 
-   The final line should be exactly:
+    The final line should be exactly:
 
-   ```text
-   IDEA executable found
-   ```
+    ```text
+    IDEA executable found
+    ```
 
-6. Locate the newest IDEA log:
+6.  Locate the newest IDEA log:
 
-   ```bash
-   export IDEA_LOG="$(
-     find "$HOME/.cache/JetBrains" -maxdepth 4 -type f \
-       -path '*/IntelliJIdea*/log/idea.log' \
-       -printf '%T@ %p\n' \
-       | sort --numeric-sort --reverse \
-       | head --lines=1 \
-       | cut --delimiter=' ' --fields=2-
-   )"
-   printf 'IDEA_LOG=%s\n' "$IDEA_LOG"
-   test -f "$IDEA_LOG" && printf '%s\n' 'IDEA log found'
-   ```
+    ```bash
+    export IDEA_LOG="$(
+      find "$HOME/.cache/JetBrains" -maxdepth 4 -type f \
+        -path '*/IntelliJIdea*/log/idea.log' \
+        -printf '%T@ %p\n' \
+        | sort --numeric-sort --reverse \
+        | head --lines=1 \
+        | cut --delimiter=' ' --fields=2-
+    )"
+    printf 'IDEA_LOG=%s\n' "$IDEA_LOG"
+    test -f "$IDEA_LOG" && printf '%s\n' 'IDEA log found'
+    ```
 
-   The final line should be exactly:
+    The final line should be exactly:
 
-   ```text
-   IDEA log found
-   ```
+    ```text
+    IDEA log found
+    ```
 
 ## Steps
 
 Status:
 TODO
 
-1. Detect an existing root IDEA process,
-   including one launched with a file or URL argument:
+1.  Detect an existing root IDEA process,
+    including one launched with a file or URL argument:
 
-   ```bash
-   export IDEA_PID="$(pgrep --oldest --full "^${IDEA_BIN}( |$)" || true)"
-   printf 'IDEA_PID=%s\n' "${IDEA_PID:-none}"
-   ```
+    ```bash
+    export IDEA_PID="$(pgrep --oldest --full "^${IDEA_BIN}( |$)" || true)"
+    printf 'IDEA_PID=%s\n' "${IDEA_PID:-none}"
+    ```
 
-   The output is either `IDEA_PID=none` or one numeric process ID.
-2. If step 1 printed `IDEA_PID=none`,
-   select **Launch** in **JetBrains Toolbox**.
-   An IDEA project or welcome window should appear.
-   Skip to **What to check** because no old process needed termination.
-3. If step 1 printed a numeric process ID,
-   probe its activation endpoint:
+    The output is either `IDEA_PID=none` or one numeric process ID.
+2.  If step 1 printed `IDEA_PID=none`,
+    select **Launch** in **JetBrains Toolbox**.
+    An IDEA project or welcome window should appear.
+    Skip to **What to check** because no old process needed termination.
+3.  If step 1 printed a numeric process ID,
+    probe its activation endpoint:
 
-   ```bash
-   activation_output="$("$IDEA_BIN" 2>&1)"
-   activation_status=$?
-   printf '%s\nexit=%s\n' "$activation_output" "$activation_status"
-   ```
+    ```bash
+    activation_output="$("$IDEA_BIN" 2>&1)"
+    activation_status=$?
+    printf '%s\nexit=%s\n' "$activation_output" "$activation_status"
+    ```
 
-   A healthy instance returns `exit=0` and focuses an IDEA window.
-   The stuck-shutdown state prints exactly:
+    A healthy instance returns `exit=0` and focuses an IDEA window.
+    The stuck-shutdown state prints exactly:
 
-   ```text
-   IDE is being shut down
-   exit=16
-   ```
+    ```text
+    IDE is being shut down
+    exit=16
+    ```
 
-4. If the step 3 command does not return through IDEA's own startup handshake,
-   press **Ctrl+C** once.
-   The terminal should show `^C` and return to its prompt.
-   Stop this runbook because an unresponsive activation endpoint is a different failure.
-5. If step 3 returned `exit=0`,
-   stop the recovery steps and continue at **What to check**.
-   The existing IDEA instance is healthy and must not be terminated.
-6. If step 3 returned anything other than the exact stuck-shutdown result,
-   stop this runbook.
-   Do not kill the process because a different exit code needs a different diagnosis.
-7. Inspect the affected process and shutdown messages:
+4.  If the step 3 command does not return through IDEA's own startup handshake,
+    press **Ctrl+C** once.
+    The terminal should show `^C` and return to its prompt.
+    Stop this runbook because an unresponsive activation endpoint is a different failure.
+5.  If step 3 returned `exit=0`,
+    stop the recovery steps and continue at **What to check**.
+    The existing IDEA instance is healthy and must not be terminated.
+6.  If step 3 returned anything other than the exact stuck-shutdown result,
+    stop this runbook.
+    Do not kill the process because a different exit code needs a different diagnosis.
+7.  Inspect the affected process and shutdown messages:
 
-   ```bash
-   ps --pid "$IDEA_PID" --format=pid,ppid,state,etimes,command
-   grep --fixed-strings 'Station requested IDE shutdown' "$IDEA_LOG" \
-     | tail --lines=5 \
-     || true
-   ```
+    ```bash
+    ps --pid "$IDEA_PID" --format=pid,ppid,state,etimes,command
+    grep --fixed-strings 'Station requested IDE shutdown' "$IDEA_LOG" \
+      | tail --lines=5 \
+      || true
+    ```
 
-   The process row should name `$IDEA_ROOT/bin/idea`.
-   A matching log line has this form:
+    The process row should name `$IDEA_ROOT/bin/idea`.
+    A matching log line has this form:
 
-   ```text
-   Station requested IDE shutdown. force = false, restart = false
-   ```
+    ```text
+    Station requested IDE shutdown. force = false, restart = false
+    ```
 
-8. If any accessible IDEA window contains work that must be preserved,
-   select **File**,
-   then **Save All**.
-   The save indicators should clear before continuing.
-9. Decide whether losing unsaved IDE state is acceptable.
-   Continue only with explicit authorization to terminate every process under `$IDEA_ROOT`.
-   No process changes occur in this step.
+8.  If any accessible IDEA window contains work that must be preserved,
+    select **File**,
+    then **Save All**.
+    The save indicators should clear before continuing.
+9.  Decide whether losing unsaved IDE state is acceptable.
+    Continue only with explicit authorization to terminate every process under `$IDEA_ROOT`.
+    No process changes occur in this step.
 10. Create a private evidence directory before terminating IDEA:
 
     ```bash
@@ -309,150 +309,150 @@ TODO
 Status:
 TODO
 
-1. Confirm that exactly one root IDEA process is running:
+1.  Confirm that exactly one root IDEA process is running:
 
-   ```bash
-   pgrep --list-full --full "^${IDEA_BIN}( |$)"
-   ```
+    ```bash
+    pgrep --list-full --full "^${IDEA_BIN}( |$)"
+    ```
 
-   The output should contain one numeric PID followed by `$IDEA_BIN`,
-   optionally with a file or URL argument.
-2. Probe the recovered activation endpoint:
+    The output should contain one numeric PID followed by `$IDEA_BIN`,
+    optionally with a file or URL argument.
+2.  Probe the recovered activation endpoint:
 
-   ```bash
-   activation_output="$("$IDEA_BIN" 2>&1)"
-   activation_status=$?
-   printf '%s\nexit=%s\n' "$activation_output" "$activation_status"
-   ```
+    ```bash
+    activation_output="$("$IDEA_BIN" 2>&1)"
+    activation_status=$?
+    printf '%s\nexit=%s\n' "$activation_output" "$activation_status"
+    ```
 
-   The exact status should be:
+    The exact status should be:
 
-   ```text
-   exit=0
-   ```
+    ```text
+    exit=0
+    ```
 
-   `IDE is being shut down` must not appear.
-3. Confirm that IDEA accepted the external command:
+    `IDE is being shut down` must not appear.
+3.  Confirm that IDEA accepted the external command:
 
-   ```bash
-   grep --fixed-strings 'External instance command received' "$IDEA_LOG" \
-     | tail --lines=1
-   ```
+    ```bash
+    grep --fixed-strings 'External instance command received' "$IDEA_LOG" \
+      | tail --lines=1
+    ```
 
-   The output should contain exactly this message text:
+    The output should contain exactly this message text:
 
-   ```text
-   External instance command received
-   ```
+    ```text
+    External instance command received
+    ```
 
-4. On KDE Wayland,
-   create a temporary KWin verification script:
+4.  On KDE Wayland,
+    create a temporary KWin verification script:
 
-   ```bash
-   export IDEA_KWIN_SCRIPT="$XDG_RUNTIME_DIR/verify-idea-window.js"
-   tee "$IDEA_KWIN_SCRIPT" >/dev/null <<'EOF'
-   const marker = "IDEA_RUNBOOK_WINDOW:";
-   const windows = workspace.windowList().filter(
-     (window) => String(window.resourceClass).toLowerCase() === "jetbrains-idea"
-   );
-   console.info(`${marker} count=${windows.length}`);
-   windows.forEach((window) => {
-     window.minimized = false;
-     workspace.activeWindow = window;
-     console.info(`${marker} minimized=${window.minimized} active=${window.active}`);
-   });
-   EOF
-   ```
+    ```bash
+    export IDEA_KWIN_SCRIPT="$XDG_RUNTIME_DIR/verify-idea-window.js"
+    tee "$IDEA_KWIN_SCRIPT" >/dev/null <<'EOF'
+    const marker = "IDEA_RUNBOOK_WINDOW:";
+    const windows = workspace.windowList().filter(
+      (window) => String(window.resourceClass).toLowerCase() === "jetbrains-idea"
+    );
+    console.info(`${marker} count=${windows.length}`);
+    windows.forEach((window) => {
+      window.minimized = false;
+      workspace.activeWindow = window;
+      console.info(`${marker} minimized=${window.minimized} active=${window.active}`);
+    });
+    EOF
+    ```
 
-   The file should exist at `$XDG_RUNTIME_DIR/verify-idea-window.js`.
-5. Load and run the KWin verification script:
+    The file should exist at `$XDG_RUNTIME_DIR/verify-idea-window.js`.
+5.  Load and run the KWin verification script:
 
-   ```bash
-   qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
-     "$IDEA_KWIN_SCRIPT" idea-runbook-window
-   qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.start
-   ```
+    ```bash
+    qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
+      "$IDEA_KWIN_SCRIPT" idea-runbook-window
+    qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.start
+    ```
 
-   KWin should return a numeric script ID and no error.
-6. Read the KWin verification result:
+    KWin should return a numeric script ID and no error.
+6.  Read the KWin verification result:
 
-   ```bash
-   journalctl --boot --no-pager --output=cat \
-     | grep --fixed-strings 'IDEA_RUNBOOK_WINDOW:' \
-     | tail --lines=5
-   ```
+    ```bash
+    journalctl --boot --no-pager --output=cat \
+      | grep --fixed-strings 'IDEA_RUNBOOK_WINDOW:' \
+      | tail --lines=5
+    ```
 
-   Expect a nonzero window count and at least one exact state line:
+    Expect a nonzero window count and at least one exact state line:
 
-   ```text
-   IDEA_RUNBOOK_WINDOW: minimized=false active=true
-   ```
+    ```text
+    IDEA_RUNBOOK_WINDOW: minimized=false active=true
+    ```
 
-7. Confirm visually that an IDEA editor or welcome window is visible and active.
-   The window should be in front and should not be minimized.
+7.  Confirm visually that an IDEA editor or welcome window is visible and active.
+    The window should be in front and should not be minimized.
 
 ## Restore
 
 Status:
 TODO
 
-1. Unload the temporary KWin script:
+1.  Unload the temporary KWin script:
 
-   ```bash
-   qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript \
-     idea-runbook-window \
-     || true
-   ```
+    ```bash
+    qdbus org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript \
+      idea-runbook-window \
+      || true
+    ```
 
-   The command should return without an error dialog.
-2. Delete the temporary KWin script:
+    The command should return without an error dialog.
+2.  Delete the temporary KWin script:
 
-   ```bash
-   rm --force -- "$IDEA_KWIN_SCRIPT"
-   test ! -e "$IDEA_KWIN_SCRIPT" && printf '%s\n' 'Temporary KWin script removed'
-   ```
+    ```bash
+    rm --force -- "$IDEA_KWIN_SCRIPT"
+    test ! -e "$IDEA_KWIN_SCRIPT" && printf '%s\n' 'Temporary KWin script removed'
+    ```
 
-   The output should be exactly:
+    The output should be exactly:
 
-   ```text
-   Temporary KWin script removed
-   ```
+    ```text
+    Temporary KWin script removed
+    ```
 
-3. Print the private evidence directory retained for diagnosis:
+3.  Print the private evidence directory retained for diagnosis:
 
-   ```bash
-   printf 'IDEA_EVIDENCE=%s\n' "$IDEA_EVIDENCE"
-   ```
+    ```bash
+    printf 'IDEA_EVIDENCE=%s\n' "$IDEA_EVIDENCE"
+    ```
 
-   Keep this directory until the shutdown blocker has been diagnosed or reported.
-4. After the evidence is no longer needed,
-   confirm that the printed path begins with `$HOME/temp/idea-shutdown.`.
-   No files change in this step.
-5. Delete only the confirmed evidence directory:
+    Keep this directory until the shutdown blocker has been diagnosed or reported.
+4.  After the evidence is no longer needed,
+    confirm that the printed path begins with `$HOME/temp/idea-shutdown.`.
+    No files change in this step.
+5.  Delete only the confirmed evidence directory:
 
-   ```bash
-   rm --recursive --force -- "$IDEA_EVIDENCE"
-   test ! -e "$IDEA_EVIDENCE" && printf '%s\n' 'IDEA evidence removed'
-   ```
+    ```bash
+    rm --recursive --force -- "$IDEA_EVIDENCE"
+    test ! -e "$IDEA_EVIDENCE" && printf '%s\n' 'IDEA evidence removed'
+    ```
 
-   The output should be exactly:
+    The output should be exactly:
 
-   ```text
-   IDEA evidence removed
-   ```
+    ```text
+    IDEA evidence removed
+    ```
 
-6. Clear the shell-only runbook variables:
+6.  Clear the shell-only runbook variables:
 
-   ```bash
-   unset IDEA_BIN IDEA_DESKTOP_FILE IDEA_DESKTOP_ID IDEA_EVIDENCE IDEA_KWIN_SCRIPT \
-     IDEA_LOG IDEA_PID IDEA_PIDS IDEA_ROOT
-   ```
+    ```bash
+    unset IDEA_BIN IDEA_DESKTOP_FILE IDEA_DESKTOP_ID IDEA_EVIDENCE IDEA_KWIN_SCRIPT \
+      IDEA_LOG IDEA_PID IDEA_PIDS IDEA_ROOT
+    ```
 
-   No output is expected.
-7. Leave IDEA running.
-   This runbook does not alter IDEA settings,
-   plugins,
-   caches,
-   `.lock`,
-   or `.port` files,
-   so no application-state restoration is required.
+    No output is expected.
+7.  Leave IDEA running.
+    This runbook does not alter IDEA settings,
+    plugins,
+    caches,
+    `.lock`,
+    or `.port` files,
+    so no application-state restoration is required.

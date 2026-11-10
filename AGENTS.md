@@ -217,7 +217,7 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- GPT reviews and audits,
+ GPT audits,
  `timeout` sized in seconds:
  `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
 
@@ -231,16 +231,23 @@ XVS:
  one narrow question each:
  GPT models cannot be trusted on long-horizon work.
 
+KRV:
+ Reviews of a change go to Kimi K3.1 Pro alone:
+ Pi with `--provider synthetic --model hf:moonshotai/Kimi-K3.1-Pro`,
+ in a worktree of its own,
+ outside the Neuralwatt slots.
+
 LHZ:
- Long-horizon reviews and audits,
+ Long-horizon audits,
  in every harness:
- use Claude Sonnet,
- by whatever route that harness offers.
+ run Claude Sonnet,
+ by whatever route that harness offers,
+ and Kimi K3.1 Pro side by side.
 
 PFW:
  Alongside advisor,
  never instead:
- a `gpt-6.1-sol` review reads the paths its prompt names,
+ a Kimi review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -1591,8 +1598,9 @@ MD1:
 
 MD2:
  `-` for unordered lists;
- pad numbered markers to 4 chars (`1.`,
- `10.`).
+ pad numbered markers so digits,
+ dot and spaces fill four columns,
+ as `1.` then two spaces and `10.` then one.
 
 MD3:
  Fenced code blocks with language tags and file-path comments.
@@ -1639,6 +1647,10 @@ DPL:
  `LICENSE`,
  `LICENSES/`.
 Package docs stay beside code.
+
+PLK:
+ A rule or fact about one package goes in that package's docs,
+ never `AGENTS.md` or a repo-wide doc.
 
 DL1:
  Repo-wide doc paths:

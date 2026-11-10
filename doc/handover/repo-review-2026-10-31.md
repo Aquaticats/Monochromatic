@@ -7087,33 +7087,33 @@ comments) and then hit GitHub's secondary rate limit mid-run:
 Repair,
 all applied and verified:
 
-1. `file-issues.ts` hardened (see the `Filing pipeline` section).
-2. `filed-log.jsonl` stripped from 671 to the 500 good entries;
-   the 171 bad entries are in
-   `filed-log.jsonl.bak-batch2`.
-3. Restart:
-   background `rr-file-batch2b`,
-   process
-   `process-5367861df51f-6296fad7f1a06fc0403d034e`,
-   log `file-batch2b.log`,
-   same
-   `decisions-batch2-final.jsonl` (763 decisions,
-   263 remaining:
-   169 silent creates,
-   2 failed
-   comments,
-   92 never attempted).
-4. The secondary limit stayed active through the whole first retry cycle (five 30s-scale
-   backoffs on `w2-i18n-13` with no recovery),
-   so the run was stopped and the script hardened
-   again:
-   flat 5-minute backoffs for the silent-create case (cap 10 attempts per decision),
-   5-second pacing between gh calls,
-   and a circuit-breaker that aborts the run after two
-   consecutive failed decisions.
-   Restarted as `rr-file-batch2c` (log `file-batch2c.log`);
-   the
-   skip-set fix makes any restart safe.
+1.  `file-issues.ts` hardened (see the `Filing pipeline` section).
+2.  `filed-log.jsonl` stripped from 671 to the 500 good entries;
+    the 171 bad entries are in
+    `filed-log.jsonl.bak-batch2`.
+3.  Restart:
+    background `rr-file-batch2b`,
+    process
+    `process-5367861df51f-6296fad7f1a06fc0403d034e`,
+    log `file-batch2b.log`,
+    same
+    `decisions-batch2-final.jsonl` (763 decisions,
+    263 remaining:
+    169 silent creates,
+    2 failed
+    comments,
+    92 never attempted).
+4.  The secondary limit stayed active through the whole first retry cycle (five 30s-scale
+    backoffs on `w2-i18n-13` with no recovery),
+    so the run was stopped and the script hardened
+    again:
+    flat 5-minute backoffs for the silent-create case (cap 10 attempts per decision),
+    5-second pacing between gh calls,
+    and a circuit-breaker that aborts the run after two
+    consecutive failed decisions.
+    Restarted as `rr-file-batch2c` (log `file-batch2c.log`);
+    the
+    skip-set fix makes any restart safe.
 - COMPLETE (20:07):
   `rr-file-batch2c` rode out the rate-limit window and finished the whole
    decisions file:
@@ -7678,117 +7678,117 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
 
 ## Assignment queue (re-task idle children in this order)
 
-1. Finish in-flight slices as children return (see Children).
-2. Apps:
-   `ide/app` remainder,
-   `file-manager/*` remainder (variant-qt),
-   music-player `design` remainder,
-   `desktop-app` slices 5+,
-   `android-app` (354,
-   split 2),
-   `asset`,
-   `desktop-e2e` remainder,
-   `truepeak-core` bench if anything remains.
-3. Plugins:
-   remaining `agent-harness-shared/*` (4 after shell-command-analyzer:
-   terminal-title,
-   text-scan,
-   truncate,
-   usage-projection),
-   `claude-code-plugin/*` (10 after
-   the source package),
-   `search-fetch/mcp`
-   (in flight;
-   core has concurrent edits),
-   `hall-monitor` (in flight),
-   `electron-infra`
-   (in flight).
-   Done:
-   dsh-plugin family,
-   search-fetch/cli,
-   pi-plugin family (all 15
-   subpackages);
-   mcp/stdio has only its final test slice in flight.
-4. Linter tooling:
-   `oxlint-plugin` package 2 (in flight),
-   `forbidden-strings` done
-   2026-11-01 (core,
-   cli,
-   core.bench,
-   core.fuzz,
-   cli.fuzz all complete;
-   real root:
-   `package/forbidden-strings`).
-   Superseded 2026-11-01:
-   the
-   TypeScript `file-enforcer/core` slices 8+ are moot,
-   the cutover deleted the package;
-   the
-   Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
-   now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`.
-   Done:
-   monochromatic-lint,
-   monorepo-task,
-   mutation-test.
-5. Rust:
-   `dependency-catalog/*` complete (core-pnpm,
-   core-rust 22,
-   core-native 54,
-   cli-rust-update 36,
-   cli-tighten 24,
-   cli-tighten.matrix 12;
-   cli-cube in flight),
-   `wg/*`
-   done through cli-quicker 138 of 138,
-   `git-policy/cli` remainder campaign in flight by
-   `w4-cc-statusline` (585 subject files from `binary_policy_tests.rs`,
-   ledger
-   `w4-git-policy-progress.md`),
-   `mvm/cli` done (24 rows),
-   `learning/rust`
-   done (3 rows),
-   `ownership-marker/foreign-borrowed` done clean (zero rows),
-   `search-shadow/cli`,
-   `vm-builder/cli`,
-   `vmsync/cli` done by `w4-fe-core-tests`
-   (4,
-   8,
-   13 rows).
-6. Excluded 2026-11-01:
-   `translation-repair/*` is out of scope by user instruction;
-   its live lanes were stopped and its findings quarantined.
-   Do not assign it.
-   `upstream-fork/*`
-   (about 12 plus fuzz sidecars);
-   `config/*` (9;
-   pnpr has concurrent edits);
-   misc:
-   `intellij-plugin/islands-black`,
-   `rolldown-plugin/import-attributes`,
-   `pnpm-override/*` (7),
-   `runtime-error/bun`,
-   hyperscript-class remainders,
-   `test-fixture/*` source code only.
-   Done or in flight:
-   `backup-path/cli`,
-   `fy/cli`,
-   `git-clone-size/cli`,
-   `deps-update/cli`,
-   `android-exempt-unused/cli`,
-   `rgffplay/cli`,
-   `page-weight/cli`,
-   `terminal-exec/cli`,
-   `watch-restart/cli` (43 of
-   43,
-   12 rows),
-   `kwin/key-helper` (25 of 25,
-   4 rows).
-7. Doc remainders:
-   doc/audit subdirs beyond the finished campaigns;
-   doc/planning tails;
-   doc/troubleshooting (about 650 remaining after worklist 61);
-   doc/agent and doc/decision
-   spot coverage (`doc/decision` about 190 remaining after files 14-18).
+1.  Finish in-flight slices as children return (see Children).
+2.  Apps:
+    `ide/app` remainder,
+    `file-manager/*` remainder (variant-qt),
+    music-player `design` remainder,
+    `desktop-app` slices 5+,
+    `android-app` (354,
+    split 2),
+    `asset`,
+    `desktop-e2e` remainder,
+    `truepeak-core` bench if anything remains.
+3.  Plugins:
+    remaining `agent-harness-shared/*` (4 after shell-command-analyzer:
+    terminal-title,
+    text-scan,
+    truncate,
+    usage-projection),
+    `claude-code-plugin/*` (10 after
+    the source package),
+    `search-fetch/mcp`
+    (in flight;
+    core has concurrent edits),
+    `hall-monitor` (in flight),
+    `electron-infra`
+    (in flight).
+    Done:
+    dsh-plugin family,
+    search-fetch/cli,
+    pi-plugin family (all 15
+    subpackages);
+    mcp/stdio has only its final test slice in flight.
+4.  Linter tooling:
+    `oxlint-plugin` package 2 (in flight),
+    `forbidden-strings` done
+    2026-11-01 (core,
+    cli,
+    core.bench,
+    core.fuzz,
+    cli.fuzz all complete;
+    real root:
+    `package/forbidden-strings`).
+    Superseded 2026-11-01:
+    the
+    TypeScript `file-enforcer/core` slices 8+ are moot,
+    the cutover deleted the package;
+    the
+    Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
+    now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`.
+    Done:
+    monochromatic-lint,
+    monorepo-task,
+    mutation-test.
+5.  Rust:
+    `dependency-catalog/*` complete (core-pnpm,
+    core-rust 22,
+    core-native 54,
+    cli-rust-update 36,
+    cli-tighten 24,
+    cli-tighten.matrix 12;
+    cli-cube in flight),
+    `wg/*`
+    done through cli-quicker 138 of 138,
+    `git-policy/cli` remainder campaign in flight by
+    `w4-cc-statusline` (585 subject files from `binary_policy_tests.rs`,
+    ledger
+    `w4-git-policy-progress.md`),
+    `mvm/cli` done (24 rows),
+    `learning/rust`
+    done (3 rows),
+    `ownership-marker/foreign-borrowed` done clean (zero rows),
+    `search-shadow/cli`,
+    `vm-builder/cli`,
+    `vmsync/cli` done by `w4-fe-core-tests`
+    (4,
+    8,
+    13 rows).
+6.  Excluded 2026-11-01:
+    `translation-repair/*` is out of scope by user instruction;
+    its live lanes were stopped and its findings quarantined.
+    Do not assign it.
+    `upstream-fork/*`
+    (about 12 plus fuzz sidecars);
+    `config/*` (9;
+    pnpr has concurrent edits);
+    misc:
+    `intellij-plugin/islands-black`,
+    `rolldown-plugin/import-attributes`,
+    `pnpm-override/*` (7),
+    `runtime-error/bun`,
+    hyperscript-class remainders,
+    `test-fixture/*` source code only.
+    Done or in flight:
+    `backup-path/cli`,
+    `fy/cli`,
+    `git-clone-size/cli`,
+    `deps-update/cli`,
+    `android-exempt-unused/cli`,
+    `rgffplay/cli`,
+    `page-weight/cli`,
+    `terminal-exec/cli`,
+    `watch-restart/cli` (43 of
+    43,
+    12 rows),
+    `kwin/key-helper` (25 of 25,
+    4 rows).
+7.  Doc remainders:
+    doc/audit subdirs beyond the finished campaigns;
+    doc/planning tails;
+    doc/troubleshooting (about 650 remaining after worklist 61);
+    doc/agent and doc/decision
+    spot coverage (`doc/decision` about 190 remaining after files 14-18).
 
 Calibration:
 single-package deep reviews fit one turn each at 8 to 26 findings per package.
@@ -7814,73 +7814,73 @@ flight".
 
 ## Next actions
 
-1. Superseded 2026-11-01:
-   the relay pool and the failed-session kill findings describe the dead
-   2026-10-31 sessions.
-   Fresh harness sessions spawn directly (wave 4 did).
-   The unkillable-failed-
-   children constraint applied to that session's pool only.
-2. Verify every relayed coverage claim against the owner findings files before trusting it.
-   A
-   relayed area counts as covered only when its entries are in the OWNER's file with relayed
-   markers.
-3. Process wave-4 child returns continuously;
-   re-brief from the Assignment queue;
-   keep this
-   handover current.
-   Verify each child's claimed coverage against its findings file before
-   re-briefing.
-4. Done 2026-11-01:
-   batch-3 filing completed as `rr-file-batch3v3` (1676 decisions,
-   zero
-   errors) and the reconciliation landed:
-   `#2716` closed as duplicate of the manually filed
-   `#2681`,
-   the 15 filed moot actions handled (6 closes,
-   9 follow-up comments),
-   `issues-all.jsonl` refreshed to the 3000-entry cap (batch-4 dedupe must paginate past
-   it).
-   Remaining from the plan:
-   work the manual queue `manual-b3v2.jsonl`.
-5. Done differently 2026-11-01:
-   rows 80/81 were never filed in batch 2,
-   so there were no
-   owning issues to comment on.
-   87's correction is folded into 80's batch-3 issue body,
-   and 81's
-   deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
-   manual-queue adjudication.
-6. Done for the completed portion 2026-11-01:
-   the regenerated `orchestrator-central-tests.jsonl`
-   (34 rows,
-   all verify-clean) carries the uncovered failing suites from run 3's completed
-   portion plus the two hang findings.
-   A fresh complete central run should wait until the two
-   hangs are fixed,
-   then refresh the triage.
-7. Work the manual queue:
-   `manual-b3v2.jsonl` (825 entries,
-   ambiguous plus 416 with evidence
-   problems) replaces the old 518-entry queue for batch 3.
-   Superseded 2026-11-01:
-   the
-   remaining evidence repair is the 259-BAD corpus campaign (scratch
-   `mq10-bad-enumeration.txt`),
-   queued for `w4-fm-variant-qt` after the adjudication
-   slices.
-   Ambiguous adjudication:
-   slices 1 to 4 done (238 of 409;
-   60 duplicate,
-   178
-   distinct;
-   twelfth to twenty-fifth checkpoints),
-   slice 5 (indexes 240 to 299) in
-   flight;
-   `docs-core-56` needs re-verification of the deleted `reject_unknown_keys`
-   mechanism.
-   The old `manual-queue.jsonl` (batch 1/2 era) still holds
-   its own entries.
-8. Keep updating and committing this handover at every wave transition.
+1.  Superseded 2026-11-01:
+    the relay pool and the failed-session kill findings describe the dead
+    2026-10-31 sessions.
+    Fresh harness sessions spawn directly (wave 4 did).
+    The unkillable-failed-
+    children constraint applied to that session's pool only.
+2.  Verify every relayed coverage claim against the owner findings files before trusting it.
+    A
+    relayed area counts as covered only when its entries are in the OWNER's file with relayed
+    markers.
+3.  Process wave-4 child returns continuously;
+    re-brief from the Assignment queue;
+    keep this
+    handover current.
+    Verify each child's claimed coverage against its findings file before
+    re-briefing.
+4.  Done 2026-11-01:
+    batch-3 filing completed as `rr-file-batch3v3` (1676 decisions,
+    zero
+    errors) and the reconciliation landed:
+    `#2716` closed as duplicate of the manually filed
+    `#2681`,
+    the 15 filed moot actions handled (6 closes,
+    9 follow-up comments),
+    `issues-all.jsonl` refreshed to the 3000-entry cap (batch-4 dedupe must paginate past
+    it).
+    Remaining from the plan:
+    work the manual queue `manual-b3v2.jsonl`.
+5.  Done differently 2026-11-01:
+    rows 80/81 were never filed in batch 2,
+    so there were no
+    owning issues to comment on.
+    87's correction is folded into 80's batch-3 issue body,
+    and 81's
+    deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
+    manual-queue adjudication.
+6.  Done for the completed portion 2026-11-01:
+    the regenerated `orchestrator-central-tests.jsonl`
+    (34 rows,
+    all verify-clean) carries the uncovered failing suites from run 3's completed
+    portion plus the two hang findings.
+    A fresh complete central run should wait until the two
+    hangs are fixed,
+    then refresh the triage.
+7.  Work the manual queue:
+    `manual-b3v2.jsonl` (825 entries,
+    ambiguous plus 416 with evidence
+    problems) replaces the old 518-entry queue for batch 3.
+    Superseded 2026-11-01:
+    the
+    remaining evidence repair is the 259-BAD corpus campaign (scratch
+    `mq10-bad-enumeration.txt`),
+    queued for `w4-fm-variant-qt` after the adjudication
+    slices.
+    Ambiguous adjudication:
+    slices 1 to 4 done (238 of 409;
+    60 duplicate,
+    178
+    distinct;
+    twelfth to twenty-fifth checkpoints),
+    slice 5 (indexes 240 to 299) in
+    flight;
+    `docs-core-56` needs re-verification of the deleted `reject_unknown_keys`
+    mechanism.
+    The old `manual-queue.jsonl` (batch 1/2 era) still holds
+    its own entries.
+8.  Keep updating and committing this handover at every wave transition.
 
 ## Stop conditions
 

@@ -20,10 +20,16 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { workspaceResolver, } from './resolve.ts';
 import { discoverWorkspacePackages, } from './workspace.ts';
 
+//region Logger
+
 /**
  Module logger for unused-export analysis.
  */
 const l = tagged({ tag: 'unused-export', },);
+
+//endregion Logger
+
+//region Finding shape
 
 /**
  One export with zero resolved references anywhere in the workspace.
@@ -50,6 +56,10 @@ export type UnusedExport = {
    */
   readonly typeOnly: boolean;
 };
+
+//endregion Finding shape
+
+//region Analysis
 
 /**
  Finds workspace exports no other resolved reference uses.
@@ -213,3 +223,5 @@ export async function findUnusedExports({
       || (a.name < b.name ? -1 : 1);
   },);
 }
+
+//endregion Analysis

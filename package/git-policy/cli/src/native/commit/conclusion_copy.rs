@@ -119,6 +119,8 @@ fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
 fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<String> {
     let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--verify", "--quiet", name]);
     request.without_prefix = true;
+    // The value is read in the caller's repository, which a Git directory beside its work tree only names.
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     return resolve_pseudoref(context, request);
 }
 
@@ -127,6 +129,12 @@ fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<Stri
 /// Why:
 ///   The shadow copy is what native commit reads;
 /// the transaction copy is what landing compares against.
+///  A worktree with nothing to conclude gets no copies directory at all:
+/// its one `mkdir` was the largest stretch of a build in the records
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "What each part of a commit's private repository is for,
+/// and how many commits need it"),
+///  and an absent directory is the same answer to the landing as an empty one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,9 +149,10 @@ pub fn copy_conclusion_state(
     ref_format: RefFormat,
 ) -> Result<(), GitFailure> {
     let copies: PathBuf = transaction_directory.join(CONCLUSION_COPY_DIRECTORY);
-    io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
     // Store-held values in the order of the copied names, as the incumbent's JSON record lists them.
     let mut store_held: ObjectWriter = ObjectWriter::new();
+    // The entries that are files, kept until it is known whether the copies directory is needed at all.
+    let mut entries: Vec<(&str, Vec<u8>)> = Vec::new();
     for name in CONCLUSION_STATE_FILES {
         if is_store_held(ref_format, name) {
             if let Some(value) = owning_pseudoref(context, cwd, name) {
@@ -158,6 +167,23 @@ pub fn copy_conclusion_state(
         let Some(bytes) = recovery_step(read_optional(git_dir.join(name).as_path()))? else {
             continue;
         };
+        entries.push((name, bytes));
+    }
+    // The record names the conclusion values this backend's ref store holds. A files backend holds none, so the record
+    // would say nothing there and its whole cost is a flush of the disk that every commit then waits for: it is not
+    // written, and an absent one is that state (see `store_names_conclusions`).
+    let record: Option<String> = if store_names_conclusions(ref_format) || !store_held.is_empty() {
+        Some(store_held.finish())
+    } else {
+        None
+    };
+    let sequencer: PathBuf = git_dir.join(SEQUENCER_DIRECTORY);
+    let sequencer_present: bool = recovery_step(path_present(sequencer.as_path()))?;
+    if entries.is_empty() && record.is_none() && !sequencer_present {
+        return Ok(());
+    }
+    io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
+    for (name, bytes) in entries {
         io_step(
             "copying a conclusion entry into the shadow",
             write_private_file(shadow.join(name).as_path(), bytes.as_slice()),
@@ -167,18 +193,13 @@ pub fn copy_conclusion_state(
             write_private_file(copies.join(name).as_path(), bytes.as_slice()),
         )?;
     }
-    // The record names the conclusion values this backend's ref store holds. A files backend holds none, so the record
-    // would say nothing there and its whole cost is a flush of the disk that every commit then waits for: it is not
-    // written, and an absent one is that state (see `store_names_conclusions`).
-    if store_names_conclusions(ref_format) || !store_held.is_empty() {
-        let record: String = store_held.finish();
+    if let Some(text) = record {
         io_step(
             "writing the store-held record",
-            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{record}\n").as_bytes()),
+            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{text}\n").as_bytes()),
         )?;
     }
-    let sequencer: PathBuf = git_dir.join(SEQUENCER_DIRECTORY);
-    if recovery_step(path_present(sequencer.as_path()))? {
+    if sequencer_present {
         io_step(
             "copying the sequencer into the shadow",
             copy_tree(sequencer.as_path(), shadow.join(SEQUENCER_DIRECTORY).as_path()),

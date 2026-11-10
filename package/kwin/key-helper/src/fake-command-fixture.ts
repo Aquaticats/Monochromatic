@@ -29,6 +29,11 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 
 import { flushLogs, } from '../dist/final/node/testing.mjs';
 
+//region The stand-in's settings
+// The pause between log reads, the mode an executable needs, and the script the
+// stand-in runs, which reads its parts from the environment so a scratch path
+// or a message never needs shell quoting.
+
 /**
  Pause between reads of the daemon's log, in milliseconds.
  */
@@ -59,6 +64,12 @@ const STAND_IN_SCRIPT = `#!/bin/sh
 for argument in "$@"; do printf '%s\\n' "$argument"; done > "$KEY_HELPER_FAKE_ARGUMENTS"
 if [ -n "$KEY_HELPER_FAKE_STANDARD_ERROR" ]; then printf '%s\\n' "$KEY_HELPER_FAKE_STANDARD_ERROR" >&2; fi
 `;
+
+//endregion The stand-in's settings
+
+//region What a case holds
+// A stand-in is described by what it must report and handed back as a reader of
+// its own recording plus the way to undo it.
 
 /**
  How one stand-in reports itself.
@@ -112,6 +123,12 @@ export type FakeCommand = {
    */
   readonly [Symbol.dispose]: () => void;
 };
+
+//endregion What a case holds
+
+//region Installing and reading back
+// The recording of the last run, a stand-in put first on `PATH`, and the
+// `PATH` and environment restore a case disposes.
 
 /**
  File error code naming a recording file the stand-in never created.
@@ -259,6 +276,12 @@ export async function installFakeCommand({
   };
 }
 
+//endregion Installing and reading back
+
+//region Reading the daemon's log
+// A case asserts on what the daemon reported, which arrives after the call that
+// started a child process has already returned.
+
 /**
  Standard-error text one spy recorded, in call order.
  
@@ -336,3 +359,5 @@ export async function reportedUntil({
     label: 'the failure log line',
   },);
 }
+
+//endregion Reading the daemon's log

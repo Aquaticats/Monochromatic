@@ -29,7 +29,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const { count, trash } = await pruneSnapshot({ stage, source }); // before the swap
-//! await disposePendingTrash({ context, destination, gitDir, trash, notices }); // after it
+//! await handOverTrash({ context, destination, commonDir, trash, notices }); // after it, without waiting
 //! ```
 
 use crate::diagnostic_log::debug;
@@ -41,7 +41,9 @@ use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_snapshot_source::SnapshotSource;
-pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, delete_trash_awaiting, dispose_pending_trash, dispose_pending_trash_awaiting, empty_trash, name_unaccounted_trash};
+pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, TrashLeft, delete_trash, delete_trash_awaiting, empty_trash, name_unaccounted_trash};
+pub use crate::worktree_trash_exclude_line::{TRASH_EXCLUDE_LINE, ensure_trash_is_excluded};
+pub use crate::worktree_trash_hand_over::{Reach, hand_over_to_the_service, hand_over_with, record_the_trash};
 pub use crate::worktree_trash_dispose_awaiting::empty_trash_awaiting;
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use crate::worktree_trash_remove::remove_tree_beneath;
@@ -101,7 +103,8 @@ fn new_trash_name() -> Result<String, String> {
 }
 
 /// What the leave-out made and moved,
-/// and how many directories it set aside.
+/// how many directories it set aside,
+/// and how many of them an earlier add had left in the trash parent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Pruned {
     /// How many directories were set aside,
@@ -110,10 +113,28 @@ pub struct Pruned {
     /// The trash directory with the identity of every directory moved into it;
     /// absent when nothing was moved into a trash.
     pub trash: Option<TrashManifest>,
+    /// How many of the directories moved into the trash came from an earlier add's trash,
+    /// which no other command
+    ///  of this add would ever empty.
+    ///  A routine add takes over none:
+    /// the stand-ins and the `.git` copy it hands over are its own.
+    pub taken_over: usize,
 }
 
-/// The trash directory the leave-out made and holds open.
-struct Trash {
+/// What:
+///  The trash directory one snapshot's leave-out made and holds open,
+/// and the one the stand-in step puts a whole worktree
+///  folder into when the leave-out moved nothing.
+/// Why:
+///   Both steps set directories aside for the same commit service in the same work item,
+/// so the move into the trash
+///  and the manifest it answers with are one operation however many steps use it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Trash = { dir: File; name: string; id: ObjectId; parent: File };
+/// ```
+pub(crate) struct Trash {
     /// The trash directory,
     /// held open so every move names an entry of this object.
     dir: File,
@@ -125,6 +146,69 @@ struct Trash {
     /// The directory that holds it,
     /// for removing it again when nothing is moved into it.
     parent: File,
+}
+
+impl Trash {
+    /// What:
+    ///  Move the entry `name` of `from` into this trash as `to`,
+    /// and answer the identity it has there.
+    /// Why:
+    ///   A directory may be exchanged for another between the look at it and its move,
+    /// and only what the move
+    ///  carried may be deleted later,
+    /// so the identity is compared across the rename.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const id = trash.setAside({ from, name: 'topic', to: 'd3', shown: path }); // throws the reason
+    /// ```
+    pub(crate) fn set_aside(&self, from: &File, name: &OsStr, to: &str, shown: &Path) -> Result<ObjectId, String> {
+        let looked: ObjectId = path_failure(identity_at(from, name), shown, "cannot be examined")?;
+        path_failure(rename_at(from, name, &self.dir, OsStr::new(to), false), shown, "cannot be set aside")?;
+        let moved: ObjectId = path_failure(identity_at(&self.dir, OsStr::new(to)), shown, "cannot be examined in the trash")?;
+        if moved != looked {
+            return Err(format!("{} changed while it was set aside ({} instead of {})", shown.display(), moved.encode(), looked.encode()));
+        }
+        return Ok(moved);
+    }
+
+    /// What:
+    ///  Remove the trash directory itself when nothing was moved into it,
+    /// so no empty trash is left in the new worktree.
+    /// Why:
+    ///   The trash is made before the first directory is set aside,
+    /// and a leave-out or a fold that sets aside
+    ///  nothing must not leave a folder behind that no record names.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trash.discard(); // a refusal only leaves an empty directory
+    /// ```
+    pub(crate) fn discard(&self) {
+        if let Err(error) = crate::fs_beneath::remove_at(&self.parent, OsStr::new(self.name.as_str()), true) {
+            debug(TAG, format!("the empty trash {} could not be removed ({error})", self.name).as_str());
+        }
+    }
+
+    /// What:
+    ///  The manifest of this trash with the identities moved into it,
+    /// or nothing and no trash when it holds none.
+    /// Why:
+    ///   One trash is one work item,
+    /// so the identity of the trash directory and of everything in it travel together;
+    ///  a trash that holds nothing would name nothing to delete.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const manifest = trash.finish(entries); // undefined when entries is empty
+    /// ```
+    pub(crate) fn finish(self, entries: Vec<ObjectId>) -> Option<TrashManifest> {
+        if entries.is_empty() {
+            self.discard();
+            return None;
+        }
+        return Some(TrashManifest { name: self.name, trash: self.id, entries });
+    }
 }
 
 /// Where left-out directories go:
@@ -192,13 +276,8 @@ impl Aside {
         };
         match into_trash {
             Some(trash) => {
-                let looked: ObjectId = path_failure(identity_at(&parent, name.as_os_str()), shown.as_path(), "cannot be examined")?;
                 let to: String = entry_name(self.entries.len());
-                path_failure(rename_at(&parent, name.as_os_str(), &trash.dir, OsStr::new(to.as_str()), false), shown.as_path(), "cannot be set aside")?;
-                let moved: ObjectId = path_failure(identity_at(&trash.dir, OsStr::new(to.as_str())), shown.as_path(), "cannot be examined in the trash")?;
-                if moved != looked {
-                    return Err(format!("{} changed while it was set aside ({} instead of {})", shown.display(), moved.encode(), looked.encode()));
-                }
+                let moved: ObjectId = trash.set_aside(&parent, name.as_os_str(), to.as_str(), shown.as_path())?;
                 self.entries.push(moved);
             }
             None => {
@@ -210,10 +289,16 @@ impl Aside {
     }
 }
 
-/// Make the trash directory below the trash parent in the snapshot,
+/// What:
+///  Make the trash directory below the trash parent in the snapshot,
 /// one plain name at a time;
 /// the reason is the error.
-fn make_trash(root: &File) -> Result<Trash, String> {
+/// Why:
+///   The leave-out makes it for what it sets aside,
+/// and the stand-in step makes it when the leave-out set nothing aside
+///  and a worktree folder holds stand-ins to take away.
+///
+pub(crate) fn make_trash(root: &File) -> Result<Trash, String> {
     let names: Vec<OsString> = match plain_components(Path::new(TRASH_PARENT)) {
         Ok(found) => found,
         Err(error) => return Err(format!("the trash parent is not a plain path ({error})")),
@@ -231,6 +316,31 @@ fn make_trash(root: &File) -> Result<Trash, String> {
     let dir: File = subject_failure(open_directory_at(&parent, OsStr::new(name.as_str())), &trash_subject, "cannot be opened")?;
     let id: ObjectId = subject_failure(identity_of(&dir), &trash_subject, "cannot be examined")?;
     return Ok(Trash { dir, name, id, parent });
+}
+
+/// What:
+///  The trash a manifest names,
+/// opened again below the held snapshot,
+/// after checking that the directory is the one
+///  the manifest recorded;
+/// the reason is the error.
+/// Why:
+///   A later step of the same add puts a whole worktree folder in that trash,
+/// and one record names one trash,
+///  so the stand-ins must join the trash the leave-out made rather than make a second one;
+/// only the identity the
+///  manifest carries proves the directory is still the one the leave-out made.
+///
+pub(crate) fn reopen_trash(root: &File, manifest: &TrashManifest) -> Result<Trash, String> {
+    let names: Vec<OsString> = subject_failure(plain_components(Path::new(TRASH_PARENT)), &TRASH_PARENT, "is not a plain path")?;
+    let parent: File = subject_failure(open_directory_beneath(root, names.as_slice()), &TRASH_PARENT, "cannot be opened in the snapshot")?;
+    let shown: String = Path::new(TRASH_PARENT).join(manifest.name.as_str()).display().to_string();
+    let dir: File = subject_failure(open_directory_at(&parent, OsStr::new(manifest.name.as_str())), &shown, "is not a plain directory in the snapshot")?;
+    let found: ObjectId = subject_failure(identity_of(&dir), &shown, "cannot be examined")?;
+    if found != manifest.trash {
+        return Err(format!("{shown} is not the trash the leave-out made ({} instead of {}), so nothing is put in it", found.encode(), manifest.trash.encode()));
+    }
+    return Ok(Trash { dir, name: manifest.name.clone(), id: found, parent });
 }
 
 /// What:
@@ -280,7 +390,7 @@ fn is_slash_byte(byte: &u8) -> bool {
 /// Whether the path is a directory itself,
 /// not a link to one;
 /// a path that cannot be examined is not.
-fn is_directory_itself(path: &Path) -> bool {
+pub(crate) fn is_directory_itself(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata.is_dir(),
         Err(_unreadable) => false,
@@ -373,11 +483,13 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     // A trash an earlier add left is not this add's, and nothing would ever empty it once the snapshot became a worktree: the
     //  disposal is handed only this add's manifest. Its directories go into this add's trash, so the emptying that runs before
     //  this command returns covers them and no snapshot carries a trash folder forward.
+    let mut taken_over: usize = 0;
     for inherited in inherited_trash_entries(stage, &aside)? {
         if tracked.contains(inherited.as_os_str().as_bytes()) {
             continue;
         }
         aside.put(inherited.as_path())?;
+        taken_over += 1;
     }
     for relative in &nested_copies {
         unlink_pointer(stage.join(relative).as_path())?;
@@ -428,18 +540,11 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     }
     let count: usize = aside.count;
     let manifest: Option<TrashManifest> = match aside.trash {
-        Some(made) if count > 0 => Some(TrashManifest { name: made.name, trash: made.id, entries: aside.entries }),
-        Some(empty) => {
-            // Nothing was moved, so the trash made for it goes again; a refusal only leaves an empty directory.
-            if let Err(error) = crate::fs_beneath::remove_at(&empty.parent, OsStr::new(empty.name.as_str()), true) {
-                debug(TAG, format!("the empty trash {} could not be removed ({error})", empty.name).as_str());
-            }
-            None
-        }
+        Some(made) => made.finish(aside.entries),
         None => None,
     };
     debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
-    return Ok(Pruned { count, trash: manifest });
+    return Ok(Pruned { count, trash: manifest, taken_over });
 }
 
 /// Unlink the `.git` file of a copied directory,

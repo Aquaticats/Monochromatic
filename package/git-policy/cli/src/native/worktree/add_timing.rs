@@ -32,7 +32,8 @@
 
 use crate::wrapper_names_old_and_new::WORKTREE_ADD_TIMING_LOG;
 use crate::diagnostic_log::debug;
-use crate::discard_audit::append_line;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::quote;
 use crate::quiet_ledger::{drain, object_json};
@@ -469,7 +470,7 @@ pub fn finish(exit_code: i32) {
     recorder.quiet = drain();
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
-    if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
+    if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
         debug(TAG, &format!("the add timing record could not be written to {}: {error}", target.display()));
     }
 }

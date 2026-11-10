@@ -7,7 +7,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type Outcome = { kind: 'landed', commit: string } | { kind: 'retry-prepare', base: string } | { kind: 'branch-moved' };
+//! type Outcome = { kind: 'landed', commit: string } | { kind: 'held', commit: string, words: string } | { kind: 'retry-prepare', base: string } | { kind: 'branch-moved' };
 //! const ignoreAnnouncements = { announce: (_note: Announce) => {} };
 //! ```
 
@@ -18,6 +18,20 @@ use crate::service_index_lock::{Announce, Announcer};
 pub enum Outcome {
     /// The commit is on the branch.
     Landed { commit: String },
+    /// The commit is written and kept,
+    /// and a reference lock keeps its branch where it is:
+    /// the command exits `0`,
+    /// and the next command that finds the lock gone moves the branch
+    /// (`held_commit_settle.rs`).
+    Held {
+        /// The commit kept on the batch's side reference.
+        commit: String,
+        /// What the command says about it:
+        /// the branch has not moved yet,
+        /// the lock is named,
+        /// and the next command moves the branch.
+        words: String,
+    },
     /// A named path changed on the branch since the request's base.
     RetryPrepare { base: String },
     /// An amend,

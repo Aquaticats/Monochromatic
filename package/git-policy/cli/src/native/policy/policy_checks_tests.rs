@@ -29,6 +29,7 @@ use crate::policy_test_support::{
     ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
 };
 use crate::policy_trigger::Trigger;
+use crate::rule_add_explicit::StagedSelection;
 use crate::rule_linked_worktree::{
     GuardedCommand, dirty_worktree_message, main_worktree_message, outside_worktree_message,
     repository_stash_message,
@@ -390,9 +391,10 @@ fn branch_worktree_rejects_creation_and_guessed_creation() {
 }
 
 /// add-explicit:
-///  decided from arguments alone.
+///  an ordinary name and a bulk flag are decided from the arguments alone,
+/// and a pathspec is judged by what Git says it selects.
 #[test]
-fn add_explicit_never_asks_for_a_fact() {
+fn add_explicit_asks_for_a_selection_only_for_a_pathspec() {
     assert_eq!(
         pre_forward(PolicyId::AddExplicit, &["add", "file"], unlocatable()),
         (clean(), Vec::<String>::new())
@@ -404,6 +406,71 @@ fn add_explicit_never_asks_for_a_fact() {
             if found.len() == 1 && found[0].code == "bulk-add-rejected" && found[0].message.contains("(-A)")
     ));
     assert_eq!(asked, Vec::<String>::new());
+    // The measurement is the one fact a pathspec needs, and it is logged with the caller's spelling.
+    let (measured, measured_asked) = pre_forward(PolicyId::AddExplicit, &["add", "."], sweeping(4));
+    assert!(matches!(
+        measured,
+        PolicyOutcome::Findings(ref found)
+            if found.len() == 1 && found[0].code == "bulk-add-rejected" && found[0].message.contains("(.)")
+    ));
+    assert_eq!(measured_asked, vec![String::from("selection:.")]);
+    let (magic, magic_asked) = pre_forward(PolicyId::AddExplicit, &["add", ":(top)"], sweeping(4));
+    assert!(matches!(
+        magic,
+        PolicyOutcome::Findings(ref found)
+            if found.len() == 1 && found[0].message.contains("It selects all 4 paths of this repository.")
+    ));
+    assert_eq!(magic_asked, vec![String::from("selection::(top)")]);
+    // A selection that leaves a path out is no bulk staging.
+    assert_eq!(
+        pre_forward(PolicyId::AddExplicit, &["add", "."], selecting(3, 4)),
+        (clean(), vec![String::from("selection:.")])
+    );
+}
+
+/// Facts whose pathspec measurement found every path of a repository holding `count` paths.
+fn sweeping(count: usize) -> ScriptedFacts {
+    return selecting(count, count);
+}
+
+/// Facts whose pathspec measurement found `selected` of a repository holding `count` paths.
+fn selecting(selected: usize, count: usize) -> ScriptedFacts {
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.selection = Ok(StagedSelection {
+        selected,
+        repository: count,
+        directory: count,
+    });
+    return facts;
+}
+
+/// A measurement that cannot be made lets the add through and says so once,
+///  because a guard may never stop a command it could not judge.
+#[test]
+fn a_failed_selection_measurement_lets_the_add_through_with_one_notice() {
+    let mut failing: ScriptedFacts = scripted_facts();
+    failing.selection = Err(String::from("the listing did not answer"));
+    let mut shipped: ShippedChecks<ScriptedFacts> = checks(&["add", "."], failing);
+    assert_eq!(
+        shipped.check(PolicyId::AddExplicit, Trigger::PreForward),
+        clean()
+    );
+    assert_eq!(
+        shipped.notices,
+        vec![String::from(
+            "monochromatic-git-policy-cli: could not check whether this git add stages the whole repository, \
+             so the command runs unchanged: the listing did not answer\n"
+        )]
+    );
+    // A bulk flag needs no measurement, so it is still refused and no line is said.
+    let mut flag_facts: ScriptedFacts = scripted_facts();
+    flag_facts.selection = Err(String::from("the listing did not answer"));
+    let mut flag_checks: ShippedChecks<ScriptedFacts> = checks(&["add", "-A"], flag_facts);
+    assert!(matches!(
+        flag_checks.check(PolicyId::AddExplicit, Trigger::PreForward),
+        PolicyOutcome::Findings(found) if found.len() == 1
+    ));
+    assert!(flag_checks.notices.is_empty());
 }
 
 /// The candidates of `git add file`.
