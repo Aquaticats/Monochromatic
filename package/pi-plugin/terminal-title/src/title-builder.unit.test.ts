@@ -11,7 +11,7 @@ import {
   TITLE_PREFIX,
   titleForEvent,
   titleForTool,
-} from './title-builder.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: titleForTool.name,
