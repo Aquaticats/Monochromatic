@@ -181,6 +181,34 @@ await describe({
             expect(commands.some((command,) => command.args.includes('sign',),),).toBe(false,);
           },
         },),
+        it({
+          name: 'stops before pushing when the tag fails',
+          fn: async () => {
+            const { commands, runner, } = recordCommands({
+              failOn: (command,) => command.args.includes('tag',),
+            },);
+            const error = await rejectionOf(pushAndSignImage({
+              keyPath: FIXTURE_KEY_PATH,
+              runner,
+            },),);
+            expect(error.message,).toBe('sudo refused by the recording runner',);
+            expect(commands,).toHaveLength(1,);
+          },
+        },),
+        it({
+          name: 'lets a failed signature keep its error',
+          fn: async () => {
+            const { commands, runner, } = recordCommands({
+              failOn: (command,) => command.args.includes('sign',),
+            },);
+            const error = await rejectionOf(pushAndSignImage({
+              keyPath: FIXTURE_KEY_PATH,
+              runner,
+            },),);
+            expect(error.message,).toBe('sudo refused by the recording runner',);
+            expect(commands,).toHaveLength(3,);
+          },
+        },),
       ],
     },),
   ],

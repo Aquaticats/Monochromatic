@@ -175,6 +175,20 @@ await describe({
             expect(commands,).toHaveLength(1,);
           },
         },),
+        it({
+          name: 'lets a failed ownership change keep its error',
+          fn: async () => {
+            const { commands, runner, } = recordCommands({
+              failOn: (command,) => command.args.includes('chown',),
+            },);
+            const error = await rejectionOf(copyDiskImageIntoLibvirt({
+              ...FIXTURE_DISK,
+              runner,
+            },),);
+            expect(error.message,).toBe('sudo refused by the recording runner',);
+            expect(commands,).toHaveLength(2,);
+          },
+        },),
       ],
     },),
     describe({
@@ -306,6 +320,25 @@ await describe({
             expect(commands,).toHaveLength(1,);
             expect(warn.calledOnce,).toBe(true,);
             expect(String(warn.firstCall.args[0],),).toContain('skipping filesystem override',);
+          },
+        },),
+        it({
+          name: 'lets a failed override keep its error instead of reporting a grant it did not make',
+          fn: async (context,) => {
+            const warn = context.sinon.spy(
+              console,
+              'warn',
+            );
+            const { commands, runner, } = recordCommands({
+              failOn: (command,) => command.args.includes('override',),
+            },);
+            const error = await rejectionOf(grantFlatpakAccess({
+              outputDirectory: '/repo/package/vm-builder/cli/output',
+              runner,
+            },),);
+            expect(error.message,).toBe('flatpak refused by the recording runner',);
+            expect(commands,).toHaveLength(2,);
+            expect(warn.called,).toBe(false,);
           },
         },),
       ],

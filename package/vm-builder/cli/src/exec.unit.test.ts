@@ -254,6 +254,19 @@ await describe({
           },
         },),
         it({
+          name: 'rejects when the executable does not exist',
+          fn: async () => {
+            const error = await rejectionOf(execStreaming({
+              cmd: 'vm-builder-no-such-streaming-executable',
+              args: ['--flag',],
+            },),) as SubprocessFields;
+            expect(error.name,).toBe('SubprocessError',);
+            expect(error.message,).toBe('Command failed: vm-builder-no-such-streaming-executable --flag',);
+            expect(error.exitCode,).toBeUndefined();
+            expect(error.cause?.code,).toBe('ENOENT',);
+          },
+        },),
+        it({
           name: 'terminates a command that outlives timeoutMs',
           fn: async () => {
             const timeoutMs = 100;
@@ -266,9 +279,15 @@ await describe({
               args: ['30',],
               timeoutMs,
             },),) as SubprocessFields;
+            /**
+             Time the case waited for the kill.
+             */
+            const elapsedMs = performance.now() - startedAt;
             expect(error.name,).toBe('SubprocessError',);
+            expect(error.message,).toBe('Command was terminated with SIGTERM: sleep 30',);
             expect(error.signalName,).toBe('SIGTERM',);
-            expect(performance.now() - startedAt,).toBeLessThan(10_000,);
+            expect(error.exitCode,).toBeUndefined();
+            expect(elapsedMs,).toBeLessThan(10_000,);
           },
           timeout: 20_000,
         },),
