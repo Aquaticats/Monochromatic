@@ -254,6 +254,14 @@ export function readFromUnixSocket(
       let settled = false;
 
       /**
+       Handles the read owns, held in a mutable record so a settled read can
+       disarm its timeout: a scheduled timer keeps the event loop alive.
+       */
+      const handles: {
+        readTimeout?: ReturnType<typeof setTimeout>;
+      } = {};
+
+      /**
        Settle the promise with either an error or a result.
        
        @param settlement - Error or result selected by one socket lifecycle event.
@@ -274,6 +282,12 @@ export function readFromUnixSocket(
         if (settled)
           return;
         settled = true;
+
+        if (handles.readTimeout
+          !== undefined) {
+          clearTimeout(handles.readTimeout,);
+          delete handles.readTimeout;
+        }
 
         if (error !== undefined)
           reject(error,);
@@ -338,8 +352,8 @@ export function readFromUnixSocket(
         },
       );
 
-      // Read timeout
-      setTimeout(
+      // Read timeout, disarmed by finish() once the read settles
+      handles.readTimeout = setTimeout(
         function onTimeout(): void {
           socket.destroy();
           finish({
