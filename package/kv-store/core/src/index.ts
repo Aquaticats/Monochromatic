@@ -65,6 +65,8 @@ export { createStore, } from './create-store.ts';
 
 export { createSyncStore, } from './create-sync-store.ts';
 
+export { EmptyKeyError, } from './errors.ts';
+
 //region Built-artifact test surface
 
 /**
