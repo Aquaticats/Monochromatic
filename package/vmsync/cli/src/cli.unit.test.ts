@@ -1,4 +1,12 @@
 import {
+  mkdir,
+  mkdtemp,
+  writeFile,
+} from 'node:fs/promises';
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
@@ -16,9 +24,123 @@ const REPO_ROOT = await findRootCached({ marker: MISE_MONOREPO, },);
 const BIN_PATH = 'package/vmsync/cli/dist/final/node/cli.mjs';
 
 /**
+ Scratch root every fixture lives under, so no fixture outlives a reboot.
+ */
+const SCRATCH_ROOT = join(
+  homedir(),
+  'temp',
+  'agent',
+);
+
+/**
+ Config fixture carrying every form the README documents: line comments, a block
+ comment, and a trailing comma after the last member of an object.
+ */
+const COMMENTED_CONFIG = `{
+  // VM identity, copied from the image at import time
+  "name": "alpine",
+  "importedFrom": "/home/user/images/alpine.qcow2",
+  "importedAt": "2026-03-27T12:00:00.000Z",
+
+  /* disk geometry */
+  "diskSizeBytes": 2147483648,
+
+  "boot": {
+    "memory": "4G",
+    "cpus": 4,
+  },
+
+  "state": {
+    "synced": true,
+    "checksums": {
+      "qcow2": "sha256:abc",
+      "vhdx": "sha256:def",
+    },
+  },
+}`;
+
+/**
+ Config fixture a JSONC parser must still refuse: two members with no comma
+ between them.
+ */
+const MALFORMED_CONFIG = `{
+  "name": "alpine"
+  "importedAt": "2026-03-27T12:00:00.000Z"
+}`;
+
+/**
+ Creates a disposable home directory, so a config read touches no real VM state.
+ 
+ @returns Absolute path to a fresh directory holding no vmsync data
+ 
+ @example
+ ```ts
+ const home = await createScratchHome();
+ ```
+ */
+async function createScratchHome(): Promise<string> {
+  await mkdir(
+    SCRATCH_ROOT,
+    {
+      recursive: true,
+      mode: 0o700,
+    },
+  );
+  return mkdtemp(join(
+    SCRATCH_ROOT,
+    'vmsync-cli-home-',
+  ),);
+}
+
+/**
+ Writes one VM's `vmsync.jsonc` byte for byte into a disposable home, creating
+ the directory layout vmsync reads.
+ 
+ @param home - Disposable home the config belongs to
+ 
+ @param vmName - VM directory name under the vmsync data directory
+ 
+ @param source - File contents written verbatim, comments included
+ */
+async function writeVmConfig(
+  {
+    home,
+    vmName,
+    source,
+  }: {
+    readonly home: string;
+    readonly vmName: string;
+    readonly source: string;
+  },
+): Promise<void> {
+  const dir = join(
+    home,
+    '.local',
+    'share',
+    'vmsync',
+    vmName,
+  );
+  await mkdir(
+    dir,
+    { recursive: true, },
+  );
+  await writeFile(
+    join(
+      dir,
+      'vmsync.jsonc',
+    ),
+    source,
+    'utf8',
+  );
+}
+
+/**
  Runs the built vmsync bin as a subprocess and returns stdout, stderr, and exit code.
  
  @param args - CLI arguments to pass after `vmsync`
+ 
+ @param env - Environment variables to set for the run, merged onto the current ones
+ 
  @returns Stdout text, stderr text, and numeric exit code
  
  @example
@@ -27,13 +149,24 @@ const BIN_PATH = 'package/vmsync/cli/dist/final/node/cli.mjs';
  // result.exitCode === 0
  ```
  */
-async function runVmsync({ args, }: { args: readonly string[]; },): Promise<{
+async function runVmsync(
+  {
+    args,
+    env,
+  }: {
+    args: readonly string[];
+    readonly env?: Readonly<Partial<Record<string, string>>>;
+  },
+): Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
 }> {
   try {
-    const result = await spawn('node', [BIN_PATH, ...args,], { cwd: REPO_ROOT, },);
+    const result = await spawn('node', [BIN_PATH, ...args,], {
+      cwd: REPO_ROOT,
+      env,
+    },);
     return {
       exitCode: 0,
       stderr: result.stderr,
@@ -68,5 +201,49 @@ await describe({
     },),
 
     //endregion Help
+
+    //region Config read: the README's JSONC forms reach the parser vmsync owns
+
+    it({
+      name: 'reads a config holding comments and a trailing comma',
+      fn: async () => {
+        const home = await createScratchHome();
+        await writeVmConfig({
+          home,
+          vmName: 'alpine',
+          source: COMMENTED_CONFIG,
+        },);
+        const result = await runVmsync({
+          args: ['status', 'alpine',],
+          env: { HOME: home, },
+        },);
+        expect(result.stderr,).toBe('',);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.stdout,).toContain('name:       alpine',);
+        expect(result.stdout,).toContain('memory:     4G',);
+        expect(result.stdout,).toContain('synced:     true',);
+      },
+    },),
+
+    it({
+      name: 'refuses a config whose members have no comma between them',
+      fn: async () => {
+        const home = await createScratchHome();
+        await writeVmConfig({
+          home,
+          vmName: 'alpine',
+          source: MALFORMED_CONFIG,
+        },);
+        const result = await runVmsync({
+          args: ['status', 'alpine',],
+          env: { HOME: home, },
+        },);
+        expect(result.exitCode,).toBe(1,);
+        expect(result.stderr,).toContain('JsoncParseError',);
+        expect(result.stderr,).toContain('at offset',);
+      },
+    },),
+
+    //endregion Config read
   ],
 },);
