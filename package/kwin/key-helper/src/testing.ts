@@ -75,6 +75,22 @@ export {
 } from './nvim.ts';
 
 /**
+ evdev device discovery, the per-device monitor, and the rescanning watcher.
+
+ @internal
+ */
+export {
+  findShiftDevices,
+  startEvdevMonitor,
+  watchShiftDevices,
+  type Device,
+  type DeviceHandle,
+  type DeviceMonitor,
+  type DeviceMonitorStarter,
+  type DeviceOpener,
+} from './evdev.ts';
+
+/**
  The pure double-shift detector and sysfs bitmap parser.
 
  @internal
