@@ -460,7 +460,7 @@ shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout}}"
 
 [task_templates."test:unit"]
-description = "Run active-tree *.unit.test.ts in parallel via node (excludes *.expensive.* unless --all); pass file paths to filter"
+description = "Run active-tree *.unit.test.ts in parallel via node (excludes *.expensive.* unless --all); pass file paths to filter; fails when the package holds no unit test file, apart from [vars] unit_test_exempt_packages"
 usage = """
 flag "--all" help="Include active-tree *.expensive.* files; cannot be combined with file paths"
 arg "[args]" var=#true help="Test file paths to run (when provided, only those files run); cannot be combined with --all"
