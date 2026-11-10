@@ -123,33 +123,15 @@ pub fn run(options: Options) -> anyhow::Result<()> {
     // if (path !== undefined) { source = readFile(path); }
     // ```
     let (source, label) = if let Some(path) = &file_path {
-        // What: ? returns an I/O failure to main, preserving its diagnostic.
-        // Why: A failed open must not silently substitute the fixture.
+        // What: the startup read calls the same owner as every reload, so one wording covers both.
+        // Why: A failed open must not silently substitute the fixture,
+        //      and the same file must not be described two ways.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // source = await readFile(path, 'utf8');
+        // const [text] = readSourceRegular(path);
         // ```
-        let metadata = match std::fs::metadata(path) {
-            Ok(found) => found,
-            Err(error) => {
-                return Err(anyhow::Error::new(error)
-                    .context(format!("Cannot inspect source file {}", path.display())));
-            }
-        };
-        if !metadata.is_file() {
-            bail!(
-                "Cannot open source {}: it is not a regular file",
-                path.display()
-            );
-        }
-        let text = match std::fs::read_to_string(path) {
-            Ok(read) => read,
-            Err(error) => {
-                return Err(anyhow::Error::new(error)
-                    .context(format!("Cannot read UTF-8 source file {}", path.display())));
-            }
-        };
+        let (text, _handle) = ide_app::file_reload::read_source_regular(path)?;
         (text, path.display().to_string())
     } else {
         (String::new(), String::new())

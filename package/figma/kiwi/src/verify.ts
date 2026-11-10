@@ -7,6 +7,9 @@
  ```
  */
 
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
+
 import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
@@ -16,8 +19,21 @@ import {
 
 /**
  Reference directory holding hand-curated Figma exports used as integration fixtures.
+ 
+ The files are not checked into the repository, so this script only verifies on a
+ machine that keeps them under the home directory. `homedir()` keeps the path
+ independent of the `/home` vs `/var/home` mount, and the sibling integration
+ tests in `package/figma/to-penpot/src/index.unit.test.ts` read this same
+ directory.
  */
-const SOURCE_DIR = '/home/user/Nextcloud/Text/Reference/Figma export';
+const FIGMA_EXPORT_DIR = join(
+  homedir(),
+  'Seafile',
+  'Plain',
+  'Text',
+  'Reference',
+  'Figma export',
+);
 
 /**
  Number of sample nodes printed from each decoded document.
@@ -104,7 +120,10 @@ async function verifyOne(
   /**
    Absolute fixture path.
    */
-  const path = `${SOURCE_DIR}/${test.name}`;
+  const path = join(
+    FIGMA_EXPORT_DIR,
+    test.name,
+  );
   console.log(`\n=== Testing: ${test.name} ===`,);
 
   try {

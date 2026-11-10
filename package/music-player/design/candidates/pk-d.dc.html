@@ -91,12 +91,12 @@ class Component extends DCLogic {
       scale: s.scale, boxW: Math.round(418 * s.scale) + "px", boxH: Math.round(883 * s.scale) + "px",
       rail,
       heading: activeSub ? active.label + activeSub.label.slice(1).toLowerCase() : active ? active.label : "",
-      fitNote: shown.length + " / " + CAP + " — fits one screen",
+      fitNote: shown.length + " / " + CAP + ", fits one screen",
       shown: shown.map((n) => {
         const sel = n === s.selected;
         return { name: n, bg: sel ? "#4A4458" : "#0A0A0D", fg: sel ? "#E8DEF8" : "#E6E0E9", weight: sel ? 500 : 400, pick: () => this.setState({ selected: n }) };
       }),
-      caption: "PK-D — the answer to the scroll-length constraint: the NAMES AREA NEVER SCROLLS. The rail is generated from the library, not fixed: a cell holding more than " + CAP + " names expands in place (tap C, or か) into prefix ranges — an accordion inside the one-column rail, not a row of tabs. Only scripts present in the library get a section (this one has Latin, Japanese, Cyrillic, Greek, Hangul — separated by a hairline; a Latin-only library shows none of them). " + (s.total ? s.total.toLocaleString("en-US") : "…") + " folders, no list anywhere."
+      caption: "PK-D: the answer to the scroll-length constraint: the NAMES AREA NEVER SCROLLS. The rail is generated from the library, not fixed: a cell holding more than " + CAP + " names expands in place (tap C, or か) into prefix ranges, an accordion inside the one-column rail, not a row of tabs. Only scripts present in the library get a section (this one has Latin, Japanese, Cyrillic, Greek, Hangul, separated by a hairline; a Latin-only library shows none of them). " + (s.total ? s.total.toLocaleString("en-US") : "…") + " folders, no list anywhere."
     };
   }
 }
