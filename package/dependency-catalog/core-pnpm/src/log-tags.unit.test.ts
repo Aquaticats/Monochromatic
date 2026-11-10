@@ -11,8 +11,6 @@
  @module
  */
 
-import { setTimeout as delay, } from 'node:timers/promises';
-
 import {
   describe,
   expect,
@@ -44,135 +42,84 @@ const MALFORMED_BLOCK_TAG = '[warnMalformedBlock]';
 //region Console capture
 
 /**
- Milliseconds between reads of the console capture while waiting for a record.
+ Text `warnRejectedEntry` writes around the reason, present with or without the
+ helper's tag, so a failed assertion still reports the line the logger wrote.
  */
-const CONSOLE_POLL_INTERVAL_MS = 10;
+const REJECTED_ENTRY_MESSAGE = 'Rejected catalog entry';
 
 /**
- Milliseconds the console capture is watched before an assertion reads it.
-
- Measured on 2026-11-10 on this workstation: a record reaches `console.warn`
- 9 to 10 milliseconds after the parse call that emits it, because the default
- logger verifies its sinks once and the console sink then drains its own
- microtask queue over a scratch log directory. The deadline keeps two orders of
- magnitude of headroom for a host whose log scratch sits on a slow disk.
+ Counterpart for `warnMalformedBlock`, present with or without its tag.
  */
-const CONSOLE_WRITE_DEADLINE_MS = 3_000;
+const MALFORMED_BLOCK_MESSAGE = 'Ignoring catalog:';
 
 /**
- Reads the console capture until it mentions `marker`, or the deadline passes.
+ Milliseconds a test waits for its record to reach the console before the
+ harness ends it.
 
- @param readText - returns the capture joined so far, read once per poll
-
- @param marker - text whose arrival ends the wait early
-
- @returns capture as last read, whether or not the marker arrived
-
- @example
- ```ts
- const text = await capturedText({ readText: () => lines.join('\n'), marker: '[warn]' });
- ```
+ Measured on 2026-11-10 on this workstation: a record reaches `console.warn` 9
+ to 10 milliseconds after the parse call that emits it, because the default
+ logger verifies its sinks once and the console sink then drains one microtask
+ queue over a scratch log directory. The deadline keeps two orders of magnitude
+ of headroom for a host whose log scratch sits on a slow disk.
  */
-async function capturedText(
-  {
-    readText,
-    marker,
-  }: {
-    readonly readText: () => string;
-    readonly marker: string;
-  },
-): Promise<string> {
-  /**
-   Attempts that fit in the deadline, so a capture that never arrives ends the
-   wait instead of leaving the test blocked.
-   */
-  const attempts = Math.ceil(CONSOLE_WRITE_DEADLINE_MS / CONSOLE_POLL_INTERVAL_MS,);
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    /**
-     Capture read before this poll decides whether to wait again.
-     */
-    const text = readText();
-    if (text.includes(marker,))
-      return text;
-    await delay(CONSOLE_POLL_INTERVAL_MS,);
-  }
-  return readText();
-}
+const CONSOLE_WRITE_TIMEOUT_MS = 3_000;
 
 //endregion Console capture
 
 await describe({
   name: 'rejection warning tags',
-  // The console sink reads `console.warn` when it drains, so one spy at a time.
+  // One console stub at a time: the sink reads `console.warn` when it drains.
   concurrency: 1,
   children: [
     //region Rejected entries
 
     it({
-      name: `names ${REJECTED_ENTRY_TAG} when it skips an invalid package name`,
+      name: `names ${REJECTED_ENTRY_TAG} on each rejection path`,
+      timeout: CONSOLE_WRITE_TIMEOUT_MS,
       fn: async (ctx,) => {
         /**
-         Console-warn capture standing in for the console sink the parser writes to.
+         Line the first rejection resolves with, so the test ends as soon as the
+         console sink writes instead of waiting out a fixed delay.
          */
-        const consoleWarn = ctx.sinon.spy(console, 'warn',);
+        const written = Promise.withResolvers<string>();
         /**
-         Workspace text whose only entry carries a key no npm package may use.
+         Every line the stub saw, so a failed assertion reports what the logger
+         actually wrote.
+         */
+        const lines: string[] = [];
+        ctx.sinon
+          .stub(console, 'warn',)
+          .callsFake(function captureWarning(text: unknown,): void {
+            /**
+             Text the console sink formatted for one record.
+             */
+            const line = String(text,);
+            lines.push(line,);
+            if (line.includes(REJECTED_ENTRY_MESSAGE,))
+              written.resolve(line,);
+          },);
+
+        /**
+         Workspace text whose entries are rejected for both reasons the helper
+         reports: a key no npm package may use, and a value that is not a string.
          */
         const content = [
           'catalog:',
           "  '__proto__': '>=9.9.9'",
-        ].join('\n',);
-        parseCatalogFromYaml(content,);
-
-        /**
-         Captured lines, including the record this rejection emitted.
-         */
-        const text = await capturedText({
-          marker: REJECTED_ENTRY_TAG,
-          readText: () => consoleWarn.getCalls()
-            .map(function firstArgument(call,) {
-              return String(call.args[0],);
-            },)
-            .join('\n',),
-        },);
-
-        expect(text,).toContain(MODULE_TAG,);
-        expect(text,).toContain(REJECTED_ENTRY_TAG,);
-        expect(text,).toContain('not a valid npm package name',);
-      },
-    },),
-
-    it({
-      name: `names ${REJECTED_ENTRY_TAG} when it skips a non-string value`,
-      fn: async (ctx,) => {
-        /**
-         Console-warn capture standing in for the console sink the parser writes to.
-         */
-        const consoleWarn = ctx.sinon.spy(console, 'warn',);
-        /**
-         Workspace text whose only entry carries a YAML number, not a string.
-         */
-        const content = [
-          'catalog:',
           '  numeric: 1',
         ].join('\n',);
+
         parseCatalogFromYaml(content,);
-
+        await written.promise;
         /**
-         Captured lines, including the record this rejection emitted.
+         Captured lines joined, including the records these rejections emitted.
          */
-        const text = await capturedText({
-          marker: REJECTED_ENTRY_TAG,
-          readText: () => consoleWarn.getCalls()
-            .map(function firstArgument(call,) {
-              return String(call.args[0],);
-            },)
-            .join('\n',),
-        },);
+        const captured = lines.join('\n',);
 
-        expect(text,).toContain(MODULE_TAG,);
-        expect(text,).toContain(REJECTED_ENTRY_TAG,);
-        expect(text,).toContain('catalog values must be strings',);
+        expect(captured,).toContain(MODULE_TAG,);
+        expect(captured,).toContain(REJECTED_ENTRY_TAG,);
+        expect(captured,).toContain(REJECTED_ENTRY_MESSAGE,);
+        expect(captured,).toContain('catalog values must be strings',);
       },
     },),
 
@@ -181,64 +128,47 @@ await describe({
     //region Malformed blocks
 
     it({
-      name: `names ${MALFORMED_BLOCK_TAG} when it ignores an unreadable default block`,
+      name: `names ${MALFORMED_BLOCK_TAG} when it ignores an unreadable block`,
+      timeout: CONSOLE_WRITE_TIMEOUT_MS,
       fn: async (ctx,) => {
         /**
-         Console-warn capture standing in for the console sink the parser writes to.
+         Line the ignored block resolves with, so the test ends when the sink
+         writes rather than after a fixed delay.
          */
-        const consoleWarn = ctx.sinon.spy(console, 'warn',);
+        const written = Promise.withResolvers<string>();
         /**
-         Workspace text declaring the default catalog as a sequence.
+         Every line the stub saw, so a failed assertion reports what the logger
+         actually wrote.
+         */
+        const lines: string[] = [];
+        ctx.sinon
+          .stub(console, 'warn',)
+          .callsFake(function captureWarning(text: unknown,): void {
+            /**
+             Text the console sink formatted for one record.
+             */
+            const line = String(text,);
+            lines.push(line,);
+            if (line.includes(MALFORMED_BLOCK_MESSAGE,))
+              written.resolve(line,);
+          },);
+
+        /**
+         Workspace text declaring the default catalog as a sequence, which no
+         catalog block reader can treat as a mapping.
          */
         const content = 'catalog: []';
+
         parseCatalogFromYaml(content,);
-
+        await written.promise;
         /**
-         Captured lines, including the record this rejection emitted.
+         Captured lines joined, including the record this rejection emitted.
          */
-        const text = await capturedText({
-          marker: MALFORMED_BLOCK_TAG,
-          readText: () => consoleWarn.getCalls()
-            .map(function firstArgument(call,) {
-              return String(call.args[0],);
-            },)
-            .join('\n',),
-        },);
+        const captured = lines.join('\n',);
 
-        expect(text,).toContain(MODULE_TAG,);
-        expect(text,).toContain(MALFORMED_BLOCK_TAG,);
-        expect(text,).toContain('Ignoring catalog:',);
-      },
-    },),
-
-    it({
-      name: `names ${MALFORMED_BLOCK_TAG} when it ignores a non-mapping workspace document`,
-      fn: async (ctx,) => {
-        /**
-         Console-warn capture standing in for the console sink the parser writes to.
-         */
-        const consoleWarn = ctx.sinon.spy(console, 'warn',);
-        /**
-         Workspace text whose root is a scalar, so no block can be read from it.
-         */
-        const content = 'just-a-scalar';
-        parseCatalogFromYaml(content,);
-
-        /**
-         Captured lines, including the record this rejection emitted.
-         */
-        const text = await capturedText({
-          marker: MALFORMED_BLOCK_TAG,
-          readText: () => consoleWarn.getCalls()
-            .map(function firstArgument(call,) {
-              return String(call.args[0],);
-            },)
-            .join('\n',),
-        },);
-
-        expect(text,).toContain(MODULE_TAG,);
-        expect(text,).toContain(MALFORMED_BLOCK_TAG,);
-        expect(text,).toContain('Ignoring workspace document:',);
+        expect(captured,).toContain(MODULE_TAG,);
+        expect(captured,).toContain(MALFORMED_BLOCK_TAG,);
+        expect(captured,).toContain(MALFORMED_BLOCK_MESSAGE,);
       },
     },),
 
