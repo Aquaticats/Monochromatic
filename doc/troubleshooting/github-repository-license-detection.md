@@ -212,35 +212,35 @@ for content-specific terms.
 
 `.out-of-scope/` contains no GitHub license-detection or Licensee exemption.
 
-1. **Is it really upstream's fault?**
-    No.
-   GitHub documents a simple root `LICENSE` file as the reliable detection surface,
-    while this repository removed that
-   surface.
-   Open-source Licensee has already added `LICENSES/` support.
-2. **Can upstream fix it?**
-    Yes in principle.
-   GitHub can deploy a Licensee version or integration that scans `LICENSES/`,
-    but a multi-scope repository still needs
-   a presentation policy.
-3. **Are they supporting this use case?**
-    Partly.
-   Licensee v10.1.0 supports `LICENSES/`;
-    GitHub's documentation supports a root license plus a README explanation for
-   complexity.
-4. **Would the repository welcome our contribution?**
-    Licensee accepted pull request #926 for this feature.
-   `README.md`,
-    `.github/ISSUE_TEMPLATE/bug_report.md`,
-    and repository policy searches showed no AI-assistance ban;
-   the merged pull request itself received Copilot review.
-5. **Will they likely fix it?**
-    The Licensee-side feature is already fixed and released.
-   No public evidence establishes GitHub.com's deployment schedule.
-6. **Have we prototyped a minimal upstream fix?**
-    Not applicable because constraint 1 fails and upstream already merged
-   the relevant implementation.
-   The consumer-side root-file workaround was instead verified against GitHub.com's API.
+1.  **Is it really upstream's fault?**
+     No.
+    GitHub documents a simple root `LICENSE` file as the reliable detection surface,
+     while this repository removed that
+    surface.
+    Open-source Licensee has already added `LICENSES/` support.
+2.  **Can upstream fix it?**
+     Yes in principle.
+    GitHub can deploy a Licensee version or integration that scans `LICENSES/`,
+     but a multi-scope repository still needs
+    a presentation policy.
+3.  **Are they supporting this use case?**
+     Partly.
+    Licensee v10.1.0 supports `LICENSES/`;
+     GitHub's documentation supports a root license plus a README explanation for
+    complexity.
+4.  **Would the repository welcome our contribution?**
+     Licensee accepted pull request #926 for this feature.
+    `README.md`,
+     `.github/ISSUE_TEMPLATE/bug_report.md`,
+     and repository policy searches showed no AI-assistance ban;
+    the merged pull request itself received Copilot review.
+5.  **Will they likely fix it?**
+     The Licensee-side feature is already fixed and released.
+    No public evidence establishes GitHub.com's deployment schedule.
+6.  **Have we prototyped a minimal upstream fix?**
+     Not applicable because constraint 1 fails and upstream already merged
+    the relevant implementation.
+    The consumer-side root-file workaround was instead verified against GitHub.com's API.
 
 Duplicate searches found Licensee issue #737 and merged pull request #926 for `LICENSES/` scanning,
  plus issue #57 for

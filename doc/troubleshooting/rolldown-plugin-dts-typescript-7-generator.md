@@ -50,97 +50,97 @@ including source from other workspace packages.
 Source was read from `sxzz/rolldown-plugin-dts` tag `v0.27.2`,
 commit `dd7e8fc6a88aba4107dd20975682233df5e5d3a5`.
 
-1. `src/tsgo.ts:21` classifies every installed TypeScript major version of 7 or newer as tsgo:
+1.  `src/tsgo.ts:21` classifies every installed TypeScript major version of 7 or newer as tsgo:
 
-   ```typescript
-   export function isTsgo(): boolean {
-     const major = getTypeScriptMajor()
-     return major != null && major >= 7
-   }
-   ```
+    ```typescript
+    export function isTsgo(): boolean {
+      const major = getTypeScriptMajor()
+      return major != null && major >= 7
+    }
+    ```
 
-2. `src/options.ts:285` resolves the tsgo option before loading the package tsconfig.
-   Because the caller has not supplied an explicit `oxc` option,
-   TypeScript 7 makes `tsgo` truthy:
+2.  `src/options.ts:285` resolves the tsgo option before loading the package tsconfig.
+    Because the caller has not supplied an explicit `oxc` option,
+    TypeScript 7 makes `tsgo` truthy:
 
-   ```typescript
-   // Resolve tsgo option
-   if (tsgo == null) {
-     tsgo = isTsgo() && !vue && !tsMacro && !oxc
-   }
-   if (tsgo === true) {
-     tsgo = {}
-   } else if (typeof tsgo === 'object' && tsgo.enabled === false) {
-     tsgo = false
-   }
-   ```
+    ```typescript
+    // Resolve tsgo option
+    if (tsgo == null) {
+      tsgo = isTsgo() && !vue && !tsMacro && !oxc
+    }
+    if (tsgo === true) {
+      tsgo = {}
+    } else if (typeof tsgo === 'object' && tsgo.enabled === false) {
+      tsgo = false
+    }
+    ```
 
-3. The plugin reads the tsconfig only after choosing tsgo.
-   `src/options.ts:329` would normally select Oxc when the resolved compiler options enable
-   `isolatedDeclarations`,
-   but its guard requires tsgo to be false:
+3.  The plugin reads the tsconfig only after choosing tsgo.
+    `src/options.ts:329` would normally select Oxc when the resolved compiler options enable
+    `isolatedDeclarations`,
+    but its guard requires tsgo to be false:
 
-   ```typescript
-   oxc ??= !!(compilerOptions?.isolatedDeclarations && !vue && !tsgo && !tsMacro)
-   ```
+    ```typescript
+    oxc ??= !!(compilerOptions?.isolatedDeclarations && !vue && !tsgo && !tsMacro)
+    ```
 
-   The shared TypeScript configuration sets `isolatedDeclarations: true`.
-   Under 0.27.1,
-   that setting selected Oxc and generated each declaration from the module code handed to the plugin.
-   Under 0.27.2,
-   the earlier TypeScript 7 check makes the Oxc fallback unreachable.
+    The shared TypeScript configuration sets `isolatedDeclarations: true`.
+    Under 0.27.1,
+    that setting selected Oxc and generated each declaration from the module code handed to the plugin.
+    Under 0.27.2,
+    the earlier TypeScript 7 check makes the Oxc fallback unreachable.
 
-4. `src/generate.ts:109` derives one declaration root from the selected tsconfig.
-   `src/generate.ts:114` then launches a complete tsgo project emission before Rolldown has traversed its module graph:
+4.  `src/generate.ts:109` derives one declaration root from the selected tsconfig.
+    `src/generate.ts:114` then launches a complete tsgo project emission before Rolldown has traversed its module graph:
 
-   ```typescript
-   const rootDir = tsconfig ? path.dirname(tsconfig) : cwd
+    ```typescript
+    const rootDir = tsconfig ? path.dirname(tsconfig) : cwd
 
-   return {
-     name: 'rolldown-plugin-dts:generate',
+    return {
+      name: 'rolldown-plugin-dts:generate',
 
-     async buildStart(options) {
-       if (tsgo) {
-         tsgoContext = await runTsgo(rootDir, tsconfig, sourcemap, tsgo.path)
-       }
-   ```
+      async buildStart(options) {
+        if (tsgo) {
+          tsgoContext = await runTsgo(rootDir, tsconfig, sourcemap, tsgo.path)
+        }
+    ```
 
-5. Rolldown's JavaScript traversal is broader than that tsconfig project.
-   `src/generate.ts:185` registers every traversed TypeScript module outside `node_modules` in `dtsMap`:
+5.  Rolldown's JavaScript traversal is broader than that tsconfig project.
+    `src/generate.ts:185` registers every traversed TypeScript module outside `node_modules` in `dtsMap`:
 
-   ```typescript
-   if (!jsFile || emitJs) {
-     const mod = this.getModuleInfo(id)
-     const isEntry = entryMatcher
-       ? entryMatcher(path.relative(cwd, id))
-       : !!mod?.isEntry
-     const dtsId = filename_to_dts(id)
-     dtsMap.set(dtsId, { code, id, isEntry, jsFile })
-   ```
+    ```typescript
+    if (!jsFile || emitJs) {
+      const mod = this.getModuleInfo(id)
+      const isEntry = entryMatcher
+        ? entryMatcher(path.relative(cwd, id))
+        : !!mod?.isEntry
+      const dtsId = filename_to_dts(id)
+      dtsMap.set(dtsId, { code, id, isEntry, jsFile })
+    ```
 
-   The three sidecars in `package/config/oxlint/src/plugin-*.ts` deliberately re-export plugin package `/ts`
-   source subpaths.
-   The JavaScript build uses `deps.alwaysBundle` for `@monochromatic-dev/**`,
-   so Rolldown traverses and inlines those external workspace source files.
-   Config-oxlint's package-scoped tsconfig does not emit declarations for them.
+    The three sidecars in `package/config/oxlint/src/plugin-*.ts` deliberately re-export plugin package `/ts`
+    source subpaths.
+    The JavaScript build uses `deps.alwaysBundle` for `@monochromatic-dev/**`,
+    so Rolldown traverses and inlines those external workspace source files.
+    Config-oxlint's package-scoped tsconfig does not emit declarations for them.
 
-6. When Rolldown loads the declaration module,
-   `src/generate.ts:237` assumes the earlier tsgo project pass emitted a matching file.
-   `src/generate.ts:244` throws when it did not:
+6.  When Rolldown loads the declaration module,
+    `src/generate.ts:237` assumes the earlier tsgo project pass emitted a matching file.
+    `src/generate.ts:244` throws when it did not:
 
-   ```typescript
-   if (tsgo) {
-     const dtsPath = path.resolve(
-       tsgoContext!.path,
-       path.relative(path.resolve(rootDir), filename_to_dts(id)),
-     )
-     if (!existsSync(dtsPath)) {
-       debug('[tsgo]', dtsPath, 'is missing')
-       throw new Error(
-         `tsgo did not generate dts file for ${id}, please check your tsconfig.`,
-       )
-     }
-   ```
+    ```typescript
+    if (tsgo) {
+      const dtsPath = path.resolve(
+        tsgoContext!.path,
+        path.relative(path.resolve(rootDir), filename_to_dts(id)),
+      )
+      if (!existsSync(dtsPath)) {
+        debug('[tsgo]', dtsPath, 'is missing')
+        throw new Error(
+          `tsgo did not generate dts file for ${id}, please check your tsconfig.`,
+        )
+      }
+    ```
 
 ### Upstream resolution
 
@@ -508,37 +508,37 @@ Release 0.27.4 already contains the generator-selection mechanism needed by this
 A local maintenance issue tracks eventual removal of the compatibility pin:
 [#359](https://github.com/Aquaticat/Monochromatic/issues/359).
 
-1. **Upstream responsibility**
-   Yes for 0.27.2.
-   Its new default selected tsgo before reading inherited `isolatedDeclarations`,
-   changing a previously passing supported configuration.
-2. **Upstream ability to fix**
-   Yes.
-   Upstream added the generator selector in commit `4564ef53545456ce2a2e21029066db27ee99991a` and released it in 0.27.4.
-3. **Supported use case**
-   Yes.
-   The 0.27.4 README documents `generator: 'oxc'` and automatic Oxc selection for
-   `isolatedDeclarations`.
-4. **Contribution policy**
-   The repository welcomes contributions in general,
-   but no contribution remains necessary here.
-   The repository has issues enabled,
-   its organization contribution guide asks for minimal reproductions and Conventional Commits,
-   and no repository,
-   organization guide,
-   issue workflow,
-   or code-of-conduct text bans AI-assisted reports.
-5. **Likelihood of a fix**
-   Already satisfied.
-   Releases 0.27.3 and 0.27.4 followed 0.27.2 on 2026-07-09,
-   and 0.27.4 contains the verified solution.
-6. **Compatible minimal prototype**
-   Verified at the consumer boundary.
-   The released `generator: 'oxc'` path was integrated into both shared declaration-emitting presets,
-   exercised through Node and neutral tsdown builds,
-   type-checked,
-   linted,
-   and compared by SHA-256 against every main-checkout output that survived the failed 0.27.2 build.
+1.  **Upstream responsibility**
+    Yes for 0.27.2.
+    Its new default selected tsgo before reading inherited `isolatedDeclarations`,
+    changing a previously passing supported configuration.
+2.  **Upstream ability to fix**
+    Yes.
+    Upstream added the generator selector in commit `4564ef53545456ce2a2e21029066db27ee99991a` and released it in 0.27.4.
+3.  **Supported use case**
+    Yes.
+    The 0.27.4 README documents `generator: 'oxc'` and automatic Oxc selection for
+    `isolatedDeclarations`.
+4.  **Contribution policy**
+    The repository welcomes contributions in general,
+    but no contribution remains necessary here.
+    The repository has issues enabled,
+    its organization contribution guide asks for minimal reproductions and Conventional Commits,
+    and no repository,
+    organization guide,
+    issue workflow,
+    or code-of-conduct text bans AI-assisted reports.
+5.  **Likelihood of a fix**
+    Already satisfied.
+    Releases 0.27.3 and 0.27.4 followed 0.27.2 on 2026-07-09,
+    and 0.27.4 contains the verified solution.
+6.  **Compatible minimal prototype**
+    Verified at the consumer boundary.
+    The released `generator: 'oxc'` path was integrated into both shared declaration-emitting presets,
+    exercised through Node and neutral tsdown builds,
+    type-checked,
+    linted,
+    and compared by SHA-256 against every main-checkout output that survived the failed 0.27.2 build.
 
 ### Re-check on 2026-07-15 (explicit tsgo at 0.27.9)
 

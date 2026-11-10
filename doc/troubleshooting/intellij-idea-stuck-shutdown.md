@@ -388,31 +388,31 @@ where the old process accepted the connection and intentionally returned `ACTIVA
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-    Not established.
-   IDEA correctly prevented a second instance while shutdown was in progress.
-   The component that prevented shutdown completion is unknown and could be an external plugin.
-2. **Can upstream fix it?**
-    The launcher and shutdown UX are changeable,
-   but no specific blocker or safe source-level correction was identified.
-3. **Are they supporting this use case?**
-    Yes.
-   The cited source explicitly implements single-instance activation and shutdown responses.
-4. **Would the repo welcome our contribution?**
-    Yes for reproducible bug fixes with tests,
-   according to `CONTRIBUTING.md`;
-    no AI-assistance ban was found.
-5. **Will they likely fix it?**
-    Not enough evidence.
-   Maintainer comments on IJPL-160882 say a kill button would not solve the cause
-   and could create more user problems.
-   Its closing comment retires the umbrella in favor of cause-specific tickets.
-   Since the 2026.2.1 tag,
-   the activation-listener file has two unrelated commits and `DirectoryLock.java` has none.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    No.
-   Auto-prototyping is not triggered because constraints 1 and 5 do not hold.
-   A source patch without a reproducible shutdown blocker would be speculative.
+1.  **Is it really upstream's fault?**
+     Not established.
+    IDEA correctly prevented a second instance while shutdown was in progress.
+    The component that prevented shutdown completion is unknown and could be an external plugin.
+2.  **Can upstream fix it?**
+     The launcher and shutdown UX are changeable,
+    but no specific blocker or safe source-level correction was identified.
+3.  **Are they supporting this use case?**
+     Yes.
+    The cited source explicitly implements single-instance activation and shutdown responses.
+4.  **Would the repo welcome our contribution?**
+     Yes for reproducible bug fixes with tests,
+    according to `CONTRIBUTING.md`;
+     no AI-assistance ban was found.
+5.  **Will they likely fix it?**
+     Not enough evidence.
+    Maintainer comments on IJPL-160882 say a kill button would not solve the cause
+    and could create more user problems.
+    Its closing comment retires the umbrella in favor of cause-specific tickets.
+    Since the 2026.2.1 tag,
+    the activation-listener file has two unrelated commits and `DirectoryLock.java` has none.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     No.
+    Auto-prototyping is not triggered because constraints 1 and 5 do not hold.
+    A source patch without a reproducible shutdown blocker would be speculative.
 
 ### Nothing additive to file
 

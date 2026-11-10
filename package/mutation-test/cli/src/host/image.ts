@@ -39,6 +39,8 @@ import {
  */
 const l = tagged({ tag: 'mutation-test', },);
 
+//region Image constants
+
 /**
  Bound of the runtime image build: 4 GiB and 4 CPUs, the bound `package/terminal/app` has put on the build of its Ghostty and
  Slint image (adopted for this CachyOS image, not measured).
@@ -73,6 +75,10 @@ const CONTAINER_IGNOREFILE = 'package/mutation-test/cli/runtime/containerignore'
  Tag hash length keeping references short yet distinct.
  */
 const TAG_HEX_LENGTH = 12;
+
+//endregion Image constants
+
+//region Content hashing
 
 /**
  Recursively lists files under one directory, sorted for stable hashes.
@@ -208,6 +214,10 @@ export async function imageReference(options: {
     )}`;
 }
 
+//endregion Content hashing
+
+//region Local image probe
+
 /**
  Returns whether an image reference exists locally.
  
@@ -241,6 +251,10 @@ async function imageExists(reference: string,): Promise<boolean> {
     return false;
   }
 }
+
+//endregion Local image probe
+
+//region Build arguments
 
 /**
  Arguments after `podman` that build the runtime image.
@@ -287,6 +301,10 @@ export function runtimeImageBuildArguments({
     repoRoot,
   ];
 }
+
+//endregion Build arguments
+
+//region Image resolution
 
 /**
  Ensures the runtime image exists, building it when needed.
@@ -357,3 +375,5 @@ export async function ensureRuntimeImage(options: {
   );
   return reference;
 }
+
+//endregion Image resolution

@@ -131,14 +131,14 @@ No `.out-of-scope/` entry exempts this Android symptom,
 but the SDK's explicitly documented certificate check matched the
 measured certificates:
 
-1. There is no evidence of an upstream fault.
-2. Android could change the rule,
-   but changing a security check is not a justified fix for distinct debug keys.
-3. App updates are supported when their signatures are compatible;
-   that condition was not met.
-4. No upstream contribution path was assessed because there is no defect to patch.
-5. No maintainer action is expected from this local fixture mismatch.
-6. No upstream patch exists;
-   the disposable uninstall/install workaround was verified instead.
+1.  There is no evidence of an upstream fault.
+2.  Android could change the rule,
+    but changing a security check is not a justified fix for distinct debug keys.
+3.  App updates are supported when their signatures are compatible;
+    that condition was not met.
+4.  No upstream contribution path was assessed because there is no defect to patch.
+5.  No maintainer action is expected from this local fixture mismatch.
+6.  No upstream patch exists;
+    the disposable uninstall/install workaround was verified instead.
 
 Nothing is ready to send upstream.

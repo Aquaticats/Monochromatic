@@ -47,35 +47,35 @@ so this page is short on concerns and long on sequences.
 The wrapper,
 in the command's own process:
 
-1. Chooses the service route from the worktree's own Git directory (`landing/service_route.rs:122`,
-   `choose_route`).
-2. Captures the invocation and builds a private index inside the command's scratch directory,
-   then stamps the capture (`landing/service_prepare.rs:223`).
-3. Runs the pre-forward policies over the private index.
-4. Hands the scratch directory to the service over a second connection,
-   whose close tells the service to remove it (`landing/service_commit.rs:222`,
-   `watch_scratch`).
-5. Provisions the unit files once,
-   if it has to (`landing/service_commit.rs:316`).
-6. Sends the request with a random identity,
-   and resends the same identity after a broken connection
-   (`service/service_client.rs:177`,
-   `submit_loop`).
-7. On `Landed`:
-   installs the corrections a policy made into the worktree and removes the saved message file
-   (`landing/service_commit.rs:332`,
-   `report_landing`).
-8. Prints the events,
-   runs the post-commit gate (`commit/commit_command.rs:256`),
-   then writes the push and upkeep work records and wakes the service (`commit/commit_command.rs:263`,
-   `landing/service_handoff.rs:117`).
+1.  Chooses the service route from the worktree's own Git directory (`landing/service_route.rs:122`,
+    `choose_route`).
+2.  Captures the invocation and builds a private index inside the command's scratch directory,
+    then stamps the capture (`landing/service_prepare.rs:223`).
+3.  Runs the pre-forward policies over the private index.
+4.  Hands the scratch directory to the service over a second connection,
+    whose close tells the service to remove it (`landing/service_commit.rs:222`,
+    `watch_scratch`).
+5.  Provisions the unit files once,
+    if it has to (`landing/service_commit.rs:316`).
+6.  Sends the request with a random identity,
+    and resends the same identity after a broken connection
+    (`service/service_client.rs:177`,
+    `submit_loop`).
+7.  On `Landed`:
+    installs the corrections a policy made into the worktree and removes the saved message file
+    (`landing/service_commit.rs:332`,
+    `report_landing`).
+8.  Prints the events,
+    runs the post-commit gate (`commit/commit_command.rs:256`),
+    then writes the push and upkeep work records and wakes the service (`commit/commit_command.rs:263`,
+    `landing/service_handoff.rs:117`).
 
 The service,
 on its one landing thread:
 
-9. Settles the open batches an earlier instance left,
-   claims a batch number (`service/service_server_land_group.rs`),
-   then lands.
+9.  Settles the open batches an earlier instance left,
+    claims a batch number (`service/service_server_land_group.rs`),
+    then lands.
 10. Reads the branch,
     checks the worktree still has the branch checked out,
     compares each request with the branch (`landing/service_land.rs:258`,
@@ -107,73 +107,73 @@ on its one landing thread:
 Kill points 1 to 6 are in the wrapper,
 9 to 17 in the service.
 
-1. Before the private index exists:
-   nothing.
-   The scratch directory is written under the wrapper's own scratch root and swept by age
-   by a later command,
-   so a kill here leaves a directory the sweep takes,
-   not a record.
-2. Private index built,
-   before the service sees it:
-   a scratch directory with no durable record,
-   removed when the wrapper's watch connection closes or by the sweep.
-   The worktree itself is untouched,
-   so nothing is lost.
-3. Sent,
-   before the service reads it:
-   nothing on disk;
-   the client resends the same identity.
-4. Landed,
-   before `report_landing` runs (step 7):
-   the commit is on the branch,
-   the worktree keeps the uncorrected bytes the policy corrected,
-   and the saved-message file of a rebuilt commit stays.
-   `git status` shows the corrected paths as modified,
-   which is visible but is not said.
-5. After the post-commit gate,
-   before the hand-off (step 8):
-   the commit is on the branch and no push,
-   upkeep or review record exists.
-   Finding 3.
-6. After the hand-off:
-   everything the command owned is written;
-   the push record is the service's.
-7. Objects written,
-   before the intent (step 12):
-   `refs/worktree/cli-git-service/<seq>`,
-   a `<seq>.scratch` record,
-   a `marks-<seq>` file in the journal,
-   and the busy decision file.
-   Recovery keeps the commit the reference holds on `refs/cli-git/kept/<seq>` and removes the reference
-   (`landing/service_scratch_ref_marker_of_a_batch.rs`,
-   `clear_recorded_scratch_refs`),
-   so no commit is lost and the client lands a fresh one;
-   the kept ref is never removed.
-   Finding 5.
-8. Intent written,
-   before the branch moves (steps 13,
-   14):
-   recovery reads the branch,
-   finds it unmoved,
-   decides `Drop`,
-   keeps the commit on the kept ref,
-   removes the lock and the records
-   (`landing/service_land_finish.rs:363`,
-   `:587`).
-   The commit is not on the branch and the client lands again.
-9. Branch moved,
-   before the index is installed:
-   the state recovery exists for.
-   `settle` (`landing/service_land_finish.rs:229`) replays the index update only while the live index file is
-   still the file the landing saw (`landing/service_land_start.rs:15`,
-   `gate_of` at
-   `landing/service_land_finish.rs:204`).
-   Index installed but `indexed` not yet recorded:
-   the witness differs,
-   so the replay is skipped,
-   which is correct because the index is already right;
-   the journal says the paths were not updated,
-   which is then untrue.
+1.  Before the private index exists:
+    nothing.
+    The scratch directory is written under the wrapper's own scratch root and swept by age
+    by a later command,
+    so a kill here leaves a directory the sweep takes,
+    not a record.
+2.  Private index built,
+    before the service sees it:
+    a scratch directory with no durable record,
+    removed when the wrapper's watch connection closes or by the sweep.
+    The worktree itself is untouched,
+    so nothing is lost.
+3.  Sent,
+    before the service reads it:
+    nothing on disk;
+    the client resends the same identity.
+4.  Landed,
+    before `report_landing` runs (step 7):
+    the commit is on the branch,
+    the worktree keeps the uncorrected bytes the policy corrected,
+    and the saved-message file of a rebuilt commit stays.
+    `git status` shows the corrected paths as modified,
+    which is visible but is not said.
+5.  After the post-commit gate,
+    before the hand-off (step 8):
+    the commit is on the branch and no push,
+    upkeep or review record exists.
+    Finding 3.
+6.  After the hand-off:
+    everything the command owned is written;
+    the push record is the service's.
+7.  Objects written,
+    before the intent (step 12):
+    `refs/worktree/cli-git-service/<seq>`,
+    a `<seq>.scratch` record,
+    a `marks-<seq>` file in the journal,
+    and the busy decision file.
+    Recovery keeps the commit the reference holds on `refs/cli-git/kept/<seq>` and removes the reference
+    (`landing/service_scratch_ref_marker_of_a_batch.rs`,
+    `clear_recorded_scratch_refs`),
+    so no commit is lost and the client lands a fresh one;
+    the kept ref is never removed.
+    Finding 5.
+8.  Intent written,
+    before the branch moves (steps 13,
+    14):
+    recovery reads the branch,
+    finds it unmoved,
+    decides `Drop`,
+    keeps the commit on the kept ref,
+    removes the lock and the records
+    (`landing/service_land_finish.rs:363`,
+    `:587`).
+    The commit is not on the branch and the client lands again.
+9.  Branch moved,
+    before the index is installed:
+    the state recovery exists for.
+    `settle` (`landing/service_land_finish.rs:229`) replays the index update only while the live index file is
+    still the file the landing saw (`landing/service_land_start.rs:15`,
+    `gate_of` at
+    `landing/service_land_finish.rs:204`).
+    Index installed but `indexed` not yet recorded:
+    the witness differs,
+    so the replay is skipped,
+    which is correct because the index is already right;
+    the journal says the paths were not updated,
+    which is then untrue.
 10. Index installed and recorded,
     before `<seq>.done`:
     `indexed_state` answers `Installed`,
@@ -457,26 +457,26 @@ and the request identities.
 
 Sequence:
 
-1. A commit lands:
-   the branch moves,
-   and the index update is owed because a step after the move did not
-   finish (the batch stays open,
-   as reproduction 1 and 2 show).
-2. The intent is written by one release and read by another,
-   or is damaged,
-   so `parse_intent`
-   (`service/service_journal_intent_text_and_parse.rs:203`) answers nothing.
-   Downgrading the wrapper,
-   or a write whose tail is lost on an unusual filesystem,
-   both do it.
-3. The next landing in that worktree runs `settle_open_batches`
-   (`service/service_server_land_group.rs:35`) before it lands anything.
-   The unreadable file is deleted,
-   no batch is selected,
-   and nothing is finished.
-4. The landed commit's paths stay as the index had them:
-   a file the commit added is a staged deletion,
-   and a file the commit changed is staged as the old content.
+1.  A commit lands:
+    the branch moves,
+    and the index update is owed because a step after the move did not
+    finish (the batch stays open,
+    as reproduction 1 and 2 show).
+2.  The intent is written by one release and read by another,
+    or is damaged,
+    so `parse_intent`
+    (`service/service_journal_intent_text_and_parse.rs:203`) answers nothing.
+    Downgrading the wrapper,
+    or a write whose tail is lost on an unusual filesystem,
+    both do it.
+3.  The next landing in that worktree runs `settle_open_batches`
+    (`service/service_server_land_group.rs:35`) before it lands anything.
+    The unreadable file is deleted,
+    no batch is selected,
+    and nothing is finished.
+4.  The landed commit's paths stay as the index had them:
+    a file the commit added is a staged deletion,
+    and a file the commit changed is staged as the old content.
 
 Wrong result:
 the person's next plain `git commit` records the deletion of a file the previous commit added,
@@ -520,22 +520,22 @@ commit that landed.
 
 Sequence:
 
-1. A commit lands and the index update is owed (a step after the branch move failed,
-   or the service was killed
-   between the branch move and the index install).
-2. Before any landing runs again,
-   some program writes the index:
-   a person's `git add`,
-   an editor's Git integration,
-   or a `git status` that refreshed its stat data.
-3. The next landing in that worktree settles the open batch,
-   finds the witness different,
-   writes one service log
-   line,
-   and marks the batch done.
-4. The index still describes the state before the commit,
-   so the commit's added paths are staged deletions and
-   its changed paths are staged as their old content.
+1.  A commit lands and the index update is owed (a step after the branch move failed,
+    or the service was killed
+    between the branch move and the index install).
+2.  Before any landing runs again,
+    some program writes the index:
+    a person's `git add`,
+    an editor's Git integration,
+    or a `git status` that refreshed its stat data.
+3.  The next landing in that worktree settles the open batch,
+    finds the witness different,
+    writes one service log
+    line,
+    and marks the batch done.
+4.  The index still describes the state before the commit,
+    so the commit's added paths are staged deletions and
+    its changed paths are staged as their old content.
 
 Wrong result:
 the next plain `git commit` in that worktree records the revert of the commit that just landed,
@@ -565,15 +565,15 @@ Between `landed_oid` at `:222` and that write the commit is already on the branc
 
 Sequence:
 
-1. The service lands the commit and answers `Landed`.
-2. The wrapper is killed,
-   or its terminal is closed,
-   or its standard error pipe breaks,
-   any of which the
-   repository's rules count as normal on this machine (`AGENTS.md`,
-   rule `NHP`).
-3. No push record is written and no wake is sent,
-   so the commit stays local.
+1.  The service lands the commit and answers `Landed`.
+2.  The wrapper is killed,
+    or its terminal is closed,
+    or its standard error pipe breaks,
+    any of which the
+    repository's rules count as normal on this machine (`AGENTS.md`,
+    rule `NHP`).
+3.  No push record is written and no wake is sent,
+    so the commit stays local.
 
 Wrong result:
 the branch has a commit the remote does not,
@@ -629,23 +629,23 @@ or the age sweep does.
 
 Sequence:
 
-1. A commit concludes a merge,
-   a cherry-pick or a revert.
-   The request names a cleanup
-   (`landing/service_prepare.rs:244`).
-2. The branch moves.
-   The cleanup fails once:
-   `reproduce_conclusion_cleanup` errors on one state file,
-   or `carry_stash` fails,
-   or the comparison errors (`landing/service_land_follow.rs:357`,
-   `:360`).
-   The batch stays open and the client is told the commit landed.
-3. The wrapper exits,
-   and the service removes the scratch directory.
-4. The next landing settles the batch.
-   `cleanup_done` (`landing/service_land_finish.rs:65`) finds no scratch,
-   answers true,
-   and the index update finishes.
+1.  A commit concludes a merge,
+    a cherry-pick or a revert.
+    The request names a cleanup
+    (`landing/service_prepare.rs:244`).
+2.  The branch moves.
+    The cleanup fails once:
+    `reproduce_conclusion_cleanup` errors on one state file,
+    or `carry_stash` fails,
+    or the comparison errors (`landing/service_land_follow.rs:357`,
+    `:360`).
+    The batch stays open and the client is told the commit landed.
+3.  The wrapper exits,
+    and the service removes the scratch directory.
+4.  The next landing settles the batch.
+    `cleanup_done` (`landing/service_land_finish.rs:65`) finds no scratch,
+    answers true,
+    and the index update finishes.
 
 Wrong result:
 the worktree keeps `MERGE_HEAD`,
@@ -684,16 +684,16 @@ reports or removes them.
 
 Sequence:
 
-1. A landing is killed after its objects exist and before its branch move (reproduction 3 shows the shape with
-   the branch moved back instead,
-   which recovery decides identically).
-2. Recovery decides `Drop`,
-   writes the kept ref,
-   and removes the intent,
-   the index record and the scratch ref.
-3. The client resends,
-   prepares again,
-   and lands its commit normally.
+1.  A landing is killed after its objects exist and before its branch move (reproduction 3 shows the shape with
+    the branch moved back instead,
+    which recovery decides identically).
+2.  Recovery decides `Drop`,
+    writes the kept ref,
+    and removes the intent,
+    the index record and the scratch ref.
+3.  The client resends,
+    prepares again,
+    and lands its commit normally.
 
 Wrong result:
 the repository keeps one reference per dropped batch forever,

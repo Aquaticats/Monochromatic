@@ -126,54 +126,54 @@ and hit code assume one row per source line.
 Places that must change,
 silent failures first:
 
-1. `src/shaped_row.rs`:
-   `hit` probes at half the layout height,
-   so every click on a wrapped line lands
+1.  `src/shaped_row.rs`:
+    `hit` probes at half the layout height,
+    so every click on a wrapped line lands
  in the middle row;
-   `range` hard-codes `y: self.top` and a height of one code row,
-   so selection,
-   find,
-   underlines,
-    and reveal all inherit it.
-2. `src/text_raster.rs` and `src/annotation_paint.rs`:
-   exact float matches of `rectangle.y` against a row's top
-   lose selected ink and underline splitting on continuation rows.
-3. `src/shaped_text/view.rs`,
-   `src/document.rs`,
-   `src/vertical_motion.rs`,
-   `src/caret_motion.rs`:
-   caret y has no visual offset,
-   the reading position has no affinity,
-   Up and Down aim with an unwrapped row,
-   Home and End use the logical line.
-4. `src/native/rows.rs` (`wanted_key`),
-   `src/native/viewport.rs`,
-   `src/native/render.rs`,
-   `src/annotation/blocks.rs`:
-   the row key and frame stamp must include the wrap width,
-   and the cached hint packing is keyed by scale only.
-5. `src/native/input.rs`,
-   `src/native/language/pointer.rs`,
-   `src/pointer_selection.rs`:
-   pointer and hover resolve a logical line,
-   so a click on a continuation row maps wrongly.
-6. `src/annotation_layout.rs`:
-   hint and message x and underline y come from a logical row;
-   hint packing sets block height from x,
-   and messages can run past the pane width.
-7. `src/native/rows.rs` (`measure`,
-   `present`) and `ui/app.slint`:
-   the gutter has one number
+    `range` hard-codes `y: self.top` and a height of one code row,
+    so selection,
+    find,
+    underlines,
+     and reveal all inherit it.
+2.  `src/text_raster.rs` and `src/annotation_paint.rs`:
+    exact float matches of `rectangle.y` against a row's top
+    lose selected ink and underline splitting on continuation rows.
+3.  `src/shaped_text/view.rs`,
+    `src/document.rs`,
+    `src/vertical_motion.rs`,
+    `src/caret_motion.rs`:
+    caret y has no visual offset,
+    the reading position has no affinity,
+    Up and Down aim with an unwrapped row,
+    Home and End use the logical line.
+4.  `src/native/rows.rs` (`wanted_key`),
+    `src/native/viewport.rs`,
+    `src/native/render.rs`,
+    `src/annotation/blocks.rs`:
+    the row key and frame stamp must include the wrap width,
+    and the cached hint packing is keyed by scale only.
+5.  `src/native/input.rs`,
+    `src/native/language/pointer.rs`,
+    `src/pointer_selection.rs`:
+    pointer and hover resolve a logical line,
+    so a click on a continuation row maps wrongly.
+6.  `src/annotation_layout.rs`:
+    hint and message x and underline y come from a logical row;
+    hint packing sets block height from x,
+    and messages can run past the pane width.
+7.  `src/native/rows.rs` (`measure`,
+    `present`) and `ui/app.slint`:
+    the gutter has one number
  and one mark per logical line;
-   it needs a per visual row model with the number or the wrap indicator.
-8. `src/tab_layout.rs`:
-   tab stops are measured on an unbroken layout and then used on a wrapped one.
-9. `src/row_map.rs`:
-   every height,
-   `locate`,
-   `page`,
-   `extent`,
-   and `block_top` assumes one code row per line.
+    it needs a per visual row model with the number or the wrap indicator.
+8.  `src/tab_layout.rs`:
+    tab stops are measured on an unbroken layout and then used on a wrapped one.
+9.  `src/row_map.rs`:
+    every height,
+    `locate`,
+    `page`,
+    `extent`,
+    and `block_top` assumes one code row per line.
 
 Open engineering question,
 settled by measurement of 2026-10-11 (a throwaway release test in the IDE's container,
@@ -317,138 +317,138 @@ without running code.
 
 Status as of 2026-10-12 (the branch `feat/ide-soft-wrap`):
 
-1. Layout model:
-   **built.**
-   The wrap width is part of the row cache (every kept row carries the width it is broken at),
-   the tile's `Viewport` and `FrameStamp`,
-   and the tile job;
-   Parley breaks with the IntelliJ rules and indent
-   (`src/wrap.rs`,
-   `src/shaped_text.rs`,
-   and since 2026-10-15 `src/shaped_text/layout.rs`);
-   `RowMap` holds the visual rows of every line (`src/line_rows.rs`,
-   `src/row_map.rs`);
-   the tile worker measures the whole text at the wrap width in chunks from the view outward
-   (`src/native/tile_pass.rs`),
-   and breaks its kept rows again on a resize instead of shaping them.
-2. Geometry readback:
-   **built.**
-   Caret,
-   selection,
-   find rectangles,
-   underlines,
-   and the terminator mark are placed on their visual row;
-   hits resolve the visual row (`hit_at`);
-   a click keeps the clicked side of a wrap offset in
-   `State::caret_affinity` until slice 3,
-   which moved it into `ReadingPosition::affinity`.
-3. Gutter and scrolling:
-   **built.**
-   One gutter entry per visual row,
-   the number on first rows only,
-   the wrap indicator (IntelliJ's symbol chain checked
-   against the fonts,
-   `c0c0c0`,
-   or a drawn arrow) on continuation rows;
-   horizontal scrolling is gone.
-4. Keys and pointer:
-   **built.**
-   Click placement,
-   hover,
-   and Ctrl+click resolve the visual row;
-   the caret scrolls its visual row into view.
-   Home,
-   End,
-   Up,
-   Down,
-   PageUp,
-   and PageDown move by visual rows with a remembered pixel x,
-   the side of a wrap offset is part of the reading position,
-   drags run across visual rows,
-   a double click takes a word that spans rows,
-   a triple click takes the whole line,
-   and two quick presses on different rows of one line are two single clicks.
-   Slice 3 also fixed two layout defects its tests found:
-   the continuation indent was doubled at scale 2,
-   and a blank hanging on the last row left a counted row with no characters.
-5. Annotations,
-   find,
-   and selection on visual rows:
-   **built.**
-   Underlines,
-   find rectangles,
-   and selection ink are per visual row.
-   Hints and message rows are fitted to the text area's width:
-   hints are packed against the line as it is broken,
-   a hint that would pass the right edge ends at it,
-   a label wider than the area breaks into pieces,
-   and a message line is broken again at the width as a whole,
-   with its 12-row cap kept and a message that would
-   pass the edge moved left.
-   The block of a line stands over its first visual row,
-   because the user decided on 2026-10-05 that virtual rows stand
-   over the code line;
-   IntelliJ puts a block inlay over the visual row that holds its offset
-   (`VisualLinesIterator.setInlays`),
-   which is a known difference.
-   A new wrap width packs the hinted lines near the view at once and the others when the view comes near them.
-6. Tests,
-   guards,
-   and the README:
-   **built.**
-   The guards `caret-room`,
-   `find-match-visual-rows`,
-   and `underline-visual-row` replace `caret-room`,
-   `horizontal-tile`,
-   and `scroll-extent`;
-   `horizontal-resets-column` guards the Left and Right keys,
-   not scrolling,
-   and stays.
-   Slice 4 added guards for the annotation rows,
-   the clip of a tall line,
-   the character budget of the tab passes,
-   and the caret stops of a very long line.
-7. Slice 4 (2026-10-12),
-   the last:
-   **built.**
-   Besides item 5:
-   the caret stops of a line were found in time that grew with the square of its length
-   (100,000 characters took over 90 s to open in a debug build) and now grow with its length;
-   a tile of lines wrapped to more rows than the 64 MiB raster limit holds is painted in a clip of the rows near the
-   view instead of being refused;
-   tab correction was measured to settle after 4 to 76 passes with no bound known beforehand,
-   so it keeps a bound,
-   now a budget of characters shaped (the passes a line gets fall with its length);
-   a test that raced the 200 ms scroll quiet time reads a clock the test holds;
-   and scrolling inside a built tile of a wrapped file is counted to do no source work.
-   The README (`package/ide/app/README.md`,
-   "Soft wrap") holds the numbers and the list of known differences
-   from IntelliJ.
-8. Slice 5 (2026-10-13),
-   a new width on the window thread:
-   **built.**
-   A new wrap width no longer waits for the worker's tile.
-   The window thread breaks the kept layouts of the lines near the view again (shaping the lines not yet shaped),
-   updates their heights in the row map with the view kept still,
-   and paints the stage 1 tile for the new width in
-   the draw that follows the resize,
-   within an allowance of 384 lines,
-   24,000 units of work,
-   and a 32 MiB raster
-   (`src/native/rewrap.rs`).
-   A change over the allowance goes to the worker as before,
-   and the whole-file re-break stays on the worker.
-   The earlier guard `resize-stays-on-worker` and its tests are replaced by the opposite structural assertion,
-   with guards for each bound.
-   The measurement of the drag in the nested compositor is in the README ("A new width on the window thread"):
-   the step took a few milliseconds,
-   and the count of frames that do not fit did not change in the 16 ms drag,
-   because the compositor shows the previous step's content at each new size,
-   while a 100 ms drag showed far
-   fewer such frames than the worker-only tile.
-   The remaining one-step lag was measured on 2026-10-13:
-   it is the recorder's capture model and winit's redraw gate,
-   not the application (`doc/troubleshooting/nested-wayland-recording-previous-resize-step.md`).
+1.  Layout model:
+    **built.**
+    The wrap width is part of the row cache (every kept row carries the width it is broken at),
+    the tile's `Viewport` and `FrameStamp`,
+    and the tile job;
+    Parley breaks with the IntelliJ rules and indent
+    (`src/wrap.rs`,
+    `src/shaped_text.rs`,
+    and since 2026-10-15 `src/shaped_text/layout.rs`);
+    `RowMap` holds the visual rows of every line (`src/line_rows.rs`,
+    `src/row_map.rs`);
+    the tile worker measures the whole text at the wrap width in chunks from the view outward
+    (`src/native/tile_pass.rs`),
+    and breaks its kept rows again on a resize instead of shaping them.
+2.  Geometry readback:
+    **built.**
+    Caret,
+    selection,
+    find rectangles,
+    underlines,
+    and the terminator mark are placed on their visual row;
+    hits resolve the visual row (`hit_at`);
+    a click keeps the clicked side of a wrap offset in
+    `State::caret_affinity` until slice 3,
+    which moved it into `ReadingPosition::affinity`.
+3.  Gutter and scrolling:
+    **built.**
+    One gutter entry per visual row,
+    the number on first rows only,
+    the wrap indicator (IntelliJ's symbol chain checked
+    against the fonts,
+    `c0c0c0`,
+    or a drawn arrow) on continuation rows;
+    horizontal scrolling is gone.
+4.  Keys and pointer:
+    **built.**
+    Click placement,
+    hover,
+    and Ctrl+click resolve the visual row;
+    the caret scrolls its visual row into view.
+    Home,
+    End,
+    Up,
+    Down,
+    PageUp,
+    and PageDown move by visual rows with a remembered pixel x,
+    the side of a wrap offset is part of the reading position,
+    drags run across visual rows,
+    a double click takes a word that spans rows,
+    a triple click takes the whole line,
+    and two quick presses on different rows of one line are two single clicks.
+    Slice 3 also fixed two layout defects its tests found:
+    the continuation indent was doubled at scale 2,
+    and a blank hanging on the last row left a counted row with no characters.
+5.  Annotations,
+    find,
+    and selection on visual rows:
+    **built.**
+    Underlines,
+    find rectangles,
+    and selection ink are per visual row.
+    Hints and message rows are fitted to the text area's width:
+    hints are packed against the line as it is broken,
+    a hint that would pass the right edge ends at it,
+    a label wider than the area breaks into pieces,
+    and a message line is broken again at the width as a whole,
+    with its 12-row cap kept and a message that would
+    pass the edge moved left.
+    The block of a line stands over its first visual row,
+    because the user decided on 2026-10-05 that virtual rows stand
+    over the code line;
+    IntelliJ puts a block inlay over the visual row that holds its offset
+    (`VisualLinesIterator.setInlays`),
+    which is a known difference.
+    A new wrap width packs the hinted lines near the view at once and the others when the view comes near them.
+6.  Tests,
+    guards,
+    and the README:
+    **built.**
+    The guards `caret-room`,
+    `find-match-visual-rows`,
+    and `underline-visual-row` replace `caret-room`,
+    `horizontal-tile`,
+    and `scroll-extent`;
+    `horizontal-resets-column` guards the Left and Right keys,
+    not scrolling,
+    and stays.
+    Slice 4 added guards for the annotation rows,
+    the clip of a tall line,
+    the character budget of the tab passes,
+    and the caret stops of a very long line.
+7.  Slice 4 (2026-10-12),
+    the last:
+    **built.**
+    Besides item 5:
+    the caret stops of a line were found in time that grew with the square of its length
+    (100,000 characters took over 90 s to open in a debug build) and now grow with its length;
+    a tile of lines wrapped to more rows than the 64 MiB raster limit holds is painted in a clip of the rows near the
+    view instead of being refused;
+    tab correction was measured to settle after 4 to 76 passes with no bound known beforehand,
+    so it keeps a bound,
+    now a budget of characters shaped (the passes a line gets fall with its length);
+    a test that raced the 200 ms scroll quiet time reads a clock the test holds;
+    and scrolling inside a built tile of a wrapped file is counted to do no source work.
+    The README (`package/ide/app/README.md`,
+    "Soft wrap") holds the numbers and the list of known differences
+    from IntelliJ.
+8.  Slice 5 (2026-10-13),
+    a new width on the window thread:
+    **built.**
+    A new wrap width no longer waits for the worker's tile.
+    The window thread breaks the kept layouts of the lines near the view again (shaping the lines not yet shaped),
+    updates their heights in the row map with the view kept still,
+    and paints the stage 1 tile for the new width in
+    the draw that follows the resize,
+    within an allowance of 384 lines,
+    24,000 units of work,
+    and a 32 MiB raster
+    (`src/native/rewrap.rs`).
+    A change over the allowance goes to the worker as before,
+    and the whole-file re-break stays on the worker.
+    The earlier guard `resize-stays-on-worker` and its tests are replaced by the opposite structural assertion,
+    with guards for each bound.
+    The measurement of the drag in the nested compositor is in the README ("A new width on the window thread"):
+    the step took a few milliseconds,
+    and the count of frames that do not fit did not change in the 16 ms drag,
+    because the compositor shows the previous step's content at each new size,
+    while a 100 ms drag showed far
+    fewer such frames than the worker-only tile.
+    The remaining one-step lag was measured on 2026-10-13:
+    it is the recorder's capture model and winit's redraw gate,
+    not the application (`doc/troubleshooting/nested-wayland-recording-previous-resize-step.md`).
 
 ## Not decided here
 

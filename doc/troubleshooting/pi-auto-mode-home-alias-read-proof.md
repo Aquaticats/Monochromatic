@@ -395,26 +395,26 @@ Issue `#279` concerns maintainer-local skill allowlist test paths and is not thi
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No.
-   The false classification was in this repository's auto-mode extension.
-   Pi surfaced the extension result as designed.
-2. **Can upstream fix it?
-   ** Pi upstream cannot correct repository-local scratch policy.
-   This repository can and did fix it.
-3. **Are they supporting this use case?
-   ** Pi supports extension `tool_call` handlers,
-   but canonical scratch policy belongs to this extension.
-4. **Would the repo welcome our contribution?
-   ** The relevant repository is already the repository being changed.
-   No external contribution policy is involved.
-5. **Will they likely fix it?
-   ** Not applicable to Pi upstream because no upstream change is requested.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes for the owning repository.
-   Commits `b05363ad9`,
-   `2cead0e31`,
-   and `333865aad` implement and test the fix at existing policy and analyzer seams.
+1.  **Is it really upstream's fault?
+    ** No.
+    The false classification was in this repository's auto-mode extension.
+    Pi surfaced the extension result as designed.
+2.  **Can upstream fix it?
+    ** Pi upstream cannot correct repository-local scratch policy.
+    This repository can and did fix it.
+3.  **Are they supporting this use case?
+    ** Pi supports extension `tool_call` handlers,
+    but canonical scratch policy belongs to this extension.
+4.  **Would the repo welcome our contribution?
+    ** The relevant repository is already the repository being changed.
+    No external contribution policy is involved.
+5.  **Will they likely fix it?
+    ** Not applicable to Pi upstream because no upstream change is requested.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes for the owning repository.
+    Commits `b05363ad9`,
+    `2cead0e31`,
+    and `333865aad` implement and test the fix at existing policy and analyzer seams.
 
 Nothing should be filed against Pi upstream.
 There is no external issue draft or additive comment to send.

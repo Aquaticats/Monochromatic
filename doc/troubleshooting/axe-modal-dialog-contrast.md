@@ -244,31 +244,31 @@ Existing issue [dequelabs/axe-core#3463](https://github.com/dequelabs/axe-core/i
  It is closed,
 but the 4.13.0 source still cites it and explicitly records known limitations.
 
-1. **Upstream fault:**
-    No demonstrated defect.
-    Returning incomplete when stacking is
-   uncertain is documented axe-core behavior.
-2. **Upstream can change it:**
-    Yes,
-    if browser APIs or axe's top-layer model improve.
-3. **Supported use case:**
-    Yes.
-    Axe has modal-dialog detection and dialog integration
-   tests.
-4. **Contribution policy:**
-    `CONTRIBUTING.md:1-18` accepts contributions under a CLA
-   and repository style.
-    No AI-assistance prohibition was found in `CONTRIBUTING.md`,
-   `README.md`,
-    or `.github/` templates.
-5. **Likely upstream action:**
-    Unclear.
-    Issue 3463 is closed,
-    while current source still
-   labels the heuristic as limited.
-6. **Compatible minimal fix:**
-    Not prototyped because constraint one does not hold and
-   the conservative incomplete result is safe.
+1.  **Upstream fault:**
+     No demonstrated defect.
+     Returning incomplete when stacking is
+    uncertain is documented axe-core behavior.
+2.  **Upstream can change it:**
+     Yes,
+     if browser APIs or axe's top-layer model improve.
+3.  **Supported use case:**
+     Yes.
+     Axe has modal-dialog detection and dialog integration
+    tests.
+4.  **Contribution policy:**
+     `CONTRIBUTING.md:1-18` accepts contributions under a CLA
+    and repository style.
+     No AI-assistance prohibition was found in `CONTRIBUTING.md`,
+    `README.md`,
+     or `.github/` templates.
+5.  **Likely upstream action:**
+     Unclear.
+     Issue 3463 is closed,
+     while current source still
+    labels the heuristic as limited.
+6.  **Compatible minimal fix:**
+     Not prototyped because constraint one does not hold and
+    the conservative incomplete result is safe.
 
 No new issue should be filed.
  There is no additive comment to post without a minimal

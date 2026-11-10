@@ -467,36 +467,36 @@ Its body and all comments were read.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No bug was found.
-   SOPS documents YAML,
-   JSON,
-   ENV,
-   INI,
-   and binary stores;
-   native HCL is an open enhancement.
-2. **Can upstream fix it?**
-   Yes.
-   A complete HCL store could be added,
-   but it would be a feature rather than a correction to binary fallback.
-3. **Are they supporting this use case?**
-   Partly.
-   Issue 292 is open with `enhancement` and `help wanted` labels,
-   but SOPS does not currently advertise HCL as supported.
-4. **Would the repo welcome our contribution?**
-   Yes.
-   `CONTRIBUTING.md:3-28` says the project welcomes contributions,
-   asks for tests and documentation,
-   and contains no ban on AI-assisted work.
-5. **Will they likely fix it?**
-   No current maintainer commitment supports that conclusion.
-   A maintainer wrote in issue 292 that they were unlikely to implement HCL themselves but would review a
-   community patch;
-   the enhancement has remained open since 2018.
-6. **Have we prototyped a minimal compatible fix?**
-   No.
-   The auto-prototype gate does not trigger because constraints 1 and 5 fail.
-   The verified consumer-side routes already solve the immediate Terraform use case without modifying SOPS.
+1.  **Is it really upstream's fault?**
+    No bug was found.
+    SOPS documents YAML,
+    JSON,
+    ENV,
+    INI,
+    and binary stores;
+    native HCL is an open enhancement.
+2.  **Can upstream fix it?**
+    Yes.
+    A complete HCL store could be added,
+    but it would be a feature rather than a correction to binary fallback.
+3.  **Are they supporting this use case?**
+    Partly.
+    Issue 292 is open with `enhancement` and `help wanted` labels,
+    but SOPS does not currently advertise HCL as supported.
+4.  **Would the repo welcome our contribution?**
+    Yes.
+    `CONTRIBUTING.md:3-28` says the project welcomes contributions,
+    asks for tests and documentation,
+    and contains no ban on AI-assisted work.
+5.  **Will they likely fix it?**
+    No current maintainer commitment supports that conclusion.
+    A maintainer wrote in issue 292 that they were unlikely to implement HCL themselves but would review a
+    community patch;
+    the enhancement has remained open since 2018.
+6.  **Have we prototyped a minimal compatible fix?**
+    No.
+    The auto-prototype gate does not trigger because constraints 1 and 5 fail.
+    The verified consumer-side routes already solve the immediate Terraform use case without modifying SOPS.
 
 No new issue should be filed because issue 292 is the exact duplicate.
 The `exec-file --filename` workaround is absent from that thread,

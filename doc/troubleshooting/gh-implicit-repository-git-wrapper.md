@@ -475,37 +475,37 @@ Searches of open `cli/cli` issues and pull requests for
 and `repo override git remote`
 found no matching report.
 
-1. **Is it really upstream's fault?
-   ** No.
-   GitHub CLI is performing the current-repository inference verified in its source and runtime trace;
-   the failure comes from this workspace placing a broken `git` shim first on `PATH`.
-2. **Can upstream fix it?
-   ** Not as this incident is framed.
-   Upstream could redesign repository inference,
-   but that is unnecessary for this failure
-   because the existing repository override already avoids the broken local executable.
-3. **Are they supporting this use case?
-   ** Yes.
-   `--repo`,
-   `GH_REPO`,
-   and implicit current-repository selection are all implemented paths,
-   and both override paths already avoid Git.
-4. **Would the repository welcome our contribution?
-   ** An issue would be allowed in principle.
-   `.github/CONTRIBUTING.md` says,
-   `Open an issue if things aren't working as expected` and requires duplicate checking.
-   No AI-assisted-contribution prohibition was found in that file,
-   the pull-request template,
-   or repository policy search.
-5. **Will they likely fix it?
-   ** No upstream change is warranted because the observed behavior matches the repository-selection design.
-6. **Have we prototyped a minimal upstream fix?
-   ** No.
-   Constraints one,
-   two,
-   and five fail,
-   so an upstream prototype would target expected behavior rather than the defect.
-   The consumer-side override and rebuild paths were verified instead.
+1.  **Is it really upstream's fault?
+    ** No.
+    GitHub CLI is performing the current-repository inference verified in its source and runtime trace;
+    the failure comes from this workspace placing a broken `git` shim first on `PATH`.
+2.  **Can upstream fix it?
+    ** Not as this incident is framed.
+    Upstream could redesign repository inference,
+    but that is unnecessary for this failure
+    because the existing repository override already avoids the broken local executable.
+3.  **Are they supporting this use case?
+    ** Yes.
+    `--repo`,
+    `GH_REPO`,
+    and implicit current-repository selection are all implemented paths,
+    and both override paths already avoid Git.
+4.  **Would the repository welcome our contribution?
+    ** An issue would be allowed in principle.
+    `.github/CONTRIBUTING.md` says,
+    `Open an issue if things aren't working as expected` and requires duplicate checking.
+    No AI-assisted-contribution prohibition was found in that file,
+    the pull-request template,
+    or repository policy search.
+5.  **Will they likely fix it?
+    ** No upstream change is warranted because the observed behavior matches the repository-selection design.
+6.  **Have we prototyped a minimal upstream fix?
+    ** No.
+    Constraints one,
+    two,
+    and five fail,
+    so an upstream prototype would target expected behavior rather than the defect.
+    The consumer-side override and rebuild paths were verified instead.
 
 Nothing should be filed upstream.
 The actionable defect is local artifact availability for the PATH-shadowed Git wrapper,

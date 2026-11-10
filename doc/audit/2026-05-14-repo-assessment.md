@@ -357,26 +357,26 @@ Risks and remediations applied:
 
 ## Priority recommendations
 
-1. Add a required GitHub workflow that runs the repository validation gates.
-   Start with `mise run lint`,
-    `mise run build`,
-    and `mise run test`,
-   or a documented scoped equivalent if runtime cost is too high.
-2. Align `.github/workflows/publish.yml` with the publishable package set,
-   which is now `.github/workflows/npm-publish.yml` for the npm registry
-   (the original workflow was deleted on 2026-09-06,
-   in `77ba3948a4`),
-   or mark packages private if they are not intended for publication.
-3. Create a test-coverage backlog for packages with source but no colocated tests.
-   Start with `inference-canary`,
-    `editord`,
-    `done`,
-    `ssg-test`,
-    and `terminal-exec`.
-4. Audit lint and TypeScript suppressions by package,
-    excluding generated files
-   and fixtures,
-    so intentional exceptions remain visible.
-5. Remove shared mutable state from `build-tool/css` if concurrent in-process
-   CSS builds are a supported use case.
-6. Continue refreshing stale top-level documentation when measured facts change.
+1.  Add a required GitHub workflow that runs the repository validation gates.
+    Start with `mise run lint`,
+     `mise run build`,
+     and `mise run test`,
+    or a documented scoped equivalent if runtime cost is too high.
+2.  Align `.github/workflows/publish.yml` with the publishable package set,
+    which is now `.github/workflows/npm-publish.yml` for the npm registry
+    (the original workflow was deleted on 2026-09-06,
+    in `77ba3948a4`),
+    or mark packages private if they are not intended for publication.
+3.  Create a test-coverage backlog for packages with source but no colocated tests.
+    Start with `inference-canary`,
+     `editord`,
+     `done`,
+     `ssg-test`,
+     and `terminal-exec`.
+4.  Audit lint and TypeScript suppressions by package,
+     excluding generated files
+    and fixtures,
+     so intentional exceptions remain visible.
+5.  Remove shared mutable state from `build-tool/css` if concurrent in-process
+    CSS builds are a supported use case.
+6.  Continue refreshing stale top-level documentation when measured facts change.

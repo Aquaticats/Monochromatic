@@ -252,65 +252,65 @@ for `isGlobalReference`,
 `globals Array env plugin`,
 and `no-undef env Array` found no matching report.
 
-1. **Upstream's fault:**
-   yes.
-   The JavaScript scope manager disagrees with oxlint's own Rust global lookup and with ESLint,
-   and the config reference describes `builtin` as equivalent to `es2026`,
-   which the probe disproves.
-2. **Upstream can fix it:**
-   yes;
-   the prototype changes one loop header in `apps/oxlint/src-js/plugins/scope.ts`.
-3. **Supported use case:**
-   yes.
-   `isGlobalReference` is a documented JavaScript plugin API ported from ESLint
-   (`scope.ts:335` cites ESLint's `source-code.js`),
-   and `env` is a documented config key.
-4. **Contribution welcome:**
-   yes,
-   with disclosure.
-   `CONTRIBUTING.md:12-21` ("AI Usage Policy") requires AI usage to be disclosed and reviewed;
-   `AGENTS.md:7-15` repeats it;
-   `.github/ISSUE_TEMPLATE/linter_bug_report.yaml` has no AI field.
-   No ban was found.
-5. **Likely to fix:**
-   plausible.
-   No won't-fix signal;
-   globals resolution changed recently
-   (pull request 25905,
-   "resolve globals by reference,
-    not by name",
-   merged 2026-08-19).
-6. **Minimal fix prototyped:**
-   yes.
-   In a disposable clone of `oxc-project/oxc` at `f51e67812ed15cea95c9bddfe614d889685f0703`:
+1.  **Upstream's fault:**
+    yes.
+    The JavaScript scope manager disagrees with oxlint's own Rust global lookup and with ESLint,
+    and the config reference describes `builtin` as equivalent to `es2026`,
+    which the probe disproves.
+2.  **Upstream can fix it:**
+    yes;
+    the prototype changes one loop header in `apps/oxlint/src-js/plugins/scope.ts`.
+3.  **Supported use case:**
+    yes.
+    `isGlobalReference` is a documented JavaScript plugin API ported from ESLint
+    (`scope.ts:335` cites ESLint's `source-code.js`),
+    and `env` is a documented config key.
+4.  **Contribution welcome:**
+    yes,
+    with disclosure.
+    `CONTRIBUTING.md:12-21` ("AI Usage Policy") requires AI usage to be disclosed and reviewed;
+    `AGENTS.md:7-15` repeats it;
+    `.github/ISSUE_TEMPLATE/linter_bug_report.yaml` has no AI field.
+    No ban was found.
+5.  **Likely to fix:**
+    plausible.
+    No won't-fix signal;
+    globals resolution changed recently
+    (pull request 25905,
+    "resolve globals by reference,
+     not by name",
+    merged 2026-08-19).
+6.  **Minimal fix prototyped:**
+    yes.
+    In a disposable clone of `oxc-project/oxc` at `f51e67812ed15cea95c9bddfe614d889685f0703`:
 
-   ```diff
-   -  for (const envName in envs) {
-   +  const enabledEnvs = Object.assign({ builtin: true }, envs);
-   +  for (const envName in enabledEnvs) {
-   ```
+    ```diff
+    -  for (const envName in envs) {
+    +  const enabledEnvs = Object.assign({ builtin: true }, envs);
+    +  for (const envName in enabledEnvs) {
+    ```
 
-   Full hunk,
-   including the updated comments:
-   `apps/oxlint/src-js/plugins/scope.ts` lines 158 to 163 in the clone.
-   Verified on a copy of the installed oxlint 1.85.0 package with the equivalent edit to `dist/lint.js:12877`
-   (`let enabledEnvs = Object.assign({ builtin: !0 }, envs); for (let envName in enabledEnvs)`),
-   running the probe with `"env": { "browser": true, "node": true, "es2024": true }`:
-   before,
-   `Array global=false`,
-   `Object global=false`;
-   after,
-   `Array`,
-   `Object`,
-   `Set`,
-   `Promise`,
-   and `Buffer` all `global=true`.
-   The env-free config still reports `Buffer global=false` after the patch.
-   Gap:
-   the upstream vitest fixtures `apps/oxlint/test/fixtures/globals`
-   and `sourceCode_scope_methods` need the napi test build
-   and were not run;
-   their snapshots may change.
+    Full hunk,
+    including the updated comments:
+    `apps/oxlint/src-js/plugins/scope.ts` lines 158 to 163 in the clone.
+    Verified on a copy of the installed oxlint 1.85.0 package with the equivalent edit to `dist/lint.js:12877`
+    (`let enabledEnvs = Object.assign({ builtin: !0 }, envs); for (let envName in enabledEnvs)`),
+    running the probe with `"env": { "browser": true, "node": true, "es2024": true }`:
+    before,
+    `Array global=false`,
+    `Object global=false`;
+    after,
+    `Array`,
+    `Object`,
+    `Set`,
+    `Promise`,
+    and `Buffer` all `global=true`.
+    The env-free config still reports `Buffer global=false` after the patch.
+    Gap:
+    the upstream vitest fixtures `apps/oxlint/test/fixtures/globals`
+    and `sourceCode_scope_methods` need the napi test build
+    and were not run;
+    their snapshots may change.
 
 All six hold,
 so the draft is fileable once the person filing re-runs the reproduction and fills in the disclosure bracket,

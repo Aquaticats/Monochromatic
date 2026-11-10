@@ -20,6 +20,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Token tables
+
 /**
  Comparison operator tokens whose expressions get boolean forcing.
  */
@@ -51,6 +53,10 @@ const LOOP_TYPES: ReadonlySet<string> = new Set([
   'ForStatement',
 ],);
 
+//endregion Token tables
+
+//region Boolean forcing
+
 /**
  Builds boolean-forcing replacements over one span.
  
@@ -79,6 +85,10 @@ function forceBoolean(options: {
       };
     },);
 }
+
+//endregion Boolean forcing
+
+//region Replacement emission
 
 /**
  Emits boolean-forcing replacements for one node.
@@ -192,3 +202,5 @@ export function conditionalReplacements(options: {
 
   return [];
 }
+
+//endregion Replacement emission

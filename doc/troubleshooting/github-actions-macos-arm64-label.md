@@ -61,19 +61,19 @@ and external-consumer probe to pass on that host.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No.
-   The workflow used a runner-image branch name instead of a documented runner label.
-2. **Can upstream fix it?
-   ** No product defect was established.
-3. **Are they supporting this use case?
-   ** GitHub supports macOS arm64 through `macos-15` and the other documented labels.
-4. **Would the repo welcome our contribution?
-   ** Not applicable because the deciding documentation is correct.
-5. **Will they likely fix it?
-   ** No upstream change is needed.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** The workflow label replacement is the minimal
-   fix and started a standard runner job.
+1.  **Is it really upstream's fault?
+    ** No.
+    The workflow used a runner-image branch name instead of a documented runner label.
+2.  **Can upstream fix it?
+    ** No product defect was established.
+3.  **Are they supporting this use case?
+    ** GitHub supports macOS arm64 through `macos-15` and the other documented labels.
+4.  **Would the repo welcome our contribution?
+    ** Not applicable because the deciding documentation is correct.
+5.  **Will they likely fix it?
+    ** No upstream change is needed.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** The workflow label replacement is the minimal
+    fix and started a standard runner job.
 
 Nothing should be filed upstream.

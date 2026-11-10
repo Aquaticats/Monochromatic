@@ -83,15 +83,15 @@ sudo nmcli general logging level INFO domains DEFAULT
 
 The correlated failure proceeded as follows:
 
-1. IWD started a full scan while the station remained associated.
-2. Gateway and internet replies stopped during the scan.
-3. The scan completed.
-4. About six seconds after scan completion,
-    and roughly eleven seconds after scan start,
-    the driver reported a CQM beacon-loss event despite the preceding strong signal.
-5. mac80211 sent connection probes and locally disconnected with reason `4` when they received no acknowledgement.
-6. The first recovery attempts encountered temporary association rejection and a four-way-handshake timeout.
-7. A later activation succeeded.
+1.  IWD started a full scan while the station remained associated.
+2.  Gateway and internet replies stopped during the scan.
+3.  The scan completed.
+4.  About six seconds after scan completion,
+     and roughly eleven seconds after scan start,
+     the driver reported a CQM beacon-loss event despite the preceding strong signal.
+5.  mac80211 sent connection probes and locally disconnected with reason `4` when they received no acknowledgement.
+6.  The first recovery attempts encountered temporary association rejection and a four-way-handshake timeout.
+7.  A later activation succeeded.
 
 A full scan is not proof of a fault because successful connections also scan.
 The diagnostic value is the ordering of scan,

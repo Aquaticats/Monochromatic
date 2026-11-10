@@ -31,71 +31,71 @@ The audited upstream checkout `google/serde_json_lenient` at
  The disposable consumer's Cargo.lock pins that release with checksum
  `0e033097bf0d2b59a62b42c18ebbb797503839b26afdda2c4e1415cb6c813540`.
 
-1. `src/de.rs:2824-2829` routes public `from_str` through `from_trait`,
-   which constructs `Deserializer::new` (`:2612-2622`).
-   The constructor enables comments by default (`:53-68`):
+1.  `src/de.rs:2824-2829` routes public `from_str` through `from_trait`,
+    which constructs `Deserializer::new` (`:2612-2622`).
+    The constructor enables comments by default (`:53-68`):
 
-   ```rust
-   // src/de.rs:2824-2829
-   pub fn from_str<'a, T>(s: &'a str) -> Result<T>
-   where
-       T: de::Deserialize<'a>,
-   {
-       from_trait(read::StrRead::new(s))
-   }
-   ```
+    ```rust
+    // src/de.rs:2824-2829
+    pub fn from_str<'a, T>(s: &'a str) -> Result<T>
+    where
+        T: de::Deserialize<'a>,
+    {
+        from_trait(read::StrRead::new(s))
+    }
+    ```
 
-   ```rust
-   // src/de.rs:60-67
-   remaining_depth: 128,
-   ignore_trailing_commas: true,
-   allow_comments: true,
-   ```
+    ```rust
+    // src/de.rs:60-67
+    remaining_depth: 128,
+    ignore_trailing_commas: true,
+    allow_comments: true,
+    ```
 
-2. The general whitespace branch recognizes CR and LF,
-   but `//` handling ends only on LF (`src/de.rs:302-333`):
+2.  The general whitespace branch recognizes CR and LF,
+    but `//` handling ends only on LF (`src/de.rs:302-333`):
 
-   ```rust
-   // src/de.rs:303-326
-   // Consume comments as if they were whitespace.
-   loop {
-       match tri!(self.peek()) {
-           Some(b' ' | b'\n' | b'\t' | b'\r') => {
-               self.eat_char();
-           }
-           Some(b'/') if self.allow_comments => {
-               self.eat_char();
-               match tri!(self.peek()) {
-                   Some(b'/') => {
-                       // TODO: Read until newline.
-                       loop {
-                           match tri!(self.peek()) {
-                               Some(b'\n') => {
-                                   self.eat_char();
-                                   break;
-                               }
-                               Some(_) => {
-                                   self.eat_char();
-                               }
-   ```
+    ```rust
+    // src/de.rs:303-326
+    // Consume comments as if they were whitespace.
+    loop {
+        match tri!(self.peek()) {
+            Some(b' ' | b'\n' | b'\t' | b'\r') => {
+                self.eat_char();
+            }
+            Some(b'/') if self.allow_comments => {
+                self.eat_char();
+                match tri!(self.peek()) {
+                    Some(b'/') => {
+                        // TODO: Read until newline.
+                        loop {
+                            match tri!(self.peek()) {
+                                Some(b'\n') => {
+                                    self.eat_char();
+                                    break;
+                                }
+                                Some(_) => {
+                                    self.eat_char();
+                                }
+    ```
 
-   A CR-only separator enters `Some(_)` and the scanner consumes the rest of the source as comment text.
-   A CRLF separator eventually reaches LF and terminates,
-   which explains the positive control.
+    A CR-only separator enters `Some(_)` and the scanner consumes the rest of the source as comment text.
+    A CRLF separator eventually reaches LF and terminates,
+    which explains the positive control.
 
-3. When `parse_whitespace` returns `None` at EOF,
-   object-member access reports `ErrorCode::EofWhileParsingObject`
-   (`src/de.rs:2100-2108`):
+3.  When `parse_whitespace` returns `None` at EOF,
+    object-member access reports `ErrorCode::EofWhileParsingObject`
+    (`src/de.rs:2100-2108`):
 
-   ```rust
-   // src/de.rs:2100-2108
-   let peek = match tri!(map.de.parse_whitespace()) {
-       Some(b) => b,
-       None => {
-           return Err(map.de.peek_error(ErrorCode::EofWhileParsingObject));
-       }
-   };
-   ```
+    ```rust
+    // src/de.rs:2100-2108
+    let peek = match tri!(map.de.parse_whitespace()) {
+        Some(b) => b,
+        None => {
+            return Err(map.de.peek_error(ErrorCode::EofWhileParsingObject));
+        }
+    };
+    ```
 
 The README describes human-authored JSON with both `/*` and `//` comments
  (`README.md:9-17`),
@@ -187,30 +187,30 @@ No entry under this repository's `.out-of-scope/` list exempts this crate or com
  not this line-comment case.
  No external filing was sent.
 
-1. **Upstream fault**:
-   yes.
-   `src/de.rs:303-326` consumes bare CR inside a supported `//` comment,
-   although the same parser treats CR as JSON whitespace.
-2. **Fixability**:
-   yes.
-   The minimal scanner branch change and tests passed under the existing architecture.
-3. **Supported use case**:
-   yes for human-authored JSON with `//` comments (`README.md:9-17`).
-   The README does not advertise a special LF-only grammar.
-4. **Contribution welcome**:
-   `README.md:44-50` gives contribution licensing terms.
-   The inspected `.github/` has only a CI workflow,
-   with no contribution prohibition or AI-assistance ban found.
-5. **Maintainer disposition**:
-   no searched issue,
-   PR or repository policy declines this correction.
-   Silence is not evidence of a response timetable.
-6. **Prototype**:
-   yes.
-   [The patch](serde-json-lenient-cr-line-comment.patch) contains the small source change and
-   consumer-boundary tests;
-   they failed prepatch and passed with the source change,
-   and the patched upstream suite passed.
+1.  **Upstream fault**:
+    yes.
+    `src/de.rs:303-326` consumes bare CR inside a supported `//` comment,
+    although the same parser treats CR as JSON whitespace.
+2.  **Fixability**:
+    yes.
+    The minimal scanner branch change and tests passed under the existing architecture.
+3.  **Supported use case**:
+    yes for human-authored JSON with `//` comments (`README.md:9-17`).
+    The README does not advertise a special LF-only grammar.
+4.  **Contribution welcome**:
+    `README.md:44-50` gives contribution licensing terms.
+    The inspected `.github/` has only a CI workflow,
+    with no contribution prohibition or AI-assistance ban found.
+5.  **Maintainer disposition**:
+    no searched issue,
+    PR or repository policy declines this correction.
+    Silence is not evidence of a response timetable.
+6.  **Prototype**:
+    yes.
+    [The patch](serde-json-lenient-cr-line-comment.patch) contains the small source change and
+    consumer-boundary tests;
+    they failed prepatch and passed with the source change,
+    and the patched upstream suite passed.
 
 These technical filing conditions hold,
  but sending an external issue or patch requires separate authorization.

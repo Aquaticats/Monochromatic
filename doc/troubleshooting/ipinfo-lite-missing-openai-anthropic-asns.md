@@ -224,36 +224,36 @@ so a client that does not follow redirects reports a parse failure instead of th
 
 Nothing to file.
 
-1. Really upstream's fault:
-   yes.
-   The in-repo filter is exact and demonstrably works for `AS32590`,
-   `AS399358`,
-   and `AS401518` in the same artifact.
-2. Can upstream fix it:
-   yes.
-   The dataset could carry announcements for `AS401864`,
-   `AS400243`,
-   and `AS401551`.
-3. Are they supporting this use case:
-   yes.
-   The product sells ASN-tagged network rows,
-   and this repository consumes it exactly that way.
-4. Would the repository welcome our contribution:
-   not applicable.
-   IPinfo Lite is a commercial dataset distributed as a download behind a token.
-   There is no public source tree,
-   no public issue tracker,
-   and no contribution path for its contents,
-   so no `CONTRIBUTING.md` or filing policy exists to check.
-5. Will they likely fix it:
-   unknown.
-   No public signal either way,
-   and absence of signal is not a failure of this constraint.
-6. Have we prototyped a minimal fix:
-   not applicable.
-   The missing artifact is data,
-   not code,
-   so no patch to their side can be prototyped here.
+1.  Really upstream's fault:
+    yes.
+    The in-repo filter is exact and demonstrably works for `AS32590`,
+    `AS399358`,
+    and `AS401518` in the same artifact.
+2.  Can upstream fix it:
+    yes.
+    The dataset could carry announcements for `AS401864`,
+    `AS400243`,
+    and `AS401551`.
+3.  Are they supporting this use case:
+    yes.
+    The product sells ASN-tagged network rows,
+    and this repository consumes it exactly that way.
+4.  Would the repository welcome our contribution:
+    not applicable.
+    IPinfo Lite is a commercial dataset distributed as a download behind a token.
+    There is no public source tree,
+    no public issue tracker,
+    and no contribution path for its contents,
+    so no `CONTRIBUTING.md` or filing policy exists to check.
+5.  Will they likely fix it:
+    unknown.
+    No public signal either way,
+    and absence of signal is not a failure of this constraint.
+6.  Have we prototyped a minimal fix:
+    not applicable.
+    The missing artifact is data,
+    not code,
+    so no patch to their side can be prototyped here.
 
 Constraint 4 has no affirmative answer,
 and constraint 6 cannot be met,

@@ -223,28 +223,28 @@ so it does not prove external-contributor turnaround.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** Yes.
-   The public parser discards invalid prefix text after its own `parseInt` call.
-2. **Can upstream fix it?
-   ** Yes.
-   Full-text decimal validation before conversion is local and preserves the API.
-3. **Are they supporting this use case?
-   ** Yes.
-   `CIDR.parse()` is public,
-    `ParseError` represents invalid input,
-    and the contribution guide requires edge-case
-   tests.
-4. **Would the repo welcome our contribution?
-   ** Yes.
-   `CONTRIBUTING.md` invites issues and pull requests,
-    and no policy bars this contribution.
-5. **Will they likely fix it?
-   ** Yes with moderate confidence.
-   The repository has no duplicate or won't-fix signal and recently shipped CIDR correctness work.
-6. **Have we prototyped a minimal compatible fix?
-   ** Yes.
-   The two-hunk patch passed all upstream checks and a built-artifact regression catalog.
+1.  **Is it really upstream's fault?
+    ** Yes.
+    The public parser discards invalid prefix text after its own `parseInt` call.
+2.  **Can upstream fix it?
+    ** Yes.
+    Full-text decimal validation before conversion is local and preserves the API.
+3.  **Are they supporting this use case?
+    ** Yes.
+    `CIDR.parse()` is public,
+     `ParseError` represents invalid input,
+     and the contribution guide requires edge-case
+    tests.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+    `CONTRIBUTING.md` invites issues and pull requests,
+     and no policy bars this contribution.
+5.  **Will they likely fix it?
+    ** Yes with moderate confidence.
+    The repository has no duplicate or won't-fix signal and recently shipped CIDR correctness work.
+6.  **Have we prototyped a minimal compatible fix?
+    ** Yes.
+    The two-hunk patch passed all upstream checks and a built-artifact regression catalog.
 
 All filing constraints pass.
 This report keeps a fileable draft but does not send it without separate authorization for external communication.

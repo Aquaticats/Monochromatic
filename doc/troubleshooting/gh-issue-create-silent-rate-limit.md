@@ -128,32 +128,32 @@ failures produced zero stderr lines and zero non-zero exits.
 
 Each landed in the filing loop and observed live:
 
-1. Validate the returned URL instead of the exit code;
-   on no URL match,
-   back off 30s times
-   the attempt count and retry the same create,
-   capped at 9 attempts,
-   then record a failure.
-   Tradeoff:
-   a create that succeeded server-side while losing its URL would duplicate on
-   retry.
-   Not observed;
-   rejected mutations do not execute server-side,
-   and the tracker
-   boundary check (newest issue equals the last logged URL) is the guard that proves it.
-2. Pace every gh call by 1.5s and retry the explicit rate-limit error strings with the same
-   backoff.
-   Tradeoff:
-   slower filing;
-   reduces but does not prevent the limit,
-   and the
-   secondary limit clears on its own schedule regardless of pacing.
-3. Treat log entries carrying an error or an empty URL as not filed when resuming,
-   so a
-   restart retries them.
-   Tradeoff:
-   none observed;
-   requires the log to carry the URL field.
+1.  Validate the returned URL instead of the exit code;
+    on no URL match,
+    back off 30s times
+    the attempt count and retry the same create,
+    capped at 9 attempts,
+    then record a failure.
+    Tradeoff:
+    a create that succeeded server-side while losing its URL would duplicate on
+    retry.
+    Not observed;
+    rejected mutations do not execute server-side,
+    and the tracker
+    boundary check (newest issue equals the last logged URL) is the guard that proves it.
+2.  Pace every gh call by 1.5s and retry the explicit rate-limit error strings with the same
+    backoff.
+    Tradeoff:
+    slower filing;
+    reduces but does not prevent the limit,
+    and the
+    secondary limit clears on its own schedule regardless of pacing.
+3.  Treat log entries carrying an error or an empty URL as not filed when resuming,
+    so a
+    restart retries them.
+    Tradeoff:
+    none observed;
+    requires the log to carry the URL field.
 
 ## What does not work
 
@@ -205,36 +205,36 @@ so no exemption applies.
 The six constraints,
 walked honestly:
 
-1. Is it upstream's fault?
-   The rate limit is GitHub's;
-   the silent exit 0 on a failed create
-   is gh's behavior.
-   Yes for the exit-code defect.
-2. Can upstream fix it?
-   Plausible:
-   a failed create should exit non-zero.
-   The mechanism is
-   untraced,
-   so the difficulty is unknown.
-   Not yet assessed to a yes.
-3. Are they supporting this use case?
-   Non-interactive scripted creation is a documented gh
-   use case.
-   Not yet verified by quoting the docs page.
-4. Would the repo welcome the report?
-   `CONTRIBUTING.md` and the issue templates were not
-   read yet;
-   no AI-contribution ban was found incidentally,
-   but this check has not run.
-5. Will they likely fix it?
-   `#4801` shows maintainer engagement with rate-limit reports on
-   this command;
-   no won't-fix signal found.
-   Sorta-holds.
-6. Minimal prototyped fix?
-   Not yet.
-   The source trace and the disposable-clone prototype are
-   the named remaining steps.
+1.  Is it upstream's fault?
+    The rate limit is GitHub's;
+    the silent exit 0 on a failed create
+    is gh's behavior.
+    Yes for the exit-code defect.
+2.  Can upstream fix it?
+    Plausible:
+    a failed create should exit non-zero.
+    The mechanism is
+    untraced,
+    so the difficulty is unknown.
+    Not yet assessed to a yes.
+3.  Are they supporting this use case?
+    Non-interactive scripted creation is a documented gh
+    use case.
+    Not yet verified by quoting the docs page.
+4.  Would the repo welcome the report?
+    `CONTRIBUTING.md` and the issue templates were not
+    read yet;
+    no AI-contribution ban was found incidentally,
+    but this check has not run.
+5.  Will they likely fix it?
+    `#4801` shows maintainer engagement with rate-limit reports on
+    this command;
+    no won't-fix signal found.
+    Sorta-holds.
+6.  Minimal prototyped fix?
+    Not yet.
+    The source trace and the disposable-clone prototype are
+    the named remaining steps.
 
 Verdict:
 the audit is incomplete;

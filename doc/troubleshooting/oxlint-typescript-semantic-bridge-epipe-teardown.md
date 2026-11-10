@@ -69,26 +69,26 @@ verified by installed types and real invocation.
 The failing chain,
 measured with strace and reproduced by the fixture suite:
 
-1. The native worker dies
-   (one measured instance:
-   `SIGSEGV si_addr=0x8`;
-   the fixture stands in for the death with `SIGKILL`).
-1. The channel's reader sees EOF and every later request fails with `write EPIPE`.
-   The worker's own markers for this state are
-   `SyncRpcChannel is closed`
-   (`node_modules/typescript/dist/api/syncChannel.js:210`) and
-   `eofError()`
-   (`node_modules/typescript/dist/api/syncChannel.js:408`).
-1. The plugin's `beforeExit` handler runs `closeSemanticBridge()`,
-   which called `snapshot.dispose()` on the dead channel.
-   The dispose issues an `apiRequest("release")`
-   (`node_modules/typescript/dist/api/sync/api.js:466`,
-   `node_modules/typescript/dist/api/sync/api.js:1026`)
-   that writes to the stale file descriptor
-   (`writeSync(21, ...)`)
-   and fails with `-1 EBADF`.
-1. That failure escaped as an uncaught `Error: EBADF: bad file descriptor, write`,
-   exiting 1 with the shutdown banner.
+1.  The native worker dies
+    (one measured instance:
+    `SIGSEGV si_addr=0x8`;
+    the fixture stands in for the death with `SIGKILL`).
+1.  The channel's reader sees EOF and every later request fails with `write EPIPE`.
+    The worker's own markers for this state are
+    `SyncRpcChannel is closed`
+    (`node_modules/typescript/dist/api/syncChannel.js:210`) and
+    `eofError()`
+    (`node_modules/typescript/dist/api/syncChannel.js:408`).
+1.  The plugin's `beforeExit` handler runs `closeSemanticBridge()`,
+    which called `snapshot.dispose()` on the dead channel.
+    The dispose issues an `apiRequest("release")`
+    (`node_modules/typescript/dist/api/sync/api.js:466`,
+    `node_modules/typescript/dist/api/sync/api.js:1026`)
+    that writes to the stale file descriptor
+    (`writeSync(21, ...)`)
+    and fails with `-1 EBADF`.
+1.  That failure escaped as an uncaught `Error: EBADF: bad file descriptor, write`,
+    exiting 1 with the shutdown banner.
 
 Steps 1 and 2 are upstream behavior under a dead worker.
 Steps 3 and 4 were the plugin's bug:
@@ -348,34 +348,34 @@ that issue and shepherds review themselves.
 
 ### Constraint walk: the .d.* transpile panic
 
-1. Upstream's fault:
-   yes.
-   A documented input shape
-   (`Options.FileName` documents extension semantics)
-   triggers a worker panic instead of a normal error.
-1. Upstream can fix it:
-   yes.
-   Two fix shapes are demonstrated below.
-1. Are they supporting this use case:
-   yes.
-   The classic API surface ships in 7.1 and classic accepts the input
-   with a catchable error.
-1. Would they fix it and welcome the contribution:
-   soft yes,
-   conditional.
-   AI assistance must be disclosed,
-   a human operator must choose the issue and shepherd it,
-   and bulk or automated filing is banned.
-1. Will they likely fix it:
-   soft yes.
-   A panic on accepted input is a robustness fix with no `wontfix` signal
-   in the searches above.
-1. Did we prototype the minimal fix:
-   yes,
-   in a disposable clone
-   (`${HOME}/temp/agent/typescript-prototype-2026-10-22`,
-   `--depth 1`).
-   The targeted test panicked pre-patch and passed post-patch.
+1.  Upstream's fault:
+    yes.
+    A documented input shape
+    (`Options.FileName` documents extension semantics)
+    triggers a worker panic instead of a normal error.
+1.  Upstream can fix it:
+    yes.
+    Two fix shapes are demonstrated below.
+1.  Are they supporting this use case:
+    yes.
+    The classic API surface ships in 7.1 and classic accepts the input
+    with a catchable error.
+1.  Would they fix it and welcome the contribution:
+    soft yes,
+    conditional.
+    AI assistance must be disclosed,
+    a human operator must choose the issue and shepherd it,
+    and bulk or automated filing is banned.
+1.  Will they likely fix it:
+    soft yes.
+    A panic on accepted input is a robustness fix with no `wontfix` signal
+    in the searches above.
+1.  Did we prototype the minimal fix:
+    yes,
+    in a disposable clone
+    (`${HOME}/temp/agent/typescript-prototype-2026-10-22`,
+    `--depth 1`).
+    The targeted test panicked pre-patch and passed post-patch.
 
 All six hold,
 so the draft below is fileable once a human operator reviews it,
@@ -410,33 +410,33 @@ Both shapes remove the worker panic.
 
 ### Constraint walk: the unreduced worker death
 
-1. Upstream's fault:
-   yes,
-   for the death itself
-   (`SIGSEGV si_addr=0x8` in the native worker,
-   strace-measured).
-1. Upstream can fix it:
-   presumably yes,
-   but the failing code path is unknown.
-1. Are they supporting this use case:
-   soft yes,
-   the sync API surface is shipped and documented.
-1. Would they fix it and welcome the contribution:
-   same conditional soft yes as above.
-1. Will they likely fix it:
-   soft yes,
-   a segfault fix,
-   no `wontfix` signal.
-1. Did we prototype the minimal fix:
-   no,
-   and prototyping was attempted then abandoned.
-   Reduction was attempted with strace and the fixture suite;
-   the fixtures reproduce the teardown chain
-   by standing in for the death with `SIGKILL`,
-   not the death itself.
-   The signal record gives `si_addr=0x8` and no symbolized stack,
-   so the failing path cannot be located,
-   and a patch could not be verified pre-patch and post-patch.
+1.  Upstream's fault:
+    yes,
+    for the death itself
+    (`SIGSEGV si_addr=0x8` in the native worker,
+    strace-measured).
+1.  Upstream can fix it:
+    presumably yes,
+    but the failing code path is unknown.
+1.  Are they supporting this use case:
+    soft yes,
+    the sync API surface is shipped and documented.
+1.  Would they fix it and welcome the contribution:
+    same conditional soft yes as above.
+1.  Will they likely fix it:
+    soft yes,
+    a segfault fix,
+    no `wontfix` signal.
+1.  Did we prototype the minimal fix:
+    no,
+    and prototyping was attempted then abandoned.
+    Reduction was attempted with strace and the fixture suite;
+    the fixtures reproduce the teardown chain
+    by standing in for the death with `SIGKILL`,
+    not the death itself.
+    The signal record gives `si_addr=0x8` and no symbolized stack,
+    so the failing path cannot be located,
+    and a patch could not be verified pre-patch and post-patch.
 
 Constraint 6 does not hold,
 so nothing is filed for this member and the decision is

@@ -212,20 +212,20 @@ function PRH(H, $, q = { encoding: 'utf-8', },) {
 
 Behaviour summary:
 
-1. `PRH` first attempts an atomic write:
-    temp file with `O_EXCL`,
-    write,
-    `fchmod`
-   to preserve the original mode,
-    `fsync`,
-    `rename` over the target.
-   A concurrent reader sees only the old content or the new content during this path.
-2. If any step in (1) throws,
-    the catch block logs `Failed to write file atomically: <err>`,
-   then opens the target directly with `O_WRONLY | O_CREAT | O_TRUNC` and writes.
-   **`O_TRUNC` zeroes the existing file before the new content is written.
-   **
-   A concurrent reader during this window observes the file as empty.
+1.  `PRH` first attempts an atomic write:
+     temp file with `O_EXCL`,
+     write,
+     `fchmod`
+    to preserve the original mode,
+     `fsync`,
+     `rename` over the target.
+    A concurrent reader sees only the old content or the new content during this path.
+2.  If any step in (1) throws,
+     the catch block logs `Failed to write file atomically: <err>`,
+    then opens the target directly with `O_WRONLY | O_CREAT | O_TRUNC` and writes.
+    **`O_TRUNC` zeroes the existing file before the new content is written.
+    **
+    A concurrent reader during this window observes the file as empty.
 
 The fallback path is the bug.
 `O_TRUNC` is observably non-atomic from another process' perspective;
@@ -272,11 +272,11 @@ Log destination,
  per `O8H()` (offset 197025),
  resolves in this order:
 
-1. The `--debug=<dir>` CLI arg,
-    if present.
-2. The internal `Tk8` override (null by default).
-3. `process.env.CLAUDE_CODE_DEBUG_LOGS_DIR`.
-4. `~/.claude/debug/<sessionId>.txt`.
+1.  The `--debug=<dir>` CLI arg,
+     if present.
+2.  The internal `Tk8` override (null by default).
+3.  `process.env.CLAUDE_CODE_DEBUG_LOGS_DIR`.
+4.  `~/.claude/debug/<sessionId>.txt`.
 
 The write sink branches on whether debug mode is active (`FV()`,
  set by `--debug`,
@@ -430,33 +430,33 @@ the incident:
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the fallback path
-   uses `O_TRUNC` rather than the temp-and-rename pattern
-   used by the primary path.
-2. **Can upstream fix it?
-   ** Yes;
-    two concrete patches in the
-   draft below (retry atomic on transient errors;
-    second
-   atomic temp with different suffix).
-3. **Are they supporting this use case?
-   ** Yes;
-    cross-process
-   readers (watchers,
-    LSPs,
-    build tools) are the normal
-   environment Claude Code is used in.
-4. **Will they likely fix it?
-   ** Plausible;
-    the bug is clear,
-   the trigger is logged,
-    and the fix is local to `PRH`.
-5. **Have we prototyped a minimal fix?
-   ** Architectural
-   sketches in the draft;
-    no PR yet.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the fallback path
+    uses `O_TRUNC` rather than the temp-and-rename pattern
+    used by the primary path.
+2.  **Can upstream fix it?
+    ** Yes;
+     two concrete patches in the
+    draft below (retry atomic on transient errors;
+     second
+    atomic temp with different suffix).
+3.  **Are they supporting this use case?
+    ** Yes;
+     cross-process
+    readers (watchers,
+     LSPs,
+     build tools) are the normal
+    environment Claude Code is used in.
+4.  **Will they likely fix it?
+    ** Plausible;
+     the bug is clear,
+    the trigger is logged,
+     and the fix is local to `PRH`.
+5.  **Have we prototyped a minimal fix?
+    ** Architectural
+    sketches in the draft;
+     no PR yet.
 
 Decision:
  worth filing.

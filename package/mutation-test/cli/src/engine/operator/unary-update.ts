@@ -13,6 +13,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Swap tables
+
 /**
  Numeric unary swap table; `~` drops entirely, mirroring Stryker's
  UnaryOperator. `!` belongs to the boolean family instead.
@@ -29,6 +31,10 @@ const UPDATE_SWAPS: Readonly<Record<string, string>> = {
   '++': '--',
   '--': '++',
 };
+
+//endregion Swap tables
+
+//region Replacement emission
 
 /**
  Emits unary and update operator replacements for one node.
@@ -158,3 +164,5 @@ export function unaryUpdateReplacements(options: {
 
   return [];
 }
+
+//endregion Replacement emission

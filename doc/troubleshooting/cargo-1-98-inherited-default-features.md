@@ -213,22 +213,22 @@ no file in the working tree carries it now.
 
 Nothing to file.
 
-1. **Is it really upstream's fault?**
-   No. The 1.98 error is the documented Edition 2024 rule,
-   and upstream already relaxed it in rust-lang/cargo#17126 for 1.99.
-2. **Can upstream fix it?**
-   Already fixed for 1.99;
-   1.98 is a released toolchain.
-3. **Are they supporting this use case?**
-   Yes,
-   from 1.99 with Edition 2024.
-4. **Would the repo welcome our contribution?**
-   Not evaluated:
-   there is nothing to contribute.
-5. **Will they likely fix it?**
-   Already fixed.
-6. **Have we prototyped a fix?**
-   Not applicable.
+1.  **Is it really upstream's fault?**
+    No. The 1.98 error is the documented Edition 2024 rule,
+    and upstream already relaxed it in rust-lang/cargo#17126 for 1.99.
+2.  **Can upstream fix it?**
+    Already fixed for 1.99;
+    1.98 is a released toolchain.
+3.  **Are they supporting this use case?**
+    Yes,
+    from 1.99 with Edition 2024.
+4.  **Would the repo welcome our contribution?**
+    Not evaluated:
+    there is nothing to contribute.
+5.  **Will they likely fix it?**
+    Already fixed.
+6.  **Have we prototyped a fix?**
+    Not applicable.
 
 `.out-of-scope/cargo-workspace.md` covers the root-workspace question,
 not this behavior.

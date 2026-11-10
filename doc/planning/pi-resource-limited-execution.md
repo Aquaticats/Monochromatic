@@ -281,15 +281,15 @@ This preserves the decision that concurrent Pi sessions do not share a ceiling.
 
 Startup order is strict:
 
-1. Start the unique session slice.
-2. Apply every session cgroup property with one runtime `systemctl --user set-property` invocation.
-3. Read back and validate every effective property.
-4. Publish a private ownership marker containing the unit,
-   nonce,
-   launcher PID,
-   and process start identity.
-5. Launch Pi's inner entrypoint in the host scope under that slice.
-6. Apply the session descriptor limit before invoking Pi's exported `main(args)`.
+1.  Start the unique session slice.
+2.  Apply every session cgroup property with one runtime `systemctl --user set-property` invocation.
+3.  Read back and validate every effective property.
+4.  Publish a private ownership marker containing the unit,
+    nonce,
+    launcher PID,
+    and process start identity.
+5.  Launch Pi's inner entrypoint in the host scope under that slice.
+6.  Apply the session descriptor limit before invoking Pi's exported `main(args)`.
 
 If any step before Pi starts fails,
 clean up the partial unit state,
@@ -420,20 +420,20 @@ A nonzero `systemd-run` exit is ambiguous because it can represent either setup 
 
 Use an explicit acknowledgement channel:
 
-1. The outer controller creates a private per-launch acknowledgement endpoint under `XDG_RUNTIME_DIR`.
-2. The endpoint name binds one nonce,
-   one expected unit,
-   and one expected profile to one launch.
-3. A monitor helper acknowledges after systemd places it in the expected cgroup and before it starts user work.
-4. The helper starts the requested child,
-   waits for it,
-   and remains in the scope while it snapshots `memory.events` and final unit evidence.
-5. The helper sends structured exit and memory evidence to the outer controller before leaving the scope.
-6. Once acknowledged,
-   every later exit belongs to the wrapped command and must never trigger fallback.
-7. If the wrapper exits or five seconds elapse before acknowledgement,
-   the controller warns and runs the direct adapter once.
-8. Remove the acknowledgement endpoint on every terminal path.
+1.  The outer controller creates a private per-launch acknowledgement endpoint under `XDG_RUNTIME_DIR`.
+2.  The endpoint name binds one nonce,
+    one expected unit,
+    and one expected profile to one launch.
+3.  A monitor helper acknowledges after systemd places it in the expected cgroup and before it starts user work.
+4.  The helper starts the requested child,
+    waits for it,
+    and remains in the scope while it snapshots `memory.events` and final unit evidence.
+5.  The helper sends structured exit and memory evidence to the outer controller before leaving the scope.
+6.  Once acknowledged,
+    every later exit belongs to the wrapped command and must never trigger fallback.
+7.  If the wrapper exits or five seconds elapse before acknowledgement,
+    the controller warns and runs the direct adapter once.
+8.  Remove the acknowledgement endpoint on every terminal path.
 
 The endpoint must be owned by the current user and inaccessible to group or other users.
 The acknowledgement includes the nonce and observed cgroup path.
@@ -761,25 +761,25 @@ The integrated adapter's added 95th-percentile startup time must remain at or un
 
 At the end-user boundary:
 
-1. Activate the built package against a disposable Pi home and launcher directory.
-2. Start Pi through the installed launcher.
-3. Confirm Pi itself is inside the session slice with every session cgroup property and descriptor limit.
-4. Start a second top-level Pi and confirm it receives a different independent session slice.
-5. Start a nested Pi from limited Bash and confirm it remains in the inherited session slice.
-6. Invoke model `bash` and inspect command-profile cgroup values.
-7. Invoke `!` and `!!` through a pseudo-terminal and inspect the same values.
-8. Start a managed process that reports its cgroup,
-   current directory,
-   login-shell environment,
-   and descriptor limit;
-   accepts stdin;
-   emits watched output;
-   and remains running.
-9. Confirm process output,
-   notification,
-   stdin,
-   stop,
-   and cleanup behavior through the actual `process` tool.
+1.  Activate the built package against a disposable Pi home and launcher directory.
+2.  Start Pi through the installed launcher.
+3.  Confirm Pi itself is inside the session slice with every session cgroup property and descriptor limit.
+4.  Start a second top-level Pi and confirm it receives a different independent session slice.
+5.  Start a nested Pi from limited Bash and confirm it remains in the inherited session slice.
+6.  Invoke model `bash` and inspect command-profile cgroup values.
+7.  Invoke `!` and `!!` through a pseudo-terminal and inspect the same values.
+8.  Start a managed process that reports its cgroup,
+    current directory,
+    login-shell environment,
+    and descriptor limit;
+    accepts stdin;
+    emits watched output;
+    and remains running.
+9.  Confirm process output,
+    notification,
+    stdin,
+    stop,
+    and cleanup behavior through the actual `process` tool.
 10. Start a quiet background descendant from Bash,
     confirm its scope remains bounded after foreground-shell exit,
     and confirm session shutdown removes it.

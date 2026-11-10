@@ -319,59 +319,59 @@ All six constraints hold;
 artifact is an additive comment,
  not a new issue.
 
-1. **Upstream's fault?
-   ** Yes.
-    For bugs 1+2,
-    two APIs contradict `find_all` and the
-   `api.md` contract.
-    For bug 3,
-    `find_all` contradicts itself (both operands match
-   `(0,1)`,
-    the intersection does not).
-    Behavior bugs,
-    not wording,
-    not
-   architectural restrictions.
-2. **Can upstream fix it?
-   ** Yes.
-    Bugs 1+2 prototyped below (pass the full test
-   suite).
-    Bug 3's minimal routing prototype is insufficient (it trips an internal
-   Dfa assertion);
-    the fix is in the forward-derivative algebra,
-    larger but not
-   impossible (issue #22's driver/representation unification).
-    Constraint 2 is
-   about possibility,
-    which holds.
-3. **Supporting this use case?
-   ** Yes.
-    `find_all`/`find_anchored`/`is_match` are
-   documented production APIs and the cross-API agreement is asserted intent the
-   maintainer is converging on (issue #22).
-4. **Would the repo welcome it?
-   ** Yes.
-    No `CONTRIBUTING.md`,
-    issue/PR template,
-    or
-   AI-assistance ban exists (the absent `.github/` policy was checked for the
-   06-04 filing;
-    unchanged),
-    and ieviev explicitly invited more findings (issue
-   #17:
-    "If you find some more you can reopen or add a new issue";
-    issue #21:
-   "excellent job").
-    No ban found.
-5. **Likely to fix?
-   ** Yes.
-    ieviev fixed the bug-02/08/10 family across 0.6.9 to
-   0.6.13 and opened #22 himself to unify the drivers;
-    these are tail triggers of
-   exactly that work.
-6. **Prototyped a minimal fix?
-   ** Yes.
-    See "Auto-prototype" below.
+1.  **Upstream's fault?
+    ** Yes.
+     For bugs 1+2,
+     two APIs contradict `find_all` and the
+    `api.md` contract.
+     For bug 3,
+     `find_all` contradicts itself (both operands match
+    `(0,1)`,
+     the intersection does not).
+     Behavior bugs,
+     not wording,
+     not
+    architectural restrictions.
+2.  **Can upstream fix it?
+    ** Yes.
+     Bugs 1+2 prototyped below (pass the full test
+    suite).
+     Bug 3's minimal routing prototype is insufficient (it trips an internal
+    Dfa assertion);
+     the fix is in the forward-derivative algebra,
+     larger but not
+    impossible (issue #22's driver/representation unification).
+     Constraint 2 is
+    about possibility,
+     which holds.
+3.  **Supporting this use case?
+    ** Yes.
+     `find_all`/`find_anchored`/`is_match` are
+    documented production APIs and the cross-API agreement is asserted intent the
+    maintainer is converging on (issue #22).
+4.  **Would the repo welcome it?
+    ** Yes.
+     No `CONTRIBUTING.md`,
+     issue/PR template,
+     or
+    AI-assistance ban exists (the absent `.github/` policy was checked for the
+    06-04 filing;
+     unchanged),
+     and ieviev explicitly invited more findings (issue
+    #17:
+     "If you find some more you can reopen or add a new issue";
+     issue #21:
+    "excellent job").
+     No ban found.
+5.  **Likely to fix?
+    ** Yes.
+     ieviev fixed the bug-02/08/10 family across 0.6.9 to
+    0.6.13 and opened #22 himself to unify the drivers;
+     these are tail triggers of
+    exactly that work.
+6.  **Prototyped a minimal fix?
+    ** Yes.
+     See "Auto-prototype" below.
 
 `.out-of-scope/` checked:
  no exemption for resharp (`cargo-workspace.md` mentions

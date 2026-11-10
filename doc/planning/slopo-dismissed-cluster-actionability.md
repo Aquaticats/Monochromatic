@@ -587,14 +587,14 @@ This repository is full of that shape:
 So the test is three questions,
 none of which is "how much code do the two sides share":
 
-1. How many units repo-wide instantiate this idiom?
-2. Does the shared part hold a policy that can be wrong,
-   or drift,
-   such as a comparison,
-   a boundary condition,
-   a format string,
-   an escape table or an error kind?
-3. Does an owner already exist?
+1.  How many units repo-wide instantiate this idiom?
+2.  Does the shared part hold a policy that can be wrong,
+    or drift,
+    such as a comparison,
+    a boundary condition,
+    a format string,
+    an escape table or an error kind?
+3.  Does an owner already exist?
 
 Sizing families by skeleton grouping does not work on its own.
 Normalising identifiers and literals collapses every one-expression template return into one
@@ -902,61 +902,61 @@ These are calls,
  not options,
  and each is recorded here so it can be vetoed rather than rediscovered.
 
-1. Hold 80 of the 147 proposed entries,
-    the 40 in bucket A and the 40 in bucket B,
-   and accept the 67 in bucket C.
-   A bucket C entry is accepted because the pattern cannot grow or because each instance is data,
-   never because the shared code is small.
-2. Add the propagation question to the dismissal convention in
-   `doc/troubleshooting/slopo-threshold-tuning.md`:
-   an entry must name the owner of the pattern,
-   or state that the pattern is closed,
-   or state the policy that accepts the copies.
-   "Too small to extract" is not a reason on its own.
-3. Hand the six owned bucket-A concepts to their issues with the measured site lists:
-   the 13 i18n clusters to #639,
-   the two quoting clusters to #650,
-   C295 to #617,
-   C351 to #620,
-   C833 to #619 and C878 to #633.
-4. File the eleven ownerless bucket-A patterns as proposals rather than dismissals,
-   grouped by remedy:
-   one base error class for the 210 sites;
-   one Rust macro family for the 11 `Display` impls and 17 one-line constructors;
-   one `io::ErrorKind` helper for the 15 sites;
-   one base element for the 22 shadow roots;
-   one `nullRecord()` helper for the 21 sites;
-   one `compareBy` for the 40 comparator sites;
-   one module-id stripper;
-   one dispatch macro for the eight forbidden-regex wrappers.
-5. Put bucket B to you as one policy decision rather than 40 dismissals:
-   either the repository adopts a rule for the two-sided habit
-   (share a core,
-   generate one side,
-   or parameterise)
-   or it records the opposite choice as policy,
-   the way `slopo.ignore.txt` already records the polarity-parameter call.
-   Until one of those is written down,
-   each new pair is authored without a decision behind it.
-6. Correct the identical-body clusters whose recorded reasoning claims a difference the bodies do
-   not contain:
-   C617 (one handler serves both events),
-   C665 (identical bodies cannot be `STRUCTURAL-IDIOM`),
-   C639 (the reason is about signatures),
-   and C629,
-    C636,
-    C669 and C688 (the reason is that the pattern is closed at two,
-   which is now measured rather than assumed).
-7. Record three recipes in the tuning doc:
-   the family-count query over `code_units`,
-   the shared-run comparison over report bodies,
-   and the targeted-pattern family count,
-   with the warning that skeleton grouping alone produces artifacts
-   (it collapsed every one-expression template return into a spurious 127-unit family).
-8. Give the three held-back `UNCERTAIN` clusters a home:
-   C562 joins #660 as an eighth judgement call,
-   and C622 and C721 get one focused issue.
-9. Copy the review ledger into `doc/artifact/` as a dated record.
+1.  Hold 80 of the 147 proposed entries,
+     the 40 in bucket A and the 40 in bucket B,
+    and accept the 67 in bucket C.
+    A bucket C entry is accepted because the pattern cannot grow or because each instance is data,
+    never because the shared code is small.
+2.  Add the propagation question to the dismissal convention in
+    `doc/troubleshooting/slopo-threshold-tuning.md`:
+    an entry must name the owner of the pattern,
+    or state that the pattern is closed,
+    or state the policy that accepts the copies.
+    "Too small to extract" is not a reason on its own.
+3.  Hand the six owned bucket-A concepts to their issues with the measured site lists:
+    the 13 i18n clusters to #639,
+    the two quoting clusters to #650,
+    C295 to #617,
+    C351 to #620,
+    C833 to #619 and C878 to #633.
+4.  File the eleven ownerless bucket-A patterns as proposals rather than dismissals,
+    grouped by remedy:
+    one base error class for the 210 sites;
+    one Rust macro family for the 11 `Display` impls and 17 one-line constructors;
+    one `io::ErrorKind` helper for the 15 sites;
+    one base element for the 22 shadow roots;
+    one `nullRecord()` helper for the 21 sites;
+    one `compareBy` for the 40 comparator sites;
+    one module-id stripper;
+    one dispatch macro for the eight forbidden-regex wrappers.
+5.  Put bucket B to you as one policy decision rather than 40 dismissals:
+    either the repository adopts a rule for the two-sided habit
+    (share a core,
+    generate one side,
+    or parameterise)
+    or it records the opposite choice as policy,
+    the way `slopo.ignore.txt` already records the polarity-parameter call.
+    Until one of those is written down,
+    each new pair is authored without a decision behind it.
+6.  Correct the identical-body clusters whose recorded reasoning claims a difference the bodies do
+    not contain:
+    C617 (one handler serves both events),
+    C665 (identical bodies cannot be `STRUCTURAL-IDIOM`),
+    C639 (the reason is about signatures),
+    and C629,
+     C636,
+     C669 and C688 (the reason is that the pattern is closed at two,
+    which is now measured rather than assumed).
+7.  Record three recipes in the tuning doc:
+    the family-count query over `code_units`,
+    the shared-run comparison over report bodies,
+    and the targeted-pattern family count,
+    with the warning that skeleton grouping alone produces artifacts
+    (it collapsed every one-expression template return into a spurious 127-unit family).
+8.  Give the three held-back `UNCERTAIN` clusters a home:
+    C562 joins #660 as an eighth judgement call,
+    and C622 and C721 get one focused issue.
+9.  Copy the review ledger into `doc/artifact/` as a dated record.
 10. Leave `slopo.conf.yaml` and `mise.toml` untouched;
    13 stays.
    Two wording fixes are proposals only:

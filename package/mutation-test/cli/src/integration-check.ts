@@ -30,10 +30,16 @@ import type { RunReport, } from './host/report.ts';
  */
 const l = tagged({ tag: 'mutation-test-integration', },);
 
+//region Fixture
+
 /**
  Fixture package path relative to the repo root.
  */
 const FIXTURE_PACKAGE = 'package/mutation-test/cli.fixture';
+
+//endregion Fixture
+
+//region Assertion helper
 
 /**
  Asserts one condition, throwing with context when it fails.
@@ -54,6 +60,10 @@ function check(options: {
   if (!options.that)
     throw new Error(`integration check failed: ${options.message}`,);
 }
+
+//endregion Assertion helper
+
+//region Check run
 
 /**
  Runs the CLI against the fixture and asserts report expectations.
@@ -175,3 +185,5 @@ export async function runIntegrationCheck(): Promise<void> {
 }
 
 await runIntegrationCheck();
+
+//endregion Check run

@@ -36,13 +36,13 @@ On x86_64,
  `Regex::new(r"{8,}\b\w+\r")` returns a parse error in ~10µs.
  This
 discrepancy suggests either:
-1. The ARM64 parser accepts `{8,}` as a valid regex where x86_64 does not,
-    or
-2. The option byte 0x7b selects a configuration where the pattern parses
-   differently (the flag-bundle config with case-insensitive + ignore-whitespace
-   + dot-matches-newline + no-multiline),
-      or
-3. The compile path on ARM64 takes a different branch for this input.
+1.  The ARM64 parser accepts `{8,}` as a valid regex where x86_64 does not,
+     or
+2.  The option byte 0x7b selects a configuration where the pattern parses
+    differently (the flag-bundle config with case-insensitive + ignore-whitespace
+    + dot-matches-newline + no-multiline),
+       or
+3.  The compile path on ARM64 takes a different branch for this input.
 
 This needs further investigation:
  the fuzz input's option byte 0x7b means the
@@ -67,16 +67,16 @@ if it is accepted,
 Under investigation.
  Two hypotheses:
 
-1. **Whitespace-flag parsing difference**:
-    the `ignore_whitespace` flag may
-   alter how the leading `{8,}` is tokenised on ARM64,
-    causing a valid (but
-   slow-to-compile) parse.
-2. **Common root with ARM64-BUG-1**:
-    if the pattern does compile,
-    the `\b\w+`
-   portion triggers the same Unicode property class / word boundary minterm
-   enumeration cost that causes ARM64-BUG-1.
+1.  **Whitespace-flag parsing difference**:
+     the `ignore_whitespace` flag may
+    alter how the leading `{8,}` is tokenised on ARM64,
+     causing a valid (but
+    slow-to-compile) parse.
+2.  **Common root with ARM64-BUG-1**:
+     if the pattern does compile,
+     the `\b\w+`
+    portion triggers the same Unicode property class / word boundary minterm
+    enumeration cost that causes ARM64-BUG-1.
 
 ## Relationship to 06-04 campaign
 

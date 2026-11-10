@@ -749,74 +749,74 @@ gets equal-depth validation.
 
 ## Steps remaining, in the skill's order
 
-1. Finish discovery:
-   screen q03,
-   q04,
-   q05,
-   q10,
-   g01,
-   g02,
-   g03;
-   append and freeze one expansion round from the
-   recorded taxonomy terms;
-   apply the two-consecutive-page no-new-survivor rule;
-   record the terminal discovery
-   result (saturated with N survivors,
-   or blocked with `recommend none`).
-2. Finish screening hard gates for `facet-json-schema`,
-   `facet-jsonschema`,
-   `utoipa`,
-   `specta-jsonschema`
-   (and decide whether the fork lineage and the two facet crates are one candidate or two).
-3. Context and rubric freeze:
-   confirm hard constraints H01 to H10,
-   freeze criteria and weights.
-4. Targeted evidence for every survivor,
-   with `path:line` excerpts:
-   licence text,
-   manifests,
-   transitive tree,
-   lifecycle scripts and `build.rs`,
-   proc-macro source for attribute parsing
-   and enum emission,
-   `Option` and integer emission,
-   `$schema` handling,
-   `preserve_order` and key order,
-   tests and CI inventory,
-   fuzzing and mutation search,
-   source quality,
-   human-auditability measurements
-   (non-test lines,
-   file count,
-   runtime dependency count,
-   same-author crates),
-   and the maintenance audit
-   (issues and pull requests updated in the last 12 months,
-   sample method in the skill).
-   Compare each crates.io package with its tag.
-5. Execution manifest approval,
-   then the two-phase podman probe from "Probe design" for `schemars`,
-   and the equivalent probe for each other survivor.
-6. Finalist validation:
-   inventory upstream tasks and CI jobs,
-   run the default CI-equivalent path in a bounded
-   container,
-   run relevant non-default suites,
-   exercise platform claims,
-   then the consumer boundary.
-7. Editor evidence for H07:
-   VS Code and JetBrains handling of the emitted dialect and of `$schema` in a `.jsonc`
-   instance (still unverified in prior research).
-8. Scoring,
-   arithmetic,
-   and the full one-at-a-time sensitivity matrix (a single finalist makes sensitivity
-   trivially stable;
-   state that instead of skipping it).
-9. Pros and cons for every finalist,
-   fully sorted ranking with adjacent reasons,
-   evidence limits,
-   and the
-   recommendation or terminal result.
+1.  Finish discovery:
+    screen q03,
+    q04,
+    q05,
+    q10,
+    g01,
+    g02,
+    g03;
+    append and freeze one expansion round from the
+    recorded taxonomy terms;
+    apply the two-consecutive-page no-new-survivor rule;
+    record the terminal discovery
+    result (saturated with N survivors,
+    or blocked with `recommend none`).
+2.  Finish screening hard gates for `facet-json-schema`,
+    `facet-jsonschema`,
+    `utoipa`,
+    `specta-jsonschema`
+    (and decide whether the fork lineage and the two facet crates are one candidate or two).
+3.  Context and rubric freeze:
+    confirm hard constraints H01 to H10,
+    freeze criteria and weights.
+4.  Targeted evidence for every survivor,
+    with `path:line` excerpts:
+    licence text,
+    manifests,
+    transitive tree,
+    lifecycle scripts and `build.rs`,
+    proc-macro source for attribute parsing
+    and enum emission,
+    `Option` and integer emission,
+    `$schema` handling,
+    `preserve_order` and key order,
+    tests and CI inventory,
+    fuzzing and mutation search,
+    source quality,
+    human-auditability measurements
+    (non-test lines,
+    file count,
+    runtime dependency count,
+    same-author crates),
+    and the maintenance audit
+    (issues and pull requests updated in the last 12 months,
+    sample method in the skill).
+    Compare each crates.io package with its tag.
+5.  Execution manifest approval,
+    then the two-phase podman probe from "Probe design" for `schemars`,
+    and the equivalent probe for each other survivor.
+6.  Finalist validation:
+    inventory upstream tasks and CI jobs,
+    run the default CI-equivalent path in a bounded
+    container,
+    run relevant non-default suites,
+    exercise platform claims,
+    then the consumer boundary.
+7.  Editor evidence for H07:
+    VS Code and JetBrains handling of the emitted dialect and of `$schema` in a `.jsonc`
+    instance (still unverified in prior research).
+8.  Scoring,
+    arithmetic,
+    and the full one-at-a-time sensitivity matrix (a single finalist makes sensitivity
+    trivially stable;
+    state that instead of skipping it).
+9.  Pros and cons for every finalist,
+    fully sorted ranking with adjacent reasons,
+    evidence limits,
+    and the
+    recommendation or terminal result.
 10. Completion checklist;
     final report update;
     no product,
