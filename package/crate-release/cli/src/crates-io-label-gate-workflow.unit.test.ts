@@ -122,6 +122,17 @@ function jobsEnding(suffix: string): readonly JobBlock[] {
 }
 
 /**
+ Text every upload step holds before it publishes: the crates.io existence check that answers whether the version is
+ already published, and the notice it logs instead of uploading a duplicate.
+ */
+const cratesIoExistenceCheck = 'crates.io/api/v1/crates/';
+
+/**
+ Text an upload step logs when the version is already on crates.io.
+ */
+const duplicateUploadNotice = 'already on crates.io';
+
+/**
  The crate prefix of a job id: `ms-` for `ms-detect`, nothing for `detect`.
 
  @param id - job id
@@ -593,6 +604,29 @@ await describe({
                   ungated.push(`${job.id}: ${step[0] ?? ''}`);
             }
             expect(ungated).toEqual([]);
+          },
+        }),
+        it({
+          name: 'queries crates.io before every upload, so a re-run to rebuild the release binaries never fails on a duplicate upload',
+          fn: async () => {
+            const unguarded: string[] = [];
+            let uploads = 0;
+            for (const job of publishJobs)
+              for (const step of stepBlocks(job.lines)) {
+                const script = (runScripts(step)[0] ?? []).join('\n');
+                const uploadsThisVersion = script.includes('cargo publish');
+                if (!uploadsThisVersion)
+                  continue;
+                const onlyDryRun = script.includes('--dry-run');
+                if (onlyDryRun)
+                  continue;
+                uploads += 1;
+                const guarded = script.includes(cratesIoExistenceCheck) && script.includes(duplicateUploadNotice);
+                if (!guarded)
+                  unguarded.push(`${job.id}: ${script.split('\n')[0] ?? ''}`);
+              }
+            expect(unguarded).toEqual([]);
+            expect(uploads).toBe(registryCrateNames(registry).length);
           },
         }),
         it({
