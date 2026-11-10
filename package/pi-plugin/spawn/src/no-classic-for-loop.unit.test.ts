@@ -9,6 +9,10 @@
  this scan per package would be the same shape kept in many places and left to
  drift. The check therefore lives in the package that wrote it first, which also
  means deleting that package would delete the check.
+
+ One package the review named has since left the category: Advisor moved to
+ `package/agent-harness-shared/advisor`, so the scan holds that package too and
+ the fix its reverse message scan now carries cannot regress.
  */
 
 import type { Dirent, } from 'node:fs';
@@ -31,11 +35,32 @@ import {
  Directory holding the packages this guard scans, resolved from this test file so
  the scan follows the sources wherever the category is checked out.
  */
-const categoryDirectory = join(
+const packageDirectory = join(
   import.meta.dirname,
   '..',
   '..',
+  '..',
 );
+
+/**
+ Category whose packages the scan covers.
+ */
+const CATEGORY_NAME = 'pi-plugin';
+
+/**
+ Packages outside {@link CATEGORY_NAME} this scan covers, named relative to
+ {@link packageDirectory}.
+
+ `agent-harness-shared/advisor` was `pi-plugin/advisor` when the review read its
+ reverse message scan, and a package that leaves the category would otherwise
+ leave the scan with it.
+ */
+const MOVED_PACKAGE_PATHS: readonly string[] = [
+  join(
+    'agent-harness-shared',
+    'advisor',
+  ),
+];
 
 /**
  Name of the folder holding one package's shipped modules.
@@ -80,13 +105,13 @@ const FOR_OF_SAMPLE = 'for (const item of items) { }';
 //region Types
 
 /**
- One package's shipped modules, named relative to {@link categoryDirectory}.
+ One package's shipped modules, named relative to {@link packageDirectory}.
  */
 type PackageModules = {
   /**
-   Directory name of the package under the category.
+   Package path under the repository's `package` directory.
    */
-  readonly packageName: string;
+  readonly packagePath: string;
   /**
    Shipped module paths this guard reads, empty when the package ships none.
    */
@@ -100,19 +125,19 @@ type PackageModules = {
 /**
  Reads one module's authored source.
 
- @param modulePath - path under {@link categoryDirectory}
+ @param modulePath - path under {@link packageDirectory}
 
  @returns the file's source text
 
  @example
  ```typescript
- const source = await moduleSource('spawn/src/message-extract.ts');
+ const source = await moduleSource('pi-plugin/spawn/src/message-extract.ts');
  ```
  */
 async function moduleSource(modulePath: string,): Promise<string> {
   return await readFile(
     join(
-      categoryDirectory,
+      packageDirectory,
       modulePath,
     ),
     'utf8',
@@ -120,40 +145,106 @@ async function moduleSource(modulePath: string,): Promise<string> {
 }
 
 /**
- Lists the package directory names under {@link categoryDirectory}.
+ Lists the category's package paths.
 
- @returns package directory names in directory order
+ @returns package paths relative to {@link packageDirectory}, in directory order
 
  @example
  ```typescript
- const names = await packageNames();
+ const paths = await categoryPackagePaths();
  ```
  */
-async function packageNames(): Promise<readonly string[]> {
+async function categoryPackagePaths(): Promise<readonly string[]> {
   /**
    Category entries, of which only directories name a package.
    */
   const entries = await readdir(
-    categoryDirectory,
+    join(
+      packageDirectory,
+      CATEGORY_NAME,
+    ),
     { withFileTypes: true, },
   );
   return entries
     .filter(function isPackageDirectory(entry: Dirent,): boolean {
       return entry.isDirectory();
     },)
-    .map(function directoryName(entry: Dirent,): string {
-      return entry.name;
+    .map(function packagePath(entry: Dirent,): string {
+      return join(
+        CATEGORY_NAME,
+        entry.name,
+      );
     },);
 }
 
 /**
- Lists every package's shipped module paths.
+ Lists one package's shipped module paths.
 
  A package with no {@link MODULE_DIRECTORY_NAME} folder reports an empty module
  list rather than a failed read, so the coverage test names it instead of a
  thrown filesystem error naming a path.
 
- @returns one row per package directory, in directory order
+ @param packagePath - package path relative to {@link packageDirectory}
+
+ @returns that package's shipped module paths, in directory order
+
+ @example
+ ```typescript
+ const row = await packageModules('pi-plugin/spawn');
+ ```
+ */
+async function packageModules(packagePath: string,): Promise<PackageModules> {
+  /**
+   Entries of this package, of which one folder holds its modules.
+   */
+  const entries = await readdir(
+    join(
+      packageDirectory,
+      packagePath,
+    ),
+    { withFileTypes: true, },
+  );
+  /**
+   Whether this package keeps a shipped-module folder at all.
+   */
+  const hasModuleDirectory = entries.some(function isModuleDirectory(entry: Dirent,): boolean {
+    return entry.isDirectory() && (entry.name === MODULE_DIRECTORY_NAME);
+  },);
+  if (!hasModuleDirectory)
+    return {
+      packagePath,
+      modulePaths: [],
+    };
+
+  /**
+   File names of this package's shipped-module folder.
+   */
+  const moduleNames = await readdir(
+    join(
+      packageDirectory,
+      packagePath,
+      MODULE_DIRECTORY_NAME,
+    ),
+  );
+  return {
+    packagePath,
+    modulePaths: moduleNames
+      .filter(isShippedModuleName,)
+      .map(function modulePath(moduleName: string,): string {
+        return join(
+          packagePath,
+          MODULE_DIRECTORY_NAME,
+          moduleName,
+        );
+      },),
+  };
+}
+
+/**
+ Lists every scanned package's shipped module paths.
+
+ @returns one row per scanned package, in {@link categoryPackagePaths} order
+ followed by {@link MOVED_PACKAGE_PATHS} order
 
  @example
  ```typescript
@@ -162,56 +253,20 @@ async function packageNames(): Promise<readonly string[]> {
  */
 async function scannedPackages(): Promise<readonly PackageModules[]> {
   /**
-   Package directory names the scan covers.
+   Category packages the scan covers.
    */
-  const names = await packageNames();
-  return await Promise.all(names.map(async function packageModules(
-    packageName: string,
+  const categoryPaths = await categoryPackagePaths();
+  /**
+   Every package path the scan covers.
+   */
+  const packagePaths = [
+    ...categoryPaths,
+    ...MOVED_PACKAGE_PATHS,
+  ];
+  return await Promise.all(packagePaths.map(async function packageRows(
+    packagePath: string,
   ): Promise<PackageModules> {
-    /**
-     Entries of this package, of which one folder holds its modules.
-     */
-    const entries = await readdir(
-      join(
-        categoryDirectory,
-        packageName,
-      ),
-      { withFileTypes: true, },
-    );
-    /**
-     Whether this package keeps a shipped-module folder at all.
-     */
-    const hasModuleDirectory = entries.some(function isModuleDirectory(entry: Dirent,): boolean {
-      return entry.isDirectory() && (entry.name === MODULE_DIRECTORY_NAME);
-    },);
-    if (!hasModuleDirectory)
-      return {
-        packageName,
-        modulePaths: [],
-      };
-
-    /**
-     File names of this package's shipped-module folder.
-     */
-    const moduleNames = await readdir(
-      join(
-        categoryDirectory,
-        packageName,
-        MODULE_DIRECTORY_NAME,
-      ),
-    );
-    return {
-      packageName,
-      modulePaths: moduleNames
-        .filter(isShippedModuleName,)
-        .map(function modulePath(moduleName: string,): string {
-          return join(
-            packageName,
-            MODULE_DIRECTORY_NAME,
-            moduleName,
-          );
-        },),
-    };
+    return await packageModules(packagePath,);
   },),);
 }
 
@@ -240,7 +295,7 @@ function isShippedModuleName(name: string,): boolean {
  A classic head separates its clauses with semicolons, which no `for...of` or
  `for...in` head carries between its own parentheses. The head is read from its
  `for (` prefix to the last `)` on the line, so a head split across lines reads
- as compliant; no loop head in this category spans a line break.
+ as compliant; no loop head in these packages spans a line break.
 
  @param line - one line of module source
 
@@ -291,7 +346,7 @@ function classicForHeads(source: string,): readonly string[] {
 }
 
 /**
- Reports every classic `for` head across the category's shipped modules,
+ Reports every classic `for` head across the scanned packages' shipped modules,
  grouped by file.
 
  @returns `package/src/file name` prefixed reports, empty when every module
@@ -340,7 +395,7 @@ await describe({
       },
     },),
     it({
-      name: 'positive control: the scan reads the shipped modules of every package in the category',
+      name: 'positive control: the scan reads the shipped modules of every package it covers',
       fn: async function testScanReachesSources() {
         /**
          Shipped modules the scan covers.
@@ -356,7 +411,7 @@ await describe({
             return row.modulePaths.length === 0;
           },)
           .map(function nameOf(row: PackageModules,): string {
-            return row.packageName;
+            return row.packagePath;
           },);
         expect(withoutModules.join('\n',),).toBe('',);
         /**
@@ -370,7 +425,7 @@ await describe({
           },);
         },),);
         /**
-         Modules whose read came back empty, which no file in this category is.
+         Modules whose read came back empty, which no file in these packages is.
          */
         const emptySources = sources.filter(function isEmptyText(source: string,): boolean {
           return source.length === 0;
