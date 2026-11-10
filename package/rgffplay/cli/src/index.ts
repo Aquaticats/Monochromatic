@@ -73,8 +73,8 @@ function bracketFirst(word: string,): string {
 function buildGlob(words: readonly string[],): string {
   return `*${
     words
-      .map(function toBracket(w,) {
-        return bracketFirst(w,);
+      .map(function toBracket(word,) {
+        return bracketFirst(word,);
       },)
       .join('*',)
   }*`;
@@ -225,8 +225,8 @@ async function findFiles({
    Matched file paths split from the null-separated rg output; empty fragments dropped so the count reflects real matches.
    */
   const files = rgOutput.split('\0',)
-    .filter(function nonEmpty(f,) {
-      return f.length
+    .filter(function nonEmpty(file,) {
+      return file.length
         > 0;
     },);
 
