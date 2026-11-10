@@ -329,8 +329,17 @@ under rule `WGH`:
   timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
   The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
   so the branch did not add the time.
-  What the time goes to is unmeasured,
-  and under rule `SUF` it stays a contention defect until it is.
+  Measured on 2026-11-10
+  (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`,
+  "The flushes two worktree-copy controls did not need"):
+  they asked for 35 and 51 flushes of their fixtures,
+  one record flush took up to 20.0 s in btrfs's log-commit waits at a load average of 20 to 33,
+  and the fix is the answer the migration controls already give:
+  the durability writes of a control whose subject is not what a crash leaves stay in the page cache,
+  through `private_storage::flush_file_when_faithful`,
+  which now also reaches the install log and a registration's
+  owner file.
+  Both controls make no flush and run in 0.22 s and 0.26 s after it.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
   and read-only commands wait 60 s over a saved merge:

@@ -176,9 +176,12 @@ the quiet clock keeps running through it,
 so a run whose counters never come back ends and does not wait for a reading that never comes,
 and a later look that reads the run counts again.
 The judge says which of the three endings it reached:
-`Quiet` (signs read, nothing moved),
-`Unreadable` (no counters could be read for the window, though earlier looks read them),
-and `Unmeasurable` (no look ever read them, so the wall clock is the bound).
+`Quiet` (signs read,
+nothing moved),
+`Unreadable` (no counters could be read for the window,
+though earlier looks read them),
+and `Unmeasurable` (no look ever read them,
+so the wall clock is the bound).
 
 ```rust
 pub(crate) fn observe(&mut self, elapsed: Duration, look: Option<Look>) -> Option<Ending> {
@@ -243,7 +246,9 @@ So 94 percent of the test was the flushes.
 and a stand-in platform says no.
 `subvolume_command::execute` and `worktree_convert::convert_worktree` install the answer of the platform whose call is
 running for that call's whole extent (`subvolume_file_write_steps::WritesKeptInMemory`,
-whose first name, `without_flushing_for_this_thread`, this record keeps as its original text and which the code renamed
+whose first name,
+`without_flushing_for_this_thread`,
+this record keeps as its original text and which the code renamed
 on 2026-11-09):
 a stand-in that keeps its writes in the page cache turns the flushes off,
 and a platform that flushes turns them back on,
@@ -272,6 +277,132 @@ and the whole `worktree::worktree_convert::ownership_tests` module from 193.1 s 
 What a crash leaves is still the real platform's question:
 `LinuxPlatform` flushes,
 and only a stand-in that says otherwise keeps its writes in the page cache.
+
+## The flushes two worktree-copy controls did not need (2026-11-10)
+
+Two controls of `package/git-policy/cli/src/native/worktree_copying/worktree_copy_lifecycle_tests.rs`,
+`a_creation_recovers_a_dead_journal_first` and
+`a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+were ended by the runner's per-test limit at 300 s in a 344-test run and passed alone.
+What the time went to was unmeasured then;
+this is the measurement.
+
+### Symptom
+
+`nextest` ends a test after `slow-timeout` 60 s times `terminate-after` 5
+(`package/git-policy/cli/.config/nextest.toml`),
+which reads as `TIMEOUT [ 305.127s]`.
+The first control took 0.7 s to 27.3 s alone before this change,
+and the second passed alone in 0.67 s.
+
+### What was measured
+
+On this host (btrfs on dm-crypt with `compress=zstd:3`,
+the fixture root under the build volume,
+load average 20 to 70 from other sessions),
+2026-11-10:
+
+- `strace -f -c -w -e trace=fsync` around the control alone:
+  35 flushes and 0.67 s of a 1.36 s run for the first control,
+  51 flushes and 0.32 s of a 0.67 s run for the second.
+- `strace -f -y -e trace=fsync` shows where they go:
+  15 of the 35 flush the journal root directory (`<git dir>/monochromatic-git-policy-cli-worktree-copy/v1`),
+  the rest are the journal's and the claims' record files,
+  4 are the install log,
+  and 1 is a registration's owner file.
+- With the same control on a tmpfs fixture root (`CLI_GIT_TEST_ROOT=/run/user/1000/...`),
+  the same 35 flushes took 0.47 ms in total and the run took 0.31 s:
+  the work is not what costs the time.
+- A probe writing what the journal writes (one 35-byte record,
+  the file flush,
+  then the directory flush)
+  every 200 ms on the fixture root,
+  sampling the flushing task's `wchan`:
+  at a load average of 20 to 33 the record flush was p50 6.7 ms,
+  p95 640 ms and max 3,863 ms in one minute,
+  and p50 17.6 ms,
+  p95 3,996 ms and max 20,038 ms in the next;
+  the waits named were
+  `btrfs_btree_wait_writeback_range` (500 samples),
+  `lock_extent_buffer_for_io` (247),
+  `read_extent_buffer_pages` (63),
+  `btrfs_commit_transaction` (51),
+  `handle_reserve_ticket` (49),
+  `folio_wait_bit_common` (33),
+  `barrier_all_devices` (13) and `blk_mq_get_tag` (11).
+
+So 35 to 51 commits at this disk's worst minutes is the 300 s:
+8.6 s per flush at the limit is inside the measured 20.0 s maximum.
+
+### Root cause
+
+A `git worktree add` through the wrapper publishes a stage claim,
+a journal,
+an install log and a registration's
+owner file,
+and removes the journal when the copy completes,
+and each of those publishes and removals flushes its file and its directory
+(`worktree_copy_journal.rs:411`,
+`worktree_copy_journal_removal.rs:111`,
+`worktree_copy_stage_claim.rs:124,235,295`,
+`worktree_copy_install_log.rs:257`,
+`private_storage.rs`).
+The control checks nothing about what a crash leaves,
+so none of those flushes proves anything there,
+and a filesystem commit is what every other process of the machine is waiting for at the same time.
+
+### The controls now
+
+The three controls of that file whose subject is neither a crash nor the flush itself call
+`keep_the_durability_writes_in_the_page_cache()`,
+which is `private_storage::skip_the_durability_syncs_here()`:
+the answer the migration and conversion controls already give `Platform::flushes_to_disk`.
+Two writers keep a handle of their own,
+the install log and a registration's owner file,
+so they flush through `private_storage::flush_file_when_faithful`,
+which reads the same answer.
+Every sync is still recorded (`record_file_sync`,
+`record_directory_sync`),
+so a control whose subject is the order of the flushes reads them as before.
+
+The first control then made no flush at all and ran in 0.22 s,
+the second in 0.26 s on the same host
+(0.05 s for each in the parallel run that follows).
+
+### Verification
+
+- The new control `a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache`
+  reads the process's answer in the middle of a settlement and reads the recorded syncs after it.
+  Before the change it failed with
+  `assertion `left == right` failed: the settlement's durability writes stay in the page cache for a control that
+  checks nothing about a crash: left: [true], right: [false]`,
+  and after it passes.
+- `strace -f -c -w -e trace=fsync` then reported no `fsync` line for either control,
+  where it had reported 35 and 51.
+- The 464 tests of `worktree_copying::`,
+  `private_storage`,
+  `install_log`,
+  `worktree_add_binding`,
+  `worktree_ladder`,
+  `conclusion_copy`,
+  `merge_isolation_journal` and `shadow_refs`:
+  `464 tests run: 464 passed` in 12.4 s,
+  which is the same set that reads the sync records.
+- The whole library suite is the run recorded below.
+
+### What does not work
+
+- Raising `slow-timeout` or `terminate-after`:
+  it moves the load at which a working control is ended,
+  which is the argument this record already makes against a wall clock.
+- Running the controls against a tmpfs fixture root:
+  it hides the cost instead of removing it,
+  and the fixture root stays on the build volume so a control sees the file system the shipped code meets.
+- Leaving the flushes to the controls that keep them:
+  with the page-cache switch in place but the install log and the registration's owner file flushing through their
+  own handles,
+  the first control still took 87.7 s and 42.0 s in two of five runs,
+  of which its five remaining flushes were 73.6 s and 39.8 s.
 
 ## Verification
 
@@ -379,7 +510,9 @@ and only a stand-in that says otherwise keeps its writes in the page cache.
 ## The cross-vendor review of 2026-11-09 and what it found
 
 A reviewer of another vendor read this branch and found five defects.
-All five held, each was shown by a control that failed before its fix, and each is fixed or guarded here.
+All five held,
+each was shown by a control that failed before its fix,
+and each is fixed or guarded here.
 
 - `Judge::observe` returned before any deadline when a look could not be read
   (`let current: Look = look?`),
@@ -395,7 +528,8 @@ All five held, each was shown by a control that failed before its fix, and each 
   Both entry points now install the platform's answer for every call,
   so a call that flushes turns the flushes back on for its own extent.
 - two watchers of one process kept each other alive:
-  `look` left out only the reading thread, so the other watcher's `/proc` reads moved the run's byte counter.
+  `look` left out only the reading thread,
+  so the other watcher's `/proc` reads moved the run's byte counter.
   Every watcher now lists its own thread in `WATCHING_THREADS` when it starts,
   and `look` leaves out every thread in it.
 - the file-write control proved only that the bytes arrived,
@@ -412,12 +546,17 @@ Measured on this host on 2026-11-09:
   `a_run_whose_counters_stop_being_readable_is_ended` panicked with
   `the run ends rather than wait for a reading that never comes`,
   and `a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge` failed with
-  `assertion left == right failed: step 4 moved`, `left: Some(Unmeasurable(2s))`, `right: None`;
+  `assertion left == right failed: step 4 moved`,
+  `left: Some(Unmeasurable(2s))`,
+  `right: None`;
 - with the entry points installing the switch only when the platform says no,
-  both flush-scope controls failed with `left: Some(false)`, `right: Some(true)`;
+  both flush-scope controls failed with `left: Some(false)`,
+  `right: Some(true)`;
 - with `look` leaving out the reading thread alone,
   `two_watchers_do_not_keep_each_other_alive` failed with
-  `assertion left == right failed: a watcher ended the process:`, `left: None`, `right: Some(6)`,
+  `assertion left == right failed: a watcher ended the process:`,
+  `left: None`,
+  `right: Some(6)`,
   after the child ran its whole five seconds;
 - with the durable file flush removed,
   `the_switch_decides_whether_a_write_is_flushed` failed with
@@ -427,7 +566,8 @@ Measured on this host on 2026-11-09:
 
 The judge and flush controls after the fixes:
 `20 tests run: 20 passed`
-(`run_progress` 13, `subvolume_file_write_steps` 7;
+(`run_progress` 13,
+`subvolume_file_write_steps` 7;
  the later controls named in the next subsection make it 21).
 
 The moving-run control was then asked the question the review said it could not answer.
@@ -435,26 +575,31 @@ With the child's 4 KiB write removed and its sleeps kept,
 `a_run_that_keeps_moving_past_its_window_is_not_ended` fails as it must:
 `the moving child ended on its own:` and
 `the unit-test run showed no sign of work for 1.0 s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started or ended): a test is stuck`.
-Before the fix the same control passed with the write removed, which is the finding.
+Before the fix the same control passed with the write removed,
+which is the finding.
 The write was restored and the control passed again (`PASS [ 3.031s]`).
 
 What the review did not measure:
 no test in this crate was run with an exhausted descriptor table,
-so both judge findings are shown by made-up looks and times, not by a real stuck process without descriptors.
+so both judge findings are shown by made-up looks and times,
+not by a real stuck process without descriptors.
 
 ### The later review rounds of 2026-11-09
 
-A second cross-vendor review of the same branch found two more, and both held.
+A second cross-vendor review of the same branch found two more,
+and both held.
 
 - `end` wrote its line with `eprintln!`,
   which panics when the write fails,
-  so on a stderr that refuses writes (a full disk, a closed pipe) only the watcher thread died
+  so on a stderr that refuses writes (a full disk,
+  a closed pipe) only the watcher thread died
   and the test it watched stayed blocked without a watcher.
   The line now goes through `writeln!` on a locked stderr whose error is ignored,
   and the abort follows unconditionally:
   reporting is never a precondition for ending the process.
 - `two_watchers_do_not_keep_each_other_alive` passed with the fixture's watcher disconnected,
-  because its child arms a one-second watcher of its own, which ends the sleeping child either way.
+  because its child arms a one-second watcher of its own,
+  which ends the sleeping child either way.
   The child now prints how many watchers it registered,
   and the parent asserts that count beside the ending and the message.
 
