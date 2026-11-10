@@ -364,7 +364,7 @@ function validate() {
   ]) {
     if (!html.includes(text)) throw new Error(`Command questionnaire is missing ${text}.`);
   }
-  if ((occurrencesOf(html, 'type="radio"') !== 7) || ((html.match(/<fieldset>/g) ?? []).length !== 3)) {
+  if ((occurrencesOf(html, 'type="radio"') !== 7) || (occurrencesOf(html, '<fieldset>') !== 3)) {
     throw new Error('Command questionnaire must ask three separable questions with seven radio choices.');
   }
   if (((html.match(/class="capture/g) ?? []).length !== scenes.length) || ((html.match(/data-scheme="dark"/g) ?? []).length !== scenes.length)

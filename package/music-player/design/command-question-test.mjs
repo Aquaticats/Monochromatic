@@ -139,6 +139,7 @@ const FILED_SITES = [
   [String.raw`/data:image\/png;base64,([A-Za-z0-9+/=]+)/g`, '#788 and #789'],
   [String.raw`/<input[^>]*type="radio"[^>]*checked/`, '#790'],
   [String.raw`/type="radio"/g`, '#791'],
+  [String.raw`/<fieldset>/g`, '#792'],
 ];
 const siteSearchControl = `if (${FILED_SITES[0][0]}.test(html)) throw`;
 if (!siteSearchControl.includes(FILED_SITES[0][0])) throw new Error('The site search cannot see the site string it looks for.');
@@ -274,6 +275,14 @@ try {
       mutate: (page) => page.replace(
         '</body>',
         '<input type="radio" name="probe" value="P1"></body>'
+      ),
+      diagnostic: 'seven radio choices',
+    },
+    {
+      name: 'one fieldset too many',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<fieldset></fieldset></body>'
       ),
       diagnostic: 'seven radio choices',
     },
