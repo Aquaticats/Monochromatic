@@ -11,7 +11,7 @@ import { inflateSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { hasProjectAuthorsCopyrightLine } from './copyright-lines.ts';
+import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -121,7 +121,7 @@ const checks: Record<string, Check> = {
       demand({ condition: isDirectory(directory), message: 'runtime/licenses/' + name + ' is missing' });
       const texts = filesBelow(directory).filter(file => statSync(join(directory, file)).size > 0);
       demand({ condition: texts.length > 0, message: 'runtime/licenses/' + name + ' holds no notice' });
-      demand({ condition: texts.some(file => /copyright/i.test(readFileSync(join(directory, file), 'utf8'))), message: 'runtime/licenses/' + name + ' holds no copyright notice' });
+      demand({ condition: texts.some(file => mentionsCopyright(readFileSync(join(directory, file), 'utf8'))), message: 'runtime/licenses/' + name + ' holds no copyright notice' });
       // A REUSE-layout source keeps its copyright line only in source headers, which the runtime task extracts.
       if (isDirectory(join(directory, 'LICENSES'))) {
         const headers = join(directory, 'REUSE-headers.txt');

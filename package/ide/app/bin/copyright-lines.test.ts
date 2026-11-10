@@ -5,7 +5,7 @@
 // that names nobody, and one that counts a sentence about copyright passes a file that replaced the notice.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hasProjectAuthorsCopyrightLine } from './copyright-lines.ts';
+import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 
 // The first lines of the two font notices the bundle ships, as they stand beside the IDE.
 const notices = [
@@ -56,4 +56,25 @@ test('refuses text that names holders other than the project authors', () => {
   assert.equal(hasProjectAuthorsCopyrightLine('Copyright 2016 The Inter Authors'), false);
   assert.equal(hasProjectAuthorsCopyrightLine('Copyright 2016 The Inter Project Holder'), false);
   assert.equal(hasProjectAuthorsCopyrightLine(''), false);
+});
+
+test('reads the word copyright in any case of its letters', () => {
+  assert.equal(mentionsCopyright('Copyright (c) 2016 The Inter Project Authors'), true);
+  assert.equal(mentionsCopyright('copyright'), true);
+  assert.equal(mentionsCopyright('COPYRIGHT'), true);
+  assert.equal(mentionsCopyright('licensed under the CoPyRiGhT holder'), true);
+});
+
+test('refuses a word that only resembles copyright', () => {
+  assert.equal(mentionsCopyright('copyrigth'), false);
+  assert.equal(mentionsCopyright('copy right'), false);
+  assert.equal(mentionsCopyright(''), false);
+});
+
+test('refuses a letter outside ASCII that resembles one of the word', () => {
+  // A dotted capital I and a long s each look like an ASCII letter and are not one, and a pattern without the `u` flag
+  // does not fold either to it.
+  assert.equal(mentionsCopyright('COPYR\u0130GHT'), false);
+  assert.equal(mentionsCopyright('copyri\u017fht'), false);
+  assert.equal(mentionsCopyright('copyright\u0130'), true);
 });
