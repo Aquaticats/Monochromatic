@@ -14,7 +14,10 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 
-import { buildCss, } from '@monochromatic-dev/css-cli';
+import {
+  buildCss,
+  readPackageJson,
+} from '@monochromatic-dev/css-cli';
 
 
 //region Test helpers
@@ -154,6 +157,41 @@ async function disposableBuildOutput(): Promise<DisposableBuildOutput> {
 }
 
 //endregion Test helpers
+
+//region Fixture manifest
+
+/**
+ Package whose `exports` map the exports-field integration fixture declares,
+ and whose name the importing stylesheet writes in its `@import` specifiers.
+ */
+const exportsFieldFixtureName = '@monochromatic-dev/test-fixture-css-imported';
+
+/**
+ Subpath keys an `exports` field declares.
+ 
+ @param exportsField - The manifest's `exports` value, in any shape Node accepts.
+ 
+ @returns Declared keys in manifest order; empty when the field declares none.
+ */
+function declaredSubpaths(exportsField: unknown,): string[] {
+  if (((typeof exportsField) !== 'object') || (exportsField === null))
+    return [];
+  return Object.keys(exportsField,);
+}
+
+/**
+ Specifier text a stylesheet would write for one declared subpath, which is
+ what the `@import` rule in the importing fixture spells.
+ 
+ @param subpath - `exports` key, e.g. `./index.css`.
+ 
+ @returns Bare specifier naming that subpath, e.g. `\@scope/pkg/index.css`.
+ */
+function specifierForSubpath(subpath: string,): string {
+  return `${exportsFieldFixtureName}${subpath.slice(1,)}`;
+}
+
+//endregion Fixture manifest
 
 const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
   /** Path to the main CSS entry point for this fixture */
@@ -509,6 +547,34 @@ await describe({
         //endregion Errors
       ],
     },),
+
+    //region Fixture manifests
+
+    describe({
+      name: 'exports-field integration fixture',
+      children: [
+        it({
+          name: 'declares no exports key its importing stylesheet never requests',
+          fn: async () => {
+            const fixturePackageDirectory = join(fixtureRoot, 'css-imported',);
+            const manifest = readPackageJson(fixturePackageDirectory,);
+            if ((typeof manifest) === 'symbol') {
+              throw new Error(`no readable package.json in '${fixturePackageDirectory}'`,);
+            }
+
+            const importer = await readFile(
+              join(fixtureRoot, 'css-importing', 'src', 'main.css',),
+              'utf8',
+            );
+
+            for (const subpath of declaredSubpaths(manifest.exports,))
+              expect(importer,).toContain(specifierForSubpath(subpath,),);
+          },
+        },),
+      ],
+    },),
+
+    //endregion Fixture manifests
 
     //region build (integration)
 
