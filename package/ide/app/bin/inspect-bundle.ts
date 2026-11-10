@@ -125,7 +125,7 @@ const checks: Record<string, Check> = {
       // A REUSE-layout source keeps its copyright line only in source headers, which the runtime task extracts.
       if (isDirectory(join(directory, 'LICENSES'))) {
         const headers = join(directory, 'REUSE-headers.txt');
-        demand({ condition: isFile(headers) && /Copyright/.test(readFileSync(headers, 'utf8')), message: 'runtime/licenses/' + name + ' ships license texts without REUSE-headers.txt copyright lines' });
+        demand({ condition: isFile(headers) && readFileSync(headers, 'utf8').includes('Copyright'), message: 'runtime/licenses/' + name + ' ships license texts without REUSE-headers.txt copyright lines' });
       }
       notices.push(...texts.map(file => 'runtime/licenses/' + name + '/' + file));
     }
