@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::forwarded_command::ResolvedCommand;
+use crate::merge_isolation_git_reads::unsaved_paths;
 use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
 use crate::transaction_owner::current_transaction_owner;
 use std::ffi::OsString;
@@ -380,6 +381,7 @@ fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
         old_oid: old_oid.clone(),
         new_oid: new_oid.clone(),
         side_ref: None,
+        carried: None,
     };
     let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
     git(repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()]);

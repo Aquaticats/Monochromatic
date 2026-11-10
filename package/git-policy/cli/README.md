@@ -2118,17 +2118,43 @@ The merge commit skips `pre-merge-commit`,
  `post-merge` runs once.
 The branch reflog reads `merge <branch>: Fast-forward`.
 
-Two refusals change nothing:
+#### Carrying the person's own work
 
-- The merge changes a path that is staged,
-  or modified in the worktree,
-  by someone else.
-  The finding `merge-isolation/paths-in-use` names the paths.
-  The ways forward are to wait until the owner has committed or restored them,
-   to merge in a clean linked worktree and bring the result back with `git merge --ff-only`,
-   or,
-  for your own files,
-  to commit or stash them first.
+The owner's answer for a merge over unsaved edits is "Carry edits forward (Recommended)"
+(`SPEC.md`, "Merges and commits never fail"),
+and the rules behind it are "Manual merge should never fail too."
+and "never discard user data".
+Native Git refuses such a merge
+(`error: Your local changes to the following files would be overwritten by merge`,
+exit 2),
+and so did the wrapper.
+Now the merge runs and the person's work is carried across it:
+
+- Every path the merge changes that holds the person's own work in the worktree or the index has its bytes
+  written as objects, and kept on `refs/cli-git/carried/<n>`,
+  before the first byte of the checkout changes;
+  the merge's record names them.
+  A `SIGKILL` at any instant leaves them where the next command finds them.
+- Those paths are put back to the branch,
+  so Git's own two-way update takes them as it always did.
+- After the branch moved, each of the person's two layers is merged with the merge on its own:
+  a staged edit stays staged and an unsaved edit stays unsaved.
+  A layer the merge does not reach is written back byte for byte.
+  A text both sides changed goes through the word-level second pass;
+  a region it cannot resolve keeps both sides between conflict markers,
+  the file is named on standard error,
+  and the command still exits 0.
+- A binary file, a symbolic link, a mode the pass cannot take,
+  a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
+  the merge's version is in the merge commit.
+  A path written again while the merge ran is left alone and named.
+- A merge killed after it cleared those paths puts the captured bytes back
+  when it turns out the merge never landed,
+  and carries them when it did.
+
+A merge over a checkout whose own paths are clean runs exactly as it did.
+The refusals that change nothing are:
+
 - The merge conflicts textually,
   and the word-level second merge pass cannot resolve every conflicted file.
   The finding `merge-isolation/merge-conflict` names the conflicting paths.
@@ -2136,11 +2162,15 @@ Two refusals change nothing:
   or rebase the branch.
   A conflict that does resolve by word completes the merge,
   and the lines of the merged parts come first on standard error.
+- A path the merge changes stands as a directory,
+  or the index holds an unmerged entry.
+  The command is native Git's whole,
+  which refuses such a checkout itself.
 
-An untracked file where the merge adds one is refused by Git at the last step;
- the finding `merge-isolation/not-applied` follows Git's message,
-and nothing is changed.
 A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
+
+#### A pull that merges
+
 A `git pull` that merges is completed the same way when the command line or the settings say that it merges
  (`--no-rebase`,
 `pull.rebase` or `branch.<name>.rebase` set to false,
@@ -2249,11 +2279,10 @@ Each with its cause:
 - A conflict that no resolution settles (exit 1 from native Git,
   or `merge-isolation/merge-conflict`,
   exit 2).
-- Unsaved work in the worktree that the merge would overwrite:
-  `merge-isolation/paths-in-use` (exit 2),
-  or Git's own refusal
-   with a clean index;
-  an untracked file in the way (`merge-isolation/not-applied`).
+- A path the merge changes that stands as a directory,
+  or an index that holds unmerged entries:
+  the command is native Git's whole,
+  which refuses such a checkout itself.
 - A lock that stays held for the whole wait limit:
   the merge stops,
   changes nothing and leaves the lock.

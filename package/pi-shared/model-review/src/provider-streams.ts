@@ -10,6 +10,8 @@ import type {
   Context,
   Model,
   ProviderStreams,
+  SimpleStreamOptions,
+  TranscriptContext,
 } from '@earendil-works/pi-ai';
 import { anthropicMessagesApi, } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
 import { azureOpenAIResponsesApi, } from '@earendil-works/pi-ai/api/azure-openai-responses.lazy';
@@ -72,7 +74,9 @@ type LazyProviderStreams = () => ProviderStreams;
  Lazy provider modules keyed by the API each one implements.
 
  Adding a provider is one entry here: the lookup key is the selected model's
- recorded API, so no branch per API needs to state or re-assert it.
+ recorded API, so no branch per API needs to state or re-assert it. Tests drive
+ {@link dispatchProviderStream} with this table's keys and fake factories, so a
+ removed entry or an entry pointing at another API's module fails a test.
  */
 const PROVIDER_STREAMS_BY_API: Readonly<Record<string, LazyProviderStreams>> = {
   'anthropic-messages': anthropicMessagesApi,
@@ -86,14 +90,95 @@ const PROVIDER_STREAMS_BY_API: Readonly<Record<string, LazyProviderStreams>> = {
   'openai-responses': openAIResponsesApi,
 };
 
-/**
- Project provider APIs supported by Pi AI direct modules, derived from the table keys.
- */
-const SUPPORTED_APIS: string = Object
-  .keys(PROVIDER_STREAMS_BY_API,)
-  .join(', ',);
-
 //endregion Dispatch table -- lazy provider modules keyed by the API each implements
+
+//region Provider dispatch -- one call into the table entry for the selected API
+
+/**
+ Dispatch inputs shared by every call into the provider table.
+ 
+ @example
+ ```ts
+ const request: ProviderDispatchRequest = { model, context, options };
+ ```
+ */
+type ProviderDispatchRequest = {
+  /**
+   Selected reviewer model.
+   */
+  readonly model: ForeignBorrowed<Model<Api>>;
+  /**
+   Final provider context, already isolated and normalized for provider code.
+   */
+  readonly context: ForeignBorrowed<TranscriptContext>;
+  /**
+   Final provider stream options, already isolated for provider code.
+   */
+  readonly options: ForeignBorrowed<SimpleStreamOptions>;
+  /**
+   Lazy provider modules to dispatch through, defaulting to the production table.
+   */
+  readonly providerStreamsByApi?: Readonly<Record<string, LazyProviderStreams>>;
+};
+
+/**
+ Dispatch one stream through the lazy provider module registered for selected API.
+ 
+ @param model - selected reviewer model
+ 
+ @param context - final provider context, already isolated and normalized
+ 
+ @param options - final provider stream options
+ 
+ @param providerStreamsByApi - lazy provider modules keyed by API
+ 
+ @returns assistant event stream from the module registered for `model.api`
+ 
+ @mutates model - concrete provider can inspect selected model data
+ 
+ @mutates context - concrete provider consumes request messages and tools
+ 
+ @mutates options - concrete provider observes auth and cancellation capabilities
+ 
+ @throws when selected API has no entry in `providerStreamsByApi`
+ 
+ @example
+ ```ts
+ dispatchProviderStream({ model, context, options });
+ ```
+ */
+function dispatchProviderStream(
+  {
+    model,
+    context,
+    options,
+    providerStreamsByApi = PROVIDER_STREAMS_BY_API,
+  }: ForeignBorrowed<Readonly<ProviderDispatchRequest>>,
+): AsyncIterable<AssistantMessageEvent> {
+  /**
+   Lazy provider module for the selected model's API.
+   */
+  const createProviderStreams = providerStreamsByApi[model.api];
+  if (createProviderStreams === undefined) {
+    /**
+     Supported API list built from the table entries actually searched.
+     */
+    const supportedApis = Object
+      .keys(providerStreamsByApi,)
+      .join(', ',);
+    throw new Error(
+      `No Pi AI API implementation available for structured reviewer ${model.provider}/${model.id} using ${model.api}. Supported APIs: ${supportedApis}`,
+    );
+  }
+  return createProviderStreams()
+    .streamSimple(
+    isolateReviewModel(model,),
+    context,
+    options,
+    );
+}
+
+//endregion Provider dispatch -- one call into the table entry for the selected API
 
 //region Request snapshots -- isolated caller values recorded before dispatch
 
@@ -302,23 +387,18 @@ function streamStructuredReview(
    Isolated provider options used only beyond external package boundary.
    */
   const providerOptions = isolateReviewOptions(options,);
-  /**
-   Lazy provider module for the selected model's API.
-   */
-  const createProviderStreams = PROVIDER_STREAMS_BY_API[model.api];
-  if (createProviderStreams === undefined) {
-    throw new Error(
-      `No Pi AI API implementation available for structured reviewer ${model.provider}/${model.id} using ${model.api}. Supported APIs: ${SUPPORTED_APIS}`,
-    );
-  }
-  return createProviderStreams()
-    .streamSimple(
-    isolateReviewModel(model,),
-    providerContext,
-    providerOptions,
-    );
+  return dispatchProviderStream({
+    model,
+    context: providerContext,
+    options: providerOptions,
+  },);
 }
 
 //endregion Public API -- one stream through the module for the selected API
 
-export { streamStructuredReview, };
+export {
+  dispatchProviderStream,
+  PROVIDER_STREAMS_BY_API,
+  streamStructuredReview,
+};
+export type { LazyProviderStreams, };

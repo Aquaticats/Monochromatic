@@ -3,6 +3,7 @@ description = "Build SSG pipeline: clean, i18n + client JS, then site, then post
 run = [
   { tasks = ["build:clean"] },
   { tasks = ["build:js:client"] },
+  { tasks = ["build:js:node"] },
   { tasks = ["build:site"] },
   { tasks = ["build:postprocess"] },
   { tasks = ["build:compress"] },
@@ -14,6 +15,9 @@ run = "rm -rf dist"
 
 [tasks."build:js:client"]
 extends = "build:js:client"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
 
 [tasks."build:site"]
 description = "Build static site from MDX content"
@@ -90,3 +94,4 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build:js:node"]

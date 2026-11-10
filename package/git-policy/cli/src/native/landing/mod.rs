@@ -331,6 +331,9 @@ pub mod service_claim_renewal_running;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// The notice for a push whose branch the person deleted.
+pub mod service_work_branch_is_gone;
+
 /// The kinds,
 /// handlers,
 /// acceptance rules,

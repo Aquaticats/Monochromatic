@@ -20,7 +20,7 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The captured output of a Git run,
 /// the run itself,
 /// and the helpers that read a printed path.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git_without, strip_git_line};
 /// The real Git executable is put first in the child environment.
 use crate::git_system_config::with_real_git;
 /// The in-process repository layout,
@@ -81,16 +81,20 @@ fn not_started(purpose: &str, operation: &str, error: &std::io::Error) -> Candid
 ///   The prefix selects the same repository the caller's command selects;
 ///  the
 ///       command follows it.
+///  A command whose pathspecs the wrapper wrote also names the mode variables to remove,
+///  because
+///  a mode the caller set would read those pathspecs as something else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runGit(git, prefix, command, overlay, purpose): Promise<GitOutput>;
+/// async function runGit(git, prefix, command, overlay, remove, purpose): Promise<GitOutput>;
 /// ```
 pub fn run_git(
     real_git: &Path,
     prefix: &[OsString],
     command: &[OsString],
     overlay: &[(OsString, OsString)],
+    remove: &[&str],
     purpose: &str,
 ) -> Result<MetadataOutput, CandidateError> {
     // `.to_vec()` copies the borrowed prefix; `.extend_from_slice(..)` appends the command.
@@ -102,7 +106,7 @@ pub fn run_git(
         None => String::from("(no command)"),
     };
     // `match` on the start result: `Err(error)` means Git could not be started at all.
-    let output: MetadataOutput = match run_metadata_git(real_git, arguments.as_slice(), overlay) {
+    let output: MetadataOutput = match run_metadata_git_without(real_git, arguments.as_slice(), overlay, remove) {
         Ok(captured) => captured,
         // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
         Err(error) => {
@@ -153,6 +157,7 @@ pub fn real_index_path(
             OsString::from("index"),
         ],
         overlay,
+        &[],
         purpose,
     )?;
     // `match` unpacks "a path or nothing": empty output names no index.

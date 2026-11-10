@@ -14,7 +14,8 @@ Two outcomes look alike and are not:
   so a caller that renders only those three fields prints nothing at all while
   the failure is real.
 
-`task-depends` shows the second case as silence,
+`task-depends` showed the second case as silence until
+`package/monorepo-task/core-exec/src/depends-exec.ts` learned to report it,
 run against a source file whose output check always reports staleness:
 
 ```text
@@ -23,9 +24,11 @@ $ echo $?
 1
 ```
 
-Nothing is printed,
+Nothing was printed,
 on either stream,
-and the process still exits 1.
+and the process still exited 1.
+The command line and the reason now arrive on standard error;
+"Verified workarounds" has the line that produces them.
 
 A timed-out child is a third case,
 one layer up:
@@ -33,6 +36,9 @@ one layer up:
 subprocess error in `BoundedWaitTimeoutError.cause`,
 so a caller that reads the thrown value's own fields sees no captured output
 even when the child wrote some before the bound ended it.
+That output was dropped for the same reason:
+the
+consumer read only the bound error's own fields.
 
 ## Root cause
 
@@ -112,7 +118,10 @@ The probe imports
 `package/monorepo-task/core-exec/src/depends-exec.ts` directly and runs real
 children through `executeWithCollapsedOutput`,
 capturing both process streams
-and `process.exitCode`:
+and `process.exitCode`.
+Run on 2026-11-09,
+before the consumer reported either shape,
+its catalog was:
 
 ```json
 {"case":"exit 3 with output","exitCode":3,"stdout":["child-out\n"],"stderr":["child-err\n"]}
@@ -123,51 +132,98 @@ and `process.exitCode`:
 {"case":"timeout after output","exitCode":1,"stdout":[],"stderr":["[task-depends] timed out …"]}
 ```
 
-The last two cases are the point:
-the signal-ended child is reported,
+In that run the last two cases were the point:
+the signal-ended child was reported,
 and the
-child that printed before its bound ended has its text dropped rather than
+child that printed before its bound ended had its text dropped rather than
 dumped.
 
-`package/monorepo-task/core-exec/src/depends-exec.unit.test.ts` now pins the
+A second harness runs the built entry
+`package/monorepo-task/core-exec/dist/final/node/depends.mjs` the way a task
+runs it,
+in a disposable folder holding `src.txt`,
+with `-s src.txt -o 'sh:echo -Infinity'` so the command after `--` always runs,
+and reports its status and both streams.
+Run on 2026-11-10 against the build that reports both shapes,
+the same cases left:
+
+```json
+{"case":"exit 3 with output","exitCode":3,"stdout":["child-out"],"stderr":["child-err"]}
+{"case":"missing executable","exitCode":1,"stdout":[],"stderr":["[task-depends] could not start `no-such-command-for-the-probe-8f3a`: spawn no-such-command-for-the-probe-8f3a ENOENT. Check that the executable is installed and on PATH, and that the task names it correctly."]}
+{"case":"timeout","exitCode":1,"stdout":[],"stderr":["[task-depends] command timed out after 1 seconds and was ended (raise it with --command-timeout-seconds): sh -c sleep 60"]}
+{"case":"exit 4 with allowFailure","exitCode":0,"stdout":["allowed-out"],"stderr":[]}
+{"case":"killed by signal","exitCode":1,"stdout":[],"stderr":["[task-depends] command terminated by signal: SIGKILL"]}
+{"case":"timeout after output","exitCode":1,"stdout":["printed-before-the-bound"],"stderr":["[task-depends] command timed out after 1 seconds and was ended (raise it with --command-timeout-seconds): sh -c echo printed-before-the-bound; echo warned-before-the-bound >&2; sleep 60","warned-before-the-bound"]}
+```
+
+`missing executable` names the command line,
+the reason and what to check,
+and keeps status 1.
+`timeout after output` dumps both streams the child wrote before the bound
+ended it,
+and still ends the run as failed.
+
+`package/monorepo-task/core-exec/src/depends-exec.unit.test.ts` pins the
 reachable branches:
 success discards output,
 a failed child dumps it and keeps
 its status,
 `allowFailure` leaves the status alone,
-a failed start and a bound
-both end the process as failed,
-and a signal is named.
+a failed start is named and fails,
+its missing file and its
+permission reason are told apart,
+a start the call allows still prints its
+command,
+the bound
+and a signal are named,
+and what a timed-out child printed is dumped.
 The timeout line's note names the flag;
-its status is the failed-start status,
+its status is the failed-run status,
 because the bound's error carries no subprocess status of its own.
 
 ## Verified workarounds
 
 Read the failure through a guard,
 not through a cast of the caught value.
-`package/monorepo-task/core-exec/src/tool-failure.ts` already supplies one:
+`package/monorepo-task/core-exec/src/tool-failure.ts:74` supplies one:
 `isCapturedSubprocessFailure` accepts a value that carries a numeric
 `exitCode` or a string `signalName`,
 and refuses a failed start.
-`depends-exec.ts` uses it to dump output when there is any and to end the
-process as failed when there is not.
+`package/monorepo-task/core-exec/src/depends-exec.ts:251` uses it to dump the
+captured streams when there are any.
 
-To report a failed start,
-read what the start failure does carry:
-`message` for
-the command line,
-or `cause.code` (`ENOENT`,
-`EACCES`) for the reason.
-`task-depends` does not,
-so it stays silent;
-that is a diagnostic gap with
-today's behaviour,
-not an unreachable branch.
+A failed start is reported from what it does carry.
+`package/monorepo-task/core-exec/src/depends-exec.ts:320` names the command line
+the task asked for,
+takes the innermost message
+(`cause.message`,
+Node's own `spawn <command> ENOENT`,
+which names the failed call and its code where nano-spawn's own message only
+repeats `Command failed: <command>`),
+and turns `cause.code` into a check a person can act on:
+`ENOENT` asks about the installation and `PATH`,
+`EACCES` about the file's permission and the account,
+and any other code falls back to naming the command as the thing to check.
+The run still ends with status 1,
+because a failed start has no status of its own.
 
-To keep a timed-out child's captured output,
-unwrap the bound's `cause` before
-reading the streams.
+A timed-out child's captured output is kept by unwrapping the bound's `cause`
+before reading the streams.
+`package/monorepo-task/core-exec/src/depends-exec.ts:237` recognizes
+`BoundedWaitTimeoutError`,
+`package/monorepo-task/core-exec/src/depends-exec.ts:243` accepts the subprocess
+error in its `cause`,
+and `package/monorepo-task/core-exec/src/depends-exec.ts:294` dumps the streams.
+No signal is named in that case,
+because the bound ended the group itself and the caller has already printed the
+line naming the bound.
+
+Tradeoffs:
+an `allowFailure` call prints the same diagnostics and leaves the exit status
+alone,
+and output still sitting in the child's own buffers when the group is killed is
+lost,
+because the bound ends the group before those writes happen.
 
 ## What does not work
 

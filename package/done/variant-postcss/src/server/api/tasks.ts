@@ -9,6 +9,12 @@
  Client code calls these via the `api()` helper (see client/lib/api.ts),
  typically followed by `globalThis.location.reload()` to re-render with fresh data.
  */
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import {
   createTask,
   deleteTask,
@@ -33,6 +39,19 @@ import {
   parseEnumValue,
   parseStringArray,
 } from './task-validation.ts';
+
+//region Logging
+
+/**
+ Logger for this module: a create or update that fails after validation reports
+ the caught value here, since the client only receives its message.
+ */
+const l = tagged({
+  tag: 'done-variant-task-api',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Recognized priority/complexity values for create handler.
@@ -135,6 +154,7 @@ export async function handleCreateTask(req: Request,): Promise<Response> {
     },);
   }
   catch (error) {
+    l.error(`task create failed, so the client receives a 500 instead: ${caughtValueText(error,)}`,);
     return jsonResponse({
       payload: { error: String(error,), },
       status: HTTP_INTERNAL_SERVER_ERROR,
@@ -197,6 +217,7 @@ export async function handleUpdateTask(
     return jsonResponse({ payload: task, },);
   }
   catch (error) {
+    l.error(`task update failed for ${id}, so the client receives a 500 instead: ${caughtValueText(error,)}`,);
     return jsonResponse({
       payload: { error: String(error,), },
       status: HTTP_INTERNAL_SERVER_ERROR,

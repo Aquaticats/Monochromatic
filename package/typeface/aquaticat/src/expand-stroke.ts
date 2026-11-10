@@ -4,13 +4,22 @@
  closed contours suitable for OpenType glyph paths.
  */
 
+import type { Coordinate, } from './font-coordinate.ts';
+
 /**
- Cartesian coordinate pair.
+ One polygon edge shifted along its outward normal, kept as a point and a
+ direction so the next pass can intersect it with its successor.
  */
-type Point = readonly [
-  number,
-  number,
-];
+type OffsetEdge = {
+  /**
+   Start point of the shifted edge.
+   */
+  readonly point: Coordinate;
+  /**
+   Direction vector of the source edge, unchanged by the shift.
+   */
+  readonly direction: Coordinate;
+};
 
 /**
  Intersect two infinite lines, each defined by a point and direction vector.
@@ -24,6 +33,8 @@ type Point = readonly [
  @param d2 - direction of line 2
  
  @returns intersection point
+ 
+ @throws When the two directions are parallel, so the lines never meet
  
  @example
  ```ts
@@ -42,17 +53,22 @@ function lineIntersection({
   p2,
   d2,
 }: {
-  readonly p1: Point;
-  readonly d1: Point;
-  readonly p2: Point;
-  readonly d2: Point;
-},): Point {
+  readonly p1: Coordinate;
+  readonly d1: Coordinate;
+  readonly p2: Coordinate;
+  readonly d2: Coordinate;
+},): Coordinate {
   /**
    2D cross product of the two direction vectors; zero means parallel lines.
    */
   const cross = (d1[0]
     * d2[1]) - (d1[1]
       * d2[0]);
+  if (cross === 0) {
+    throw new Error(
+      `consecutive polygon edges are collinear, so their offset lines never meet: [${d1.join(',',)}] and [${d2.join(',',)}]`,
+    );
+  }
   /**
    X offset from `p1` to `p2`, used to project the gap onto `d1`'s parameter axis.
    */
@@ -87,9 +103,11 @@ function lineIntersection({
  
  @returns new polygon vertices at the requested offset
  
+ @throws When two consecutive vertices coincide, or two consecutive edges are collinear
+ 
  @example
  ```ts
- const square: [number, number][] = [[0, 0], [10, 0], [10, 10], [0, 10]];
+ const square: Coordinate[] = [[0, 0], [10, 0], [10, 10], [0, 10]];
  const expanded = offsetPolygon({ vertices: square, offset: 2 });
  ```
  */
@@ -97,9 +115,9 @@ export function offsetPolygon({
   vertices,
   offset,
 }: {
-  readonly vertices: readonly Point[];
+  readonly vertices: readonly Coordinate[];
   readonly offset: number;
-},): Point[] {
+},): Coordinate[] {
   /**
    Cached vertex count used as the modulus for wrap-around edge indexing.
    */
@@ -112,7 +130,7 @@ export function offsetPolygon({
   const offsetEdges = vertices.map(function shiftEdge(
     vertex,
     vertexIndex,
-  ) {
+  ): OffsetEdge {
     /**
      Successor vertex; wraps around so the last edge connects back to vertex 0.
      */
@@ -136,6 +154,11 @@ export function offsetPolygon({
       dx,
       dy,
     );
+    if (len === 0) {
+      throw new Error(
+        `polygon edge ${vertexIndex} is a zero-length edge: vertices ${vertexIndex} and ${(vertexIndex + 1) % vertexCount} coincide at [${vertex.join(',',)}]`,
+      );
+    }
     /**
      X component of the outward normal scaled by `offset` (CW polygon, Y-down SVG coords).
      */
@@ -150,17 +173,17 @@ export function offsetPolygon({
           + nx,
         vertex[1]
           + ny,
-      ] satisfies Point,
+      ],
       direction: [
         dx,
         dy,
-      ] satisfies Point,
+      ],
     };
   },);
 
   // Intersect consecutive offset edges to find new vertices
   return offsetEdges.map(function intersectEdge(
-    edge: Readonly<(typeof offsetEdges)[number]>,
+    edge: OffsetEdge,
     edgeIndex,
   ) {
     /**

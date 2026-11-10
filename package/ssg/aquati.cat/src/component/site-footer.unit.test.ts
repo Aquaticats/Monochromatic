@@ -11,9 +11,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  css,
-  html,
-} from './site-footer.ts';
+  siteFooterStyles,
+  siteFooterHtml,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -67,7 +67,7 @@ await describe({
         /**
          Rendered footer markup.
          */
-        const markup = html();
+        const markup = siteFooterHtml();
 
         expect(markup.split('<p>',).length - 1,).toBe(QUOTE_COUNT,);
         expect(markup,).toContain('class="ticker-stack"',);
@@ -79,7 +79,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles,).toContain('site-footer .ticker-stack{display:grid}',);
         expect(styles,).toContain('grid-row-start:1;grid-column-start:1',);
@@ -91,7 +91,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles.includes('block-size:',),).toBe(false,);
         expect(styles,).toContain('overflow-block:clip',);
@@ -103,7 +103,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles,).toContain(
           '@property --ticker-seed{syntax:"<integer>";inherits:true;initial-value:0}',
@@ -116,7 +116,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles,).toContain('--ticker-seed:random(--ticker-seed, 0, 8, 1)',);
         expect(styles.includes(', by ',),).toBe(false,);
@@ -128,7 +128,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         EXPECTED_DELAYS.forEach(function assertDelay(
           seconds: number,
@@ -166,7 +166,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles,).toContain(
           '12.6984%{transform:translateY(-100%);animation-timing-function:step-end}',
@@ -180,7 +180,7 @@ await describe({
         /**
          Generated component stylesheet.
          */
-        const styles = css();
+        const styles = siteFooterStyles();
 
         expect(styles,).toContain(
           '@media (prefers-reduced-motion: reduce){site-footer .ticker-stack > p{animation-play-state:paused}}',

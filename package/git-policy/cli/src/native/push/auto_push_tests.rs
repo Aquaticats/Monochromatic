@@ -910,3 +910,62 @@ fn a_clean_push_whose_reference_lock_was_refused_surfaces_the_refusal() {
     assert!(shown.contains("remote: hello"), "the remote's own lines stay: {shown}");
     assert!(!shown.contains("To origin"), "the other lines of a clean push stay out: {shown}");
 }
+
+/// The awaited push answers what the synchronous push answers:
+/// a clean push of the checked-out branch,
+/// its output and its exit status,
+/// and the same for a push the remote refuses,
+/// and the synchronous face of the same push is refused from inside the runtime.
+#[test]
+fn the_awaited_push_answers_what_the_synchronous_push_answers() {
+    let root: PathBuf = fixture("auto-push-awaiting-same-answer");
+    std::fs::create_dir_all(root.join("sync")).expect("the synchronous fixture's folder");
+    std::fs::create_dir_all(root.join("awaited")).expect("the awaited fixture's folder");
+    let (sync_repo, sync_log) = repo_with_remote_and_pre_push(root.join("sync").as_path(), 0);
+    let (awaited_repo, awaited_log) = repo_with_remote_and_pre_push(root.join("awaited").as_path(), 0);
+    let sync_landed: String = head_oid(sync_repo.as_path());
+    let awaited_landed: String = head_oid(awaited_repo.as_path());
+    let (sync_result, sync_shown): (Result<AutoPushResult, SingleFlightError>, String) = run(sync_repo.as_path(), sync_landed.as_str());
+    let mut awaited_err: Vec<u8> = Vec::new();
+    let awaited_result: Result<AutoPushResult, SingleFlightError> = crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
+        &push_git(awaited_repo.as_path()),
+        &head_ref(awaited_repo.as_path()),
+        awaited_landed.as_str(),
+        &mut awaited_err,
+    ))
+    .expect("the runtime runs the work");
+    assert_eq!(
+        format!("{awaited_result:?}"),
+        format!("{sync_result:?}"),
+        "the two faces answer the same push the same way"
+    );
+    assert_eq!(String::from_utf8_lossy(awaited_err.as_slice()).into_owned(), sync_shown);
+    assert_eq!(
+        String::from_utf8_lossy(&git(sync_repo.as_path(), &["rev-parse", "@{upstream}"]).stdout),
+        String::from_utf8_lossy(&git(awaited_repo.as_path(), &["rev-parse", "@{upstream}"]).stdout),
+        "both delivered the commit, and both created the same tracking ref"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&git(sync_repo.as_path(), &["rev-parse", "HEAD"]).stdout),
+        String::from_utf8_lossy(&git(awaited_repo.as_path(), &["rev-parse", "HEAD"]).stdout),
+        "both pushed the same commit"
+    );
+    assert_eq!(read_log(sync_log.as_path()), read_log(awaited_log.as_path()), "both ran the same hook");
+    // The positive control: the synchronous face inside the runtime is refused, not silently run.
+    let mut refused_err: Vec<u8> = Vec::new();
+    let refused = crate::lazy_runtime::run_on_runtime(async {
+        return push_once(
+            &push_git(awaited_repo.as_path()),
+            &head_ref(awaited_repo.as_path()),
+            awaited_landed.as_str(),
+            &mut refused_err,
+        );
+    })
+    .expect("the runtime runs the work");
+    let refusal: String = match refused {
+        Err(error) => format!("{error}"),
+        Ok(result) => panic!("the synchronous push cannot start Git inside the runtime, and it answered {result:?}"),
+    };
+    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
+    remove(root.as_path());
+}
