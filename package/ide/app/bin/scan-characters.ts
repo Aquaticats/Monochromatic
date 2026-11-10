@@ -83,3 +83,69 @@ const decimalPoint = '.';
 export function isDecimalNumberCharacter(character: string): boolean {
   return isAsciiDigit(character) || character === decimalPoint;
 }
+
+/** Code unit of the tab, the ASCII whitespace a log line separates fields with as well. */
+const tabCodeUnit = 0x09;
+
+/** Code unit of the vertical tab, whitespace that no line start follows. */
+const verticalTabCodeUnit = 0x0b;
+
+/** Code unit of the form feed, whitespace that no line start follows either. */
+const formFeedCodeUnit = 0x0c;
+
+/** Code unit of the space, the widest ASCII whitespace. */
+const spaceCodeUnit = 0x0020;
+
+/** Code unit of the no-break space, whitespace that is not a space. */
+const noBreakSpaceCodeUnit = 0x00a0;
+
+/** Code unit of the ogham space mark. */
+const oghamSpaceMarkCodeUnit = 0x1680;
+
+/** Code units from the en quad to the hair space, the run of spaces Unicode prints purposes with. */
+const firstPrintingSpaceCodeUnit = 0x2000;
+
+/** Last code unit of the run that starts at {@link firstPrintingSpaceCodeUnit}. */
+const lastPrintingSpaceCodeUnit = 0x200a;
+
+/** Code unit of the narrow no-break space. */
+const narrowNoBreakSpaceCodeUnit = 0x202f;
+
+/** Code unit of the medium mathematical space. */
+const mediumMathematicalSpaceCodeUnit = 0x205f;
+
+/** Code unit of the ideographic space, the widest whitespace. */
+const ideographicSpaceCodeUnit = 0x3000;
+
+/** Code unit of the byte order mark, which ECMAScript counts as whitespace. */
+const byteOrderMarkCodeUnit = 0xfeff;
+
+/**
+ Whether character is whitespace the way ECMAScript names it.
+ 
+ @param character - Single character of the text.
+ 
+ @returns Whether character separates words for `\s`.
+ 
+ @example
+ ```ts
+ isWhitespace('\u00a0'); // true
+ isWhitespace('\u0085'); // false, a next-line character `\s` never reached
+ ```
+ */
+export function isWhitespace(character: string): boolean {
+  if (character.length !== 1) return false;
+  const code = character.charCodeAt(0);
+  return code === tabCodeUnit
+    || code === verticalTabCodeUnit
+    || code === formFeedCodeUnit
+    || code === spaceCodeUnit
+    || code === noBreakSpaceCodeUnit
+    || code === oghamSpaceMarkCodeUnit
+    || (code >= firstPrintingSpaceCodeUnit && code <= lastPrintingSpaceCodeUnit)
+    || code === narrowNoBreakSpaceCodeUnit
+    || code === mediumMathematicalSpaceCodeUnit
+    || code === ideographicSpaceCodeUnit
+    || code === byteOrderMarkCodeUnit
+    || isLineTerminator(character);
+}

@@ -1,7 +1,7 @@
 // The character classes the inspection scripts' scans share, checked against the pattern classes they replace.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAsciiDigit, isDecimalNumberCharacter, isLineTerminator } from './scan-characters.ts';
+import { isAsciiDigit, isDecimalNumberCharacter, isLineTerminator, isWhitespace } from './scan-characters.ts';
 
 const digits = '0123456789';
 
@@ -38,4 +38,18 @@ test('accepts the digits and the decimal point of a printed number', () => {
 
 test('rejects the characters a printed number never holds', () => {
   for (const character of [',', '+', '-', 'e', 'E', ' ', '', '..']) assert.equal(isDecimalNumberCharacter(character), false, character);
+});
+
+test('accepts every code unit whitespace names', () => {
+  const printing = Array.from({ length: 0x200a - 0x2000 + 1 }, (_, offset) => String.fromCharCode(0x2000 + offset));
+  const named = ['\u0009', '\u000b', '\u000c', '\u0020', '\u00a0', '\u1680', '\u202f', '\u205f', '\u3000', '\ufeff', ...printing];
+  for (const character of named) assert.equal(isWhitespace(character), true, JSON.stringify(character));
+  // The line terminators are whitespace as well, and they are checked on their own above.
+  for (const terminator of ['\n', '\r', '\u2028', '\u2029']) assert.equal(isWhitespace(terminator), true, JSON.stringify(terminator));
+});
+
+test('rejects the characters beside whitespace in the code unit table', () => {
+  const beside = [0x1fff, 0x200b, 0x2010, 0x202e, 0x2030, 0x205e, 0x2060, 0x2fff, 0x3001, 0xfeff - 1, 0xfeff + 1];
+  for (const code of beside) assert.equal(isWhitespace(String.fromCharCode(code)), false, 'code unit ' + code);
+  for (const character of ['a', '0', '\u0085', '\u180e', '', '  ']) assert.equal(isWhitespace(character), false, JSON.stringify(character));
 });

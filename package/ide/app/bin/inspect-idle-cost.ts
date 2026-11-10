@@ -16,6 +16,7 @@ import { withoutSgrSequences } from './sgr-sequences.ts';
 import { safetySweepDeclaration } from './refresh-policy-sweep.ts';
 import { inotifyWatchCount } from './inotify-fdinfo.ts';
 import { pressureShares } from './pressure-shares.ts';
+import { listedDirectoryPath } from './directory-snapshot-path.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -258,7 +259,7 @@ const sample = (sweep: number) => async (pid: string, logPath: string): Promise<
     read_calls_per_s: round({ value: (after.io.syscr - before.io.syscr) / elapsed, digits: 1 }),
     read_bytes_per_s: Math.round((after.io.rchar - before.io.rchar) / elapsed),
     listings_per_s: round({ value: listed.length / elapsed, digits: 2 }),
-    directories_listed: new Set(listed.map(line => line.match(/path=(\S+)/)?.[1])).size,
+    directories_listed: new Set(listed.map(listedDirectoryPath)).size,
     sweeps_started: sweeps.length,
     sweep_gap_median_s: gaps.length === 0 ? null : round({ value: (gaps[Math.floor(gaps.length / 2)] ?? 0) / 1000, digits: 2 }),
     longest_silence_s: round({ value: silence, digits: 2 }),
