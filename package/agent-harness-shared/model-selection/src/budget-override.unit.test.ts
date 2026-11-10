@@ -12,6 +12,7 @@ import {
 
 import {
   type BudgetModel,
+  NO_AUTH,
   NO_OVERRIDE_MODEL,
   NoBudgetModelError,
   type ReadonlyModel,
@@ -118,6 +119,25 @@ await describe({
         expect((malformed as Error).message,).toContain('not a provider/model slug',);
         expect(missing,).toBeInstanceOf(NoBudgetModelError,);
         expect((missing as Error).message,).toContain('not found in registry',);
+      },
+    },),
+    it({
+      name: 'throws when the override model has no configured auth',
+      fn: async function testOverrideNoAuth(): Promise<void> {
+        /**
+         Override resolution failure for a registry model without auth.
+         */
+        const error = await captureAsyncError(async function resolveUnauthenticatedOverride(): Promise<BudgetModel> {
+          return await resolveBudgetModelOverride({
+            override: 'openai/gpt-4o-mini',
+            findModel,
+            resolveAuth: async function resolveNoAuth(): Promise<typeof NO_AUTH> {
+              return NO_AUTH;
+            },
+          },);
+        },);
+        expect(error,).toBeInstanceOf(NoBudgetModelError,);
+        expect((error as Error).message,).toContain('no API key for model override "openai/gpt-4o-mini"',);
       },
     },),
   ],
