@@ -94,28 +94,28 @@ small.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    Oxlint resolves
-   what it is told to resolve;
-    the silent-skip behaviour is a UX
-   wart,
-    not an algorithmic defect.
-2. **Can upstream fix it?
-   ** They could emit a warning when running
-   `--type-aware` and the discovered `tsconfig.json` does not cover
-   some of the files under analysis.
-    That is a UX patch.
-3. **Are they supporting this use case?
-   ** Monorepos are a documented
-   target;
-    the per-package run is the documented pattern.
-4. **Will they likely fix it?
-   ** Unknown.
-    A "no type info for X files"
-   warning would be a small change.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     Oxlint resolves
+    what it is told to resolve;
+     the silent-skip behaviour is a UX
+    wart,
+     not an algorithmic defect.
+2.  **Can upstream fix it?
+    ** They could emit a warning when running
+    `--type-aware` and the discovered `tsconfig.json` does not cover
+    some of the files under analysis.
+     That is a UX patch.
+3.  **Are they supporting this use case?
+    ** Monorepos are a documented
+    target;
+     the per-package run is the documented pattern.
+4.  **Will they likely fix it?
+    ** Unknown.
+     A "no type info for X files"
+    warning would be a small change.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report at this time.
@@ -295,42 +295,42 @@ the lower-risk path.
 
 ### Why we file this upstream
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    unconditional prefix
-   stripping is the source of the wart.
-    Validating the prefix against
-   the parsed plugin table would be the correct behaviour.
-2. **Can upstream fix it?
-   ** Yes;
-    replace the unguarded
-   `name.rsplit_once('/').map_or(...)` strip with a guarded
-   `name.split_once('/')` plus `LintPlugins::try_from(prefix)` check.
-   The change is local to the `contains()` method in
-   `disable_directives.rs`;
-    `tsgolint::should_skip_diagnostic` calls
-   the same method and inherits the fix for free.
-3. **Are they supporting this use case?
-   ** Yes;
-    canonical prefixes are
-   the authoritative configuration form (`LintPlugins::try_from` and
-   `parse_rule_key` both reject unknown plugin names with an explicit
-   error).
-    The disable-directive matcher is the only path that
-   silently accepts unknown prefixes.
-4. **Will they likely fix it?
-   ** Probably worth filing.
-    The closed
-   substring regression (`directive_rule_name_is_matched_on_full_rule_name_not_substring`,
-   line 2048) shows the maintainers care about disable-directive
-   correctness.
-    The remaining permissive behaviour is the natural
-   next correction,
-    but it does shift semantics for any disable
-   comment that relies on a bogus prefix today.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    patch + tests below.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     unconditional prefix
+    stripping is the source of the wart.
+     Validating the prefix against
+    the parsed plugin table would be the correct behaviour.
+2.  **Can upstream fix it?
+    ** Yes;
+     replace the unguarded
+    `name.rsplit_once('/').map_or(...)` strip with a guarded
+    `name.split_once('/')` plus `LintPlugins::try_from(prefix)` check.
+    The change is local to the `contains()` method in
+    `disable_directives.rs`;
+     `tsgolint::should_skip_diagnostic` calls
+    the same method and inherits the fix for free.
+3.  **Are they supporting this use case?
+    ** Yes;
+     canonical prefixes are
+    the authoritative configuration form (`LintPlugins::try_from` and
+    `parse_rule_key` both reject unknown plugin names with an explicit
+    error).
+     The disable-directive matcher is the only path that
+    silently accepts unknown prefixes.
+4.  **Will they likely fix it?
+    ** Probably worth filing.
+     The closed
+    substring regression (`directive_rule_name_is_matched_on_full_rule_name_not_substring`,
+    line 2048) shows the maintainers care about disable-directive
+    correctness.
+     The remaining permissive behaviour is the natural
+    next correction,
+     but it does shift semantics for any disable
+    comment that relies on a bogus prefix today.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     patch + tests below.
 
 #### Prototype result
 

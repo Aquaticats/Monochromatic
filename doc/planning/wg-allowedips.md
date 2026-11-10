@@ -60,12 +60,12 @@ Do not build another merge or interval layer around it.
 Each file is plain text with one entry per line.
 For each line:
 
-1. Trim surrounding whitespace.
-2. Skip it when the result is empty or starts with `#`.
-3. Treat a valid IP literal as one host address.
-4. Treat an entry containing `/` as a CIDR block.
-5. Treat a case-insensitive `AS<number>` entry as an autonomous system number.
-6. Treat any other entry as a domain for name resolution.
+1.  Trim surrounding whitespace.
+2.  Skip it when the result is empty or starts with `#`.
+3.  Treat a valid IP literal as one host address.
+4.  Treat an entry containing `/` as a CIDR block.
+5.  Treat a case-insensitive `AS<number>` entry as an autonomous system number.
+6.  Treat any other entry as a domain for name resolution.
 
 Validate IP literals with `isIP` from `node:net`.
 For a CIDR entry use `parseCidr` from `cidr-tools` and validate its address portion with `isIP`.
@@ -107,12 +107,12 @@ Do not add:
 
 After parsing and resolving both files:
 
-1. Compute the parts of IPv4 `127.0.0.0/8` and IPv6 `::1/128` not covered by the disallowed set.
-2. Write one warning listing the uncovered remainder when either loopback range is not completely covered.
-3. Fail when the allowed set is empty.
-4. Pass both input sets directly to `excludeCidr` for output subtraction.
-5. Join a nonempty result with `, ` and write one newline-terminated line to stdout.
-6. Write nothing to stdout when the result is empty.
+1.  Compute the parts of IPv4 `127.0.0.0/8` and IPv6 `::1/128` not covered by the disallowed set.
+2.  Write one warning listing the uncovered remainder when either loopback range is not completely covered.
+3.  Fail when the allowed set is empty.
+4.  Pass both input sets directly to `excludeCidr` for output subtraction.
+5.  Join a nonempty result with `, ` and write one newline-terminated line to stdout.
+6.  Write nothing to stdout when the result is empty.
 
 Loopback coverage is semantic.
 Exact ranges and broader disallowed CIDRs satisfy the check.

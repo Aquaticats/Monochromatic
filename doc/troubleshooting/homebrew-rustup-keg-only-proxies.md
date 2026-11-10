@@ -257,29 +257,29 @@ No `.out-of-scope/` exemption matches Homebrew or rustup;
  walked for the audit
 trail:
 
-1. Is it really upstream's fault?
-    No. Both behaviors are intended and documented:
-   rustup routes through `CARGO_HOME/bin` by design (`src/toolchain.rs:230`,
-   with the tradeoff explained against PR 3178 / issue 3825),
-    and the Homebrew
-   formula is keg-only and states the required PATH edit in its caveat
-   (`Formula/r/rustup.rb:65`).
-    The failure is using `rustup run` while skipping
-   the caveat,
-    not a bug in either tool.
-2. Can upstream fix it?
-    Not applicable;
-    there is nothing broken to fix.
-3. Supported use case?
-    The supported path (add the keg bin to PATH) is documented
-   in the caveat and works.
-4. Would the repo welcome it?
-    Not reached.
-5. Will they fix it?
-    Not reached;
-    nothing to fix.
-6. Prototyped a minimal fix?
-    Not applicable.
+1.  Is it really upstream's fault?
+     No. Both behaviors are intended and documented:
+    rustup routes through `CARGO_HOME/bin` by design (`src/toolchain.rs:230`,
+    with the tradeoff explained against PR 3178 / issue 3825),
+     and the Homebrew
+    formula is keg-only and states the required PATH edit in its caveat
+    (`Formula/r/rustup.rb:65`).
+     The failure is using `rustup run` while skipping
+    the caveat,
+     not a bug in either tool.
+2.  Can upstream fix it?
+     Not applicable;
+     there is nothing broken to fix.
+3.  Supported use case?
+     The supported path (add the keg bin to PATH) is documented
+    in the caveat and works.
+4.  Would the repo welcome it?
+     Not reached.
+5.  Will they fix it?
+     Not reached;
+     nothing to fix.
+6.  Prototyped a minimal fix?
+     Not applicable.
 
 Decision:
  do not file.

@@ -169,23 +169,23 @@ There is no public `diskutil` source repository or GitHub tracker to search for 
 
 The six filing constraints resolve as follows:
 
-1. Upstream fault:
-    no.
-   The manual asks for a device;
-   passing an ordinary subpath was consumer misuse.
-2. Upstream can fix it:
-    technically possible,
-   but not required by the documented grammar.
-3. Supported use case:
-    no evidence that arbitrary descendant paths are supported device arguments.
-4. Contribution welcome:
-    no public source or contribution process exists for `diskutil`.
-5. Likely fix:
-    no;
-   this is documented input scope rather than a demonstrated defect.
-6. Compatible prototype:
-    the verified consumer-side path-to-device adapter is implemented and tested,
-   but there is no upstream codebase in which to prototype a change.
+1.  Upstream fault:
+     no.
+    The manual asks for a device;
+    passing an ordinary subpath was consumer misuse.
+2.  Upstream can fix it:
+     technically possible,
+    but not required by the documented grammar.
+3.  Supported use case:
+     no evidence that arbitrary descendant paths are supported device arguments.
+4.  Contribution welcome:
+     no public source or contribution process exists for `diskutil`.
+5.  Likely fix:
+     no;
+    this is documented input scope rather than a demonstrated defect.
+6.  Compatible prototype:
+     the verified consumer-side path-to-device adapter is implemented and tested,
+    but there is no upstream codebase in which to prototype a change.
 
 Nothing should be filed upstream.
 No draft issue is retained because the behavior is not an upstream defect.

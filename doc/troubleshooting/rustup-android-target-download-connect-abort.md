@@ -97,11 +97,11 @@ x86_64-unknown-linux-gnu
 
 For each URL and expected SHA-256 printed by rustup:
 
-1. Download to rustup's reported `.partial` path with curl.
-2. Run `sha256sum` on the complete file.
-3. Continue only when the digest exactly equals the expected cache filename.
-4. Rename `<hash>.partial` to `<hash>` in `~/.rustup/downloads/`.
-5. Rerun `mise run prepare:android`.
+1.  Download to rustup's reported `.partial` path with curl.
+2.  Run `sha256sum` on the complete file.
+3.  Continue only when the digest exactly equals the expected cache filename.
+4.  Rename `<hash>.partial` to `<hash>` in `~/.rustup/downloads/`.
+5.  Rerun `mise run prepare:android`.
 
 Tradeoff:
 this operates on rustup's internal cache convention and is specific to one dated nightly artifact.
@@ -123,24 +123,24 @@ Searches of open and closed rustup issues and pull requests for the error,
 partial-resume behavior,
 and `static.rust-lang.org` download failures found no matching report.
 
-1. **Upstream fault:**
-    not established.
-    The artifact was available and curl succeeded,
-   but the evidence does not distinguish Reqwest,
-    host networking,
-    or transient connection state.
-2. **Upstream can fix it:**
-    unknown without a reproducible client-side cause.
-3. **Supported use case:**
-    yes.
-    Rustup documents Android target installation.
-4. **Contribution policy:**
-    rustup's developer guide requires issue and pull-request communication in the
-   contributor's own words and says AI should not generate maintainer comments.
-5. **Likely fix:**
-    unknown because the cause below Reqwest's connect error is not isolated.
-6. **Compatible prototype:**
-    not applicable without an upstream defect boundary.
+1.  **Upstream fault:**
+     not established.
+     The artifact was available and curl succeeded,
+    but the evidence does not distinguish Reqwest,
+     host networking,
+     or transient connection state.
+2.  **Upstream can fix it:**
+     unknown without a reproducible client-side cause.
+3.  **Supported use case:**
+     yes.
+     Rustup documents Android target installation.
+4.  **Contribution policy:**
+     rustup's developer guide requires issue and pull-request communication in the
+    contributor's own words and says AI should not generate maintainer comments.
+5.  **Likely fix:**
+     unknown because the cause below Reqwest's connect error is not isolated.
+6.  **Compatible prototype:**
+     not applicable without an upstream defect boundary.
 
 There is nothing responsible to file upstream from this incident.
 No issue or comment draft is retained.

@@ -56,7 +56,7 @@ const foreignParameterIndexes = verifiedForeignKeys.has(key,)
  which
 is the whole configured scope however little has been reached.
 The gate in front of it is not.
-`foreignByCallable.current` is recomputed after each expansion over the *reached* graph,
+`foreignByCallable.current` is recomputed after each expansion over the **reached** graph,
  so
 whether the hint is non-empty when a callable is queried is a fact about which files the lint run
 happened to visit first.

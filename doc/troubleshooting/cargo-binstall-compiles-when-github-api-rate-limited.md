@@ -176,42 +176,42 @@ Catalog that fails:
 
 ## Verified workarounds
 
-1. Give binstall a token.
-   Export `GITHUB_TOKEN` (for example `GITHUB_TOKEN="$(gh auth token)"`) for the install,
-   or keep `gh` on `PATH` so binstall discovers its login itself.
-   Tradeoff:
-   the token reaches every child of the install,
-   although binstall removes `GITHUB_TOKEN` and `GH_TOKEN` from the `cargo install` fallback it starts
-   (`crates/binstalk/src/ops/resolve/resolution.rs:176-183`,
-   reported,
-   not re-read).
-2. Fail instead of compiling.
-   Add `--disable-strategies compile` to the install arguments.
-   In this repository the mpm extension bakes a fixed argument list per crate
-   (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`,
-   `installArgs`),
-   so the flag could be baked for crates that publish archives.
-   Tradeoff:
-   a crate with no prebuilt archive,
-   or any transient failure,
-   then fails to install instead of compiling,
-   and the other `cargo:` tools rely on the fallback.
-   Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes,
-   as `--disable-strategies compile,quick-install` (owner decision 2026-11-04,
-   "A:
-   one flag,
-   our crates"),
-   (names starting with `monochromatic-`,
-   ignoring letter case and `_` versus `-`),
-   whose failure then names the reasons binstall printed and the ways forward;
-   third-party crates keep the fallback,
-   because `mpm-shadow` must still be able to compile a tool this repository
-   does not control when no archive fits.
-3. Raise `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`.
-   Tradeoff:
-   the install waits through the rate-limit reset,
-   which the source sleeps up to 10 minutes by default,
-   so it trades a silent compile for a long silent wait.
+1.  Give binstall a token.
+    Export `GITHUB_TOKEN` (for example `GITHUB_TOKEN="$(gh auth token)"`) for the install,
+    or keep `gh` on `PATH` so binstall discovers its login itself.
+    Tradeoff:
+    the token reaches every child of the install,
+    although binstall removes `GITHUB_TOKEN` and `GH_TOKEN` from the `cargo install` fallback it starts
+    (`crates/binstalk/src/ops/resolve/resolution.rs:176-183`,
+    reported,
+    not re-read).
+2.  Fail instead of compiling.
+    Add `--disable-strategies compile` to the install arguments.
+    In this repository the mpm extension bakes a fixed argument list per crate
+    (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`,
+    `installArgs`),
+    so the flag could be baked for crates that publish archives.
+    Tradeoff:
+    a crate with no prebuilt archive,
+    or any transient failure,
+    then fails to install instead of compiling,
+    and the other `cargo:` tools rely on the fallback.
+    Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes,
+    as `--disable-strategies compile,quick-install` (owner decision 2026-11-04,
+    "A:
+    one flag,
+    our crates"),
+    (names starting with `monochromatic-`,
+    ignoring letter case and `_` versus `-`),
+    whose failure then names the reasons binstall printed and the ways forward;
+    third-party crates keep the fallback,
+    because `mpm-shadow` must still be able to compile a tool this repository
+    does not control when no archive fits.
+3.  Raise `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`.
+    Tradeoff:
+    the install waits through the rate-limit reset,
+    which the source sleeps up to 10 minutes by default,
+    so it trades a silent compile for a long silent wait.
 
 `package/file-enforcer/core/src/toolchain/mpm-manifest.ts` was removed on 2026-10-31 in `e7b5130459`
 (feat(*):
@@ -232,43 +232,43 @@ no file in the working tree carries it now.
 
 ## Upstream filing decision
 
-1. Is it upstream's fault?
-   Partly.
-   Compiling on a failed resolution is documented behavior with a flag to disable it,
-   and a timeout is deliberately non-fatal.
-   What reads as a defect is that a rate-limit sleep is counted against the resolution timeout
-   and that nothing names the cause before the fallback.
-   That is closer to diagnostics than to wrong behavior,
-   so this constraint is not clearly met.
-2. Can upstream fix it?
-   Yes:
-   the sleep and the timeout are ordinary code in two files.
-3. Do they support this use case?
-   Yes:
-   GitHub-release `pkg-url` resolution is the main path.
-4. Would the repository welcome a contribution?
-   No policy found.
-   The research pass found no `CONTRIBUTING.md`,
-   issue template,
-   pull request template,
-   code of conduct or
-   AI-assistance rule,
-   and `README.md` invites contributions in general terms.
-5. Will they likely fix it?
-   No signal either way.
-   Open issue `cargo-bins/cargo-binstall#1560` ("feature:
-   Improve retrying logic") says binstall
-   "often fails in our very own CI and fallback to cargo-install".
-   Closed `#2705` is a malformed `GITHUB_TOKEN` silently disabling resolution and falling back to compiling.
-   The research pass read only the openings of `#1560`,
-   `#2705`,
-   `#1229` and `#822`,
-   not the threads.
-6. Prototype?
-   Not done.
-   Constraint 1 is not clearly met,
-   so the default applies:
-   do not file.
+1.  Is it upstream's fault?
+    Partly.
+    Compiling on a failed resolution is documented behavior with a flag to disable it,
+    and a timeout is deliberately non-fatal.
+    What reads as a defect is that a rate-limit sleep is counted against the resolution timeout
+    and that nothing names the cause before the fallback.
+    That is closer to diagnostics than to wrong behavior,
+    so this constraint is not clearly met.
+2.  Can upstream fix it?
+    Yes:
+    the sleep and the timeout are ordinary code in two files.
+3.  Do they support this use case?
+    Yes:
+    GitHub-release `pkg-url` resolution is the main path.
+4.  Would the repository welcome a contribution?
+    No policy found.
+    The research pass found no `CONTRIBUTING.md`,
+    issue template,
+    pull request template,
+    code of conduct or
+    AI-assistance rule,
+    and `README.md` invites contributions in general terms.
+5.  Will they likely fix it?
+    No signal either way.
+    Open issue `cargo-bins/cargo-binstall#1560` ("feature:
+    Improve retrying logic") says binstall
+    "often fails in our very own CI and fallback to cargo-install".
+    Closed `#2705` is a malformed `GITHUB_TOKEN` silently disabling resolution and falling back to compiling.
+    The research pass read only the openings of `#1560`,
+    `#2705`,
+    `#1229` and `#822`,
+    not the threads.
+6.  Prototype?
+    Not done.
+    Constraint 1 is not clearly met,
+    so the default applies:
+    do not file.
 
 `.out-of-scope/` has no entry for cargo-binstall.
 Duplicate search found no issue stating that unauthenticated rate limiting makes binstall compile silently,

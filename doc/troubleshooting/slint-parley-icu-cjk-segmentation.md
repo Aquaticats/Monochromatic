@@ -306,34 +306,34 @@ No `.out-of-scope/` exemption matches slint,
 none.
  The 6-constraint check:
 
-1. Upstream's fault?
-    Only partly,
-    and by design.
-    parley intentionally omits CJK
-   dictionary data (`new_for_non_complex_scripts`) for binary size,
-    and
-   icu_provider's debug `eprintln!` shim is an intentional no-dependency dev aid.
-   Neither is a defect;
-    the user-facing noise is the interaction.
-2. Can upstream fix it?
-    parley could expose a feature to use the full segmenter,
-   or icu_segmenter could downgrade the per-call warn.
-    Possible,
-    but a design call.
-3. Supporting this use case?
-    parley renders CJK text (it just does not
-   dictionary-segment it);
-    the limitation is implicit,
-    not a broken promise.
-4. Welcome contribution?
-    Not assessed (not reached).
-5. Will they fix?
-    Unknown;
-    most likely "working as intended / by design".
-6. Prototyped a minimal fix?
-    The user-facing problem is fully resolved at our
-   boundary by the `logging` feature;
-    no upstream patch is needed.
+1.  Upstream's fault?
+     Only partly,
+     and by design.
+     parley intentionally omits CJK
+    dictionary data (`new_for_non_complex_scripts`) for binary size,
+     and
+    icu_provider's debug `eprintln!` shim is an intentional no-dependency dev aid.
+    Neither is a defect;
+     the user-facing noise is the interaction.
+2.  Can upstream fix it?
+     parley could expose a feature to use the full segmenter,
+    or icu_segmenter could downgrade the per-call warn.
+     Possible,
+     but a design call.
+3.  Supporting this use case?
+     parley renders CJK text (it just does not
+    dictionary-segment it);
+     the limitation is implicit,
+     not a broken promise.
+4.  Welcome contribution?
+     Not assessed (not reached).
+5.  Will they fix?
+     Unknown;
+     most likely "working as intended / by design".
+6.  Prototyped a minimal fix?
+     The user-facing problem is fully resolved at our
+    boundary by the `logging` feature;
+     no upstream patch is needed.
 
 Decision:
  do not file.

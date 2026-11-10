@@ -117,22 +117,22 @@ content-search family (grep,
 sessions,
  not because ripgrep is at fault.
 
-1. **Is it really upstream's fault?
-   ** No. `--glob` filters file
-   inclusion;
-    `-l` filters by content match.
-    Each option does what its
-   `--help` text says.
-2. **Can upstream fix it?
-   ** Nothing to fix.
-3. **Are they supporting this use case?
-   ** Both operations are
-   supported;
-    the user's question was misframed.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. `--glob` filters file
+    inclusion;
+     `-l` filters by content match.
+     Each option does what its
+    `--help` text says.
+2.  **Can upstream fix it?
+    ** Nothing to fix.
+3.  **Are they supporting this use case?
+    ** Both operations are
+    supported;
+     the user's question was misframed.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  keep this doc as an internal reminder;

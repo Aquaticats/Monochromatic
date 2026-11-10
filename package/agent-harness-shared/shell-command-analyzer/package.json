@@ -15,6 +15,7 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/git-executable-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",

@@ -379,34 +379,34 @@ gh search prs --repo pnpm/pnpm '"modules cache"' --state closed --limit 20
 
 ### Six-constraint check
 
-1. Is it really upstream's fault?
-   No for the stale-entry default itself:
-   retention is documented and implemented deliberately.
-   Yes only for any downstream tool interaction that treats stale `.pnpm` paths as active.
-2. Can upstream fix it?
-   Yes,
-   but a fix would be a policy/default change or better stale-entry isolation,
-   not a local correctness patch identified here.
-3. Are they supporting this use case?
-   Yes.
-   pnpm documents `modulesCacheMaxAge`,
-   and `pnpm/pnpm#3115` says branch switching is the intended use case.
-4. Would the repo welcome our contribution?
-   Likely yes for a well-reproduced bug:
-   `CONTRIBUTING.md` describes setup,
-   tests,
-   and PR submission;
-   `.github/ISSUE_TEMPLATE/bug-report.yaml` asks for latest-release verification and a reproduction;
-   `.github/pull_request_template.md` requests tests and documentation.
-   No policy banning AI-assisted reports was found in those files.
-5. Will they likely fix it?
-   Not from this evidence alone.
-   The default is an intentional performance tradeoff,
-   and the open stale-path issue already has a maintainer-provided local setting workaround.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   No.
-   Constraints one and five do not hold for the default behavior as a bug,
-   so this doc does not trigger the auto-prototype step.
+1.  Is it really upstream's fault?
+    No for the stale-entry default itself:
+    retention is documented and implemented deliberately.
+    Yes only for any downstream tool interaction that treats stale `.pnpm` paths as active.
+2.  Can upstream fix it?
+    Yes,
+    but a fix would be a policy/default change or better stale-entry isolation,
+    not a local correctness patch identified here.
+3.  Are they supporting this use case?
+    Yes.
+    pnpm documents `modulesCacheMaxAge`,
+    and `pnpm/pnpm#3115` says branch switching is the intended use case.
+4.  Would the repo welcome our contribution?
+    Likely yes for a well-reproduced bug:
+    `CONTRIBUTING.md` describes setup,
+    tests,
+    and PR submission;
+    `.github/ISSUE_TEMPLATE/bug-report.yaml` asks for latest-release verification and a reproduction;
+    `.github/pull_request_template.md` requests tests and documentation.
+    No policy banning AI-assisted reports was found in those files.
+5.  Will they likely fix it?
+    Not from this evidence alone.
+    The default is an intentional performance tradeoff,
+    and the open stale-path issue already has a maintainer-provided local setting workaround.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    No.
+    Constraints one and five do not hold for the default behavior as a bug,
+    so this doc does not trigger the auto-prototype step.
 
 ### Filing artifact
 

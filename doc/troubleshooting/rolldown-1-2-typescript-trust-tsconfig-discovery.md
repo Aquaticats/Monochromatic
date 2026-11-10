@@ -820,35 +820,35 @@ thread.
 Its migration guide explicitly says consumers that need the previous no-config
 behavior must set `tsconfig: false`.
 
-1. **Is it really upstream's fault?
-   ** No.
-   Rolldown documents automatic discovery as the default and provides the exact
-   opt-out cli-git needs.
-2. **Can upstream fix it?
-   ** No upstream defect was identified.
-   Changing the default again would reverse PR #7817 rather than correct this
-   consumer call.
-3. **Are they supporting this use case?
-   ** Yes.
-   The public `boolean | string` option and PR #7817 migration guide support
-   disabling project config explicitly.
-4. **Would the repository welcome our contribution?
-   ** Not applicable because
-   no change is requested.
-   `CONTRIBUTING.md`,
-    `.github/ISSUE_TEMPLATE/`,
-    and
-   `.github/PULL_REQUEST_TEMPLATE.md` contain no AI-assistance ban,
-    but that does
-   not turn expected behavior into a reportable defect.
-5. **Will they likely fix it?
-   ** No fix should be requested.
-   The merged default-change PR explicitly chose this behavior.
-6. **Have we prototyped a compatible minimal fix?
-   ** Yes,
-    at the consumer
-   boundary.
-   The `tsconfig: false` catalog case succeeds without modifying Rolldown.
+1.  **Is it really upstream's fault?
+    ** No.
+    Rolldown documents automatic discovery as the default and provides the exact
+    opt-out cli-git needs.
+2.  **Can upstream fix it?
+    ** No upstream defect was identified.
+    Changing the default again would reverse PR #7817 rather than correct this
+    consumer call.
+3.  **Are they supporting this use case?
+    ** Yes.
+    The public `boolean | string` option and PR #7817 migration guide support
+    disabling project config explicitly.
+4.  **Would the repository welcome our contribution?
+    ** Not applicable because
+    no change is requested.
+    `CONTRIBUTING.md`,
+     `.github/ISSUE_TEMPLATE/`,
+     and
+    `.github/PULL_REQUEST_TEMPLATE.md` contain no AI-assistance ban,
+     but that does
+    not turn expected behavior into a reportable defect.
+5.  **Will they likely fix it?
+    ** No fix should be requested.
+    The merged default-change PR explicitly chose this behavior.
+6.  **Have we prototyped a compatible minimal fix?
+    ** Yes,
+     at the consumer
+    boundary.
+    The `tsconfig: false` catalog case succeeds without modifying Rolldown.
 
 There is nothing additive to post on PR #7817 and no upstream issue to file.
 The actionable artifact is internal issue #393 plus the verified consumer-side

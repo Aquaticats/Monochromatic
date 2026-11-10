@@ -1099,6 +1099,7 @@ found no full host archive to hand to another owner.
 The receipt ZIPs therefore do not supply a reusable materialized source tar.
 The [Git archive input-identity contract](../troubleshooting/git-archive-lfs-input-identity.md)
 remains the reconstruction and admission boundary.
+
 ## Retained legacy owner identity search
 
 The [legacy owner search receipt](../audit/depot-rust-legacy-owner-search-2026-10-18.evidence.json)
@@ -1158,6 +1159,7 @@ The [separate retained-input version join](../audit/depot-rust-legacy-input-vers
 binds all `169` inventoried input hashes to exact retained Git commits and blob IDs.
 It preserves reproducible source versions after concurrent evidence updates
 without changing the immutable outcome-search receipt or repeating its workload scan.
+
 ## Locked Mise affected-selector version join
 
 The [actual locked-version metadata probe](../audit/depot-mise-locked-affected-2026-10-18.evidence.json)

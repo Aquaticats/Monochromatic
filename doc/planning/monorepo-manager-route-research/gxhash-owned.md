@@ -201,31 +201,31 @@ and the reimplementation it describes was checked bit for bit
 
 With `n` the input length:
 
-1. `n == 0`:
-    return the zero vector (`mod.rs:79-81`).
-1. `1 <= n <= 16`:
-    return `add8(P, dup8(n))`,
-    where `P` is the `n` input bytes followed by zero bytes
-    (`get_partial`,
-    `mod.rs:86`;
-    see "Partial-block read").
-1. `n > 16`:
-    - `e = n % 16`.
-    - If `e == 0`,
-       `h = load(input[0..16])` and the cursor moves 16 bytes;
-      otherwise `h = add8(load(input[0..16]) masked to its first e bytes, dup8(e))`
-      and the cursor moves `e` bytes (`mod.rs:92-103`).
-      This leading partial block reads 16 bytes that are all inside the input.
-    - `v = load(next 16)`;
-      if `n > 32`,
-       `v = aesenc(v, load(next 16))`;
-      if `n > 48`,
-       `v = aesenc(v, load(next 16))`;
-      if `n > 64`,
-       `h = compress_many(rest, h, n)` (`mod.rs:105-122`).
-    - Return `aesenclast(h, aesenc(aesenc(v, K0), K1))` (`mod.rs:124-125`).
-      The argument order matters:
-       `h` is the AES data and the `v` chain is the round key.
+1.  `n == 0`:
+     return the zero vector (`mod.rs:79-81`).
+1.  `1 <= n <= 16`:
+     return `add8(P, dup8(n))`,
+     where `P` is the `n` input bytes followed by zero bytes
+     (`get_partial`,
+     `mod.rs:86`;
+     see "Partial-block read").
+1.  `n > 16`:
+     - `e = n % 16`.
+     - If `e == 0`,
+        `h = load(input[0..16])` and the cursor moves 16 bytes;
+       otherwise `h = add8(load(input[0..16]) masked to its first e bytes, dup8(e))`
+       and the cursor moves `e` bytes (`mod.rs:92-103`).
+       This leading partial block reads 16 bytes that are all inside the input.
+     - `v = load(next 16)`;
+       if `n > 32`,
+        `v = aesenc(v, load(next 16))`;
+       if `n > 48`,
+        `v = aesenc(v, load(next 16))`;
+       if `n > 64`,
+        `h = compress_many(rest, h, n)` (`mod.rs:105-122`).
+     - Return `aesenclast(h, aesenc(aesenc(v, K0), K1))` (`mod.rs:124-125`).
+       The argument order matters:
+        `h` is the AES data and the `v` chain is the round key.
 
 ### Long inputs, `compress_many` and `compress_8`
 
@@ -240,20 +240,20 @@ The rest go to `compress_8` in groups of 8 blocks.
  non-hybrid (`x86.rs:68-107`,
  `arm.rs:73-110`):
 
-1. `t1 = t2 = 0`,
-    `lane1 = lane2 = h`.
-1. For each group of blocks `b0..b7`:
-    - `x1 = aesenc(aesenc(aesenc(b0, b2), b4), b6)`
-    - `x2 = aesenc(aesenc(aesenc(b1, b3), b5), b7)`
-    - `t1 = add8(t1, K0)`,
-       `t2 = add8(t2, K1)`
-    - `lane1 = aesenclast(aesenc(x1, t1), lane1)`
-    - `lane2 = aesenclast(aesenc(x2, t2), lane2)`
-1. After the loop,
-    which may run zero times:
-    `lane1 = add8(lane1, dup32(n))`,
-    `lane2 = add8(lane2, dup32(n))`,
-    return `aesenc(lane1, lane2)`.
+1.  `t1 = t2 = 0`,
+     `lane1 = lane2 = h`.
+1.  For each group of blocks `b0..b7`:
+     - `x1 = aesenc(aesenc(aesenc(b0, b2), b4), b6)`
+     - `x2 = aesenc(aesenc(aesenc(b1, b3), b5), b7)`
+     - `t1 = add8(t1, K0)`,
+        `t2 = add8(t2, K1)`
+     - `lane1 = aesenclast(aesenc(x1, t1), lane1)`
+     - `lane2 = aesenclast(aesenc(x2, t2), lane2)`
+1.  After the loop,
+     which may run zero times:
+     `lane1 = add8(lane1, dup32(n))`,
+     `lane2 = add8(lane2, dup32(n))`,
+     return `aesenc(lane1, lane2)`.
 
 Two consequences follow from the definition of `aesenclast`
 (Verified by the split-accumulator check in "Reimplementation check"):

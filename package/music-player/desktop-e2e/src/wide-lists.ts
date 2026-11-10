@@ -45,6 +45,7 @@ import {
   NARROW_WINDOW,
   WIDE_WINDOW,
 } from './layout.ts';
+import { numbersBelow, } from './numbers-below.ts';
 import { press, } from './press.ts';
 import type { Session, } from './session.ts';
 import type { UiState, } from './ui-state.ts';
@@ -312,7 +313,7 @@ async function scrollTrackListDown(session: Session,): Promise<UiState> {
     until: ringIsOnAFolder,
     what: 'the first folder',
   },);
-  for (let tried = 0; tried < MAX_FOLDERS_TRIED; tried += 1) {
+  for (const _attempt of numbersBelow(MAX_FOLDERS_TRIED,)) {
     /**
      The state with this folder's track list moved to its last row.
      */

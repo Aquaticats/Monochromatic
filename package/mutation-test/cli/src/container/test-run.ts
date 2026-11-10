@@ -17,6 +17,8 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
  */
 const l = tagged({ tag: 'mutation-test-container', },);
 
+//region Test run outcome
+
 /**
  Outcome of one full selected-test run.
  */
@@ -25,6 +27,10 @@ export type TestRunOutcome = {
   readonly durationMs: number;
   readonly detail: string;
 };
+
+//endregion Test run outcome
+
+//region One test file
 
 /**
  Runs one test file under plain node in its own process group.
@@ -156,6 +162,10 @@ async function runOneTest(options: {
   }
 }
 
+//endregion One test file
+
+//region Selected tests
+
 /**
  Runs selected tests in order, stopping at the first failure.
  
@@ -208,3 +218,5 @@ export async function runTests(options: {
     detail: '',
   };
 }
+
+//endregion Selected tests

@@ -233,53 +233,53 @@ fixable.
 
 ### vltpkg/vltpkg report
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the `#registryManifestRequest` path has no fallback for registries that only serve full packuments.
-2. **Can upstream fix it?
-   ** Yes;
-    three plausible patches (any one would work):
-   - Option A:
-      fall back to full packument on 404 in `#registryManifestRequest`.
-   - Option B:
-      skip the `isSingle` optimisation for JSR scope-registries (mirrors the existing tarball-guess carve-out).
-   - Option C:
-      merge `defaultScopeRegistries` into `getOptions()`
-       so `@jsr` routing works on first install
-       (this addresses Bug C but does not solve Bug B by itself).
-3. **Are they supporting this use case?
-   ** vlt has a built-in `@jsr` default in `spec/src/browser.ts:57-58`;
-    JSR support is an explicit goal.
-4. **Will they likely fix it?
-   ** Probably;
-    the project is in active rc development.
-5. **Have we prototyped a minimal fix?
-   ** Patches A,
-    B,
-    C are sketched above;
-    only A is exercised against the reproducer.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the `#registryManifestRequest` path has no fallback for registries that only serve full packuments.
+2.  **Can upstream fix it?
+    ** Yes;
+     three plausible patches (any one would work):
+    - Option A:
+       fall back to full packument on 404 in `#registryManifestRequest`.
+    - Option B:
+       skip the `isSingle` optimisation for JSR scope-registries (mirrors the existing tarball-guess carve-out).
+    - Option C:
+       merge `defaultScopeRegistries` into `getOptions()`
+        so `@jsr` routing works on first install
+        (this addresses Bug C but does not solve Bug B by itself).
+3.  **Are they supporting this use case?
+    ** vlt has a built-in `@jsr` default in `spec/src/browser.ts:57-58`;
+     JSR support is an explicit goal.
+4.  **Will they likely fix it?
+    ** Probably;
+     the project is in active rc development.
+5.  **Have we prototyped a minimal fix?
+    ** Patches A,
+     B,
+     C are sketched above;
+     only A is exercised against the reproducer.
 
 Decision:
  worth filing.
 
 ### jsr-io/jsr report
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    npm-registry compatibility implies the version-specific endpoint.
-2. **Can upstream fix it?
-   ** Yes;
-    implement the endpoint in the Cloudflare Worker by extracting the version from the cached full packument JSON.
-    No R2 storage change needed.
-3. **Are they supporting this use case?
-   ** `npm.jsr.io` is the documented bridge for npm consumers;
-    partial endpoint coverage breaks the contract.
-4. **Will they likely fix it?
-   ** Plausible;
-    the team has been responsive to compatibility reports historically.
-5. **Have we prototyped a minimal fix?
-   ** Architectural sketch above;
-    no prototype code.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     npm-registry compatibility implies the version-specific endpoint.
+2.  **Can upstream fix it?
+    ** Yes;
+     implement the endpoint in the Cloudflare Worker by extracting the version from the cached full packument JSON.
+     No R2 storage change needed.
+3.  **Are they supporting this use case?
+    ** `npm.jsr.io` is the documented bridge for npm consumers;
+     partial endpoint coverage breaks the contract.
+4.  **Will they likely fix it?
+    ** Plausible;
+     the team has been responsive to compatibility reports historically.
+5.  **Have we prototyped a minimal fix?
+    ** Architectural sketch above;
+     no prototype code.
 
 Decision:
  worth filing.

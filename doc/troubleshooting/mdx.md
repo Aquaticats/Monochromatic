@@ -34,17 +34,17 @@ Expected output (if the component function had been invoked):
 MDX intentionally distinguishes three JSX shapes in
 `recma-jsx-rewrite`:
 
-1. Capitalised identifier (`<Foo>`):
-    treated as a component
-   reference.
-2. Explicit lowercase JSX written by the author
-   (`<callout-alert>`):
-    preserved as a literal tag name;
-    no
-   components lookup.
-3. Tags generated from markdown (`# x` -> `<h1>`):
-    rewritten
-   to look up `_components.h1`.
+1.  Capitalised identifier (`<Foo>`):
+     treated as a component
+    reference.
+2.  Explicit lowercase JSX written by the author
+    (`<callout-alert>`):
+     preserved as a literal tag name;
+     no
+    components lookup.
+3.  Tags generated from markdown (`# x` -> `<h1>`):
+     rewritten
+    to look up `_components.h1`.
 
 The discriminator is the `data._mdxExplicitJsx` flag set
 during the remark phase.
@@ -193,7 +193,7 @@ project chose this approach because the alternative
 
 ## What does not work
 
-- **Re-exporting under a string key**:
+- Re-exporting under a string key:
   `export { CalloutAlert as 'callout-alert' } from './callout-alert.ts'`
   combined with `import * as mdxComponents from './index.ts'`
   does not fix it.
@@ -201,7 +201,7 @@ project chose this approach because the alternative
   `_components['callout-alert']` is missing;
    it is that MDX
   never emits that lookup for explicit JSX.
-- **Providing `providerImportSource`**:
+- Providing `providerImportSource`:
    setting
   `compile(src, { providerImportSource: '@mdx-js/react' })`
   wires `useMDXComponents` into the compile output for
@@ -210,7 +210,7 @@ project chose this approach because the alternative
   unchanged.
    The compile output still emits
   `_jsx("callout-alert", ...)` as a literal string tag.
-- **Intercepting at the jsx runtime boundary**:
+- Intercepting at the jsx runtime boundary:
    a wrapper that
   dispatches string tag names through a components map does
   work,
@@ -233,32 +233,32 @@ project chose this approach because the alternative
 
 ## Why we would file this upstream (documentation only)
 
-1. **Is it really upstream's fault?
-   ** No (behaviour);
-    yes
-   (documentation gap).
-    The behaviour is intentional and
-   correct;
-    the user-facing docs do not call out the
-   distinction.
-2. **Can upstream fix it?
-   ** Yes;
-    the fix is a documentation
-   change to the "Components" section of mdxjs.
-   com.
-3. **Are they supporting this use case?
-   ** Yes;
-    custom
-   components are explicitly supported via capitalised
-   identifiers.
-4. **Will they likely fix it?
-   ** Plausible;
-    documentation PRs
-   are routinely accepted.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    the draft below
-   proposes the exact text.
+1.  **Is it really upstream's fault?
+    ** No (behaviour);
+     yes
+    (documentation gap).
+     The behaviour is intentional and
+    correct;
+     the user-facing docs do not call out the
+    distinction.
+2.  **Can upstream fix it?
+    ** Yes;
+     the fix is a documentation
+    change to the "Components" section of mdxjs.
+    com.
+3.  **Are they supporting this use case?
+    ** Yes;
+     custom
+    components are explicitly supported via capitalised
+    identifiers.
+4.  **Will they likely fix it?
+    ** Plausible;
+     documentation PRs
+    are routinely accepted.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     the draft below
+    proposes the exact text.
 
 Decision:
  worth filing as a docs improvement (not a code

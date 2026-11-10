@@ -13,6 +13,8 @@
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
+import { numbersBelow, } from './numbers-below.ts';
+
 /**
  Whether each attempt looks first and waits after a miss, or waits first and then looks.
  */
@@ -49,7 +51,7 @@ export async function pollUntil(
     readonly order: PollOrder;
   },
 ): Promise<boolean> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  for (const attempt of numbersBelow(attempts,)) {
     if (order === 'wait-then-check')
       // oxlint-disable-next-line eslint/no-await-in-loop -- each look depends on the pause before it: the looks are sequential by design
       await wait(intervalMs,);

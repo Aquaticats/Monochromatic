@@ -210,31 +210,31 @@ A broader issue listing confirmed the tracker query ran and returned unrelated o
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** Yes for `getStaticTOMLValue`.
-   Ordinary object assignment cannot represent the valid TOML key faithfully.
-2. **Can upstream fix it?
-   ** Yes.
-   Upstream could create own data properties explicitly or use a representation without the inherited setter.
-   This repository cannot change the installed package implementation without carrying a fork or patch.
-3. **Are they supporting this use case?
-   ** Yes.
-   The upstream README's direct-usage example presents `getStaticTOMLValue` as the conversion from parsed TOML to a
-   nested JavaScript value.
-4. **Would the repo welcome our contribution?
-   ** Unknown but not prohibited.
-   Release `v1.0.3` contains no `CONTRIBUTING.md`,
-   issue template,
-   pull-request template,
-   or AI-assistance policy;
-   its README links the issue tracker but states no contribution restriction.
-5. **Will they likely fix it?
-   ** Unknown.
-   No matching issue or explicit won't-fix statement was found.
-6. **Have we prototyped a minimal upstream fix compatible with their architecture?
-   ** No.
-   The authorized scope is documentation and a consumer-side oracle classification,
-   not modification of the third-party implementation.
+1.  **Is it really upstream's fault?
+    ** Yes for `getStaticTOMLValue`.
+    Ordinary object assignment cannot represent the valid TOML key faithfully.
+2.  **Can upstream fix it?
+    ** Yes.
+    Upstream could create own data properties explicitly or use a representation without the inherited setter.
+    This repository cannot change the installed package implementation without carrying a fork or patch.
+3.  **Are they supporting this use case?
+    ** Yes.
+    The upstream README's direct-usage example presents `getStaticTOMLValue` as the conversion from parsed TOML to a
+    nested JavaScript value.
+4.  **Would the repo welcome our contribution?
+    ** Unknown but not prohibited.
+    Release `v1.0.3` contains no `CONTRIBUTING.md`,
+    issue template,
+    pull-request template,
+    or AI-assistance policy;
+    its README links the issue tracker but states no contribution restriction.
+5.  **Will they likely fix it?
+    ** Unknown.
+    No matching issue or explicit won't-fix statement was found.
+6.  **Have we prototyped a minimal upstream fix compatible with their architecture?
+    ** No.
+    The authorized scope is documentation and a consumer-side oracle classification,
+    not modification of the third-party implementation.
 
 No upstream issue,
 comment,

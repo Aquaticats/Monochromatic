@@ -237,31 +237,31 @@ it has an explicit unreachable default owned by `wg-quicker`.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    No.
-   Linux accurately reports that the requested family-specific table is absent,
-   and `iproute2` intentionally exposes strict dump errors.
-   The 2019 [netdev thread][netdev-thread] records the maintainer rationale.
-2. **Can upstream fix it?**
-    Technically yes.
-   `iproute2` already has a narrow suppression hook at `ip/iproute.c:1806-1816`,
-   but changing custom-table behavior would erase the absent-versus-empty distinction.
-3. **Are they supporting this use case?**
-    Yes.
-   Table-filtered route listing is implemented by the cited `RTA_TABLE` request path.
-4. **Would the repository welcome our contribution?**
-    Generally yes.
-   `README.devel` directs patches to `netdev@vger.kernel.org` and names kernel-style submission rules.
-   The repository has no GitHub issue templates and no AI-contribution policy was found in `README` or `README.devel`.
-5. **Will they likely fix it?**
-    No for custom tables.
-   The [maintainer response][maintainer-response] describes strict absence as useful information.
-   The later main-table save exception remained narrow,
-   as shown by [the accepted patch discussion][main-table-patch] and current `save_route_errhndlr` source.
-6. **Have we prototyped a minimal compatible fix?**
-    No.
-   Constraints 1 and 5 fail,
-   so changing upstream behavior would oppose its stated semantics and the auto-prototype gate does not apply.
+1.  **Is it really upstream's fault?**
+     No.
+    Linux accurately reports that the requested family-specific table is absent,
+    and `iproute2` intentionally exposes strict dump errors.
+    The 2019 [netdev thread][netdev-thread] records the maintainer rationale.
+2.  **Can upstream fix it?**
+     Technically yes.
+    `iproute2` already has a narrow suppression hook at `ip/iproute.c:1806-1816`,
+    but changing custom-table behavior would erase the absent-versus-empty distinction.
+3.  **Are they supporting this use case?**
+     Yes.
+    Table-filtered route listing is implemented by the cited `RTA_TABLE` request path.
+4.  **Would the repository welcome our contribution?**
+     Generally yes.
+    `README.devel` directs patches to `netdev@vger.kernel.org` and names kernel-style submission rules.
+    The repository has no GitHub issue templates and no AI-contribution policy was found in `README` or `README.devel`.
+5.  **Will they likely fix it?**
+     No for custom tables.
+    The [maintainer response][maintainer-response] describes strict absence as useful information.
+    The later main-table save exception remained narrow,
+    as shown by [the accepted patch discussion][main-table-patch] and current `save_route_errhndlr` source.
+6.  **Have we prototyped a minimal compatible fix?**
+     No.
+    Constraints 1 and 5 fail,
+    so changing upstream behavior would oppose its stated semantics and the auto-prototype gate does not apply.
 
 No `.out-of-scope/` entry matches `iproute2`,
  Linux FIBs,

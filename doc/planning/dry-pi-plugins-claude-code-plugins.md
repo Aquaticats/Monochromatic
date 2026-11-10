@@ -233,31 +233,31 @@ which is already a dependency of both guardrails.
 
 Steps:
 
-1. Rename the package in
-   `package/agent-harness-shared/shell-command-analyzer/package.json` and all
-   workspace dependency/import sites from
-   `@monochromatic-dev/agent-harnesses-shell-command-analyzer` to
-   `@monochromatic-dev/agent-harness-shared-shell-command-analyzer`.
-   Run the affected package type checks and commit the pure rename separately.
-2. Add `invokesBunTest(command)` and `BUN_TEST_BAN_REASON` to
-   `package/agent-harness-shared/shell-command-analyzer/src/`,
-    exported from
-   its `src/index.ts`,
-    with unit tests.
-3. Commit as a standalone,
-    verified,
-    green-tree addition.
-4. Migrate `package/pi-plugin/guardrail/src/bash-guard.ts` to import
-   `invokesBunTest` and `BUN_TEST_BAN_REASON` from the shared package;
-    delete
-   the local predicate and local ban-reason constant.
-   Run `mise run //package/pi-plugin/guardrail:lint:types` and the guardrail
-   tests.
-5. Migrate
-   `package/claude-code-plugin/source/src/handlers/guardrail.ts` the same way;
-   rebuild and replay baseline fixtures for byte-equal stdout.
-6. Commit each migration separately,
-    tree green at every commit.
+1.  Rename the package in
+    `package/agent-harness-shared/shell-command-analyzer/package.json` and all
+    workspace dependency/import sites from
+    `@monochromatic-dev/agent-harnesses-shell-command-analyzer` to
+    `@monochromatic-dev/agent-harness-shared-shell-command-analyzer`.
+    Run the affected package type checks and commit the pure rename separately.
+2.  Add `invokesBunTest(command)` and `BUN_TEST_BAN_REASON` to
+    `package/agent-harness-shared/shell-command-analyzer/src/`,
+     exported from
+    its `src/index.ts`,
+     with unit tests.
+3.  Commit as a standalone,
+     verified,
+     green-tree addition.
+4.  Migrate `package/pi-plugin/guardrail/src/bash-guard.ts` to import
+    `invokesBunTest` and `BUN_TEST_BAN_REASON` from the shared package;
+     delete
+    the local predicate and local ban-reason constant.
+    Run `mise run //package/pi-plugin/guardrail:lint:types` and the guardrail
+    tests.
+5.  Migrate
+    `package/claude-code-plugin/source/src/handlers/guardrail.ts` the same way;
+    rebuild and replay baseline fixtures for byte-equal stdout.
+6.  Commit each migration separately,
+     tree green at every commit.
 
 Optional in the original plan,
  now decided:
@@ -356,28 +356,28 @@ generic over.
 host `PidMapping`.
 
 Reconcile the four divergences found during verification:
-1. Control flow:
-    pi walks iteratively,
-    claude recurses.
-    Both are bounded and
-   defensible under AGENTS.md ITR.
-    Pick one in the shared package;
-    iterative
-   avoids recursion-over-flat-array concerns.
-2. Read concurrency:
-    adopt claude's `Promise.all([stat, readFile])` for the
-   newest-candidate scan;
-    strictly faster than pi's sequential read.
-3. Config injection:
-    adopt pi's `env`-injection pattern for testability (aligns
-   with throwaway fixtures under THR).
-4. IO seams:
-    expose optional `io` dependencies so unit tests fake procfs parent
-   links and mapping files without touching real host coordination state.
-5. `PidMapping` shape:
-    only `sessionId` shared;
-    the generic parameter handles
-   the rest.
+1.  Control flow:
+     pi walks iteratively,
+     claude recurses.
+     Both are bounded and
+    defensible under AGENTS.md ITR.
+     Pick one in the shared package;
+     iterative
+    avoids recursion-over-flat-array concerns.
+2.  Read concurrency:
+     adopt claude's `Promise.all([stat, readFile])` for the
+    newest-candidate scan;
+     strictly faster than pi's sequential read.
+3.  Config injection:
+     adopt pi's `env`-injection pattern for testability (aligns
+    with throwaway fixtures under THR).
+4.  IO seams:
+     expose optional `io` dependencies so unit tests fake procfs parent
+    links and mapping files without touching real host coordination state.
+5.  `PidMapping` shape:
+     only `sessionId` shared;
+     the generic parameter handles
+    the rest.
 
 Steps follow the additive-first discipline:
 add `package/agent-harness-shared/session-discovery` with tests,

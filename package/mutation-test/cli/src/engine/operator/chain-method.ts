@@ -14,6 +14,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Swap tables
+
 /**
  Method name swap pairs, mirroring Stryker's MethodExpression table.
  */
@@ -45,6 +47,10 @@ const METHOD_REMOVALS: ReadonlySet<string> = new Set([
   'substring',
   'trim',
 ],);
+
+//endregion Swap tables
+
+//region Optional chaining removal
 
 /**
  Emits optional-chaining removal for one optional member or call.
@@ -104,6 +110,10 @@ function optionalRemoval(options: {
     description: 'removed ?. optional chaining',
   };
 }
+
+//endregion Optional chaining removal
+
+//region Method replacements
 
 /**
  Emits chaining and method replacements for one node.
@@ -209,3 +219,5 @@ export function chainMethodReplacements(options: {
 
   return replacements;
 }
+
+//endregion Method replacements

@@ -4,10 +4,10 @@ Moving our pnpr fork base from `0.1.0-alpha.11` to `0.1.0-alpha.16`
  (patched image `ghcr.io/aquaticat/pnpr:0.1.0-alpha.16-oidc-workload-discovery.01dc1384276b`,
  upstream `cbe5accc7ace6812e1770f6301d2742c91381c85`) brings two independent breaking changes:
 
-1. The storage layout gate aborts startup on an unmarked store that holds data,
-   which crash-loops the container and serves Caddy 502s.
-2. The npm registry surface answers only under `/npm`,
-   so every root URL (`/~monochromatic-dev/...`) 404s once the new base is deployed.
+1.  The storage layout gate aborts startup on an unmarked store that holds data,
+    which crash-loops the container and serves Caddy 502s.
+2.  The npm registry surface answers only under `/npm`,
+    so every root URL (`/~monochromatic-dev/...`) 404s once the new base is deployed.
 
 Both fired in the 2026-10-21 deploy of that base;
  the outage and its rollback are recorded in
@@ -435,50 +435,50 @@ pnpm/pnpm#8002,
 
 ### Storage gate
 
-1. **Is it really upstream's fault?**
-   No.
-   The gate is a deliberate fail-closed design with its remedy named in the error text.
-2. **Can upstream fix it?**
-   Not applicable;
-   there is no defect to fix.
-3. **Are they supporting this use case?**
-   Yes:
-   `pnpr upgrade-storage` exists for exactly this conversion,
-   and its help text covers the sequencing.
-4. **Would the repo welcome our contribution?**
-   Not applicable at this constraint,
-   since the walk stopped at constraint 1.
-   No contribution is proposed.
-5. **Will they likely fix it?**
-   Not applicable;
-   nothing is broken on their side.
-6. **Have we prototyped a minimal fix?**
-   Not required.
-   Constraints 1-5 do not hold,
-   so the auto-prototype trigger does not fire.
+1.  **Is it really upstream's fault?**
+    No.
+    The gate is a deliberate fail-closed design with its remedy named in the error text.
+2.  **Can upstream fix it?**
+    Not applicable;
+    there is no defect to fix.
+3.  **Are they supporting this use case?**
+    Yes:
+    `pnpr upgrade-storage` exists for exactly this conversion,
+    and its help text covers the sequencing.
+4.  **Would the repo welcome our contribution?**
+    Not applicable at this constraint,
+    since the walk stopped at constraint 1.
+    No contribution is proposed.
+5.  **Will they likely fix it?**
+    Not applicable;
+    nothing is broken on their side.
+6.  **Have we prototyped a minimal fix?**
+    Not required.
+    Constraints 1-5 do not hold,
+    so the auto-prototype trigger does not fire.
 
 ### npm URL move
 
-1. **Is it really upstream's fault?**
-   No.
-   The always-nest mount is a routing simplification,
-   and the directory endpoint announces it (`"prefixed": true`).
-   Our URLs are the stale surface.
-2. **Can upstream fix it?**
-   Not applicable;
-   nothing is broken on their side.
-3. **Are they supporting this use case?**
-   Yes;
-   both surfaces are declared
-   (`mount_bases`,
-   `pnpr/crates/pnpr/src/server/ecosystem.rs:44`).
-4. **Would the repo welcome our contribution?**
-   Not applicable at this constraint.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Not required;
-   the auto-prototype trigger does not fire.
+1.  **Is it really upstream's fault?**
+    No.
+    The always-nest mount is a routing simplification,
+    and the directory endpoint announces it (`"prefixed": true`).
+    Our URLs are the stale surface.
+2.  **Can upstream fix it?**
+    Not applicable;
+    nothing is broken on their side.
+3.  **Are they supporting this use case?**
+    Yes;
+    both surfaces are declared
+    (`mount_bases`,
+    `pnpr/crates/pnpr/src/server/ecosystem.rs:44`).
+4.  **Would the repo welcome our contribution?**
+    Not applicable at this constraint.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Not required;
+    the auto-prototype trigger does not fire.
 
 Nothing to add upstream:
  no new-issue draft and no comment draft are kept for these two behaviors.
