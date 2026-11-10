@@ -181,7 +181,7 @@ const validCaseArb = constantFrom(...validCases,);
 //endregion Amplification arbitraries
 
 await describe({
-  name: '',
+  name: 'CSS conformance',
   children: [
     describe({
       name: 'valid corpus',
