@@ -90,3 +90,51 @@ fn a_binding_holds_until_the_registration_behind_the_path_is_another() {
     assert!(reason.contains("is registered by"), "{reason}");
     remove(root.as_path());
 }
+
+/// How long a record that must not wait may take to answer in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A named pipe where a stage's binding record sits is a failure with a reason,
+///  answered without waiting for a writer.
+/// Why:
+///  Opening a pipe for reading waits for its writer,
+/// so a recovery that reached the binding never returned,
+///  the stage it was settling stayed where it was and the forwarded Git command never ran;
+/// the registration scan beside this read already refuses a file that is not a plain one
+/// (`SPEC.md`,
+/// "Every wait has a bound";
+/// a cross-vendor review's finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(stage/registration); const answer = await within(PATIENCE, () => stageBinding(stage)); expect(answer).toEqual(failure naming the stage);
+/// ```
+#[test]
+fn a_named_pipe_where_the_binding_record_sits_is_a_failure_not_a_wait() {
+    let (root, _common, _binding) = registered_worktree("stage-binding-pipe");
+    let stage: PathBuf = container(root.as_path());
+    make_pipe(stage.join(STAGE_BINDING_NAME).as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError>>();
+    let settled: PathBuf = stage.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(stage_binding(settled.as_path()));
+    });
+    let answer: Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError> = match receiver.recv_timeout(PATIENCE) {
+        Ok(found) => found,
+        Err(_) => panic!("the stage's binding record waited for a writer of a pipe for {PATIENCE:?}"),
+    };
+    let failure: WorktreeCopyError = answer.err().expect("a pipe is not a registration this stage can carry");
+    assert!(failure.0.contains(STAGE_BINDING_NAME), "the record is named: {}", failure.0);
+    assert!(failure.0.contains(stage.to_string_lossy().as_ref()), "the stage is named: {}", failure.0);
+    remove(root.as_path());
+}
