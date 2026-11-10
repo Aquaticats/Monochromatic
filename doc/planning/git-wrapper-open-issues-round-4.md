@@ -279,6 +279,28 @@ placeholders and paths that never existed.
 and what to do with a citation whose target never existed in history is a choice,
 not a measurement.
 
+## Two outside the 15, checked because the tree's plan calls them live
+
+`doc/planning/git-wrapper-open-issues-against-main.md` lists `#4487` under "Still true,
+and left in another agent's folder".
+Neither that issue nor `#6007` is among the 15,
+and both were checked anyway because the plan says they stand.
+
+- `#4487`:
+  does not hold.
+  `run_git_bytes` writes the request list from a thread of its own with a poll-based deadline,
+  and the answers are read on the runtime under `RANGE_QUERY_CEILING`,
+  so neither side can wait for the other.
+  Its control,
+  `a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read`,
+  passes.
+- `#6007`:
+  does not hold.
+  `parse_layout` is gone,
+  and `landing/landing_location.rs` builds every path with `os_from_path_bytes`,
+  keeping `String::from_utf8_lossy` for one refusal message only,
+  which is the principle `policy/path_bytes.rs` states.
+
 ## What was run
 
 - `mise run //package/git-policy/cli:native:test:host -- manual_push_range`:
