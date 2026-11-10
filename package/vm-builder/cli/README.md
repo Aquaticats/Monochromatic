@@ -95,7 +95,11 @@ virsh --connect qemu:///session start monochromatic-dev
 
 The script is idempotent.
  If a VM named `monochromatic-dev` already exists,
-it is forcibly stopped and undefined before the new image is imported.
+it is forcibly stopped and undefined before the new image is imported,
+whatever state it is in:
+`virsh undefine` removes the definition of an active domain and leaves it running,
+so only a domain with no QEMU process behind it skips the stop
+([`libvirt-undefine-leaves-an-active-domain-running.md`](../../../doc/troubleshooting/libvirt-undefine-leaves-an-active-domain-running.md)).
 The `output/` directory is recreated if absent.
 
 ## Configuration
