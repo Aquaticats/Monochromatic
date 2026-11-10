@@ -100,13 +100,14 @@ function trailingCommentsIn({
     if ((preceding === undefined) || (preceding.trim().length > 0))
       continue;
 
-    if (line
-      .slice(
-        0,
-        marker,
-      )
-      .trim()
-      .length
+    /**
+     Code ahead of the marker; blank means the marker opens the line's own comment.
+     */
+    const codeBefore = line.slice(
+      0,
+      marker,
+    );
+    if (codeBefore.trim().length
       === 0)
       continue;
 
