@@ -9,6 +9,16 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { typescriptInStore } from './typescript-in-store.ts';
 
+// The message the reading fails with, so the check reads the words instead of matching a pattern.
+const saidBy = (read: () => void): string => {
+  try {
+    read();
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return '';
+};
+
 // A content hash as the store spells it.
 const hash = 'da4002b0e9981a3f05febc4eae4beb82b74f85298f866c971b5a0a02bde414d8';
 
@@ -54,7 +64,7 @@ test(
       { name: '@typescript/typescript-linux-x64', version: '7.1.0-beta' },
     ]);
     try {
-      assert.throws(() => typescriptInStore({ store }), { message: /7\.0\.2, 7\.1\.0-beta/ });
+      assert.ok(saidBy(() => typescriptInStore({ store })).includes('7.0.2, 7.1.0-beta'), 'both versions are named');
     } finally {
       rmSync(store, { recursive: true, force: true });
     }
@@ -66,7 +76,7 @@ test(
   () => {
     const store = storeHolding([{ name: 'typescript-eslint', version: '8.0.0' }]);
     try {
-      assert.throws(() => typescriptInStore({ store }), { message: /holds no versions of typescript/ });
+      assert.ok(saidBy(() => typescriptInStore({ store })).includes('holds no versions of typescript'), 'the error names what the store lacks');
     } finally {
       rmSync(store, { recursive: true, force: true });
     }

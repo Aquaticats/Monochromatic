@@ -30,6 +30,12 @@ export function typescriptInStore({ store }: { store: string }): { compiler: str
  @param options - the store directory and the package name as a manifest spells it
  @returns the package's own directory inside the store
  @throws {Error} when a step holds no entry or more than one
+
+ @example A store holding one compiler version
+
+ ```ts
+ packageInStore({ store: '/home/me/.local/share/pnpm/store/v11/links', name: 'typescript' });
+ ```
  */
 function packageInStore({ store, name }: { store: string; name: string }): string {
   // An unscoped package sits below the store's own `@` folder; a scoped one below its scope.
@@ -49,16 +55,18 @@ function packageInStore({ store, name }: { store: string; name: string }): strin
  @throws {Error} when the directory holds no entry or more than one
  */
 function entriesOf({ directory, store, name, step }: { directory: string; store: string; name: string; step: string }): string[] {
-  let held: string[];
+  let held: string[] = [];
   try {
-    held = readdirSync(directory).sort();
+    held = readdirSync(directory).toSorted();
   } catch (error) {
     // A missing step is the store not holding the package; anything else is a real failure.
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     held = [];
   }
   if (held.length !== 1) {
-    throw new Error('the store ' + store + ' holds ' + (held.length === 0 ? 'no ' : held.length + ' ') + step + 's of ' + name + (held.length === 0 ? '' : ': ' + held.join(', ')));
+    const found = held.length === 0 ? 'no ' : `${held.length} `;
+    const shown = held.length === 0 ? '' : `: ${held.join(', ')}`;
+    throw new Error(`the store ${store} holds ${found}${step}s of ${name}${shown}`);
   }
   return held;
 }
