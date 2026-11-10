@@ -59,6 +59,15 @@ type V8Coverage = {
  */
 type CoverageCounts = Readonly<Record<string, number>>;
 
+/**
+ One map entry as `Map.entries()` yields it: a package-relative file path and
+ its covered-function count, read-only because the gate only reads it.
+ */
+type CountEntry = readonly [
+  file: string,
+  count: number
+];
+
 //endregion V8 shapes
 
 //region Projection
@@ -230,8 +239,8 @@ async function aggregate(coverageDir: string,): Promise<CoverageCounts> {
     }
   return Object.fromEntries(
     [...counts.entries(),].toSorted(function byKey(
-      left,
-      right,
+      left: CountEntry,
+      right: CountEntry,
     ): number {
       return left[0]
         .localeCompare(right[0],);
@@ -268,7 +277,7 @@ function checkBaseline({
    Human-readable regression lines.
    */
   const regressions = [...baseline.entries(),]
-    .flatMap(function compare([file, expected],): readonly string[] {
+    .flatMap(function compare([file, expected,]: CountEntry,): readonly string[] {
     /**
      Covered functions for this file in the current run.
      */
