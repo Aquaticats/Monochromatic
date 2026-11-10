@@ -16,12 +16,12 @@ import {
 
 import {
   createMemoryObjectStore,
-  createMemoryPresenceIndex,
+  createMemoryDatabase,
   DOWNLOAD_MISS_CHECK_LIMIT,
   handleBatch,
   INDEX_CHUNK_SIZE,
   LFS_JSON,
-  type MemoryPresenceIndex,
+  type MemoryDatabase,
   SELECT_PRESENT_SQL,
   storeObject,
   type WorkerEnv,
@@ -94,7 +94,7 @@ type BatchCost = {
   /**
    Index used by the run, when there was one.
    */
-  readonly index?: MemoryPresenceIndex;
+  readonly index?: MemoryDatabase;
 };
 
 /**
@@ -188,9 +188,9 @@ async function runBatch({
    */
   const index = (indexed === undefined) && (indexFailure === undefined)
     ? undefined
-    : createMemoryPresenceIndex({
-      initial: indexed ?? [],
-      ...indexFailure === undefined ? {} : { failure: indexFailure, },
+    : createMemoryDatabase({
+      oids: indexed ?? [],
+      ...indexFailure === undefined ? {} : { presenceFailure: indexFailure, },
     },);
   /**
    Env whose bucket records each lookup.
@@ -498,7 +498,7 @@ await describe({
             /**
              Index starting empty.
              */
-            const index = createMemoryPresenceIndex();
+            const index = createMemoryDatabase();
             /**
              Bucket that accepts the object.
              */
@@ -544,7 +544,7 @@ await describe({
               },),
               env: {
                 BUCKET: store,
-                INDEX: createMemoryPresenceIndex({ failure: new Error('d1 unavailable',), },),
+                INDEX: createMemoryDatabase({ presenceFailure: new Error('d1 unavailable',), },),
                 LFS_WRITE_TOKEN: TOKEN,
               },
               l: { debug() {}, error() {}, fatal() {}, flush: async () => {}, info() {}, trace() {}, warn() {}, },
@@ -563,7 +563,7 @@ await describe({
             /**
              Index starting empty.
              */
-            const index = createMemoryPresenceIndex();
+            const index = createMemoryDatabase();
             /**
              Failure surfaced by the handler.
              */

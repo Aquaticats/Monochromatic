@@ -573,19 +573,25 @@ export async function handleBatch({
     },);
     hl.info(`${batch.operation} batch for ${batch.objects
       .length} object(s)`,);
-    if ((batch.operation === 'upload') && (!authorized({
-      request,
-      env,
-      l: hl,
-    },))) {
-      hl.warn('unauthorized upload batch',);
-      return new Response(
-        'Unauthorized',
-        {
-          status: UNAUTHORIZED,
-          headers: { 'LFS-Authenticate': 'Basic realm="monochromatic-lfs"', },
-        },
-      );
+    if (batch.operation === 'upload') {
+      /**
+       Whether the request may store the objects it listed.
+       */
+      const permitted = await authorized({
+        request,
+        env,
+        l: hl,
+      },);
+      if (!permitted) {
+        hl.warn('unauthorized upload batch',);
+        return new Response(
+          'Unauthorized',
+          {
+            status: UNAUTHORIZED,
+            headers: { 'LFS-Authenticate': 'Basic realm="monochromatic-lfs"', },
+          },
+        );
+      }
     }
     /**
      What the presence index established for each object, in request order.

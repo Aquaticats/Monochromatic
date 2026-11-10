@@ -30,6 +30,21 @@ export {
   type AuthorizedParams,
 } from './authorize.ts';
 export {
+  anyClientRow,
+  type AnyClientRowParams,
+  type ClientLookup,
+  type ClientRecord,
+  findClient,
+  type FindClientParams,
+  SELECT_ANY_CLIENT_SQL,
+  SELECT_CLIENT_SQL,
+  UPLOAD_SCOPE,
+} from './clients.ts';
+export {
+  constantTimeEquals,
+  type ConstantTimeEqualsParams,
+} from './constant-time-equal.ts';
+export {
   BAD_REQUEST as BATCH_BAD_REQUEST,
   type BatchObject,
   type BatchOperation,
@@ -57,8 +72,18 @@ export {
   lfsJson,
   type LfsJsonParams,
 } from './lfs-json.ts';
-// In-memory store for unit tests, exported so tests import it through the
-// built artifact instead of package source.
+// In-memory database and object store for unit tests, exported so tests import
+// them through the built artifact instead of package source.
+/**
+ @internal
+ */
+export {
+  createMemoryDatabase,
+  type CreateMemoryDatabaseParams,
+  type MemoryClientFixture,
+  type MemoryClientRow,
+  type MemoryDatabase,
+} from './memory-database.ts';
 /**
  @internal
  */
@@ -66,13 +91,6 @@ export {
   createMemoryObjectStore,
   type MemoryObjectStore,
 } from './memory-object-store.ts';
-/**
- @internal
- */
-export {
-  createMemoryPresenceIndex,
-  type MemoryPresenceIndex,
-} from './memory-presence-index.ts';
 export {
   DOWNLOAD_MISS_CHECK_LIMIT,
   type Presence,
@@ -104,11 +122,17 @@ export {
   isOid,
   OID_LENGTH,
 } from './oid.ts';
+export {
+  isSha256Hex,
+  SHA256_HEX_LENGTH,
+  sha256Hex,
+} from './sha256-hex.ts';
 export type {
+  D1DatabaseLike,
+  D1StatementLike,
+  DatabaseRow,
   ExecutionContextLike,
   ObjectStore,
-  PresenceIndexDatabase,
-  PresenceIndexStatement,
   StoredObject,
   StoredObjectHead,
   WorkerEnv,

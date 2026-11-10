@@ -5,7 +5,6 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/logger-core';
 import {
   describe,
   expect,
@@ -16,8 +15,12 @@ import {
   anyClientRow,
   constantTimeEquals,
   createMemoryDatabase,
+  type D1DatabaseLike,
+  type D1StatementLike,
+  type DatabaseRow,
   findClient,
   isSha256Hex,
+  type MemoryClientFixture,
   SELECT_ANY_CLIENT_SQL,
   SELECT_CLIENT_SQL,
   sha256Hex,
@@ -25,11 +28,6 @@ import {
   UPLOAD_SCOPE,
   type WorkerEnv,
 } from '@monochromatic-dev/config-lfs-r2-worker';
-
-/**
- Logger shared by every case.
- */
-const l = tagged({ tag: 'clients.unit.test', },);
 
 /**
  Input whose digest is a published test vector.
@@ -42,34 +40,59 @@ const VECTOR_INPUT = 'abc';
 const VECTOR_DIGEST = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 
 /**
- Build an env whose only D1 binding is the given memory database.
+ A bucket that stores nothing, for envs whose case never reaches it.
+ */
+const EMPTY_BUCKET = {
+  head: () => Promise.resolve(null,),
+  get: () => Promise.resolve(null,),
+  put: () => Promise.resolve(undefined,),
+};
+
+/**
+ Build an env whose only D1 binding is a memory database with the given rows.
 
  @param clients - client rows the database holds
 
- @param failure - error every statement throws
+ @param failure - error every client statement throws
 
  @returns env with a memory database
  */
 function envWith(
-  clients: readonly {
-    readonly id: string;
-    readonly hash: string;
-    readonly scope?: string;
-    readonly expires?: number | null;
-    readonly revoked?: number | null;
-  }[] = [],
+  clients: readonly MemoryClientFixture[] = [],
   failure?: Error,
 ): WorkerEnv & { readonly INDEX: ReturnType<typeof createMemoryDatabase>; } {
   return {
-    BUCKET: {
-      head: async () => null,
-      get: async () => null,
-      put: async () => undefined,
-    },
+    BUCKET: EMPTY_BUCKET,
     INDEX: createMemoryDatabase({
       clients,
-      ...failure === undefined ? {} : { failure, },
+      ...failure === undefined ? {} : { clientFailure: failure, },
     },),
+  };
+}
+
+/**
+ Build a database that answers every query with the rows a test hands it, so a row
+ whose columns have the wrong types can be exercised.
+
+ @param rows - rows every query answers with
+
+ @returns database answering those rows
+ */
+function databaseAnswering(rows: readonly DatabaseRow[],): D1DatabaseLike {
+  /**
+   Statement answering the rows this database was built with.
+
+   @returns statement whose `bind` answers the same rows
+   */
+  function statement(): D1StatementLike {
+    return {
+      bind: statement,
+      all: () => Promise.resolve({ results: rows, },),
+      run: () => Promise.resolve(undefined,),
+    };
+  }
+  return {
+    prepare: () => statement(),
   };
 }
 
@@ -92,7 +115,7 @@ await describe({
              Digest of text that has more bytes than characters.
              */
             const digest = await sha256Hex('ünïcöde',);
-            expect(digest,).toHaveLength(SHA256_HEX_LENGTH,);
+            expect(digest.length,).toBe(SHA256_HEX_LENGTH,);
             expect(isSha256Hex(digest,),).toBe(true,);
           },
         },),
@@ -129,20 +152,20 @@ await describe({
         it({
           name: 'accepts equal values',
           fn: async () => {
-            expect(constantTimeEquals(VECTOR_DIGEST, VECTOR_DIGEST,),).toBe(true,);
-            expect(constantTimeEquals('', '',),).toBe(true,);
+            expect(constantTimeEquals({ left: VECTOR_DIGEST, right: VECTOR_DIGEST, },),).toBe(true,);
+            expect(constantTimeEquals({ left: '', right: '', },),).toBe(true,);
           },
         },),
         it({
           name: 'refuses a value that differs in its first character',
           fn: async () => {
-            expect(constantTimeEquals(`0${VECTOR_DIGEST.slice(1,)}`, VECTOR_DIGEST,),).toBe(false,);
+            expect(constantTimeEquals({ left: `0${VECTOR_DIGEST.slice(1,)}`, right: VECTOR_DIGEST, },),).toBe(false,);
           },
         },),
         it({
           name: 'refuses a value that differs in its last character',
           fn: async () => {
-            expect(constantTimeEquals(`${VECTOR_DIGEST.slice(0, -1,)}0`, VECTOR_DIGEST,),).toBe(false,);
+            expect(constantTimeEquals({ left: `${VECTOR_DIGEST.slice(0, -1,)}0`, right: VECTOR_DIGEST, },),).toBe(false,);
           },
         },),
         it({
@@ -152,8 +175,8 @@ await describe({
              First half of the digest, which is a prefix of it.
              */
             const prefix = VECTOR_DIGEST.slice(0, 32,);
-            expect(constantTimeEquals(prefix, VECTOR_DIGEST,),).toBe(false,);
-            expect(constantTimeEquals(VECTOR_DIGEST, prefix,),).toBe(false,);
+            expect(constantTimeEquals({ left: prefix, right: VECTOR_DIGEST, },),).toBe(false,);
+            expect(constantTimeEquals({ left: VECTOR_DIGEST, right: prefix, },),).toBe(false,);
           },
         },),
       ],
@@ -181,18 +204,15 @@ await describe({
                   id,
                   hash,
                   scope: UPLOAD_SCOPE,
-                  expires: null,
-                  revoked: null,
                 },
               ],),
               id,
-              l,
             },);
             expect(lookup.kind,).toBe('found',);
             expect(lookup.kind === 'found' ? lookup.client.hash : '',).toBe(hash,);
             expect(lookup.kind === 'found' ? lookup.client.scope : '',).toBe(UPLOAD_SCOPE,);
-            expect(lookup.kind === 'found' ? lookup.client.expires : 0,).toBeNull();
-            expect(lookup.kind === 'found' ? lookup.client.revoked : 0,).toBeNull();
+            expect(lookup.kind === 'found' ? lookup.client.expires : 0,).toBeUndefined();
+            expect(lookup.kind === 'found' ? lookup.client.revoked : 0,).toBeUndefined();
           },
         },),
         it({
@@ -204,41 +224,30 @@ await describe({
             const lookup = await findClient({
               env: envWith(),
               id: 'machine-nine',
-              l,
             },);
             expect(lookup.kind,).toBe('absent',);
           },
         },),
-        it({
-          name: 'answers malformed when the row holds a hash that is not text',
-          fn: async () => {
-            /**
-             Outcome of the lookup.
-             */
-            const lookup = await findClient({
-              env: {
-                BUCKET: {
-                  head: async () => null,
-                  get: async () => null,
-                  put: async () => undefined,
-                },
-                INDEX: {
-                  prepare: function prepare() {
-                    return {
-                      bind: function bind() {
-                        return this;
-                      },
-                      all: async () => ({ results: [{ expires: null, hash: 5, revoked: null, scope: UPLOAD_SCOPE, },], }),
-                      run: async () => undefined,
-                    };
-                  },
-                },
-              },
-              id: 'machine-one',
-              l,
-            },);
-            expect(lookup.kind,).toBe('malformed',);
-          },
+        ...([
+          ['hash', { hash: 5, scope: UPLOAD_SCOPE, expires: null, revoked: null, },],
+          ['scope', { hash: VECTOR_DIGEST, scope: 5, expires: null, revoked: null, },],
+          ['expires', { hash: VECTOR_DIGEST, scope: UPLOAD_SCOPE, expires: 'soon', revoked: null, },],
+          ['revoked', { hash: VECTOR_DIGEST, scope: UPLOAD_SCOPE, expires: null, revoked: 'yesterday', },],
+        ] as const).map(function mapMalformed([column, row,]: readonly [string, DatabaseRow,],) {
+          return it({
+            name: `answers malformed for a row whose ${column} column has the wrong type`,
+            fn: async () => {
+              /**
+               Outcome of the lookup.
+               */
+              const lookup = await findClient({
+                env: { BUCKET: EMPTY_BUCKET, INDEX: databaseAnswering([row,],), },
+                id: 'machine-one',
+              },);
+              expect(lookup.kind,).toBe('malformed',);
+              expect(lookup.kind === 'malformed' ? lookup.detail : '',).toContain(column,);
+            },
+          },);
         },),
         it({
           name: 'asks the database for the row of the client id',
@@ -248,35 +257,24 @@ await describe({
              */
             const database = createMemoryDatabase({ clients: [], },);
             await findClient({
-              env: { BUCKET: envWith().BUCKET, INDEX: database, },
+              env: { BUCKET: EMPTY_BUCKET, INDEX: database, },
               id: 'machine-one',
-              l,
             },);
             expect(database.statements,).toContain(SELECT_CLIENT_SQL,);
           },
         },),
         it({
-          name: 'surfaces a database failure so the caller can refuse the write',
+          name: 'answers failed when the query throws, so the caller can refuse the write',
           fn: async () => {
             /**
-             Failure the database raises.
+             Outcome of the lookup against a database that refuses every statement.
              */
-            const failure = new Error('d1 unavailable',);
-            /**
-             Rejection the lookup surfaced.
-             */
-            let caught: unknown;
-            try {
-              await findClient({
-                env: envWith([], failure,),
-                id: 'machine-one',
-                l,
-              },);
-            }
-            catch (error) {
-              caught = error;
-            }
-            expect((caught as Error).message,).toBe('d1 unavailable',);
+            const lookup = await findClient({
+              env: envWith([], new Error('d1 unavailable',),),
+              id: 'machine-one',
+            },);
+            expect(lookup.kind,).toBe('failed',);
+            expect(lookup.kind === 'failed' ? String(lookup.cause,) : '',).toContain('d1 unavailable',);
           },
         },),
       ],
@@ -285,18 +283,17 @@ await describe({
       name: anyClientRow.name,
       children: [
         it({
-          name: 'answers false for an empty clients table',
+          name: 'answers empty for an empty clients table',
           fn: async () => {
-            expect(await anyClientRow({ env: envWith(), l, },),).toBe(false,);
+            expect((await anyClientRow({ env: envWith(), },)).kind,).toBe('empty',);
           },
         },),
         it({
-          name: 'answers true once one row exists, even a revoked one',
+          name: 'answers occupied once one row exists, even a revoked one',
           fn: async () => {
-            expect(await anyClientRow({
+            expect((await anyClientRow({
               env: envWith([{ id: 'machine-one', hash: await sha256Hex('token',), revoked: 1, },],),
-              l,
-            },),).toBe(true,);
+            },)).kind,).toBe('occupied',);
           },
         },),
         it({
@@ -306,28 +303,19 @@ await describe({
              Database whose prepared statements are recorded.
              */
             const database = createMemoryDatabase({ clients: [], },);
-            await anyClientRow({ env: { BUCKET: envWith().BUCKET, INDEX: database, }, l, },);
+            await anyClientRow({ env: { BUCKET: EMPTY_BUCKET, INDEX: database, }, },);
             expect(database.statements,).toContain(SELECT_ANY_CLIENT_SQL,);
           },
         },),
         it({
-          name: 'surfaces a database failure so the caller can refuse the write',
+          name: 'answers failed when the query throws, so the caller can refuse the write',
           fn: async () => {
             /**
-             Failure the database raises.
+             Outcome of the query against a database that refuses every statement.
              */
-            const failure = new Error('d1 unavailable',);
-            /**
-             Rejection the query surfaced.
-             */
-            let caught: unknown;
-            try {
-              await anyClientRow({ env: envWith([], failure,), l, },);
-            }
-            catch (error) {
-              caught = error;
-            }
-            expect((caught as Error).message,).toBe('d1 unavailable',);
+            const lookup = await anyClientRow({ env: envWith([], new Error('d1 unavailable',),), },);
+            expect(lookup.kind,).toBe('failed',);
+            expect(lookup.kind === 'failed' ? String(lookup.cause,) : '',).toContain('d1 unavailable',);
           },
         },),
       ],

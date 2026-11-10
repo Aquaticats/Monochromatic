@@ -16,6 +16,7 @@ import {
   authorized,
   createMemoryDatabase,
   createMemoryObjectStore,
+  type MemoryClientFixture,
   sha256Hex,
   UPLOAD_SCOPE,
   type WorkerEnv,
@@ -50,7 +51,16 @@ const CLIENT_TOKEN = 'token:with:colons';
 const NOW = 1_800_000_000_000;
 
 /**
- Queryable behaviour shared by every env builder.
+ A client row that authorizes `CLIENT_TOKEN` for writes, with no expiry and standing.
+ */
+const VALID_CLIENT: MemoryClientFixture = {
+  id: CLIENT_ID,
+  hash: await sha256Hex(CLIENT_TOKEN,),
+  scope: UPLOAD_SCOPE,
+};
+
+/**
+ What an env is built from.
  */
 type EnvOptions = {
   /**
@@ -62,46 +72,9 @@ type EnvOptions = {
    */
   readonly legacyToken?: string;
   /**
-   Every statement the database runs throws this error.
+   Every client statement the database runs throws this error.
    */
-  readonly databaseFailure?: Error;
-};
-
-/**
- One client row as a test writes it, with the defaults a valid row needs.
- */
-type MemoryClientFixture = {
-  /**
-   Client id, the Basic user name.
-   */
-  readonly id: string;
-  /**
-   sha256 of the token, hex.
-   */
-  readonly hash: string;
-  /**
-   Scope the row grants.
-   */
-  readonly scope: string;
-  /**
-   Epoch milliseconds after which the row is refused, or `null` for no expiry.
-   */
-  readonly expires: number | null;
-  /**
-   Epoch milliseconds the row was revoked, or `null` while it stands.
-   */
-  readonly revoked: number | null;
-};
-
-/**
- A client row that authorizes `CLIENT_TOKEN` for writes.
- */
-const VALID_CLIENT: MemoryClientFixture = {
-  id: CLIENT_ID,
-  hash: await sha256Hex(CLIENT_TOKEN,),
-  scope: UPLOAD_SCOPE,
-  expires: null,
-  revoked: null,
+  readonly clientFailure?: Error;
 };
 
 /**
@@ -109,22 +82,28 @@ const VALID_CLIENT: MemoryClientFixture = {
 
  @param options - client rows, shared secret and database failure for this env
 
- @returns env with a memory bucket, and a memory database only when rows were named
+ @returns env with a memory bucket, and a memory database only when the case names one
  */
 function envWith(options: EnvOptions = {},): WorkerEnv {
   /**
-   D1 database for this env, when the case names client rows or a failure.
+   Client rows the env starts with.
    */
-  const database = options.clients === undefined && options.databaseFailure === undefined
-    ? undefined
-    : createMemoryDatabase({
-      clients: options.clients ?? [],
-      ...options.databaseFailure === undefined ? {} : { failure: options.databaseFailure, },
-    },);
+  const clients = options.clients ?? [];
+  /**
+   Whether the case needs a database binding at all.
+   */
+  const needsDatabase = (options.clients !== undefined) || (options.clientFailure !== undefined);
   return {
     BUCKET: createMemoryObjectStore(),
     ...options.legacyToken === undefined ? {} : { LFS_WRITE_TOKEN: options.legacyToken, },
-    ...database === undefined ? {} : { INDEX: database, },
+    ...needsDatabase
+      ? {
+        INDEX: createMemoryDatabase({
+          clients,
+          ...options.clientFailure === undefined ? {} : { clientFailure: options.clientFailure, },
+        },),
+      }
+      : {},
   };
 }
 
@@ -161,15 +140,31 @@ function basic({
 /**
  Authorize one request against an env, at the fixed clock.
 
- @param authorization - header value; omit for no header
+ @param authorization - header value the request carries
 
  @param env - env under test
 
  @returns whether the write is allowed
  */
-async function allows(authorization: string | undefined, env: WorkerEnv,): Promise<boolean> {
+async function allows(authorization: string, env: WorkerEnv,): Promise<boolean> {
   return await authorized({
     request: requestWith(authorization,),
+    env,
+    now: NOW,
+    l,
+  },);
+}
+
+/**
+ Authorize a request that carries no `Authorization` header at all.
+
+ @param env - env under test
+
+ @returns whether the write is allowed
+ */
+async function allowsWithoutHeader(env: WorkerEnv,): Promise<boolean> {
+  return await authorized({
+    request: requestWith(),
     env,
     now: NOW,
     l,
@@ -213,7 +208,9 @@ await describe({
     it({
       name: 'refuses a request without an Authorization header',
       fn: async () => {
-        expect(await allows(undefined, envWith({ legacyToken: LEGACY_TOKEN, },),),).toBe(false,);
+        expect(
+          await allowsWithoutHeader(envWith({ legacyToken: LEGACY_TOKEN, },),),
+        ).toBe(false,);
       },
     },),
     it({
@@ -245,6 +242,15 @@ await describe({
         },);
         expect(await allows(basic({ username: 'lfs', password: LEGACY_TOKEN, },), beforeMigration,),).toBe(true,);
         expect(await allows(basic({ username: 'anyone', password: LEGACY_TOKEN, },), beforeMigration,),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'accepts the shared secret with no user name, as the old URL form sent it',
+      fn: async () => {
+        expect(await allows(
+          basic({ username: '', password: LEGACY_TOKEN, },),
+          envWith({ clients: [], legacyToken: LEGACY_TOKEN, },),
+        ),).toBe(true,);
       },
     },),
     it({
@@ -294,19 +300,28 @@ await describe({
     it({
       name: 'accepts the token of the client the user name names',
       fn: async () => {
-        expect(await allows(basic({ username: CLIENT_ID, password: CLIENT_TOKEN, },), envWith({ clients: [VALID_CLIENT,], },),),).toBe(true,);
+        expect(await allows(
+          basic({ username: CLIENT_ID, password: CLIENT_TOKEN, },),
+          envWith({ clients: [VALID_CLIENT,], },),
+        ),).toBe(true,);
       },
     },),
     it({
       name: 'refuses a wrong password for a known client',
       fn: async () => {
-        expect(await allows(basic({ username: CLIENT_ID, password: 'wrong', },), envWith({ clients: [VALID_CLIENT,], },),),).toBe(false,);
+        expect(await allows(
+          basic({ username: CLIENT_ID, password: 'wrong', },),
+          envWith({ clients: [VALID_CLIENT,], },),
+        ),).toBe(false,);
       },
     },),
     it({
       name: 'refuses an unknown client id',
       fn: async () => {
-        expect(await allows(basic({ username: 'machine-nine', password: CLIENT_TOKEN, },), envWith({ clients: [VALID_CLIENT,], },),),).toBe(false,);
+        expect(await allows(
+          basic({ username: 'machine-nine', password: CLIENT_TOKEN, },),
+          envWith({ clients: [VALID_CLIENT,], },),
+        ),).toBe(false,);
       },
     },),
     it({
@@ -382,12 +397,12 @@ await describe({
       name: 'refuses the write when the client lookup fails, and leaves the shared secret unused',
       fn: async () => {
         /**
-         Env whose database refuses every statement, as a missing table or an outage would.
+         Env whose database refuses every client statement, as a missing table or an outage would.
          */
         const failing = envWith({
           clients: [VALID_CLIENT,],
           legacyToken: LEGACY_TOKEN,
-          databaseFailure: new Error('d1 unavailable',),
+          clientFailure: new Error('d1 unavailable',),
         },);
         expect(await allows(basic({ username: CLIENT_ID, password: CLIENT_TOKEN, },), failing,),).toBe(false,);
         expect(await allows(basic({ username: 'lfs', password: LEGACY_TOKEN, },), failing,),).toBe(false,);

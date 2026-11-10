@@ -359,11 +359,11 @@ export async function storeObject({
     tag: storeObject.name,
     l,
   },);
-  if (!authorized({
+  if (!(await authorized({
     request,
     env,
     l: sl,
-  },)) {
+  },))) {
     sl.warn(`unauthorized PUT for ${oid}`,);
     return new Response(
       'Unauthorized',

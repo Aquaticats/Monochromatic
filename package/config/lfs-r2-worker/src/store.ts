@@ -58,21 +58,29 @@ export type ObjectStore = {
 };
 
 /**
- One prepared statement of the presence index database.
+ One row of a query result.
 
- Mirrors the slice of Cloudflare's `D1PreparedStatement` the index uses, so the
+ Columns arrive untyped because that is what D1 hands back for a table whose schema
+ lives in SQL, and each caller narrows the columns it reads.
+ */
+export type DatabaseRow = Readonly<Record<string, unknown>>;
+
+/**
+ One prepared statement of the D1 database the Worker binds.
+
+ Mirrors the slice of Cloudflare's `D1PreparedStatement` this package uses, so the
  D1 binding is assignable without an adapter and unit tests can substitute an
  in-memory database.
  */
-export type PresenceIndexStatement = {
+export type D1StatementLike = {
   /**
-   Attach the JSON array of oids that the statement's `?1` reads.
+   Attach the statement's one text parameter: a JSON array of oids, or a client id.
    */
-  readonly bind: (oidsJson: string,) => PresenceIndexStatement;
+  readonly bind: (value: string,) => D1StatementLike;
   /**
-   Run a query and collect the `oid` column of every matching row.
+   Run a query and collect its rows.
    */
-  readonly all: () => Promise<{ readonly results: readonly { readonly oid: string; }[]; }>;
+  readonly all: () => Promise<{ readonly results: readonly DatabaseRow[]; }>;
   /**
    Run a write.
    */
@@ -80,16 +88,17 @@ export type PresenceIndexStatement = {
 };
 
 /**
- Presence index database: Cloudflare D1 in production.
+ The D1 database the Worker binds: Cloudflare D1 in production.
 
- The index records which oids the bucket holds so a batch can learn that in one
- query instead of one `head` per object.
+ One database holds both tables, the presence index and the per-machine client
+ rows, because a Worker binds it already and a second database would need its own
+ provisioning for no benefit at this size.
  */
-export type PresenceIndexDatabase = {
+export type D1DatabaseLike = {
   /**
    Compile one SQL statement.
    */
-  readonly prepare: (sql: string,) => PresenceIndexStatement;
+  readonly prepare: (sql: string,) => D1StatementLike;
 };
 
 /**
@@ -101,13 +110,14 @@ export type WorkerEnv = {
    */
   readonly BUCKET: ObjectStore;
   /**
-   D1 presence index declared in `wrangler.toml`; absent in tests and when the
-   binding is removed, in which case every lookup falls back to the bucket.
+   D1 database declared in `wrangler.toml`; absent in tests and when the binding
+   is removed. It holds the presence index, which lets a batch learn which oids
+   exist in one query, and the `clients` rows that authorize uploads.
    */
-  readonly INDEX?: PresenceIndexDatabase;
+  readonly INDEX?: D1DatabaseLike;
   /**
-   Shared upload secret set with `wrangler secret put`; absent until it is
-   set, and every write is refused while absent.
+   Shared upload secret set with `wrangler secret put`; accepted only while the
+   clients table holds no row, and every write is refused while it is absent.
    */
   readonly LFS_WRITE_TOKEN?: string;
 };

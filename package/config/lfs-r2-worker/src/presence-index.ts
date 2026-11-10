@@ -11,7 +11,10 @@
  @module
  */
 
-import type { WorkerEnv, } from './store.ts';
+import type {
+  DatabaseRow,
+  WorkerEnv,
+} from './store.ts';
 
 /**
  SQL selecting the indexed subset of a JSON array of oids (`?1`).
@@ -81,6 +84,31 @@ function chunkOids(oids: readonly string[],): readonly (readonly string[])[] {
 }
 
 /**
+ Read the `oid` column of one index row.
+
+ The column arrives untyped because D1 hands back whatever the table holds, and a
+ row without a text oid would otherwise become the string `undefined` in the set
+ of present oids, promising an object the bucket does not hold. Throw instead, so
+ the caller falls back to asking the bucket.
+
+ @param row - row as the database handed it back
+
+ @returns the oid the row names
+
+ @throws TypeError when the column is not text
+ */
+function oidOfRow(row: DatabaseRow,): string {
+  /**
+   The `oid` column.
+   */
+  const { oid, } = row;
+  if ((typeof oid) !== 'string') {
+    throw new TypeError('presence index row has no text oid',);
+  }
+  return oid;
+}
+
+/**
  Parameters for {@link lookupPresent}.
  */
 export type LookupPresentParams = {
@@ -136,7 +164,7 @@ export async function lookupPresent({
     known: new Set(answers.flatMap(function toOids(answer,) {
       return answer.results
         .map(function toOid(row,): string {
-          return row.oid;
+          return oidOfRow(row,);
         },);
     },),),
   };
