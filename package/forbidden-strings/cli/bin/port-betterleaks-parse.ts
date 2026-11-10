@@ -7,7 +7,10 @@
  */
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
-import { tripleQuotedBodyAfterAssignment, } from './port-betterleaks-field-line.ts';
+import {
+  numberAfterAssignment,
+  tripleQuotedBodyAfterAssignment,
+} from './port-betterleaks-field-line.ts';
 
 /**
  One rule extracted from the upstream TOML, before conversion.
@@ -298,16 +301,14 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
         continue;
       }
       /**
-       Match for the optional `secretGroup = N` capture-group selector.
+       Number the optional `secretGroup = N` line carries.
        */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key and one digit run; the scan is linear and cannot backtrack.
-      const secretGroupMatch = /^secretGroup\s*=\s*(?<value>\d+)/u.exec(rl,);
-      if (secretGroupMatch !== null) {
-        /**
-         The captured `secretGroup` value of this rule.
-         */
-        const secretGroupValue = nonNullishOrThrow(secretGroupMatch.groups,);
-        fields.secretGroup = Number(nonNullishOrThrow(secretGroupValue?.value,),);
+      const secretGroup = numberAfterAssignment({
+        line: rl,
+        key: 'secretGroup',
+      },);
+      if ((typeof secretGroup) === 'number') {
+        fields.secretGroup = secretGroup;
         cursor.at += 1;
         continue;
       }

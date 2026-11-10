@@ -10,6 +10,7 @@ import { test } from 'node:test';
 
 import {
   NO_VALUE_AFTER_ASSIGNMENT,
+  numberAfterAssignment,
   tripleQuotedBodyAfterAssignment,
   valueAfterAssignment,
 } from './port-betterleaks-field-line.ts';
@@ -199,3 +200,27 @@ void test('the walker carries every field the readers answer into the rule it em
   assert.equal(rules[2]?.secretGroup, undefined,);
   assert.equal(rules[2]?.skipReport, false,);
 },);
+
+// The lines that carry a capture-group selector, with the number the pattern answered for each: the
+// digit run after the assignment, and nothing for a line that starts with something else.
+const NUMBER_LINES = [
+  ["secretGroup = 3", "secretGroup", 3],
+  ["secretGroup=003", "secretGroup", 3],
+  ["secretGroup = 3x", "secretGroup", 3],
+  ["secretGroup = ", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+  ["secretGroup = x3", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+  ["secretGroup = 3 4", "secretGroup", 3],
+  ["secretGroup =", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+  ["secretGroup", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+  ["secretGroupx = 3", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+  [" secretGroup = 3", "secretGroup", NO_VALUE_AFTER_ASSIGNMENT],
+] as const;
+
+for (const [line, key, number] of NUMBER_LINES) {
+  void test(`the number on ${JSON.stringify(line)}`, () => {
+    assert.equal(numberAfterAssignment({
+      key,
+      line,
+    },), number,);
+  },);
+}
