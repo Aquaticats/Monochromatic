@@ -5,7 +5,8 @@
 //!  pin check costs on the thread the rotation hands it to.
 //! `schedule_trim` and the entry in
 //!  `doc/planning/cli-git-shipped-limits-audit.md`,
-//! "The audit and timing logs' history", cite the result.
+//! "The audit and timing logs' history",
+//! cite the result.
 //!  Run:
 //! `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture rotation_cost_measurement`.
 //!
@@ -87,7 +88,8 @@ fn time_rotations(target: &Path, live: &[u8], retention: &LogRetention) -> Vec<u
     return micros;
 }
 
-/// Waits, within a deadline,
+/// Waits,
+/// within a deadline,
 /// for the pass a rotation scheduled to end,
 /// so each timed rotation starts from a settled state.
 fn wait_for_the_pass(target: &Path) {
@@ -121,13 +123,13 @@ fn rotate_now(target: &Path, opened: &std::fs::File) {
 }
 
 /// A file of exactly `ROTATE_AT_BYTES` bytes,
-/// filled with `line` up to `last`,
+/// filled with `line` up to `ends_with`,
 /// which ends it if there is room,
 /// every line ended,
 /// so that the next append rotates it.
-fn full_file(line: &str, last: Option<&str>) -> Vec<u8> {
+fn full_file(line: &str, ends_with: Option<&str>) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::with_capacity(ROTATE_AT_BYTES as usize);
-    let tail: usize = last.map_or(0, |last| { return last.len() + 1; });
+    let tail: usize = ends_with.map_or(0, |ending| { return ending.len() + 1; });
     while bytes.len() + line.len() + 1 + tail <= ROTATE_AT_BYTES as usize {
         bytes.extend_from_slice(line.as_bytes());
         bytes.push(b'\n');
@@ -135,10 +137,10 @@ fn full_file(line: &str, last: Option<&str>) -> Vec<u8> {
     let room: usize = ROTATE_AT_BYTES as usize - bytes.len();
     bytes.extend(std::iter::repeat_n(b'x', room - 1));
     bytes.push(b'\n');
-    if let Some(last) = last {
+    if let Some(ending) = ends_with {
         // The line that decides whether the generation pins is the last one, so reading to it costs the whole file.
-        bytes.truncate(ROTATE_AT_BYTES as usize - last.len() - 1);
-        bytes.extend_from_slice(last.as_bytes());
+        bytes.truncate(ROTATE_AT_BYTES as usize - ending.len() - 1);
+        bytes.extend_from_slice(ending.as_bytes());
         bytes.push(b'\n');
     }
     return bytes;

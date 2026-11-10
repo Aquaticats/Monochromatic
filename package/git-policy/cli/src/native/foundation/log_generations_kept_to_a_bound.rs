@@ -191,8 +191,9 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
 /// for (let n = highest + 1; ; n++) { try { await link(taken, `${target}.${n}`); break; } catch (e) { if (e.code !== 'EEXIST' || !isFile(`${target}.${n}`)) throw e; } }
 /// await unlink(taken);
 /// ```
-/// Those words end the numbering: a name that exists but is not a regular file (a
-///  directory a person left there, a socket) will never become free,
+/// Those words end the numbering:
+///  a name that exists but is not a regular file (a directory a person left there,
+/// a socket) will never become free,
 /// so the rotation reports it instead of counting up for
 ///  ever.
 ///
@@ -210,7 +211,9 @@ pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
         let candidate: PathBuf = numbered(target, number);
         match std::fs::hard_link(taken, &candidate) {
             Ok(()) => break,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && std::fs::symlink_metadata(&candidate).is_ok_and(|found| { return found.is_file(); }) => number = number.saturating_add(1),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && std::fs::symlink_metadata(&candidate).is_ok_and(is_a_regular_file) => {
+                number = number.saturating_add(1);
+            }
             Err(error) => return Err(error),
         }
     }
@@ -224,6 +227,13 @@ pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
 /// `sort_by_key` takes this function by path.
 fn piece_number(piece: &&Piece) -> Option<u64> {
     return piece.number;
+}
+
+/// Whether what a generation's name holds is a regular file,
+/// which is another writer's generation,
+/// where a directory or a socket will never become free.
+fn is_a_regular_file(found: std::fs::Metadata) -> bool {
+    return found.is_file();
 }
 
 /// What:

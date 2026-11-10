@@ -151,7 +151,7 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
     let current: bool = present(directory.join(kept.name.current).as_path());
     return match kept.kind {
         KeptKind::Folder => earlier && current,
-        KeptKind::Log { .. } => {
+        KeptKind::Log => {
             let leftovers: bool = present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::WAITING_SUFFIX)).as_path())
                 || present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::JOURNAL_SUFFIX)).as_path());
             (earlier && current) || leftovers

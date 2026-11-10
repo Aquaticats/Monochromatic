@@ -64,8 +64,9 @@ type OpenLogFile = fn(&Path) -> std::io::Result<std::fs::File>;
 /// moving a file past the size limit aside first.
 /// Why:
 ///   A file that grows without bound would turn a safety record into a disk problem.
-/// A rotation that fails, or a name that cannot be opened
-///  again, leaves this writer on the file it has:
+/// A rotation that fails,
+/// or a name that cannot be opened again,
+/// leaves this writer on the file it has:
 /// the line is never what a failed housekeeping step costs.
 /// The line starts on a fresh line when
 ///  the file ends without one,
@@ -99,7 +100,8 @@ pub fn append_line(target: &Path, bytes: &[u8], retention: &LogRetention) -> std
 /// ```
 ///
 /// # Errors
-/// The system's error when the directory or the file cannot be created, or the write is short.
+/// The system's error when the directory or the file cannot be created,
+/// or the write is short.
 pub fn append_entry(target: &Path, block: &[u8], retention: &LogRetention) -> std::io::Result<()> {
     if let Some(directory) = target.parent() {
         crate::private_storage::create_private_directory_all(directory)?;

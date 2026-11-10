@@ -87,7 +87,8 @@ fn a_created_log_is_private() {
 }
 
 /// A receipt in an older generation is still a receipt:
-/// a rotation keeps every entry, so a commit whose entry moved aside is never reviewed again.
+/// a rotation keeps every entry,
+/// so a commit whose entry moved aside is never reviewed again.
 #[test]
 fn a_receipt_in_an_older_generation_is_still_a_receipt() {
     let root: PathBuf = fixture("append-generation-receipt");

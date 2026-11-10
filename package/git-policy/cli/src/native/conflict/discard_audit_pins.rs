@@ -12,7 +12,8 @@
 //! The answer
 //!  costs disk only in the worst case;
 //! the other one costs a person the only pointer to their work.
-//! The read is one pass over the generation, one line at a time,
+//! The read is one pass over the generation,
+//!  one line at a time,
 //! so the memory is the longest line.
 //!
 //! In TS you'd write (pseudocode):

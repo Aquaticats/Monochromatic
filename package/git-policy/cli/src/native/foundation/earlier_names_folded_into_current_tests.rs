@@ -365,7 +365,8 @@ fn numbered_copies_of_an_earlier_rotating_log_are_kept_beside_the_current_ones()
 }
 
 /// The numbered older copies of an earlier push trigger log go beside the current ones too:
-/// every log of the wrapper keeps generations, so the copies the rename left behind are history a reader needs.
+/// every log of the wrapper keeps generations,
+/// so the copies the rename left behind are history a reader needs.
 #[test]
 fn numbered_copies_of_an_earlier_push_trigger_log_are_kept_beside_the_current_ones() {
     let world: World = world("numbered-push");

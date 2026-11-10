@@ -75,7 +75,8 @@ fn rotate_once(target: &Path, name: &str) {
     wait_for_the_pass(target);
 }
 
-/// Waits, within a deadline,
+/// Waits,
+/// within a deadline,
 /// for the pass a rotation scheduled to end.
 /// Why:
 ///   The pass runs on a thread of its own so that a command never waits for it;
@@ -369,7 +370,8 @@ fn a_rotation_that_loses_the_race_with_more_than_one_generation_keeps_them_all()
 
 /// Another writer that takes the number this writer was about to give its own file,
 /// while three generations already stand beside the log,
-/// loses neither file: each gets the next free generation.
+/// loses neither file:
+/// each gets the next free generation.
 #[test]
 fn a_number_taken_by_another_writer_beside_three_generations_keeps_both() {
     let root: PathBuf = fixture("generations-number-race-many");

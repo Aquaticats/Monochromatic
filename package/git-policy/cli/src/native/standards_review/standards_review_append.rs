@@ -124,7 +124,9 @@ pub fn names_commit(log: &Path, sha: &str) -> bool {
 }
 
 /// What:
-///  Whether the log at `log`, or any older generation of it, carries the commit's receipt line.
+///  Whether the log at `log`,
+/// or any older generation of it,
+///  carries the commit's receipt line.
 /// Why:
 ///   A rotation keeps every entry,
 /// so the generations are the same log to a reader;
@@ -157,10 +159,10 @@ fn history_names_commit(log: &Path, sha: &str) -> std::io::Result<bool> {
     };
     let current_name: String = name.to_string_lossy().into_owned();
     for copy in numbered_copies(parent, current_name.as_str()) {
-        if let Ok(bytes) = std::fs::read(copy) {
-            if bytes_name_commit(bytes.as_slice(), sha) {
-                return Ok(true);
-            }
+        if let Ok(bytes) = std::fs::read(copy)
+            && bytes_name_commit(bytes.as_slice(), sha)
+        {
+            return Ok(true);
         }
     }
     return Ok(false);
