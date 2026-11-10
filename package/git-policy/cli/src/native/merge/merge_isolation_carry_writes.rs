@@ -19,6 +19,7 @@
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_changes::worktree_path;
 use crate::transaction_git::{GitContext, GitOutput};
+use crate::transaction_phase::Phase;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -254,6 +255,40 @@ fn entry_width(step: &Step) -> Option<usize> {
 }
 
 /// What:
+///  The test-only markers one write step reaches.
+/// Why:
+///   A step writes its index records in one call and its worktree files one at a time after it,
+/// so a control needs the instant
+///  between those parts and between two files;
+///  `transaction_phase` kills or pauses the process there.
+pub(crate) struct StepMarks {
+    /// Reached once every index record of this step is written.
+    index: Phase,
+    /// Reached after each worktree file of this step,
+    /// numbered by occurrence.
+    file: Phase,
+}
+
+/// The markers of the clear's writes.
+pub(crate) const CLEAR_MARKS: StepMarks = StepMarks { index: Phase::MergeClearIndex, file: Phase::MergeClearFile };
+
+/// The markers of the carry back's writes.
+pub(crate) const CARRY_MARKS: StepMarks = StepMarks { index: Phase::MergeCarryIndex, file: Phase::MergeCarryFile };
+
+/// What:
+///  Reach one test marker,
+/// or refuse the step when the marker variable is malformed.
+/// Why:
+///   The write step is the only place the instant between its parts exists,
+/// so the marker is reached from inside it.
+fn reach_mark(phase: Phase, occurrence: Option<u64>) -> Result<(), CarryFailure> {
+    return match crate::transaction_phase::reach_transaction_phase(phase, occurrence) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(CarryFailure::Failed(format!("{error}"))),
+    };
+}
+
+/// What:
 ///  Write every planned entry and file,
 /// after a bounded wait for `index.lock`.
 /// Why:
@@ -274,6 +309,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     steps: &[Step],
     wait: LockWait,
+    marks: Option<&StepMarks>,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
     let waited = match wait {
@@ -299,7 +335,11 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             return Err(CarryFailure::Failed(detail));
         }
     }
+    if let Some(marks) = marks {
+        reach_mark(marks.index, None)?;
+    }
     let mut wrote_a_file: bool = false;
+    let mut written: u64 = 0;
     for step in steps {
         if !matches!(step.worktree, FileWrite::Leave) {
             wrote_a_file = true;
@@ -314,6 +354,12 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
                 .as_bytes(),
             );
             return Err(CarryFailure::Failed(format!("{path} could not be written: {error}")));
+        }
+        if !matches!(step.worktree, FileWrite::Leave) {
+            written += 1;
+            if let Some(marks) = marks {
+                reach_mark(marks.file, Some(written))?;
+            }
         }
     }
     // A file this step wrote carries a new modification time and size, and Git compares those with the index's record of the

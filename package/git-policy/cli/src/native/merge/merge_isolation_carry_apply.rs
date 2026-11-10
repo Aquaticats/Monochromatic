@@ -42,7 +42,7 @@ use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPa
 use crate::merge_isolation_carry_reads::{file_form_awaiting, index_entry_awaiting, raw_bytes_awaiting};
 /// The write plan of one path,
 /// and the one step that lands it.
-use crate::merge_isolation_carry_writes::{FileWrite, IndexWrite, Step, write_steps_awaiting};
+use crate::merge_isolation_carry_writes::{CARRY_MARKS, CLEAR_MARKS, FileWrite, IndexWrite, Step, write_steps_awaiting};
 /// The paths the merge changes,
 /// and the state a path holds now.
 use crate::merge_isolation_changes::{Change, WorktreeState, worktree_state, worktree_state_awaiting};
@@ -256,7 +256,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
         };
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
+    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Some(&CLEAR_MARKS), out).await;
 }
 
 /// What:
@@ -347,7 +347,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         }
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await?;
+    write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Some(&CARRY_MARKS), out).await?;
     return Ok(report);
 }
 
@@ -429,7 +429,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
         };
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
+    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, None, out).await;
 }
 
 /// Whether nothing but the branch's own content is at a captured path,
