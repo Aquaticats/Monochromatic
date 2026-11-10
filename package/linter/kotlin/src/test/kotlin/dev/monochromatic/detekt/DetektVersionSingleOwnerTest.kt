@@ -1,21 +1,27 @@
 package dev.monochromatic.detekt
 
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.File
 
 /**
- * Verifies that the detekt version this rule set compiles against has exactly one
- * owner, the `detektVersion` entry in `gradle.properties`, and that both the Gradle
- * build and the Maven Central verification task in `mise.toml` read that entry.
+ * Verifies the invariant the detekt version needs: one spelling, the `detektVersion`
+ * entry in `gradle.properties`, consumed by the Gradle build and by the Maven Central
+ * verification task rather than repeated.
  *
- * Two spellings drift apart silently: bumping one leaves the other resolving a
- * stale detekt CLI that no test exercises.
+ * Two spellings drift apart silently: bumping one leaves the other resolving a stale
+ * detekt CLI that no test exercises.
  */
 class DetektVersionSingleOwnerTest {
     /** Gradle property that holds the only detekt version spelling. */
     private val propertyName = "detektVersion"
+
+    /**
+     * Files that define the build or its tasks, so each may only consume the owned
+     * version. `task.ts` is listed beside `mise.toml` because either may hold the
+     * verification task while the package moves its task bodies between them.
+     */
+    private val consumerFiles = listOf("build.gradle.kts", "mise.toml", "task.ts")
 
     /**
      * Declares the detekt version in `gradle.properties`, the file both the Gradle
@@ -31,46 +37,57 @@ class DetektVersionSingleOwnerTest {
     }
 
     /**
-     * Resolves the build's detekt version through the Gradle property instead of a
-     * string literal, so a version bump has one edit site.
+     * Repeats the version literal in no other file, so the owned entry stays the only
+     * place a bump is needed and no consumer can pin a different release unnoticed.
      */
     @Test
-    fun resolvesTheBuildDetektVersionFromTheGradleProperty() {
-        val assignment = Regex("""val\s+$propertyName\b[^=\n]*=\s*(.+)""")
-            .find(read("build.gradle.kts"))
-            ?: error("build.gradle.kts must assign $propertyName")
-        val rightHandSide = assignment.groupValues[1].trim()
-        assertTrue(
-            rightHandSide.contains("gradleProperty(\"$propertyName\")"),
-            "build.gradle.kts must read $propertyName from the Gradle property, got: $rightHandSide",
-        )
-        assertTrue(
-            !rightHandSide.startsWith("\""),
-            "build.gradle.kts must not spell the detekt version as a literal, got: $rightHandSide",
-        )
+    fun repeatsTheDetektVersionLiteralInNoOtherFile() {
+        val declared = ownedDetektVersion()
+        for (file in existingConsumerFiles()) {
+            assertTrue(
+                !read(file).contains(declared),
+                "$file must consume $propertyName instead of repeating $declared",
+            )
+        }
     }
 
     /**
-     * Writes the verification task's detekt CLI coordinate as an interpolation of the
-     * owned property, so the CLI it runs cannot lag behind the version the rules are
+     * Interpolates the owned property wherever a detekt CLI is resolved, so the CLI the
+     * published rules are verified through cannot lag behind the version the rules are
      * built and tested against.
      */
     @Test
     fun interpolatesTheOwnedDetektVersionInTheCentralVerification() {
-        val resolvedVersions = Regex("""dev\.detekt:detekt-cli:([^'"\s]+)""")
-            .findAll(read("mise.toml"))
-            .map { match -> match.groupValues[1] }
-            .toList()
-        assertTrue(resolvedVersions.isNotEmpty(), "mise.toml must resolve a detekt CLI")
-        val expected = "\${$propertyName}"
-        for (version in resolvedVersions) {
-            assertEquals(
-                expected,
-                version,
-                "mise.toml must interpolate $propertyName instead of pinning its own detekt CLI version",
+        val coordinates = existingConsumerFiles().flatMap { file ->
+            Regex("""dev\.detekt:detekt-cli:([^'"\s]+)""")
+                .findAll(read(file))
+                .map { match -> file to match.groupValues[1] }
+                .toList()
+        }
+        assertTrue(coordinates.isNotEmpty(), "the verification task must resolve a detekt CLI")
+        // A consumer names the property in its own language's syntax: `$name` in Kotlin,
+        // `${name}` in the JavaScript task bodies.
+        val interpolations = setOf("\$$propertyName", "\${$propertyName}")
+        for ((file, version) in coordinates) {
+            assertTrue(
+                version in interpolations,
+                "$file must interpolate $propertyName instead of pinning its own detekt CLI version, got: $version",
             )
         }
     }
+
+    /** Returns the owned detekt version, failing when `gradle.properties` lacks it. */
+    private fun ownedDetektVersion(): String {
+        val declared = readProperties()[propertyName]
+        if (declared.isNullOrBlank()) {
+            error("gradle.properties must declare $propertyName")
+        }
+        return declared
+    }
+
+    /** Returns the consumer files that exist, since a package task file may be absent. */
+    private fun existingConsumerFiles(): List<String> =
+        consumerFiles.filter { name -> File(packageRoot(), name).isFile }
 
     /** Reads one package file by name, naming the resolved path when it is missing. */
     private fun read(name: String): String {

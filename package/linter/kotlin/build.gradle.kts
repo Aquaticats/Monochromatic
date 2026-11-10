@@ -208,7 +208,7 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     // DetektVersionSingleOwnerTest reads these files rather than the classpath, so a version
     // bump must re-run it instead of leaving the test task up to date.
-    inputs.files("gradle.properties", "mise.toml", "build.gradle.kts")
+    inputs.files("gradle.properties", "mise.toml", "build.gradle.kts", "task.ts")
         .withPropertyName("detektVersionSources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
