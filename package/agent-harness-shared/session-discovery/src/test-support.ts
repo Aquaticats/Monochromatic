@@ -9,7 +9,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 import {
   SESSION_NOT_FOUND,
   type SessionDiscoveryIo,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-session-discovery';
 
 /**
  Mapping shape used by shared package tests.

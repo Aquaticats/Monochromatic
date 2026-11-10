@@ -7,7 +7,7 @@ import {
   readByPidDir,
   readPidMapping,
   SESSION_NOT_FOUND,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-session-discovery';
 import {
   BY_PID_DIR,
   fakeIo,

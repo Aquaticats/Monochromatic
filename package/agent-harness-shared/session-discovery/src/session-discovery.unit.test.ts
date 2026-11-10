@@ -8,7 +8,7 @@ import {
   findCallingSession,
   SESSION_NOT_FOUND,
   walkProcessTreeFrom,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-session-discovery';
 import {
   BY_PID_DIR,
   fakeIo,

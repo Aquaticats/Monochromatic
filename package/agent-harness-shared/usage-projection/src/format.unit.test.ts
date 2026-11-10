@@ -21,7 +21,7 @@ import {
   styleBySeverity,
   type RateLimitSnapshot,
   type RateLimitStyle,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-usage-projection';
 
 /**
  Stable sample time used by rate-limit projection tests.

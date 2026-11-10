@@ -3,7 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { splitWhitespace, } from './index.ts';
+import { splitWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan';
 
 await describe({
   name: splitWhitespace.name,

@@ -6,7 +6,7 @@ import {
 import {
   readParentPid,
   SESSION_NOT_FOUND,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-session-discovery';
 
 await describe({
   name: readParentPid.name,

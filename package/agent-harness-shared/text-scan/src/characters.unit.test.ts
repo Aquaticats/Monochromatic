@@ -8,7 +8,7 @@ import {
   isDigit,
   isWhitespace,
   isWordChar,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-text-scan';
 
 await describe({
   name: 'text-scan character predicates',

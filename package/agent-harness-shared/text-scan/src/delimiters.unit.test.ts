@@ -7,7 +7,7 @@ import {
   EmptyDelimiterError,
   stripBetweenDelims,
   stripLinesStartingWith,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-text-scan';
 
 await describe({
   name: 'text-scan delimiter stripping',

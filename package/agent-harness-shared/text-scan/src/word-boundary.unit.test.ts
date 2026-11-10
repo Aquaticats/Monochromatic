@@ -7,7 +7,7 @@ import {
   containsAnyOfWordBounded,
   containsWordBoundedPhrase,
   PHRASE_NOT_FOUND,
-} from './index.ts';
+} from '@monochromatic-dev/agent-harness-shared-text-scan';
 
 await describe({
   name: 'text-scan word-boundary phrase lookup',
