@@ -45,7 +45,7 @@ fn a_deleted_path_names_the_deletion_and_the_way_to_the_merges_version() {
     let line: String = kept_line("feature", &kept);
     assert!(line.contains("a.txt keeps your own deletion"), "{line}");
     assert!(line.contains("the merge's version of a.txt is in the merge commit"), "{line}");
-    assert!(line.contains("git restore --source=HEAD --staged --worktree -- a.txt"), "{line}");
+    assert!(line.contains("git restore --no-enforce-worktree --source=HEAD --staged --worktree -- a.txt"), "{line}");
     assert!(!line.contains("holds your own bytes"), "{line}");
     assert!(!line.contains("holds what you wrote"), "{line}");
 }
@@ -57,7 +57,7 @@ fn a_kept_file_names_the_bytes_that_stand_and_the_merges_version() {
     let kept: Kept = kept_path(&captured("a.txt", "100644"), &change("a.txt", true), "its changes cannot be merged as text", false);
     let line: String = kept_line("feature", &kept);
     assert!(line.contains("a.txt holds your own bytes"), "{line}");
-    assert!(line.contains("git restore --source=HEAD -- a.txt"), "{line}");
+    assert!(line.contains("git restore --no-enforce-worktree --source=HEAD -- a.txt"), "{line}");
     assert!(!line.contains("keeps your own deletion"), "{line}");
 }
 
@@ -95,7 +95,7 @@ fn a_path_the_merge_deletes_names_its_absence_and_the_command_for_it() {
 fn a_path_the_merge_deletes_that_the_index_holds_names_git_rm() {
     let kept: Kept = kept_path(&captured("gone.txt", "100644"), &change("gone.txt", false), "the merge deletes it", true);
     let line: String = kept_line("feature", &kept);
-    assert!(line.contains("`git rm --force -- gone.txt` takes the merge's deletion"), "{line}");
+    assert!(line.contains("`git rm --no-enforce-worktree --force -- gone.txt` takes the merge's deletion"), "{line}");
     assert!(!line.contains("`rm -- gone.txt`"), "{line}");
 }
 
