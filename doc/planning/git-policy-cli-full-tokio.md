@@ -7940,6 +7940,201 @@ The wording of a refusal:
   `native:perf` (nothing of this run is in a commit or a forwarded command's path)
   and any mutation campaign (paused by the owner).
 
+### Step T12, the push chain is awaited to the handlers, and the recovery folder is what a settle still borrows a thread for, 2026-11-09T19:46:08-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-reconcile-chain-and-work-handlers` in
+  `.claude/worktrees/pi-tokio-reconcile-chain-and-work-handlers`,
+  from main at `283d7d9053`.
+  Not merged into main.
+- What this run was asked to do:
+  the chain the previous section left,
+  in its order:
+  `reconcile_divergent_push_awaiting`,
+  `push_once_awaiting`,
+  then `WorkHandlers::push_awaiting` and `WorkHandlers::maintenance_awaiting`,
+  with the reads those handlers make.
+  The brief named those three and not the two steps the previous section
+  puts before them (the recovery folder's awaited Git seam,
+  then
+  `advance_local_branch_awaiting`),
+  and the branch move cannot be awaited without them,
+  so this run did the branch move too and measured where the settle still stops.
+- Done,
+  one commit each,
+  every one compiling:
+  - `5a87224b73`,
+    the branch move of the reconcile awaited.
+    `BranchMove` is now a trait whose one method hands back a boxed future
+    (`Send + Sync`,
+    because the future a round's task carries must be `Send`),
+    `MoveTheNamedBranch` is the shipped step,
+    and `SHIPPED_MOVE` is that value.
+    `still_on_the_branch`,
+    `tree_of`,
+    `move_the_named_branch`,
+    `fast_forward_recorded`,
+    `advance_local_branch_moving` and
+    `advance_local_branch_awaiting` ask and write with `run_query_awaiting`;
+    `advance_local_branch` keeps its name and signature and enters the runtime once,
+    so every synchronous caller and every control of the file is unchanged.
+    Controls:
+    `the_awaited_advance_of_the_branch_moves_it_from_a_task`
+    (with the positive control inside it:
+    the synchronous face is refused in a task)
+    and
+    `a_fast_forward_that_loses_the_race_in_a_task_settles_its_record_from_a_thread_of_its_own`.
+  - `6ec6cf398a`,
+    the reconcile awaited.
+    `MergePusherAwaiting`,
+    `PushMergeThroughGitAwaiting` and
+    `integrate_and_push_awaiting` live in
+    `push/auto_push_reconcile_awaiting.rs`,
+    with `reconcile_divergent_push_awaiting` beside them;
+    the wording of both loops,
+    the prefixes,
+    the short name,
+    the branch the merge is into and the commit message,
+    is one function (`wording_of`) in `push/auto_push_reconcile.rs`.
+    `QueryAwaiting` in `lfs/lfs_upload_settings.rs` is a `dyn` value `+ Send`,
+    because the awaited push's future carries it and a round's work must be `Send`.
+    Control:
+    `the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does`
+    (a real diverged remote:
+    the merge is published,
+    the branch and its checkout follow it,
+    no private ref is left,
+    and the synchronous reconcile is refused in a task).
+  - `4decd8ab48`,
+    the service's push awaited.
+    `plan_named_push_awaiting`,
+    `query_succeeds_awaiting`,
+    `run_push_command_awaiting` and `push_once_awaiting` in `push/auto_push.rs`;
+    the pause between the held-reference retries is `tokio::time::sleep`,
+    so no worker is held while another worktree's lock is waited out.
+    Control:
+    `the_awaited_push_answers_what_the_synchronous_push_answers`
+    (two identical fixtures,
+    one pushed by each face:
+    the same answer,
+    the same shown text,
+    the same hook log,
+    the same delivered commit,
+    and the synchronous face refused in a task).
+  - `5752964cbb`,
+    the handlers.
+    `WorkHandlers::push_awaiting` and `WorkHandlers::maintenance_awaiting`
+    are object-safe methods handing back a boxed future,
+    whose default runs the synchronous one,
+    so every double in the controls is unchanged.
+    `GitHandlers` answers through `push_git_awaiting`
+    (`read_config_snapshot_awaiting`),
+    `push_once_awaiting`,
+    `branch_exists_awaiting` and `branch_is_gone_words_awaiting`,
+    and its synchronous `push` and `maintenance` enter the runtime once over those,
+    so `drain_pending` on the service's work thread behaves as it did.
+    `GitRunner` in `merge/merge_second_pass_git_runner.rs` is `Send + Sync`,
+    because `AttributeProbe` holds it across an await and the push's future must be `Send`.
+    Controls:
+    `the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers`
+    and
+    `the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answers`.
+  - `8453efa339`,
+    the two seams a task awaits are `Send`,
+    so the push of a round travels as a future.
+  - `f0d7f21dd6`,
+    the branch-gone notice in a file of its own
+    (`landing/service_work_branch_is_gone.rs`),
+    because the handlers' file crossed the package's 300-code-line limit,
+    and the prose breaks the linter asked for.
+  - `ed696467d5`,
+    the control of a refused settle thread:
+    `a_settle_whose_thread_the_system_refuses_leaves_the_record_for_the_next_command`
+    arms the refusal through the settling module's own seam
+    (`RefusedSettleStarts`,
+    after `foundation/scoped_start.rs`),
+    and requires the advance's reason to name the limit and the record to stay.
+    Planted,
+    with the refusal branch removed,
+    it fails with
+    "the move was refused,
+    so it is not reported as done".
+- Measured,
+  and this is the one workaround in the chain:
+  a fast-forward Git refused settles its record through `settle_failed_merge`
+  (`merge/merge_isolation_recovery.rs:253`),
+  whose folder starts Git synchronously at 19 sites
+  and cannot be called from a task.
+  `push/auto_push_reconcile_branch_advance_settling.rs` runs that one call on a
+  thread of its own and awaits its answer,
+  which is a labelled workaround with a removal condition:
+  the recovery folder's awaited Git seam,
+  the previous section's first missing
+  step,
+  replaces it and the thread goes with it.
+  The thread is a plain one,
+  never a job of the blocking pool,
+  because a job of the pool is inside the runtime and would refuse the same start.
+  Under a refused thread the settle is not run in the task's place:
+  the advance reports the sentence naming the limit and the record stays,
+  which `ed696467d5` pins.
+  What this does not do:
+  it does not touch the recovery folder,
+  so a person's own merge and the service settle exactly as they did.
+- What stands between this and the landing round,
+  in the order the dependency allows:
+  - The recovery folder's awaited Git seam,
+    which removes the thread above.
+  - The third thing the round needs:
+    `ClaimRenewal`'s `Drop` still waits for its task
+    (`landing/service_claim_renewal_running.rs:275`).
+  - The fourth:
+    `drain_pending` (`landing/service_work_drain_pending_claims.rs`) still
+    interleaves `claim_all_of`,
+    `settle_all`,
+    the push-failure records and the handler calls on one thread,
+    and now has the awaited handler faces to call from a task.
+  - `landing/service_round.rs` itself,
+    which is the move the four unblock.
+- The reconcile loop is written twice,
+  once synchronously and once awaited,
+  as the plan's own list named it (`MergePusherAwaiting`).
+  What the two cannot differ in is one function (`wording_of`) and the same
+  helpers below the seam;
+  what they do differ in is the awaits and the pusher call.
+  The reason the synchronous one stays is `push_stacking`:
+  its merge push is `gated_merge_push`,
+  which forwards a real Git push synchronously for a person's explicit push,
+  and converting that is a folder of its own.
+- Checks:
+  - One selection,
+    one run,
+    in a `systemd-run --user --scope` at `CPUQuota=600%`,
+    `MemoryMax=24G` and `TasksMax=4000`:
+    `merge`,
+    `auto_push_reconcile`,
+    `auto_push`,
+    `service_work` and `landing`,
+    1216 of 1216 passed in 33.4 s
+    (`CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`).
+    It was run twice,
+    once before the handlers' file was split and once after,
+    with the same result,
+    and `auto_push_reconcile` alone is 84 of 84.
+  - `native:clippy` clean on every target
+    (`cargo clippy --locked --offline --all-targets -- -D warnings`).
+  - `native:test:binary:host --no-run` builds the binary test target.
+  - `//:lint:monochromatic-lint --max-warnings 0` on every file this run touched:
+    0 errors and 0 warnings,
+    after `format:monochromatic-lint` wrote the breaks it asked for.
+  - Not run:
+    the whole `native:test:host` suite,
+    the container gate,
+    `native:perf`
+    (nothing of this run is in a forwarded command's path,
+    and the commit path is untouched)
+    and any mutation campaign (paused by the owner).
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
