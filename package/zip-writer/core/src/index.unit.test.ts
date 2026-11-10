@@ -14,19 +14,64 @@ import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
 
-import { EOCD_FIXED_SIZE, LFH_FIXED_SIZE, } from './constants.ts';
 import {
+  crc32,
+  type DosDateTime,
+  dosDateTime,
   DOS_DATE_MONTH_SHIFT,
   DOS_DATE_YEAR_SHIFT,
   DOS_EPOCH_YEAR,
   DOS_TIME_HOUR_SHIFT,
   DOS_TIME_MINUTE_SHIFT,
-} from './dos-time.ts';
-import {
-  crc32,
-  dosDateTime,
+  DOS_TIME_SECOND_SHIFT,
+  EOCD_FIXED_SIZE,
+  LFH_FIXED_SIZE,
   ZipWriter,
-} from './index.ts';
+} from '../dist/final/node/index.mjs';
+
+/**
+ Calendar fields recovered from an encoded DOS timestamp.
+ */
+type DosTimestampFields = {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+  readonly hour: number;
+  readonly minute: number;
+  readonly second: number;
+};
+
+/**
+ Bit masks that isolate each DOS timestamp field after its shift.
+ */
+const DOS_FIELD_MASKS = {
+  year: 0x7F,
+  month: 0x0F,
+  day: 0x1F,
+  hour: 0x1F,
+  minute: 0x3F,
+  second: 0x1F,
+};
+
+/**
+ Decode DOS time and date words back into calendar fields, so boundary
+ assertions read as dates instead of bit arithmetic.
+ 
+ @param dos - Encoded DOS timestamp words
+ 
+ @returns Calendar fields; the month is one-based and the second is the
+   stored two-second value converted back to seconds
+ */
+function decodeDosTimestamp(dos: DosDateTime,): DosTimestampFields {
+  return {
+    year: ((dos.date >> DOS_DATE_YEAR_SHIFT) & DOS_FIELD_MASKS.year) + DOS_EPOCH_YEAR,
+    month: (dos.date >> DOS_DATE_MONTH_SHIFT) & DOS_FIELD_MASKS.month,
+    day: dos.date & DOS_FIELD_MASKS.day,
+    hour: (dos.time >> DOS_TIME_HOUR_SHIFT) & DOS_FIELD_MASKS.hour,
+    minute: (dos.time >> DOS_TIME_MINUTE_SHIFT) & DOS_FIELD_MASKS.minute,
+    second: (dos.time & DOS_FIELD_MASKS.second) << DOS_TIME_SECOND_SHIFT,
+  };
+}
 
 /** Async-disposable temp directory; cleaned up on scope exit. */
 type DisposableTempDir = {
@@ -166,6 +211,38 @@ await describe({
             const { date: d, } = dosDateTime(date,);
             // Year bits should encode 0 (1980 - 1980).
             expect(d >> DOS_DATE_YEAR_SHIFT,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'clamps dates after 2107 to the last representable DOS timestamp',
+          fn: async () => {
+            const date = new Date(Date.UTC(2_108, 0, 1,),);
+            const encoded = dosDateTime(date,);
+            expect(decodeDosTimestamp(encoded,),)
+              .toEqual({
+                year: 2_107,
+                month: 12,
+                day: 31,
+                hour: 23,
+                minute: 59,
+                second: 58,
+              },);
+          },
+        },),
+        it({
+          name: 'clamps dates before the DOS epoch to 1980-01-01, not only the year',
+          fn: async () => {
+            const date = new Date(Date.UTC(1_979, 5, 15, 12, 30, 30,),);
+            const encoded = dosDateTime(date,);
+            expect(decodeDosTimestamp(encoded,),)
+              .toEqual({
+                year: 1_980,
+                month: 1,
+                day: 1,
+                hour: 0,
+                minute: 0,
+                second: 0,
+              },);
           },
         },),
       ],
