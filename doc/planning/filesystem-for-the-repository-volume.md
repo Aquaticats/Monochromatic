@@ -76,7 +76,8 @@ Whether that shortens the `wait_current_trans` share for this workload is what t
 
 ## Timing comparisons that could not rank filesystems
 
-`~/temp/agent/pi-runs/compare-deletes-on-three-filesystems.ts` created and deleted 30,000 files of 1 KiB on 8 GiB no-copy-on-write images behind direct-I/O loop devices on the 860,
+`doc/planning/filesystem-for-the-repository-volume.compare-deletes.ts`
+(copied 2026-11-10T23:52:41-05:00 from `~/temp/agent/pi-runs/compare-deletes-on-three-filesystems.ts`) created and deleted 30,000 files of 1 KiB on 8 GiB no-copy-on-write images behind direct-I/O loop devices on the 860,
 and in a folder on the real volume,
 alternating arms under the agents' normal load.
 Each figure is the median of the delete time,
@@ -133,7 +134,8 @@ Metadata `dup` against `single` shows no measurable difference.
 - TRIM:
   "On,
   saved in the service (Recommended)".
-  `~/temp/agent/pi-runs/enable-trim-on-the-860.ts` adds `--allow-discards` and `discard=async` to `mount-860.service`,
+  `doc/planning/filesystem-for-the-repository-volume.enable-trim.ts`
+(copied 2026-11-10T23:52:41-05:00 from `~/temp/agent/pi-runs/enable-trim-on-the-860.ts`) adds `--allow-discards` and `discard=async` to `mount-860.service`,
   applies both live,
   runs one full trim,
   and samples the drive before and after.
