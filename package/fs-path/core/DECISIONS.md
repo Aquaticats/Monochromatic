@@ -284,3 +284,38 @@ Rejected shapes:
 - Creating the parent directory unconditionally, as before:
    it repairs and stats a directory the call does not need,
    and a bare name has no parent string to pass.
+
+## One `?query` suffix policy for the ensure and empty families (2026-11-10)
+
+`ensurePath` parsed the path as given,
+ so `dist/x.js?raw` counted `.js?raw` as its extension and `ensureFile` created
+ a file literally named `x.js?raw`,
+ while `emptyPath` stripped the suffix and truncated the unrelated `dist/x.js`.
+A caller that ensured a bundler-style spelling and then emptied it lost the
+ contents of a file it never named.
+
+The shape now:
+
+- `query-suffix.ts` owns the spelling:
+   `stripQuerySuffix` cuts everything from the first `?`,
+   and every function in both families calls it before parsing a path or
+    touching the disk.
+   `ensurePath` decides file or directory from the stripped path,
+    so `.js?raw` is a file and `logs?raw` a directory,
+    the same decision `emptyPath` makes.
+- Each function returns the spelling it was given,
+   suffix included.
+   `emptyPath` returned the stripped path down the directory branch and the
+    given spelling down the file branch,
+    which the function's own documentation contradicts;
+    both branches now return the given spelling.
+
+Rejected shapes:
+
+- Refusing a query suffix in the ensure family:
+   the empty family already accepted these spellings,
+    and a bundler is where they come from,
+    so the caller would have to strip on one side and not the other.
+- Keeping the strip inside `emptyPath` and `emptyFile` only:
+   the two families would still hold two spellings of one path,
+    which is the defect.

@@ -256,9 +256,13 @@ await describe({
               temp.path,
               'assets',
             );
+            /**
+             Spelling a caller passes, suffix included; the call returns it unchanged.
+             */
+            const spelling = `${target}?raw`;
             await mkdir(target,);
             await populate(target,);
-            expect(await emptyPath(`${target}?raw`,),).toBe(target,);
+            expect(await emptyPath(spelling,),).toBe(spelling,);
             expect(await readdir(target,),).toEqual([],);
           },
         },),

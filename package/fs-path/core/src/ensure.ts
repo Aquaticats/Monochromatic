@@ -21,6 +21,8 @@ import { posix, } from 'node:path';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { stripQuerySuffix, } from './query-suffix.ts';
+
 /**
  Module-scoped tagged logger.
  */
@@ -162,10 +164,12 @@ async function ensureOwnerAccess({
  Ensures a path exists as either a file or directory, based on whether
  the path has a file extension, dispatching to {@link ensureFile} or
  {@link ensureDir}.
+ A `?query` suffix is stripped before that decision, so one spelling reaches
+ one target in the ensure and empty families alike.
 
  @param path - Filesystem path to ensure
 
- @returns Resolved path string
+ @returns the path as given, query suffix included
 
  @throws When the path exists but is the wrong kind (file vs directory)
 
@@ -179,7 +183,7 @@ export async function ensurePath(path: string,): Promise<string> {
   /**
    Parsed segments used solely to read `ext`, which decides file-vs-directory dispatch.
    */
-  const parsed = posix.parse(path,);
+  const parsed = posix.parse(stripQuerySuffix(path,),);
 
   if (parsed.ext) {
     l.info(`${path} has extension, ensuring as file`,);
@@ -193,10 +197,12 @@ export async function ensurePath(path: string,): Promise<string> {
 /**
  Ensures a directory exists and is readable/writable.
  Creates it recursively when missing.
+ A `?query` suffix names no directory entry and is stripped before the
+ filesystem is touched.
 
  @param path - Directory path to ensure
 
- @returns Resolved path string
+ @returns the path as given, query suffix included
 
  @throws When the path exists but is not a directory
 
@@ -207,25 +213,30 @@ export async function ensurePath(path: string,): Promise<string> {
  */
 export async function ensureDir(path: string,): Promise<string> {
   /**
+   Path the filesystem operations use: everything from its first `?` on names no entry.
+   */
+  const cleanPath = stripQuerySuffix(path,);
+
+  /**
    Metadata of the existing path, or the missing sentinel.
    */
-  const stats = await statOrMissing(path,);
+  const stats = await statOrMissing(cleanPath,);
 
   if (stats === MISSING_ENTRY) {
-    l.info(`${path} does not exist, creating recursively`,);
+    l.info(`${cleanPath} does not exist, creating recursively`,);
     await mkdir(
-      path,
+      cleanPath,
       { recursive: true, },
     );
     return path;
   }
 
   if (!stats.isDirectory())
-    throw new Error(`Path ${path} exists but is not a directory.`,);
+    throw new Error(`Path ${cleanPath} exists but is not a directory.`,);
 
-  l.info(`${path} already exists, checking accessibility`,);
+  l.info(`${cleanPath} already exists, checking accessibility`,);
   await ensureOwnerAccess({
-    path,
+    path: cleanPath,
     stats,
   },);
   return path;
@@ -330,10 +341,12 @@ async function createFileWhenAbsent(path: string,): Promise<boolean> {
  Creates the file (and parent directories, via {@link ensureDir}) when missing.
  The create is exclusive: a file a second writer creates while this call runs
  keeps its contents.
+ A `?query` suffix names no file entry and is stripped before the filesystem
+ is touched.
 
  @param path - File path to ensure
 
- @returns Resolved path string
+ @returns the path as given, query suffix included
 
  @throws When the path exists but is not a regular file
 
@@ -344,24 +357,29 @@ async function createFileWhenAbsent(path: string,): Promise<boolean> {
  */
 export async function ensureFile(path: string,): Promise<string> {
   /**
+   Path the filesystem operations use: everything from its first `?` on names no entry.
+   */
+  const cleanPath = stripQuerySuffix(path,);
+
+  /**
    Whether this call created the file, rather than finding an entry already there.
    */
-  const created = await createFileWhenAbsent(path,);
+  const created = await createFileWhenAbsent(cleanPath,);
 
   if (created) {
-    l.info(`${path} did not exist, created exclusively`,);
+    l.info(`${cleanPath} did not exist, created exclusively`,);
     return path;
   }
 
   /**
    Metadata of the entry that occupies the path now, or the missing sentinel.
    */
-  const stats = await statOrMissing(path,);
+  const stats = await statOrMissing(cleanPath,);
 
   if (stats === MISSING_ENTRY) {
-    l.info(`${path} is a symbolic link whose target is absent, creating the target`,);
+    l.info(`${cleanPath} is a symbolic link whose target is absent, creating the target`,);
     await writeFile(
-      path,
+      cleanPath,
       '',
       { flag: CREATE_WITHOUT_TRUNCATION_FLAG, },
     );
@@ -369,11 +387,11 @@ export async function ensureFile(path: string,): Promise<string> {
   }
 
   if (!stats.isFile())
-    throw new Error(`Path ${path} exists but is not a file.`,);
+    throw new Error(`Path ${cleanPath} exists but is not a file.`,);
 
-  l.info(`${path} already exists, checking accessibility`,);
+  l.info(`${cleanPath} already exists, checking accessibility`,);
   await ensureOwnerAccess({
-    path,
+    path: cleanPath,
     stats,
   },);
   return path;
