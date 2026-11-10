@@ -648,7 +648,9 @@ pub enum TheWatchOfAStep {
 /// which this wait then backs up rather than replaces.
 /// The reason is the watch's to tell and is
 ///  known before the wait begins,
-/// except for a watch that runs and can end the step: there the wait is only the backstop, later by
+/// except for a watch that runs and can end the step:
+/// there the wait is only the backstop,
+/// later by
 ///  `THE_WATCH_HAS_ITS_ENDING`,
 /// and the answer it gives is the ceiling's own.
 /// `None` in,

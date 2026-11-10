@@ -8,12 +8,14 @@
 use super::*;
 use std::os::fd::AsFd as _;
 use std::io::Write;
-use crate::child_class::CHILD_WAIT_VARIABLE;
+use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_watch_step_bounds_and_errors::output_of;
+use crate::output_capture::Capture;
 use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{Child, Command, Output, Stdio};
 
 /// A cadence of a 60 ms grace and a 60 ms interval,
 /// so a notice comes fast.
@@ -794,7 +796,8 @@ fn the_process_the_step_recorded_has_gone(pid_file: &std::path::Path) -> bool {
 }
 
 impl Write for AWriteTheControlHolds {
-    /// Tell the control the watch is here, then hold it until the step is gone.
+    /// Tell the control the watch is here,
+    /// then hold it until the step is gone.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let _told = self.began.send(());
         let held: Instant = Instant::now();
