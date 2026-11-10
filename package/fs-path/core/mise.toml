@@ -36,6 +36,7 @@ extends = "lint:types"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build both platform artifacts, then run the unit tests (they import the built `.` and `./node` entries)"

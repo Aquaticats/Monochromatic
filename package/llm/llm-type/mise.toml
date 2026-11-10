@@ -30,6 +30,7 @@ extends = "lint:types"
 
 [tasks.test]
 description = "Run type-level and runtime unit tests for every LLM type"
+depends = ["build"]
 run = "node src/self.unit.test.ts"
 
 [tasks.buildAndTest]

@@ -62,6 +62,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the node bin (verification is the build + dts emit; the bin has no inert invocation to smoke-run)"

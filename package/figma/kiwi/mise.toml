@@ -31,6 +31,7 @@ hide = true
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the node bundle, then run every *.unit.test.ts against the built dist"

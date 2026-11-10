@@ -30,6 +30,7 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', 
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."verify:extension"]
 run = ["mise run //package/pi-plugin/openai-fast:build:js:node", "node src/host.unit.test.ts"]

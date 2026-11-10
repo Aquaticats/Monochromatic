@@ -34,6 +34,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the node lib + bin, then run unit tests"

@@ -22,6 +22,7 @@ extends = "watch:build:js:node"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.lint]
 extends = "lint"

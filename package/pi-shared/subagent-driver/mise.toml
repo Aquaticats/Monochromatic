@@ -34,6 +34,7 @@ run = "dprint fmt src"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the library, then run unit tests; the unit tests import the built library and run the bin from source"

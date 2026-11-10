@@ -30,6 +30,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."test:container"]
 description = "Run the reader container matrix in Ubuntu as root and non-root"

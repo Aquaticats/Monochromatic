@@ -168,6 +168,7 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', 
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."test:tsc-failure"]
 description = "Verify built TypeScript wrapper exit handling with disposable compiler processes"

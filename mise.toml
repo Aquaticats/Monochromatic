@@ -547,6 +547,12 @@ run = "{{vars.fanout}}"
 #
 # Task naming follows `${category}${optional(`--${modifier}`)}:${child}`
 # never use depends or post depends, use run only because it's the easiest to understand.
+# One exception, and it is the only one: a task that `extends` a template cannot
+# prepend a step to the inherited `run`, because its own `run` replaces that body
+# instead of leading it. Such a task orders its prerequisite with `depends`.
+# `package/*/*` `test:unit` tasks take this form, so the suite runs against a fresh
+# build output; `package/monorepo-task/core-exec` holds that guard to every package
+# with `package-unit-tests-build-first.unit.test.ts`.
 
 #region Utility Tasks
 

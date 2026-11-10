@@ -34,6 +34,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."test:integration"]
 description = "Run built CLI integration tests against disposable fixtures and a fake gh executable"

@@ -21,6 +21,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.test]
 description = "Build the bundle the unit tests import, then run the whole unit suite"

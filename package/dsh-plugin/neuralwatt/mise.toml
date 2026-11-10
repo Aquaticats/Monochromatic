@@ -30,6 +30,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 run = ["mise run build", "mise run test:unit"]

@@ -53,6 +53,7 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."test:wayland"]
 description = "Run the Electron app inside this repo's nested Wayland compositor with DISPLAY unset"

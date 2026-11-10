@@ -30,6 +30,7 @@ extends = "lint:types"
 
 [tasks.test]
 description = "Run unit tests for every const category"
+depends = ["build"]
 run = "node src/self.unit.test.ts"
 
 [tasks.buildAndTest]
