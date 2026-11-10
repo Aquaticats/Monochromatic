@@ -65,7 +65,9 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
-use crate::earlier_service_command_line_read::{CommandLine, UnreadableProcess, command_line_of};
+use crate::earlier_service_command_line_read::UnreadableProcess;
+#[cfg(unix)]
+use crate::earlier_service_command_line_read::{CommandLine, command_line_of};
 use crate::scan_awaited_under_a_ceiling::scan_under_ceiling_to_its_end;
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
