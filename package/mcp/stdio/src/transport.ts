@@ -120,6 +120,185 @@ export function processStdoutWriter(
 
 //endregion
 
+//region Cancellation: recognizing which request a notification cancels
+
+/**
+ Returned when a message is not a well-formed cancellation notification.
+ */
+const NOT_A_CANCELLATION: unique symbol = Symbol('mcp-stdio message is not a cancellation',);
+
+/**
+ Reads the request id a cancellation notification names.
+ 
+ Revision 2026-07-28 declares `requestId` as a `RequestId`, so a cancellation carrying a
+ missing or wrongly typed one names nothing and is treated as an ordinary notification
+ rather than silently cancelling some other request.
+ 
+ @param message - Validated inbound message
+ 
+ @returns Request id to cancel, or {@link NOT_A_CANCELLATION}
+ 
+ @example
+ ```ts
+ cancelledRequestId({
+   jsonrpc: '2.0',
+   method: 'notifications/cancelled',
+   params: { requestId: 7 },
+ });
+ // 7
+ ```
+ */
+function cancelledRequestId(message: JsonRpcInbound,): JsonRpcId | typeof NOT_A_CANCELLATION {
+  if (message.method !== CANCELLED_NOTIFICATION)
+    return NOT_A_CANCELLATION;
+  // A cancellation is a notification; one carrying an id is malformed, and answering it
+  // as a request would be a likelier reading of the client's intent than cancelling.
+  if ('id' in message)
+    return NOT_A_CANCELLATION;
+  /**
+   Request id this notification claims to cancel, before type validation.
+   */
+  const requestId = message.params
+    ?.requestId;
+  if ((typeof requestId) === 'number')
+    return requestId;
+  if ((typeof requestId) === 'string')
+    return requestId;
+  return NOT_A_CANCELLATION;
+}
+
+/**
+ Queues one already-serialized frame that no cancellation can match.
+ 
+ @param queue - Queue owning write order
+ 
+ @param serialized - JSON text ready for framing
+ 
+ @mutates queue - Appends one entry.
+ 
+ @example
+ ```ts
+ queueFrame({ queue, serialized: '{"jsonrpc":"2.0","id":null,"error":{}}' });
+ ```
+ */
+function queueFrame(
+  {
+    queue,
+    serialized,
+  }: {
+    readonly queue: SerialRequestQueue;
+    readonly serialized: string;
+  },
+): void {
+  queue.enqueue({
+    id: UNCANCELLABLE,
+    produce(): Promise<string> {
+      return Promise.resolve(serialized,);
+    },
+  },);
+}
+
+//endregion
+
+//region Response serialization: keeps an unserializable payload from killing the process
+
+/**
+ Serializes an outbound response, falling back to an internal-error frame when the
+ payload cannot become JSON. A tool returning a cyclic object or a `bigint` would
+ otherwise throw inside the read loop and close the connection mid-session, which a
+ client sees as an unexplained disconnect instead of a failed call.
+ 
+ @param response - Dispatch outcome awaiting transmission.
+ 
+ @param id - Request id echoed by the fallback frame so the client can settle its call.
+ 
+ @returns JSON text ready for framing.
+ 
+ @example
+ ```ts
+ serializeResponse({ response: { jsonrpc: '2.0', id: 1, result: {} }, id: 1 });
+ // '{"jsonrpc":"2.0","id":1,"result":{}}'
+ ```
+ */
+function serializeResponse(
+  {
+    response,
+    id,
+  }: {
+    readonly response: JsonRpcOutbound;
+    // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- JSON-RPC 2.0 section 5 mandates the literal wire value `null` for `id` when the request id cannot be determined; this `null` is the external protocol's required output, not an internal absence sentinel.
+    readonly id: JsonRpcId | null;
+  },
+): string {
+  // Deliberate catch-and-return: serialization failure must reach the client as a frame,
+  // not as a closed connection.
+  try {
+    return JSON.stringify(response,);
+  }
+  catch (error: unknown) {
+    tagged({
+      tag: serializeResponse.name,
+      l: transportLogger,
+    },)
+      .error(`response could not be serialized: ${caughtValueText(error,)}`,);
+    /**
+     Replacement frame reporting that a well-formed result could not be encoded.
+     */
+    const errorResponse: JsonRpcOutbound = {
+      jsonrpc: '2.0',
+      id,
+      error: {
+        code: JSON_RPC_INTERNAL_ERROR,
+        message: `Failed to serialize response: ${caughtValueText(error,)}`,
+      },
+    };
+    return JSON.stringify(errorResponse,);
+  }
+}
+
+//endregion
+
+//region Message serialization: writes JSON-RPC responses to stdout
+
+/**
+ Writes serialized JSON-RPC text as newline-terminated UTF-8 to output stream.
+ 
+ @param writer - Writer for stdout output.
+ 
+ @param encoder - Reusable TextEncoder instance.
+ 
+ @param serialized - JSON-RPC response already serialized where value ownership is known.
+ 
+ 
+ @example
+ ```ts
+ await writeSerializedMessage({
+   writer: processStdoutWriter(),
+   encoder: new TextEncoder(),
+   serialized: '{"jsonrpc":"2.0","id":1,"result":{}}',
+ });
+ ```
+ */
+async function writeSerializedMessage(
+  {
+    writer,
+    encoder,
+    serialized,
+  }: {
+    readonly writer: StdoutWriter;
+    readonly encoder: Pick<TextEncoder, 'encode'>;
+    readonly serialized: string;
+  },
+): Promise<void> {
+  /**
+   Newline-terminated JSON; MCP stdio framing requires one message per line.
+   */
+  const framed = `${serialized}\n`;
+  await writer.write(encoder.encode(framed,),);
+}
+
+//endregion
+
 //region Stdio message loop: reads stdin lines, validates, dispatches, writes responses
 
 /**
@@ -339,185 +518,6 @@ export async function serve(
     },);
   }
 
-}
-
-//endregion
-
-//region Cancellation: recognizing which request a notification cancels
-
-/**
- Returned when a message is not a well-formed cancellation notification.
- */
-const NOT_A_CANCELLATION: unique symbol = Symbol('mcp-stdio message is not a cancellation',);
-
-/**
- Reads the request id a cancellation notification names.
- 
- Revision 2026-07-28 declares `requestId` as a `RequestId`, so a cancellation carrying a
- missing or wrongly typed one names nothing and is treated as an ordinary notification
- rather than silently cancelling some other request.
- 
- @param message - Validated inbound message
- 
- @returns Request id to cancel, or {@link NOT_A_CANCELLATION}
- 
- @example
- ```ts
- cancelledRequestId({
-   jsonrpc: '2.0',
-   method: 'notifications/cancelled',
-   params: { requestId: 7 },
- });
- // 7
- ```
- */
-function cancelledRequestId(message: JsonRpcInbound,): JsonRpcId | typeof NOT_A_CANCELLATION {
-  if (message.method !== CANCELLED_NOTIFICATION)
-    return NOT_A_CANCELLATION;
-  // A cancellation is a notification; one carrying an id is malformed, and answering it
-  // as a request would be a likelier reading of the client's intent than cancelling.
-  if ('id' in message)
-    return NOT_A_CANCELLATION;
-  /**
-   Request id this notification claims to cancel, before type validation.
-   */
-  const requestId = message.params
-    ?.requestId;
-  if ((typeof requestId) === 'number')
-    return requestId;
-  if ((typeof requestId) === 'string')
-    return requestId;
-  return NOT_A_CANCELLATION;
-}
-
-/**
- Queues one already-serialized frame that no cancellation can match.
- 
- @param queue - Queue owning write order
- 
- @param serialized - JSON text ready for framing
- 
- @mutates queue - Appends one entry.
- 
- @example
- ```ts
- queueFrame({ queue, serialized: '{"jsonrpc":"2.0","id":null,"error":{}}' });
- ```
- */
-function queueFrame(
-  {
-    queue,
-    serialized,
-  }: {
-    readonly queue: SerialRequestQueue;
-    readonly serialized: string;
-  },
-): void {
-  queue.enqueue({
-    id: UNCANCELLABLE,
-    produce(): Promise<string> {
-      return Promise.resolve(serialized,);
-    },
-  },);
-}
-
-//endregion
-
-//region Response serialization: keeps an unserializable payload from killing the process
-
-/**
- Serializes an outbound response, falling back to an internal-error frame when the
- payload cannot become JSON. A tool returning a cyclic object or a `bigint` would
- otherwise throw inside the read loop and close the connection mid-session, which a
- client sees as an unexplained disconnect instead of a failed call.
- 
- @param response - Dispatch outcome awaiting transmission.
- 
- @param id - Request id echoed by the fallback frame so the client can settle its call.
- 
- @returns JSON text ready for framing.
- 
- @example
- ```ts
- serializeResponse({ response: { jsonrpc: '2.0', id: 1, result: {} }, id: 1 });
- // '{"jsonrpc":"2.0","id":1,"result":{}}'
- ```
- */
-function serializeResponse(
-  {
-    response,
-    id,
-  }: {
-    readonly response: JsonRpcOutbound;
-    // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- JSON-RPC 2.0 section 5 mandates the literal wire value `null` for `id` when the request id cannot be determined; this `null` is the external protocol's required output, not an internal absence sentinel.
-    readonly id: JsonRpcId | null;
-  },
-): string {
-  // Deliberate catch-and-return: serialization failure must reach the client as a frame,
-  // not as a closed connection.
-  try {
-    return JSON.stringify(response,);
-  }
-  catch (error: unknown) {
-    tagged({
-      tag: serializeResponse.name,
-      l: transportLogger,
-    },)
-      .error(`response could not be serialized: ${caughtValueText(error,)}`,);
-    /**
-     Replacement frame reporting that a well-formed result could not be encoded.
-     */
-    const errorResponse: JsonRpcOutbound = {
-      jsonrpc: '2.0',
-      id,
-      error: {
-        code: JSON_RPC_INTERNAL_ERROR,
-        message: `Failed to serialize response: ${caughtValueText(error,)}`,
-      },
-    };
-    return JSON.stringify(errorResponse,);
-  }
-}
-
-//endregion
-
-//region Message serialization: writes JSON-RPC responses to stdout
-
-/**
- Writes serialized JSON-RPC text as newline-terminated UTF-8 to output stream.
- 
- @param writer - Writer for stdout output.
- 
- @param encoder - Reusable TextEncoder instance.
- 
- @param serialized - JSON-RPC response already serialized where value ownership is known.
- 
- 
- @example
- ```ts
- await writeSerializedMessage({
-   writer: processStdoutWriter(),
-   encoder: new TextEncoder(),
-   serialized: '{"jsonrpc":"2.0","id":1,"result":{}}',
- });
- ```
- */
-async function writeSerializedMessage(
-  {
-    writer,
-    encoder,
-    serialized,
-  }: {
-    readonly writer: StdoutWriter;
-    readonly encoder: Pick<TextEncoder, 'encode'>;
-    readonly serialized: string;
-  },
-): Promise<void> {
-  /**
-   Newline-terminated JSON; MCP stdio framing requires one message per line.
-   */
-  const framed = `${serialized}\n`;
-  await writer.write(encoder.encode(framed,),);
 }
 
 //endregion

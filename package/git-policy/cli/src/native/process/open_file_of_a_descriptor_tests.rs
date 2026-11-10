@@ -131,6 +131,35 @@ fn a_descriptor_whose_record_names_no_mount_is_refused() {
     remove(root.as_path());
 }
 
+/// A descriptor on a kernel `overlay` mount is read,
+/// because that mount's own attributes are in the memory of this kernel,
+/// and the file is read by a child whose ceiling bounds the wait
+/// (`open_file_of_a_descriptor_in_a_child.rs`).
+#[test]
+fn a_descriptor_on_an_overlay_mount_is_read_by_a_child() {
+    let root: PathBuf = fixture("open-file-overlay");
+    let held: PathBuf = root.join("held");
+    std::fs::write(&held, b"held\n").expect("the file the descriptor names");
+    let process: PathBuf = table_with_mount(root.as_path(), Some(7), Some("overlay"));
+    std::os::unix::fs::symlink(&held, process.join("fd").join("3")).expect("a descriptor of the control's own");
+    let opened: OpenedFile = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect("the overlay mount is read");
+    assert_eq!(opened, identity_of_file(held.as_path()), "the child names the file the descriptor names");
+    remove(root.as_path());
+}
+
+/// `fuse-overlayfs` is a different file system type,
+/// served by a process of this machine,
+/// so a descriptor on it stays refused and the refusal names it.
+#[test]
+fn a_descriptor_on_fuse_overlayfs_is_refused() {
+    let root: PathBuf = fixture("open-file-fuse-overlayfs");
+    let process: PathBuf = table_with_mount(root.as_path(), Some(7), Some("fuse-overlayfs"));
+    let error: std::io::Error = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect_err("a fuse-overlayfs mount is not read");
+    assert_eq!(error.kind(), std::io::ErrorKind::Unsupported, "{error}");
+    assert!(error.to_string().contains("`fuse-overlayfs`"), "the reason names the file system: {error}");
+    remove(root.as_path());
+}
+
 /// A descriptor of a process that has ended is the kernel's own refusal,
 /// which a caller reads as a process that ended during the scan.
 #[test]

@@ -277,27 +277,6 @@ export function createSerialRequestQueue(
   }
 
   /**
-   Starts a drain when none is running, leaving an active one to pick up new entries.
-   
-   Records the failure rather than letting the drain promise reject on its own, so a
-   rejection cannot go unobserved while the read loop is still consuming stdin.
-   
-   Publishes the active marker before any drain code runs.
-   */
-  function startDraining(): void {
-    if (running.has('active',))
-      return;
-    running.set(
-      'active',
-      true,
-    );
-    draining.set(
-      'active',
-      recordFailure(),
-    );
-  }
-
-  /**
    Runs a drain, storing whatever ended it for {@link SerialRequestQueue.idle} to rethrow.
    */
   async function recordFailure(): Promise<void> {
@@ -317,6 +296,27 @@ export function createSerialRequestQueue(
         error,
       );
     }
+  }
+
+  /**
+   Starts a drain when none is running, leaving an active one to pick up new entries.
+   
+   Records the failure rather than letting the drain promise reject on its own, so a
+   rejection cannot go unobserved while the read loop is still consuming stdin.
+   
+   Publishes the active marker before any drain code runs.
+   */
+  function startDraining(): void {
+    if (running.has('active',))
+      return;
+    running.set(
+      'active',
+      true,
+    );
+    draining.set(
+      'active',
+      recordFailure(),
+    );
   }
 
   return {
