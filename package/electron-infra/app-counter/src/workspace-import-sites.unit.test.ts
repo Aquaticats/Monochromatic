@@ -55,6 +55,49 @@ const specifierQuotes = [
 const moduleSuffix = '.ts';
 
 /**
+ Keywords and call forms whose last token before a quote is a module
+ specifier, so a quoted fixture string elsewhere in a module is not one.
+ */
+const specifierIntroducers = [
+  'from',
+  'import',
+  'import(',
+  'require(',
+] as const;
+
+/**
+ Whether the quote at one offset opens a module specifier.
+ 
+ @param sourceText - Text of the module being scanned
+ 
+ @param quoteIndex - Offset of the opening quote
+ 
+ @returns whether an import keyword directly precedes the quote
+ 
+ @example
+ ```ts
+ opensSpecifier({ sourceText: "import x from 'y';", quoteIndex: 14, }); // true
+ ```
+ */
+function opensSpecifier({
+  sourceText,
+  quoteIndex,
+}: {
+  readonly sourceText: string;
+  readonly quoteIndex: number;
+},): boolean {
+  /**
+   Code before the quote, without the whitespace between token and quote.
+   */
+  const beforeQuote = sourceText.slice(0, quoteIndex,)
+    .trimEnd();
+  return specifierIntroducers
+    .some(function namesIntroducer(introducer,) {
+      return beforeQuote.endsWith(introducer,);
+    },);
+}
+
+/**
  Source modules of this package.
  
  @returns Absolute paths of every module in this package's source directory.
@@ -75,8 +118,9 @@ function sourceModulePaths(): string[] {
 /**
  Workspace specifiers one module imports or re-exports.
  
- A specifier counts only when a quote directly precedes the workspace scope, so
- the scan needs no parser and cannot mistake prose for an import.
+ A specifier counts only when a quote holding the workspace scope follows an
+ import keyword, so the scan needs no parser and cannot mistake prose or a
+ fixture string for an import.
  
  @param sourceText - Text of one source module.
  
@@ -124,10 +168,14 @@ function workspaceSpecifiers(sourceText: string,): string[] {
       if (specifierEnd === (-1))
         break;
 
-      specifiers.push(sourceText.slice(
-        specifierStart,
-        specifierEnd,
-      ),);
+      if (opensSpecifier({
+        sourceText,
+        quoteIndex: markerIndex,
+      },))
+        specifiers.push(sourceText.slice(
+          specifierStart,
+          specifierEnd,
+        ),);
       searchFrom = specifierEnd + 1;
     }
 
