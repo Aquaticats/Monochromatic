@@ -941,16 +941,16 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
         "the two faces answer the same push the same way"
     );
     assert_eq!(String::from_utf8_lossy(awaited_err.as_slice()).into_owned(), sync_shown);
-    assert_eq!(
-        String::from_utf8_lossy(&git(sync_repo.as_path(), &["rev-parse", "@{upstream}"]).stdout),
-        String::from_utf8_lossy(&git(awaited_repo.as_path(), &["rev-parse", "@{upstream}"]).stdout),
-        "both delivered the commit, and both created the same tracking ref"
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&git(sync_repo.as_path(), &["rev-parse", "HEAD"]).stdout),
-        String::from_utf8_lossy(&git(awaited_repo.as_path(), &["rev-parse", "HEAD"]).stdout),
-        "both pushed the same commit"
-    );
+    // Each face delivered the tip of its own repository, and its push created that repository's tracking ref.
+    // The two repositories commit one after the other,
+    // so their commit names differ whenever the clock passes a second between them:
+    // comparing the two names compared a clock and not a push.
+    for repo in [sync_repo.as_path(), awaited_repo.as_path()] {
+        let delivered: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "@{upstream}"]).stdout).trim().to_owned();
+        let tip: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+        assert_eq!(delivered, tip, "the push delivered {}'s own tip", repo.display());
+        assert!(!tip.is_empty(), "{} has a tip", repo.display());
+    }
     assert_eq!(read_log(sync_log.as_path()), read_log(awaited_log.as_path()), "both ran the same hook");
     // The positive control: the synchronous face inside the runtime is refused, not silently run.
     let mut refused_err: Vec<u8> = Vec::new();

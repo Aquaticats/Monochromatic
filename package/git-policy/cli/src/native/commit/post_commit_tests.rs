@@ -268,7 +268,41 @@ fn an_engine_failure_retains_the_commit_and_reports_the_failure() {
         .collect();
     assert_eq!(kinds.last(), Some(&"commit-landed"), "{kinds:?}");
     assert!(kinds.contains(&"engine-failure"), "{kinds:?}");
+    // The words the verdict keeps for the push and the notice name the check that refused the commit,
+    // in one line.
+    let reason: String = blocked_reason(outcome.events.as_slice());
+    assert!(reason.starts_with("final-newline: "), "{reason}");
+    assert!(!reason.contains('\n'), "one line: {reason}");
     remove(&root);
+}
+
+/// What:
+///  A failure no policy is responsible for is named with its own message,
+/// and one that belongs to a policy names the policy first.
+/// Why:
+///   The verdict is what the person reads for a push that did not happen,
+/// so an empty policy name would read as a
+///  refusal by nothing.
+#[test]
+fn a_reason_names_the_policy_that_failed_and_nothing_when_none_did() {
+    let without_policy = [PolicyEvent::EngineFailure {
+        code: EngineFailureCode::ContentUnavailable,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
+        message: String::from("the repository's top level cannot be read"),
+        trigger: Some(Trigger::PostCommit),
+        policy: None,
+        path: None,
+    }];
+    assert_eq!(blocked_reason(without_policy.as_slice()), "the repository's top level cannot be read");
+    let with_policy = [PolicyEvent::EngineFailure {
+        code: EngineFailureCode::ContentUnavailable,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
+        message: String::from("the rules file cannot be read"),
+        trigger: Some(Trigger::PostCommit),
+        policy: Some(PolicyId::ForbiddenStrings),
+        path: None,
+    }];
+    assert_eq!(blocked_reason(with_policy.as_slice()), "security/forbidden-strings: the rules file cannot be read");
 }
 
 /// A landed name that is not an object name is an engine failure,
