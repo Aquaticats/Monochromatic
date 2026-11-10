@@ -2459,3 +2459,49 @@ fn a_fast_forward_that_loses_the_race_in_a_task_settles_its_record_from_a_thread
     assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "the record was settled");
     remove(&s.root);
 }
+
+/// The reconcile of a rejected push is a task's work:
+/// the awaited face publishes the merge and moves the branch and its checkout exactly as the synchronous face does,
+/// and the synchronous face of the same reconcile is refused from inside the runtime,
+/// which is why the awaited one exists.
+#[test]
+fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
+    let s = scenario("ar-reconcile-awaiting");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let rejected = PushAttempt {
+        exit_code: 1,
+        output: String::from(" ! [rejected] main -> main (fetch first)"),
+    };
+    let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
+    let refused = crate::lazy_runtime::run_on_runtime(async {
+        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", rejected.clone());
+    })
+    .expect("the runtime runs the work");
+    let refusal: String = match refused {
+        Err(error) => format!("{error}"),
+        Ok(attempt) => panic!("the synchronous reconcile cannot start Git inside the runtime, and it answered {attempt:?}"),
+    };
+    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "the refused face published nothing");
+    let attempt: PushAttempt = await_it(crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting(
+        &push_git(&s.local),
+        "refs/heads/main",
+        rejected,
+    ))
+    .expect("git");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(attempt.output.contains("was published"), "{}", attempt.output);
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published, "the branch and its checkout follow the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), published);
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private ref is left");
+    assert_ne!(published, landed, "the published tip is the merge, not the landed commit");
+    assert_eq!(
+        text_of(&s.local, &["rev-list", "--parents", "-n", "1", published.as_str()]).split(' ').count(),
+        3,
+        "the published commit is a merge"
+    );
+    remove(&s.root);
+}
