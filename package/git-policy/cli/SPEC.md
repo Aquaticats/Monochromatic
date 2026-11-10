@@ -5881,7 +5881,7 @@ in-process reader can) gives every value of the multi-valued keys.
   (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
   so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
-  (`src/native/push/auto_push_reconcile.rs`).
+  (`wording_of` in `src/native/push/auto_push_reconcile_plan.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
@@ -5938,6 +5938,24 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+- The reconcile is one loop,
+  and it is awaited
+  (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);
+  the plan it integrates and every word of its report are read once
+  (`src/native/push/auto_push_reconcile_plan.rs`).
+  A command that is not a task of the runtime reaches that one loop by running it on the runtime
+  (`integrate_and_push` in `src/native/push/auto_push_reconcile.rs`),
+  and the merge push such a command supplies runs on a plain thread of its own beside the loop.
+  That push plans and runs a real `git push` synchronously
+  (`gated_merge_push`,
+  the merge push of a person's explicit `git push`),
+  and a start of Git from inside the runtime is refused;
+  the thread is a plain one and never a job of the blocking pool,
+  which is inside the runtime and would refuse the same start.
+  A thread the system refuses is not worked around:
+  no merge is published,
+  the branch and the worktree stay as the failed push left them,
+  and the push's own report is what the person reads.
 - No push without a connection waits without a bound,
   and no push with an open connection is stopped for time.
   The push is stopped on no progress and no open connection,

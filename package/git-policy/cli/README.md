@@ -4667,6 +4667,13 @@ each with its sidecar test file.
   merges with the corpus in
   `merge/word_merge_corpus/`,
   and conflict state around commits and checkouts.
+  A push the remote refused as stale is reconciled by one awaited loop
+  (`push/auto_push_reconcile_awaiting.rs`),
+  whose plan and words are read once
+  (`push/auto_push_reconcile_plan.rs`);
+  a command outside the runtime reaches that loop through
+  `push/auto_push_reconcile.rs`,
+  which carries the merge push of a person's explicit `git push` on a plain thread of its own.
 - `worktree/`,
   `worktree_copying/`,
   `subvolume/`,

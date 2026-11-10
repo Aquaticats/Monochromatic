@@ -9225,6 +9225,146 @@ made in one place instead of behind a lock.
   but a handler that holds one for its whole run would.
 
 
+## Step T12, the reconcile loop has one body and the blocking entry bridges to it, 2026-11-10T06:53:55-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-reconcile-loop-has-one-body` in
+  `.claude/worktrees/pi-reconcile-loop-has-one-body`,
+  from main at `137595987a`
+  (`3fb25eeeb1` is the one docs commit main holds beyond it).
+  Commit `97d5a76800` is the change,
+  and this section follows it.
+  Not merged into main.
+- What the recorded finding said,
+  and what is true on main:
+  the section "the push chain is awaited to the handlers" records that
+  the loop is "written twice":
+  once synchronously and once awaited,
+  and that the two "cannot differ in one function (`wording_of`) and the same helpers below the seam;
+  what they do differ in is the awaits and the pusher call".
+  The duplication is real,
+  and the second half of that record is what this run found:
+  the two bodies did **not** differ in behaviour.
+  Comparing `integrate_and_push` (`push/auto_push_reconcile.rs`)
+  with `integrate_and_push_awaiting` (`push/auto_push_reconcile_awaiting.rs`)
+  after normalising `await`,
+  the explicit type annotations and the pusher's name
+  gives two identical texts,
+  and the only commit that touched one and not the other after the pair was made
+  (`f0d7f21dd6`)
+  changed four `&failed_prefix` arguments to `failed_prefix`,
+  which deref coercion makes the same value.
+  So no fix was missing from either body,
+  and the defect this run removes is the duplication itself:
+  a change made in one place silently leaving the other behind,
+  with nothing in the tree saying which is the body.
+- What changed:
+  - `push/auto_push_reconcile_plan.rs` is new.
+    It holds the plan and the words:
+    `Reconcile`,
+    `Integrated`,
+    `Wording`,
+    and `wording_of`.
+    It depends on no other reconcile file,
+    so the two entries can read one plan without depending on each other.
+  - `push/auto_push_reconcile_awaiting.rs` keeps the one body
+    (`integrate_and_push_awaiting`)
+    and the awaited entry (`reconcile_divergent_push_awaiting`).
+  - `push/auto_push_reconcile.rs` keeps the entry a command outside the runtime calls
+    (`reconcile_divergent_push`)
+    and its bridge (`integrate_and_push`).
+    The bridge runs the one body on the runtime through `run_on_runtime`
+    and starts one plain thread that carries the caller's merge push,
+    so the loop awaits that push over a channel instead of calling it.
+    `side_by_side_threads::in_thread_scope` makes the scope callable,
+    which is that file's own job,
+    so this file writes no scope closure.
+  - The synchronous faces of the chain below the loop
+    (`is_ancestor`,
+    `fetch_remote_tip`,
+    `sweep_private_fetch_refs`,
+    `commit_merge`,
+    `advance_local_branch`)
+    are now what only the control that compares the two faces asks,
+    so they are `#[cfg(test)]`,
+    as `common_dir_of` and `signs_commits` already were.
+    The reconcile chain is awaited in production from here.
+  - `push/push_stacking.rs`:
+    the planner type a stacked push carries
+    (`MergePush`)
+    is now `Send + Sync`,
+    because it travels to the thread that runs the merge push.
+    That is the whole change to that file.
+- The one bridge that stays,
+  and what removes it:
+  `push_stacking`'s merge push is `gated_merge_push`,
+  which plans and runs a real Git push synchronously for a person's explicit push,
+  and a start of Git from inside the runtime is refused
+  (`lazy_runtime::run_on_runtime`).
+  Converting that planner to an awaited one
+  (the record's "a folder of its own")
+  removes the thread,
+  the channel and the two messages,
+  and the bridge becomes `run_on_runtime(integrate_and_push_awaiting(...))` alone.
+  A thread the system refuses does not run the push in its place:
+  `integrate_and_push` answers `Integrated::NotDivergent`,
+  the push's own report stands,
+  and nothing is published,
+  which the control below pins.
+- What the controls pin,
+  and what each was shown to catch:
+  - `a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_inside_it`
+    (`push/auto_push_reconcile_tests.rs`):
+    a merge push that asks Git through the wrapper's own synchronous query face
+    publishes the merge from the blocking entry,
+    and runs on a thread of its own.
+    Shown red twice:
+    on main at `137595987a`,
+    where the push ran on the thread that waited for the loop
+    (`left: Some(ThreadId(2))`,
+    `right: Some(ThreadId(2))`),
+    and with the obvious wrong bridge planted
+    (`Box::pin(std::future::ready(push_merge.push_merge(...)))`),
+    where it failed with
+    "the runtime that runs this command's waits was asked for from inside itself".
+  - `a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_it_was`:
+    with `scoped_start::RefusedStarts::here()`,
+    the run answers the rejected attempt unchanged
+    (`exit_code` 1,
+    the `[rejected]` line),
+    pushes nothing,
+    publishes nothing,
+    moves neither the branch nor the worktree,
+    and leaves no private fetch ref.
+- Checks:
+  - `//package/git-policy/cli:native:test:host -- auto_push_reconcile`,
+    one run,
+    in a `systemd-run --user --scope` at `CPUQuota=600%`,
+    `MemoryMax=24G` and `TasksMax=4000`,
+    with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`:
+    85 of 85 passed in 4.4 s.
+  - `native:clippy` clean
+    (`cargo clippy --locked --offline --all-targets -- -D warnings`).
+  - `//:lint:monochromatic-lint --max-warnings 0` on
+    `package/git-policy/cli/src/native/push`,
+    `package/git-policy/cli/src/native/foundation` and
+    `package/git-policy/cli/doc/closure-lint-suppressions.md`:
+    no finding.
+  - Not run:
+    the whole `native:test:host` suite,
+    the container gate,
+    `native:perf`,
+    and any mutation campaign (paused by the owner).
+- `package/git-policy/cli/doc/closure-lint-suppressions.md` did not exist,
+  although five suppressions in this crate already cited it
+  (`foundation/scoped_start.rs`,
+  `foundation/side_by_side_threads.rs`,
+  `foundation/call_catching_panics.rs`,
+  and twice in `landing/landing_state_carried_by_its_task.rs`).
+  This run wrote it with the sysroot and `tokio` 1.54.1 signatures of every
+  standard-library function that accepts only a callable,
+  and with this run's sixth suppression beside the other five.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
