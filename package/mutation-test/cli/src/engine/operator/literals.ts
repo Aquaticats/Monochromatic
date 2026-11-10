@@ -13,6 +13,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Constants
+
 /**
  Filler text injected when an empty string or template is mutated,
  mirroring Stryker's "Stryker was here!" marker under our own name.
@@ -32,6 +34,10 @@ const PROTECTED_STRING_PARENTS: ReadonlySet<string> = new Set([
   'ImportAttribute',
   'TSLiteralType',
 ],);
+
+//endregion Constants
+
+//region String positions that must not be mutated
 
 /**
  Returns whether a string literal sits in a position that must not be
@@ -74,6 +80,10 @@ function isProtectedString(options: {
     && ((typeof options.parent
       .directive) === 'string');
 }
+
+//endregion String positions that must not be mutated
+
+//region Replacement emission
 
 /**
  Emits literal replacements for one node.
@@ -193,3 +203,5 @@ export function literalReplacements(options: {
 
   return [];
 }
+
+//endregion Replacement emission
