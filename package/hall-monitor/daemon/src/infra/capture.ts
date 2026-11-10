@@ -2,7 +2,22 @@ import { spawn as cpSpawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import { unlink, } from 'node:fs/promises';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
+
+import {
+  log,
+  reportExpectedFailure,
+} from './syslog.ts';
+
+/**
+ Module logger: the journal identity this package files every record under, then this module's
+ subsystem tag.
+ */
+const l = tagged({
+  l: log,
+  tag: 'capture',
+},);
 
 /**
  Path to the ffmpeg binary.
@@ -63,11 +78,12 @@ export async function captureScreenshot(): Promise<Buffer> {
       try {
         await unlink(tmp,);
       }
-      catch (error) {
-        if (!(Error.isError(error,)))
-          throw error;
-
-        /* temp file cleanup is best-effort */
+      catch (error: unknown) {
+        reportExpectedFailure({
+          error,
+          l,
+          operation: `removal of the screenshot handoff file ${tmp}`,
+        },);
       }
     },
   } as AsyncDisposable;

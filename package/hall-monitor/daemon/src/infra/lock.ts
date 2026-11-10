@@ -10,7 +10,10 @@ import {
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { log, } from './syslog.ts';
+import {
+  log,
+  reportExpectedFailure,
+} from './syslog.ts';
 
 /**
  Module logger: the journal identity this package files every record under, then this module's
@@ -257,11 +260,12 @@ async function findSocketOwnerPid(): Promise<number> {
         }
       }
     }
-    catch (error) {
-      if (!(Error.isError(error,)))
-        throw error;
-
-      // permission denied or process exited between readdir and readlink
+    catch (error: unknown) {
+      reportExpectedFailure({
+        error,
+        l,
+        operation: `scan of the descriptors of process ${pid}`,
+      },);
     }
   }
   throw new Error('Socket in use but could not find owner PID.',);
@@ -320,11 +324,12 @@ export async function killExisting(): Promise<void> {
       'SIGKILL',
     );
   }
-  catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    // process may already be gone
+  catch (error: unknown) {
+    reportExpectedFailure({
+      error,
+      l: fnLog,
+      operation: `SIGKILL to process ${pid}`,
+    },);
   }
 
   for (let loopIndex = 0; loopIndex < SIGKILL_RETRIES; loopIndex++) {

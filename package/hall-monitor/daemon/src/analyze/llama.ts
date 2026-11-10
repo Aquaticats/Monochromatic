@@ -7,7 +7,10 @@ import { setTimeout, } from 'node:timers/promises';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
-import { log, } from '../infra/syslog.ts';
+import {
+  log,
+  reportExpectedFailure,
+} from '../infra/syslog.ts';
 
 /**
  Module logger: the journal identity this package files every record under, then this module's
@@ -156,11 +159,12 @@ export async function stop(): Promise<void> {
       ],
     );
   }
-  catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    // process may already be gone, or pkill exits non-zero if no match
+  catch (error: unknown) {
+    reportExpectedFailure({
+      error,
+      l: fnLog,
+      operation: 'pkill of the running llama-server',
+    },);
   }
 
   /**
@@ -206,6 +210,14 @@ export async function stop(): Promise<void> {
  ```
  */
 export async function forceCleanup(): Promise<void> {
+  /**
+   Forced-cleanup logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: forceCleanup.name,
+  },);
+
   try {
     await spawn(
       'pkill',
@@ -216,11 +228,12 @@ export async function forceCleanup(): Promise<void> {
       ],
     );
   }
-  catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    // process may already be gone, or pkill exits non-zero if no match
+  catch (error: unknown) {
+    reportExpectedFailure({
+      error,
+      l: fnLog,
+      operation: 'pkill -9 of any llama-server left running',
+    },);
   }
   delete state.server;
 }
@@ -236,6 +249,14 @@ const MAX_HEALTH_POLLS = Math.ceil(HEALTH_TIMEOUT_MS / HEALTH_POLL_MS,);
  @throws when the server does not become healthy within {@link MAX_HEALTH_POLLS} attempts
  */
 async function waitForHealth(): Promise<void> {
+  /**
+   Health-poll logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: waitForHealth.name,
+  },);
+
   for (let attempt = 0; attempt < MAX_HEALTH_POLLS; attempt++) {
     try {
       /**
@@ -254,11 +275,12 @@ async function waitForHealth(): Promise<void> {
           return;
       }
     }
-    catch (error) {
-      if (!(Error.isError(error,)))
-        throw error;
-
-      // server not up yet
+    catch (error: unknown) {
+      reportExpectedFailure({
+        error,
+        l: fnLog,
+        operation: 'llama-server health probe',
+      },);
     }
     // oxlint-disable-next-line no-await-in-loop -- sequential poll delay
     await setTimeout(HEALTH_POLL_MS,);
