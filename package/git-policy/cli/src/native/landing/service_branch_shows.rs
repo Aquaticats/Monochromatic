@@ -32,6 +32,8 @@ use crate::service_prepare::Ready;
 use crate::commit_transaction::TransactionStop;
 /// The words of a failure.
 use crate::service_messages::render;
+/// The name of a reference as a message states it.
+use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 
 /// What:
 ///  Read the branch once and say whether it holds the commit this command prepared.
@@ -79,6 +81,39 @@ pub(crate) fn branch_moved(ready: &Ready) -> TransactionStop {
 /// ```
 pub(crate) fn display_text(file: &Path) -> String {
     return file.display().to_string();
+}
+
+/// What:
+///  The stop a commit gets when the worktree is no longer on the branch the commit was prepared on.
+/// Why:
+///   A preparation that found another branch cannot land what it prepared,
+/// so the command ends like native Git's,
+///  with the typed message kept in its file;
+/// landing it on the branch as it is now would commit the person's change onto work they did not prepare it against.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stop = refusedWhenTheBranchSwitched(firstReference, reference, messageFile);
+/// ```
+pub(crate) fn refused_when_the_branch_switched(
+    first_reference: Option<&str>,
+    reference: &str,
+    fixed_message: Option<&Path>,
+) -> Option<TransactionStop> {
+    // A commit whose first preparation found this same branch has not switched anywhere.
+    let first_branch: &str = match first_reference {
+        Some(known) => known,
+        None => reference,
+    };
+    if first_branch == reference {
+        return None;
+    }
+    let failure: ClientFailure = ClientFailure::BranchSwitched {
+        branch: switched_branch_name(first_branch),
+        now: switched_branch_name(reference),
+        file: fixed_message.map(display_text),
+    };
+    return Some(TransactionStop::Message(render(&failure)));
 }
 
 /// What:

@@ -53,6 +53,9 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// The layout of the captured invocation a request was prepared from.
+use crate::capture_invocation::InvocationLayout;
+
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli-service";
 
@@ -260,6 +263,27 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
         Some(tree) => tree_closures_missing(&database, &[tree], format),
         None => false,
     };
+}
+
+/// What:
+///  Whether the objects the request names are gone from the repository the capture wrote them to.
+/// Why:
+///   The service answers a request it cannot land with a general failure,
+/// and removed content is the one such answer that must say what happened instead of naming the service;
+/// the three locations it reads are the capture's,
+/// so a caller asks this question and never assembles them itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (theObjectsItNamesAreGone(request, layout)) fail(CONTENT_PRUNED);
+/// ```
+pub(crate) fn the_objects_it_names_are_gone(request: &CommitRequest, layout: &InvocationLayout) -> bool {
+    return prepared_content_missing(
+        layout.common_dir.as_path(),
+        layout.object_directory.as_path(),
+        layout.object_format.as_str(),
+        request,
+    );
 }
 
 /// What:

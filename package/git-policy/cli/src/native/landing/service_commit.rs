@@ -42,7 +42,7 @@ use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktr
 /// The look for the commit a request that was already sent made.
 use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_fitting_request::embedded_that_fits;
-use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
+use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for};
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
@@ -62,7 +62,7 @@ use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
 /// Provisioning the service before the first submission.
 use crate::service_provision::provision_when_needed;
-use crate::service_branch_shows::{branch_moved, display_text};
+use crate::service_branch_shows::{branch_moved, refused_when_the_branch_switched};
 /// The result of a commit that landed,
 /// and the work after it.
 use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
@@ -76,7 +76,7 @@ use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, t
 /// and the message Git typed into the commit it built.
 use crate::service_commit_request_of::{RequestOf, the_request_of};
 use crate::service_protocol::CommitRequest;
-use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
+use crate::service_pruned::{content_was_removed, reach_service_phase, the_objects_it_names_are_gone};
 use crate::transaction_phase::Phase;
 /// The base a preparation read,
 /// which says whether the branch existed at all.
@@ -214,17 +214,8 @@ pub fn service_commit<F: RepositoryFacts>(
         if first_reference.is_none() {
             first_reference = Some(ready.reference.clone());
         }
-        let first_branch: String = match first_reference.as_ref() {
-            Some(known) => known.clone(),
-            None => ready.reference.clone(),
-        };
-        if first_branch != ready.reference {
-            let failure: ClientFailure = ClientFailure::BranchSwitched {
-                branch: switched_branch_name(first_branch.as_str()),
-                now: switched_branch_name(ready.reference.as_str()),
-                file: fixed_message.as_deref().map(display_text),
-            };
-            return Err(TransactionStop::Message(render(&failure)));
+        if let Some(stop) = refused_when_the_branch_switched(first_reference.as_deref(), ready.reference.as_str(), fixed_message.as_deref()) {
+            return Err(stop);
         }
         if !decided {
             decided = true;
@@ -438,12 +429,7 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Err(branch_moved(&ready));
             }
             Err(ClientFailure::Unavailable)
-                if prepared_content_missing(
-                    native_inputs.capture.layout.common_dir.as_path(),
-                    native_inputs.capture.layout.object_directory.as_path(),
-                    native_inputs.capture.layout.object_format.as_str(),
-                    &sent,
-                ) =>
+                if the_objects_it_names_are_gone(&sent, &native_inputs.capture.layout) =>
             {
                 // The service could not land the request because an object it names is gone from the repository, and the
                 //  worktree is not read again to make it.
