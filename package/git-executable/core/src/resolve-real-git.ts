@@ -1,7 +1,7 @@
 import { constants, } from 'node:fs';
 import { access, } from 'node:fs/promises';
 import {
-  delimiter,
+  posix,
   resolve,
   win32,
 } from 'node:path';
@@ -15,6 +15,7 @@ import {
   GitCandidateFileTypeError,
   GitCandidateInspectionLimitError,
   isGitPolicySelfShim,
+  SELF_SHIM_INSPECTION_KIBIBYTES,
 } from './self-shim.ts';
 import type { ResolveRealGitOptions, } from './types.ts';
 
@@ -54,6 +55,20 @@ type BuildCandidateSequenceOptions = {
    Common paths promoted when PATH exposes them.
    */
   readonly commonGitPaths: readonly string[];
+};
+
+/**
+ Ordered executable candidates and the subset promoted ahead of PATH order.
+ */
+type BuildCandidateSequenceResult = {
+  /**
+   Deduplicated absolute candidates in resolution order.
+   */
+  readonly candidates: readonly string[];
+  /**
+   Candidates promoted because PATH exposes them.
+   */
+  readonly promotedCandidates: readonly string[];
 };
 
 //endregion Resolver state and candidate types
@@ -138,7 +153,8 @@ function candidateIdentity({
  
  @param commonGitPaths - Common paths promoted when PATH exposes them.
  
- @returns Deduplicated absolute candidates in resolution order.
+ @returns Deduplicated absolute candidates in resolution order,
+ plus the candidates promoted ahead of PATH order.
  
  @example
  ```ts
@@ -149,7 +165,10 @@ function candidateIdentity({
    cwd: '/workspace',
    commonGitPaths: ['/usr/bin/git'],
  });
- // => ['/usr/bin/git', '/custom/bin/git']
+ // => {
+ //   candidates: ['/usr/bin/git', '/custom/bin/git'],
+ //   promotedCandidates: ['/usr/bin/git'],
+ // }
  ```
  */
 function buildCandidateSequence({
@@ -158,7 +177,7 @@ function buildCandidateSequence({
   pathExtensions,
   cwd,
   commonGitPaths,
-}: BuildCandidateSequenceOptions,): readonly string[] {
+}: BuildCandidateSequenceOptions,): BuildCandidateSequenceResult {
   /**
    Platform-specific executable basenames in shell lookup order.
    */
@@ -172,7 +191,7 @@ function buildCandidateSequence({
    */
   const pathDelimiter = platform === 'win32'
     ? win32.delimiter
-    : delimiter;
+    : posix.delimiter;
   /**
    Absolute executable candidates derived from PATH directory order.
    */
@@ -219,10 +238,13 @@ function buildCandidateSequence({
       : [exposedPath,];
   },);
 
-  return [...new Set([
-    ...exposedCommonGitPaths,
-    ...pathCandidates,
-  ],),];
+  return {
+    candidates: [...new Set([
+      ...exposedCommonGitPaths,
+      ...pathCandidates,
+    ],),],
+    promotedCandidates: exposedCommonGitPaths,
+  };
 }
 
 //endregion Candidate construction
@@ -249,13 +271,15 @@ function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
 }
 
 /**
- Reports expected candidate-unavailable filesystem outcomes.
+ Reports candidate-unavailable filesystem outcomes that need no diagnostic.
+ 
+ Rejections for a candidate's file shape carry their own diagnostics and are
+ recorded by the scan before this check runs.
  
  @param error - Caught candidate failure.
  
- @returns Whether failure means candidate is absent,
- unreachable through a non-directory,
- or unreachable because parent path is not a directory.
+ @returns Whether failure means the candidate is absent,
+ or unreachable through a non-directory or a missing parent directory.
  
  @example
  ```ts
@@ -264,9 +288,6 @@ function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
  ```
  */
 function isExpectedCandidateMiss(error: unknown,): boolean {
-  if ((error instanceof GitCandidateFileTypeError)
-    || (error instanceof GitCandidateInspectionLimitError))
-    return true;
   if (!isErrnoException(error,))
     return false;
   return (error.code === 'ENOENT')
@@ -278,16 +299,24 @@ function isExpectedCandidateMiss(error: unknown,): boolean {
  
  @param candidates - Absolute candidates in common-path-first order.
  
+ @param promotedCandidates - Candidates promoted ahead of PATH order.
+ 
  @returns First usable real-Git executable path.
  
  @throws {@link RealGitNotFoundError} when every candidate is unavailable or self-referential.
  
  @example
  ```ts
- await scanCandidateSequence(['/usr/bin/git']);
+ await scanCandidateSequence({ candidates: ['/usr/bin/git'], promotedCandidates: [] });
  ```
  */
-async function scanCandidateSequence(candidates: readonly string[],): Promise<string> {
+async function scanCandidateSequence({
+  candidates,
+  promotedCandidates,
+}: {
+  readonly candidates: readonly string[];
+  readonly promotedCandidates: readonly string[];
+},): Promise<string> {
   /**
    Function-tagged logger for candidate scan decisions.
    */
@@ -299,6 +328,14 @@ async function scanCandidateSequence(candidates: readonly string[],): Promise<st
    Self-referential wrappers rejected before selected executable.
    */
   const skippedSelfShimPaths: string[] = [];
+  /**
+   Candidates rejected because the opened object is not a regular file.
+   */
+  const skippedNonRegularCandidatePaths: string[] = [];
+  /**
+   Non-native candidates rejected for exceeding the script inspection bound.
+   */
+  const skippedOversizedCandidatePaths: string[] = [];
 
   for (const candidate of candidates) {
     try {
@@ -313,13 +350,36 @@ async function scanCandidateSequence(candidates: readonly string[],): Promise<st
         continue;
       }
 
+      /**
+       Where the selected candidate came from in the scanned sequence.
+       */
+      const selectionOrigin = promotedCandidates.includes(candidate,)
+        ? 'a promoted common platform path'
+        : 'PATH order';
+
       rl.debug(
-        `resolved real Git at ${candidate} using common-platform-path priority; `
+        `resolved real Git at ${candidate} from ${selectionOrigin}; `
+          + `promoted common platform paths: ${String(promotedCandidates.length,)}; `
           + `self shims skipped: ${String(skippedSelfShimPaths.length,)}`,
       );
       return candidate;
     }
     catch (error: unknown) {
+      if (error instanceof GitCandidateFileTypeError) {
+        skippedNonRegularCandidatePaths.push(candidate,);
+        rl.debug(`Git candidate at ${candidate} is not a regular file`,);
+        continue;
+      }
+
+      if (error instanceof GitCandidateInspectionLimitError) {
+        skippedOversizedCandidatePaths.push(candidate,);
+        rl.debug(
+          `Git candidate at ${candidate} is a non-native script larger than the `
+            + `${String(SELF_SHIM_INSPECTION_KIBIBYTES,)} KiB inspection bound`,
+        );
+        continue;
+      }
+
       if (!isExpectedCandidateMiss(error,)) {
         rl.debug(
           `Git candidate inspection failed at ${candidate}: ${String(error,)}`,
@@ -329,11 +389,17 @@ async function scanCandidateSequence(candidates: readonly string[],): Promise<st
   }
 
   rl.debug(
-    `real Git resolution exhausted PATH candidates; self shims skipped: ${String(skippedSelfShimPaths.length,)}`,
+    `real Git resolution exhausted PATH candidates; `
+      + `promoted common platform paths: ${String(promotedCandidates.length,)}; `
+      + `self shims skipped: ${String(skippedSelfShimPaths.length,)}; `
+      + `non-regular files skipped: ${String(skippedNonRegularCandidatePaths.length,)}; `
+      + `oversized scripts skipped: ${String(skippedOversizedCandidatePaths.length,)}`,
   );
   throw new RealGitNotFoundError({
     candidateCount: candidates.length,
     skippedSelfShimCount: skippedSelfShimPaths.length,
+    skippedNonRegularCandidatePaths,
+    skippedOversizedCandidatePaths,
   },);
 }
 
@@ -392,9 +458,13 @@ export async function resolveRealGit(options: ResolveRealGitOptions = {},): Prom
     environment,
   },);
   /**
-   Effective absolute candidate sequence and memoization identity source.
+   Effective absolute candidate sequence and the promoted common candidates,
+   together the memoization identity source.
    */
-  const candidates = buildCandidateSequence({
+  const {
+    candidates,
+    promotedCandidates,
+  } = buildCandidateSequence({
     pathEnv,
     platform,
     pathExtensions,
@@ -408,7 +478,10 @@ export async function resolveRealGit(options: ResolveRealGitOptions = {},): Prom
   return await resolveCachedRealGit({
     cacheKey,
     resolve: async function scanEffectiveCandidates(): Promise<string> {
-      return await scanCandidateSequence(candidates,);
+      return await scanCandidateSequence({
+        candidates,
+        promotedCandidates,
+      },);
     },
   },);
 }

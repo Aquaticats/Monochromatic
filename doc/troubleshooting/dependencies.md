@@ -1262,7 +1262,6 @@ Three roots reach that `debug`:
   `@earendil-works/pi-coding-agent`
    (`agent-harness-shared-advisor`,
    `agent-harness-shared-truncate`,
-   `pi-goal`,
    `pi-plugin-advisor`,
    `pi-plugin-agent-settled-notification`,
    `pi-plugin-ask-user-question`,
@@ -1270,6 +1269,7 @@ Three roots reach that `debug`:
    `pi-plugin-bash-poke`,
    `pi-plugin-cost-dismissal`,
    `pi-plugin-current-time-context`,
+   `pi-plugin-goal`,
    `pi-plugin-guardrail`,
    `pi-plugin-model-retirement`,
    `pi-plugin-neuralwatt`,
@@ -1474,6 +1474,12 @@ below),
  so both the sync withLock and async withLockAsync paths in
 pi-coding-agent work unchanged.
 
+Note 2026-11-10:
+the silent stub now reads `then` as `undefined`,
+ so awaiting it settles.
+The shim still owns the lock semantics,
+ which a stub answering every call with itself cannot provide.
+
 #### Why it cannot be removed
 
 The two consumer modules inside pi-coding-agent both hard-import the package
@@ -1497,6 +1503,18 @@ loading `@earendil-works/pi-coding-agent` from `package/pi-plugin/auto-mode` cra
 with `Cannot find package 'proper-lockfile'` before any first-party code runs.
 
 #### Why the silent stub does not work
+
+Note 2026-11-10:
+the silent stub now reads `then`,
+ `catch`,
+ and `finally` as `undefined`,
+ and answers `Symbol.toPrimitive` with the text `[stub-silent]`,
+ so `await stub` settles and a primitive coercion returns that text instead of hanging or throwing.
+The paragraph and the consequence list that follow record the stub as it was when this shim was chosen.
+The shim decision stands:
+the silent stub answers `lockSync` and `lock` with itself,
+ so no lock is ever taken and the release function releases nothing,
+ which is the reason an API-compatible shim was needed.
 
 `package/pnpm-override/stub-silent/index.cjs` is a `Proxy` over a no-op function whose
 `get` trap returns `module.exports` for every property.

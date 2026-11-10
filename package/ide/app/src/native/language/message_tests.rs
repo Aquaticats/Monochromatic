@@ -132,6 +132,61 @@ fn refused_launch_names_the_unavailable_feature_and_ends_with_the_remedy() {
     assert!(!message::needs_reopen(&refused));
 }
 
+/// A reason the diagnostics entry already ends gains no second period here,
+///  and a reason holding server-written lines gains none either,
+///  because one owner ends the sentence both surfaces show.
+#[test]
+fn a_not_started_reason_gains_no_second_period() {
+    for (reason, expected) in [
+        (
+            "bubblewrap is not installed.",
+            "scripted-ls was not started: bubblewrap is not installed.",
+        ),
+        (
+            "the definition did not apply\nsecond line of the server's own text",
+            "scripted-ls was not started: the definition did not apply\nsecond line of the server's own text",
+        ),
+    ] {
+        let stopped = status(
+            DocumentState::Attached,
+            Some(ServerState::NotStarted {
+                reason: reason.to_string(),
+            }),
+        );
+        assert_eq!(
+            single(Action::Definition, RequestOutcome::NoServer, &stopped),
+            expected,
+            "the action message for {reason:?}"
+        );
+        assert_eq!(
+            message::explain(Action::Hover, &[], &stopped),
+            expected,
+            "the hover message for {reason:?}"
+        );
+    }
+}
+
+/// A refused root is explained with the sentence the state owns,
+///  so the diagnostics entry and this message cannot drift apart.
+#[test]
+fn a_root_outside_the_project_is_shown_as_the_shared_sentence() {
+    let refused = status(
+        DocumentState::Attached,
+        Some(ServerState::RootOutsideProject {
+            root: PathBuf::from("/elsewhere/other-project"),
+        }),
+    );
+    let shared = refused.servers[0]
+        .state
+        .shared_cause(&refused.servers[0].server.name)
+        .expect("a refused root has a shared sentence");
+    assert_eq!(
+        single(Action::Definition, RequestOutcome::NoServer, &refused),
+        shared
+    );
+    assert!(shared.contains("/elsewhere/other-project"), "{shared}");
+}
+
 /// "No server" is explained by the document state or the server's own state.
 #[test]
 fn no_server_is_explained_by_the_status() {

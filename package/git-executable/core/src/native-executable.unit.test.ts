@@ -1,12 +1,9 @@
 import {
   chmod,
   mkdir,
-  mkdtemp,
-  rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -21,15 +18,14 @@ import {
 import {
   RealGitNotFoundError,
   resolveRealGit,
-  type ResolveRealGitOptions,
 } from '../dist/final/node/index.mjs';
+import {
+  captureResolutionError,
+  createTempDirectory,
+  EXECUTABLE_MODE,
+} from './disposable-executable-fixture.ts';
 
 //region Native executable fixtures
-
-/**
- File mode making native-format fixtures executable by owner.
- */
-const EXECUTABLE_MODE = 0o755;
 
 /**
  Marker-like payload proving native executables bypass text self-shim inspection.
@@ -54,47 +50,6 @@ const NATIVE_HEADER_CASES: readonly {
   { name: 'big-endian 64-bit universal Mach-O', hexPrefix: 'cafebabf', },
   { name: 'little-endian 64-bit universal Mach-O', hexPrefix: 'bfbafeca', },
 ];
-
-/**
- Disposable temporary directory used by native-header tests.
- */
-type TempDirectory = {
-  readonly path: string;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- Creates disposable temporary directory for native executable fixture.
- 
- @returns Directory removed when async disposal completes.
- 
- @example
- ```ts
- await using tempDirectory = await createTempDirectory();
- ```
- */
-async function createTempDirectory(): Promise<TempDirectory> {
-  /**
-   Absolute fixture root unique to current test.
-   */
-  const path = await mkdtemp(join(
-    scratchRoot(),
-    'git-executable-native-',
-  ),);
-
-  return {
-    path,
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        path,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-}
 
 /**
  Creates the installed wrapper layout: native executable under the given program name and a `git` link to it.
@@ -137,28 +92,6 @@ async function createWrapperLink(root: string, programName: string,): Promise<st
   return linkBin;
 }
 
-/**
- Captures the failure of one resolution attempt.
- 
- @param options - Resolver options for the attempt.
- 
- @returns Thrown value, or undefined when resolution succeeded.
- 
- @example
- ```ts
- const caught = await captureResolutionError({ pathEnv: '/nowhere', commonGitPaths: [], });
- ```
- */
-async function captureResolutionError(options: ResolveRealGitOptions,): Promise<unknown> {
-  try {
-    await resolveRealGit(options,);
-  }
-  catch (error: unknown) {
-    return error;
-  }
-  return undefined;
-}
-
 //endregion Native executable fixtures
 
 await describe({
@@ -167,7 +100,7 @@ await describe({
     return it({
       name: `accepts ${nativeHeaderCase.name} header before marker-like payload`,
       fn: async function acceptsNativeHeader(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-native-', },);
         /**
          PATH directory containing native-format candidate.
          */
@@ -205,7 +138,7 @@ await describe({
     it({
       name: 'skips a git link that resolves to monochromatic-git-policy-cli and selects the next native Git',
       fn: async function skipsWrapperLink(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-native-', },);
         /**
          PATH directory holding the wrapper link.
          */
@@ -239,7 +172,7 @@ await describe({
     it({
       name: 'skips a git link that resolves to the earlier name cli-git-native and selects the next native Git',
       fn: async function skipsEarlierWrapperLink(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-native-', },);
         /**
          PATH directory holding the wrapper link.
          */
@@ -273,7 +206,7 @@ await describe({
     it({
       name: 'reports no real Git when the wrapper link is the only candidate',
       fn: async function rejectsOnlyWrapperLink(): Promise<void> {
-        await using tempDirectory = await createTempDirectory();
+        await using tempDirectory = await createTempDirectory({ prefix: 'git-executable-native-', },);
         /**
          PATH directory holding only the wrapper link.
          */

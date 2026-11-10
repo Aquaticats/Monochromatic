@@ -22,6 +22,8 @@
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
+/// Imports the bench's one dBTP conversion.
+use crate::levels::peak_dbtp_or_silence;
 /// Imports the max-heap driving the frontier expansion.
 use std::collections::BinaryHeap;
 /// Imports the tag and profile join maps.
@@ -40,7 +42,7 @@ use serde::Deserialize;
 /// Imports the shared dB conversion,
 ///  the policy,
 ///  and the engine's bucket types.
-use truepeak_core::{BucketProbe, Policy, TrackProvenance, peak_dbtp};
+use truepeak_core::{BucketProbe, Policy, TrackProvenance};
 
 /// One row of the embedded-tag sweep (analysis/tags-sweep.mjs output).
 #[derive(Deserialize)]
@@ -182,16 +184,6 @@ pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>
         map.insert(row.path, order);
     }
     return Ok(map)
-}
-
-/// Convert a linear peak to dBTP,
-///  treating silence as a very negative level.
-fn db(peak: f64) -> f64 {
-    if peak <= 0.0 {
-        return f64::NEG_INFINITY
-    } else {
-        return peak_dbtp(peak)
-    }
 }
 
 /// The hybrid probe:
@@ -407,11 +399,22 @@ pub fn evaluate_buckets(
         let (peak, used_secs) = hybrid_probe(track, probe.coverage_fraction, even, track_bones);
         decoded += used_secs;
         rows.push(BucketRow {
-            full_db: db(f64::from(track.full_peak)),
-            probe_db: db(peak),
+            full_db: peak_dbtp_or_silence(f64::from(track.full_peak)),
+            probe_db: peak_dbtp_or_silence(peak),
             margin_db: probe.probe_margin_db,
             bucket,
         });
     }
     return (decoded, rows)
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "buckets_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "buckets_tests.rs"]
+mod tests;

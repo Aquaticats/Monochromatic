@@ -87,6 +87,59 @@ pub enum ServerState {
 }
 
 /// What:
+///  End a sentence with a period unless it already ends with one.
+///  `String` is returned owned.
+/// Why:
+///  Reasons come from several places;
+///  some end with a sentence,
+///  some with a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sentence(text: string): string
+/// ```
+pub(crate) fn sentence(text: &str) -> String {
+    let trimmed = text.trim_end();
+    // A text that ends with lines a server wrote is left as it is: a period would join the last of them.
+    if trimmed.ends_with('.') || trimmed.contains('\n') {
+        return trimmed.to_string();
+    }
+    return format!("{trimmed}.");
+}
+
+/// The sentence two surfaces share,
+///  and the one that ends it.
+impl ServerState {
+    /// What:
+    ///  The sentence the diagnostics entry and the action message both show for this state,
+    ///  or `None` for a state each surface explains with its own remedy.
+    /// Why:
+    ///  Two surfaces explain the same server state.
+    ///  The cause,
+    ///  and any remedy that reads the same on both,
+    ///  is written once here,
+    ///  and each surface adds only the remedy that names its own way to retry,
+    ///  so a wording change cannot reach one surface and miss the other.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function sharedCause(state: ServerState, server: string): string | undefined;
+    /// ```
+    pub fn shared_cause(&self, server: &str) -> Option<String> {
+        return match self {
+            Self::RootOutsideProject { root } => Some(format!(
+                "{server} was not started because it would treat {}, which is outside this project, as its workspace. Open the IDE on that directory to use it.",
+                root.display()
+            )),
+            Self::NotStarted { reason } => {
+                Some(sentence(&format!("{server} was not started: {reason}")))
+            }
+            _ => None,
+        };
+    }
+}
+
+/// What:
 ///  A record of five booleans.
 ///  `Copy` lets it be passed like a number.
 /// Why:

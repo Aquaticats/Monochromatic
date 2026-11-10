@@ -149,7 +149,7 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 /// takesNextToken('-qm'); // true
 /// takesNextToken('-mhello'); // false
 /// ```
-fn takes_next_token(token: &str) -> bool {
+pub(crate) fn takes_next_token(token: &str) -> bool {
     if token.starts_with("--") {
         return COMMIT_VALUE_OPTIONS.contains(&token);
     }

@@ -102,3 +102,14 @@ pub fn rank(mut scored: Vec<Scored>, target_secs: f64) -> Vec<Scored> {
     });
     return scored
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "search_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;

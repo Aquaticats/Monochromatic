@@ -21,6 +21,8 @@ import type {
 import type { GoalLifecycleHandle, } from './lifecycle-services.ts';
 import type { GoalControllerState, } from './types.ts';
 
+//region Reviewer exhaustion capability
+
 /**
  Domain sentinel for settlement without active reviewable goal.
  */
@@ -36,6 +38,10 @@ type GoalReviewerUnavailableHandler = (
     readonly context: ForeignBorrowed<ExtensionContext>;
   },
 ) => Promise<GoalSettlementDisposition>;
+
+//endregion Reviewer exhaustion capability
+
+//region Review request lifecycle
 
 /**
  Capture active settlement identity before reviewer spending.
@@ -216,6 +222,10 @@ async function acquireGoalSettlementReview(
   }
 }
 
+//endregion Review request lifecycle
+
+//region Settlement execution
+
 /**
  Execute one finalized settlement review.
  
@@ -322,6 +332,8 @@ async function executeGoalSettlementReview(
   },);
   return 'approved';
 }
+
+//endregion Settlement execution
 
 export {
   acquireGoalSettlementReview,
