@@ -10,7 +10,7 @@
  @module
  */
 
-import path from 'node:path';
+import { join, } from 'node:path';
 import process from 'node:process';
 import { tmpdir, } from 'node:os';
 import {
@@ -154,7 +154,7 @@ export function createTempDirectory(): string {
   /**
    Parent for this fixture's uniquely-named directory.
    */
-  const parent = path.join(
+  const parent = join(
     tmpdir(),
     'conf-fork-fixtures',
   );
@@ -167,7 +167,7 @@ export function createTempDirectory(): string {
   /**
    Empty fixture directory created for one test.
    */
-  const directory = path.join(
+  const directory = join(
     parent,
     randomUUID(),
   );
@@ -205,7 +205,7 @@ export function writeConfigFile({
   readonly fileName?: string;
 },): void {
   writeFileSync(
-    path.join(
+    join(
       directory,
       fileName,
     ),
@@ -339,7 +339,7 @@ export function createDisposableHome(): DisposableHome {
   process.env
     .HOME = home;
   process.env
-    .XDG_CONFIG_HOME = path.join(
+    .XDG_CONFIG_HOME = join(
       home,
       '.config',
     );

@@ -8,7 +8,7 @@ import {
   ABSENT,
   configureDefaultBackendsBuilder,
   createStore,
-} from './index.ts';
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: createStore.name,

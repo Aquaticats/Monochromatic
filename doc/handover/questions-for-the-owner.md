@@ -26,6 +26,48 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
+
+An async `set('', value)` writes under a hash of the value,
+and `get` and `delete` receive only the key,
+so nothing can read or remove that entry.
+No consumer in the repository calls `set('')`.
+`package/kv-store/core/DECISION.fs-backend.md` Hazard 8 ranks these three and leaves the pick open.
+The empty-key clause of the parity test in 1412 waits on this.
+
+#### A: reject empty keys
+
+`set('', value)` throws and names the key.
+
+- Pro:
+  an entry nothing can reach can no longer be made.
+- Con:
+  drops the documented content-addressed use (`types.ts:301`,
+  README) on a package planned to go public.
+
+#### B: make the derivation symmetric
+
+`get` and `delete` learn to address entries by content.
+
+- Pro:
+  keeps the documented feature.
+- Con:
+  `get('')` has no value to hash,
+  so it needs a new way to name the entry.
+
+#### C: keep it and document the quirk
+
+- Pro:
+  no behaviour change.
+- Con:
+  a write that cannot be read stays possible.
+
+Ranking:
+A > B > C,
+because no consumer uses the feature and A removes the trap outright,
+B needs a new API to keep something nobody calls,
+and C leaves the trap in place.
+
 ### How should pnpr tell that a package has a build? (issue 1267), asked 2026-11-09T21:09:20-05:00
 
 The publish job reads `mise.toml` line by line for a literal `[tasks.build]`,

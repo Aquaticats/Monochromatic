@@ -16,7 +16,10 @@
  @module
  */
 
-import path from 'node:path';
+import {
+  basename,
+  dirname,
+} from 'node:path';
 import process from 'node:process';
 import { watch, } from 'node:fs';
 import {
@@ -162,11 +165,11 @@ export function createConfigWatcher({
      Directory holding the config file; watched instead of the file so
      atomic renames are observable.
      */
-    const directory = path.dirname(filePath,);
+    const directory = dirname(filePath,);
     /**
      File name events must match to count as this config's changes.
      */
-    const basename = path.basename(filePath,);
+    const configFileName = basename(filePath,);
     state.directoryWatcher = watch(
       directory,
       {
@@ -178,7 +181,7 @@ export function createConfigWatcher({
         // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- mirrors node:fs WatchListener<string>, whose filename parameter is string | null by Node's own signature.
         filename: string | null,
       ): void {
-        if ((filename !== null) && (filename !== basename))
+        if ((filename !== null) && (filename !== configFileName))
           return;
         debounced.trigger();
       },
