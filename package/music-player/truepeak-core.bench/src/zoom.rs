@@ -253,3 +253,14 @@ pub fn zoom_under_read_quantile(rows: &[ZoomRow], ceiling_dbtp: f64, fraction: f
     let index = ((values.len() as f64 - 1.0) * fraction).round() as usize;
     return values.get(index).copied().unwrap_or(0.0)
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "zoom_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "zoom_tests.rs"]
+mod tests;

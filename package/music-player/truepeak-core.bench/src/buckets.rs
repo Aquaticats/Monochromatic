@@ -407,3 +407,14 @@ pub fn evaluate_buckets(
     }
     return (decoded, rows)
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "buckets_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "buckets_tests.rs"]
+mod tests;

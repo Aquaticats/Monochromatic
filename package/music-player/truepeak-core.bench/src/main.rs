@@ -28,6 +28,11 @@ mod buckets;
 ///  even pass one plus frontier zoom.
 mod zoom;
 
+/// Fixtures shared by the unit tests,
+///  placed in the build directory rather than a system temporary one.
+#[cfg(test)]
+mod test_fixtures;
+
 /// Imports `anyhow` helpers for application-level error returns.
 use anyhow::{Context, Result};
 /// Imports the process argument reader.

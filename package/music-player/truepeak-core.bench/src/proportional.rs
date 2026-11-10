@@ -152,3 +152,14 @@ pub fn margin_clamp_table(under_reads: &[UnderRead], margins: &[f64], too_loud_d
         })
         .collect()
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "proportional_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "proportional_tests.rs"]
+mod tests;

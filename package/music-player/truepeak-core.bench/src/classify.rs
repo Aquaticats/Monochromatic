@@ -329,3 +329,14 @@ pub fn fit_full_scan_rule(tracks: &[Track], candidate: Candidate, target_secs: f
         worst_quiet_db,
     }
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "classify_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "classify_tests.rs"]
+mod tests;
