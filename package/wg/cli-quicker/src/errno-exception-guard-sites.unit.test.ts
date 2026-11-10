@@ -54,9 +54,15 @@ const exportedDeclarationPrefix = `export ${declarationPrefix}`;
 const ownerModuleName = 'errors.ts';
 
 /**
- Every import of the owner module, with the imported names inside the braces.
+ Text that closes an import of the owner module, named as every import of it
+ spells the specifier.
  */
-const ownerImportPattern = /import\s*\{[^{}]*\}\s*from\s*'\.\/errors\.ts'/gsu;
+const ownerImportEnd = `} from './${ownerModuleName}'`;
+
+/**
+ Text that opens an import statement.
+ */
+const importPrefix = 'import';
 
 /**
  Source modules of this package, test files excluded.
@@ -106,6 +112,47 @@ function guardDeclarationModules(): string[] {
 }
 
 /**
+ Text of one import statement, from after its keyword to its semicolon.
+ 
+ @param statementText - Source text following an `import` keyword.
+ 
+ @returns The statement text, without what follows its semicolon.
+ */
+function importStatementOf(statementText: string,): string {
+  /**
+   Position of the semicolon that ends this statement, absent when the
+   statement runs to the end of the file.
+   */
+  const statementEnd = statementText.indexOf(';',);
+  return statementEnd === (-1)
+    ? statementText
+    : statementText.slice(
+      0,
+      statementEnd,
+    );
+}
+
+/**
+ Tells whether a module imports the guard from the owner module.
+ 
+ An import of the owner module spells its specifier, and the statement holding
+ that specifier names every imported binding, so one statement names both.
+
+ @param sourceText - Source text of the module.
+
+ @returns Whether any owner import names the guard.
+ */
+function importsGuardFromOwner(sourceText: string,): boolean {
+  return sourceText
+    .split(importPrefix,)
+    .slice(1,)
+    .map(importStatementOf,)
+    .some(function namesOwnerAndGuard(statement,) {
+      return statement.includes(ownerImportEnd,) && statement.includes(guardName,);
+    },);
+}
+
+/**
  Modules that use the guard without importing it from the owner module.
  
  @param filePath - Absolute path of the module to inspect.
@@ -119,10 +166,7 @@ function usesGuardWithoutOwnerImport(filePath: string,): boolean {
   const sourceText = sourceTextOf(filePath,);
   if (!sourceText.includes(guardName,))
     return false;
-  return ![...sourceText.matchAll(ownerImportPattern,)]
-    .some(function importsGuard(importMatch,) {
-      return importMatch[0].includes(guardName,);
-    },);
+  return !importsGuardFromOwner(sourceText,);
 }
 
 //endregion Source scanning

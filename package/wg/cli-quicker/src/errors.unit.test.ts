@@ -44,12 +44,16 @@ function errnoError(): NodeJS.ErrnoException {
 //endregion Fixtures
 
 await describe({
-  name: 'isErrnoException',
+  name: isErrnoException.name,
   children: [
     it({
       name: 'accepts the error Node throws for a path it cannot open',
       fn: async () => {
-        expect(isErrnoException(errnoError(),),).toBe(true,);
+        /**
+         Verdict on the error Node throws.
+         */
+        const verdict = isErrnoException(errnoError(),);
+        expect(verdict,).toBe(true,);
       },
     },),
     it({
@@ -66,7 +70,11 @@ await describe({
     it({
       name: 'rejects an error with no code, which names no errno condition',
       fn: async () => {
-        expect(isErrnoException(new Error('plain failure',),),).toBe(false,);
+        /**
+         Verdict on an error with no code.
+         */
+        const verdict = isErrnoException(new Error('plain failure',),);
+        expect(verdict,).toBe(false,);
       },
     },),
     it({
