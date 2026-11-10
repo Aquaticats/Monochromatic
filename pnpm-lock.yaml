@@ -4612,6 +4612,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/named-error-core':
+        specifier: workspace:*
+        version: link:../../named-error/core
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed

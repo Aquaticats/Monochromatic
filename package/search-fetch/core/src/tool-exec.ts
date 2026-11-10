@@ -10,6 +10,7 @@
 import * as v from 'valibot';
 import type { ReadonlyDeep, } from 'type-fest';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
 
 import type {
   LinkupConfig,
@@ -112,10 +113,11 @@ type ExecuteToolOptions = {
   readonly onUpdate?: SearchFetchToolUpdateCallback;
 };
 
+/* oxlint-disable unicorn/custom-error-definition -- The name comes from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
 /**
  Error thrown when a fetch URL matches the configured blocklist.
  */
-export class BlockedUrlError extends Error {
+export class BlockedUrlError extends NamedError {
   /**
    Build a blocklist failure naming the matching entry.
 
@@ -123,9 +125,9 @@ export class BlockedUrlError extends Error {
    */
   constructor(entry: string,) {
     super(`Blocked by pi-search-fetch blocklist: ${entry}`,);
-    this.name = 'BlockedUrlError';
   }
 }
+/* oxlint-enable unicorn/custom-error-definition */
 
 //endregion Types
 
