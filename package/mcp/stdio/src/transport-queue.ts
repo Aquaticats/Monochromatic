@@ -1,8 +1,24 @@
 // Serial request queue: frees the stdin read loop while tool execution stays one at a time.
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 
 import type { JsonRpcId, } from './json-rpc.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const queueLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'transport-queue',
+},);
+
+//endregion Logging
 
 //region Queue vocabulary: entries, sentinels, and the public surface
 
@@ -261,6 +277,28 @@ export function createSerialRequestQueue(
   }
 
   /**
+   Runs a drain, storing whatever ended it for {@link SerialRequestQueue.idle} to rethrow.
+   */
+  async function recordFailure(): Promise<void> {
+    // Deliberate catch-and-store: rethrowing here would surface as an unhandled rejection
+    // long before `idle` is awaited.
+    try {
+      await drain();
+    }
+    catch (error: unknown) {
+      tagged({
+        tag: recordFailure.name,
+        l: queueLogger,
+      },)
+        .error(`request queue stopped: ${caughtValueText(error,)}`,);
+      failure.set(
+        'error',
+        error,
+      );
+    }
+  }
+
+  /**
    Starts a drain when none is running, leaving an active one to pick up new entries.
    
    Records the failure rather than letting the drain promise reject on its own, so a
@@ -279,27 +317,6 @@ export function createSerialRequestQueue(
       'active',
       recordFailure(),
     );
-  }
-
-  /**
-   Runs a drain, storing whatever ended it for {@link SerialRequestQueue.idle} to rethrow.
-   */
-  async function recordFailure(): Promise<void> {
-    // Deliberate catch-and-store: rethrowing here would surface as an unhandled rejection
-    // long before `idle` is awaited.
-    try {
-      await drain();
-    }
-    catch (error: unknown) {
-      console.error(
-        '[mcp-stdio] request queue stopped:',
-        caughtValueText(error,),
-      );
-      failure.set(
-        'error',
-        error,
-      );
-    }
   }
 
   return {

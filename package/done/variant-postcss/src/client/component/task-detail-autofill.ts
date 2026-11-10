@@ -12,6 +12,23 @@ import {
   type AutofillResult,
   METADATA_UNSET,
 } from './task-detail-types.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the component reports a suggestion request that failed for a reason other than its own abort.
+ */
+const l = tagged({
+  tag: 'done-variant-task-detail-autofill',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Delay before triggering AI autofill after the user stops typing.
@@ -202,10 +219,7 @@ export function createAutofillController(callbacks: AutofillCallbacks,): Autofil
     catch (error: unknown) {
       if (!((error instanceof DOMException) && (error.name
         === 'AbortError'))) {
-        console.error(
-          'Autofill request failed:',
-          error,
-        );
+        l.error(`autofill request failed: ${caughtValueText(error,)}`,);
       }
     }
 

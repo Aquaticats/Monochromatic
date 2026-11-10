@@ -46,7 +46,7 @@ await describe({
       children: [
         it({
           name: 'scores explicit speed-name signals',
-          fn: async function testScoreModelSpeed() {
+          fn: async function testScoreModelSpeed(): Promise<void> {
             /**
              Model whose id carries the strongest speed signal.
              */
@@ -104,7 +104,7 @@ await describe({
       children: [
         it({
           name: 'ranks Luna before Terra regardless of lower Terra input cost',
-          fn: async function testLunaBeforeTerra() {
+          fn: async function testLunaBeforeTerra(): Promise<void> {
             /**
              OpenAI tier models with cheaper Terra price to prove speed marker wins first.
              */
@@ -127,7 +127,7 @@ await describe({
         },),
         it({
           name: 'ranks speed-name signal before lower input cost',
-          fn: async function testFindFastestMajorVersions() {
+          fn: async function testFindFastestMajorVersions(): Promise<void> {
             /**
              Models include a cheaper latest major version and a faster named one.
              */

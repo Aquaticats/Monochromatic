@@ -5,23 +5,25 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  buildToolCallResult,
   createMcpServer,
   defineTool,
   JSON_RPC_INVALID_PARAMS,
   JSON_RPC_METHOD_NOT_FOUND,
   JSON_RPC_UNSUPPORTED_PROTOCOL_VERSION,
   type JsonRpcErrorResponse,
-  type JsonRpcId,
   type JsonRpcInbound,
   type JsonRpcResponse,
   META_PROTOCOL_VERSION,
   META_SERVER_INFO,
   NO_RESPONSE,
   PROTOCOL_VERSION,
+  protocolVersionRequest,
   registerTools,
   strictArguments,
   RESULT_TYPE_COMPLETE,
   SUPPORTED_PROTOCOL_VERSIONS,
+  type ToolCallResult,
   type ToolContent,
   type ToolEntry,
 } from '@monochromatic-dev/mcp-stdio';
@@ -59,39 +61,6 @@ const echoTool: ToolEntry = {
 
 /** Identity every server in this file reports, so result metadata assertions stay short. */
 const serverIdentity = { name: 'srv', version: '0.1.0', };
-
-/**
- Builds a request carrying the protocol revision metadata every served request needs.
- 
- @param id - Request id echoed back in the response.
- 
- @param method - MCP method to invoke.
- 
- @param params - Method params merged alongside the generated `_meta`.
- 
- @param version - Revision to declare, defaulting to the one this server implements.
- 
- @returns Inbound request ready for `handleMessage`.
- */
-const modernRequest = ({
-  id,
-  method,
-  params = {},
-  version = PROTOCOL_VERSION,
-}: {
-  readonly id: JsonRpcId;
-  readonly method: string;
-  readonly params?: Readonly<Record<string, unknown>>;
-  readonly version?: string;
-},): JsonRpcInbound => ({
-  jsonrpc: '2.0',
-  id,
-  method,
-  params: {
-    ...params,
-    _meta: { [META_PROTOCOL_VERSION]: version, },
-  },
-});
 
 //region defineTool: bundles name with tool entry options
 
@@ -243,6 +212,36 @@ await describe({
 
     //endregion registerTools
 
+    //region buildToolCallResult: stamps the envelope fields over the handler payload
+
+    describe({
+      name: buildToolCallResult.name,
+      children: [
+        it({
+          name: 'stamps the complete envelope over a payload that states its own resultType',
+          fn: async () => {
+            /**
+             Handler payload carrying an envelope field of its own, which a JavaScript consumer,
+             a cast, or a spread build can hand over even though the declared payload type omits
+             it. Typed as an intersection rather than cast, so the value reaches the builder
+             exactly as a runtime caller would deliver it.
+             */
+            const payloadCarryingAnEnvelopeField: ToolCallResult & { resultType: string; } = {
+              content: [],
+              resultType: 'input_required',
+            };
+            const built = buildToolCallResult({
+              result: payloadCarryingAnEnvelopeField,
+              serverInfo: serverIdentity,
+            },);
+            expect(built.resultType,).toBe(RESULT_TYPE_COMPLETE,);
+          },
+        },),
+      ],
+    },),
+
+    //endregion buildToolCallResult
+
     //region createMcpServer: builds immutable server and dispatches messages
 
     describe({
@@ -261,7 +260,7 @@ await describe({
                   tools: [],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 1, method: 'server/discover', },),
+                  protocolVersionRequest({ id: 1, method: 'server/discover', },),
                 ) as JsonRpcResponse;
                 expect(response,).toEqual({
                   jsonrpc: '2.0',
@@ -291,7 +290,7 @@ await describe({
                   tools: [],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 2, method: 'server/discover', },),
+                  protocolVersionRequest({ id: 2, method: 'server/discover', },),
                 ) as JsonRpcResponse;
                 const result = response.result as {
                   instructions?: string;
@@ -317,7 +316,7 @@ await describe({
                   tools: [],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 3, method: 'server/discover', },),
+                  protocolVersionRequest({ id: 3, method: 'server/discover', },),
                 ) as JsonRpcResponse;
                 const result = response.result as {
                   ttlMs: number;
@@ -337,7 +336,7 @@ await describe({
                   tools: [],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 4, method: 'server/discover', },),
+                  protocolVersionRequest({ id: 4, method: 'server/discover', },),
                 ) as JsonRpcResponse;
                 expect(
                   Object.hasOwn(response.result as object, 'instructions',),
@@ -387,7 +386,7 @@ await describe({
               fn: async () => {
                 const server = createMcpServer({ config: serverIdentity, tools: [], },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 7, method: 'tools/list', version: '2025-06-18', },),
+                  protocolVersionRequest({ id: 7, method: 'tools/list', version: '2025-06-18', },),
                 ) as JsonRpcErrorResponse;
                 expect(response.error.code,).toBe(JSON_RPC_UNSUPPORTED_PROTOCOL_VERSION,);
                 expect(response.error.message,).toBe('Unsupported protocol version',);
@@ -480,7 +479,7 @@ await describe({
               fn: async () => {
                 const server = createMcpServer({ config: serverIdentity, tools: [], },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 11, method: 'tools/list', },),
+                  protocolVersionRequest({ id: 11, method: 'tools/list', },),
                 ) as JsonRpcResponse;
                 expect(response.result,).toEqual({
                   resultType: RESULT_TYPE_COMPLETE,
@@ -499,7 +498,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 12, method: 'tools/list', },),
+                  protocolVersionRequest({ id: 12, method: 'tools/list', },),
                 ) as JsonRpcResponse;
                 expect((response.result as { tools: unknown; }).tools,).toEqual([
                   {
@@ -527,7 +526,7 @@ await describe({
                   tools: [tool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 13, method: 'tools/list', },),
+                  protocolVersionRequest({ id: 13, method: 'tools/list', },),
                 ) as JsonRpcResponse;
                 const { tools, } = response.result as {
                   tools: readonly { inputSchema: unknown; }[];
@@ -555,7 +554,7 @@ await describe({
                   tools: [toolA, toolB,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 14, method: 'tools/list', },),
+                  protocolVersionRequest({ id: 14, method: 'tools/list', },),
                 ) as JsonRpcResponse;
                 const names =
                   (response.result as { tools: readonly { name: string; }[]; })
@@ -577,7 +576,7 @@ await describe({
                   tools: [],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 15, method: 'tools/list', },),
+                  protocolVersionRequest({ id: 15, method: 'tools/list', },),
                 ) as JsonRpcResponse;
                 const result = response.result as { ttlMs: number; cacheScope: string; };
                 expect(result.ttlMs,).toBe(300_000,);
@@ -602,7 +601,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 16,
                     method: 'tools/call',
                     params: { name: 'echo', arguments: { text: 'hello', }, },
@@ -633,7 +632,7 @@ await describe({
                   tools: [structuredTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 17,
                     method: 'tools/call',
                     params: { name: 'structured', },
@@ -674,7 +673,7 @@ await describe({
                   tools: [everyBlockTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 29,
                     method: 'tools/call',
                     params: { name: 'every-block', },
@@ -703,7 +702,7 @@ await describe({
                   tools: [annotatedTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 30,
                     method: 'tools/call',
                     params: { name: 'annotated', },
@@ -726,7 +725,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 18,
                     method: 'tools/call',
                     params: { name: 'nonexistent', },
@@ -744,7 +743,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 19, method: 'tools/call', },),
+                  protocolVersionRequest({ id: 19, method: 'tools/call', },),
                 ) as JsonRpcErrorResponse;
                 expect(response.error.code,).toBe(JSON_RPC_INVALID_PARAMS,);
               },
@@ -757,7 +756,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 20, method: 'tools/call', params: { name: 42, }, },),
+                  protocolVersionRequest({ id: 20, method: 'tools/call', params: { name: 42, }, },),
                 ) as JsonRpcErrorResponse;
                 expect(response.error.code,).toBe(JSON_RPC_INVALID_PARAMS,);
               },
@@ -770,7 +769,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 21,
                     method: 'tools/call',
                     params: { name: 'echo', },
@@ -789,7 +788,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 22,
                     method: 'tools/call',
                     params: { name: 'echo', arguments: null, },
@@ -807,7 +806,7 @@ await describe({
                   tools: [echoTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 23,
                     method: 'tools/call',
                     params: { name: 'echo', arguments: [1, 2,], },
@@ -835,7 +834,7 @@ await describe({
                   tools: [strictTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 24,
                     method: 'tools/call',
                     params: { name: 'strict', arguments: {}, },
@@ -863,7 +862,7 @@ await describe({
                   tools: [strictTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 25,
                     method: 'tools/call',
                     params: { name: 'strict', arguments: { typo: 1, }, },
@@ -895,7 +894,7 @@ await describe({
                   tools: [looseTool,],
                 },);
                 await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 26,
                     method: 'tools/call',
                     params: { name: 'loose', arguments: { text: 'hi', extra: 7, }, },
@@ -927,7 +926,7 @@ await describe({
                   tools: [strictTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 27,
                     method: 'tools/call',
                     // Parsed from text so `__proto__` lands as an own property, which an
@@ -961,7 +960,7 @@ await describe({
                   tools: [failingTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 24,
                     method: 'tools/call',
                     params: { name: 'fail', },
@@ -994,7 +993,7 @@ await describe({
                   tools: [throwStringTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 25,
                     method: 'tools/call',
                     params: { name: 'throw-string', },
@@ -1025,13 +1024,47 @@ await describe({
                   tools: [reportingTool,],
                 },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 26,
                     method: 'tools/call',
                     params: { name: 'reports', },
                   },),
                 ) as JsonRpcResponse;
                 expect((response.result as { isError: boolean; }).isError,).toBe(true,);
+              },
+            },),
+            it({
+              name: 'answers with resultType complete when the handler payload states another one',
+              fn: async () => {
+                /**
+                 Payload a handler supplies with an envelope field of its own set.
+                 */
+                const misstatingPayload: ToolCallResult & { resultType: string; } = {
+                  content: [{ type: 'text', text: 'needs more input', },],
+                  resultType: 'input_required',
+                };
+                const misstatingTool: ToolEntry = {
+                  name: 'misstates',
+                  description: 'Returns a payload carrying its own resultType.',
+                  schema: ANY_ARGUMENTS,
+                  handler: () => misstatingPayload,
+                };
+                const server = createMcpServer({
+                  config: serverIdentity,
+                  tools: [misstatingTool,],
+                },);
+                const response = await server.handleMessage(
+                  protocolVersionRequest({
+                    id: 31,
+                    method: 'tools/call',
+                    params: { name: 'misstates', },
+                  },),
+                ) as JsonRpcResponse;
+                expect(
+                  (response.result as { resultType: string; }).resultType,
+                ).toBe(
+                  RESULT_TYPE_COMPLETE,
+                );
               },
             },),
           ],
@@ -1049,7 +1082,7 @@ await describe({
               fn: async () => {
                 const server = createMcpServer({ config: serverIdentity, tools: [], },);
                 const response = await server.handleMessage(
-                  modernRequest({ id: 27, method: 'unknown/method', },),
+                  protocolVersionRequest({ id: 27, method: 'unknown/method', },),
                 ) as JsonRpcErrorResponse;
                 expect(response.error.code,).toBe(JSON_RPC_METHOD_NOT_FOUND,);
                 expect(response.error.message,).toContain('unknown/method',);
@@ -1060,7 +1093,7 @@ await describe({
               fn: async () => {
                 const server = createMcpServer({ config: serverIdentity, tools: [], },);
                 const response = await server.handleMessage(
-                  modernRequest({
+                  protocolVersionRequest({
                     id: 28,
                     method: 'unknown/method',
                     version: '1900-01-01',

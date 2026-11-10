@@ -25,11 +25,16 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { augmentOxlintOutput, } from './oxlint-augment.ts';
 import {
+  detectNativeAnalysisCrash,
+  NO_NATIVE_ANALYSIS_CRASH,
+} from './oxlint-analysis-crash.ts';
+import {
   fixUntilStable,
   MAX_AUTOFIX_PASSES,
   type OxlintRunResult,
 } from './oxlint-fix-loop.ts';
 import {
+  AnalysisCrashError,
   isCapturedSubprocessFailure,
   ToolKilledBySignalError,
   ToolNotStartedError,
@@ -182,11 +187,21 @@ async function runOxlint(args: readonly string[],): Promise<OxlintRunResult> {
  A run that never produced a status of its own throws, so the throw decides
  the wrapper's exit status and prints its message.
  
+ A run whose exit status is its own can still be worthless as evidence: Oxlint
+ counts the diagnostics it produced, and a crashed analysis child produces none,
+ so a clean-looking status says the surviving analyzers were quiet, not that the
+ tree is clean. The crash report those children write to the inherited standard
+ error is the only place that fact appears, so it turns the run into a throw as
+ well, after Oxlint's own output has been forwarded.
+ 
  @param result - final run result from the loop or a single pass
  
  @throws {@link ToolNotStartedError} when oxlint never started.
  
  @throws {@link ToolKilledBySignalError} when oxlint was killed by a signal.
+ 
+ @throws {@link AnalysisCrashError} when an analysis child of oxlint crashed during
+ the run, whatever status oxlint reported.
  */
 function finalizeResult(result: OxlintRunResult,): void {
   if (result.executionError !== undefined)
@@ -195,6 +210,11 @@ function finalizeResult(result: OxlintRunResult,): void {
       tool: 'oxlint',
       detail: result.executionError,
     },);
+
+  /**
+   Crash an analysis child reported on the run's standard error, or the module's sentinel for none.
+   */
+  const crash = detectNativeAnalysisCrash({ stderr: result.stderr, },);
 
   if (result.exitCode === 0) {
     if (result.stdout
@@ -207,43 +227,50 @@ function finalizeResult(result: OxlintRunResult,): void {
       > 0)
       process.stderr
         .write(result.stderr,);
-    return;
   }
-
-  /**
-   Oxlint diagnostics with wrapper guidance appended.
-   */
-  const augmentedStdout = augmentOxlintOutput(result.stdout,);
-  if (augmentedStdout.length > 0) {
-    process.stdout
-      .write(augmentedStdout,);
-    if (!augmentedStdout.endsWith('\n',))
+  else {
+    /**
+     Oxlint diagnostics with wrapper guidance appended.
+     */
+    const augmentedStdout = augmentOxlintOutput(result.stdout,);
+    if (augmentedStdout.length > 0) {
       process.stdout
-        .write('\n',);
-  }
+        .write(augmentedStdout,);
+      if (!augmentedStdout.endsWith('\n',))
+        process.stdout
+          .write('\n',);
+    }
 
-  if (result.stderr
-    .length
-    > 0) {
-    process.stderr
-      .write(result.stderr,);
-    if (!result.stderr
-      .endsWith('\n',))
+    if (result.stderr
+      .length
+      > 0) {
       process.stderr
-        .write('\n',);
+        .write(result.stderr,);
+      if (!result.stderr
+        .endsWith('\n',))
+        process.stderr
+          .write('\n',);
+    }
+
+    process.exitCode = result.exitCode
+      ?? 1;
+
+    if ((result.signalName
+      !== undefined)
+      && (result.signalName
+        !== ''))
+      throw new ToolKilledBySignalError({
+        task: 'task-oxlint',
+        tool: 'oxlint',
+        detail: result.signalName,
+      },);
   }
 
-  process.exitCode = result.exitCode
-    ?? 1;
-
-  if ((result.signalName
-    !== undefined)
-    && (result.signalName
-      !== ''))
-    throw new ToolKilledBySignalError({
+  if (crash !== NO_NATIVE_ANALYSIS_CRASH)
+    throw new AnalysisCrashError({
       task: 'task-oxlint',
       tool: 'oxlint',
-      detail: result.signalName,
+      detail: crash.headerLine,
     },);
 }
 

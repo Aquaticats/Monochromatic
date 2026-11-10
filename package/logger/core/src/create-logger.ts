@@ -1,10 +1,10 @@
-import { reportLoggerInternalError, } from './error-format.ts';
+import {
+  reportLoggerCondition,
+  reportLoggerInternalError,
+} from './error-format.ts';
 import { createPendingWrites, } from './pending-writes.ts';
 import { watchSinkProbes, } from './sink-probe-watch.ts';
-import {
-  isHostDeadlineElapsed,
-  withHostTimeout,
-} from './with-host-timeout.ts';
+import { settleWithinHostTimeout, } from './with-host-timeout.ts';
 
 import type {
   Level,
@@ -533,32 +533,33 @@ export function createLogger(
    exist. Resolves once all tracked writes and hooks settle, or once the
    deadline elapses; a deadline hit reports one breadcrumb and abandons the
    tracked writes. In timerless hosts it waits for all work to settle.
+
+   The deadline arrives as the wait's outcome, so no rejection text decides how
+   the failure is reported: a rejection here is the work failing on its own.
    */
   async function flushAll(): Promise<void> {
     try {
-      await withHostTimeout({
-        label: 'logger flush',
+      /**
+       Which side of the wait finished first: the work, or the deadline.
+       */
+      const outcome = await settleWithinHostTimeout({
         ms: flushDeadlineMs,
         promise: drainEverything(),
       },);
+
+      if (outcome === 'settled')
+        return;
+
+      reportLoggerCondition({ message: `flush deadline of ${flushDeadlineMs}ms elapsed; abandoning in-flight sink work`, },);
     }
     catch (error: unknown) {
-      /**
-       Whether the timeout utility's own deadline caused this failure.
-       */
-      const deadlineElapsed = isHostDeadlineElapsed({
-        error,
-        label: 'logger flush',
-        ms: flushDeadlineMs,
-      },);
       reportLoggerInternalError({
-        context: deadlineElapsed
-          ? `flush deadline of ${flushDeadlineMs}ms elapsed; abandoning in-flight sink work`
-          : 'flush failed before completion; abandoning in-flight sink work',
+        context: 'flush failed before completion; abandoning in-flight sink work',
         error,
       },);
-      abandonPendingWrites();
     }
+
+    abandonPendingWrites();
   }
 
   /**

@@ -4,6 +4,9 @@ import { once, } from 'node:events';
 import type { Writable, } from 'node:stream';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 
 import {
   isJsonRpcMessage,
@@ -27,6 +30,21 @@ import {
   type SerialRequestQueue,
   UNCANCELLABLE,
 } from './transport-queue.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+
+ Nothing here reaches stdout: stdout carries the JSON-RPC frames themselves.
+ */
+const transportLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'transport',
+},);
+
+//endregion Logging
 
 //region Output writer abstraction: supports both Bun FileSink and standard WritableStream
 
@@ -98,209 +116,6 @@ export function processStdoutWriter(
       return data.byteLength;
     },
   };
-}
-
-//endregion
-
-//region Stdio message loop: reads stdin lines, validates, dispatches, writes responses
-
-/**
- Connects an MCP server handle to stdin/stdout using newline-delimited JSON-RPC.
- Reads lines from stdin via {@link readLines}, parses and validates each as a JSON-RPC
- message via {@link isJsonRpcMessage}, dispatches to the server, and writes responses
- as newline-terminated JSON to stdout via {@link writeSerializedMessage}.
- 
- Runs until stdin closes (the client terminates the subprocess).
- 
- @param server - Immutable server handle created by {@link createMcpServer}.
- 
- @param input - Async iterable of byte chunks for incoming messages. Defaults to `process.stdin`.
- 
- @param output - Writer for outgoing messages. Defaults to a `process.stdout.write` wrapper.
- 
- @mutates output - writeSerializedMessage delegates each response to output.write, which changes output stream state.
- 
- @example
- ```ts
- import { createMcpServer, defineTool, serve } from '\@monochromatic-dev/mcp-stdio';
- 
- const server = createMcpServer({ config: { name: 'demo', version: '0.1.0' }, tools: [] });
- await serve({ server });
- ```
- */
-export async function serve(
-  {
-    server,
-    input = process.stdin,
-    output = processStdoutWriter(),
-  }: {
-    readonly server: McpServerHandle;
-    readonly input?: AsyncIterable<Uint8Array>;
-    readonly output?: StdoutWriter;
-  },
-): Promise<void> {
-  /**
-   Reused across every outbound message so each call avoids allocating a fresh encoder.
-   */
-  const encoder = new TextEncoder();
-
-  /**
-   Owns execution order, cancellation, and write order for this connection.
-   
-   Every outbound frame goes through it, error frames included: once dispatch no longer
-   blocks this loop, a frame written directly from here could interleave with one a
-   running request is writing.
-   */
-  const queue = createSerialRequestQueue({
-    async write(frame: string,): Promise<void> {
-      console.error(`[mcp-stdio] -> ${frame}`,);
-      await writeSerializedMessage({
-        writer: output,
-        encoder,
-        serialized: frame,
-      },);
-    },
-  },);
-
-  /**
-   Drains accepted work on every exit from this function, not only a clean one.
-   
-   Stdin failing mid-session would otherwise abandon requests already accepted, losing
-   their replies exactly as returning early once did.
-   */
-  await using _drainOnExit = {
-    async [Symbol.asyncDispose](): Promise<void> {
-      await queue.idle();
-    },
-  };
-
-  for await (const line of readLines(input,)) {
-    if (line.trim()
-      .length
-      === 0)
-      continue;
-
-    /**
-     Holds the parsed JSON value, or stays `undefined` if `JSON.parse` threw.
-     
-     Declared with `let` because the assignment happens inside the try block; the catch
-     branch needs a binding visible at this scope to write the parse-error response.
-     */
-    let parsed: unknown = undefined;
-    try {
-      parsed = JSON.parse(line,);
-    }
-    catch (error: unknown) {
-      console.error(
-        '[mcp-stdio] failed to parse JSON from stdin:',
-        error,
-      );
-      /**
-       Parse-error response returned with `id: null` because the original id cannot be recovered.
-       */
-      const errorResponse: JsonRpcOutbound = {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: JSON_RPC_PARSE_ERROR,
-          message: 'Failed to parse JSON',
-        },
-      };
-      queueFrame({
-        queue,
-        serialized: JSON.stringify(errorResponse,),
-      },);
-      continue;
-    }
-
-    // Validate step: ensure the parsed value is a valid JSON-RPC 2.0 message
-    // before dispatching. Catches non-object values, missing jsonrpc field, etc.
-    if (!isJsonRpcMessage(parsed,)) {
-      console.error(
-        '[mcp-stdio] received invalid JSON-RPC message (missing jsonrpc or method):',
-        parsed,
-      );
-      /**
-       Shape-error response when the message parsed as JSON but is not a JSON-RPC message.
-       Uses invalid-request rather than parse-error: the text was valid JSON, so `JSON.parse`
-       never failed and reporting a parse failure would misdirect the client.
-       */
-      const errorResponse: JsonRpcOutbound = {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: JSON_RPC_INVALID_REQUEST,
-          message:
-            'Invalid JSON-RPC message: requires jsonrpc "2.0", a string method, '
-              + 'a number or string id when present, and object params when present',
-        },
-      };
-      queueFrame({
-        queue,
-        serialized: JSON.stringify(errorResponse,),
-      },);
-      continue;
-    }
-
-    console.error(`[mcp-stdio] <- ${line}`,);
-
-    /**
-     Request this message cancels, when it is a well-formed cancellation.
-     */
-    const cancelling = cancelledRequestId(parsed,);
-    // Applied here rather than through the queue: waiting its turn would defeat the point,
-    // since the request it names is what would be holding the queue.
-    if (cancelling !== NOT_A_CANCELLATION) {
-      if (!queue.cancel({ id: cancelling, },))
-        console.error(`[mcp-stdio] cancellation names no live request: ${String(cancelling,)}`,);
-      continue;
-    }
-
-    queue.enqueue({
-      id: ('id' in parsed) ? parsed.id : UNCANCELLABLE,
-      async produce(): Promise<string | typeof NO_FRAME> {
-        /**
-         Id this message expects echoed back, or `null` for a notification.
-         */
-        const replyId = ('id' in parsed) ? parsed.id : null;
-        // Deliberate catch-and-return: dispatch failing without a frame would leave the
-        // client waiting on a reply that can never arrive, which is worse than reporting
-        // an internal error it can act on.
-        try {
-          /**
-           Dispatch result; `NO_RESPONSE` indicates a notification (no reply expected).
-           */
-          const response = await server.handleMessage(parsed,);
-          if (response === NO_RESPONSE)
-            return NO_FRAME;
-          return serializeResponse({
-            response,
-            id: replyId,
-          },);
-        }
-        catch (error: unknown) {
-          console.error(
-            '[mcp-stdio] dispatch failed:',
-            error,
-          );
-          if (replyId === null)
-            return NO_FRAME;
-          return serializeResponse({
-            response: {
-              jsonrpc: '2.0',
-              id: replyId,
-              error: {
-                code: JSON_RPC_INTERNAL_ERROR,
-                message: `Dispatch failed: ${caughtValueText(error,)}`,
-              },
-            },
-            id: replyId,
-          },);
-        }
-      },
-    },);
-  }
-
 }
 
 //endregion
@@ -421,10 +236,11 @@ function serializeResponse(
     return JSON.stringify(response,);
   }
   catch (error: unknown) {
-    console.error(
-      '[mcp-stdio] failed to serialize response:',
-      error,
-    );
+    tagged({
+      tag: serializeResponse.name,
+      l: transportLogger,
+    },)
+      .error(`response could not be serialized: ${caughtValueText(error,)}`,);
     /**
      Replacement frame reporting that a well-formed result could not be encoded.
      */
@@ -479,6 +295,229 @@ async function writeSerializedMessage(
    */
   const framed = `${serialized}\n`;
   await writer.write(encoder.encode(framed,),);
+}
+
+//endregion
+
+//region Stdio message loop: reads stdin lines, validates, dispatches, writes responses
+
+/**
+ Connects an MCP server handle to stdin/stdout using newline-delimited JSON-RPC.
+ Reads lines from stdin via {@link readLines}, parses and validates each as a JSON-RPC
+ message via {@link isJsonRpcMessage}, dispatches to the server, and writes responses
+ as newline-terminated JSON to stdout via {@link writeSerializedMessage}.
+ 
+ Runs until stdin closes (the client terminates the subprocess).
+ 
+ @param server - Immutable server handle created by {@link createMcpServer}.
+ 
+ @param input - Async iterable of byte chunks for incoming messages. Defaults to `process.stdin`.
+ 
+ @param output - Writer for outgoing messages. Defaults to a `process.stdout.write` wrapper.
+ 
+ @mutates output - writeSerializedMessage delegates each response to output.write, which changes output stream state.
+ 
+ @example
+ ```ts
+ import { createMcpServer, defineTool, serve } from '\@monochromatic-dev/mcp-stdio';
+ 
+ const server = createMcpServer({ config: { name: 'demo', version: '0.1.0' }, tools: [] });
+ await serve({ server });
+ ```
+ */
+export async function serve(
+  {
+    server,
+    input = process.stdin,
+    output = processStdoutWriter(),
+  }: {
+    readonly server: McpServerHandle;
+    readonly input?: AsyncIterable<Uint8Array>;
+    readonly output?: StdoutWriter;
+  },
+): Promise<void> {
+  /**
+   Reused across every outbound message so each call avoids allocating a fresh encoder.
+   */
+  const encoder = new TextEncoder();
+
+  /**
+   Owns execution order, cancellation, and write order for this connection.
+   
+   Every outbound frame goes through it, error frames included: once dispatch no longer
+   blocks this loop, a frame written directly from here could interleave with one a
+   running request is writing.
+   */
+  const queue = createSerialRequestQueue({
+    async write(frame: string,): Promise<void> {
+      // Frames are the protocol itself, so this trace is reported only when
+      // logging is asked to be verbose; writing them unconditionally buried the
+      // diagnostics below in stderr traffic.
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .debug(`writing frame: ${frame}`,);
+      await writeSerializedMessage({
+        writer: output,
+        encoder,
+        serialized: frame,
+      },);
+    },
+  },);
+
+  /**
+   Drains accepted work on every exit from this function, not only a clean one.
+   
+   Stdin failing mid-session would otherwise abandon requests already accepted, losing
+   their replies exactly as returning early once did.
+   */
+  await using _drainOnExit = {
+    async [Symbol.asyncDispose](): Promise<void> {
+      await queue.idle();
+    },
+  };
+
+  for await (const line of readLines(input,)) {
+    if (line.trim()
+      .length
+      === 0)
+      continue;
+
+    /**
+     Holds the parsed JSON value, or stays `undefined` if `JSON.parse` threw.
+     
+     Declared with `let` because the assignment happens inside the try block; the catch
+     branch needs a binding visible at this scope to write the parse-error response.
+     */
+    let parsed: unknown = undefined;
+    try {
+      parsed = JSON.parse(line,);
+    }
+    catch (error: unknown) {
+      // The peer sent bytes this server cannot read, so the reply carries the
+      // parse error and the log names the failure that produced it.
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .warn(`stdin frame is not JSON: ${caughtValueText(error,)}`,);
+      /**
+       Parse-error response returned with `id: null` because the original id cannot be recovered.
+       */
+      const errorResponse: JsonRpcOutbound = {
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: JSON_RPC_PARSE_ERROR,
+          message: 'Failed to parse JSON',
+        },
+      };
+      queueFrame({
+        queue,
+        serialized: JSON.stringify(errorResponse,),
+      },);
+      continue;
+    }
+
+    // Validate step: ensure the parsed value is a valid JSON-RPC 2.0 message
+    // before dispatching. Catches non-object values, missing jsonrpc field, etc.
+    if (!isJsonRpcMessage(parsed,)) {
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .warn(`stdin frame is not a JSON-RPC message: ${JSON.stringify(parsed,)}`,);
+      /**
+       Shape-error response when the message parsed as JSON but is not a JSON-RPC message.
+       Uses invalid-request rather than parse-error: the text was valid JSON, so `JSON.parse`
+       never failed and reporting a parse failure would misdirect the client.
+       */
+      const errorResponse: JsonRpcOutbound = {
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: JSON_RPC_INVALID_REQUEST,
+          message:
+            'Invalid JSON-RPC message: requires jsonrpc "2.0", a string method, '
+              + 'a number or string id when present, and object params when present',
+        },
+      };
+      queueFrame({
+        queue,
+        serialized: JSON.stringify(errorResponse,),
+      },);
+      continue;
+    }
+
+    tagged({
+      tag: serve.name,
+      l: transportLogger,
+    },)
+      .debug(`reading frame: ${line}`,);
+
+    /**
+     Request this message cancels, when it is a well-formed cancellation.
+     */
+    const cancelling = cancelledRequestId(parsed,);
+    // Applied here rather than through the queue: waiting its turn would defeat the point,
+    // since the request it names is what would be holding the queue.
+    if (cancelling !== NOT_A_CANCELLATION) {
+      if (!queue.cancel({ id: cancelling, },))
+        tagged({
+          tag: serve.name,
+          l: transportLogger,
+        },)
+          .warn(`cancellation names no live request: ${String(cancelling,)}`,);
+      continue;
+    }
+
+    queue.enqueue({
+      id: ('id' in parsed) ? parsed.id : UNCANCELLABLE,
+      async produce(): Promise<string | typeof NO_FRAME> {
+        /**
+         Id this message expects echoed back, or `null` for a notification.
+         */
+        const replyId = ('id' in parsed) ? parsed.id : null;
+        // Deliberate catch-and-return: dispatch failing without a frame would leave the
+        // client waiting on a reply that can never arrive, which is worse than reporting
+        // an internal error it can act on.
+        try {
+          /**
+           Dispatch result; `NO_RESPONSE` indicates a notification (no reply expected).
+           */
+          const response = await server.handleMessage(parsed,);
+          if (response === NO_RESPONSE)
+            return NO_FRAME;
+          return serializeResponse({
+            response,
+            id: replyId,
+          },);
+        }
+        catch (error: unknown) {
+          tagged({
+            tag: serve.name,
+            l: transportLogger,
+          },)
+            .error(`dispatch failed: ${caughtValueText(error,)}`,);
+          if (replyId === null)
+            return NO_FRAME;
+          return serializeResponse({
+            response: {
+              jsonrpc: '2.0',
+              id: replyId,
+              error: {
+                code: JSON_RPC_INTERNAL_ERROR,
+                message: `Dispatch failed: ${caughtValueText(error,)}`,
+              },
+            },
+            id: replyId,
+          },);
+        }
+      },
+    },);
+  }
+
 }
 
 //endregion

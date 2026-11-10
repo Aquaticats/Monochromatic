@@ -76,6 +76,12 @@ function isUnrefableTimer(timer: unknown,): timer is UnrefableTimer {
  more than one cap of unhanded records. When an addition would breach the
  cap, the existing entries flush first so an oversized record's downstream
  failure can only ever drop that record, never its batch-mates.
+
+ The two page lifecycle hooks are registered only while records are waiting
+ and removed by every drain, because a buffer with nothing waiting has
+ nothing a lifecycle event could save. A host that builds many sinks
+ therefore registers no listener at all, and no drained buffer pins its
+ entries, tally, or timer to a page for the process lifetime.
  
  @param onFlush - Backend handoff receiving each newline-joined batch;
  called synchronously from whichever trigger fires, in record order.
@@ -146,6 +152,7 @@ export function createRecordBuffer(
       globalThis.clearTimeout(bufferState.timer,);
       delete bufferState.timer;
     }
+    releaseLifecycleHooks();
     if (entries.length === 0)
       return;
     /**
@@ -159,6 +166,54 @@ export function createRecordBuffer(
   }
 
   /**
+   Drains the buffer when the document became hidden; every other visibility
+   state leaves the buffered records in place.
+   */
+  function drainWhenDocumentHides(): void {
+    /**
+     Current page visibility; the listener only fires where a document exists.
+     */
+    const visibility = globalThis.document
+      ?.visibilityState;
+    if (visibility === 'hidden')
+      drain();
+  }
+
+  /**
+   Subscribes the page lifecycle hooks that flush what is waiting, once per
+   buffered span. Registering them at construction instead would cost every
+   sink a listener pair whether or not it ever buffers a record, and would
+   keep that sink's closure reachable for the page's lifetime.
+   */
+  function retainLifecycleHooks(): void {
+    globalThis.addEventListener?.(
+      'pagehide',
+      drain,
+    );
+    globalThis.document
+      ?.addEventListener?.(
+      'visibilitychange',
+      drainWhenDocumentHides,
+      );
+  }
+
+  /**
+   Releases the hooks {@link retainLifecycleHooks} registered, so a buffer with
+   nothing waiting holds no listener and no host-side reference to itself.
+   */
+  function releaseLifecycleHooks(): void {
+    globalThis.removeEventListener?.(
+      'pagehide',
+      drain,
+    );
+    globalThis.document
+      ?.removeEventListener?.(
+      'visibilitychange',
+      drainWhenDocumentHides,
+      );
+  }
+
+  /**
    Arms the quiet-period deadline flush if none is pending, releasing the
    runtime's keep-alive where the handle supports it so a pending flush
    never holds a process open.
@@ -166,6 +221,7 @@ export function createRecordBuffer(
   function scheduleDeadlineFlush(): void {
     if (bufferState.timer !== undefined)
       return;
+    retainLifecycleHooks();
     /**
      Freshly armed deadline handle; kept on {@link bufferState} so a cap or severity flush can disarm it.
      */
@@ -202,26 +258,6 @@ export function createRecordBuffer(
     else
       scheduleDeadlineFlush();
   }
-
-  // A leaving or hidden page is the last chance to hand off; both hooks are
-  // harmless no-ops on runtimes where the events never fire.
-  globalThis.addEventListener?.(
-    'pagehide',
-    drain,
-  );
-  globalThis.document
-    ?.addEventListener(
-    'visibilitychange',
-    function flushWhenHidden(): void {
-        /**
-         Current page visibility; the listener only fires where a document exists.
-         */
-      const visibility = globalThis.document
-        ?.visibilityState;
-      if (visibility === 'hidden')
-        drain();
-    },
-    );
 
   return {
     add,

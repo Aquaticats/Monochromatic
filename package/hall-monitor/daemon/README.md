@@ -131,12 +131,26 @@ The main knobs:
 
 ## Logging
 
-All output goes to syslog via `logger -t hall-monitor`.
+All output goes to syslog via `logger -t hall-monitor`,
+ one journal invocation per record at the priority matching its level
+ (`debug`/`trace` as `debug`,
+ `info` as `info`,
+ `warn` as `warning`,
+ `error` as `err`,
+ `fatal` as `crit`).
  View logs with:
 
 ```bash
 journalctl -t hall-monitor -f
 ```
+
+`src/infra/syslog.ts` supplies that routing as a sink for the shared tagged
+ logger,
+ so each event is filed once.
+ When the journal utility is missing or refuses a message,
+ the same line goes to stderr with the failure named,
+ because a gap in a monitoring daemon's record is worse than a line routed
+ elsewhere.
 
 ## Architecture
 
@@ -152,7 +166,7 @@ src/
     capture.ts        Screenshot (Spectacle) and webcam (ffmpeg) capture
     lock.ts           Single-instance enforcement via abstract Unix socket
     notification.ts   Desktop notifications (notify-send)
-    syslog.ts         Thin syslog wrapper (logger)
+    syslog.ts         Journal sink for the shared logger (logger)
     screenlock.ts     D-Bus session lock check
     blackdetect.ts    Webcam privacy cover detection
 ```

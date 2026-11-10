@@ -3,16 +3,19 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { existsSync, } from 'node:fs';
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
 
 import { buildCss, } from '@monochromatic-dev/css-cli';
+
 
 //region Test helpers
 
@@ -69,11 +72,19 @@ async function buildInTempDir({
   await Promise.all(
     Object.entries(files,).map(
       async function writeFixture([relativePath, content,],) {
+        /**
+         Absolute path of the seeded file.
+         */
+        const absolutePath = join(
+          dir,
+          relativePath,
+        );
+        await mkdir(
+          dirname(absolutePath,),
+          { recursive: true, },
+        );
         await writeFile(
-          join(
-            dir,
-            relativePath,
-          ),
+          absolutePath,
           content,
         );
       },
@@ -91,28 +102,62 @@ async function buildInTempDir({
   },);
 }
 
+/**
+ Directory the package owns, holding its sources and its built `dist/`; no
+ test may leave a build output inside it.
+ */
+const packageDirectory = join(import.meta.dirname, '..',);
+
+/**
+ One disposable directory an integration build writes into, removed when the
+ `await using` scope it is bound to ends, throw included.
+ Each test gets its own directory because module-test runs the cases of a
+ suite concurrently, and no directory lives inside the package's `dist/`, so
+ a failing assertion cannot leave output for a later build to pick up.
+ */
+type DisposableBuildOutput = {
+  /**
+   Output path owned solely by the calling test.
+   */
+  readonly outputPath: string;
+  /**
+   Removes the directory and whatever the build wrote into it.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Creates the disposable directory one integration build writes into.
+ 
+ @returns Output path plus the disposal hook that removes its directory.
+ */
+async function disposableBuildOutput(): Promise<DisposableBuildOutput> {
+  /**
+   Directory owning this test's output file alone.
+   */
+  const outputDirectory = await mkdtemp(join(
+    scratchRoot(),
+    'build-css-output-',
+  ),);
+  return {
+    outputPath: join(outputDirectory, 'out.css',),
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(
+        outputDirectory,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+    },
+  };
+}
+
 //endregion Test helpers
 
 const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
   /** Path to the main CSS entry point for this fixture */
   const fixtureMainCss = join(dir, 'src', 'main.css',);
-
-  /**
-   Builds a distinct output path per (fixture, test). module-test runs the it-blocks within a
-   describe concurrently, so a path shared across tests lets one test's cleanup rm the file
-   another test is mid-read on (the ENOENT this guards against).
-   
-   @param testSlug - Short discriminator unique to the calling test
-   @returns Absolute output path under dist/ owned solely by that test
-   */
-  function outputFor(testSlug: string,): string {
-    return join(
-      import.meta.dirname,
-      '..',
-      'dist',
-      `test-output-${label.replaceAll(' ', '-',)}-${testSlug}.css`,
-    );
-  }
 
   return describe({
     name: `buildCss (${label})`,
@@ -120,10 +165,10 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
       it({
         name: 'builds fixture CSS with import resolution and mixin expansion',
         fn: async () => {
-          const output = outputFor('builds',);
+          await using output = await disposableBuildOutput();
           const result = await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
           // Imports should be resolved and inlined
@@ -138,32 +183,71 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
           // Mixin content should be inlined
           expect(result,).toContain('display: flex',);
           expect(result,).toContain('font-weight: bold',);
-          await rm(output, { force: true, },);
         },
       },),
 
       it({
         name: 'writes output file to disk',
         fn: async () => {
-          const output = outputFor('writes',);
+          await using output = await disposableBuildOutput();
           await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
-          const written = await readFile(output, 'utf8',);
+          const written = await readFile(output.outputPath, 'utf8',);
           expect(written,).toContain('--primary: rebeccapurple',);
-          await rm(output, { force: true, },);
+        },
+      },),
+
+      it({
+        name: 'writes integration build outputs outside the package directory',
+        fn: async () => {
+          await using output = await disposableBuildOutput();
+          expect(output.outputPath.startsWith(packageDirectory,),).toBe(false,);
+        },
+      },),
+
+      it({
+        name: 'removes its build output even when a later assertion fails',
+        fn: async () => {
+          /**
+           Failure the deliberate assertion raised inside the disposed scope.
+           */
+          let caught: unknown;
+          /**
+           Directory whose disposal the assertions after the scope check.
+           */
+          let outputDirectory = '';
+          {
+            await using output = await disposableBuildOutput();
+            outputDirectory = dirname(output.outputPath,);
+            try {
+              await buildCss({
+                input: fixtureMainCss,
+                output: output.outputPath,
+              },);
+              // The build just wrote this file, so the assertion fails exactly
+              // the way a real one would after the output reached disk.
+              expect(existsSync(output.outputPath,),).toBe(false,);
+            }
+            catch (error) {
+              caught = error;
+            }
+          }
+
+          expect(String(caught,),).toContain('to equal false',);
+          expect(existsSync(outputDirectory,),).toBe(false,);
         },
       },),
 
       it({
         name: 'expands nested mixin references in build output',
         fn: async () => {
-          const output = outputFor('nested',);
+          await using output = await disposableBuildOutput();
           const result = await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
           // --card uses @apply --flex-center, so .nested-card should have flex styles
@@ -171,7 +255,6 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
           // The flex-center content should appear inside .nested-card
           const nestedCardMatch = result.slice(result.indexOf('.nested-card',),);
           expect(nestedCardMatch,).toContain('display: flex',);
-          await rm(output, { force: true, },);
         },
       },),
     ],
@@ -185,6 +268,20 @@ await describe({
       name: buildCss.name,
       children: [
         //region Import inlining
+
+        it({
+          name: 'resolves a slash-containing bare specifier against the importer directory',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'sub/theme.css';",
+                'sub/theme.css': '.theme { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.theme { color: red; }',);
+          },
+        },),
 
         it({
           name: 'inlines a duplicate import only once',
@@ -231,10 +328,145 @@ await describe({
 
             expect(result,).toContain('.shared',);
             expect(result,).not.toContain('@import',);
+            expect(result,).toContain('@layer base',);
+          },
+        },),
+
+        it({
+          name: 'wraps a media-conditioned import in its media query',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './print.css' print;\n.a { top: 0; }",
+                'print.css': '.p { color: black; }',
+              },
+            },);
+
+            expect(result,).toContain('@media print',);
+            expect(result,).toContain('.p { color: black; }',);
+          },
+        },),
+
+        it({
+          name: 'wraps a supports-conditioned import in its supports block',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './grid.css' supports(display: grid);",
+                'grid.css': '.g { display: grid; }',
+              },
+            },);
+
+            expect(result,).toContain('@supports (display: grid)',);
+            expect(result,).toContain('.g { display: grid; }',);
+          },
+        },),
+
+        it({
+          name: 'nests a layer and a media condition around one import',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import './base.css' layer(base) screen;",
+                'base.css': '.b { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('@layer base',);
+            expect(result,).toContain('@media screen',);
           },
         },),
 
         //endregion Import inlining
+
+        //region Package manifests
+
+        it({
+          name: 'throws naming the manifest when package.json is not parseable',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await buildInTempDir({
+                files: {
+                  'main.css': "@import 'manifest-pkg/test.css';",
+                  'node_modules/manifest-pkg/package.json': '{ "exports": ',
+                  'node_modules/manifest-pkg/test.css': '.m { color: red; }',
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(String(caught,),).toContain('node_modules/manifest-pkg/package.json',);
+          },
+        },),
+
+        it({
+          name: 'falls through to the direct file path when package.json is absent',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'manifest-less-pkg/test.css';",
+                'node_modules/manifest-less-pkg/test.css': '.m { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.m { color: red; }',);
+          },
+        },),
+
+        it({
+          name: 'resolves a package subpath through an exports wildcard pattern',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'pattern-pkg/theme.css';",
+                'node_modules/pattern-pkg/package.json': '{ "exports": { "./*": "./src/*" } }',
+                'node_modules/pattern-pkg/src/theme.css': '.theme { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.theme { color: red; }',);
+          },
+        },),
+
+        it({
+          name: 'resolves a package whose exports field is a single string',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'string-pkg';",
+                'node_modules/string-pkg/package.json': '{ "exports": "./src/index.css" }',
+                'node_modules/string-pkg/src/index.css': '.entry { color: blue; }',
+              },
+            },);
+
+            expect(result,).toContain('.entry { color: blue; }',);
+          },
+        },),
+
+        it({
+          name: 'throws instead of reaching past an exports map that matches nothing',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await buildInTempDir({
+                files: {
+                  'main.css': "@import 'sealed-pkg/src/secret.css';",
+                  'node_modules/sealed-pkg/package.json': '{ "exports": { "./index.css": "./index.css" } }',
+                  'node_modules/sealed-pkg/index.css': '.exported { color: green; }',
+                  'node_modules/sealed-pkg/src/secret.css': '.secret { color: red; }',
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(String(caught,),).toContain("does not export subpath './src/secret.css'",);
+          },
+        },),
+
+        //endregion Package manifests
 
         //region Errors
 

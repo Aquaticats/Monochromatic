@@ -238,6 +238,10 @@ export function createFileSink({
    shared with same-batch records so pending-write tracking covers queued records;
    unverified and rejected writes share one completed promise.
 
+   This step catches only the serializer: admission cannot fail synchronously,
+   and a filesystem append failure is reported by the append queue that owns it
+   (`file-append.ts`, `file sink batch append failed`).
+
    @param record - Log record to write.
 
    @mutates record - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
@@ -252,7 +256,7 @@ export function createFileSink({
 
     try {
       /**
-       Serialization finishes before queue admission, including reentrant writes from user serialization hooks.
+       Serialized record, ready for queue admission, including reentrant writes from user serialization hooks.
        */
       const serialized = JSON.stringify(record,);
       if (serialized === undefined)
@@ -262,7 +266,7 @@ export function createFileSink({
     }
     catch (error: unknown) {
       reportLoggerInternalError({
-        context: 'file sink record append failed',
+        context: 'file sink record serialization failed',
         error,
       },);
       return completedWrite;
