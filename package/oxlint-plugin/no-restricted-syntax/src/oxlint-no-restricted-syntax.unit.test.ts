@@ -285,25 +285,33 @@ const BAN_DISABLE_RULES = [
 /** Diagnostic `code` emitted by the ban rule guarding `no-restricted-syntax/no-switch`. */
 const NO_SWITCH_BAN_CODE = 'no-restricted-syntax(no-disable-no-switch)';
 
+/** Diagnostic `code` emitted by the ban rule guarding `no-useless-return`, whose rule id carries no plugin prefix. */
+const NO_USELESS_RETURN_BAN_CODE = 'no-restricted-syntax(no-disable-no-useless-return)';
+
 /**
- Returns the source lines the no-switch ban rule points at, in oxlint's
- emission order, and an empty list when the rule reported nothing.
+ Returns the source lines one ban rule points at, in oxlint's emission order,
+ and an empty list when it reported nothing.
 
  @param diagnostics - diagnostics oxlint reported for one linted file
 
- @returns one-based lines of the ban rule's diagnostics
+ @param code - diagnostic `code` of the ban rule under test
+
+ @returns one-based lines of that ban rule's diagnostics
 
  @example
  ```ts
- noSwitchBanLines({ diagnostics }); // [4] for a real directive on line 4
+ banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE }); // [4] for a directive on line 4
  ```
  */
-function noSwitchBanLines(
-  { diagnostics, }: { readonly diagnostics: readonly OxlintDiagnostic[]; },
+function banRuleLines(
+  { diagnostics, code, }: {
+    readonly diagnostics: readonly OxlintDiagnostic[];
+    readonly code: string;
+  },
 ): readonly number[] {
   return diagnostics
-    .filter(function isNoSwitchBan(diagnostic,): boolean {
-      return diagnostic.code === NO_SWITCH_BAN_CODE;
+    .filter(function isBanRule(diagnostic,): boolean {
+      return diagnostic.code === code;
     },)
     .map(function firstLabelLine(diagnostic,): number {
       return diagnostic.labels?.[0]?.span.line ?? 0;
@@ -379,7 +387,7 @@ await describe({
           name: 'reports the fixture directive without reporting the prose header',
           fn: async () => {
             const diagnostics = await lint('invalid/no-disable-no-switch.ts',);
-            expect(noSwitchBanLines({ diagnostics, },),)
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
               .toEqual(lineCommentDirectiveLines({ fixturePath: 'invalid/no-disable-no-switch.ts', },),);
           },
         },),
@@ -395,7 +403,7 @@ await describe({
               ].join('\n',),
             },);
             const diagnostics = await runOxlint(fixture.filePath,);
-            expect(noSwitchBanLines({ diagnostics, },),)
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
               .toEqual([],);
           },
         },),
@@ -413,7 +421,7 @@ await describe({
               ].join('\n',),
             },);
             const diagnostics = await runOxlint(fixture.filePath,);
-            expect(noSwitchBanLines({ diagnostics, },),)
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
               .toEqual([],);
           },
         },),
@@ -429,7 +437,7 @@ await describe({
               ].join('\n',),
             },);
             const diagnostics = await runOxlint(fixture.filePath,);
-            expect(noSwitchBanLines({ diagnostics, },),)
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
               .toEqual([1],);
           },
         },),
@@ -445,8 +453,28 @@ await describe({
               ].join('\n',),
             },);
             const diagnostics = await runOxlint(fixture.filePath,);
-            expect(noSwitchBanLines({ diagnostics, },),)
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
               .toEqual([1],);
+          },
+        },),
+        it({
+          name: 'reports a bare-id rule behind a plugin prefix and without one',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'bare-rule-id.ts',
+              source: [
+                '// oxlint-disable-next-line eslint/no-useless-return -- intentional.',
+                '// oxlint-disable-next-line no-useless-return -- intentional.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_USELESS_RETURN_BAN_CODE, },),)
+              .toEqual([
+                1,
+                2,
+              ],);
           },
         },),
       ],
