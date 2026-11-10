@@ -226,7 +226,14 @@ Each entry holds
   (a directory that only reaches the crate through another crate,
   such as `package/file-enforcer/cli` for
   `monochromatic-jsonc-edit`,
-  belongs here and not in `pinFiles`).
+  belongs here and not in `pinFiles`);
+- `dispatchGate`,
+  optional:
+  the command a real release of the crate waits for,
+  as its program and then its arguments,
+  run from the crate's own directory.
+  Every word must hold text and the list must not be empty,
+  because a release that waits for nothing is nobody's check.
 
 Only `crateDir` and `scope` are required.
 Unknown fields are refused.
@@ -422,6 +429,24 @@ and ends with `RELEASE STARTED <run URL>`.
 The branch is the default branch of the repository.
 When `gh` prints no run address,
 the closing line says so and shows `gh run list --workflow=crate-release.yml --limit=1`.
+
+### The dispatch gate of a crate
+
+A crate whose registry entry names a `dispatchGate` gets one more check,
+which is the last thing between the person and a run nothing can take back:
+the command runs after every refusal that costs nothing,
+from the crate's own directory,
+with what this machine has and a GitHub runner does not.
+The dispatch prints `Waiting for <the command>` and then everything the gate printed;
+when the gate exits nonzero the dispatch refuses,
+shows the line that names the gate and its status,
+and never calls `gh`.
+A `--dry-run` skips the gate and prints that it did,
+because a dry run runs nothing the gate's evidence would cover.
+Only `monochromatic-git-policy-cli` names one:
+`node bin/native-release-host-controls.ts`,
+the btrfs controls that cannot run in the container gate
+(`package/git-policy/cli/README.md`).
 
 ### Unpushed commits
 

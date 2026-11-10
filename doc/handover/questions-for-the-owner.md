@@ -916,9 +916,6 @@ Each record is cited so the context is one read away.
   and that package has none.
   Should it gain a `dist` build,
   or an exemption?
-- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
-  Should a systemd timer run it,
-  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
 - `mpm-shadow` launcher records named a folder carrying the version,
   so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
   The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
@@ -2153,3 +2150,20 @@ nothing here needs an answer.
   what is left to publish is small
   (about 153 KiB of test code in `forbidden-strings` and 165 KiB in `forbidden-regex`,
   before compression).
+
+## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
+
+### The btrfs host run before a release
+
+Asked whether a systemd timer should start `native:test:host:btrfs` and whether the gate should count the
+`BTRFS CONTROL NOT RUN` lines so a skipped control fails, the owner chose
+"Before each release (Recommended)":
+"A wrapper release waits for that run, and a skipped test fails it."
+No timer, and `--dry-run` stays free of it.
+Built as `bin/native-release-host-controls.ts` of the wrapper
+(`mise run //package/git-policy/cli:native:release:host-controls`),
+named as the `dispatchGate` of the crate in `package/crate-release/cli/releasable-crates.json`,
+so the dispatch runs it after every refusal that costs nothing and before it starts the workflow.
+What the gate refuses, and the one `BTRFS CONTROL NOT RUN` line a btrfs host prints instead of refusing,
+are in `package/git-policy/cli/README.md` ("Development") and
+`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`.

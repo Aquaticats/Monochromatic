@@ -10263,6 +10263,18 @@ How a question reaches him,
 he asked for it as plain prose in the session ("async"),
 not through the question tool.
 
+When the btrfs controls run,
+recorded 2026-11-10T09:54:58-05:00:
+asked whether a systemd timer should start `native:test:host:btrfs`
+and whether the gate should count the `BTRFS CONTROL NOT RUN` lines,
+he chose "Before each release (Recommended)":
+"A wrapper release waits for that run,
+and a skipped test fails it."
+No timer.
+The gate is `package/git-policy/cli/bin/native-release-host-controls.ts`,
+named as the crate's `dispatchGate` in `package/crate-release/cli/releasable-crates.json`,
+and what it refuses is in `package/git-policy/cli/README.md` ("Development").
+
 ## Working rules for this effort
 
 Rules not in `AGENTS.md` (each recorded at the time shown in the former handover).

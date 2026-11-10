@@ -42,7 +42,8 @@ run = "cargo update --offline --workspace"
 [tasks."native:release"]
 description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish, and skips the host's btrfs controls). A real release waits for the btrfs controls on this host first (`native:release:host-controls`) and dispatches nothing when one fails, when one printed \"BTRFS CONTROL NOT RUN\", or when the run lacks a control the gate requires. The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
 # The registry entry of this crate names the gate (releasable-crates.json "dispatchGate"), so the dispatch command runs it
-# after every refusal that costs nothing and before it starts the workflow; see doc/troubleshooting/btrfs-controls-before-a-release.md.
+# after every refusal that costs nothing and before it starts the workflow; see doc/troubleshooting/nextest-hides-a-passing-tests-output.md
+# for the one BTRFS CONTROL NOT RUN line a btrfs host prints, which the gate lets through.
 run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-git-policy-cli"
 
 [tasks."native:release:host-controls"]

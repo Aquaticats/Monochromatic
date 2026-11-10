@@ -3746,6 +3746,7 @@ mise run //package/git-policy/cli:native:build
 mise run //package/git-policy/cli:native:test:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:binary:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:host:btrfs -- <test name filter>
+mise run //package/git-policy/cli:native:release:host-controls
 mise run //package/git-policy/cli:native:test:container
 ```
 
@@ -3775,6 +3776,23 @@ mise run //package/git-policy/cli:native:test:container
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- A real wrapper release waits for that run:
+  `native:release` dispatches nothing until `native:release:host-controls`
+  (`bin/native-release-host-controls.ts`) reports that every control passed on this host,
+  and that task is what the crate's entry in `package/crate-release/cli/releasable-crates.json` names as its
+  `dispatchGate`,
+  so the dispatch runs it after every refusal that costs nothing and before it starts the workflow
+  (`package/crate-release/cli/README.md`).
+  It runs `native:test:host:btrfs` with its own deadline,
+  and it refuses the release when a test failed,
+  when a control printed `BTRFS CONTROL NOT RUN` for any reason but needing a filesystem that is not btrfs,
+  when the deadline stopped the run,
+  or when the run holds no passing status line for a control the gate requires by name
+  (the ioctls, the migration, and one binary-level control).
+  The refusal names what refused and what a person does on a host that has no btrfs filesystem to run the controls on.
+  `--dry-run` skips the controls and says so, because a dry run runs nothing their evidence would cover.
+  A control that needs a filesystem that is not btrfs does print that line on this host, which is the one such line a
+  green release run holds (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Before it copies or builds anything it runs `lint:sidecar-locks`,
