@@ -60,13 +60,13 @@ fn facts(source_build: &str) -> StateFacts {
     return StateFacts { source_build: Some(PathBuf::from(source_build)), source_build_exists: true, destination_build_exists: false, destination_target_exists: true };
 }
 
-/// An external build directory that the copy did not carry is cloned,
-/// then the members are cleaned.
+/// An external build directory that the copy did not carry is filled by the commit service,
+/// so the add does not clone it and the members are cleaned in that copy.
 #[test]
-fn an_external_build_directory_is_cloned_then_cleaned() {
+fn an_external_build_directory_is_filled_by_the_service() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
     let plan: BuildStatePlan = plan_build_state(&destination, Path::new("/w/new"), &facts("/cache/old"));
-    assert_eq!(plan, BuildStatePlan::CloneThenClean { from: PathBuf::from("/cache/old"), to: PathBuf::from("/cache/new") });
+    assert_eq!(plan, BuildStatePlan::FillFromTheSource { from: PathBuf::from("/cache/old"), to: PathBuf::from("/cache/new") });
 }
 
 /// Under the default layout the build directory is inside the worktree and arrived with `target/`:
@@ -136,15 +136,7 @@ fn the_clean_names_every_member_and_stays_offline() {
     }
 }
 
-/// The report says how many entries the clone left out,
-/// in the singular and the plural,
-/// and nothing when none.
-#[test]
-fn the_report_counts_the_entries_left_out() {
-    assert_eq!(left_out_words(0), "");
-    assert_eq!(left_out_words(1), "; 1 unreadable entry was left out");
-    assert_eq!(left_out_words(3), "; 3 unreadable entries were left out");
-}
+
 
 /// Output that was cut is never read as the metadata (sol-1 round 4:
 /// nothing exercised the refusal):

@@ -367,6 +367,7 @@ fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends(
         destination: main.clone(),
         common_dir: common.clone(),
         manifest: TrashManifest { name: "ab".repeat(20), trash: ObjectId { device: 7, inode: 1, birth: None }, entries: Vec::new() },
+        taken_over: 0,
         quiet: true,
     };
     let after: AfterLock = AfterLock { source_root: None, created: Vec::new(), trash: Some(pending.clone()) };

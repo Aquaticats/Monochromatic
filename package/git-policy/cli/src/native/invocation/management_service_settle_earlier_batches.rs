@@ -278,6 +278,7 @@ fn line_of(batch: &SettledBatch) -> String {
         Handled::StillOpen => format!("left open batch {seq} in {journal}: the index lock is held or a record cannot be read; run the command again\n"),
         Handled::Left => format!("left on disk batch {seq} in {journal}: its branch does not show it as landed, and a landing in progress writes its intent first, so the earlier helper settles it at its own start\n"),
         Handled::Dropped => format!("dropped the intent of batch {seq} in {journal}\n"),
+        Handled::Held => format!("left batch {seq} in {journal} held behind a reference lock: its branch has not moved, and the next command that finds the lock gone moves it\n"),
     };
 }
 

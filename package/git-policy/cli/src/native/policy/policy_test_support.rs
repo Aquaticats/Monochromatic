@@ -22,6 +22,7 @@ use crate::config_schema::PolicyConfig;
 use crate::policy_registry::{PolicyId, Severity};
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
+use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
 use crate::rule_worktree_dirty::DirtyScope;
@@ -47,6 +48,9 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
+    /// The answer to `staged_selection`,
+    /// whatever the pathspecs.
+    pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
     /// The answer to `clean_would_delete`.
@@ -90,6 +94,14 @@ impl RepositoryFacts for ScriptedFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         self.asked.push(format!("dirty:{scope:?}"));
         return self.dirty.clone();
+    }
+
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        self.asked.push(format!(
+            "selection:{}",
+            pathspecs.join(OsStr::new(" ")).to_string_lossy()
+        ));
+        return self.selection.clone();
     }
 
     fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
@@ -214,6 +226,11 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
         dirty: Ok(false),
+        selection: Ok(StagedSelection {
+            selected: 0,
+            repository: 1,
+            directory: 1,
+        }),
         stash: Ok(false),
         remote_guess: Ok(false),
         ignored_and_tracked: Ok(Vec::<String>::new()),
