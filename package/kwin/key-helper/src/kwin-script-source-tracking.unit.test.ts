@@ -44,20 +44,21 @@ class RepositoryRootNotFoundError extends Error {
  refuses a subdirectory as the working directory, so a Git call to find the root
  would need the root it is looking for.
 
- @param startDirectory - directory to search from, usually this test file's own
+ @param startDirectory - directory to search from, this test file's own by default
 
  @returns absolute path of the directory holding `.git`, a file in a worktree
 
  @throws {@link RepositoryRootNotFoundError} when no ancestor holds `.git`
  */
 function repositoryRootFrom(startDirectory: string,): string {
-  let current = startDirectory;
-  while (true) {
-    if (existsSync(join(current, '.git',),)) { return current }
-    const parent = dirname(current,);
-    if (parent === current) { throw new RepositoryRootNotFoundError(startDirectory,) }
-    current = parent;
+  if (existsSync(join(startDirectory, '.git',),)) {
+    return startDirectory;
   }
+  const parent = dirname(startDirectory,);
+  if (parent === startDirectory) {
+    throw new RepositoryRootNotFoundError(startDirectory,);
+  }
+  return repositoryRootFrom(parent,);
 }
 
 /** Repository root, the directory the `.gitignore` under guard sits in. */
@@ -97,9 +98,8 @@ function reportedPattern(repositoryPath: string,): string {
     { cwd: repositoryRoot, encoding: 'utf8', },
   ).split('\t',);
   // `<source>:<line>:<pattern>`; a pattern may itself hold a colon, so only the
-  // first two separators are consumed.
-  const [, , ...patternParts] = (verdict ?? '').split(':',);
-  return patternParts.join(':',);
+  // first two separators are dropped.
+  return (verdict ?? '').split(':',).slice(2,).join(':',);
 }
 
 await describe({
@@ -108,14 +108,13 @@ await describe({
     name: `re-includes ${file}`,
     fn: async () => {
       const repositoryPath = relative(repositoryRoot, join(kwinScriptDirectory, file,),);
-      expect(
-        () => execFileSync(
-          'git',
-          ['ls-files', '--error-unmatch', '--', repositoryPath,],
-          { cwd: repositoryRoot, stdio: 'ignore', },
-        ),
-        `${repositoryPath} is not tracked source any more`,
-      ).not.toThrow();
+      // Git tracks the file, so the repository relies on it staying addable; an
+      // untracked one here means the package has no script left to ship.
+      expect(() => execFileSync(
+        'git',
+        ['ls-files', '--error-unmatch', '--', repositoryPath,],
+        { cwd: repositoryRoot, stdio: 'ignore', },
+      ),).not.toThrow();
       const pattern = reportedPattern(repositoryPath,);
       // The negation has to name this repository-relative path, so moving the
       // package fails here instead of silently re-ignoring the files.
