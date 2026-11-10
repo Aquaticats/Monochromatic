@@ -11500,8 +11500,8 @@ not only the first:
 a branch that moves again while the new commit is being made makes that commit again on the branch as it is now,
 and the rebuilding ceiling is what ends an amend whose branch never stops moving,
 naming the builds it made and landing nothing
-(`service_commit.rs`,
-the arm for a branch that moved).
+(`after_the_branch_moved` in `src/native/landing/service_commit_branch_moved.rs`,
+which decides what each kind of commit the service answered `Moved` becomes).
 Nothing waits for another command and nothing is refused for it.
 The person is told what the amend became after it lands:
 a line naming the branch,
