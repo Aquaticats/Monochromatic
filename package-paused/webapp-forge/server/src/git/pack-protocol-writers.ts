@@ -10,6 +10,8 @@
 import {
   encodePkt,
   flushPkt,
+  MAX_PKT_LEN_PAYLOAD,
+  PKT_LEN_BYTES,
 } from './pkt-line.ts';
 
 /**
@@ -28,32 +30,29 @@ const SIDEBAND_CHANNEL_PROGRESS = 0x02;
 const SIDEBAND_CHANNEL_ERROR = 0x03;
 
 /**
- * Spec ceiling for a sideband-64k payload (data + 1-byte channel marker)
- * before the pkt-len header brings the total to 65520.
+ * Largest total pkt-line length a client that negotiated plain side-band
+ * accepts: gitprotocol-pack allows "up to 999 data bytes plus 1 control code,
+ * for a total of up to 1000 bytes in a pkt-line".
  */
-const SIDEBAND_64K_TOTAL_LIMIT = 65_519;
+const SIDEBAND_PLAIN_PKT_LEN_LIMIT = 1_000;
 
 /**
- * Spec ceiling for a plain sideband payload (data + 1-byte channel
- * marker) before the pkt-len header brings the total to 1000.
- */
-const SIDEBAND_PLAIN_TOTAL_LIMIT = 999;
-
-/**
- * Subtracted from the total limits above to leave room for the 1-byte channel marker.
+ * Subtracted from the payload ceilings above to leave room for the 1-byte channel marker.
  */
 const SIDEBAND_CHANNEL_MARKER_BYTES = 1;
 
 /**
- * Maximum bytes of payload (excluding the 1-byte channel marker) per
- * sideband-64k pkt-line.
+ * Maximum bytes of pack data (excluding the 1-byte channel marker) per
+ * side-band-64k pkt-line: the pkt-line payload ceiling minus the channel byte.
  */
-const MAX_SIDEBAND_64K_PAYLOAD = SIDEBAND_64K_TOTAL_LIMIT - SIDEBAND_CHANNEL_MARKER_BYTES;
+const MAX_SIDEBAND_64K_PAYLOAD = MAX_PKT_LEN_PAYLOAD - SIDEBAND_CHANNEL_MARKER_BYTES;
 
 /**
- * Maximum payload for plain (non-64k) sideband.
+ * Maximum bytes of pack data per plain (non-64k) side-band pkt-line.
  */
-const MAX_SIDEBAND_PAYLOAD = SIDEBAND_PLAIN_TOTAL_LIMIT - SIDEBAND_CHANNEL_MARKER_BYTES;
+const MAX_SIDEBAND_PAYLOAD = SIDEBAND_PLAIN_PKT_LEN_LIMIT
+  - PKT_LEN_BYTES
+  - SIDEBAND_CHANNEL_MARKER_BYTES;
 
 /**
  * Per-ref result from a `git-receive-pack` apply.

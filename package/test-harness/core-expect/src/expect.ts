@@ -80,6 +80,22 @@ const MATCHER_KEYS = [
   'toHaveNthReturnedWith',
 ] as const satisfies readonly (keyof MatcherSet)[];
 
+/**
+ Matcher names {@link MatcherSet} declares but {@link MATCHER_KEYS} omits.
+ Resolves to `never` only when the key list covers the whole matcher surface.
+ */
+type UnlistedMatcherKey = Exclude<keyof MatcherSet, (typeof MATCHER_KEYS)[number]>;
+
+/**
+ Compile-time completeness assertion: the type is `true` only while
+ {@link UnlistedMatcherKey} is `never`, so adding a {@link MatcherSet} method
+ without listing its name above, or deleting a listed name, fails `lint:types`
+ and names the offending matcher, instead of silently dropping it from
+ `.rejects`, `.resolves`, and the counted wrappers.
+ */
+const _matcherKeysCoverEveryMatcherSetMethod: [UnlistedMatcherKey] extends [never] ? true
+  : UnlistedMatcherKey = true;
+
 //region Async matcher builders
 
 /**
@@ -360,9 +376,9 @@ function expectImpl(actual: unknown,): ExpectResult {
         .not,
       actual,
     },),
-    // oxlint-disable-next-line no-unsafe-type-assertion -- cast required for Promise.race pattern
+    // oxlint-disable-next-line no-unsafe-type-assertion -- expect accepts any value while the rejects builder declares a promise it only awaits, and awaiting a non-promise is well defined; the cast stays on this line
     rejects: buildRejectsMatchers(actual as Promise<unknown>,),
-    // oxlint-disable-next-line no-unsafe-type-assertion -- cast required for Promise.race pattern
+    // oxlint-disable-next-line no-unsafe-type-assertion -- expect accepts any value while the resolves builder declares a promise it only forwards to be awaited, and awaiting a non-promise is well defined; the cast stays on this line
     resolves: buildResolvesMatchers(actual as Promise<unknown>,),
   };
 }

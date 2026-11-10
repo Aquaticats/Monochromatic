@@ -31,6 +31,15 @@ import type {
  Creates a {@link Store} instance, using platform-specific default backends
  when none are provided in the config.
  
+ The sync and async stores are hand-written twins, not one core with two
+ adapters: {@link createSyncStore} mirrors this function step for step.
+ Merging them would need an abstraction over the sync-or-async return, which
+ this package deliberately avoids;
+ `doc/decision/memoize-sync-async-parallel-impls.md` records that choice, and
+ `consensus.ts`, `serialize.ts`, and `lru-key-set.ts` hold the parts both
+ variants do share. A behaviour that one side gains alone is therefore a
+ defect unless a decision says otherwise.
+ 
  Falls back to a single in-memory `Map` when no backends are configured
  and no platform builder has been registered.
  
