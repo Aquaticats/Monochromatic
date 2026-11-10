@@ -136,35 +136,88 @@ fn group_engine(node: Node) -> Option<Engine> {
         .map(minimized_engine)
 }
 
+/// One candidate union group:
+///  the merged node its members form,
+///  plus the input indices of those members.
+///
+/// What:
+///  keeps the merged union the cap measures and the members it merged.
+///  Why:
+///  a
+/// group the cap rejects must hand each member back to its own engine,
+///  so the members
+/// are needed exactly when the union is unusable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Group = {
+///   // fields documented in Rust above
+/// };
+/// ```
+struct Group {
+    /// What:
+    ///     The alternation of the group's members.
+    /// Why:
+    ///      `union` stores the alternation of the group's members,
+    ///  the node whose DFA the
+    ///          state cap bounds,
+    ///  so the grouping code reads that precomputed state by name
+    ///          instead of recomputing or passing it separately.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// union: Node;
+    /// ```
+    union: Node,
+    /// What:
+    ///     Indices in the input node list of the rules this group merged.
+    /// Why:
+    ///      `members` stores indices in the input node list of the rules this group merged,
+    ///  so a
+    ///          union the cap rejects can be replaced rule by rule instead of dropped,
+    ///  so
+    ///          the grouping code reads that precomputed state by name instead of recomputing
+    ///          or passing it separately.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// members: number[];
+    /// ```
+    members: Vec<usize>,
+}
+
 /// Folds each rule into the first group whose grown union still fits the cap.
 ///
 /// What:
-///  tries appending the rule to each existing group node and keeps the first
+///  tries appending the rule to each existing group union and keeps the first
 /// union that builds under the cap;
 ///  otherwise the rule opens a new group.
 ///  Why:
 ///  growing
 /// a group lets `alt` share structure across members,
 ///  so far more rules combine than a
-/// pairwise test would admit.
+/// pairwise test would admit,
+///  and each group keeps its members so the cap can never lose
+/// one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function grow_groups(nodes: Node[]): Node[] {
+/// function grow_groups(nodes: Node[]): Group[] {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn grow_groups(nodes: Vec<Node>) -> Vec<Node> {
-    let mut groups: Vec<Node> = Vec::new();
-    'rule: for node in nodes {
+fn grow_groups(nodes: &[Node]) -> Vec<Group> {
+    let mut groups: Vec<Group> = Vec::new();
+    'rule: for (index, node) in nodes.iter().enumerate() {
         for group in &mut groups {
-            let trial = alt(vec![group.clone(), node.clone()]);
+            let trial = alt(vec![group.union.clone(), node.clone()]);
             if build_dfa_within(search_wrap(trial.clone()), GROUP_DFA_CAP).is_ok() {
-                *group = trial;
+                group.union = trial;
+                group.members.push(index);
                 continue 'rule;
             }
         }
-        groups.push(node);
+        groups.push(Group { union: node.clone(), members: vec![index] });
     }
     return groups
 }
@@ -173,27 +226,52 @@ fn grow_groups(nodes: Vec<Node>) -> Vec<Node> {
 ///
 /// What:
 ///  greedily grows groups,
-///  then builds one Table engine per group.
+///  then builds one Table engine per group,
+///  falling back to
+/// each member's own engine for a union the cap rejects.
 ///  Why:
 ///  the
 /// literal-free rules dominate per-line cost,
 ///  so fewer passes over them is the main
-/// throughput lever.
+/// throughput lever,
+///  and the cap is a throughput budget,
+///  so exceeding it may cost an extra
+/// pass but never the rule's coverage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function group_seedless(nodes: Node[]): Engine[] {
+/// function group_seedless(nodes: Node[], per_rule: Engine[]): Engine[] {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
 ///
+/// `per_rule` holds each node's own engine in the same order as `nodes`.
+///
 /// @example
 /// ```ignore
-/// let engines = group_seedless(vec![parse("[0-9]{15,16}").unwrap()]);
+/// let nodes = vec![parse("[0-9]{15,16}").unwrap()];
+/// let per_rule = vec![build_engine(nodes[0].clone()).unwrap()];
+/// let engines = group_seedless(&nodes, &[&per_rule[0]]);
 /// assert_eq!(engines.len(), 1);
 /// ```
-pub(crate) fn group_seedless(nodes: Vec<Node>) -> Vec<Engine> {
-    return grow_groups(nodes).into_iter().filter_map(group_engine).collect()
+pub(crate) fn group_seedless(nodes: &[Node], per_rule: &[&Engine]) -> Vec<Engine> {
+    let mut engines: Vec<Engine> = Vec::new();
+    for group in grow_groups(nodes) {
+        match group_engine(group.union) {
+            Some(engine) => engines.push(engine),
+            None => {
+                tracing::warn!(
+                    cap = GROUP_DFA_CAP,
+                    members = group.members.len(),
+                    "seedless union exceeds the group state cap; keeping each member's own engine",
+                );
+                for index in group.members {
+                    engines.push(per_rule[index].clone());
+                }
+            }
+        }
+    }
+    return engines
 }
 
 /// What:
