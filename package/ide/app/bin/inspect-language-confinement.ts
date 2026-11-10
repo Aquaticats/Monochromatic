@@ -12,6 +12,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, re
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { isCredentialEnvironmentName } from './credential-environment-name.ts';
 import { isProcessNumberName } from './process-number-name.ts';
 import { projectStateDirectoryName } from './project-state-directory-name.ts';
 
@@ -203,7 +204,7 @@ interface ProbeDocument { who: string; results: ProbeResult[]; writableMounts?: 
 const probeDocuments = (directory: string): ProbeDocument[] => (existsSync(directory) ? readdirSync(directory) : [])
   .filter(name => name.startsWith('probe-') && name.endsWith('.json')).map(name => JSON.parse(readFileSync(join(directory, name), 'utf8')));
 const tomlTable = (variables: Record<string, string>): string => '{ ' + Object.entries(variables).map(([name, value]) => name + ' = ' + JSON.stringify(value)).join(', ') + ' }';
-const credentialNames = Object.keys(process.env).filter(name => /TOKEN|KEY|SECRET|PASSWORD/i.test(name));
+const credentialNames = Object.keys(process.env).filter(name => isCredentialEnvironmentName(name));
 const hostNamespaces = Object.fromEntries(['user', 'pid', 'net', 'mnt'].map(kind => [kind, readlinkSync('/proc/self/ns/' + kind)]));
 // endregion
 

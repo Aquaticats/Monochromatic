@@ -7,6 +7,8 @@
 // shape helix-lsp wrote would read the escape instead of the field when the escape is left in place, and it accepts
 // a run only when no record states ERROR.
 
+import { holdsIgnoringAsciiCase } from './ascii-case-fold.ts';
+
 /// The escape character that starts a colour sequence.
 const ESCAPE = '\u001b';
 
@@ -128,46 +130,6 @@ export function levelOf(line: string): string | undefined {
 
 /// The phrases a process prints when it reports its own shutdown as a failure, in lower case.
 const BARE_SHUTDOWN_PHRASES = ['context canceled', 'streamclosed', 'broken pipe'] as const;
-
-/**
- One UTF-16 code unit folded to lower case, for a fold above ASCII that the `i` flag never made.
- 
- What: the ASCII uppercase letters mapped to their lower case, every other code unit unchanged.
- 
- Why: a `key` alternative with the `i` flag folds a character with an ASCII letter only when the character itself is
- ASCII, so a long s never stands for an `s` and a Kelvin sign never stands for a `k`; folding ASCII alone keeps that
- answer, and a fold of the whole text would answer a phrase this check must not read.
- 
- @param codeUnit - one code unit of the text, from `String#charCodeAt`
- @returns the code unit of its ASCII lower case, or the code unit itself
- */
-function asciiLowerCase(codeUnit: number): number {
-  return ((codeUnit >= 0x41) && (codeUnit <= 0x5a)) ? codeUnit + 0x20 : codeUnit;
-}
-
-/**
- Whether a text holds a phrase, reading ASCII letters in either case.
- 
- What: a scan from each position of the text that compares one phrase's ASCII lower case with the text's, which is the
- answer an unanchored `phrase` pattern carrying the `i` flag gave over the same text.
- 
- Why: the phrases are short and the text is one record, so the scan costs the record's length times the phrase's,
- exactly what the pattern's engine walked, and it reads the text where it lies instead of folding a copy of it.
- 
- @param text - the text to read
- @param phrase - the phrase to look for, in lower case ASCII
- @returns whether the text holds the phrase in some case
- */
-function holdsIgnoringAsciiCase(text: string, phrase: string): boolean {
-  const lastStart = text.length - phrase.length;
-  for (let start = 0; start <= lastStart; start += 1) {
-    let offset = 0;
-    while ((offset < phrase.length)
-      && (asciiLowerCase(text.charCodeAt(start + offset)) === phrase.charCodeAt(offset))) offset += 1;
-    if (offset === phrase.length) return true;
-  }
-  return false;
-}
 
 /**
  Whether a text reports a process's own shutdown as a failure.
