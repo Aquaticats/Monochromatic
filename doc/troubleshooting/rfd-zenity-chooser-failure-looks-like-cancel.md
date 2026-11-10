@@ -296,10 +296,20 @@ which adds `tracing-log`'s bridge because it is one of
 `tracing-subscriber`'s default features,
 and prepends `icu_provider=off,icu_segmenter=off` to the filter directives.
  Tradeoff:
- other crates' `log` records now reach the sink at their own levels,
-so a dependency that logs at `info`
-newly appears in the application log;
-and an operator has to name an ICU target in `RUST_LOG` to hear it again.
+ other crates' `log` records now reach the sink at their own levels.
+ Measured on this host with a headless release
+run over a one-track folder
+(`HOME` and the XDG folders pointed at a scratch directory,
+`SLINT_BACKEND=headless`,
+the process ended by `timeout` after eight seconds):
+all 34 records of that run carried a
+`music_player::`
+target,
+so no dependency's record appeared at the default level.
+ A dependency that logs at `info` would now be
+heard.
+ The other tradeoff:
+ an operator has to name an ICU target in `RUST_LOG` to hear it again.
 
 ## What does not work
 
