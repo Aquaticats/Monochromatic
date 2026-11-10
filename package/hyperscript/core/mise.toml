@@ -18,3 +18,9 @@ extends = "format:oxlint"
 
 [tasks."lint:types"]
 extends = "lint:types"
+
+# The suites import the package by its bare name, which Node resolves through the
+# exports map to dist/final/neutral, so the artifact must exist before they run.
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["build"]
