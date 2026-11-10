@@ -62,6 +62,30 @@ fn bulk_forms_are_rejected_and_named() {
     }
 }
 
+/// Divergence:
+///  spellings that select the whole repository and that the fixed list never held.
+/// Why:
+///  `git add` reads a pathspec by Git's grammar,
+/// so `.//`, `././`, `sub/..`, case-insensitive magic and an
+///  exclusion each sweep the tree,
+/// and a list of exact tokens cannot name them all.
+///  Real Git stages every file for each of them (`command_add_tests.rs` holds that control).
+#[test]
+fn spellings_the_fixed_list_never_held_are_refused() {
+    for spelling in [
+        ".//",
+        "././",
+        "sub/..",
+        "sub/../",
+        "sub/../.",
+        ":(icase)*",
+        ":!nothing-here",
+        ":^nothing-here",
+    ] {
+        assert_eq!(decide(&["add", spelling]), rejection(spelling), "{spelling}");
+    }
+}
+
 /// Explicit paths,
 ///  other commands,
 ///  option values spelling a bulk token and regions Git refuses pass.
