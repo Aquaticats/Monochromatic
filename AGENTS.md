@@ -662,10 +662,14 @@ CLN:
 
 APQ:
  Auto-push fires in third-party clones too:
- before committing in one,
- run `git remote set-url --push origin DISABLED`;
- never in this repo's linked worktrees,
- which share its `.git/config`.
+ disable it with `git remote set-url --push origin DISABLED`
+ in a `git clone --no-hardlinks` of your own,
+ never in a path `git worktree add` made.
+
+GCW:
+ Never write Git config in any worktree of this repository:
+ every linked worktree shares one `.git/config`,
+ so one write changes the main checkout and every agent's commands.
 
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
