@@ -512,6 +512,16 @@ Read-only commands,
   source or stage whose path holds bytes that are not text is named in every record by those bytes,
   so recovery fills and reaps exactly that directory and no other,
   and a record written by an earlier release is still read.
+  A stage a killed `git worktree add` left beside its destination is removed by the next command
+  that runs the recovery,
+  with one line saying what went,
+  when the record written beside the stage's claim names the object still standing at that name
+  and the folder holds nothing that record cannot account for;
+  a stage nothing proves is named,
+  left whole,
+  and keeps its claim,
+  with the reason it was kept,
+  so a folder holding something you added there is never removed.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
   A copy settles itself against the source:
