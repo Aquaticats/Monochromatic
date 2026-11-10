@@ -94,6 +94,15 @@ export function isTypeScriptAlias(value: string,): value is TypeScriptAlias {
 }
 
 /**
+ One pinned release as `Object.entries` yields it: the npm alias and the
+ version it pins.
+ */
+type ReleaseEntry = readonly [
+  alias: string,
+  version: string
+];
+
+/**
  Write the scratch `package.json`; `npm install` in that directory then
  installs every pinned tool.
 
@@ -111,7 +120,7 @@ export async function writeScratchManifest(scratch: string,): Promise<void> {
   const dependencies = {
     ...OTHER_DEPENDENCIES,
     ...Object.fromEntries(Object.entries(TYPESCRIPT_RELEASES,)
-      .map(function asAlias([alias, version,],) {
+      .map(function asAlias([alias, version,]: ReleaseEntry,) {
         return [
           alias,
           `npm:typescript@${version}`,
@@ -290,6 +299,15 @@ export async function runChild(
 }
 
 /**
+ One diagnostic count as the tally yields it: the `file code` key and how many
+ diagnostics carried it.
+ */
+export type DiagnosticCount = readonly [
+  fileAndCode: string,
+  count: number
+];
+
+/**
  TypeScript diagnostic codes in `tsc --pretty false` output, grouped by file.
 
  @param output - Compiler output.
@@ -301,10 +319,7 @@ export async function runChild(
  diagnosticCounts('a.ts(1,1): error TS2322: x',); // [['a.ts TS2322', 1]]
  ```
  */
-export function diagnosticCounts(output: string,): readonly (readonly [
-  string,
-  number,
-])[] {
+export function diagnosticCounts(output: string,): readonly DiagnosticCount[] {
   /**
    Count per file and code.
    */
@@ -342,8 +357,8 @@ export function diagnosticCounts(output: string,): readonly (readonly [
     }
   }
   return [...counts,].toSorted(function byKey(
-    [left,],
-    [right,],
+    [left,]: DiagnosticCount,
+    [right,]: DiagnosticCount,
   ) {
     return left.localeCompare(right,);
   },);

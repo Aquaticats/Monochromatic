@@ -57,6 +57,15 @@ const PACKAGE_ROOT = resolve(
 );
 
 /**
+ One tally row as map iteration yields it: the diagnostic code or
+ `kind:option` label and the cases that reported it.
+ */
+type TallyRow = readonly [
+  label: string,
+  cases: number
+];
+
+/**
  Count failures per diagnostic code and per entry point.
 
  @param failures - Failing cases.
@@ -108,8 +117,8 @@ function summarize(
       );
   }
   return Object.fromEntries([...tally,].toSorted(function byCount(
-    left,
-    right,
+    left: TallyRow,
+    right: TallyRow,
   ) {
     return right[1] - left[1];
   },),);
