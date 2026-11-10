@@ -15,11 +15,10 @@
  @module
  */
 
-import { execFile } from 'node:child_process';
-import { once } from 'node:events';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { runCommand, } from './child-process.ts';
 import { NoAppIdentityError } from './errors.ts';
 
 //region Logging
@@ -31,6 +30,8 @@ import { NoAppIdentityError } from './errors.ts';
 const launchLogger = tagged({ tag: 'kwin-key-helper-launch', },);
 
 //endregion Logging
+
+//region New-window overrides
 
 /**
  Lowercased resource class to the exact command (and args) that launches a new,
@@ -111,6 +112,10 @@ export const NEW_WINDOW_OVERRIDES: Record<string, readonly [
   ],
 };
 
+//endregion New-window overrides
+
+//region Command selection
+
 /**
  A resolved launch command.
  
@@ -186,9 +191,18 @@ export function selectLaunchCommand({
   throw new NoAppIdentityError();
 }
 
+//endregion Command selection
+
+//region Launching
+
 /**
  Launch a new instance of the app identified by the focused window, logging
  (never throwing) so a failed launch cannot crash the daemon.
+ 
+ A launcher that exits nonzero, is killed, or cannot be started at all is
+ reported by {@link runCommand}; the log line names the command, its exit
+ status or signal, and its stderr, so a missing launcher or desktop file says
+ so instead of failing silently.
  
  @param desktopFileName - Focused window's `desktopFileName`, may be empty
  
@@ -220,17 +234,10 @@ export async function launchNewInstance({
     },)
       .info(`launching new instance: ${chosen.cmd} ${chosen.args
         .join(' ')}`,);
-    /**
-     Spawned process, awaited via its `close` event.
-     */
-    const child = execFile(
-      chosen.cmd,
-      [...chosen.args]
-    );
-    await once(
-      child,
-      'close'
-    );
+    await runCommand({
+      command: chosen.cmd,
+      args: chosen.args,
+    });
   } catch (error) {
     /**
      Best-effort message extracted from a thrown value of unknown type.
@@ -243,3 +250,5 @@ export async function launchNewInstance({
       .error(`launch failed: ${message}`,);
   }
 }
+
+//endregion Launching
