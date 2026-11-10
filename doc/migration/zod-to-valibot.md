@@ -198,11 +198,11 @@ Measured locally on 2026-05-09 with Bun's bundler + `gzip -9` on identical `stri
    63,518 B gzipped
 - `zod/mini` (our current baseline):
    6,850 B minified,
-   **2,753 B gzipped**
+   2,753 B gzipped
 - `valibot` (today,
    spec-violating):
    1,776 B minified,
-   **881 B gzipped**
+   881 B gzipped
 - `valibot` projected with #1343 fix applied (+60-80 gzipped bytes from modeling the diff against
   `_getStandardProps.ts:33-37`):
    ~940-960 B gzipped

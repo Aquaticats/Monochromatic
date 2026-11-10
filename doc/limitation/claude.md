@@ -300,7 +300,7 @@ The pipeline infrastructure works,
 All Claude instances failed to research available tools before defaulting to familiar patterns.
 The following were available and unused:
 
-**OmniSVG (NeurIPS 2025)**:
+OmniSVG (NeurIPS 2025):
  a dedicated Image-to-SVG generation model
 specifically capable of generating complex anime characters as SVGs.
 Open weights (OmniSVG1.1_8B) released December 2025,
@@ -312,7 +312,7 @@ Could have been pulled and run locally via podman/VM (permissions were granted).
 - Paper:
    <https://arxiv.org/abs/2504.06263>
 
-**VLM-based visual feedback loop**:
+VLM-based visual feedback loop:
  Claude instances did use their own vision
 for iterative comparison,
  but Claude's visual capabilities were insufficient
