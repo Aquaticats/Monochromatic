@@ -8218,6 +8218,12 @@ with two listings after the caller's own global options:
   so no caller mode may read it as a name,
   and the paths under the caller's own directory prefix are the set that directory gives.
 
+`require-root` refuses a command run below the worktree's top level before this check,
+so the directory set decides only where that policy is off,
+or where `-C` names a directory below the top with the command itself still at the root.
+It keeps the guard as strict as it was for such callers,
+who had `.` and `./` refused before.
+
 A selection is always a subset of those paths,
 so equal counts are equal sets,
 and the policy refuses a pathspec when its selection is the repository's whole set
@@ -8263,8 +8269,9 @@ A listing that cannot start,
 fails or reaches the read ceiling never blocks the command:
 the add runs unchanged,
 and one line on standard error says the check could not be made with the reason Git gave.
-The read is bounded by `READ_CEILING` (`repo_read/git_metadata.rs`,
-`PLUMBING_STEP_CEILING` in `service/wait_ceilings.rs`: two minutes),
+The read is bounded by `READ_CEILING` in `repo_read/git_metadata.rs`,
+which is `PLUMBING_STEP_CEILING` in `service/wait_ceilings.rs`,
+two minutes,
 and the person is never held longer.
 A spelling Git itself cannot prepare,
 such as `:(top)/*` (Git 2.56.0 fails in its own `prep_exclude`),
