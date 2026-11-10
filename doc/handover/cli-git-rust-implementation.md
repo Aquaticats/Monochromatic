@@ -245,7 +245,11 @@ What gave the folder that label is not known.
 
 `922fa7d1fb` merged the move tool's fixes,
 and `cargo-shadow-lean.timer` is running again.
-The old tree kept for the rollback stays until the owner deletes it.
+The old trees,
+the source snapshots and the received first-pass copies of the move were deleted on 2026-11-10,
+under the owner's "860 move:
+You delete it." and "Delete both (Recommended)".
+No rollback to the NVMe remains.
 
 #### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
 
@@ -6249,8 +6253,28 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   shared masking,
   existing records untouched.
 
-### LFS credential work: finished and paused (owner: "pause the lfs thread until I say unpause lfs")
+### LFS credential work: pause lifted 2026-11-10T06:44:02-05:00 (owner: "Unpause LFS.")
 
+- The owner's answers are recorded at the top of `doc/troubleshooting/lfs-credential-in-url.md`:
+  per-machine tokens,
+  and a login that this repository's own settings point to,
+  with a command that adds it to a chosen clone.
+  Nothing global may change:
+  "The custom lfs settings or server should only apply to repos where this is configured."
+- A live incident came first.
+  Issue 6277 reports it:
+  a Codex session's `git push` to a fork from a separate clone,
+  with no controlling terminal,
+  reached `git-lfs push --all`,
+  then `git credential fill`,
+  then `ksshaskpass` on the owner's desktop.
+  The push waited for more than seven minutes while the dialog came back each time it was dismissed.
+  Agent `lfs-upload-bounded-and-no-dialog-without-a-terminal` is queued for it,
+  and for the two LFS waits `SPEC.md` recorded as left unbounded by the pause.
+- Agent `lfs-per-machine-tokens-and-repo-login` is queued for the Worker,
+  the repository-only login and the per-clone command.
+  The coordinator runs the deployment,
+  the local migration and the token replacement after that branch lands.
 - The LFS agent's report and full inventory:
   `doc/troubleshooting/lfs-credential-in-url.md`,
   merged to main as `05199a8d8e` (credential guard task,
