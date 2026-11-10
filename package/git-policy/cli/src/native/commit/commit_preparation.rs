@@ -272,11 +272,19 @@ pub fn run_native_commit_within(
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
+        // A step the ceiling ended never exited by itself, so the note carries its name and no status.
+        crate::git_step_failure::note_failed_step(step.as_str(), None);
         let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
         return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
     let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = finished?;
-    return Ok(crate::forwarding::exit_code(outcome));
+    let code: i32 = crate::forwarding::exit_code(outcome);
+    // Git's own status for a commit it declined is the reason the command stops, and Git printed why to the terminal; the
+    //  note keeps the step and that status so the record can name them (`commit_stop_reason.rs`).
+    if code != 0 {
+        crate::git_step_failure::note_failed_step(step.as_str(), Some(code));
+    }
+    return Ok(code);
 }
 
 /// What:

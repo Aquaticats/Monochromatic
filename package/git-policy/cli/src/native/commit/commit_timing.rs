@@ -29,6 +29,9 @@
 //! ```
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
+/// Why this commit did not land,
+/// which the record states beside how it went and what it exited with.
+use crate::commit_stop_reason::{CommitStopReason, stop_json};
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
 /// The preparation's own work,
 /// by name,
@@ -303,6 +306,20 @@ pub struct CommitTiming {
     /// `ended` (blocked or declined,
     /// nothing landed) or `stopped` (a failure).
     pub outcome: &'static str,
+    /// What:
+    ///  Why the commit did not land,
+    ///  by the route that stopped it:
+    /// the policy that refused the content,
+    /// the transform that rejected the command,
+    /// the engine failure,
+    /// the Git step and its status,
+    /// or real Git's own exit.
+    /// Why:
+    ///  `outcome` and `exitCode` say that nothing landed and what the process returned,
+    ///  never whether a policy correctly refused content or a machine failed,
+    ///  and the stopped records of the live log could not be told apart for exactly that reason.
+    /// `None` for a commit that landed.
+    pub stop: Option<CommitStopReason>,
     /// Preparations made:
     /// one,
     /// and one more for each time the service sent the commit back or Git built it again.
@@ -435,6 +452,7 @@ impl CommitTiming {
             reference: None,
             request: None,
             outcome: "stopped",
+            stop: None,
             attempts: 0,
             index_builds: Vec::new(),
             prepare_spans: Vec::new(),
@@ -561,7 +579,7 @@ impl CommitTiming {
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
-             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
+             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"stop\":{},\"totalMs\":{},\
              \"routeMs\":{},\"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\
              \"buildMs\":{},\"buildParts\":{},\"buildPartsDropped\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
@@ -578,6 +596,7 @@ impl CommitTiming {
             place.map_or_else(null_word, Place::instance_json),
             place.map_or_else(null_word, Place::git_dir_json),
             quote(self.outcome),
+            stop_json(self.stop.as_ref()),
             total.as_millis(),
             self.route.as_millis(),
             self.prepare.as_millis(),

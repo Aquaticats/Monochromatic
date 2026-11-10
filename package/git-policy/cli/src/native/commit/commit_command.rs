@@ -20,6 +20,9 @@
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
 use crate::commit_timing::CommitTiming;
+/// Why the commit did not land,
+/// by the route that stopped it.
+use crate::commit_stop_reason::{reason_of_events, reason_of_stop};
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
@@ -116,7 +119,10 @@ fn write_stderr(text: &str) {
 /// ```ts
 /// catch (error) { ... process.exitCode = ... }
 /// ```
-fn report_stop(stop: TransactionStop) -> CommitEnding {
+fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding {
+    // Why the command stopped is written down here, before the process is told how it ended, so a record of a commit that
+    //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
+    timing.stop = Some(reason_of_stop(&stop, crate::git_step_failure::drain_failed_step()));
     match stop {
         TransactionStop::NativeExit(code) => return CommitEnding { code },
         TransactionStop::Message(message) => {
@@ -221,7 +227,7 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(stop) => {
             // A stop inside the build phase leaves it before its figure is taken, and the record must still state what the build spent.
             timing.close_an_open_build();
-            return report_stop(stop);
+            return report_stop(stop, timing);
         }
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
@@ -232,6 +238,9 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
+        // Nothing landed and the command did not fail: what refused the commit is in the events it reports, and the record
+        //  names the route they give (`commit_stop_reason.rs`).
+        timing.stop = Some(reason_of_events(served.result.events.as_slice()));
         return CommitEnding { code: served.result.exit_code };
     };
     timing.outcome = "landed";

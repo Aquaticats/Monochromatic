@@ -18,6 +18,10 @@
 
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use crate::commit_stop_reason::CommitStopReason;
+/// The status the controls' failing step exited with.
+/// It is Git's own status for a refusal, not the wrapper's exit code.
+const FAILED_STEP_STATUS: i32 = 128;
 use crate::commit_prepare_part_durations::PreparePart;
 use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
@@ -241,6 +245,32 @@ fn a_branch_name_with_delimiters_stays_one_line() {
     timing.reference = Some(hostile.clone());
     let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
     assert_eq!(value["branch"], hostile.as_str());
+    remove(root.as_path());
+}
+
+/// What:
+///  What stopped one commit that did not land,
+///  and the null a committed one states.
+/// Why:
+///  The record stated where the time went and not why the commit stopped,
+/// so a policy that correctly refused content read exactly like a machine
+///  failure the owner's rules forbid,
+/// and the one record of a stopped build left nobody able to say which it was.
+#[test]
+fn a_commit_that_did_not_land_states_what_stopped_it() {
+    let root: PathBuf = fixture("timing-stop");
+    let (mut timing, covered) = filled(root.as_path());
+    assert!(parsed(timing.line(covered, 0).as_str())["stop"].is_null(), "a commit that landed names no stop");
+    timing.outcome = "stopped";
+    timing.stop = Some(CommitStopReason::git_step("git add", Some(FAILED_STEP_STATUS)));
+    let stopped: serde_json::Value = parsed(timing.line(covered, 2).as_str());
+    assert_eq!(stopped["stop"]["kind"], "git-step", "{stopped}");
+    assert_eq!(stopped["stop"]["step"], "git add", "{stopped}");
+    assert_eq!(stopped["stop"]["status"], FAILED_STEP_STATUS, "{stopped}");
+    // The record's other fields stay, so a reader of the older ones loses nothing.
+    assert_eq!(stopped["exitCode"], 2);
+    assert_eq!(stopped["prepareMs"], PREPARE_MS);
+    assert_eq!(stopped["outcome"], "stopped");
     remove(root.as_path());
 }
 

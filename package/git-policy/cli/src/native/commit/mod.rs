@@ -66,6 +66,15 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// Why one commit did not land,
+/// as the timing record states it.
+pub mod commit_stop_reason;
+
+/// The last Git step of this process that failed,
+/// and the status it exited with,
+/// for the timing record.
+pub mod git_step_failure;
+
 /// How long each stretch of a commit's preparation held no Git child,
 /// by name,
 /// for the timing record.

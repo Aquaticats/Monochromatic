@@ -517,6 +517,91 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     remove_settled(&fixture);
 }
 
+/// A commit that a Git step refused states which step failed and the status it exited with,
+/// so a machine failure can be told from a refusal of the content the command named.
+/// Why:
+///  The stopped records of the live log stood at exit 2 inside the preparation,
+///  and nothing in them said whether a policy had refused content or the host had failed:
+///  one shape ended in the two `git add` starts the explicit-path staging makes and named no reason.
+///  The refusal is Git's own, so the status the record states is the one the same command line exits with here,
+/// measured rather than assumed.
+#[test]
+fn a_commit_stopped_by_a_failing_git_step_states_the_step_and_its_status() {
+    let fixture: Fixture = fixture("timing-stop-step");
+    let repo: PathBuf = base_repository(&fixture);
+    // A directory the worktree holds whose content nothing staged: an explicit-path commit stages a named file with
+    //  `git add --` and a directory or a pattern with `git add --update --`, and that start is the one Git refuses.
+    std::fs::create_dir(repo.join("newdir")).expect("newdir");
+    std::fs::write(repo.join("newdir/only-untracked.txt"), b"untracked\n").expect("a new file");
+    std::fs::write(repo.join("a.txt"), b"edit by the timing stop control\n").expect("a.txt");
+    let name: String = format!("timing-stop-step-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let refused = super::support::run_direct(&fixture, &repo, &["add", "--update", "--", "newdir"]);
+    let status: i64 = i64::from(refused.code.expect("Git's own status"));
+    assert_ne!(status, 0, "Git refuses a pathspec that matches nothing it tracks");
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt", "newdir"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let served = observe(&mut command, b"");
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(2), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (stopped by a step): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["exitCode"], 2, "{record}");
+    assert_eq!(record["stop"]["kind"], "git-step", "{record}");
+    assert_eq!(record["stop"]["step"], "git add", "{record}");
+    assert_eq!(record["stop"]["status"], status, "the record states Git's own status: {record}");
+    // The step the reason names is the last one the command started, so the reason and the steps agree.
+    let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps: {record}") });
+    assert_eq!(steps.last().map(|step| { return step["name"].clone(); }), Some(serde_json::Value::from("git add")), "{record}");
+    remove_settled(&fixture);
+}
+
+/// A commit that a policy refused states the policy that refused it,
+/// so a content verdict is never read as a machine failure.
+/// Why:
+///  The stopped and ended records of the live log named their exit code only,
+/// and a policy that correctly refused content read exactly like the host failing.
+#[test]
+fn a_commit_refused_by_a_policy_states_the_policy() {
+    let fixture: Fixture = fixture("timing-stop-policy");
+    let repo: PathBuf = base_repository(&fixture);
+    // A candidate holding a string the scanner's rules name is what `security/forbidden-strings` refuses at error severity,
+    //  and that policy runs only where the repository's own configuration names it.
+    let needle: String = ["PLANTED", "TIMING", "NEEDLE"].join("_");
+    std::fs::write(repo.join("a.txt"), format!("first\n{needle}\n")).expect("a.txt");
+    std::fs::create_dir(repo.join("rules")).expect("rules directory");
+    std::fs::write(repo.join("rules/private.txt"), format!("{needle}\n")).expect("rules");
+    std::fs::write(
+        repo.join(git_policy_cli::config_file::CONFIG_FILE_NAME),
+        "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
+    )
+    .expect("configuration");
+    let name: String = format!("timing-stop-policy-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let served = observe(&mut command, b"");
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the refused commit wrote no record") });
+    println!("TIMING RECORD (stopped by a policy): {record}");
+    assert_eq!(record["outcome"], "ended", "{record}");
+    assert_eq!(record["stop"]["kind"], "policy", "{record}");
+    assert_eq!(record["stop"]["policy"], "security/forbidden-strings", "{record}");
+    remove_settled(&fixture);
+}
+
 /// Whole milliseconds each term of a sum may fall short by,
 /// because every phase is cut to whole milliseconds on its own.
 const ROUNDING_MS: u64 = 12;
