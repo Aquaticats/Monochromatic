@@ -813,3 +813,38 @@ Evidence:
  and the kept records.
 `package/logger/core.fuzz` folds the new rules in its reference model
 (`undecided` sinks keep held records) and its campaign agrees with the real logger.
+
+## Lifecycle hooks live only while records wait (2026-11-10)
+
+`createRecordBuffer` registered a `pagehide` listener on `globalThis` and a
+`visibilitychange` listener on the document at construction,
+and nothing removed them:
+the returned buffer exposes only `add` and `drain`,
+and the `Sink` contract has no teardown hook.
+Every localStorage,
+sessionStorage,
+and OPFS sink therefore pinned its buffer closure,
+entries and character tally and timer slot included,
+to the page for the lifetime of the process,
+and a host or test suite building many sinks accumulated listeners without bound.
+
+The hooks now subscribe on the first record that stays buffered,
+and every `drain` releases them,
+because a page lifecycle event can only save records that are waiting.
+Construction registers no listener at all,
+a drained buffer holds no host-side reference to itself,
+and a later record re-arms both hooks.
+A synchronous cap or severity flush drains on the caller's stack,
+so it registers nothing either.
+
+The alternative the report offered,
+an optional `dispose` on `Sink` that a logger shutdown calls,
+needs a public teardown API the logger does not have;
+adding one stays an owner decision.
+This fix needs no contract change.
+
+Evidence:
+ `src/sink/record-buffer.unit.test.ts` pins no registration at construction,
+ one `pagehide` and one `visibilitychange` hook while a record waits,
+ none after a drain,
+ and a re-arm for the next waiting record.

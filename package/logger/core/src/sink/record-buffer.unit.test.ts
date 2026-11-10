@@ -29,16 +29,22 @@ function createCapturingFlush(): {
 }
 
 /**
- Installs a capturing `globalThis.addEventListener` (absent under Node, so
- the buffer's lifecycle registration is otherwise a no-op there), restoring
- the prior value when the returned guard leaves `using` scope.
+ Installs a capturing `globalThis.addEventListener` and
+ `globalThis.removeEventListener` pair (absent under Node, so the buffer's
+ lifecycle registration is otherwise a no-op there), restoring the prior
+ values when the returned guard leaves `using` scope.
  
- @returns Disposable exposing captured handlers by event type.
+ @returns Disposable exposing the live handlers by event type.
  */
 function installFakeGlobalListeners(): Disposable & {
   readonly handlers: Map<string, () => void>;
 } {
-  const original = globalThis.addEventListener;
+  const originalAdd = globalThis.addEventListener;
+  const originalRemove = globalThis.removeEventListener;
+  /**
+   Handlers currently registered, one per event type; removal deletes the entry,
+   which is what a real event target stops calling.
+   */
   const handlers = new Map<string, () => void>();
   globalThis.addEventListener = (function captureListener(
     type: string,
@@ -46,27 +52,36 @@ function installFakeGlobalListeners(): Disposable & {
   ): void {
     handlers.set(type, handler,);
   }) as unknown as typeof globalThis.addEventListener;
+  globalThis.removeEventListener = (function forgetListener(
+    type: string,
+  ): void {
+    handlers.delete(type,);
+  }) as unknown as typeof globalThis.removeEventListener;
   return {
     handlers,
     [Symbol.dispose](): void {
-      globalThis.addEventListener = original;
+      globalThis.addEventListener = originalAdd;
+      globalThis.removeEventListener = originalRemove;
     },
   };
 }
 
 /**
  Installs a fake `globalThis.document` (absent under Node) whose
- `visibilityState` is controllable and whose `addEventListener` captures
- handlers, restoring the prior value when the returned guard leaves `using`
- scope.
+ `visibilityState` is controllable and whose `addEventListener` and
+ `removeEventListener` track registrations, restoring the prior value when the
+ returned guard leaves `using` scope.
  
- @returns Disposable exposing captured handlers and mutable visibility.
+ @returns Disposable exposing live handlers and mutable visibility.
  */
 function installFakeDocument(): Disposable & {
   readonly handlers: Map<string, () => void>;
   readonly visibility: { state: string; };
 } {
   const original = globalThis.document;
+  /**
+   Handlers currently registered on the fake document, one per event type.
+   */
   const handlers = new Map<string, () => void>();
   const visibility = { state: 'visible', };
   globalThis.document = {
@@ -75,6 +90,9 @@ function installFakeDocument(): Disposable & {
       handler: () => void,
     ): void {
       handlers.set(type, handler,);
+    },
+    removeEventListener: function forgetListener(type: string,): void {
+      handlers.delete(type,);
     },
     get visibilityState(): string {
       return visibility.state;
@@ -282,6 +300,63 @@ await describe({
         onVisibilityChange?.();
         expect(batches.join('|',),)
           .toBe('tabbed away',);
+      },
+    },),
+    it({
+      name: 'registers no lifecycle listener until a record is buffered, and none after a drain',
+      fn: async () => {
+        using listeners = installFakeGlobalListeners();
+        using fakeDocument = installFakeDocument();
+        const { batches, onFlush, } = createCapturingFlush();
+
+        // Building a buffer arms nothing: a page lifecycle event can only lose
+        // records that are waiting, so an idle buffer needs no listener at all.
+        const buffer = createRecordBuffer({ onFlush, },);
+        expect(listeners.handlers.size,)
+          .toBe(0,);
+        expect(fakeDocument.handlers.size,)
+          .toBe(0,);
+
+        buffer.add({ level: 'info', serialized: 'waiting', },);
+        expect(listeners.handlers.has('pagehide',),)
+          .toBe(true,);
+        expect(fakeDocument.handlers.has('visibilitychange',),)
+          .toBe(true,);
+
+        buffer.drain();
+        // The drained buffer holds nothing, so it releases both hooks instead
+        // of pinning its closure to the page for the process lifetime.
+        expect(listeners.handlers.size,)
+          .toBe(0,);
+        expect(fakeDocument.handlers.size,)
+          .toBe(0,);
+        expect(batches.join('|',),)
+          .toBe('waiting',);
+      },
+    },),
+
+    it({
+      name: 'releases its lifecycle hooks after a lifecycle drain, so a later event cannot flush it again',
+      fn: async () => {
+        using listeners = installFakeGlobalListeners();
+        const { batches, onFlush, } = createCapturingFlush();
+        const buffer = createRecordBuffer({ onFlush, },);
+
+        buffer.add({ level: 'info', serialized: 'leaving', },);
+        /**
+         Captured pagehide handler, which the real target stops calling once the buffer removes it.
+         */
+        const onPagehide = listeners.handlers.get('pagehide',);
+        onPagehide?.();
+        expect(batches.join('|',),)
+          .toBe('leaving',);
+        expect(listeners.handlers.size,)
+          .toBe(0,);
+
+        buffer.add({ level: 'info', serialized: 'rearmed', },);
+        expect(listeners.handlers.has('pagehide',),)
+          .toBe(true,);
+        buffer.drain();
       },
     },),
   ],
