@@ -71,20 +71,26 @@ const OWNER_DIRECTORY_BITS = constants.S_IRUSR
   | constants.S_IXUSR;
 
 /**
+ Sentinel for a rejected value that carries no POSIX error code, so the code
+ reader never needs a nullish union.
+ */
+const NO_ERROR_CODE = Symbol('rejected value carries no POSIX error code',);
+
+/**
  Reads the POSIX error code a rejected filesystem call carries.
 
  @param error - Value a `node:fs/promises` call rejected with
 
- @returns the error code, or `undefined` when the value carries none
+ @returns the error code, or {@link NO_ERROR_CODE} when the value carries none
 
  @example
  ```ts
- if (filesystemErrorCode(error) === 'EEXIST') return false;
+ if (errorCodeOf(error) === 'EEXIST') return false;
  ```
  */
-function filesystemErrorCode(error: unknown,): string | undefined {
+function errorCodeOf(error: unknown,): string | typeof NO_ERROR_CODE {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the optional string `code` of the rejected value is read
-  return (error as { code?: string; }).code;
+  return (error as { code?: string; }).code ?? NO_ERROR_CODE;
 }
 
 /**
@@ -106,7 +112,7 @@ async function statOrMissing(path: string,): Promise<Stats | typeof MISSING_ENTR
     return await stat(path,);
   }
   catch (error: unknown) {
-    if (filesystemErrorCode(error,) === 'ENOENT')
+    if (errorCodeOf(error,) === 'ENOENT')
       return MISSING_ENTRY;
     throw error;
   }
@@ -297,7 +303,7 @@ async function createEmptyFileExclusively(path: string,): Promise<boolean> {
     return true;
   }
   catch (error: unknown) {
-    if (filesystemErrorCode(error,) === 'EEXIST')
+    if (errorCodeOf(error,) === 'EEXIST')
       return false;
     throw error;
   }
@@ -324,10 +330,15 @@ async function createFileWhenAbsent(path: string,): Promise<boolean> {
   }
   catch (error: unknown) {
     /**
-     Code of the failed create, which decides whether the parent directory is the cause.
+     Whether the create named a parent directory that is missing.
      */
-    const code = filesystemErrorCode(error,);
-    if (code !== 'ENOENT' && code !== 'EACCES')
+    const parentIsMissing = errorCodeOf(error,) === 'ENOENT';
+    /**
+     Whether the create named a parent directory that denies access.
+     */
+    const parentDeniesAccess = errorCodeOf(error,) === 'EACCES';
+
+    if (!(parentIsMissing || parentDeniesAccess))
       throw error;
   }
 

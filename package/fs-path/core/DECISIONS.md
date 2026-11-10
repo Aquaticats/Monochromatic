@@ -281,7 +281,8 @@ Rejected shapes:
    and no test can drive it without a seam.
 - Fixing only the flag and throwing on `EEXIST`:
    `ensureFile` on an ordinary existing file would then report a failure.
-- Creating the parent directory unconditionally, as before:
+- Creating the parent directory unconditionally,
+  as before:
    it repairs and stats a directory the call does not need,
    and a bare name has no parent string to pass.
 

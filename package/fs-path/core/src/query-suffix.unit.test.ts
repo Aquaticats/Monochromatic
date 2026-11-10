@@ -128,13 +128,13 @@ await describe({
              */
             const spelling = `${target}${QUERY_SUFFIX}`;
             expect(await ensurePath(spelling,),).toBe(spelling,);
-            expect((await readdir(parent,)).sort(),).toEqual([ PLAIN_NAME, ],);
+            expect((await readdir(parent,)).toSorted(),).toEqual([ PLAIN_NAME, ],);
             await writeFile(
               target,
               'content a bundler asked for',
             );
             expect(await emptyPath(spelling,),).toBe(spelling,);
-            expect((await readdir(parent,)).sort(),).toEqual([ PLAIN_NAME, ],);
+            expect((await readdir(parent,)).toSorted(),).toEqual([ PLAIN_NAME, ],);
             expect((await stat(target,)).size,).toBe(0,);
           },
         },),
@@ -194,7 +194,7 @@ await describe({
               'content a bundler asked for',
             );
             expect(await emptyFile(spelling,),).toBe(spelling,);
-            expect((await readdir(temp.path,)).sort(),).toEqual([ PLAIN_NAME, ],);
+            expect((await readdir(temp.path,)).toSorted(),).toEqual([ PLAIN_NAME, ],);
             expect((await stat(target,)).size,).toBe(0,);
           },
         },),

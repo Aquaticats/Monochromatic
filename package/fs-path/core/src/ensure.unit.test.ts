@@ -85,6 +85,32 @@ async function createTempDir(): Promise<TempDir> {
 }
 
 /**
+ Switches the process working directory, restoring the previous one when the
+ binding is disposed.
+
+ @param path - Directory the process works in until the scope ends
+
+ @returns disposable that restores the directory the process worked in before
+
+ @example
+ ```ts
+ using workingDirectory = changeWorkingDirectory(temp.path);
+ ```
+ */
+function changeWorkingDirectory(path: string,): Disposable {
+  /**
+   Directory the process worked in before the call.
+   */
+  const previous = process.cwd();
+  process.chdir(path,);
+  return {
+    [Symbol.dispose](): void {
+      process.chdir(previous,);
+    },
+  };
+}
+
+/**
  Whether the current process is the superuser, for whom mode bits never
  deny access.
  */
@@ -271,63 +297,60 @@ await describe({
           fn: async () => {
             await using temp = await createTempDir();
             /**
-             Directory the bare name resolves against, stood in for the duration of the case.
+             Bare name, resolved against the working directory switched into below.
              */
-            const previousCwd = process.cwd();
-            process.chdir(temp.path,);
-            try {
-              expect(await ensureFile('bare.txt',),).toBe('bare.txt',);
-              expect((await stat(join(
-                temp.path,
-                'bare.txt',
-              ),)).isFile(),).toBe(true,);
-            }
-            finally {
-              process.chdir(previousCwd,);
-            }
+            using workingDirectory = changeWorkingDirectory(temp.path,);
+            expect(await ensureFile('bare.txt',),).toBe('bare.txt',);
+            expect((await stat(join(
+              temp.path,
+              'bare.txt',
+            ),)).isFile(),).toBe(true,);
           },
         },),
         it({
           name: 'keeps the content of a file a second writer creates during the call',
           fn: async () => {
             await using temp = await createTempDir();
-            for (let round = 0; round < CONCURRENT_ROUNDS; round += 1) {
-              /**
-               Parent directory neither writer has created yet, so `ensureFile` has to create it too.
-               */
-              const parent = join(
-                temp.path,
-                `race-${round}`,
-              );
-              /**
-               File the second writer creates between the existence check and the create.
-               */
-              const target = join(
-                parent,
-                'appeared.txt',
-              );
-              /**
-               Second writer, started in the same tick so its create lands inside the call.
-               */
-              const secondWriter = (async function writeContent(): Promise<void> {
-                await mkdir(
+            await Promise.all(Array.from(
+              { length: CONCURRENT_ROUNDS, },
+              async function runRound(_unusedValue: unknown, round: number,): Promise<void> {
+                /**
+                 Parent directory neither writer has created yet, so `ensureFile` has to create it too.
+                 */
+                const parent = join(
+                  temp.path,
+                  `race-${round}`,
+                );
+                /**
+                 File the second writer creates between the existence check and the create.
+                 */
+                const target = join(
                   parent,
-                  { recursive: true, },
+                  'appeared.txt',
                 );
-                await writeFile(
+                /**
+                 Second writer, started in the same tick so its create lands inside the call.
+                 */
+                const secondWriter = (async function writeContent(): Promise<void> {
+                  await mkdir(
+                    parent,
+                    { recursive: true, },
+                  );
+                  await writeFile(
+                    target,
+                    CONCURRENT_CONTENT,
+                  );
+                })();
+                await Promise.all([
+                  secondWriter,
+                  ensureFile(target,),
+                ],);
+                expect(await readFile(
                   target,
-                  CONCURRENT_CONTENT,
-                );
-              })();
-              await Promise.all([
-                secondWriter,
-                ensureFile(target,),
-              ],);
-              expect(await readFile(
-                target,
-                'utf8',
-              ),).toBe(CONCURRENT_CONTENT,);
-            }
+                  'utf8',
+                ),).toBe(CONCURRENT_CONTENT,);
+              },
+            ),);
           },
         },),
         it({
