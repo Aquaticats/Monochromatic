@@ -12,7 +12,10 @@ import {
   join,
 } from 'node:path';
 
-import { OpenSnitchConfigError, } from './errors.ts';
+import {
+  OpenSnitchConfigError,
+  isErrnoException,
+} from './errors.ts';
 import {
   bypassRuntimeDirectory,
   bypassStateKey,
@@ -76,22 +79,6 @@ function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
   if (value === null)
     return false;
   return !Array.isArray(value,);
-}
-
-/**
- Reports whether unknown failure carries Node filesystem code.
- 
- @param error - Unknown caught value.
- 
- @returns Whether value is Node filesystem error.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' });
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return Error.isError(error,);
 }
 
 /**
