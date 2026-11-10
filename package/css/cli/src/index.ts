@@ -21,6 +21,34 @@ export {
 } from './build.ts';
 export {
   CircularCssMixinError,
+  CssPackageManifestError,
   UnknownCssMixinError,
 } from './errors.ts';
 export { expandCssMixins, } from './expand.ts';
+
+//region Pieces the built artifact exposes for its tests
+//
+// Each export below is a step the pipeline runs, exposed so a unit test of
+// the built artifact can drive that step on its own input rather than infer
+// it from a whole build. Nothing here is a promise to consumers: the
+// supported entry points are the two above.
+
+export {
+  existsSync,
+  readTextFile,
+  readTextFileSync,
+  writeTextFileEnsuringParentDirectory,
+} from './fs.ts';
+export { fsRegistry, } from './fs-registry.ts';
+export {
+  findPackageDir,
+  readPackageJson,
+  resolveExports,
+  resolvePackage,
+} from './package-resolver.ts';
+export {
+  isPackageSpecifier,
+  splitPackageSpecifier,
+} from './specifier.ts';
+
+//endregion Pieces the built artifact exposes for its tests

@@ -1,6 +1,7 @@
 import { reportLoggerInternalError, } from '../error-format.ts';
 import { createRecordBuffer, } from './record-buffer.ts';
 import { createSessionStorageStore, } from './session-storage-store.ts';
+import { createWebStorageProbeKey, } from './web-storage-probe-key.ts';
 
 import type {
   Level,
@@ -16,9 +17,14 @@ import type {
  (browsers, Node 22+, Deno) keeps the sink, and the buffered write path
  keeps the per-record cost acceptable everywhere rather than a runtime brand
  check deciding who may log here.
- 
+
+ The probe names a key of its own through {@link createWebStorageProbeKey},
+ the same shape the localStorage probe uses: a fixed key would let a second
+ verification of the same store, in this tab or another document, overwrite or
+ remove this one's value.
+
  @returns Whether sessionStorage is available and round-trips a probe write.
- 
+
  @example
  ```ts
  if (await verifySessionStorage()) {
@@ -29,11 +35,12 @@ import type {
 function verifySessionStorage(): Promise<boolean> {
   try {
     /**
-     Sentinel key used only for the probe write/read; removed afterward to avoid polluting real log entries.
+     Key this probe owns for its whole write-read-remove cycle; removed afterward to avoid polluting real log entries.
      */
-    const testKey = '__monochromatic_verify__';
+    const testKey = createWebStorageProbeKey();
     /**
-     Timestamp-based probe value so concurrent verifications never read each other's writes.
+     Probe value unique to this write, so a store that echoes something else
+     fails the equality check instead of electing the sink.
      */
     const testValue = `test-${Date.now()}`;
     globalThis.sessionStorage

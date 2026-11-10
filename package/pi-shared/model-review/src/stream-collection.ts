@@ -12,6 +12,8 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import { extractStructuredJson, } from './json.ts';
 
+//region Result types and sentinels -- collected stream outcome
+
 /**
  Sentinel for stream without tool call.
  */
@@ -47,6 +49,10 @@ type CollectedStructuredStream =
       readonly textContent: string;
     };
 
+//endregion Result types and sentinels -- collected stream outcome
+
+//region Empty-output error -- distinguishes empty output from malformed JSON
+
 /**
  Error distinguishing empty direct JSON from malformed JSON.
  
@@ -69,6 +75,10 @@ class EmptyStructuredReviewTextError extends Error {
     this.name = 'EmptyStructuredReviewTextError';
   }
 }
+
+//endregion Empty-output error -- distinguishes empty output from malformed JSON
+
+//region Collection -- one stream folded into tool arguments or finalized text
 
 /**
  Consume stream and collect expected tool arguments or finalized text.
@@ -137,6 +147,10 @@ async function collectStructuredStream(
   };
 }
 
+//endregion Collection -- one stream folded into tool arguments or finalized text
+
+//region Public API -- direct JSON collection
+
 /**
  Collect direct JSON stream and parse unknown value.
  
@@ -177,6 +191,8 @@ async function collectDirectJson(
     throw new EmptyStructuredReviewTextError();
   return extractStructuredJson(result.textContent,);
 }
+
+//endregion Public API -- direct JSON collection
 
 export {
   collectDirectJson,

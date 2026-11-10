@@ -157,6 +157,10 @@ pub enum ClientFailure {
     Refused,
     /// Another program holds the repository's index.
     IndexInUse(String),
+    /// A reference lock stands in the way of the branch write,
+    /// and nothing proves that a Git process still holds it;
+    /// `words` names the lock and the command that clears it.
+    ReferenceLocked { branch: String, words: String },
     /// The service failed in a way it could not resolve.
     Unavailable,
     /// The service program is not next to the wrapper.
@@ -340,6 +344,10 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::IndexInUse(holder) => format!(
             "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close \
              it, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::ReferenceLocked { branch, words } => format!(
+            "A lock stands in the way of writing the branch {branch}, so this commit was not made. {words} Run the commit again \
+             once it is clear. {NOTHING_CHANGED}"
         ),
         ClientFailure::ProgramMissing(path) => format!(
             "The commit service program was not found at {path}, so this commit was not made. Reinstall the git wrapper \

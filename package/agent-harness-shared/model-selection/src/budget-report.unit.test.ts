@@ -12,10 +12,14 @@ import {
 
 import {
   budgetModelSlug,
+  canonicalSlug,
   NoBudgetModelError,
   toBudgetModelCandidate,
 } from '../dist/final/node/index.mjs';
-import { fixtureModel, } from './test-fixtures.ts';
+import {
+  fixtureModel,
+  fixtureSlug,
+} from './test-fixtures.ts';
 
 //region Fixtures
 
@@ -40,7 +44,7 @@ await describe({
       children: [
         it({
           name: 'builds candidate report metadata',
-          fn: async function testCandidateReport() {
+          fn: async function testCandidateReport(): Promise<void> {
             expect(toBudgetModelCandidate({
               model,
               hasConfiguredAuth: true,
@@ -58,11 +62,18 @@ await describe({
       ],
     },),
     describe({
-      name: budgetModelSlug.name,
+      name: 'provider/model slug formatting',
       children: [
         it({
-          name: 'formats provider/model slug',
-          fn: async function testBudgetModelSlug() {
+          name: 'keeps canonicalSlug as the single implementation behind every name',
+          fn: async function testSlugOwner(): Promise<void> {
+            expect(budgetModelSlug,).toBe(canonicalSlug,);
+            expect(fixtureSlug,).toBe(canonicalSlug,);
+          },
+        },),
+        it({
+          name: 'formats provider/model slug through the compatibility name',
+          fn: async function testBudgetModelSlug(): Promise<void> {
             expect(budgetModelSlug(model,),).toBe('openai/gpt-4o-mini',);
           },
         },),
@@ -73,7 +84,7 @@ await describe({
       children: [
         it({
           name: 'includes reason and candidates in message',
-          fn: async function testNoBudgetModelError() {
+          fn: async function testNoBudgetModelError(): Promise<void> {
             const error = new NoBudgetModelError('no auth', {
               sameProvider: toBudgetModelCandidate({
                 model,
