@@ -134,7 +134,7 @@ fn a_named_pipe_where_the_binding_record_sits_is_a_failure_not_a_wait() {
         Ok(found) => found,
         Err(_) => panic!("the stage's binding record waited for a writer of a pipe for {PATIENCE:?}"),
     };
-    let failure: WorktreeCopyError = answer.err().expect("a pipe is not a registration this stage can carry");
+    let failure: WorktreeCopyError = answer.expect_err("a pipe is not a registration this stage can carry");
     assert!(failure.0.contains(STAGE_BINDING_NAME), "the record is named: {}", failure.0);
     assert!(failure.0.contains(stage.to_string_lossy().as_ref()), "the stage is named: {}", failure.0);
     remove(root.as_path());
