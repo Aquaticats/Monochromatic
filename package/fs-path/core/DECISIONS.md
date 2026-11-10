@@ -236,3 +236,51 @@ Measured on 2026-09-08:
    the leak guard still finds no `import(`,
    no `node:` in the neutral build,
    and no `navigator.storage` in the node build.
+
+## ensureFile's create is exclusive, and the parent is created only when a create needs it (2026-11-10)
+
+`ensureFile` decided to create the file from a `stat` result and then opened
+ it with flag `w`,
+ which truncates.
+The `stat` proved absence only at that moment:
+a second writer that created and wrote the file in between had its contents
+ destroyed,
+ measured as 40 truncations in 40 interleaved rounds against the previous code.
+
+The shape now:
+
+- `ensureFile` creates with flag `wx`,
+   so an entry that appears in the window is reported as `EEXIST` instead of
+   being opened for writing.
+   `EEXIST` falls back to the existing-entry path:
+   re-stat,
+   refuse a non-file,
+   and repair the owner bits,
+   so the second writer's contents survive.
+- The parent directory is created when the exclusive create reports `ENOENT`
+   or `EACCES`,
+   not before it,
+   so a call that finds the file already there touches no parent.
+   A bare name has no parent segment and skips the step entirely,
+   which is the `mkdir('')` failure of issue 1410.
+- A path that `EEXIST` reported while `stat` reports no entry is a symbolic
+   link whose target is absent,
+   since `stat` follows links.
+   Its target is created with flag `a`:
+   an append creates the file when it is absent and writes nothing to a file
+   that exists,
+   so no path through `ensureFile` opens a file for truncation.
+   The previous code created the target through the link,
+   and that behaviour is kept.
+
+Rejected shapes:
+
+- Keeping the `stat` before the create and opening with `wx` after it:
+   the window stays,
+   the fallback becomes unreachable in practice,
+   and no test can drive it without a seam.
+- Fixing only the flag and throwing on `EEXIST`:
+   `ensureFile` on an ordinary existing file would then report a failure.
+- Creating the parent directory unconditionally, as before:
+   it repairs and stats a directory the call does not need,
+   and a bare name has no parent string to pass.

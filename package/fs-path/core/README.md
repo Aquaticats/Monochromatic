@@ -92,6 +92,8 @@ Root discovery,
    `ensurePath`:
    create the path when missing (parents included) and verify owner read and write access when it exists,
    granting the owner bits when the mode denies them.
+   The file create is exclusive,
+   so a file a second writer creates while the call runs keeps its contents.
    `ensurePath` picks file or directory by whether the path has an extension.
 - `emptyDir`,
    `emptyFile`,

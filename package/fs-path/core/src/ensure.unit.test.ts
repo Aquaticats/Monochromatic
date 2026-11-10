@@ -17,6 +17,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -93,6 +94,24 @@ const isSuperuser = ((typeof process.getuid) === 'function') && (process.getuid(
  Mode with every permission bit cleared.
  */
 const NO_PERMISSIONS = 0o000;
+
+/**
+ Text a second writer puts into the file while `ensureFile` guarantees it.
+
+ A non-empty body is what makes a truncating create visible: the guarantee
+ under test is that this body survives the call.
+ */
+const CONCURRENT_CONTENT = 'written by the second writer while ensureFile ran';
+
+/**
+ Rounds of the concurrent-writer case.
+
+ One round is enough to decide the fixed call, which never truncates, and the
+ unbounded orderings are why a round repeats: the defect this case covers
+ truncated the second writer's file in every round measured on the host that
+ filed it, so a handful of rounds is the reproduction, not a sample.
+ */
+const CONCURRENT_ROUNDS = 20;
 
 /**
  Runs an operation and returns what it threw, or `undefined` when it did not.
@@ -266,6 +285,103 @@ await describe({
             finally {
               process.chdir(previousCwd,);
             }
+          },
+        },),
+        it({
+          name: 'keeps the content of a file a second writer creates during the call',
+          fn: async () => {
+            await using temp = await createTempDir();
+            for (let round = 0; round < CONCURRENT_ROUNDS; round += 1) {
+              /**
+               Parent directory neither writer has created yet, so `ensureFile` has to create it too.
+               */
+              const parent = join(
+                temp.path,
+                `race-${round}`,
+              );
+              /**
+               File the second writer creates between the existence check and the create.
+               */
+              const target = join(
+                parent,
+                'appeared.txt',
+              );
+              /**
+               Second writer, started in the same tick so its create lands inside the call.
+               */
+              const secondWriter = (async function writeContent(): Promise<void> {
+                await mkdir(
+                  parent,
+                  { recursive: true, },
+                );
+                await writeFile(
+                  target,
+                  CONCURRENT_CONTENT,
+                );
+              })();
+              await Promise.all([
+                secondWriter,
+                ensureFile(target,),
+              ],);
+              expect(await readFile(
+                target,
+                'utf8',
+              ),).toBe(CONCURRENT_CONTENT,);
+            }
+          },
+        },),
+        it({
+          name: 'creates the target of a symbolic link whose target is absent',
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Link standing where the file is requested.
+             */
+            const linkPath = join(
+              temp.path,
+              'link.txt',
+            );
+            /**
+             Path the link names but nothing occupies yet.
+             */
+            const linkTargetPath = join(
+              temp.path,
+              'link-target.txt',
+            );
+            await symlink(
+              linkTargetPath,
+              linkPath,
+            );
+            expect(await ensureFile(linkPath,),).toBe(linkPath,);
+            expect((await stat(linkTargetPath,)).isFile(),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'creates a file in a directory whose permissions deny access',
+          skip: isSuperuser ? 'the superuser passes every access check' : false,
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Directory whose permissions are stripped before the call.
+             */
+            const parent = join(
+              temp.path,
+              'locked',
+            );
+            await mkdir(parent,);
+            await chmod(
+              parent,
+              NO_PERMISSIONS,
+            );
+            /**
+             File inside the inaccessible directory, none of which exists yet.
+             */
+            const target = join(
+              parent,
+              'app.log',
+            );
+            expect(await ensureFile(target,),).toBe(target,);
+            expect((await stat(target,)).isFile(),).toBe(true,);
           },
         },),
         it({

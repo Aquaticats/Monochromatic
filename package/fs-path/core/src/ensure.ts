@@ -33,6 +33,23 @@ const l = tagged({ tag: 'path/ensure', },);
 const MISSING_ENTRY = Symbol('ENOENT: no filesystem entry at the requested path',);
 
 /**
+ Flag of the create that leaves an existing entry alone.
+
+ `wx` fails with `EEXIST` when anything already occupies the path, so a file a
+ second writer created between the existence check and this open is never
+ opened for writing and never truncated.
+ */
+const EXCLUSIVE_CREATE_FLAG = 'wx';
+
+/**
+ Flag of the create a symbolic link forces.
+
+ An append creates the file when it is absent and writes nothing to a file that
+ exists, so the target of a link that appeared in the meantime keeps its bytes.
+ */
+const CREATE_WITHOUT_TRUNCATION_FLAG = 'a';
+
+/**
  Permission bits kept from an existing mode when repairing access.
  */
 const PERMISSION_BITS = 0o777;
@@ -50,6 +67,23 @@ const OWNER_FILE_BITS = constants.S_IRUSR
 const OWNER_DIRECTORY_BITS = constants.S_IRUSR
   | constants.S_IWUSR
   | constants.S_IXUSR;
+
+/**
+ Reads the POSIX error code a rejected filesystem call carries.
+
+ @param error - Value a `node:fs/promises` call rejected with
+
+ @returns the error code, or `undefined` when the value carries none
+
+ @example
+ ```ts
+ if (filesystemErrorCode(error) === 'EEXIST') return false;
+ ```
+ */
+function filesystemErrorCode(error: unknown,): string | undefined {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the optional string `code` of the rejected value is read
+  return (error as { code?: string; }).code;
+}
 
 /**
  Stats the path, mapping `ENOENT` to {@link MISSING_ENTRY}.
@@ -70,8 +104,7 @@ async function statOrMissing(path: string,): Promise<Stats | typeof MISSING_ENTR
     return await stat(path,);
   }
   catch (error: unknown) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the optional string `code` of the thrown value is read
-    if ((error as { code?: string; }).code === 'ENOENT')
+    if (filesystemErrorCode(error,) === 'ENOENT')
       return MISSING_ENTRY;
     throw error;
   }
@@ -227,8 +260,76 @@ async function ensureParentDirectory(path: string,): Promise<void> {
 }
 
 /**
+ Creates an empty file only when the path holds no entry.
+
+ The create is exclusive, so an entry that appears between any earlier check
+ and this open is reported as `EEXIST` instead of being truncated.
+
+ @param path - Path to create
+
+ @returns `true` when this call created the file, `false` when an entry already occupies the path
+
+ @throws Every create failure other than `EEXIST`, a missing parent included
+
+ @example
+ ```ts
+ const created = await createEmptyFileExclusively('logs/app.log');
+ ```
+ */
+async function createEmptyFileExclusively(path: string,): Promise<boolean> {
+  try {
+    await writeFile(
+      path,
+      '',
+      { flag: EXCLUSIVE_CREATE_FLAG, },
+    );
+    return true;
+  }
+  catch (error: unknown) {
+    if (filesystemErrorCode(error,) === 'EEXIST')
+      return false;
+    throw error;
+  }
+}
+
+/**
+ Creates the file {@link ensureFile} was asked for, creating its parent
+ directory on the one failure that a missing or inaccessible parent causes.
+
+ @param path - Path to create
+
+ @returns `true` when this call created the file, `false` when an entry already occupies the path
+
+ @throws Every failure the exclusive create reports, other than `EEXIST`
+
+ @example
+ ```ts
+ const created = await createFileWhenAbsent('config/app.json');
+ ```
+ */
+async function createFileWhenAbsent(path: string,): Promise<boolean> {
+  try {
+    return await createEmptyFileExclusively(path,);
+  }
+  catch (error: unknown) {
+    /**
+     Code of the failed create, which decides whether the parent directory is the cause.
+     */
+    const code = filesystemErrorCode(error,);
+    if (code !== 'ENOENT' && code !== 'EACCES')
+      throw error;
+  }
+
+  l.info(`${path} has no usable parent directory yet, ensuring it`,);
+  await ensureParentDirectory(path,);
+  return createEmptyFileExclusively(path,);
+}
+
+/**
  Ensures a file exists and is readable/writable.
  Creates the file (and parent directories, via {@link ensureDir}) when missing.
+ The create is exclusive: a file a second writer creates while this call runs
+ keeps its contents.
 
  @param path - File path to ensure
 
@@ -243,17 +344,26 @@ async function ensureParentDirectory(path: string,): Promise<void> {
  */
 export async function ensureFile(path: string,): Promise<string> {
   /**
-   Metadata of the existing path, or the missing sentinel.
+   Whether this call created the file, rather than finding an entry already there.
+   */
+  const created = await createFileWhenAbsent(path,);
+
+  if (created) {
+    l.info(`${path} did not exist, created exclusively`,);
+    return path;
+  }
+
+  /**
+   Metadata of the entry that occupies the path now, or the missing sentinel.
    */
   const stats = await statOrMissing(path,);
 
   if (stats === MISSING_ENTRY) {
-    l.info(`${path} does not exist, creating`,);
-    await ensureParentDirectory(path,);
+    l.info(`${path} is a symbolic link whose target is absent, creating the target`,);
     await writeFile(
       path,
       '',
-      { flag: 'w', },
+      { flag: CREATE_WITHOUT_TRUNCATION_FLAG, },
     );
     return path;
   }
