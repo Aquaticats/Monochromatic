@@ -3,7 +3,7 @@
  
  @module
  */
-import { Type, } from '@earendil-works/pi-ai';
+import { Type, } from 'typebox';
 import type { AgentSession, } from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
