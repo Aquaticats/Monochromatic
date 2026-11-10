@@ -235,17 +235,12 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) => match is_foreign(shared, request.git_dir.clone()).await {
-            Some(true) => {
-                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
-                send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected }).await;
-            }
-            Some(false) => {
-                let deciding = is_foreign(shared, request.git_dir.clone());
-                queue_a_commit(request, write_half, shared, accepted, deciding).await;
-            }
-            None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
-        },
+        Ok(ClientMessage::Commit(request)) => {
+            // The question of whose this request is runs beside the beats of its connection, not before them, so a check
+            //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
+            let deciding = is_foreign(shared, request.git_dir.clone());
+            queue_a_commit(request, write_half, shared, accepted, deciding).await;
+        }
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
@@ -277,8 +272,8 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
 /// with beats,
 /// until the landing has answered.
 /// Why:
-///   The beats begin with the connection,
-/// and the answer of the check that says whether this request is this instance's goes through the same
+///   The beats begin before the check that says whether this request is this instance's has answered,
+/// and that check's answer goes through the same
 /// writer,
 ///  so a check whose own read waits on storage never leaves the client silent.
 /// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
@@ -310,6 +305,7 @@ where
         match decide.await {
             // A request for another worktree is not this instance's to land, so it never reaches the landing.
             Some(true) => {
+                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
                 let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Rejected });
             }
             // Nothing could say whose the request is: the client is told, and the landing never sees it.
