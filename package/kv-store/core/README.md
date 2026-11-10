@@ -39,6 +39,18 @@ lossily when `lossyForCircular` is true (the default),
  or rejected with a `TypeError` when it
 is false.
 
+## Keys
+
+A key is any non-empty string.
+ An empty key is refused: `set`,
+ `get`,
+ and `delete` throw
+`EmptyKeyError` before any backend is read or written.
+ An empty key addresses nothing a later
+call could name,
+ so both variants reject it rather than deriving or storing an
+unaddressable entry.
+
 ## Sync and async variants
 
 The two variants are hand-written twins,
@@ -89,10 +101,6 @@ const user = await store.get<{ name: string }>('user-1');
 await store.delete('user-1');
 await store.clear();
 ```
-
-Passing an empty key to the async `set` derives a stable key from the SHA-256 hash of the
-serialized value,
- so content-addressed writes still address something deterministic.
 
 ## Sync store
 

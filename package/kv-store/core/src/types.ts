@@ -298,11 +298,11 @@ export type SyncStoreConfig = BaseStoreConfig & {
 export type Store = BaseStoreFields<StorageBackend> & {
   /**
    Persist a value by key.
-   When key is empty, derives one from the content hash.
    
-   @param key - storage key
+   @param key - storage key; must be at least one character
    @param value - data to persist
    @returns this store for chaining
+   @throws EmptyKeyError when key is empty, before any backend is written
    */
   readonly set: (
     key: string,
@@ -315,15 +315,17 @@ export type Store = BaseStoreFields<StorageBackend> & {
    @remarks A stored `null` value deserializes back to `null`; a missing key yields {@link ABSENT}, so the two are distinguishable.
    
    @typeParam T - expected deserialized value type
-   @param key - lookup key
+   @param key - lookup key; must be at least one character
    @returns deserialized value, or {@link ABSENT} when no backend holds the key
+   @throws EmptyKeyError when key is empty, before any backend is queried
    */
   readonly get: <const T = unknown,>(key: string,) => Promise<T | typeof ABSENT>;
 
   /**
    Remove entry by key across all backends.
    
-   @param key - key to remove
+   @param key - key to remove; must be at least one character
+   @throws EmptyKeyError when key is empty, before any backend is touched
    */
   readonly delete: (key: string,) => Promise<void>;
 
@@ -357,9 +359,10 @@ export type SyncStore = BaseStoreFields<SyncStorageBackend> & {
   /**
    Persist a value by key.
    
-   @param key - storage key
+   @param key - storage key; must be at least one character
    @param value - data to persist
    @returns this store for chaining
+   @throws EmptyKeyError when key is empty, before any backend is written
    */
   readonly set: (
     key: string,
@@ -373,8 +376,9 @@ export type SyncStore = BaseStoreFields<SyncStorageBackend> & {
    @remarks A stored `null` value deserializes back to `null`; a missing key yields {@link ABSENT}, so the two are distinguishable.
    
    @typeParam T - expected deserialized value type
-   @param key - lookup key
+   @param key - lookup key; must be at least one character
    @returns deserialized value, or {@link ABSENT} when no backend holds the key
+   @throws EmptyKeyError when key is empty, before any backend is queried
    */
   readonly get: <const T = unknown,>(key: string,) => T | typeof ABSENT;
   /* oxlint-enable typescript/no-unnecessary-type-parameters */
@@ -382,7 +386,8 @@ export type SyncStore = BaseStoreFields<SyncStorageBackend> & {
   /**
    Remove entry by key across all backends.
    
-   @param key - key to remove
+   @param key - key to remove; must be at least one character
+   @throws EmptyKeyError when key is empty, before any backend is touched
    */
   readonly delete: (key: string,) => void;
 

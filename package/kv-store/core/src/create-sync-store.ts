@@ -6,6 +6,7 @@ import {
 import { logger as defaultLogger, } from '@monochromatic-dev/logger-core/ts';
 
 import { queryAllBackendsSync, } from './backends-sync.ts';
+import { assertNonEmptyKey, } from './assert-non-empty-key.ts';
 import { ABSENT, } from './constants.ts';
 import { resolveConsensus, } from './consensus.ts';
 import { healBackendsSync, } from './heal.ts';
@@ -164,6 +165,10 @@ export function createSyncStore(config: SyncStoreConfig = {},): SyncStore {
       value: unknown,
     ): SyncStore {
       defaultLogger.debug(`syncStore.set: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'set',
+        key,
+      },);
       /**
        Serialized form written to every backend; computed once so all backends agree on byte-identical content.
        */
@@ -196,6 +201,10 @@ export function createSyncStore(config: SyncStoreConfig = {},): SyncStore {
     // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- T is the caller-specified return type for typed reads; a single use is the intended call-site-inference shape, not redundancy
     get<const T = unknown,>(key: string,): T | typeof ABSENT {
       defaultLogger.debug(`syncStore.get: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'get',
+        key,
+      },);
       /**
        Per-backend lookup results; feeds both consensus resolution and the healing pass.
        */
@@ -236,6 +245,10 @@ export function createSyncStore(config: SyncStoreConfig = {},): SyncStore {
 
     delete(key: string,): void {
       defaultLogger.debug(`syncStore.delete: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'delete',
+        key,
+      },);
       lru.remove(key,);
       for (const backend of backends)
         backend.delete(key,);

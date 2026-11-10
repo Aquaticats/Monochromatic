@@ -10,9 +10,9 @@ import {
   evictLruEntry,
   queryAllBackends,
 } from './backends-async.ts';
+import { assertNonEmptyKey, } from './assert-non-empty-key.ts';
 import { ABSENT, } from './constants.ts';
 import { resolveConsensus, } from './consensus.ts';
-import { hashString, } from './hash.ts';
 import { healBackends, } from './heal.ts';
 import {
   createLruKeySet,
@@ -146,6 +146,10 @@ export async function createStore(config: StoreConfig = {},): Promise<Store> {
       value: unknown,
     ): Promise<Store> {
       defaultLogger.debug(`store.set: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'set',
+        key,
+      },);
       /**
        Serialized form written to every backend; computed once so all backends agree on byte-identical content.
        */
@@ -154,16 +158,11 @@ export async function createStore(config: StoreConfig = {},): Promise<Store> {
         serializer,
         lossyForCircular,
       },);
-      /**
-       Effective storage key: the caller's key when non-empty, else a hash of the serialized value so empty keys still address something stable.
-       */
-      const resolvedKey = key.length
-        === 0 ? await hashString(serialized,) : key;
 
       await Promise.all(
         backends.map(async function persistToBackend(backend,) {
           await backend.set(
-            resolvedKey,
+            key,
             serialized,
           );
         },),
@@ -171,7 +170,7 @@ export async function createStore(config: StoreConfig = {},): Promise<Store> {
 
       await evictLruEntry({
         lru,
-        key: resolvedKey,
+        key,
         backends,
         logger: defaultLogger,
       },);
@@ -181,6 +180,10 @@ export async function createStore(config: StoreConfig = {},): Promise<Store> {
 
     async get<const T = unknown,>(key: string,): Promise<T | typeof ABSENT> {
       defaultLogger.debug(`store.get: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'get',
+        key,
+      },);
       /**
        Per-backend lookup results; feeds both consensus resolution and the healing pass.
        */
@@ -218,6 +221,10 @@ export async function createStore(config: StoreConfig = {},): Promise<Store> {
 
     async delete(key: string,): Promise<void> {
       defaultLogger.debug(`store.delete: "${key}"`,);
+      assertNonEmptyKey({
+        operation: 'delete',
+        key,
+      },);
       lru.remove(key,);
       await Promise.all(
         backends.map(async function deleteFromBackend(backend,) {
