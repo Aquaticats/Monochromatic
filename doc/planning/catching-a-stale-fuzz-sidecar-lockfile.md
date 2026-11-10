@@ -316,6 +316,15 @@ at 400 percent CPU quota on eight host CPUs:
   `error: could not compile `git-policy-cli-fuzz` (lib test) due to 1 previous error`,
   and exit 1 from the task CLI.
   Removing the probe restored the passing run.
+- The check fails on a stale lockfile:
+  the sidecar's original `Cargo.lock` from `789eb07b47` in the same tree made cargo stop with
+  `error: cannot update the lock file .../cli.fuzz/Cargo.lock because --locked was passed to prevent this`,
+  and the task exited 1.
+- The job's exact shape runs without a workspace install:
+  a `git archive HEAD` copy with no `node_modules`,
+  run by the pinned `nightly-2026-11-10` toolchain and its Clippy,
+  passed the task in 2 m 12 s for the check and 1.25 s for Clippy,
+  so the task CLI's loader needs no installed dependencies.
 
 ## Open questions for the owner
 
