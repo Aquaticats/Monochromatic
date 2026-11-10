@@ -30,7 +30,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::service_instance::{socket_path, try_instance_of};
 use crate::service_provision_host_and_manager::Manager;
-use crate::service_units_of_removed_worktrees::{UnitFolders, forget_stopped_instance, note_path, stop_units, worktree_is_gone};
+use crate::service_units_of_removed_worktrees::{UnitFolders, forget_stopped_instance, note_path, remove_journal_of_a_stopped_instance, stop_units, worktree_is_gone};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::registration_of;
@@ -97,7 +97,9 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 
 /// What:
 /// Stops the units of the worktree after a removal,
-/// when its Git directory is gone and it had units.
+/// when its Git directory is gone and it had units,
+/// and removes the note,
+/// the socket file and the journal of an instance nothing serves again.
 /// Whether the units were stopped.
 /// Why:
 ///   A removal that Git refused leaves the Git directory,
@@ -118,6 +120,19 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     manager.within(EXCHANGE_WAIT);
     stop_units(manager, about.instance.as_str())?;
     forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
+    if let Some(kept) = remove_journal_of_a_stopped_instance(folders, about.instance.as_str()) {
+        debug(
+            TAG,
+            format!(
+                "the journal of the removed worktree {} is kept at {}, because it holds {}, {}",
+                about.git_dir.display(),
+                kept.journal.display(),
+                kept.entry,
+                kept.reason
+            )
+            .as_str(),
+        );
+    }
     return Ok(true);
 }
 
@@ -136,7 +151,9 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
 pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
     let Some(runtime) = non_empty_variable("XDG_RUNTIME_DIR") else { return };
     let runtime_dir: PathBuf = PathBuf::from(runtime);
-    let state_dir: Option<PathBuf> = None;
+    // The journal's state directory, which the units' `StateDirectory=` names and the sweep reads back: without it a
+    // removed worktree's journal outlives its units.
+    let state_dir: Option<PathBuf> = state_dir_of_the_user();
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state_dir.as_deref() };
     if !worktree_is_gone(about.git_dir.as_path()) || !has_units(&folders, about.instance.as_str()) {
         return;
@@ -167,6 +184,25 @@ fn non_empty_variable(name: &str) -> Option<String> {
         Ok(text) if !text.is_empty() => Some(text),
         _ => None,
     };
+}
+
+/// What:
+/// The state directory of this user,
+/// whose `monochromatic-git-policy-cli/service/<instance>` folders hold the service journals.
+/// Why:
+///   The unit's `StateDirectory=` puts the journal under `$XDG_STATE_HOME`,
+/// else under `$HOME/.local/state` (`systemd.exec(5)`),
+/// and the removal hook runs as the same user.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stateDirOfTheUser() // $XDG_STATE_HOME, else $HOME/.local/state
+/// ```
+fn state_dir_of_the_user() -> Option<PathBuf> {
+    if let Some(named) = non_empty_variable("XDG_STATE_HOME") {
+        return Some(PathBuf::from(named));
+    }
+    return non_empty_variable("HOME").map(|home| PathBuf::from(home).join(".local").join("state"));
 }
 
 /// Removal hook controls stay out of the release executable.

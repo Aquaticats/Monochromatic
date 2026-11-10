@@ -1138,6 +1138,13 @@ and names an instance that maps to nothing without touching it.
 A stopped instance's note and socket file are removed,
 because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
+Its journal goes with them when it holds nothing else:
+the records of the batches that landed and the remains of a write that was killed
+are the memory of a service that will never run again,
+while a batch that did not land,
+a landing that was in flight,
+and a file this release does not know keep the whole journal,
+and the command names the file it kept it for.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
 It starts nothing,
@@ -1150,7 +1157,7 @@ when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
-removes the note and the socket file,
+removes the note, the socket file and the journal when the journal holds nothing else,
 and ends with status 0.
 Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,
