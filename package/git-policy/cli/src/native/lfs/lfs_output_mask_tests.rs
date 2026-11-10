@@ -162,3 +162,22 @@ fn a_long_line_is_masked_in_linear_time() {
     let unterminated: String = format!("https://{}", "@".repeat(1_000_000));
     assert!(masked(&unterminated).starts_with("https://<credentials>@"));
 }
+
+/// The host a destination names is the server,
+/// with no user,
+/// token or port left to guess about.
+#[test]
+fn the_host_of_a_destination_is_the_server_alone() {
+    let cases: [(&str, Option<&str>); 7] = [
+        ("https://lfs:<credentials>@monochromatic-lfs.aquaticat.workers.dev/objects/batch", Some("monochromatic-lfs.aquaticat.workers.dev")),
+        ("https://user:secret@127.0.0.1:36437/lfs", Some("127.0.0.1:36437")),
+        ("https://example.invalid/x", Some("example.invalid")),
+        ("ssh://git@host:22/repo.git", Some("host:22")),
+        ("origin", None),
+        ("/home/person/phone/pictures", None),
+        ("file:///home/person/repo.git", None),
+    ];
+    for (destination, expected) in cases {
+        assert_eq!(host_of(destination).as_deref(), expected, "{destination}");
+    }
+}

@@ -30,6 +30,53 @@
 /// What replaces the userinfo of a URL.
 pub const CREDENTIALS_MASK: &str = "<credentials>";
 
+/// What:
+///  The part of a destination that names the server a person must recognize:
+/// the host and its port,
+/// with any userinfo left out.
+/// Why:
+///   A refusal that says which server asked for a login is actionable,
+/// and one that repeats the destination as typed would carry the token of an
+///  `lfs.url` written with one.
+/// A destination with no URL authority (a remote name,
+/// a local path,
+/// `file://`) has no host to name,
+///  and answers nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hostOf(destination: string): string | undefined
+/// ```
+pub fn host_of(destination: &str) -> Option<String> {
+    // `as_bytes()` lends the text as raw bytes, so the rules below match what a URL really holds.
+    let bytes: &[u8] = destination.as_bytes();
+    let separator: usize = next_separator(bytes, 0)?;
+    // A separator that follows no scheme character is a path, not a URL.
+    if separator == 0 || !ends_scheme(bytes[separator - 1]) {
+        return None;
+    }
+    let authority_start: usize = separator + SCHEME_SEPARATOR.len();
+    let mut authority_end: usize = bytes.len();
+    for (offset, byte) in bytes[authority_start..].iter().enumerate() {
+        if ends_authority(*byte) {
+            authority_end = authority_start + offset;
+            break;
+        }
+    }
+    let authority: &[u8] = &bytes[authority_start..authority_end];
+    // The host begins after the last `@`, so a user and a token are never part of it.
+    let host_start: usize = match authority.iter().rposition(is_at_sign) {
+        Some(offset) => offset + 1,
+        None => 0,
+    };
+    let host: &[u8] = &authority[host_start..];
+    if host.is_empty() {
+        return None;
+    }
+    // `from_utf8_lossy` reads a host that is not UTF-8 without failing; a host name is text in practice.
+    return Some(String::from_utf8_lossy(host).into_owned());
+}
+
 /// The separator between a URL's scheme and its authority.
 const SCHEME_SEPARATOR: &[u8] = b"://";
 

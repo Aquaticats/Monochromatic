@@ -30,25 +30,45 @@
 /// the coordinator's Git and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline,
-/// the grace and the push runner.
-use crate::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_patience, run_bounded_push};
+/// the grace and the push runner,
+/// the wait a stalled child is ended by,
+/// and the line that says how a longer one is allowed.
+use crate::bounded_push::{
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, push_patience, wait_until_done_noting, run_bounded_push,
+};
 /// The invocation's environment values.
 use crate::child_environment::environment_value;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The texts,
-/// the program lookup and the plan.
-use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
-/// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
+/// the program lookup,
+/// and the reading that says a failure was a login.
+use crate::lfs_pre_push::{
+    environment_config_count, failed_message, find_program, login_needed_message, missing_program_message, reads_as_a_login_failure,
+};
+/// Hides the credentials in a URL of relayed text,
+/// and reads the host of a destination to name it.
+use crate::lfs_output_mask::{host_of, mask_userinfo, mask_userinfo_text};
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
-/// Relays signals to the child.
-use crate::signal_relay::SignalGuard;
+/// Relays signals to the child,
+/// which starts it and hands it over still published.
+use crate::signal_relay::{RelayedChild, SignalGuard};
+/// The child held until it is reaped,
+/// awaited on its pidfd.
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+/// The locks a stopped child leaves,
+/// none of which the upload claims.
+use crate::stopped_git_locks::LockLedger;
+/// The end of a stopped child,
+/// and the wait a push's patience lets pass.
+use crate::stop_of_a_push_and_sweep_of_its_locks::stop_push;
+/// The process's runtime,
+/// which this synchronous face enters.
+use crate::lazy_runtime::run_on_runtime;
 /// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
 /// Owned OS text for arguments.
 use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.
@@ -57,7 +77,7 @@ use std::path::Path;
 /// for the filesystem lookups a task may not make.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The child and its standard error.
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 /// Reading the captured standard error back.
 use std::io::{Read, Seek, SeekFrom};
 
@@ -133,6 +153,50 @@ enum CaptureError {
     Scratch(String),
     /// The program could not be started.
     Start,
+    /// The wait for the program could not be made at all:
+    /// no signal handler could be installed, or the process's runtime refused.
+    /// The text says why.
+    Guard(String),
+}
+
+/// What:
+///  Why one bounded run of the upload produced no end.
+/// Why:
+///   A program that never started is explained by the missing-program refusal,
+/// while a wait that could not be made is a defect of this process and is named as one,
+/// so the two never share words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RunError = { kind: 'start' } | { kind: 'wait'; why: string };
+/// ```
+enum RunError {
+    /// The program could not be started.
+    Start,
+    /// The wait failed,
+    /// or no relay could be published;
+    /// the text says why.
+    Wait(String),
+}
+
+/// What:
+///  How one run of the upload ended:
+///  the program's own end,
+/// or the end the wrapper gave it for showing no sign of work.
+/// Why:
+///   The two are explained in different words,
+/// and a stopped run's status is the wrapper's `timeout(1)` convention rather than a status the program chose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UploadEnd = { kind: 'finished'; outcome: ChildOutcome } | { kind: 'stopped'; cause: StopCause };
+/// ```
+enum UploadEnd {
+    /// The program ended by itself.
+    Finished(ChildOutcome),
+    /// The wrapper ended it,
+    /// and the cause says which limit came first.
+    Stopped(StopCause),
 }
 
 /// The most standard error text one run keeps and relays;
@@ -161,7 +225,7 @@ const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 fn run_with_captured_stderr(
     command: &mut Command,
     environment: &[(OsString, OsString)],
-) -> Result<(ChildOutcome, Vec<u8>), CaptureError> {
+) -> Result<(UploadEnd, Vec<u8>), CaptureError> {
     let mut captured: std::fs::File = match scratch_file(environment) {
         Ok(file) => file,
         Err(error) => return Err(CaptureError::Scratch(error.to_string())),
@@ -171,12 +235,19 @@ fn run_with_captured_stderr(
         Err(error) => return Err(CaptureError::Scratch(error.to_string())),
     };
     command.stderr(Stdio::from(for_child));
-    let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
-        Ok(guard) => guard.run_child(command),
-        Err(_) => command.status_retrying().map(outcome_of),
+    // What: The program reads no update lines (its refs are arguments), so its input is the null device, as the bounded
+    //  upload of the auto-push gives it.
+    // Why:  An inherited input of a command nobody typed could be a pipe another program waits on.
+    command.stdin(Stdio::null());
+    let guard: SignalGuard = match SignalGuard::install() {
+        Ok(installed) => installed,
+        Err(why) => return Err(CaptureError::Guard(why.to_string())),
     };
-    let Ok(ended) = outcome else {
-        return Err(CaptureError::Start);
+    let ended: UploadEnd = match run_on_runtime(await_upload(command, &guard, &captured, environment)) {
+        Ok(Ok(finished)) => finished,
+        Ok(Err(RunError::Start)) => return Err(CaptureError::Start),
+        Ok(Err(RunError::Wait(why))) => return Err(CaptureError::Guard(why)),
+        Err(refusal) => return Err(CaptureError::Guard(refusal.to_string())),
     };
     let mut bytes: Vec<u8> = Vec::new();
     // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
@@ -191,6 +262,130 @@ fn run_with_captured_stderr(
     return Ok((ended, mask_userinfo(bytes.as_slice())));
 }
 
+/// What:
+///  One `git-lfs push` run to its end,
+/// or until it shows no sign of work for the push's stall window,
+/// with the wrapper's signals relayed to it and its standard error already captured.
+/// Why:
+///   A server that accepts the connection and never answers held a typed push for good before this
+/// (`package/git-policy/cli/SPEC.md`,
+/// once "LFS is paused");
+/// the auto-push's upload was bounded and this face was not.
+/// The child is stopped and its whole tree ended when the window passes,
+/// and a stop is reported as a stop,
+/// never as the program's answer.
+/// The relay stays published for the whole wait,
+/// so a signal sent to the wrapper still ends the upload.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const relayed = await guard.startRelayed(command); const child = relayed.takeChild();
+/// const ended = await waitUntilDoneOrStalled(child, captured, patience); if (ended.stopped) await stopPush(child, grace);
+/// return ended;
+/// ```
+async fn await_upload(
+    command: &mut Command,
+    guard: &SignalGuard,
+    captured: &std::fs::File,
+    environment: &[(OsString, OsString)],
+) -> Result<UploadEnd, RunError> {
+    let mut relayed: RelayedChild = guard.start_relayed(command).await.map_err(|_error| RunError::Start)?;
+    let started: std::process::Child = relayed.take_child().expect("the child was handed over once");
+    let mut child: OwnedChild = adopt(started);
+    let label: String = command_label(command);
+    let mut waits: Vec<crate::push_progress::WaitReport> = Vec::new();
+    // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
+    let locks: LockLedger = LockLedger::none();
+    let patience = push_patience(environment);
+    let ended: Result<ExitStatus, StopCause> =
+        wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await.map_err(|wait| RunError::Wait(wait.to_string()))?;
+    let finished: UploadEnd = match ended {
+        // `outcome_of` maps the status the way the wrapper's exit and its notices read it, a death by a signal included.
+        Ok(status) => UploadEnd::Finished(outcome_of(status)),
+        Err(cause) => {
+            // The upload is ended with the grace every stopped child gets, and what it started goes with it.
+            stop_push(child, STOP_GRACE, locks).await;
+            UploadEnd::Stopped(cause)
+        }
+    };
+    // The token stops the relay pointing at the child here, once the wait no longer owns a living one.
+    drop(relayed);
+    return Ok(finished);
+}
+
+/// What:
+///  The words a run the wrapper stopped is explained with.
+/// Why:
+///  The program chose no status of its own,
+/// so the explanation says which limit came first and what the person can do about a
+///  slow line, as the auto-push's upload does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cause.kind === 'stalled' ? `made no progress for ${limit} seconds and was stopped` : `...`
+/// ```
+fn stopped_upload_words(cause: &StopCause) -> String {
+    return match cause {
+        StopCause::Deadline => String::from("did not finish in time and was stopped"),
+        StopCause::Stalled(report) => format!(
+            "made no progress for {} seconds and was stopped (bytes_moved={}); {}",
+            report.limit.as_secs(),
+            report.moved,
+            crate::push_deadline_advice::extend_clause()
+        ),
+        StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
+        // A typed upload carries no arm for the service's stop, so this ending cannot be reached here.
+        StopCause::ServiceStopped => String::from("was ended because the service was stopped"),
+    };
+}
+
+/// What:
+///  How a refusal names the destination whose upload needed a login:
+///  the server the destination URL names,
+/// or, for a remote name or a local path,
+/// the destination as typed with any userinfo hidden.
+/// Why:
+///   A refusal a person acts on says which server asked,
+/// and never repeats a token that a repository's `lfs.url` carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hostOf(text) ? `the server \`${hostOf(text)}\`` : `the destination \`${maskUserinfoText(text)}\``
+/// ```
+fn login_subject(destination: &std::ffi::OsStr) -> String {
+    // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
+    let text: String = destination.to_string_lossy().into_owned();
+    return match host_of(text.as_str()) {
+        Some(host) => format!("the server `{host}`"),
+        None => format!("the destination `{}`", mask_userinfo_text(text.as_str())),
+    };
+}
+
+/// What:
+///  The explanation printed after a failed upload:
+/// the general one,
+/// and,
+/// when the program's own words say it needed a login,
+/// the one that names the server and every way to give it one.
+/// Why:
+///   The wrapper is what refused to ask a person,
+/// so that failure is the one whose way forward only the wrapper can explain
+///  (`doc/troubleshooting/lfs-credential-in-url.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination)) : '')
+/// ```
+fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
+    let mut text: String = failed_message(status);
+    // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
+    let shown: String = String::from_utf8_lossy(output).into_owned();
+    if reads_as_a_login_failure(shown.as_str()) {
+        text.push_str(login_needed_message(login_subject(destination).as_str()).as_str());
+    }
+    return text;
+}
+
 /// The refusal printed when the standard error of the upload cannot be captured.
 fn capture_failed_message(why: &str) -> String {
     return format!(
@@ -199,6 +394,25 @@ fn capture_failed_message(why: &str) -> String {
          wrapper needs a writable `XDG_STATE_HOME`, or a `HOME`, for its private scratch directory) and push again; or \
          skip the upload for this push with `GIT_LFS_SKIP_PUSH=1` or `git push --no-verify`, which publishes pointer \
          files without their objects.\n"
+    );
+}
+
+/// What:
+///  The refusal printed when no signal handler could be installed for the upload's wait.
+/// Why:
+///  Without a guard the wait would have no bound and no relay,
+/// so the push is stopped before it sends anything rather than left to wait
+///  where nothing bounds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... (${why}) ...`
+/// ```
+fn guard_failed_message(why: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The wrapper bounds the run of `git-lfs push` \
+         and relays a signal sent to it to that program, and it could not begin that wait ({why}). Ways forward: push again, because \
+         the cause may be transient; or upload by hand with `git lfs push --all <remote>` and push with `git push --no-verify`.\n"
     );
 }
 
@@ -250,7 +464,7 @@ pub fn run_upload_interactive(
             for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
                 command.env(name, value);
             }
-            let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
+            let (ended, relayed): (UploadEnd, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
                 Ok(finished) => finished,
                 Err(CaptureError::Scratch(why)) => {
                     // Terminal output error: the exit status already carries the refusal.
@@ -262,10 +476,22 @@ pub fn run_upload_interactive(
                     let _written = diagnostics.write_all(missing_program_message().as_bytes());
                     return Some(1);
                 }
+                Err(CaptureError::Guard(why)) => {
+                    // Terminal output error: see above.
+                    let _written = diagnostics.write_all(guard_failed_message(why.as_str()).as_bytes());
+                    return Some(1);
+                }
             };
             // Terminal output error: the program's own words are advisory; the exit status carries the result.
             let _relayed = diagnostics.write_all(relayed.as_slice());
-            let code: i32 = exit_code(ended);
+            let (code, ended): (i32, ChildOutcome) = match ended {
+                UploadEnd::Finished(outcome) => (exit_code(outcome), outcome),
+                UploadEnd::Stopped(cause) => {
+                    // Terminal output error: the explanation carries the result.
+                    let _written = diagnostics.write_all(failed_message(stopped_upload_words(&cause).as_str()).as_bytes());
+                    return Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1));
+                }
+            };
             if code == 0 {
                 continue;
             }
@@ -274,7 +500,7 @@ pub fn run_upload_interactive(
                 ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
             };
             // Terminal output error: see above.
-            let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
+            let _written = diagnostics.write_all(explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice()).as_bytes());
             return Some(code);
         }
     }
@@ -322,14 +548,14 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     let Some(commands) = upload_commands(git, plan) else {
         return Ok(Some(missing_program_attempt()));
     };
-    for command in commands {
+    for (remote, command) in commands {
         let attempt: PushAttempt =
             match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
                 Ok(finished) => finished,
                 Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }
@@ -362,14 +588,14 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
     else {
         return Ok(Some(missing_program_attempt()));
     };
-    for command in commands {
+    for (remote, command) in commands {
         let attempt: PushAttempt =
             match crate::bounded_push::run_bounded_push_awaiting(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()).await {
                 Ok(finished) => finished,
                 Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }
@@ -386,11 +612,11 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const program = findProgram(env.PATH); if (!program) return undefined; return plan.remotes.flatMap((remote) => plan.runs(remote).map((args) => command(program, args)));
+/// const program = findProgram(env.PATH); if (!program) return undefined; return plan.remotes.flatMap((remote) => plan.runs(remote).map((args) => [remote, command(program, args)]));
 /// ```
-fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<Command>> {
+fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<(OsString, Command)>> {
     let program = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())?;
-    let mut commands: Vec<Command> = Vec::new();
+    let mut commands: Vec<(OsString, Command)> = Vec::new();
     for remote in &plan.remotes {
         for arguments in plan.runs(remote.as_os_str()) {
             let mut command: Command = Command::new(&program);
@@ -403,7 +629,9 @@ fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<Command>> {
             command
                 .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
                 .args(arguments.as_slice());
-            commands.push(command);
+            // The destination travels beside its command, so a failure can name the server that asked without searching the
+            //  argument list again.
+            commands.push((remote.clone(), command));
         }
     }
     return Some(commands);
@@ -455,23 +683,24 @@ fn missing_program_attempt() -> PushAttempt {
 /// ```ts
 /// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) });
 /// ```
-fn failed_upload(attempt: &PushAttempt) -> Option<PushAttempt> {
+fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Option<PushAttempt> {
     if attempt.exit_code == 0 {
         return None;
     }
     let shown: String = mask_userinfo_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }));
+    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination));
 }
 
 /// The failed attempt with the explanation after the program's own output;
-/// a stop by deadline says so.
-fn explained(attempt: PushAttempt) -> PushAttempt {
+/// a stop by deadline says so,
+/// and a login the program needed says how to give it one.
+fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
     let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         String::from("did not finish and was stopped")
     } else {
         format!("exited with status {}", attempt.exit_code)
     };
-    let explanation: String = failed_message(description.as_str());
+    let explanation: String = explanation_after_failure(description.as_str(), destination, attempt.output.as_bytes());
     let shown: &str = explanation.trim_end();
     let output: String = if attempt.output.is_empty() { shown.to_owned() } else { format!("{}\n{shown}", attempt.output) };
     return PushAttempt { exit_code: attempt.exit_code, output };
