@@ -264,7 +264,10 @@
     },
     // Placed after the rules that write manifests: it reads each manifest's license, which the toml-keys rules set.
     // Every package carries the license texts its manifest needs. LGPL-3.0-or-later is an additional-permissions layer
-    // over GPL-3.0-or-later, so it needs both. Only the three ids under "texts" are ever pruned.
+    // over GPL-3.0-or-later, so it needs both. Only the ids under "texts" are ever pruned, and every requirement
+    // names one whole SPDX id, so an AGPL expression never pulls the GPL text.
+    // The MIT text is one canonical file because every MIT package here is a fork of the same upstream author:
+    // a fork of a different author needs a hand-placed text under another name, such as markdownlint-MIT.txt.
     {
       "kind": "package-licenses",
       "id": "package-licenses",
@@ -279,11 +282,13 @@
         "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt",
         "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
         "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
+        "MIT": "LICENSES/MIT.txt",
       },
       "requires": [
         { "operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
         { "operand": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
         { "operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
+        { "operand": "MIT", "texts": ["MIT"] },
       ],
     },
     // The in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
