@@ -11,6 +11,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  firstAuthenticatedCandidate,
   NO_AUTH,
   NoBudgetModelError,
   selectBudgetModel,
@@ -113,6 +114,58 @@ function authCallbacks(
 }
 
 //endregion Fixtures
+
+await describe({
+  name: firstAuthenticatedCandidate.name,
+  children: [
+    it({
+      name: 'walks ranked candidates in order and stops at the first authenticated one',
+      fn: async function testFirstAuthenticated(): Promise<void> {
+        /**
+         Slugs the walk asked the resolver about, in order.
+         */
+        const resolvedSlugs: string[] = [];
+        const selected = await firstAuthenticatedCandidate({
+          candidates: [
+            activeModel,
+            sameProviderModel,
+            anyProviderModel,
+          ],
+          resolveAuth: async function resolveLaterCandidate({ model, },) {
+            resolvedSlugs.push(fixtureSlug(model,),);
+            return model === anyProviderModel
+              ? auth
+              : NO_AUTH;
+          },
+        },);
+        expect(selected,).toEqual({
+          model: anyProviderModel,
+          auth,
+        },);
+        expect(resolvedSlugs,).toEqual([
+          fixtureSlug(activeModel,),
+          fixtureSlug(sameProviderModel,),
+          fixtureSlug(anyProviderModel,),
+        ],);
+      },
+    },),
+    it({
+      name: 'returns NO_AUTH when no candidate has configured auth',
+      fn: async function testNoAuthenticatedCandidate(): Promise<void> {
+        const selected = await firstAuthenticatedCandidate({
+          candidates: [
+            activeModel,
+            sameProviderModel,
+          ],
+          resolveAuth: async function resolveNoCandidate() {
+            return NO_AUTH;
+          },
+        },);
+        expect(selected,).toBe(NO_AUTH,);
+      },
+    },),
+  ],
+},);
 
 await describe({
   name: selectBudgetModel.name,
