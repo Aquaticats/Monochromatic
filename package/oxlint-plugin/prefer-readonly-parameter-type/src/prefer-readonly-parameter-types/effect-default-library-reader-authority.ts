@@ -48,6 +48,10 @@ import {
   type Type,
 } from 'typescript/sync';
 
+//region Reader result relations
+// The two verified result relations, the sentinel for a call this module has
+// not established, and what a reader's result shares with what it read.
+
 /**
  Reader whose result is built from the operand's own values, so it carries them.
  
@@ -86,6 +90,12 @@ export type ReaderResultRelation =
   | typeof READER_RESULT_CARRIES_OPERAND
     | typeof READER_RESULT_FRESH;
 
+//endregion Reader result relations
+
+//region The verified reader table
+// Verified readers by interface owner and member, and the entry count pinned so
+// silent table growth fails the architecture guard.
+
 /**
  Verified readers by default-library interface owner and member name.
  
@@ -116,6 +126,11 @@ const VERIFIED_READERS: Readonly<Record<string, Readonly<Record<string, ReaderRe
  */
 export const VERIFIED_READER_COUNT = 5;
 
+//endregion The verified reader table
+
+//region One verified reader call
+// The caller-owned value a verified reader reads, with what its result shares.
+
 /**
  The caller-owned value a verified reader reads, with what its result shares.
  */
@@ -123,6 +138,11 @@ export type VerifiedReaderCall = {
   readonly operand: Expression;
   readonly resultRelation: ReaderResultRelation;
 };
+
+//endregion One verified reader call
+
+//region Resolving a reader call
+// Resolving one call to a verified default-library reader and its operand.
 
 /**
  Resolves one call to a verified default-library reader and its operand.
@@ -197,6 +217,11 @@ export function verifiedReaderCall({
   };
 }
 
+//endregion Resolving a reader call
+
+//region Plain data properties
+// Whether every property an operand exposes is a plain data property.
+
 /**
  Tests whether every property an operand exposes is a plain data property.
  
@@ -259,3 +284,5 @@ function operandHoldsOnlyData({
       },);
     },);
 }
+
+//endregion Plain data properties

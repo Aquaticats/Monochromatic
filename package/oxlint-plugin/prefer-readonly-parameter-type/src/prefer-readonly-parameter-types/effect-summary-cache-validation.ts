@@ -19,6 +19,10 @@ import type {
   SerializedEffectSummary,
 } from './effect-summary-serialization.ts';
 
+//region Caller-side roots
+// Whether the roots recorded per callee position have the shape the callee's
+// position count implies.
+
 /**
  Tests caller-side roots recorded per callee position.
  
@@ -48,6 +52,12 @@ function isArgumentRoots({
       },);
     },);
 }
+
+//endregion Caller-side roots
+
+//region Serialized shapes
+// One callback identity, one owned call edge, one callback relation, and one
+// element-flow relation, as the payload writes them.
 
 /**
  Tests serialized callback identity.
@@ -213,6 +223,12 @@ function isElementApplication({
     },);
 }
 
+//endregion Serialized shapes
+
+//region Deferred result uses
+// The kinds a persisted deferred use may name, held here so the validator states
+// the payload rather than importing the model, and the check on one such use.
+
 /**
  Kinds a persisted deferred result use may name.
  
@@ -259,6 +275,11 @@ function isResultApplication(value: unknown,): boolean {
     ? isCacheString(value.provenance,) && isRetentionProvenance(value.provenance,)
     : value.provenance === undefined;
 }
+
+//endregion Deferred result uses
+
+//region Summaries and payload
+// Opaque provenance entries, one complete direct summary, and the whole payload.
 
 /**
  Tests opaque provenance entries.
@@ -498,3 +519,4 @@ export function isSerializedEffectSummaries(
   }
   return true;
 }
+//endregion Summaries and payload

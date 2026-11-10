@@ -43,6 +43,10 @@ import {
   writablePropertyOwners,
 } from './readonly-writable-declaration.ts';
 
+//region Readonly flag bits
+// The hidden mapped-property readonly bits TypeScript 7 exposes, audited from
+// upstream's own source, and the sentinel for a type being classified.
+
 /**
  Bit position of hidden TypeScript 7 mapped-property readonly state.
  */
@@ -59,6 +63,12 @@ const CHECK_FLAGS_READONLY = 1 << CHECK_FLAGS_READONLY_BIT;
 const CLASSIFICATION_ACTIVE: unique symbol = Symbol('ReadonlyClassification traversal active for type',);
 
 export type { ReadonlyClassification, } from './readonly-classification-model.ts';
+
+//endregion Readonly flag bits
+
+//region Property readonly
+// Whether a property symbol is declared or mapped readonly, which is the leaf
+// the recursive classification reads.
 
 /**
  Determines whether property symbol is declared or mapped readonly.
@@ -108,6 +118,13 @@ export function propertyIsReadonly({
     },);
 }
 
+//endregion Property readonly
+
+//region Settled classifications
+// The per-project memo keyed by semantic type id, and the outcome of one
+// traversal, which records whether an unresolved type above it decided the
+// answer.
+
 /**
  Settled classifications by semantic type ID, per project.
  
@@ -143,6 +160,12 @@ type TraversalOutcome = {
   readonly result: ReadonlyClassification;
   readonly assumed: boolean;
 };
+
+//endregion Settled classifications
+
+//region The classifier
+// The exported recursive classification, bounded by unique type ids and bailing
+// out on recursion.
 
 /**
  Classifies deep readonly soundy for one resolved type graph.
@@ -469,3 +492,4 @@ export function classifyReadonlyType({
   );
   return requested;
 }
+//endregion The classifier

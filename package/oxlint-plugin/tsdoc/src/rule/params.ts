@@ -22,6 +22,10 @@ import {
   createFunctionTsdocVisitor,
 } from './tsdoc-visitors.ts';
 
+//region Parameter name matching
+// The rule that reports `@param` tag names which disagree with the function's
+// own parameter names, in name or in order.
+
 /**
  Validates that `\@param` tag names match the function's actual parameter names.
  
@@ -140,6 +144,11 @@ export const checkParamNames: CreateOnceRule = {
   },
 };
 
+//endregion Parameter name matching
+
+//region Parameter presence
+// The rule that reports a parameter with no `@param` tag at all.
+
 /**
  Requires `\@param` tags for all function parameters, comparing
  {@link extractParamNames} against {@link extractDocParamNames}.
@@ -211,7 +220,15 @@ export const requireParam: CreateOnceRule = {
   },
 };
 
+//endregion Parameter presence
+
+//region Re-exports
+// The rest of this package's TSDoc rules, kept reachable from this module's
+// public surface.
+
 export {
   requireParamDescription,
   requireParamName,
 } from './param-validation.ts';
+
+//endregion Re-exports

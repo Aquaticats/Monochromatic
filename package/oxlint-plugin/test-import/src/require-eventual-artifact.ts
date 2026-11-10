@@ -34,6 +34,10 @@ import {
 } from './owning-package.ts';
 import { toPosixPath, } from './posix-path.ts';
 
+//region Scope sentinel and message table
+// The file the rule takes no position on, the per-file inputs every import
+// classification reads, and the one message each rejecting outcome reports.
+
 /**
  Sentinel meaning the linter offered a file this rule does not inspect.
  */
@@ -62,6 +66,12 @@ const MESSAGE_BY_OUTCOME = {
   'relative-source': 'relativeSource',
   'own-source-subpath': 'ownSourceSubpath',
 } as const;
+
+//endregion Scope sentinel and message table
+
+//region Reading rule inputs
+// Helpers that turn what oxlint and the rule's own options hand over into
+// locally owned, precisely typed values.
 
 /**
  Copies a span's source location into a locally owned literal.
@@ -168,6 +178,12 @@ function readFixturePatterns(options: readonly unknown[],): readonly string[] {
   },);
 }
 
+//endregion Reading rule inputs
+
+//region Scope decision
+// Deciding whether a file is a test, benchmark, or test-only file that owes its
+// own package's artifact, and collecting what the classification then needs.
+
 /**
  Decides whether a file is in scope and gathers what classification needs.
  
@@ -220,6 +236,11 @@ function checkedFileContext({
     containingDirectory: dirname(fileName,),
   };
 }
+
+//endregion Scope decision
+
+//region The rule
+// The exported rule: its metadata and the per-import reporting callback.
 
 /**
  Requires test files to import their own package's built artifact.
@@ -383,3 +404,5 @@ export const requireEventualArtifact: CreateOnceRule = {
     } as VisitorWithHooks;
   },
 };
+
+//endregion The rule

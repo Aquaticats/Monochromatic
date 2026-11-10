@@ -41,10 +41,20 @@ import {
 } from './effect-member-call-receiver.ts';
 import { isEffectCallableDeclaration, } from './effect-summary-model.ts';
 
+//region Discharge logger
+// The module logger, which reports why one returned-result escape was left
+// uncharged.
+
 /**
  Returned-result discharge logger.
  */
 const l = tagged({ tag: 'effect-returned-result-discharge', },);
+
+//endregion Discharge logger
+
+//region Receiver-state results
+// Whether a call's result is a verified piece of its own receiver's state, which
+// either of the two relations answers.
 
 /**
  Tests whether a call's result is a verified piece of its own receiver's state.
@@ -87,6 +97,12 @@ function callResultIsReceiverState({
       call,
     },) !== RESULT_NOT_RECEIVER_STATE);
 }
+
+//endregion Receiver-state results
+
+//region Caller visibility
+// Whether every caller of the callable owning a body is one this analysis can
+// see, the precondition the discharge charge rests on.
 
 /**
  Tests whether every caller of the callable owning a body is one this analysis can see.
@@ -181,6 +197,11 @@ function callersAllResolve({
     return false;
   }
 }
+
+//endregion Caller visibility
+
+//region Discharging the escape
+// Whether a returned result's escape charge is answered by its callers.
 
 /**
  Tests whether a returned result's escape charge is answered by its callers.
@@ -422,3 +443,4 @@ export function returnedResultDischargeable({
     body,
   },);
 }
+//endregion Discharging the escape

@@ -50,6 +50,10 @@ import {
   isEffectCallableDeclaration,
 } from './effect-summary-model.ts';
 
+//region Callables a property read reaches
+// The callables a body can reach through a property read, which narrows what
+// an escape into that property can carry.
+
 /**
  Collects every callable a body can reach through a property read.
  
@@ -100,6 +104,12 @@ export function accessedCallables({
       return reachedFileName === fileName;
     },);
 }
+
+//endregion Callables a property read reaches
+
+//region Receiver expressions
+// The expressions a node reads a property off, whichever way the read is
+// spelled, and the callables one authored aggregate declares.
 
 /**
  Names the expressions a node reads a property off, whichever way it spells the read.
@@ -197,6 +207,11 @@ function aggregateCallables({
     },);
 }
 
+//endregion Receiver expressions
+
+//region Constructed classes
+// The callables the class behind one construction declares.
+
 /**
  Names every callable the class one construction refers to declares.
  
@@ -251,3 +266,5 @@ function constructedClassMembers({
       return isEffectCallableDeclaration(node,);
     },);
 }
+
+//endregion Constructed classes
