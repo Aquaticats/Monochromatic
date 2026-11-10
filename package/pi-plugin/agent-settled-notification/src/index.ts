@@ -293,11 +293,12 @@ function registerAgentSettledNotification(
     l = logger,
   }: AgentSettledNotificationRegistration,
 ): void {
+  /* oxlint-disable no-restricted-syntax/no-function-root-let -- Session-local failure latch prevents repeated warnings after expected host-capability failures. */
   /**
    Tracks whether the current Pi runtime already surfaced unavailable desktop capability.
    */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- Session-local failure latch prevents repeated warnings after expected host-capability failures.
   let hasWarnedAboutUnavailableNotification = false;
+  /* oxlint-enable no-restricted-syntax/no-function-root-let */
 
   pi.on(
     'agent_settled',
