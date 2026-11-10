@@ -611,14 +611,20 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
     remove(root.as_path());
 }
 
-/// Finding 14:
-/// a worktree whose path is not UTF-8 cannot be named by a record,
-/// so the hand-over says so and writes none,
-/// and the
-///  emptying still works by the bytes of the path.
+/// Finding 5 of the trash hand-over review:
+/// a worktree whose path is not UTF-8 is named by a record like any other,
+/// and the emptying then works by the bytes
+///  of the path.
+/// Why:
+///   The record and the wake hold a path as its bytes beside its text (`path_bytes_in_records.rs`),
+/// so a byte that is
+///  not text is no reason to leave a trash no record names:
+/// such a trash is one the service never empties,
+/// and every later
+///  command only warns about it.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_non_utf8_worktree_is_named_by_no_record_and_emptied_by_its_path_bytes() {
+fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
     let name: String = "9".repeat(40);
     let root: PathBuf = fixture("trash-hand-over-bytes");
     let worktree: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"topic-\xff"));
@@ -629,11 +635,13 @@ fn a_non_utf8_worktree_is_named_by_no_record_and_emptied_by_its_path_bytes() {
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
     let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), quiet: false };
     let mut notices: Vec<u8> = Vec::new();
-    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no record can name this path");
-    assert!(reason.contains("not valid UTF-8") && reason.contains("no record names them"), "the reason says why nothing will empty it later: {reason}");
-    assert!(!state_directory(work_directory(git_dir.as_path()).as_path(), "pending").exists(), "no record is written for a path a record cannot spell");
-    assert_eq!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Done, "the emptying works by the path's bytes");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "so the trash is emptied all the same");
+    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no service is in reach");
+    assert!(reason.contains("no commit service can be started from this session") && reason.contains("when it next runs for this repository"), "the reason is the missing service, and the record still empties the trash later: {reason}");
+    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
+    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote for a path that is not text").as_str()).expect("a work item");
+    assert_eq!(item.repository, worktree, "the record names the worktree by the bytes of its path");
+    assert_eq!(empty_trash(&item), Verdict::Done, "so the emptying works by the path's bytes");
+    assert!(!worktree.join(TRASH_PARENT).exists(), "and the trash is emptied all the same");
     remove(root.as_path());
 }
 
