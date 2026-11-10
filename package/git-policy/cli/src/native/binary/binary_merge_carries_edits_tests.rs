@@ -288,6 +288,102 @@ fn an_edit_in_a_file_the_merge_deletes_is_kept() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  The person deleted a path the merge changes:
+/// the deletion stands in the checkout,
+///  the merge lands,
+/// and the line says where the merge's version is instead of naming a file that
+///  holds bytes the path does not have.
+/// Why:
+///  A line that says "the file holds what you wrote" over an absent file sends the person looking for their
+///  work in the wrong place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm('a.txt'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(read('a.txt')).toBeUndefined(); expect(ran.stderr).not.toSay('holds what you wrote');
+/// ```
+#[test]
+fn a_path_the_person_deleted_that_the_merge_changes_is_named_as_deleted() {
+    let fixture: Fixture = fixture("carry-deleted-path");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "deleted path");
+    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the person's deletion stands");
+    assert!(!head_object(&fixture, repo.as_path(), "a.txt").is_empty(), "the merge's version is in the merge commit");
+    let words: String = said(&observed);
+    assert!(words.contains("a.txt"), "the line names the path: {words}");
+    assert!(words.contains("keeps your own deletion"), "the line says the checkout keeps their deletion: {words}");
+    assert!(!words.contains("holds what you wrote"), "the line claims no file that holds their bytes: {words}");
+    assert!(!words.contains("your bytes are kept at"), "the line claims no bytes of theirs at the path: {words}");
+    assert!(words.contains("git restore --source=HEAD --staged --worktree -- a.txt"), "the line names how to take the merge's version: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The person deleted the path and the index holds that deletion:
+/// the checkout and the index both keep it,
+///  and the line names the same way back to the merge's version.
+/// Why:
+///  A deletion the index holds leaves no entry for `git restore -- a.txt` to restore from,
+///  so the advice has to name
+///  the merge commit as its source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['rm', '--quiet', '--', 'a.txt']); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(status()).toBe('D  a.txt\n'); expect(ran.stderr).toSay('restore --source=HEAD');
+/// ```
+#[test]
+fn a_deletion_the_person_staged_that_the_merge_changes_is_named_as_deleted() {
+    let fixture: Fixture = fixture("carry-deleted-staged");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "a.txt"]);
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "staged deletion");
+    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the person's deletion stands");
+    assert_eq!(status(&fixture, repo.as_path()), "D  a.txt\n", "the deletion is still staged");
+    let words: String = said(&observed);
+    assert!(words.contains("keeps your own deletion"), "the line says the checkout keeps their deletion: {words}");
+    assert!(!words.contains("holds what you wrote"), "the line claims no file that holds their bytes: {words}");
+    assert!(words.contains("git restore --source=HEAD --staged --worktree -- a.txt"), "the line names how to take the merge's version: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The person's edit in a path the merge deletes:
+/// the merge commit holds no such path,
+///  and the line says so and names a
+///  command that takes that deletion.
+/// Why:
+///  `git restore -- gone.txt` restores from the index,
+/// and the index holds no entry for a path the merge
+///  deleted,
+/// so the old advice failed with a pathspec error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('gone.txt', 'gone base\nthe person\'s own line\n'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(ran.stderr).toSay('merge commit holds no gone.txt'); expect(ran.stderr).not.toSay('restore -- gone.txt');
+/// ```
+#[test]
+fn a_path_the_merge_deletes_is_named_with_the_merges_absence() {
+    let fixture: Fixture = fixture("carry-deleted-by-merge");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    std::fs::write(repo.join("gone.txt"), format!("gone base\n{PERSON_LINE}\n")).expect("the person's edit");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "merge deletes the path");
+    let words: String = said(&observed);
+    assert!(words.contains("The merge commit holds no gone.txt"), "the line says the merge's version is no file: {words}");
+    assert!(!words.contains("git restore -- gone.txt"), "the line does not name a restore the index cannot make: {words}");
+    assert!(words.contains("`rm -- gone.txt`"), "the line names the command that takes the merge's deletion: {words}");
+    remove_settled(&fixture);
+}
+
 /// A `git pull` that merges,
 /// over an unsaved edit the pull's merge does not touch:
 /// the pull lands and the edit is still there.
