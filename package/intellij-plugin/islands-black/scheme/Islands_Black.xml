@@ -126,7 +126,7 @@
       <value>
         <option
           name='FOREGROUND'
-          value='0'
+          value='000000'
         />
         <option
           name='BACKGROUND'
