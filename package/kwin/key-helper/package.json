@@ -11,6 +11,7 @@
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/shell-argument-core": "workspace:*",
     "@msgpack/msgpack": "catalog:"
   },
   "devDependencies": {
