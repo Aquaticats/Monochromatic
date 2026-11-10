@@ -520,6 +520,30 @@ fn a_lock_that_differs_from_the_judged_one_when_taken_is_put_back_whole() {
     stage.finish();
 }
 
+/// A file that kept the judged device and inode is still not the judged file when anything else about it
+///  differs:
+/// a freed inode number is handed to the next file created at that path,
+/// so a comparison of device and inode alone would remove a live Git's lock.
+#[test]
+fn a_lock_that_kept_the_judged_device_and_inode_is_not_taken() {
+    let stage: Stage = killed::stage("stale-refs-reused-inode", true);
+    plant_lock(&stage, PLANTED_REF, None);
+    let lock: PathBuf = stage.lock_of(PLANTED_REF);
+    let judged: crate::stale_ref_lock_judge::Identity = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
+    // An in-place rewrite keeps the device and the inode,
+    //  which is what the allocator does when it hands a freed inode to the next file at the same path.
+    killed::write_file(lock.as_path(), "live holder's content\n");
+    let now: crate::stale_ref_lock_judge::Identity = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("the live lock");
+    assert_eq!((judged.device, judged.inode), (now.device, now.inode), "the control keeps the judged device and inode");
+    assert_ne!(judged, now, "the control's file differs from the judged one");
+    let mut outcome: Outcome = Outcome::default();
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    assert_eq!(removed, Ok(false));
+    assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
+    assert!(outcome.displaced.is_empty(), "{outcome:?}");
+    stage.finish();
+}
+
 /// The judged file itself,
 /// taken the same way,
 /// is removed.
