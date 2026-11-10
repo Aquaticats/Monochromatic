@@ -263,54 +263,60 @@ pub enum LinkedWorktreeDecision {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'repository-stash' };
+/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'clean-dry-run' }
+///   | { kind: 'repository-stash' };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirtyQuestion {
     /// Ask `git status` for the given scope.
     Worktree(DirtyScope),
-    /// Ask Git what this exact clean would delete (`git clean --dry-run`),
-    ///  because the clean carries
-    ///       `-e`/`--exclude` patterns that the status cannot see.
+    /// Ask Git what this exact clean would delete only because of the `-e`/`--exclude` patterns it carries,
+    ///  because a status cannot see them.
     CleanDryRun,
     /// Ask whether the repository holds a stash entry.
     RepositoryStash,
 }
 
 /// What:
-///  Which question a guarded form's answer needs.
+///  Which question a guarded form's answer needs,
+///  or nothing when the form loses nothing this policy protects in a linked
+///       worktree.
 /// Why:
 ///   Each form reads the object it can destroy;
 ///  asking the wrong one rejects a harmless command or misses the loss.
+///  The owner decided on 2026-11-10 that an ignored file is not a reason to refuse a clean in a linked worktree,
+///  so a clean that deletes nothing else has nothing to ask and runs,
+///  and a clean that also deletes untracked files is judged by tracked and untracked work only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dirtyQuestion(command: GuardedCommand): DirtyQuestion;
+/// function dirtyQuestion(command: GuardedCommand, region: string[]): DirtyQuestion | undefined;
 /// ```
-pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> DirtyQuestion {
+pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<DirtyQuestion> {
     match command {
         GuardedCommand::StashDrop => {
-            return DirtyQuestion::RepositoryStash;
+            return Some(DirtyQuestion::RepositoryStash);
         }
         GuardedCommand::CleanIgnored => {
-            return DirtyQuestion::Worktree(DirtyScope::Everything);
+            // `-x` deletes untracked files as well, and an untracked file is still a reason to refuse it.
+            return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked));
         }
         GuardedCommand::CleanIgnoredOnly => {
-            // `-e`/`--exclude` adds patterns to the ignore rules this clean applies, so a file the status calls
-            //  untracked is one this clean deletes; nothing in the status answer shows that, and Git's own dry run
-            //  does.
+            // `-X` deletes ignored files and nothing else, so what it would destroy is nothing this policy asks about.
+            // `-e`/`--exclude` adds patterns to the ignore rules this clean applies, so a path the worktree does not
+            //  itself ignore is one this clean deletes, and Git's own dry run is the reading that shows the difference.
             match parse_clean_region(region, &[]) {
                 Ok(facts) if !facts.exclusions.is_empty() => {
-                    return DirtyQuestion::CleanDryRun;
+                    return Some(DirtyQuestion::CleanDryRun);
                 }
                 Ok(_) | Err(_) => {}
             }
-            return DirtyQuestion::Worktree(DirtyScope::IgnoredOnly);
+            return None;
         }
         GuardedCommand::Clean => {
-            return DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked);
+            return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked));
         }
-        _ => return DirtyQuestion::Worktree(DirtyScope::Tracked),
+        _ => return Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
     }
 }
 

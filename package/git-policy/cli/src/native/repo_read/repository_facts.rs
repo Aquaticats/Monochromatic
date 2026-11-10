@@ -45,7 +45,7 @@ use crate::repository_location::{
 };
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
-use crate::command_clean::clean_would_delete_from_answer;
+use crate::command_clean::clean_deleted_paths_from_answer;
 /// The expression Git resolves for a shorthand only `switch` and `checkout` read.
 use crate::command_discard::previous_branch_expression;
 use crate::rule_worktree_dirty::{
@@ -120,10 +120,11 @@ pub trait RepositoryFacts {
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
     fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
-    /// Whether the given `git clean --dry-run` argument list would delete anything,
+    /// The paths the given `git clean --dry-run` argument list would delete,
+    /// each as Git printed it,
     /// asked for a clean
     ///  that carries its own `-e`/`--exclude` patterns.
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String>;
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -411,7 +412,7 @@ impl RepositoryFacts for GitFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         let arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
         let output: MetadataOutput = self.query(arguments, "the worktree status")?;
-        return dirty_from_output(&output, scope);
+        return dirty_from_output(&output);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -420,9 +421,9 @@ impl RepositoryFacts for GitFacts {
         return stash_from_output(&output);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
-        return clean_would_delete_from_answer(&output);
+        return clean_deleted_paths_from_answer(&output);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {

@@ -49,8 +49,12 @@ pub(crate) struct ScriptedFacts {
     pub(crate) dirty: Result<bool, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
-    /// The answer to `clean_would_delete`.
-    pub(crate) clean_deletes: Result<bool, String>,
+    /// The paths the dry run of the clean as typed names,
+    ///  which is the one carrying the clean's own exclusion patterns.
+    pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
+    /// The paths the same clean names without those patterns;
+    ///  the whole answer is the same when the query carries none.
+    pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -92,9 +96,16 @@ impl RepositoryFacts for ScriptedFacts {
         return self.dirty.clone();
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        return self.clean_deletes.clone();
+        // The script answers the two dry runs of one clean apart by the patterns the query carries.
+        for argument in &arguments {
+            let bytes: &[u8] = argument.as_encoded_bytes();
+            if bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude") {
+                return self.clean_deletes.clone();
+            }
+        }
+        return self.clean_deletes_without_exclusions.clone();
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
@@ -217,7 +228,8 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         stash: Ok(false),
         remote_guess: Ok(false),
         ignored_and_tracked: Ok(Vec::<String>::new()),
-        clean_deletes: Ok(false),
+        clean_deletes: Ok(Vec::<Vec<u8>>::new()),
+        clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

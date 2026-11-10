@@ -148,38 +148,35 @@ fn head_moves_need_the_dirtiness() {
 }
 
 /// Each form asks the question about the object it can destroy:
-///  each clean reads exactly the files it deletes,
+///  a clean that deletes untracked files reads tracked and untracked work,
+///  a clean that deletes ignored files only asks nothing at all,
 /// a stash drop asks the repository,
 /// and every other form loses tracked changes only.
 #[test]
 fn each_form_asks_about_the_state_it_can_destroy() {
     for command in GuardedCommand::ALL {
-        let expected: DirtyQuestion = match command {
-            GuardedCommand::Clean => DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked),
-            GuardedCommand::CleanIgnored => DirtyQuestion::Worktree(DirtyScope::Everything),
-            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
-            GuardedCommand::StashDrop => DirtyQuestion::RepositoryStash,
-            _ => DirtyQuestion::Worktree(DirtyScope::Tracked),
-        };
-        // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see them.
-        let region: Vec<OsString> = match command {
-            GuardedCommand::CleanIgnoredOnly => os_arguments(&["-fdx", "--exclude=notes.txt"]),
-            _ => Vec::<OsString>::new(),
-        };
-        let plain: DirtyQuestion = match command {
-            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
-            _ => expected,
+        let expected: Option<DirtyQuestion> = match command {
+            GuardedCommand::Clean | GuardedCommand::CleanIgnored => {
+                Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked))
+            }
+            GuardedCommand::CleanIgnoredOnly => None,
+            GuardedCommand::StashDrop => Some(DirtyQuestion::RepositoryStash),
+            _ => Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
         };
         if command == GuardedCommand::CleanIgnoredOnly {
-            assert_eq!(dirty_question(command, region.as_slice()), DirtyQuestion::CleanDryRun, "{command:?}");
+            // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see
+            //  them; without them it deletes ignored files and nothing else, which is nothing to ask about.
             assert_eq!(
-                dirty_question(command, os_arguments(&["-fdx"]).as_slice()),
-                plain,
+                dirty_question(command, os_arguments(&["-fdx", "--exclude=notes.txt"]).as_slice()),
+                Some(DirtyQuestion::CleanDryRun),
                 "{command:?}"
             );
+            for region in [vec!["-fdx"], vec!["-fdX"], vec!["-X"]] {
+                assert_eq!(dirty_question(command, os_arguments(&region).as_slice()), None, "{region:?}");
+            }
             continue;
         }
-        assert_eq!(dirty_question(command, region.as_slice()), expected, "{command:?}");
+        assert_eq!(dirty_question(command, &[]), expected, "{command:?}");
     }
 }
 
@@ -304,8 +301,13 @@ fn each_intent_gets_its_own_alternative() {
     assert!(stash.contains("not this worktree's"), "{stash}");
     assert!(stash.contains("--no-enforce-worktree"), "{stash}");
     assert!(main_worktree_message(GuardedCommand::Clean).contains("git clean -n"));
-    assert!(dirty_worktree_message(GuardedCommand::CleanIgnored).contains("ignored files"));
-    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("ignored files"));
+    // An ignored file is not what a linked worktree's clean is refused over, so the sentence that reads after
+    //  "has uncommitted" names only the work such a clean still loses.
+    assert!(
+        dirty_worktree_message(GuardedCommand::CleanIgnored)
+            .contains("has uncommitted changes to tracked files or untracked files")
+    );
+    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("--exclude"));
     assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
     assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));

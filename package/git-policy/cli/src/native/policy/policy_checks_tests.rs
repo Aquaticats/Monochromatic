@@ -494,18 +494,23 @@ fn content_policies_follow_the_lifecycle_content() {
 #[test]
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
     for (values, command, scope, tree) in [
-        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked", None),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked", Some("HEAD")),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked", Some("topic")),
-        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked", None),
-        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked", None),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked", None),
-        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked", None),
-        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything", None),
-        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly", None),
-        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked", None),
+        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, Some("Tracked"), None),
+        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, Some("Tracked"), Some("HEAD")),
+        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("topic")),
+        (vec!["reset"], GuardedCommand::ResetMixed, Some("Tracked"), None),
+        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, Some("Tracked"), None),
+        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, Some("Tracked"), None),
+        (vec!["clean", "-fd"], GuardedCommand::Clean, Some("TrackedAndUntracked"), None),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, Some("TrackedAndUntracked"), None),
+        // `-X` deletes ignored files only, so a linked worktree holds nothing this policy protects and it asks
+        //  nothing; the main worktree still refuses it.
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, None, None),
+        (vec!["stash", "push"], GuardedCommand::Stash, Some("Tracked"), None),
     ] {
-        let dirty_scope = format!("dirty:{scope}");
+        let dirty_scope: Option<String> = match scope {
+            Some(name) => Some(format!("dirty:{name}")),
+            None => None,
+        };
         // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
         let tree_question = match tree {
             Some(revision) => format!("ignored-and-tracked:{revision}"),
@@ -525,6 +530,21 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 "{values:?} main dirty={dirty}"
             );
         }
+        // A form with no question of its own runs in a linked worktree whatever it holds, and leaves one line.
+        let Some(dirty_scope) = dirty_scope else {
+            for dirty in [false, true] {
+                assert_eq!(
+                    pre_forward(
+                        PolicyId::LinkedWorktreeOnly,
+                        values.as_slice(),
+                        dirty_in(linked_worktree("/r", "/w"), dirty)
+                    ),
+                    (clean(), asked(&["location"])),
+                    "{values:?} linked dirty={dirty}"
+                );
+            }
+            continue;
+        };
         let mut clean_questions: Vec<&str> = vec!["location", dirty_scope.as_str()];
         if !tree_question.is_empty() {
             clean_questions.push(tree_question.as_str());
@@ -745,9 +765,10 @@ fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
 }
 
 /// linked-worktree-only:
-///  a clean that carries its own exclusion patterns is measured by Git's own dry run of that clean,
+///  a clean that carries its own exclusion patterns is measured by Git's own dry runs of that clean,
 ///  because the status cannot see those patterns,
-///  and a dry run Git cannot answer stops the command.
+///  and only a path the patterns alone call ignored is refused:
+///  an ignored file the worktree itself has is not a reason to refuse the clean in a linked worktree.
 #[test]
 fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
     let command: GuardedCommand = GuardedCommand::CleanIgnoredOnly;
@@ -755,15 +776,27 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
         vec!["clean", "-fdX", "--exclude=notes.txt"],
         vec!["clean", "--force", "-X", "-e", "notes.txt"],
     ] {
+        // A path only the typed clean names is one the patterns call ignored, so it is refused.
         let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        deleting.clean_deletes = Ok(true);
+        deleting.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
+        deleting.clean_deletes_without_exclusions = Ok(Vec::<Vec<u8>>::new());
         let (outcome, questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
         assert_eq!(outcome, one("linked-worktree-required", &dirty_worktree_message(command)), "{values:?}");
         let question: &String = questions.last().expect("a last question");
         assert!(question.starts_with("clean-would-delete:"), "{values:?}: {question}");
         assert!(question.contains("-X"), "{values:?}: {question}");
-        assert!(question.contains("notes.txt"), "{values:?}: {question}");
+        assert!(!question.contains("notes.txt"), "{values:?} the second dry run carries no pattern: {question}");
+        // A path both dry runs name is one the worktree itself ignores, which is no reason to refuse.
+        let mut both: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        let ignored: Vec<Vec<u8>> = vec![b"Would remove .env".to_vec()];
+        both.clean_deletes = Ok(ignored.clone());
+        both.clean_deletes_without_exclusions = Ok(ignored);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), both).0,
+            clean(),
+            "{values:?} an ignored file"
+        );
         // A dry run Git cannot answer is a failure, never "nothing to delete".
         let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
         unreadable.clean_deletes = Err(String::from("Git could not read what the clean would delete: fatal"));
@@ -774,13 +807,30 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
             ),
             "{values:?} unreadable"
         );
-        // A clean that would delete nothing runs.
-        let mut empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        empty.clean_deletes = Ok(false);
+        // The second dry run Git cannot answer is a failure too.
+        let mut second: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        second.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
+        second.clean_deletes_without_exclusions =
+            Err(String::from("Git could not read what the clean would delete: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), second).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} second unreadable"
+        );
+        // A clean that would delete nothing runs, and asks the second question nowhere.
+        let empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        let (outcome, clean_questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty);
+        assert_eq!(outcome, clean(), "{values:?} nothing to delete");
         assert_eq!(
-            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty).0,
-            clean(),
-            "{values:?} nothing to delete"
+            clean_questions
+                .iter()
+                .filter(|question| question.starts_with("clean-would-delete:"))
+                .count(),
+            1,
+            "{values:?}: {clean_questions:?}"
         );
     }
 }
