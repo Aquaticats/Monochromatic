@@ -172,6 +172,27 @@ The criterion is deliberately "defines no build task" rather than "has no `src/i
 The latter keys on an accident of file layout;
 the former keys on whether the package ships anything at all.
 
+### Packages that ship source
+
+One package declares a build task without producing a JavaScript artifact:
+`package/typeface/aquaticat`
+runs `build:font` to write `dist/Aquaticat-Regular.otf` and `.woff2`,
+and its manifest ships `src/` itself through `files`.
+Its modules under test are therefore the shipped ones,
+and no built artifact of them exists to import.
+The rule still reports each of their imports as `relative-source`,
+because it treats any `build` task as proof of a JS artifact
+and discards `src/` as a shipping directory by design.
+
+The rule's only option is `fixturePatterns`,
+which is repository-wide,
+so configuration cannot state this per package.
+Its suite therefore carries a file-level
+`test-import/require-eventual-artifact` disable naming this section,
+which the owner can retire
+by giving the package a JS build to import
+or by an exemption in the rule itself.
+
 ### Forms not checked
 
 Dynamic `import()`,
