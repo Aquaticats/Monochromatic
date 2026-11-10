@@ -225,6 +225,24 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a message, recorded 2026-11-10T09:15:14-05:00
+
+### Container base stays CachyOS
+
+The owner wrote "If cachyos containers are much heavier than arch proper containers, switch to arch proper.",
+and after the sizes,
+"Okay, cachyOS is fine then. It's not as bad as I thought."
+`doc/decision/container-base-distro.md` stands unchanged.
+
+Compressed sizes in the registry from `skopeo inspect` on 2026-11-10:
+`cachyos-v4:latest` 406 MiB,
+`cachyos-v3:latest` 404 MiB,
+`cachyos:latest` 312 MiB,
+`archlinux:base` 128 MiB,
+`archlinux:base-devel` 295 MiB.
+A comparison of what each image installs was stopped when the owner decided,
+so installed sizes and start times were not measured.
+
 ## Answered in the question tool, recorded 2026-11-10T08:24:33-05:00
 
 ### Package-local rules
