@@ -33,57 +33,57 @@ It is a font selection result that depends on the fontconfig configuration of th
 
 ## Root cause
 
-1. The app sets `default-font-family: "Inter Variable"` (`ui/app_window.slint`).
-   Inter has no Hangul glyphs.
-2. Slint builds the font stack of every text as the named family followed by two generic families,
+1.  The app sets `default-font-family: "Inter Variable"` (`ui/app_window.slint`).
+    Inter has no Hangul glyphs.
+2.  Slint builds the font stack of every text as the named family followed by two generic families,
 so it cannot be given a
-   fallback list of its own
-   (`i-slint-core-1.18.1/textlayout/sharedparley/shaping.rs:86-107`,
-   `i-slint-common-1.18.1/sharedfontique.rs:188`):
+    fallback list of its own
+    (`i-slint-core-1.18.1/textlayout/sharedparley/shaping.rs:86-107`,
+    `i-slint-common-1.18.1/sharedfontique.rs:188`):
 
-   ```rust
-   // shaping.rs:86
-   let mut fallback_family_iter = sharedfontique::FALLBACK_FAMILIES
-       .into_iter()
-       .map(parley::style::FontFamilyName::Generic);
-   // sharedfontique.rs:188
-   pub const FALLBACK_FAMILIES: [fontique::GenericFamily; 2] = [
-       fontique::GenericFamily::SansSerif,
-       fontique::GenericFamily::SystemUi,
-   ];
-   ```
+    ```rust
+    // shaping.rs:86
+    let mut fallback_family_iter = sharedfontique::FALLBACK_FAMILIES
+        .into_iter()
+        .map(parley::style::FontFamilyName::Generic);
+    // sharedfontique.rs:188
+    pub const FALLBACK_FAMILIES: [fontique::GenericFamily; 2] = [
+        fontique::GenericFamily::SansSerif,
+        fontique::GenericFamily::SystemUi,
+    ];
+    ```
 
-3. For a cluster that no family of the stack covers,
-   fontique asks fontconfig for one font for the cluster's script,
+3.  For a cluster that no family of the stack covers,
+    fontique asks fontconfig for one font for the cluster's script,
 with
-   a pattern made from a sample of the script's characters
-   (`fontique-0.11.1/src/backend/fontconfig.rs:735-760`):
+    a pattern made from a sample of the script's characters
+    (`fontique-0.11.1/src/backend/fontconfig.rs:735-760`):
 
-   ```rust
-   let script_char_set = self.script_charsets.charset_for_script(key.script());
-   ...
-   if let Some(set) = script_char_set {
-       pattern.add_charset(FC_CHARSET, set);
-   }
-   config.substitute(&mut pattern, FcMatchPattern);
-   let font = config.font_match(&pattern).ok()?;
-   ```
+    ```rust
+    let script_char_set = self.script_charsets.charset_for_script(key.script());
+    ...
+    if let Some(set) = script_char_set {
+        pattern.add_charset(FC_CHARSET, set);
+    }
+    config.substitute(&mut pattern, FcMatchPattern);
+    let font = config.font_match(&pattern).ok()?;
+    ```
 
-4. On a Fedora system without a user fontconfig file,
-   `font_match` returns `Droid Sans Fallback` (inferred:
-   the explicit
-   family `Droid Sans Fallback` draws the identical split,
-   and fontique's choice was not logged)
-   (`/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf`).
-   That font has the jamo and many syllables but not
-   U+C18C (`fc-list ':charset=c18c'` lists only Noto Sans CJK and Noto Serif CJK).
-   The shaper then decomposes the
-   syllable into its jamo and draws them from Droid's jamo glyphs,
-   which are not designed to join.
-5. The user's `50-noto-cjk-fallback.conf` makes `sans-serif` prefer `Noto Sans` and `Noto Sans CJK SC`,
+4.  On a Fedora system without a user fontconfig file,
+    `font_match` returns `Droid Sans Fallback` (inferred:
+    the explicit
+    family `Droid Sans Fallback` draws the identical split,
+    and fontique's choice was not logged)
+    (`/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf`).
+    That font has the jamo and many syllables but not
+    U+C18C (`fc-list ':charset=c18c'` lists only Noto Sans CJK and Noto Serif CJK).
+    The shaper then decomposes the
+    syllable into its jamo and draws them from Droid's jamo glyphs,
+    which are not designed to join.
+5.  The user's `50-noto-cjk-fallback.conf` makes `sans-serif` prefer `Noto Sans` and `Noto Sans CJK SC`,
 so the same match
-   returns a Noto CJK face,
-   which has every syllable.
+    returns a Noto CJK face,
+    which has every syllable.
 
 Earlier reading that was wrong:
 "the Hangul glyph is split by the femtovg renderer".
@@ -187,29 +187,29 @@ Fails:
 
 ## Upstream filing decision
 
-1. Really upstream's fault?
-   Partly.
-   The selection takes the first fontconfig match for a script sample,
-   and a font that
-   lacks some syllables of the script can win;
-   the missing glyph is then synthesized from jamo.
-   Whether that is a defect
-   of fontique or of the system's font set is arguable.
-2. Can upstream fix it?
-   Yes,
-   for example by checking the chosen font against the cluster's characters
+1.  Really upstream's fault?
+    Partly.
+    The selection takes the first fontconfig match for a script sample,
+    and a font that
+    lacks some syllables of the script can win;
+    the missing glyph is then synthesized from jamo.
+    Whether that is a defect
+    of fontique or of the system's font set is arguable.
+2.  Can upstream fix it?
+    Yes,
+    for example by checking the chosen font against the cluster's characters
 and trying the next
-   match.
-3. Do they support the use case?
-   Per-script fallback is a stated feature of fontique;
-   no document mentions partial
-   syllable coverage.
-4. Would the repo welcome a contribution?
-   Not checked against `CONTRIBUTING.md` of either repository in this session.
-5. Will they likely fix it?
-   Not checked in the trackers in this session.
-6. Prototype?
-   None was made.
+    match.
+3.  Do they support the use case?
+    Per-script fallback is a stated feature of fontique;
+    no document mentions partial
+    syllable coverage.
+4.  Would the repo welcome a contribution?
+    Not checked against `CONTRIBUTING.md` of either repository in this session.
+5.  Will they likely fix it?
+    Not checked in the trackers in this session.
+6.  Prototype?
+    None was made.
 
 `.out-of-scope/` was read:
 it lists no Slint,

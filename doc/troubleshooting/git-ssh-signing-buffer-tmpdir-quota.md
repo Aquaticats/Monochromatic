@@ -209,21 +209,21 @@ which belong to other sessions and was not done here.
 Walk of the six constraints,
 with the default policy of not filing:
 
-1. Is it really upstream's fault?
-   No. Git writes to the directory `TMPDIR` names and reports the failed write accurately.
-   The cause is a full user-quota tmpfs on this machine.
-2. Can upstream fix it?
-   Not applicable,
-   because constraint 1 fails.
-3. Are they supporting this use case?
-   Not applicable.
-4. Would the repository welcome our contribution?
-   Not checked:
-   with constraint 1 failing there is nothing to contribute.
-5. Will they likely fix it?
-   Not applicable.
-6. Have we prototyped a minimal fix?
-   Not applicable.
+1.  Is it really upstream's fault?
+    No. Git writes to the directory `TMPDIR` names and reports the failed write accurately.
+    The cause is a full user-quota tmpfs on this machine.
+2.  Can upstream fix it?
+    Not applicable,
+    because constraint 1 fails.
+3.  Are they supporting this use case?
+    Not applicable.
+4.  Would the repository welcome our contribution?
+    Not checked:
+    with constraint 1 failing there is nothing to contribute.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Have we prototyped a minimal fix?
+    Not applicable.
 
 Decision:
 nothing to file.

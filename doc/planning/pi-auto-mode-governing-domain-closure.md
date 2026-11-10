@@ -307,6 +307,7 @@ decision-scoped membership before continuously expanding membership,
 because the former gives the already accepted complete-operation decision a defined lifetime
 and preserves all receipts for subsequent decisions.
 The user accepted this ranking and authorized the decision-scoped implementation.
+
 ## Adopted live host single-call program profile
 
 The installed native host reached Qwen on 2026-10-14,

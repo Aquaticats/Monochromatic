@@ -179,37 +179,37 @@ with their timestamps,
 are in the final report of the work;
 each has a red control first.
 
-1. Tree-to-tree name lists in process (`repo_read_query.rs`,
-   `repo_read_tree.rs`):
-   `diff-tree -r --name-only -z
-   [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>` for a commit with exactly one parent.
-   The walk compares two trees together and reads only the subtrees whose names differ,
-   so it costs in proportion to
-   what changed.
-   A root commit,
-   a merge commit,
-   a file that became a directory and a gitlink are declined (Git answers).
-   The service's follow-up and the review then start no `diff-tree`,
-   and neither connects to the monitor.
-2. A commit whose real index already equals its base starts no `read-tree` (`commit_index.rs`):
-   the private index is the copy of
-   the real index,
-   the in-process `diff-index --cached` reader says the copy holds exactly the base tree,
-   and the question the
-   readers leave to Git takes the old way.
-   Budgets `WARM` and `AMEND` in `binary_budget_tests.rs` lowered from one start to zero.
-3. The in-process object reader keeps what it decoded (`repo_read_pack.rs`,
-   32 MiB per pack) and a process keeps the lists of
-   its last three trees (`flatten_tree_shared`).
-   Measured on the throwaway repository,
-   an in-process commit made 302 920
-   `pread64` calls and was 270 ms slower than the same binary with `CLI_GIT_IN_PROCESS_READS=off`;
-   the dozen questions
-   of one commit each opened the pack again and read the whole base tree through delta chains without sharing a base.
-   With the keeps,
-   12 alternating pairs gave 434 ms against 399 ms.
-4. `ls-tree -r` is left to Git:
-   listing a whole tree in process was 30 ms slower than the start and touches no index.
+1.  Tree-to-tree name lists in process (`repo_read_query.rs`,
+    `repo_read_tree.rs`):
+    `diff-tree -r --name-only -z
+    [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>` for a commit with exactly one parent.
+    The walk compares two trees together and reads only the subtrees whose names differ,
+    so it costs in proportion to
+    what changed.
+    A root commit,
+    a merge commit,
+    a file that became a directory and a gitlink are declined (Git answers).
+    The service's follow-up and the review then start no `diff-tree`,
+    and neither connects to the monitor.
+2.  A commit whose real index already equals its base starts no `read-tree` (`commit_index.rs`):
+    the private index is the copy of
+    the real index,
+    the in-process `diff-index --cached` reader says the copy holds exactly the base tree,
+    and the question the
+    readers leave to Git takes the old way.
+    Budgets `WARM` and `AMEND` in `binary_budget_tests.rs` lowered from one start to zero.
+3.  The in-process object reader keeps what it decoded (`repo_read_pack.rs`,
+    32 MiB per pack) and a process keeps the lists of
+    its last three trees (`flatten_tree_shared`).
+    Measured on the throwaway repository,
+    an in-process commit made 302 920
+    `pread64` calls and was 270 ms slower than the same binary with `CLI_GIT_IN_PROCESS_READS=off`;
+    the dozen questions
+    of one commit each opened the pack again and read the whole base tree through delta chains without sharing a base.
+    With the keeps,
+    12 alternating pairs gave 434 ms against 399 ms.
+4.  `ls-tree -r` is left to Git:
+    listing a whole tree in process was 30 ms slower than the start and touches no index.
 
 ## Measured
 
@@ -318,7 +318,8 @@ from the Git 2.56.0 source:
   (`index/index_reset_worktree_stat.rs`),
   and the all-zero value stands where no proof exists
   (`doc/handover/cli-git-rust-implementation.md`,
-  "The landing records the stat data it can prove, and the staleness question walks its entries in parallel").
+  "The landing records the stat data it can prove,
+  and the staleness question walks its entries in parallel").
   The skip-worktree bit of a replaced entry is kept;
   the assume-valid bit and the stage are not.
 - The extensions Git keeps (`read-cache.c` `do_write_index`):

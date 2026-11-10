@@ -82,7 +82,7 @@
   but SIMD benefit and floating-point policy parity
 - have not been measured.
   Contrary to stale migration prose in the core manifest,
-  **both consumers are integrated**:
+  both consumers are integrated:
 - `package/music-player/desktop-app/Cargo.toml:138` and `package/music-player/android-app/rust/Cargo.toml:72` depend on
 - the core,
   while their `src/truepeak.rs` files import it.
@@ -626,7 +626,7 @@ available without building either crate.
   `kernel!`
 - is defined in core `src/kernel_macros.rs:68-99`.
 
-**Remaining empirical questions:**
+Remaining empirical questions:
 whether the load-only design compiles against the published 1.0 artifact and
 preserves the expected machine code,
 its throughput and code size on actual x86 and arm64 targets,

@@ -1,8 +1,8 @@
 # Fastly's REST API answers 200 with an empty list, 500, or 404 for TLS and domain resources that exist and are serving traffic
 
-**Date**:
+Date:
  2026-10-09.
-**Subject**:
+Subject:
  `GET https://api.fastly.com/service/{id}/version/{n}/domain` returns `[]` for
 a service whose domain is live and serving TLS traffic,
 `GET /service?page[size]=20` returns HTTP 500 with a generic retry message,

@@ -759,15 +759,15 @@ see "The ladder".
   the
   lines back,
   and the working tree compared with the commit):
-  1. the main-checkout selection reverted to named paths:
-     `main_checkout_source_carries_dependencies_and_builds` and
-     `main_worktree_is_observed_with_the_main_checkout_selection` failed;
-  2. the leave-out rule and the checkout skip removed from the walk and the root filter:
-     `main_checkout_source_leaves_out_checkouts_caches_and_run_records`,
-     `unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage` and
-     `an_interrupted_main_checkout_copy_is_resumed_from_its_stage` failed;
-  3. the stamp no longer trusted in the final comparison:
-     `an_unchanged_stamp_stands_in_for_reading_the_bytes` failed.
+  1.  the main-checkout selection reverted to named paths:
+      `main_checkout_source_carries_dependencies_and_builds` and
+      `main_worktree_is_observed_with_the_main_checkout_selection` failed;
+  2.  the leave-out rule and the checkout skip removed from the walk and the root filter:
+      `main_checkout_source_leaves_out_checkouts_caches_and_run_records`,
+      `unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage` and
+      `an_interrupted_main_checkout_copy_is_resumed_from_its_stage` failed;
+  3.  the stamp no longer trusted in the final comparison:
+      `an_unchanged_stamp_stands_in_for_reading_the_bytes` failed.
 - A kill mid-copy:
   `an_interrupted_main_checkout_copy_is_resumed_from_its_stage` (a journal left in the installing phase
   with an intact main-checkout stage is resumed) and the binary test
@@ -856,15 +856,15 @@ which its author measured at 2.43 s for a whole main-checkout add.
   entries.
 - Foreground work that must precede the add returning,
   in either variant:
-  1. unlinking the `.git` pointer file of every nested ordinary worktree in the copy:
-     3 ms to 4 ms for four (about 50 ms
-     for 48,
-     extrapolated);
-  2. removing the copied `.git` directory,
-     which the ladder replaces with the new worktree's pointer:
-     714 ms to 749 ms
-     (nine runs) by `rm -rf`;
-     renaming it into a trash directory is a single rename.
+  1.  unlinking the `.git` pointer file of every nested ordinary worktree in the copy:
+      3 ms to 4 ms for four (about 50 ms
+      for 48,
+      extrapolated);
+  2.  removing the copied `.git` directory,
+      which the ladder replaces with the new worktree's pointer:
+      714 ms to 749 ms
+      (nine runs) by `rm -rf`;
+      renaming it into a trash directory is a single rename.
 - Removing the nested ordinary worktrees' trees:
   2.03 s to 2.29 s for four,
   0.52 s each;
@@ -969,22 +969,22 @@ which its author measured at 2.43 s for a whole main-checkout add.
 
 Procedure and cost for each of four fixture worktrees (`migrate-bench.ts`):
 
-1. `btrfs subvolume create <path>.migrating`:
-   4 ms to 5 ms.
-2. `cp --archive --reflink=always <path>/. <path>.migrating/`:
-   1.01 s to 1.02 s for about 22.5 thousand entries.
-3. `mv --no-target-directory --exchange <path> <path>.migrating`:
-   4 ms;
-   the path now names the subvolume and the old
-   tree sits at `.migrating`.
-   (Without `--no-target-directory`,
-   `mv --exchange` treats the second name as a directory and fails;
-   the first attempt
-   showed that,
-   and removed only the new copy.)
-4. `rm -rf <path>.migrating`:
-   0.43 s to 0.50 s.
-5. Every worktree stayed registered (`git worktree list` named the path) and its status stayed clean.
+1.  `btrfs subvolume create <path>.migrating`:
+    4 ms to 5 ms.
+2.  `cp --archive --reflink=always <path>/. <path>.migrating/`:
+    1.01 s to 1.02 s for about 22.5 thousand entries.
+3.  `mv --no-target-directory --exchange <path> <path>.migrating`:
+    4 ms;
+    the path now names the subvolume and the old
+    tree sits at `.migrating`.
+    (Without `--no-target-directory`,
+    `mv --exchange` treats the second name as a directory and fails;
+    the first attempt
+    showed that,
+    and removed only the new copy.)
+4.  `rm -rf <path>.migrating`:
+    0.43 s to 0.50 s.
+5.  Every worktree stayed registered (`git worktree list` named the path) and its status stayed clean.
 
 - Cost per worktree:
   about 1.5 s of work,
@@ -1149,31 +1149,31 @@ store and main's `node_modules` were only read.
   `npm_config_store_dir` is ignored.
 - What happens to an existing checkout whose `node_modules` was linked from the old store,
   once the line is present:
-  1. every command except an install keeps working:
-     `pnpm exec` ran against the old `node_modules` and passed,
-     and
-     `HOME`
-     unset or pointing elsewhere did not matter to it.
-     Correction (seen 2026-11-02 in the main checkout,
-     whose `node_modules` was still linked from
-     `node_modules/.pnpm-store/v11`):
-     `pnpm update -r --no-save` stops with `ERR_PNPM_UNEXPECTED_STORE` until an
-     install has relinked `node_modules` to the new store,
-     so "every command except an install" holds for `exec` and
-     `run` but not for every command;
-  2. `pnpm install --frozen-lockfile --offline` against a new store that does not hold the packages fails with
-     `snapshot not present in local store` AND LEAVES `node_modules` EMPTY (only `.pnpm-workspace-state-v1.json`
-     remained).
-     pnpm removes the old links before it finds the packages missing;
-     there is no "unexpected store" refusal.
-     With `HOME` unset the same install fails the same way,
-     so the setting needs `HOME` in every environment that
-     installs
-     (CI and containers included);
-  3. once the new store holds the packages,
-     the same install re-links everything from it in 1.8 s to 2.9 s and records
-     the new
-     `storeDir` in `node_modules/.modules.yaml`.
+  1.  every command except an install keeps working:
+      `pnpm exec` ran against the old `node_modules` and passed,
+      and
+      `HOME`
+      unset or pointing elsewhere did not matter to it.
+      Correction (seen 2026-11-02 in the main checkout,
+      whose `node_modules` was still linked from
+      `node_modules/.pnpm-store/v11`):
+      `pnpm update -r --no-save` stops with `ERR_PNPM_UNEXPECTED_STORE` until an
+      install has relinked `node_modules` to the new store,
+      so "every command except an install" holds for `exec` and
+      `run` but not for every command;
+  2.  `pnpm install --frozen-lockfile --offline` against a new store that does not hold the packages fails with
+      `snapshot not present in local store` AND LEAVES `node_modules` EMPTY (only `.pnpm-workspace-state-v1.json`
+      remained).
+      pnpm removes the old links before it finds the packages missing;
+      there is no "unexpected store" refusal.
+      With `HOME` unset the same install fails the same way,
+      so the setting needs `HOME` in every environment that
+      installs
+      (CI and containers included);
+  3.  once the new store holds the packages,
+      the same install re-links everything from it in 1.8 s to 2.9 s and records
+      the new
+      `storeDir` in `node_modules/.modules.yaml`.
 - Filling the store,
   which must come first:
   - The real home store is `~/.local/share/pnpm/store/v11` (49 GB,
@@ -1410,15 +1410,15 @@ and the handler following a link at the trash name
 
 ### Order for the owner
 
-1. Merge this branch (it contains the ladder and the copy) after the ladder's recovery rework lands;
-   release.
-2. Stop sessions inside the nested worktrees;
-   run `git cli-git convert-worktree-to-subvolume --dry-run --all` from the
-   main
-   checkout and read the skip reasons;
-   then run it without `--dry-run`,
-   worktree by worktree or with `--all`.
-3. Apply the shared pnpm store (section "Applying the shared pnpm store").
+1.  Merge this branch (it contains the ladder and the copy) after the ladder's recovery rework lands;
+    release.
+2.  Stop sessions inside the nested worktrees;
+    run `git cli-git convert-worktree-to-subvolume --dry-run --all` from the
+    main
+    checkout and read the skip reasons;
+    then run it without `--dry-run`,
+    worktree by worktree or with `--all`.
+3.  Apply the shared pnpm store (section "Applying the shared pnpm store").
 
 ### 2026-11-02T22:26:50-05:00: merge of main, the snapshot message, and the earlier-release service
 
@@ -1974,27 +1974,27 @@ not edited).
   this copy until the 48 worktrees are removed or migrated.
 - When both merge,
   the ladder needs three things from this change:
-  1. `carried` is the destination whose ignored state a snapshot already carried;
-     the lifecycle skips that destination.
-     For a main-sourced snapshot the carried state is the whole ignored set,
-     caches and run records included,
-     while this
-     change defines a smaller set for main.
-     Either the snapshot rung removes the left-out names from the new subvolume with `Prune::MainCheckout` (the rule
-     is a
-     pure function of paths) or the owner accepts the larger set there.
-  2. The clone and fallback rungs must leave the destination as Git's checkout does,
-     with the lifecycle's copy still to
-     come;
-     the fixed `StagedSnapshot.unreadable` and the new `CopySelection::MainCheckout` do not change that contract.
-  3. Hard links from the stage into a destination that is its own subvolume fail with `EXDEV`;
-     `install_file` already
-     falls
-     back to an exclusive copy-on-write request,
-     which keeps the data shared,
-     but the install loses the hard-link
-     atomicity and the stage removal then deletes real files;
-     a rename-based install (option D) is the better fit there.
+  1.  `carried` is the destination whose ignored state a snapshot already carried;
+      the lifecycle skips that destination.
+      For a main-sourced snapshot the carried state is the whole ignored set,
+      caches and run records included,
+      while this
+      change defines a smaller set for main.
+      Either the snapshot rung removes the left-out names from the new subvolume with `Prune::MainCheckout` (the rule
+      is a
+      pure function of paths) or the owner accepts the larger set there.
+  2.  The clone and fallback rungs must leave the destination as Git's checkout does,
+      with the lifecycle's copy still to
+      come;
+      the fixed `StagedSnapshot.unreadable` and the new `CopySelection::MainCheckout` do not change that contract.
+  3.  Hard links from the stage into a destination that is its own subvolume fail with `EXDEV`;
+      `install_file` already
+      falls
+      back to an exclusive copy-on-write request,
+      which keeps the data shared,
+      but the install loses the hard-link
+      atomicity and the stage removal then deletes real files;
+      a rename-based install (option D) is the better fit there.
 - The pnpm finding matters to the ladder:
   every worktree it creates is its own subvolume,
   where pnpm's default store
@@ -2051,28 +2051,28 @@ with the new worktree made equal to what Git itself would produce?
 
 ### The candidate restore
 
-1. Take the snapshot as today,
-   then keep the source's own index from the snapshot (`.git/index` inside it,
-   read before
-   `.git` is replaced by the new worktree's pointer),
-   not the index bytes the clean check read earlier.
-   The snapshot is one instant,
-   so the index and the files in it agree even if the person keeps working in the source.
-2. Instead of `git read-tree -m -u <source commit> <new commit>`,
-   run `git read-tree --reset -u <new commit>` under
-   the new
-   worktree's Git directory and work tree,
-   which makes the index and every tracked file equal to the new commit's tree,
-   whatever the source's index and files held.
-3. Run `git clean -f -d` there,
-   without `-x`,
-   which removes untracked files that are not ignored and empty untracked
-   directories,
-   and keeps ignored files.
-4. Prove the result (below);
-   on any doubt destroy the stage and take the slow route,
-   as every failure of the rung does
-   today.
+1.  Take the snapshot as today,
+    then keep the source's own index from the snapshot (`.git/index` inside it,
+    read before
+    `.git` is replaced by the new worktree's pointer),
+    not the index bytes the clean check read earlier.
+    The snapshot is one instant,
+    so the index and the files in it agree even if the person keeps working in the source.
+2.  Instead of `git read-tree -m -u <source commit> <new commit>`,
+    run `git read-tree --reset -u <new commit>` under
+    the new
+    worktree's Git directory and work tree,
+    which makes the index and every tracked file equal to the new commit's tree,
+    whatever the source's index and files held.
+3.  Run `git clean -f -d` there,
+    without `-x`,
+    which removes untracked files that are not ignored and empty untracked
+    directories,
+    and keeps ignored files.
+4.  Prove the result (below);
+    on any doubt destroy the stage and take the slow route,
+    as every failure of the rung does
+    today.
 
 Why step 2 can work from the source's index:
 in a btrfs snapshot the inode number,
@@ -2240,23 +2240,23 @@ so this option must not reuse that step.
 The proof runs in the stage before the swap,
 from the stage alone:
 
-1. `git write-tree` under the new Git directory prints the new commit's tree,
-   so the index is exact.
-2. `git ls-files --others --exclude-standard` prints nothing,
-   so no untracked file that Git shows is left.
-3. `git diff-files --quiet` after a refresh of the stat data prints nothing,
-   so every tracked file equals its index
-   entry
-   as far as Git can tell.
-   This is what the clean check already relies on for a clean source.
-4. For the owner's confidence,
-   not in the add:
-   a guard test per hazard above that builds the state in a fixture,
-   adds a
-   worktree through the wrapper and through real Git,
-   and compares the trees byte by byte (the way the two measured
-   fixtures were compared).
-   Each guard is shown red by removing the `git clean` step or the `--reset`.
+1.  `git write-tree` under the new Git directory prints the new commit's tree,
+    so the index is exact.
+2.  `git ls-files --others --exclude-standard` prints nothing,
+    so no untracked file that Git shows is left.
+3.  `git diff-files --quiet` after a refresh of the stat data prints nothing,
+    so every tracked file equals its index
+    entry
+    as far as Git can tell.
+    This is what the clean check already relies on for a clean source.
+4.  For the owner's confidence,
+    not in the add:
+    a guard test per hazard above that builds the state in a fixture,
+    adds a
+    worktree through the wrapper and through real Git,
+    and compares the trees byte by byte (the way the two measured
+    fixtures were compared).
+    Each guard is shown red by removing the `git clean` step or the `--reset`.
 
 What the proof cannot show:
 an edit that kept the size and both timestamps.

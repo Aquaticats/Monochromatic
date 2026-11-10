@@ -364,28 +364,28 @@ recorded so a rebuild does not pay them again:
 
 ## Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   netavark picks one bit,
-   documents it in a named constant,
-   and matches it.
-   `wg-quicker` chose `8888` without checking whose bits it borrowed.
-   The defect is in this repository's mark selection.
-2. **Can upstream fix it?**
-   In principle netavark could narrow the rule,
-   but a mark-based masquerade is the standard nftables idiom for host-port
-   publishing and any bit it picks is claimable by someone else.
-3. **Are they supporting this use case?**
-   Not applicable:
-   there is no netavark use case here to support.
-4. **Would the repo welcome our contribution?**
-   Not reached.
-5. **Will they likely fix it?**
-   Not reached.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Not reached,
-   and not applicable:
-   the fix belongs on this side of the boundary.
+1.  **Is it really upstream's fault?**
+    No.
+    netavark picks one bit,
+    documents it in a named constant,
+    and matches it.
+    `wg-quicker` chose `8888` without checking whose bits it borrowed.
+    The defect is in this repository's mark selection.
+2.  **Can upstream fix it?**
+    In principle netavark could narrow the rule,
+    but a mark-based masquerade is the standard nftables idiom for host-port
+    publishing and any bit it picks is claimable by someone else.
+3.  **Are they supporting this use case?**
+    Not applicable:
+    there is no netavark use case here to support.
+4.  **Would the repo welcome our contribution?**
+    Not reached.
+5.  **Will they likely fix it?**
+    Not reached.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Not reached,
+    and not applicable:
+    the fix belongs on this side of the boundary.
 
 Constraint 1 fails,
 so nothing is filed against `containers/netavark`,

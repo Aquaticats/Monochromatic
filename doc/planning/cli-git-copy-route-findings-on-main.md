@@ -72,16 +72,16 @@ all of them were read in full.
 
 The three reviews examined three successive shapes of one design:
 
-1. a copy held by a per-destination claim,
-   with `/proc` evidence of the holder and
-   an age rule that adopted expired claims;
-2. the same copy moved into the resident service,
-   with request files and a
-   per-registration token;
-3. the service plus a durable intent written before Git runs,
-   a terminal outcome
-   record,
-   and dependency ordering of requests.
+1.  a copy held by a per-destination claim,
+    with `/proc` evidence of the holder and
+    an age rule that adopted expired claims;
+2.  the same copy moved into the resident service,
+    with request files and a
+    per-registration token;
+3.  the service plus a durable intent written before Git runs,
+    a terminal outcome
+    record,
+    and dependency ordering of requests.
 
 `main` has none of those three:
 it runs the copy **inside the creating command's
@@ -551,58 +551,58 @@ Reading `worktree_copy_transaction.rs:411-462`,
 `worktree_copy_journal_removal.rs:98-110`
 and `worktree_copy_recovery.rs:196-240`:
 
-1. Before real Git returns:
-   nothing.
-   Git owns the worktree and its registration.
-2. After Git returns,
-   before `claim_stage` (`worktree_copy_transaction.rs:419`):
-   **no record of any kind**,
-   so the new worktree is never filled,
-   no notice is
-   possible,
-   and no later command revisits it.
-   Not measured directly;
-   the next
-   window was,
-   and shows the same outcome.
-3. Claim written,
-   stage container not yet made:
-   recovery judges the owner dead,
-   finds no container and no destination record,
-   and removes the claim **without a
-   notice** (`worktree_copy_stage_claim_reaping.rs:374-399`,
-   `settle_interrupted_add` at `:64-77`).
-   Measured:
-   the destination kept no ignored state and the later command printed
-   nothing.
-4. Stage container made,
-   staging,
-   before the journal:
-   recovery removes the stage
-   and prints one notice naming the **stage**,
-   not the worktree,
-   and the worktree
-   stays unfilled (`worktree_copy_stage_claim_reaping.rs:389-394`).
-5. Journal written,
-   installing:
-   recovery resumes the installation from the install
-   log (`worktree_copy_recovery.rs:230-240`,
-   `worktree_copy_install_log.rs`).
-   Measured:
-   the destination was completed and
-   recovery said "recovered ignored-state copies for 1 worktree transaction."
-6. Installed,
-   before the `Complete` phase:
-   the same resumption path,
-   idempotent
-   against the log's claimed and created entries.
-7. `Complete` written,
-   cleanup interrupted:
-   recovery removes the rest
-   (`worktree_copy_recovery.rs:215-218`).
-8. After cleanup:
-   nothing left;
-   the destination stays filled.
+1.  Before real Git returns:
+    nothing.
+    Git owns the worktree and its registration.
+2.  After Git returns,
+    before `claim_stage` (`worktree_copy_transaction.rs:419`):
+    **no record of any kind**,
+    so the new worktree is never filled,
+    no notice is
+    possible,
+    and no later command revisits it.
+    Not measured directly;
+    the next
+    window was,
+    and shows the same outcome.
+3.  Claim written,
+    stage container not yet made:
+    recovery judges the owner dead,
+    finds no container and no destination record,
+    and removes the claim **without a
+    notice** (`worktree_copy_stage_claim_reaping.rs:374-399`,
+    `settle_interrupted_add` at `:64-77`).
+    Measured:
+    the destination kept no ignored state and the later command printed
+    nothing.
+4.  Stage container made,
+    staging,
+    before the journal:
+    recovery removes the stage
+    and prints one notice naming the **stage**,
+    not the worktree,
+    and the worktree
+    stays unfilled (`worktree_copy_stage_claim_reaping.rs:389-394`).
+5.  Journal written,
+    installing:
+    recovery resumes the installation from the install
+    log (`worktree_copy_recovery.rs:230-240`,
+    `worktree_copy_install_log.rs`).
+    Measured:
+    the destination was completed and
+    recovery said "recovered ignored-state copies for 1 worktree transaction."
+6.  Installed,
+    before the `Complete` phase:
+    the same resumption path,
+    idempotent
+    against the log's claimed and created entries.
+7.  `Complete` written,
+    cleanup interrupted:
+    recovery removes the rest
+    (`worktree_copy_recovery.rs:215-218`).
+8.  After cleanup:
+    nothing left;
+    the destination stays filled.
 
 The one state recovery **discards** is a destination that is no longer registered,
 or a journal whose stage is gone;
@@ -1009,24 +1009,24 @@ and it would reintroduce an architectural choice the btrfs ladder already replac
 Three pieces,
 in the order their risk ranks:
 
-1. a durable destination record written **before** real Git runs,
-   on the rungs that
-   end in Git's own checkout and on the copy route:
-   `main` already does this for a
-   snapshot or clone (`claim_stage_for_add`,
-   `worktree_ladder_run.rs:213-240`) but
-   not for `Rung::Git` (`:193`,
-   `:207`,
-   `:244`),
-   and recovery already knows how to
-   report a recorded interrupted add
-   (`worktree_copy_stage_claim_reaping.rs:64-120`);
-2. carry the registration binding the ladder already builds
-   (`worktree_add_binding.rs`) into the copy and the recovery decision,
-   so the
-   install writes into the registration that was bound and stops when it is gone;
-3. a source-readiness check that refuses to stage from a root with a live claim or
-   journal.
+1.  a durable destination record written **before** real Git runs,
+    on the rungs that
+    end in Git's own checkout and on the copy route:
+    `main` already does this for a
+    snapshot or clone (`claim_stage_for_add`,
+    `worktree_ladder_run.rs:213-240`) but
+    not for `Rung::Git` (`:193`,
+    `:207`,
+    `:244`),
+    and recovery already knows how to
+    report a recorded interrupted add
+    (`worktree_copy_stage_claim_reaping.rs:64-120`);
+2.  carry the registration binding the ladder already builds
+    (`worktree_add_binding.rs`) into the copy and the recovery decision,
+    so the
+    install writes into the registration that was bound and stops when it is gone;
+3.  a source-readiness check that refuses to stage from a root with a live claim or
+    journal.
 
 Pros:
 each piece is small and lands in `main`'s own design,
@@ -1131,16 +1131,16 @@ because:
 Inspect,
 in this order:
 
-1. the verdicts on the nine findings,
-   against
-   `worktree_copy.rs`,
-   `worktree_copy_registry.rs`,
-   `worktree_copy_transaction.rs`
-   and `worktree_copy_recovery.rs`;
-2. the reproductions under "Reproductions",
-   whose scripts are in
-   `${HOME}/temp/agent/pi-copy-route-audit`;
-3. the ranking and the three options.
+1.  the verdicts on the nine findings,
+    against
+    `worktree_copy.rs`,
+    `worktree_copy_registry.rs`,
+    `worktree_copy_transaction.rs`
+    and `worktree_copy_recovery.rs`;
+2.  the reproductions under "Reproductions",
+    whose scripts are in
+    `${HOME}/temp/agent/pi-copy-route-audit`;
+3.  the ranking and the three options.
 
 Respond with a decision on the branch (A,
 B or C),

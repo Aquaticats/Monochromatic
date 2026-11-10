@@ -146,32 +146,32 @@ open against this exact behaviour,
 without adding evidence.
  Walking the five constraints anyway:
 
-1. **Is it really upstream's fault?
-   ** Yes.
-    The edge worker is the one
-   violating RFC 9110.
-2. **Can upstream fix it?
-   ** Yes;
-    either accept conditional GET and
-   return 304/200,
-    or drop incoming `If-None-Match` headers before they
-   reach the cache.
-3. **Are they supporting this use case?
-   ** The npm-compat bridge is the
-   advertised on-ramp for npm tooling;
-    Bun is npm-compat tooling.
-4. **Will they likely fix it?
-   ** The existing issue has been quiet since
-   filing;
-    no movement in the JSR repo's release notes touches the
-   conditional-GET path.
-    Not optimistic.
-5. **Have we prototyped a minimal fix?
-   ** Not applicable;
-    the JSR worker
-   is closed-source from this repo's vantage point,
-    and a workspace
-   patch is impossible.
+1.  **Is it really upstream's fault?
+    ** Yes.
+     The edge worker is the one
+    violating RFC 9110.
+2.  **Can upstream fix it?
+    ** Yes;
+     either accept conditional GET and
+    return 304/200,
+     or drop incoming `If-None-Match` headers before they
+    reach the cache.
+3.  **Are they supporting this use case?
+    ** The npm-compat bridge is the
+    advertised on-ramp for npm tooling;
+     Bun is npm-compat tooling.
+4.  **Will they likely fix it?
+    ** The existing issue has been quiet since
+    filing;
+     no movement in the JSR repo's release notes touches the
+    conditional-GET path.
+     Not optimistic.
+5.  **Have we prototyped a minimal fix?
+    ** Not applicable;
+     the JSR worker
+    is closed-source from this repo's vantage point,
+     and a workspace
+    patch is impossible.
 
 Decision:
  keep the workaround in `mise run fix:jsr`;

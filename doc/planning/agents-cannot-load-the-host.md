@@ -47,32 +47,32 @@ so the share is not established.
 
 ## Why the existing protections did not stop it
 
-1. **The rule did not bind.**
-   `RXI` in `AGENTS.md` already says stress and load runs go in `podman run --memory=2g --cpus=2 --rm`.
-   The delegating session's brief misquoted it ("systemd-run with a memory cap") and suggested `stress-ng` or busy loops.
-   A rule that depends on the delegating agent quoting it correctly failed at the first mistake.
-2. **The CPU cap does not cover transient units.**
-   `claude-cpu-watch.service` (`package/claude-cpu-cap/daemon`) writes `cpu.max` into the one `claude-code-bash`
-   cgroup only (`doc/runbook/claude-cpu-cap.md`,
+1.  **The rule did not bind.**
+    `RXI` in `AGENTS.md` already says stress and load runs go in `podman run --memory=2g --cpus=2 --rm`.
+    The delegating session's brief misquoted it ("systemd-run with a memory cap") and suggested `stress-ng` or busy loops.
+    A rule that depends on the delegating agent quoting it correctly failed at the first mistake.
+2.  **The CPU cap does not cover transient units.**
+    `claude-cpu-watch.service` (`package/claude-cpu-cap/daemon`) writes `cpu.max` into the one `claude-code-bash`
+    cgroup only (`doc/runbook/claude-cpu-cap.md`,
 "Known gaps":
 units started with `systemd-run --user` get their own cgroup
-   in `app.slice` and are outside the cap).
-   The repo's own preamble told long background runs to use such units,
+    in `app.slice` and are outside the cap).
+    The repo's own preamble told long background runs to use such units,
 so following the advice left the cap.
-   Containers (`podman`) are outside it too.
-3. **The cap is not set below the machine.**
-   `~/.config/claude-cpu-cap/threads` holds 28 and `nproc` reports 28 in an agent shell,
+    Containers (`podman`) are outside it too.
+3.  **The cap is not set below the machine.**
+    `~/.config/claude-cpu-cap/threads` holds 28 and `nproc` reports 28 in an agent shell,
 on a 32 thread host,
-   so even commands inside the cap may use 28 threads (the owner's decision of 2026-10-13,
+    so even commands inside the cap may use 28 threads (the owner's decision of 2026-10-13,
 per the runbook).
-4. **Nothing reacts to heat or synthetic load.**
-   The watcher logs CPU pressure and thermal alerts (`ALERT`,
+4.  **Nothing reacts to heat or synthetic load.**
+    The watcher logs CPU pressure and thermal alerts (`ALERT`,
 `CLEAR`) and samples Tctl and fan speed,
-   but only reports;
+    but only reports;
 it never throttles,
 freezes or kills anything.
-   The guardrail hook (`package/claude-code-plugin/guardrail`) guards Agent calls and three Bash patterns
-   (`bun test`,
+    The guardrail hook (`package/claude-code-plugin/guardrail`) guards Agent calls and three Bash patterns
+    (`bun test`,
 `pgrep` wait loops,
 `resume`),
 none about load.
@@ -181,11 +181,11 @@ A + B > C > D > E alone.
 
 ## Verification plan, before anything is accepted
 
-1. Start `stress-ng --cpu 2 --timeout 60s` in a `systemd-run --user` unit and show layer B kills it and logs it,
-   and that `sleep 60` and a `cargo build` in a unit are not killed.
-2. Ask a subagent to run `bun test` (already denied by the hook) and show whether the hook fires for the subagent's Bash call;
-   repeat with a denylisted command after layer A exists.
-3. Check the hook interface in the installed Claude Code (`claude-code-guide` agent or the installed type definitions)
-   for an input-rewriting field before relying on prompt injection.
-4. Run layer C against a recorded high-temperature episode (`package/claude-cpu-cap/daemon/src/analyze-episode.ts`)
-   to see how often it would have frozen work on ordinary days.
+1.  Start `stress-ng --cpu 2 --timeout 60s` in a `systemd-run --user` unit and show layer B kills it and logs it,
+    and that `sleep 60` and a `cargo build` in a unit are not killed.
+2.  Ask a subagent to run `bun test` (already denied by the hook) and show whether the hook fires for the subagent's Bash call;
+    repeat with a denylisted command after layer A exists.
+3.  Check the hook interface in the installed Claude Code (`claude-code-guide` agent or the installed type definitions)
+    for an input-rewriting field before relying on prompt injection.
+4.  Run layer C against a recorded high-temperature episode (`package/claude-cpu-cap/daemon/src/analyze-episode.ts`)
+    to see how often it would have frozen work on ordinary days.

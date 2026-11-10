@@ -150,23 +150,23 @@ Validate with `mpm --validate-config mpm.managers.toml`.
 
 ## Sync algorithm
 
-1. Ensure `mpm` itself
+1.  Ensure `mpm` itself
  (pinned standalone release binary into the toolchain `bin/`,
  SHA-256 checked).
-2. Ensure staging prerequisites:
+2.  Ensure staging prerequisites:
  `cargo-binstall` first (other Cargo tools depend on it),
  Node before npm-backed entries,
  uv before uv/pipx entries.
-3. `mpm restore` for the capable slice,
+3.  `mpm restore` for the capable slice,
  with `--manager` selectors.
-4. Provider installs for every remaining entry in plan order,
+4.  Provider installs for every remaining entry in plan order,
  idempotent (probe observed version first),
  each pinned to `toolchain.lock.json`.
-5. Rust components and Android targets after the Rust toolchain;
+5.  Rust components and Android targets after the Rust toolchain;
  Android SDK components after cmdline-tools.
-6. Postinstall steps
+6.  Postinstall steps
  (`cargo:monochromatic-git-policy-cli` atomic `git` link into `.cache/cli-git-bin`).
-7. Rebuild `.cache/toolchain-bin`,
+7.  Rebuild `.cache/toolchain-bin`,
  verify every declared `bins` entry resolves,
  print the drift report.
 
@@ -307,7 +307,7 @@ The cutover is a hard switch that follows a successful full sync on the machine
  a sync that cannot provision a tool is a hard error before any reader flips,
  and the Mise installs stay as the rollback until the maintainer prunes them.
 
-1. Remove `[tools]`,
+1.  Remove `[tools]`,
  `lockfile`,
  `lockfile_platforms`,
  `auto_install`,
@@ -322,16 +322,16 @@ The cutover is a hard switch that follows a successful full sync on the machine
  hooks,
  `[vars]`,
  and `env_shell_expand`.
-2. Regenerate `mise.toml` with `node package/file-enforcer/core/src/cli.ts`.
-3. Delete `mise.lock`;
+2.  Regenerate `mise.toml` with `node package/file-enforcer/core/src/cli.ts`.
+3.  Delete `mise.lock`;
  retire `lock:mise`;
  repoint `bootstrap` to `toolchain:sync`.
-4. Repoint every `mise.lock` reader to `toolchain.lock.json`:
+4.  Repoint every `mise.lock` reader to `toolchain.lock.json`:
  `.github/actions/task-cli-setup/action.yml`,
  `.github/workflows/music-player-release.yml` (the `awk` Rust scrapers),
  `.github/workflows/kotlin-linter-publish.yml`,
  `package/music-player/desktop-app/Containerfile.windows-gnu`.
-5. Keep `mise trust` wording only where tasks still need trust.
+5.  Keep `mise trust` wording only where tasks still need trust.
 
 ## Consumers
 
@@ -349,15 +349,15 @@ The cutover is a hard switch that follows a successful full sync on the machine
 
 ## Verification
 
-1. `mise run toolchain:status` clean on this machine after a sync.
-2. Disposable home (`mktemp -d`,
+1.  `mise run toolchain:status` clean on this machine after a sync.
+2.  Disposable home (`mktemp -d`,
  `HOME=` and `XDG_DATA_HOME=` overrides,
  container with 2 GiB / 2 CPUs):
  sync the Linux x64 slice,
  then run one TypeScript task,
  one Rust task and one lint task through `mise run`.
-3. `mpm installed` and `mpm outdated` list the manager-backed tools.
-4. No synthetic host load
+3.  `mpm installed` and `mpm outdated` list the manager-backed tools.
+4.  No synthetic host load
  (the synthetic-load ban),
  and every probe reports the command,
  working directory and exit status.

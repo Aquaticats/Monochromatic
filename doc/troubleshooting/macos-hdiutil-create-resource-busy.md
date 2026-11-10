@@ -72,7 +72,7 @@ the `macos-15` hosted image of 2026-10-15 (the exact image version was not recor
 No reproduction was attempted:
 the failure was seen once and did not recur in six later executions.
 The workaround below was added after the failure.
-**Its retry path has not run in CI**:
+Its retry path has not run in CI:
 the logs of the six later runs hold no `failed (attempt` line,
 so what the retry does on a real `Resource busy` is untested.
 

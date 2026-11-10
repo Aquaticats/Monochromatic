@@ -18,41 +18,41 @@ straight to `wg addconf` (which is exactly what wg-quick does with `WG_CONFIG`).
 
 ## What wg-quick `up` does (reverse-engineered from `/usr/bin/wg-quick`)
 
-1. `parse_options`:
-    read conf,
-    collect `[Interface]` `Address`/`MTU`/`DNS`/`Table`/
-   hooks;
-    append every non-Interface line to `WG_CONFIG`.
-2. Refuse if interface exists;
-    set trap to `del_if` on failure.
-3. `add_if`:
-   `ip link add dev IF type wireguard`.
-4. `PreUp` hooks.
-5. `set_config`:
-   `wg addconf IF < WG_CONFIG` (peers,
-    keys,
-    endpoints,
-    allowed-ips).
-6. `add_addr` per `Address` (v4/v6 by presence of `:`).
-7. `set_mtu_up`:
-    MTU from conf,
-    else endpoint route MTU,
-    else default 1500,
-    minus 80.
-8. `set_dns`:
-    wg-quick uses `resolvconf`;
-    we use `resolvectl` (systemd-resolved).
-9. For each allowed-ip prefix (sorted longest-first):
-   `add_route`.
-    A `/0` prefix
-   triggers `add_default`:
-    pick free table (51820),
-   `wg set fwmark`,
-    add
-   `not fwmark TABLE table TABLE` + `table main suppress_prefixlength 0` ip rules,
-   add default route in TABLE,
-    and install kill-switch firewall (nft or iptables).
-   Non-/0 prefixes get a plain route only if not already covered.
+1.  `parse_options`:
+     read conf,
+     collect `[Interface]` `Address`/`MTU`/`DNS`/`Table`/
+    hooks;
+     append every non-Interface line to `WG_CONFIG`.
+2.  Refuse if interface exists;
+     set trap to `del_if` on failure.
+3.  `add_if`:
+    `ip link add dev IF type wireguard`.
+4.  `PreUp` hooks.
+5.  `set_config`:
+    `wg addconf IF < WG_CONFIG` (peers,
+     keys,
+     endpoints,
+     allowed-ips).
+6.  `add_addr` per `Address` (v4/v6 by presence of `:`).
+7.  `set_mtu_up`:
+     MTU from conf,
+     else endpoint route MTU,
+     else default 1500,
+     minus 80.
+8.  `set_dns`:
+     wg-quick uses `resolvconf`;
+     we use `resolvectl` (systemd-resolved).
+9.  For each allowed-ip prefix (sorted longest-first):
+    `add_route`.
+     A `/0` prefix
+    triggers `add_default`:
+     pick free table (51820),
+    `wg set fwmark`,
+     add
+    `not fwmark TABLE table TABLE` + `table main suppress_prefixlength 0` ip rules,
+    add default route in TABLE,
+     and install kill-switch firewall (nft or iptables).
+    Non-/0 prefixes get a plain route only if not already covered.
 10. `PostUp` hooks;
      clear trap.
 

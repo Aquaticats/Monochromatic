@@ -202,9 +202,9 @@ at all.
 
 Both mechanisms are required for full cross-platform support:
 
-- **Unix**:
+- Unix:
    shebang tells the kernel which interpreter to use.
-- **Windows**:
+- Windows:
    generated `.cmd` wrapper invokes the runtime;
    shebang is
   ignored.
@@ -222,32 +222,32 @@ bash's command lookup,
  and the absence of a shebang in our own code.
 Walking the five constraints anyway:
 
-1. **Is it really upstream's fault?
-   ** No. Every component behaves as
-   documented;
-    the workspace's CLI scripts were the ones missing the
-   shebang.
-2. **Can upstream fix it?
-   ** Each upstream is correct individually.
-   Asking ImageMagick to rename `import` would break decades of
-   existing scripts;
-    asking bash to refuse running unknown-format files
-   would break the POSIX fallback contract.
-3. **Are they supporting this use case?
-   ** ImageMagick supports
-   `import`;
-    bash supports executing scripts that happen to call it.
-   The use case is "run a malformed script";
-    no upstream is required
-   to make that work.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** Yes,
-    on our side:
-    add the
-   shebang.
-    There is no upstream fix to prototype.
+1.  **Is it really upstream's fault?
+    ** No. Every component behaves as
+    documented;
+     the workspace's CLI scripts were the ones missing the
+    shebang.
+2.  **Can upstream fix it?
+    ** Each upstream is correct individually.
+    Asking ImageMagick to rename `import` would break decades of
+    existing scripts;
+     asking bash to refuse running unknown-format files
+    would break the POSIX fallback contract.
+3.  **Are they supporting this use case?
+    ** ImageMagick supports
+    `import`;
+     bash supports executing scripts that happen to call it.
+    The use case is "run a malformed script";
+     no upstream is required
+    to make that work.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** Yes,
+     on our side:
+     add the
+    shebang.
+     There is no upstream fix to prototype.
 
 Decision:
  no upstream report.

@@ -238,37 +238,37 @@ so the unscoped search was used.
 The six constraints,
 walked:
 
-1. **Is it really upstream's fault?**
-   No. `podman-image-prune(1)` documents `--external` for
-   exactly this case,
-   and `podman-ps(1)` documents how to list the containers responsible.
-   The
-   error string itself names the remedy.
-   This is correct behaviour with the flag omitted.
-2. **Can upstream fix it?**
-   Not applicable,
-   since there is nothing to fix.
-   A case could be made
-   for `image prune` mentioning `--external` in the error text rather than only "force-removing
-   image",
-   but that is wording polish.
-3. **Are they supporting this use case?**
-   Yes.
-   Both flags are documented features.
-4. **Would the repo welcome our contribution?**
-   Unevaluated.
-   No filing is proposed,
-   so no
-   `CONTRIBUTING.md` or policy check was run.
-5. **Will they likely fix it?**
-   Unevaluated,
-   not gated,
-   because constraint 1 already fails.
-6. **Have we prototyped a minimal fix?**
-   No. Constraint 1 fails,
-   so the auto-prototype step does
-   not trigger.
-   The remedy is an existing documented flag.
+1.  **Is it really upstream's fault?**
+    No. `podman-image-prune(1)` documents `--external` for
+    exactly this case,
+    and `podman-ps(1)` documents how to list the containers responsible.
+    The
+    error string itself names the remedy.
+    This is correct behaviour with the flag omitted.
+2.  **Can upstream fix it?**
+    Not applicable,
+    since there is nothing to fix.
+    A case could be made
+    for `image prune` mentioning `--external` in the error text rather than only "force-removing
+    image",
+    but that is wording polish.
+3.  **Are they supporting this use case?**
+    Yes.
+    Both flags are documented features.
+4.  **Would the repo welcome our contribution?**
+    Unevaluated.
+    No filing is proposed,
+    so no
+    `CONTRIBUTING.md` or policy check was run.
+5.  **Will they likely fix it?**
+    Unevaluated,
+    not gated,
+    because constraint 1 already fails.
+6.  **Have we prototyped a minimal fix?**
+    No. Constraint 1 fails,
+    so the auto-prototype step does
+    not trigger.
+    The remedy is an existing documented flag.
 
 Decision:
 do not file.

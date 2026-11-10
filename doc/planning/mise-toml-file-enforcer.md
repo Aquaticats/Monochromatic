@@ -12,15 +12,15 @@ Many `package/*/*/mise.toml` files are very similar (or could be),
 hand-maintained.
  Two consequences:
 
-1. Some packages silently lack required tasks (e.g. `lint:types` missing on a
-   package that builds TypeScript).
-2. Even where files are byte-similar,
-    they drift:
-    mixed key quoting (`[tasks."lint:types"]`
-   vs `[tasks.'lint:types']`),
-    four packages with empty `mise.toml`,
-    and the largest
-   cluster of seven byte-identical files exists despite never being deduped.
+1.  Some packages silently lack required tasks (e.g. `lint:types` missing on a
+    package that builds TypeScript).
+2.  Even where files are byte-similar,
+     they drift:
+     mixed key quoting (`[tasks."lint:types"]`
+    vs `[tasks.'lint:types']`),
+     four packages with empty `mise.toml`,
+     and the largest
+    cluster of seven byte-identical files exists despite never being deduped.
 
 Prior audit ([`doc/audit/dry.md`](../audit/dry.md),
 written as `AUDIT.dry.md`) called this duplication
@@ -302,43 +302,43 @@ Generator must explicitly never touch `*/mise.local.toml`.
 
 ## Open questions before approving D
 
-1. **Kind metadata source:
-    probe-only,
-    or also explicit?
-   ** Pure filesystem
-   probes work for ~80% of cases.
-    The escape hatch and hybrid kinds need a
-   declaration somewhere.
-    Three options:
-   - probe-only with a special-cases list inside
-     `file-enforcer.config.ts`
-   - per-package `package.json` field
-     (`"monochromatic": { "kind": "ts-cli", "extras": ["build:js:node"] }`)
-   - sidecar `mise.kind.toml` per package (overkill?
-     )
-2. **Dragon 9:
-    defer or track?
-   ** Pick before v1 implementation.
-3. **Quoting normalization:**
-   resolved by doing the one-time pass on landing.
-   `e72b7076` normalized 62 manifests (248 headers),
-   and `manageMiseManifests`
-   keeps them canonical on every `file-enforcer` run.
-4. **First kind to implement?
-   ** Smallest blast radius is probably `ts-library`
-   (modules with no build,
-    just lint + test).
-    Rolling out one kind at a time
-   is safer than 7-at-once.
-5. **Watch-mode semantics:
-    re-probe on every file-enforcer run,
-    or cache?
-   **
-   Probing is `glob('package/*/*/<signal-file>')` calls,
-   so the cost is small.
-    Probably
-   re-probe every run;
-    the cost is sub-second.
+1.  **Kind metadata source:
+     probe-only,
+     or also explicit?
+    ** Pure filesystem
+    probes work for ~80% of cases.
+     The escape hatch and hybrid kinds need a
+    declaration somewhere.
+     Three options:
+    - probe-only with a special-cases list inside
+      `file-enforcer.config.ts`
+    - per-package `package.json` field
+      (`"monochromatic": { "kind": "ts-cli", "extras": ["build:js:node"] }`)
+    - sidecar `mise.kind.toml` per package (overkill?
+      )
+2.  **Dragon 9:
+     defer or track?
+    ** Pick before v1 implementation.
+3.  **Quoting normalization:**
+    resolved by doing the one-time pass on landing.
+    `e72b7076` normalized 62 manifests (248 headers),
+    and `manageMiseManifests`
+    keeps them canonical on every `file-enforcer` run.
+4.  **First kind to implement?
+    ** Smallest blast radius is probably `ts-library`
+    (modules with no build,
+     just lint + test).
+     Rolling out one kind at a time
+    is safer than 7-at-once.
+5.  **Watch-mode semantics:
+     re-probe on every file-enforcer run,
+     or cache?
+    **
+    Probing is `glob('package/*/*/<signal-file>')` calls,
+    so the cost is small.
+     Probably
+    re-probe every run;
+     the cost is sub-second.
 
 ## Cross-references
 

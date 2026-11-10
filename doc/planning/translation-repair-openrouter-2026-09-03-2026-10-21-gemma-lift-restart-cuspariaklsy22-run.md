@@ -563,53 +563,53 @@ The wording choices of the page are in
 
 #### Classes named (by mechanism, with traces)
 
-1. Hyper-served replies carry the vote before the reason.
-   - Trace:
-     the declared order is reason first at `candidate-select-wire.ts:357` to `365`,
-     `contest-ballot-wire.ts:151` to `157` and `absolute-naturalness-review-wire.ts:142` to `146`;
-     the transport joins `input_json_delta` fragments in arrival order (`anthropic-completion.ts:326`)
-     and the read found no key sorting in the provider or provider-stream sources
-     (the one sorting function it met,
-     `canonicalPromptValue`,
-     serializes prompts for a uniqueness check,
-     and whether its output reaches the schema was not read);
-     the stored replies are alphabetical in every multi-key shape from Hyper
-     (1 of 103 reason first)
-     and reason first in 44 of 44 from NeuralWatt and OpenRouter.
-   - It recurs whenever Hyper serves a ballot,
-     and Hyper is now wet and serves 190 of 373 calls.
-   - Effect on any page:
-     unmeasured (the ruling itself says no bench measures reason first).
-   - Cause on Hyper's side:
-     untraced.
-     The read searched the provider and provider-stream sources for key sorting and read the transport's
-     concatenation;
-     the decisive probe (one call to Hyper with a non-alphabetical schema) was not run.
-2. A seat whose stream is dead is waited for in full in every round,
-   and the tally cannot withhold it.
-   - Trace:
-     `stage-round.ts:471` to `474` (abandons after `graceMs`,
-     warns `abandoned ... after quorum`,
-     the voice not answered);
-     `seat-tally.ts:120` to `122` and `346` to `352` (an abandoned call is not counted as asked and
-     "cannot be withheld for it",
-     so no seat ever leaves the bench for being abandoned).
-   - Here:
-     33 abandonments of `inception/mercury-2.5`,
-     33 rounds with 100 s or more of grace (3960 s summed over the rounds of the four slices),
-     a repair lane of 21.4 min against 3.2,
-     and 0.02907 USD of estimated spend on empty replies.
-   - The trigger is environmental
-     (a provider window from about 21:59 UTC,
-     seen in `zheermao22` too);
-     the mechanism recurs for any stalled seat,
-     and the design says so in the tally's own comment.
-   - Not a trace but a proposal the read left for the owner to weigh:
-     a seat that has produced zero content characters in two abandoned rounds could be given a shorter wait for the
-     rest of the entry,
-     or the round could stop waiting once its remaining voice has shown zero content for a set time.
-     That changes a rule the tally documents on purpose,
-     so the read called it an owner decision.
+1.  Hyper-served replies carry the vote before the reason.
+    - Trace:
+      the declared order is reason first at `candidate-select-wire.ts:357` to `365`,
+      `contest-ballot-wire.ts:151` to `157` and `absolute-naturalness-review-wire.ts:142` to `146`;
+      the transport joins `input_json_delta` fragments in arrival order (`anthropic-completion.ts:326`)
+      and the read found no key sorting in the provider or provider-stream sources
+      (the one sorting function it met,
+      `canonicalPromptValue`,
+      serializes prompts for a uniqueness check,
+      and whether its output reaches the schema was not read);
+      the stored replies are alphabetical in every multi-key shape from Hyper
+      (1 of 103 reason first)
+      and reason first in 44 of 44 from NeuralWatt and OpenRouter.
+    - It recurs whenever Hyper serves a ballot,
+      and Hyper is now wet and serves 190 of 373 calls.
+    - Effect on any page:
+      unmeasured (the ruling itself says no bench measures reason first).
+    - Cause on Hyper's side:
+      untraced.
+      The read searched the provider and provider-stream sources for key sorting and read the transport's
+      concatenation;
+      the decisive probe (one call to Hyper with a non-alphabetical schema) was not run.
+2.  A seat whose stream is dead is waited for in full in every round,
+    and the tally cannot withhold it.
+    - Trace:
+      `stage-round.ts:471` to `474` (abandons after `graceMs`,
+      warns `abandoned ... after quorum`,
+      the voice not answered);
+      `seat-tally.ts:120` to `122` and `346` to `352` (an abandoned call is not counted as asked and
+      "cannot be withheld for it",
+      so no seat ever leaves the bench for being abandoned).
+    - Here:
+      33 abandonments of `inception/mercury-2.5`,
+      33 rounds with 100 s or more of grace (3960 s summed over the rounds of the four slices),
+      a repair lane of 21.4 min against 3.2,
+      and 0.02907 USD of estimated spend on empty replies.
+    - The trigger is environmental
+      (a provider window from about 21:59 UTC,
+      seen in `zheermao22` too);
+      the mechanism recurs for any stalled seat,
+      and the design says so in the tally's own comment.
+    - Not a trace but a proposal the read left for the owner to weigh:
+      a seat that has produced zero content characters in two abandoned rounds could be given a shorter wait for the
+      rest of the entry,
+      or the round could stop waiting once its remaining voice has shown zero content for a set time.
+      That changes a rule the tally documents on purpose,
+      so the read called it an owner decision.
 
 #### One-offs and by-design items (not classes)
 

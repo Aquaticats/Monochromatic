@@ -63,11 +63,11 @@ error log for the failed fetch.
 Affected pattern:
  any module that
 
-1. Is statically imported (directly or transitively) into a
-   client-side entry point.
-2. Contains dynamic `import('node:...')` calls,
-    even inside
-   try/catch.
+1.  Is statically imported (directly or transitively) into a
+    client-side entry point.
+2.  Contains dynamic `import('node:...')` calls,
+     even inside
+    try/catch.
 
 The module-es logger file sink (`t sink/t file`) was the first
 instance.
@@ -150,27 +150,27 @@ file-sink statically on the client.
 
 ## What does not work
 
-- **Try/catch alone**:
+- Try/catch alone:
    catches the JS rejection,
    but the browser
   has already logged the network-level error.
    The console pollution
   remains.
-- **Marking `node:fs/promises` as external in the client config**:
+- Marking `node:fs/promises` as external in the client config:
   the bundler leaves the import as-is in the output and the browser
   still attempts the fetch at runtime.
    External-marking only
   affects whether the bundler inlines the module;
    it does not stop
   the browser from executing the import.
-- **Tree-shaking**:
+- Tree-shaking:
    dynamic `import()` expressions inside functions
   are not statically analysable,
    so bundlers cannot eliminate them.
   The static chain "client entry -> logger factory -> file sink
   module" guarantees the file-sink module is included even when its
   exports are unused.
-- **Polyfilling `node:` schemes**:
+- Polyfilling `node:` schemes:
    there is no portable polyfill
   for `node:fs/promises` in the browser;
    even rollup's
@@ -196,28 +196,28 @@ browser targets:
 
 ## Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. tsdown is correctly
-   preserving the dynamic import the source asked for.
-    Browsers are
-   correctly refusing to fetch the `node:` scheme.
-    Neither side
-   misbehaves.
-2. **Can upstream fix it?
-   ** They could heuristically warn when a
-   client-target bundle contains `import('node:...')`,
-    but the
-   warning would have to permit legitimate cases (server bundles,
-   isomorphic libraries) and the heuristic is noisy.
-3. **Are they supporting this use case?
-   ** Both tsdown and the
-   browser are doing what they are configured to do.
-    The "support"
-   here is the documentation that explains the constraint.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. tsdown is correctly
+    preserving the dynamic import the source asked for.
+     Browsers are
+    correctly refusing to fetch the `node:` scheme.
+     Neither side
+    misbehaves.
+2.  **Can upstream fix it?
+    ** They could heuristically warn when a
+    client-target bundle contains `import('node:...')`,
+     but the
+    warning would have to permit legitimate cases (server bundles,
+    isomorphic libraries) and the heuristic is noisy.
+3.  **Are they supporting this use case?
+    ** Both tsdown and the
+    browser are doing what they are configured to do.
+     The "support"
+    here is the documentation that explains the constraint.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

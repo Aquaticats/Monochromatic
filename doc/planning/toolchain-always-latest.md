@@ -305,42 +305,42 @@ run one after another.
 Each group lands as a unit or not at all;
 a failed group never stops the next one.
 
-1. Repository toolchain:
-   `toolchain:update`,
-   `toolchain:install`.
-   Commits `toolchain.lock.json` (and the plan,
-   if a
-   person had changed it and left it dirty,
-   the run refuses;
-   see `Failure, dirty files and reporting`).
-2. Machine-global toolchain:
-   `toolchain:update:global`,
-   `toolchain:install:global`.
-   The global lock lives outside the
-   repository,
-   so nothing is committed;
-   on failure its text is written back.
-3. Dependency locks,
-   in an order where each lock is consistent with the others when it lands:
-   `deps:update` (pnpm lock,
-   in range),
-   `cargo-shadow update` (every `Cargo.lock`,
-   under the release-age and trust policy),
-   then one tail:
-   `catalog:tighten` (pnpm and Rust catalog floors,
-   after both updates so the floors see the new locks),
-   `sync:files` (renders the Rust catalog into the manifests),
-   `pnpm install` (the pnpm lock satisfies the new catalog),
-   `cargo-shadow install` (each `Cargo.lock` satisfies the new manifests),
-   `check:files` (nothing generated is stale).
-   The two updates are soft steps:
-   if one fails,
-   its own files are put back,
-   the other still lands,
-   and the owner is told.
-   The tail is a hard step:
-   if it fails,
-   every dependency file is put back and nothing from the group lands.
+1.  Repository toolchain:
+    `toolchain:update`,
+    `toolchain:install`.
+    Commits `toolchain.lock.json` (and the plan,
+    if a
+    person had changed it and left it dirty,
+    the run refuses;
+    see `Failure, dirty files and reporting`).
+2.  Machine-global toolchain:
+    `toolchain:update:global`,
+    `toolchain:install:global`.
+    The global lock lives outside the
+    repository,
+    so nothing is committed;
+    on failure its text is written back.
+3.  Dependency locks,
+    in an order where each lock is consistent with the others when it lands:
+    `deps:update` (pnpm lock,
+    in range),
+    `cargo-shadow update` (every `Cargo.lock`,
+    under the release-age and trust policy),
+    then one tail:
+    `catalog:tighten` (pnpm and Rust catalog floors,
+    after both updates so the floors see the new locks),
+    `sync:files` (renders the Rust catalog into the manifests),
+    `pnpm install` (the pnpm lock satisfies the new catalog),
+    `cargo-shadow install` (each `Cargo.lock` satisfies the new manifests),
+    `check:files` (nothing generated is stale).
+    The two updates are soft steps:
+    if one fails,
+    its own files are put back,
+    the other still lands,
+    and the owner is told.
+    The tail is a hard step:
+    if it fails,
+    every dependency file is put back and nothing from the group lands.
 
 ### Failure, dirty files and reporting
 
@@ -431,23 +431,23 @@ three `test-fixture` packages and
 
 ### Before and after, in the same checkout
 
-1. Before anything is updated,
-   every package is checked (the baseline pass).
-2. The groups run and commit as before.
-3. When a group committed or the machine-global lock changed,
-   every package is checked again (the second pass).
-   A run that moved nothing skips the second pass,
-   because no check can have become red.
-4. For each check the two results are compared:
-   passed then failed is newly red;
-   failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
-   today and the owner said "Wait for Dylint");
-   failed then passed is recovered;
-   passed then passed is unchanged;
-   anything else,
-   including a check that timed out or never started because the pass ran out of time,
-   is unknown.
-   An unknown check never gets an issue.
+1.  Before anything is updated,
+    every package is checked (the baseline pass).
+2.  The groups run and commit as before.
+3.  When a group committed or the machine-global lock changed,
+    every package is checked again (the second pass).
+    A run that moved nothing skips the second pass,
+    because no check can have become red.
+4.  For each check the two results are compared:
+    passed then failed is newly red;
+    failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
+    today and the owner said "Wait for Dylint");
+    failed then passed is recovered;
+    passed then passed is unchanged;
+    anything else,
+    including a check that timed out or never started because the pass ran out of time,
+    is unknown.
+    An unknown check never gets an issue.
 
 The baseline is measured in the same checkout,
 immediately before the update,
