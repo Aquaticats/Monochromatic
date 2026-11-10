@@ -21,7 +21,8 @@
 //! and only through the user manager.
 //! A stopped instance's journal goes with its note and its socket file when it holds nothing but the records of the
 //! batches that landed;
-//! a journal that holds work is kept and named, never discarded.
+//! a journal that holds work is kept and named,
+//! never discarded.
 //! Nothing here starts a unit.
 //!
 //! In TS you'd write (pseudocode):

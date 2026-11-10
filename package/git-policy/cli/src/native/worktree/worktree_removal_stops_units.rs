@@ -120,11 +120,11 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     manager.within(EXCHANGE_WAIT);
     stop_units(manager, about.instance.as_str())?;
     forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
-    if let Some(kept) = remove_journal_of_a_stopped_instance(folders, about.instance.as_str()) {
-        debug(
+    if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, about.instance.as_str()) {
+        warn(
             TAG,
             format!(
-                "the journal of the removed worktree {} is kept at {}, because it holds {}, {}",
+                "the journal of the removed worktree {} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
                 about.git_dir.display(),
                 kept.journal.display(),
                 kept.entry,
@@ -202,7 +202,13 @@ fn state_dir_of_the_user() -> Option<PathBuf> {
     if let Some(named) = non_empty_variable("XDG_STATE_HOME") {
         return Some(PathBuf::from(named));
     }
-    return non_empty_variable("HOME").map(|home| PathBuf::from(home).join(".local").join("state"));
+    return non_empty_variable("HOME").map(state_dir_under_home);
+}
+
+/// The state directory of a user whose home is `home`,
+/// as `systemd` places it.
+fn state_dir_under_home(home: String) -> PathBuf {
+    return PathBuf::from(home).join(".local").join("state");
 }
 
 /// Removal hook controls stay out of the release executable.

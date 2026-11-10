@@ -1157,7 +1157,8 @@ when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
-removes the note, the socket file and the journal when the journal holds nothing else,
+removes the note,
+the socket file and the journal when the journal holds nothing else,
 and ends with status 0.
 Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,

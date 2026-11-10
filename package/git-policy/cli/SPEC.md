@@ -8937,10 +8937,13 @@ not a refusal,
 because `Restart=on-failure` would start a refused unit again,
 and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
 The instance's service journal goes with the socket and the note when it holds nothing else:
-its finished batches and the remains of a killed write are the memory of a service that is never served again,
+the records of the batches that landed and an empty landing record are the memory of a service that is never served again,
 while a batch that did not land,
-a landing that was in flight,
-and a file this release does not know keep the whole journal and are logged, never discarded.
+a batch whose objects a scratch reference may hold,
+a record that was written and not published,
+a landing or withdrawal record,
+and a file this release does not know keep the whole journal and are logged,
+never discarded.
 Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 

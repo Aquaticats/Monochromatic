@@ -39,11 +39,8 @@
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
-use crate::private_storage::create_private_directory_all;
-use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
-use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
+use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
-use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
 use crate::service_route::non_empty_path_variable;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_bus_path};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
@@ -51,9 +48,6 @@ use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "serviceUnitsOfRemovedWorktrees";
-
-/// The ending of the note file that names the Git directory of an instance's worktree.
-pub const NOTE_ENDING: &str = ".git-dir";
 
 /// Where the units of the user's instances are told apart from one another.
 #[derive(Clone, Copy, Debug)]
@@ -69,6 +63,13 @@ pub struct UnitFolders<'a> {
 /// The journal folder of an instance and the state folder that holds it,
 /// which the unit's `--journal` names.
 pub use crate::service_journal_folder_of_an_instance::{JOURNAL_FOLDER, journal_of, state_dir_of_journal};
+
+/// What an instance keeps beside its socket and in its journal,
+/// read and written by the code here and by provisioning
+/// (`service_files_of_a_stopped_instance.rs`).
+pub use crate::service_files_of_a_stopped_instance::{
+    KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, note_path, note_worktree, record_worktree, remove_journal_of_a_stopped_instance,
+};
 
 /// What a unit instance's worktree is,
 /// as far as the notes and the journals say.
@@ -107,65 +108,6 @@ pub struct SweepOutcome {
     pub journals_kept: Vec<(String, KeptJournal)>,
     /// The survey the stop was made from.
     pub survey: Survey,
-}
-
-/// The folder of the notes,
-/// inside the directory the manager reads the wrapper's unit files from,
-/// where provisioning already writes and nothing else of the wrapper does.
-/// The manager looks only at unit names in that directory,
-/// so a folder of this name is no unit and starts nothing.
-pub const NOTES_FOLDER: &str = "monochromatic-git-policy-cli-worktree-notes";
-
-/// The note file of an instance.
-pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).join(format!("{instance}{NOTE_ENDING}"));
-}
-
-/// What:
-/// Writes the note that names the worktree of an instance,
-/// unless it already says so.
-/// Why:
-///   The note is the one record of whose units these are once the worktree is gone;
-/// it is read before it is written so that a commit in a worktree whose units are in place writes nothing.
-/// It lives in the socket's directory under the runtime directory,
-/// which is removed with the units at logout or shutdown,
-/// so no note outlives the units it names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if ((await readText(notePath)) !== gitDir) await writeAtomically(notePath, gitDir);
-/// ```
-pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> std::io::Result<()> {
-    // The note holds the bytes of the directory: its text would name another place, or none, for a path that is not text.
-    let text: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
-    let path: PathBuf = note_path(runtime_dir, instance);
-    if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
-        return Ok(());
-    }
-    create_private_directory_all(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path())?;
-    return write_atomically(path.as_path(), text.as_str());
-}
-
-/// What:
-/// Writes the note of an instance for the real Git directory of its worktree,
-/// and logs a failure.
-/// Why:
-///   A note that cannot be written only means the units cannot be told apart later;
-/// it never fails a commit.
-/// The real path is written because the instance is a hash of it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await noteWorktree(runtimeDir, instance, await realpath(gitDir)).catch(log);
-/// ```
-pub fn note_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) {
-    let real: PathBuf = match std::fs::canonicalize(git_dir) {
-        Ok(resolved) => resolved,
-        Err(_unresolvable) => git_dir.to_path_buf(),
-    };
-    if let Err(error) = record_worktree(runtime_dir, instance, real.as_path()) {
-        warn(TAG, format!("the note of the worktree of {instance} could not be written ({error}); its units cannot be told apart from a removed worktree's later").as_str());
-    }
 }
 
 /// What:
@@ -485,7 +427,7 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn 
 pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
     let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
     stop_own_socket(folders, instance, manager)?;
-    if let Some(kept) = remove_journal_of_a_stopped_instance(folders, instance) {
+    if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, instance) {
         crate::service_warn!(
             "the journal of this commit service is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
             kept.journal.display(),
@@ -573,164 +515,6 @@ fn reason_of(error: &CallError) -> String {
     };
 }
 
-/// The directory of the record a landing keeps inside the journal (`service_busy.rs`),
-/// which is empty once no landing is in flight.
-const LANDING_RECORD_DIRECTORY: &str = "busy";
-
-/// What:
-///  A journal that stayed after its instance's units were stopped,
-///  the entry that kept it,
-///  and what that entry is.
-/// Why:
-///   The caller decides where the line goes:
-/// the command a person runs reports it on standard error,
-/// and the service logs it to its own journal,
-/// so a notice a person needs never depends on a warning being enabled.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct KeptJournal {
-    /// The journal folder that stays.
-    pub journal: PathBuf,
-    /// The entry that keeps it.
-    pub entry: String,
-    /// What that entry is, in words.
-    pub reason: String,
-}
-
-/// Whether a file name is the record of a batch that landed,
-/// which a stopped instance's journal may lose.
-fn is_finished_memory(name: &str) -> bool {
-    let Some((stem, extension)) = name.rsplit_once('.') else { return false };
-    if stem.is_empty() || !stem.bytes().all(|byte| byte.is_ascii_digit()) {
-        return false;
-    }
-    return extension == DONE_EXTENSION;
-}
-
-/// Why a file of a journal that is not a finished batch keeps the journal.
-fn reason_of_a_kept_file(name: &str) -> &'static str {
-    return match name.rsplit_once('.').map(|(_stem, extension)| extension) {
-        Some(OPEN_EXTENSION) => "the record of a commit that has not landed",
-        Some(SCRATCH_EXTENSION) => "the record of a batch whose objects a scratch reference may hold",
-        Some(CLAIM_EXTENSION | INDEXED_EXTENSION | START_EXTENSION) => "the record of a batch that was being landed",
-        // A `.tmp` file can hold a record that was written whole and never published, so it is not remains.
-        Some(TEMPORARY_EXTENSION) => "a record that was written and not published",
-        _ => "a file this release does not know",
-    };
-}
-
-/// Whether a folder of a journal holds no entry at all.
-fn holds_nothing(folder: &Path) -> Result<bool, String> {
-    let mut listing = std::fs::read_dir(folder).map_err(|error| format!("{} could not be listed ({error})", folder.display()))?;
-    return Ok(listing.next().is_none());
-}
-
-/// What:
-///  The first entry of a stopped instance's journal that keeps the journal,
-/// with the words that say why,
-/// and nothing when every entry may go.
-/// Why:
-///   Only the record of a batch that landed,
-/// and a folder the service made and left empty (`busy`,
-/// the landing's record),
-/// are provably of no use once the instance is stopped;
-/// every other name either holds a commit a person may still want
-/// or is a name this release does not explain,
-/// and guessing about one of those would discard work.
-/// The answer comes from one listing,
-/// so a journal that grows while it is read is kept, not half-removed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// keptEntryOf(journal) // { name, reason } or undefined
-/// ```
-fn kept_entry_of(journal: &Path) -> Result<Option<(String, &'static str)>, String> {
-    let listing = match std::fs::read_dir(journal) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("{} could not be listed ({error})", journal.display())),
-    };
-    for entry in listing {
-        let found = entry.map_err(|error| format!("{} could not be listed ({error})", journal.display()))?;
-        let name: String = found.file_name().to_string_lossy().into_owned();
-        let path: PathBuf = found.path();
-        let kind = found.file_type().map_err(|error| format!("{} could not be read ({error})", path.display()))?;
-        if kind.is_dir() {
-            if !holds_nothing(path.as_path())? {
-                return Ok(Some((name, "a record of a landing or of a withdrawal")));
-            }
-            continue;
-        }
-        if is_finished_memory(name.as_str()) {
-            continue;
-        }
-        return Ok(Some((name.clone(), reason_of_a_kept_file(name.as_str()))));
-    }
-    return Ok(None);
-}
-
-/// What:
-///  Removes the service journal of an instance whose units were stopped,
-///  when every entry in it is the record of a batch that landed,
-///  and says which entry kept it otherwise.
-/// Why:
-///   A stopped instance of a worktree that is gone is never served again,
-/// so its records answer no retry and name a directory that no longer exists;
-/// keeping them left one state directory per removed worktree with
-///  up to `DONE_RETAINED` files in it,
-/// and nothing swept them.
-/// The note and the socket file are already gone,
-/// so no later survey asks this instance about its worktree.
-/// A journal that holds a commit no branch shows,
-/// a record that was written and not published,
-/// or a name this release does not explain is kept whole and reported,
-/// because work a person may still want is never discarded.
-/// A state directory that is not known (`state_dir: None`) removes nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// removeJournalOfAStoppedInstance(folders, instance) // { journal, entry, reason } when it is kept
-/// ```
-pub fn remove_journal_of_a_stopped_instance(folders: &UnitFolders<'_>, instance: &str) -> Option<KeptJournal> {
-    let Some(state) = folders.state_dir else { return None };
-    let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
-    let kept: KeptJournal = match kept_entry_of(journal.as_path()) {
-        Ok(None) => {
-            if let Err(error) = std::fs::remove_dir_all(journal.as_path())
-                && error.kind() != std::io::ErrorKind::NotFound
-            {
-                warn(TAG, format!("the journal of {instance} could not be removed ({error}), so it is left at {}", journal.display()).as_str());
-            }
-            return None;
-        }
-        Ok(Some((entry, reason))) => KeptJournal { journal, entry, reason: String::from(reason) },
-        Err(reason) => KeptJournal { journal, entry: String::from("something this command could not read"), reason },
-    };
-    return Some(kept);
-}
-
-/// What:
-///  Removes the files that say an instance has units once its units are stopped:
-/// its note and its socket file.
-/// Why:
-///   The manager leaves the socket file of a stopped socket unit where it was (`RemoveOnStop=` is off),
-/// and a file that stays makes the survey count the instance again and the next sweep stop it again.
-/// The worktree is gone,
-/// so nothing will make that socket listen at that path again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await Promise.all([rm(notePath(runtimeDir, instance)), rm(socketPath(runtimeDir, instance))]);
-/// ```
-pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
-    for path in [note_path(runtime_dir, instance), socket_path(runtime_dir, instance)] {
-        if let Err(error) = std::fs::remove_file(path.as_path())
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            warn(TAG, format!("{} could not be removed after the units of {instance} were stopped ({error})", path.display()).as_str());
-        }
-    }
-}
-
 /// What:
 /// Stops the units of every instance whose worktree is gone,
 /// and removes the note and the socket file of each one that was stopped,
@@ -754,7 +538,7 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
         match stop_units(manager, instance.as_str()) {
             Ok(()) => {
                 forget_stopped_instance(folders.runtime_dir, instance.as_str());
-                if let Some(kept) = remove_journal_of_a_stopped_instance(folders, instance.as_str()) {
+                if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str()) {
                     outcome.journals_kept.push((instance.clone(), kept));
                 }
                 outcome.stopped.push(instance.clone());

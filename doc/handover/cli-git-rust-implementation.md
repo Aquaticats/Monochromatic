@@ -4758,7 +4758,8 @@ The stopped instance's state directory (`$XDG_STATE_HOME/monochromatic-git-polic
 the service's journal) used to stay after its units go,
 and nothing swept it,
 so one folder per removed worktree stayed with up to `DONE_RETAINED` finished-batch records in it.
-It goes with the units now (`7399c1cacf`, 2026-11-10):
+It goes with the units now (`7399c1cacf`,
+2026-11-10):
 a stopped instance of a worktree that is gone is never served again,
 and its note and its socket file are removed in the same step,
 so its records answer no retry and name a directory that no longer exists.
