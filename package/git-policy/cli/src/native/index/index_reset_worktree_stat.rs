@@ -19,7 +19,7 @@
 //! would otherwise report a changed file as unchanged,
 //! and the person's
 //!  edit would reach neither the next commit nor `git status`.
-//!  So the stat data here is recorded only when all four hold:
+//!  So the stat data here is recorded only when all five hold:
 //!
 //! - The path is a regular file,
 //! and every directory on the way is a real one on the worktree's device,
@@ -57,6 +57,14 @@
 //!  earlier in the index file's own second is older than the index on a file system that stores nanoseconds,
 //! so the entries a
 //!  person's edit just made record their stat data and the next commit starts no Git for them.
+//! - The change time the file had when it was read has nanoseconds.
+//!   A file system that stores whole seconds reports a change time with none,
+//! and a same-size rewrite whose modification time is put back inside that second leaves every field this proof compares
+//!  unchanged,
+//! so such a file keeps the zero stat data and costs a refresh.
+//!   The attributes reader refuses such a file for
+//!  the same reason (`worktree_clean_content_attributes.rs`,
+//! `attribute_bytes`).
 //!
 //! The read never waits and never passes a bound:
 //! a path that is not a regular file is refused by its type,
@@ -252,6 +260,27 @@ fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
         && first.mtime_nsec() == second.mtime_nsec()
         && first.ctime() == second.ctime()
         && first.ctime_nsec() == second.ctime_nsec();
+}
+
+/// What:
+///  Whether a file's change time can tell two rewrites in one second apart.
+/// Why:
+///   A file system that stores whole seconds reports a change time with no nanoseconds,
+/// and a same-size rewrite whose modification time is put back inside that second leaves every field the proof here
+///  compares unchanged,
+/// so the bytes that were read cannot be proven to be the ones the path holds now.
+/// Such a file keeps the zero stat data,
+/// which costs a refresh and hides nothing,
+/// as the attributes reader refuses such a file for the same reason
+///  (`worktree_clean_content_attributes.rs`,
+/// `attribute_bytes`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stampProvesOneVersion = ([, nanos]) => nanos !== 0;
+/// ```
+fn stamp_proves_one_version(changed: (i64, i64)) -> bool {
+    return changed.1 != 0;
 }
 
 /// What:
@@ -498,6 +527,11 @@ impl<'a> LandingStat<'a> {
         let file: std::fs::File = open_file_at(directory, name).ok()?;
         let held: std::fs::Metadata = file.metadata().ok()?;
         if !held.file_type().is_file() || held.dev() != before.dev() || held.ino() != before.ino() {
+            return None;
+        }
+        // A file whose change time has no nanoseconds is on a file system that cannot tell two rewrites in one second
+        // apart, so no state it reports can prove the bytes were one version (a trial review's seventh finding).
+        if !stamp_proves_one_version((held.ctime(), held.ctime_nsec())) {
             return None;
         }
         // A file whose handle already reports more than the room the landing has is not read at all:

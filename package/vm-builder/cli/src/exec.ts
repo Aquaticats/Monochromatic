@@ -26,6 +26,39 @@ export type ExecOptions = {
 };
 
 /**
+ Runs one external command and resolves with its captured stdout.
+
+ This is the contract a caller replaces to record the commands a step would run; the domain removal test passes one that
+ collects `virsh` calls instead of stopping a domain.
+
+ @param options - command and its arguments
+
+ @returns Stdout of the command
+
+ @example
+ ```ts
+ const note: CommandRunner = async ({ cmd, args, }) => `${cmd} ${args?.join(' ')}`;
+ ```
+ */
+export type CommandRunner = (options: ExecOptions,) => Promise<string>;
+
+/**
+ Runs one external command with the terminal attached and resolves when it exits.
+
+ This is the contract a caller replaces to record the commands of a step whose output is not read.
+
+ @param options - command and its arguments
+
+ @example
+ ```ts
+ const note: StreamingCommandRunner = async ({ cmd, }) => {
+   console.log(cmd,);
+ };
+ ```
+ */
+export type StreamingCommandRunner = (options: ExecOptions,) => Promise<void>;
+
+/**
  Runs one external command directly (no shell) and resolves with its captured stdout.
 
  Stdout loses one trailing newline, as `nano-spawn` strips it; stderr is not returned.
@@ -79,4 +112,58 @@ export async function exec(
       : { timeout: timeoutMs, },
   );
   return stdout;
+}
+
+/**
+ Runs one external command with this process's terminal attached, so its progress reaches the reader as it happens.
+
+ Nothing is captured: a build that takes minutes streams podman's own layer output instead of holding it until exit.
+ The command logs at debug level before it starts, so a failed run can be matched to its argument list.
+ A reader who needs the output passes {@link exec} instead, which returns it.
+
+ @param cmd - Executable name or path, described on {@link ExecOptions}
+
+ @param args - Arguments passed to the command unchanged
+
+ @param timeoutMs - Milliseconds after which the child is sent `SIGTERM`
+
+ @throws `SubprocessError` from `nano-spawn` when the command exits non-zero:
+ message `Command failed with exit code N: cmd args`, with `exitCode` and `signalName` properties
+
+ @throws `SubprocessError` when the command is killed by a signal, including the `timeoutMs` kill:
+ message `Command was terminated with SIGTERM: cmd args`
+
+ @throws `SubprocessError` when the command cannot start, for example a missing executable:
+ message `Command failed: cmd args`, with the system error as `cause`
+
+ @example
+ ```ts
+ await execStreaming({ cmd: 'sudo', args: ['chown', '-R', 'user:user', 'output',], },);
+ ```
+ */
+export async function execStreaming(
+  {
+    cmd,
+    args = [],
+    timeoutMs,
+  }: ExecOptions,
+): Promise<void> {
+  /**
+   Function-scoped logger tagged with the call site for traceable command logs.
+   */
+  const rl = tagged({
+    tag: execStreaming.name,
+    l,
+  },);
+  rl.debug(`${cmd} ${args.join(' ',)}`,);
+  await spawn(
+    cmd,
+    [...args,],
+    timeoutMs === undefined
+      ? { stdio: 'inherit', }
+      : {
+        stdio: 'inherit',
+        timeout: timeoutMs,
+      },
+  );
 }

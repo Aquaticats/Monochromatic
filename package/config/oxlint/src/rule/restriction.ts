@@ -55,6 +55,13 @@ export const restrictionRules: DummyRuleMap = {
   // 'error' (see doc/audit/let.md status table).
   'no-restricted-syntax/no-module-root-let': 'error',
 
+  // Scripts run at file level. A `main()` declared only to be called at the end
+  // adds a name, a call hop, and an indentation level, and moves the throw
+  // contract one frame away from the code that raises it. A `main` that is
+  // exported, passed to a runner, called with arguments, or gated by
+  // `import.meta.main` is not a wrapper and stays allowed.
+  'no-restricted-syntax/no-main-wrapper': 'error',
+
   // `describe({ name: '<fn>' })` silently drifts on rename. Prefer
   // `describe({ name: <fn>.name })` whenever `<fn>` is an in-scope binding.
   // Scoped to `*.unit.test.ts` via overrides; harness self-tests opt out

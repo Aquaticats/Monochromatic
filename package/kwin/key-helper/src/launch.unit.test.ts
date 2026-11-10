@@ -33,6 +33,10 @@ import {
   reportedUntil,
 } from './fake-command-fixture.ts';
 
+//region Fixtures
+// The resource classes, the failure a stand-in `kstart` reports, and the timings
+// the output and survival cases wait on.
+
 /**
  Resource class with no override entry, so the launcher is `kstart`.
  */
@@ -110,6 +114,12 @@ const CHATTY_LAUNCHER_LINES: readonly string[] = [
  */
 const SURVIVAL_LINE = 'survived';
 
+//endregion Fixtures
+
+//region Helpers
+// One poll over what the stand-in recorded, which the survival cases need
+// because a launcher that keeps running reports nothing in one read.
+
 /**
  Read the stand-in's recorded argument vector until it holds a given line, or
  the deadline passes.
@@ -160,6 +170,12 @@ async function recordedUntil({
     label: `the launcher recording '${expected}'`,
   },);
 }
+
+//endregion Helpers
+
+//region Cases
+// The override table and its fallbacks, then the launcher that runs the chosen
+// command and reports what it did.
 
 await describe({
   name: '',
@@ -327,3 +343,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

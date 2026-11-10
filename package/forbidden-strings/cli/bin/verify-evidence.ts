@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Compare retained manifests with current compiled inputs and summarize exact terminal evidence.
+ Throws `Error` when a disabled guard run's main module differs by more than the test registration
  */
 import {
   mkdir,
@@ -420,118 +421,104 @@ async function evidenceDirectories(root: string): Promise<readonly string[]> {
 }
 
 /**
- Report every mismatch rather than treating a Git HEAD as source-snapshot proof.
-
- @throws Error when a disabled guard run's main module differs by more than the test registration
-
- @example
- ```ts
- await main();
- ```
+ Root of the repository.
  */
-async function main(): Promise<void> {
-  /**
-   Root of the repository.
-   */
-  const repository = resolve(
+const repository = resolve(
+  import.meta.dirname,
+  '../../../..',
+);
+/**
+ The verification directories of the scanner and of its fuzz sidecar.
+ */
+const roots: readonly string[] = [
+  resolve(
     import.meta.dirname,
-    '../../../..',
-  );
-  /**
-   The verification directories of the scanner and of its fuzz sidecar.
-   */
-  const roots: readonly string[] = [
-    resolve(
-      import.meta.dirname,
-      '../target/verification',
-    ),
-    resolve(
-      import.meta.dirname,
-      '../../cli.fuzz/target/verification',
-    ),
-  ];
-  /**
-   Every retained evidence directory with its comparison.
-   */
-  const records = (await mapInSequence({
-    items: (await mapInSequence({
-      items: roots,
-      run: evidenceDirectories,
-    })).flat(),
-    run: function compareOf(directory) {
-      return compareDirectory({
-        repository,
-        directory,
-      });
-    },
-  })).flat();
-  /**
-   The newest protected guard run that proved its boundary.
-   */
-  const [guarded] = records
-    .filter(function isProtectedControl(record): boolean {
-      return (endingField({
-        record,
-        file: 'control.json',
-        field: 'variant',
-      }) === 'protected') && Boolean(endingField({
-        record,
-        file: 'control.json',
-        field: 'expected',
-      }));
-    })
-    .toSorted(function newestFirst(
-      first,
-      second,
-    ) {
-      return second.timestamp
-        .localeCompare(first.timestamp);
+    '../target/verification',
+  ),
+  resolve(
+    import.meta.dirname,
+    '../../cli.fuzz/target/verification',
+  ),
+];
+/**
+ Every retained evidence directory with its comparison.
+ */
+const records = (await mapInSequence({
+  items: (await mapInSequence({
+    items: roots,
+    run: evidenceDirectories,
+  })).flat(),
+  run: function compareOf(directory) {
+    return compareDirectory({
+      repository,
+      directory,
     });
-  /**
-   The verification directory that receives the reconciliation files.
-   */
-  const [primaryRoot = ''] = roots;
-  /**
-   Directory that receives the copies of main modules.
-   */
-  const extraction = join(
-    primaryRoot,
-    'guard-source-comparison',
-  );
-  await mkdir(
-    extraction,
-    { recursive: true },
-  );
-  /**
-   The comparisons of the disabled guard runs with the protected run.
-   */
-  const guardComparisons = guarded === undefined ? [] : await compareGuards({
-    guarded,
-    records,
-    extraction,
+  },
+})).flat();
+/**
+ The newest protected guard run that proved its boundary.
+ */
+const [guarded] = records
+  .filter(function isProtectedControl(record): boolean {
+    return (endingField({
+      record,
+      file: 'control.json',
+      field: 'variant',
+    }) === 'protected') && Boolean(endingField({
+      record,
+      file: 'control.json',
+      field: 'expected',
+    }));
+  })
+  .toSorted(function newestFirst(
+    first,
+    second,
+  ) {
+    return second.timestamp
+      .localeCompare(first.timestamp);
   });
-  await writeFile(
-    join(
-      primaryRoot,
-      'reconciliation.json',
-    ),
-    `${JSON.stringify(
-      records,
-      null,
-      2,
-    )}\n`,
-  );
-  await writeFile(
-    join(
-      primaryRoot,
-      'guard-input-comparisons.json',
-    ),
-    `${JSON.stringify(
-      guardComparisons,
-      null,
-      2,
-    )}\n`,
-  );
-}
-
-await main();
+/**
+ The verification directory that receives the reconciliation files.
+ */
+const [primaryRoot = ''] = roots;
+/**
+ Directory that receives the copies of main modules.
+ */
+const extraction = join(
+  primaryRoot,
+  'guard-source-comparison',
+);
+await mkdir(
+  extraction,
+  { recursive: true },
+);
+/**
+ The comparisons of the disabled guard runs with the protected run.
+ */
+const guardComparisons = guarded === undefined ? [] : await compareGuards({
+  guarded,
+  records,
+  extraction,
+});
+await writeFile(
+  join(
+    primaryRoot,
+    'reconciliation.json',
+  ),
+  `${JSON.stringify(
+    records,
+    null,
+    2,
+  )}\n`,
+);
+await writeFile(
+  join(
+    primaryRoot,
+    'guard-input-comparisons.json',
+  ),
+  `${JSON.stringify(
+    guardComparisons,
+    null,
+    2,
+  )}\n`,
+);
