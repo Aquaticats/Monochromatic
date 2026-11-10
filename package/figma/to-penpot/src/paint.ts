@@ -44,6 +44,12 @@ function paintTypeOf(paint: FigmaRecord,): string {
 /**
  Test whether a paint type string denotes a solid paint.
  
+ Figma spells paint types as schema enum strings, and every non-solid type
+ (`PaintType.GRADIENT_LINEAR`, `PaintType.IMAGE`, ...) names its own kind, so a
+ type containing `SOLID` is a solid paint. The match stays loose on purpose: a
+ future solid variant converts without a code change, and the family prefix is
+ not part of the test.
+ 
  @param paintType - normalised paint type string
  
  @returns whether the paint is solid
@@ -54,7 +60,7 @@ function paintTypeOf(paint: FigmaRecord,): string {
  ```
  */
 function isSolidPaint(paintType: string,): boolean {
-  return (paintType === 'PaintType.SOLID') || paintType.includes('SOLID',);
+  return paintType.includes('SOLID',);
 }
 
 /**

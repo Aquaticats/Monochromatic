@@ -15,11 +15,13 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   convertFigmaToPenpot,
   figmaColorToHex,
-  type PenpotDocument,
-  type PenpotFill,
-  type PenpotShape,
   serializePenpotZip,
 } from './index.ts';
+
+/**
+ UUID Penpot reserves for each page's implicit root frame.
+ */
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 type FigmaFile = FigmaFileType;
 
@@ -41,6 +43,49 @@ const FIGMA_EXPORT_DIR = join(
 );
 
 // region Test fixtures
+
+/**
+ Assemble a FigmaFile around a node list.
+ 
+ `meta`, `thumbnail`, and `schema` hold values the conversion never reads, so
+ they stay fixed here; each fixture supplies only what its own scenario
+ exercises.
+ 
+ @param nodeChanges - NodeChange records the fixture exposes
+ 
+ @param fileName - file name the conversion copies into the Penpot file
+ 
+ @param fileType - Figma export kind, which selects canvases or slides as pages
+ 
+ @returns FigmaFile the converter accepts
+ */
+function makeFigmaFile(
+  {
+    nodeChanges,
+    fileName,
+    fileType = 'fig',
+  }: Readonly<{
+    nodeChanges: Record<string, unknown>[];
+    fileName: string;
+    fileType?: FigmaFile['fileType'];
+  }>,
+): FigmaFile {
+  return {
+    fileType,
+    meta: {
+      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
+      thumbnailSize: { width: 800, height: 600, },
+      renderCoordinates: { x: 0, y: 0, width: 800, height: 600, },
+      fileName,
+      exportedAt: '2025-01-01T00:00:00Z',
+      developerRelatedLinks: [],
+    },
+    thumbnail: new Uint8Array(0,),
+    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
+    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
+    images: new Map(),
+  };
+}
 
 /** Build a minimal FigmaFile for testing without real file I/O. */
 function buildTestFigmaFile(fileType: FigmaFile['fileType'] = 'fig',): FigmaFile {
@@ -97,21 +142,11 @@ function buildTestFigmaFile(fileType: FigmaFile['fileType'] = 'fig',): FigmaFile
     },
   ];
 
-  return {
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Test File',
     fileType,
-    meta: {
-      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
-      thumbnailSize: { width: 800, height: 600, },
-      renderCoordinates: { x: 0, y: 0, width: 800, height: 600, },
-      fileName: 'Test File',
-      exportedAt: '2025-01-01T00:00:00Z',
-      developerRelatedLinks: [],
-    },
-    thumbnail: new Uint8Array(0,),
-    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
-    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
-    images: new Map(),
-  };
+  },);
 }
 
 /** Build a FigmaFile that simulates a deck with slides. */
@@ -163,21 +198,75 @@ function buildTestDeckFile(): FigmaFile {
     },
   ];
 
-  return {
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Test Deck',
     fileType: 'deck',
-    meta: {
-      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
-      thumbnailSize: { width: 1_920, height: 1_080, },
-      renderCoordinates: { x: 0, y: 0, width: 1_920, height: 1_080, },
-      fileName: 'Test Deck',
-      exportedAt: '2025-01-01T00:00:00Z',
-      developerRelatedLinks: [],
+  },);
+}
+
+/**
+ Build a FigmaFile whose frame carries a gradient, an image, and a solid paint.
+ 
+ Only the solid paint has a Penpot fill counterpart, so the converted frame
+ exercises the paint-type match in both directions: `PaintType.SOLID` converts
+ while `PaintType.GRADIENT_LINEAR` and `PaintType.IMAGE` are dropped.
+ */
+function buildPaintFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
     },
-    thumbnail: new Uint8Array(0,),
-    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
-    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
-    images: new Map(),
-  };
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.FRAME',
+      name: 'Painted Frame',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 10, y: 10, },
+      fillPaints: [
+        {
+          __type: 'Paint',
+          type: 'PaintType.GRADIENT_LINEAR',
+          color: { r: 0, g: 0, b: 1, a: 1, },
+        },
+        {
+          __type: 'Paint',
+          type: 'PaintType.IMAGE',
+          color: { r: 0, g: 0, b: 0, a: 1, },
+        },
+        {
+          __type: 'Paint',
+          type: 'PaintType.SOLID',
+          color: { r: 0, g: 1, b: 0, a: 1, },
+        },
+      ],
+      strokePaints: [{
+        __type: 'Paint',
+        type: 'PaintType.GRADIENT_LINEAR',
+        color: { r: 1, g: 0, b: 0, a: 1, },
+      },],
+      strokeWeight: 1,
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Paint Fixture',
+  },);
 }
 
 // endregion
@@ -273,9 +362,38 @@ await describe({
             const doc = convertFigmaToPenpot({ figmaFile, },);
             // Only 3 shapes should exist: root frame + frame + text
             const nonRootShapes = [...doc.shapes.values(),].filter(s =>
-              s.id !== '00000000-0000-0000-0000-000000000000'
+              s.id !== ZERO_UUID
             );
             expect(nonRootShapes.length,).toBe(2,);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region paint conversion
+    describe({
+      name: 'paint conversion',
+      children: [
+        it({
+          name: 'keeps a solid paint and drops gradient and image paints',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildPaintFixture(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Painted Frame',),
+            );
+            expect(frame.fills,).toHaveLength(1,);
+            expect(nonNullishOrThrow(frame.fills[0],).fillColor,).toBe('#00FF00',);
+          },
+        },),
+        it({
+          name: 'drops a gradient stroke paint',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildPaintFixture(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Painted Frame',),
+            );
+            expect(frame.strokes,).toHaveLength(0,);
           },
         },),
       ],
