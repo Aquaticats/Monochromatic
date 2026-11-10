@@ -328,6 +328,144 @@ function buildTextFillFixture(): FigmaFile {
   },);
 }
 
+/**
+ Build a two-canvas FigmaFile, one frame on each canvas.
+ 
+ Each canvas becomes a Penpot page, so the fixture carries two pages whose only
+ top-level shapes are `FrameA` and `FrameB`.
+ */
+function buildTwoCanvasFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.FRAME',
+      name: 'FrameA',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 100, y: 100, },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 3, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '#', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 4, },
+      type: 'NodeType.FRAME',
+      name: 'FrameB',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 3, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 100, y: 100, },
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Two Canvas Fixture',
+  },);
+}
+
+/**
+ Build a two-slide deck with one text node on each slide.
+ 
+ Slides become Penpot pages, so each text is a top-level shape of its own page.
+ */
+function buildTwoSlideDeck(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.SLIDE_GRID',
+      name: 'Presentation',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 29, },
+      type: 'NodeType.SLIDE_ROW',
+      name: 'Slide row',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 2, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 85, },
+      type: 'NodeType.SLIDE',
+      name: 'Slide 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 29, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 86, },
+      type: 'NodeType.TEXT',
+      name: 'Title 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 85, }, position: '!', },
+      characters: 'First',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 87, },
+      type: 'NodeType.SLIDE',
+      name: 'Slide 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 29, }, position: '#', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 88, },
+      type: 'NodeType.TEXT',
+      name: 'Title 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 87, }, position: '!', },
+      characters: 'Second',
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Two Slide Deck Fixture',
+    fileType: 'deck',
+  },);
+}
+
 // endregion
 
 await describe({
@@ -498,6 +636,28 @@ await describe({
               [...doc.shapes.values(),].find(shape => shape.name === 'Hello',),
             );
             expect(text.parentId,).toBe(frame.id,);
+          },
+        },),
+        it({
+          name: 'anchors a canvas child to the page root frame, not to the canvas',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const frames = [...doc.shapes.values(),].filter(shape =>
+              (shape.type === 'frame') && (shape.id !== ZERO_UUID)
+            );
+            expect(frames,).toHaveLength(2,);
+            for (const frame of frames)
+              expect(frame.parentId,).toBe(ZERO_UUID,);
+          },
+        },),
+        it({
+          name: 'anchors a slide child to the page root frame, not to the slide',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoSlideDeck(), },);
+            const texts = [...doc.shapes.values(),].filter(shape => shape.type === 'text');
+            expect(texts,).toHaveLength(2,);
+            for (const text of texts)
+              expect(text.parentId,).toBe(ZERO_UUID,);
           },
         },),
       ],

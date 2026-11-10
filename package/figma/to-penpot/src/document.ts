@@ -51,8 +51,8 @@ import {
  Page-source node: a Figma canvas or slide that becomes one Penpot page.
  */
 type PageSource = {
-  key: string;
-  nc: Record<string, unknown>;
+  readonly key: string;
+  readonly nc: Readonly<Record<string, unknown>>;
 };
 
 /**
@@ -97,14 +97,24 @@ function nodeGuid(
  
  @param nodeChanges - raw Figma NodeChange {@link FigmaRecord} entries
  
+ @param pageAnchorKeys - composite keys of the nodes that become Penpot pages
+ 
  @returns {@link ConvertContext} with populated lookup tables
  
  @example
  ```ts
- const ctx = indexNodes(nodeChanges);
+ const ctx = indexNodes({ nodeChanges, pageAnchorKeys, });
  ```
  */
-function indexNodes(nodeChanges: readonly FigmaRecord[],): ConvertContext {
+function indexNodes(
+  {
+    nodeChanges,
+    pageAnchorKeys,
+  }: Readonly<{
+    nodeChanges: readonly FigmaRecord[];
+    pageAnchorKeys: ReadonlySet<string>;
+  }>,
+): ConvertContext {
   /**
    Conversion context whose maps are populated by the single pass below.
    */
@@ -113,6 +123,7 @@ function indexNodes(nodeChanges: readonly FigmaRecord[],): ConvertContext {
     childrenByParent: new Map<string, string[]>(),
     guidToUuidMap: new Map<string, Uuid>(),
     shapes: new Map(),
+    pageAnchorKeys,
   };
   for (const nc of nodeChanges) {
     /**
@@ -377,23 +388,36 @@ export function convertFigmaToPenpot(
     : recordArray(figmaFile.document
       .nodeChanges,);
   /**
-   Conversion context with GUID, parent, and shape maps populated.
-   */
-  const ctx = indexNodes(nodeChanges,);
-  /**
    Whether slides (deck) or canvases (fig/jam) source the pages.
    */
   const isDeck = figmaFile.fileType === 'deck';
+  /**
+   Page-source nodes in document order; each becomes one Penpot page.
+   */
+  const sources = selectPageSources({
+    nodeChanges,
+    isDeck,
+  },);
+  /**
+   Composite keys of the nodes that become pages, known before any child
+   converts so a top-level shape anchors to its page's root frame.
+   */
+  const pageAnchorKeys = new Set<string>();
+  for (const source of sources)
+    pageAnchorKeys.add(source.key,);
+  /**
+   Conversion context with GUID, parent, and shape maps populated.
+   */
+  const ctx = indexNodes({
+    nodeChanges,
+    pageAnchorKeys,
+  },);
   /**
    Page metadata accumulator keyed by page UUID.
    */
   const pages = new Map<Uuid, PenpotPage>();
   for (
-    const [pageIndex, source,] of selectPageSources({
-      nodeChanges,
-      isDeck,
-    },)
-      .entries()
+    const [pageIndex, source,] of sources.entries()
   ) {
     /**
      Built page; registers its shapes through the shared context.
