@@ -243,14 +243,14 @@ Source citations (exec plugin source 0.6.0):
 
 This creates three incompatibilities with `oxlint --fix`:
 
-1.  **Output destination**:
+1.  Output destination:
      `oxlint` writes fixes to the file
     on disk and writes diagnostic messages to stdout/stderr.
     The exec plugin captures diagnostic text from stdout and
     treats it as the "formatted" file content,
      corrupting
     the file.
-2.  **Exit-code semantics**:
+2.  Exit-code semantics:
      `oxlint` exits 1 when any
     unfixable errors remain,
      even after successfully
@@ -258,7 +258,7 @@ This creates three incompatibilities with `oxlint --fix`:
      exec requires exit code 0;
      there is no
     option to accept non-zero exit codes.
-3.  **In-memory chaining**:
+3.  In-memory chaining:
      when multiple plugins chain
     (e.g. typescript formatter then exec),
      dprint passes the

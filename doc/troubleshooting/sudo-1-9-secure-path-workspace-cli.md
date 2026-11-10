@@ -325,20 +325,20 @@ No duplicate needs a comment because observed behavior matches documented policy
 
 Constraint check:
 
-1.  **Really upstream's fault:**
+1.  Really upstream's fault:
      No.
     Sudo deliberately applies `secure_path` and documents this behavior.
-2.  **Can upstream fix it:**
+2.  Can upstream fix it:
      Not applicable as defect.
     Changing default would weaken or alter established policy semantics.
-3.  **Supported use case:**
+3.  Supported use case:
      Sudo supports both bare command search and explicit paths;
     workspace-specific path inheritance is not promised.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
      Not evaluated beyond public tracker because first constraint fails.
-5.  **Likely upstream fix:**
+5.  Likely upstream fix:
      No defect exists to fix.
-6.  **Compatible prototype:**
+6.  Compatible prototype:
      Consumer-side exact-path relaunch is implemented and tested in this repository;
     no upstream patch is appropriate.
 

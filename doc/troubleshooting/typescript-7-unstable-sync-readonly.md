@@ -787,36 +787,36 @@ and parser-recovery span cases.
 
 ## What does not work
 
-- **Importing the package root as the old compiler API:
-  ** it returns only version metadata in `typescript@7.0.2` and `typescript@7.1.0-beta`.
-- **Importing `typescript/lib/typescript.js`:
-  ** that TypeScript 6 implementation path is not shipped.
-- **Using `@typescript-eslint/project-service`:
-  ** its current peer range ends before TypeScript 7 and it wraps the old
+- Importing the package root as the old compiler API:
+  it returns only version metadata in `typescript@7.0.2` and `typescript@7.1.0-beta`.
+- Importing `typescript/lib/typescript.js`:
+  that TypeScript 6 implementation path is not shipped.
+- Using `@typescript-eslint/project-service`:
+  its current peer range ends before TypeScript 7 and it wraps the old
   `tsserverlibrary` API.
-- **Using `ts-morph`:
-  ** current `ts-morph@28` bundles TypeScript 6 semantics and would not query the repository's
+- Using `ts-morph`:
+  current `ts-morph@28` bundles TypeScript 6 semantics and would not query the repository's
   installed TypeScript 7 compiler.
-- **Using only declarations to detect mapped readonly state:
-  ** mapped properties can resolve to mutable origin
+- Using only declarations to detect mapped readonly state:
+  mapped properties can resolve to mutable origin
   declarations;
    the transient readonly bit carries the projected state.
-- **Using the asynchronous API at `typescript/async` inside an Oxlint visitor:
-  ** Oxlint JavaScript rule callbacks are synchronous and
+- Using the asynchronous API at `typescript/async` inside an Oxlint visitor:
+  Oxlint JavaScript rule callbacks are synchronous and
   cannot await semantic results before reporting.
-- **Closing the bridge from a process `exit` listener:
-  ** TypeScript's earlier listener sends `SIGTERM` first,
+- Closing the bridge from a process `exit` listener:
+  TypeScript's earlier listener sends `SIGTERM` first,
   and the native server prints `context canceled` to stderr.
-- **Relying only on pipe destruction before TypeScript's default kill:
-  ** parallel runs can deliver `SIGTERM` before the native server observes EOF.
-- **Filtering `context canceled` from command output:
-  ** it hides a lifecycle defect and can also hide a real cancellation failure.
-- **Calling `clearSourceFileCache()` and `updateSnapshot()` for every unchanged lint source:
-  ** it defeats TypeScript's decoded-source retention and adds one synchronous native request per source.
-- **Treating `OXLINT_THREADS=1` as a global process limit:
-  ** separately launched package tasks still compete through distinct Oxlint and TypeScript processes.
-- **Calling `getAliasedSymbol` unconditionally:
-  ** TypeScript-Go requires alias meaning and panics for an ordinary symbol.
+- Relying only on pipe destruction before TypeScript's default kill:
+  parallel runs can deliver `SIGTERM` before the native server observes EOF.
+- Filtering `context canceled` from command output:
+  it hides a lifecycle defect and can also hide a real cancellation failure.
+- Calling `clearSourceFileCache()` and `updateSnapshot()` for every unchanged lint source:
+  it defeats TypeScript's decoded-source retention and adds one synchronous native request per source.
+- Treating `OXLINT_THREADS=1` as a global process limit:
+  separately launched package tasks still compete through distinct Oxlint and TypeScript processes.
+- Calling `getAliasedSymbol` unconditionally:
+  TypeScript-Go requires alias meaning and panics for an ordinary symbol.
   Catching the JavaScript error after the native panic does not restore that semantic request.
 
 ## Upstream filing decision

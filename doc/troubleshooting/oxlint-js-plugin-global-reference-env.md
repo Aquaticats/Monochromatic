@@ -252,27 +252,27 @@ for `isGlobalReference`,
 `globals Array env plugin`,
 and `no-undef env Array` found no matching report.
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes.
     The JavaScript scope manager disagrees with oxlint's own Rust global lookup and with ESLint,
     and the config reference describes `builtin` as equivalent to `es2026`,
     which the probe disproves.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes;
     the prototype changes one loop header in `apps/oxlint/src-js/plugins/scope.ts`.
-3.  **Supported use case:**
+3.  Supported use case:
     yes.
     `isGlobalReference` is a documented JavaScript plugin API ported from ESLint
     (`scope.ts:335` cites ESLint's `source-code.js`),
     and `env` is a documented config key.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes,
     with disclosure.
     `CONTRIBUTING.md:12-21` ("AI Usage Policy") requires AI usage to be disclosed and reviewed;
     `AGENTS.md:7-15` repeats it;
     `.github/ISSUE_TEMPLATE/linter_bug_report.yaml` has no AI field.
     No ban was found.
-5.  **Likely to fix:**
+5.  Likely to fix:
     plausible.
     No won't-fix signal;
     globals resolution changed recently
@@ -280,7 +280,7 @@ and `no-undef env Array` found no matching report.
     "resolve globals by reference,
      not by name",
     merged 2026-08-19).
-6.  **Minimal fix prototyped:**
+6.  Minimal fix prototyped:
     yes.
     In a disposable clone of `oxc-project/oxc` at `f51e67812ed15cea95c9bddfe614d889685f0703`:
 

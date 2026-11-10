@@ -1047,7 +1047,7 @@ without checking `isSupportedExtension` first.
 The crash is triggered by editord forwarding non-source files to tsgo.
 Two distinct paths lead to the panic:
 
-1.  **Spawn trigger**:
+1.  Spawn trigger:
      when a non-source file is the first file opened
     for a project root,
      `pool.resolve({ type: 'tsgo' })` spawns tsgo
@@ -1055,7 +1055,7 @@ Two distinct paths lead to the panic:
      tsgo adds the file to the project
     during initialization and panics on the unsupported extension.
 
-2.  **Reuse + feature request**:
+2.  Reuse + feature request:
      when tsgo is already running
     (spawned earlier from a `.ts` file),
      and a non-source file is opened,
@@ -1124,10 +1124,10 @@ Verified to work for `tsgo --build` but does not prevent the LSP crash.
 
 Two earlier approaches failed because they only gated part of the problem:
 
-1.  **Filtering only in `resolveAll`**:
+1.  Filtering only in `resolveAll`:
     feature request handlers call `pool.resolve()` directly via `withClient`,
     bypassing the `resolveAll` include filter entirely.
-2.  **Filtering only before spawning in `resolve()`**:
+2.  Filtering only before spawning in `resolve()`:
     returning an existing tsgo client for a non-source file is just as
     dangerous as spawning a new one:
      the feature request sends the file URI

@@ -212,20 +212,20 @@ The `.out-of-scope/` Bash and shell search found only the unrelated Claude Code 
 No runner bug or missing feature was established,
 so there is no upstream contribution to draft or duplicate report to file.
 
-1.  **Upstream fault:**
+1.  Upstream fault:
     no;
     the runner provides the documented custom-command mechanism.
-2.  **Upstream fixability:**
+2.  Upstream fixability:
     no fix is required for this capability.
-3.  **Supported use:**
+3.  Supported use:
     yes;
     custom command templates are documented and observed in a hosted run.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     not evaluated because no contribution is proposed.
-5.  **Likely upstream action:**
+5.  Likely upstream action:
     not applicable;
     the required mechanism already exists.
-6.  **Fix prototype:**
+6.  Fix prototype:
     not applicable;
     no upstream source modification is needed.
 

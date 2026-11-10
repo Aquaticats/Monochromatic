@@ -179,11 +179,11 @@ which loads `node-domexception`
 
 The practical effects are therefore different:
 
-- **Install and audit surface:**
+- Install and audit surface:
    present for every published CLI install.
-- **Module-loading surface:**
+- Module-loading surface:
    reached conditionally through the Google authentication request path.
-- **Behavior on supported Node:**
+- Behavior on supported Node:
    exports the native constructor and does not enter its fallback.
 
 ## What DeepSeek knew and what changed

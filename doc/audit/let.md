@@ -633,12 +633,12 @@ deciding on the permanent rule is easier with the refactored codebase as the sta
    visits `FunctionDeclaration` and `FunctionExpression`;
    reports each `let` declared as a direct child of the function body.
    Two AST-level allowlists:
-  1.  **IIFE callee**:
+  1.  IIFE callee:
        the function's `parent.type === 'CallExpression' && parent.callee === fn`.
        Covers both named-function IIFEs `(function () { let x; })()`
        and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
        prefer the named form).
-  2.  **Helper-function shape**:
+  2.  Helper-function shape:
        the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
        (`let`,
        `const`,

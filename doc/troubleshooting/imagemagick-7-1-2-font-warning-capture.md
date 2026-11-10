@@ -214,28 +214,28 @@ No `.out-of-scope/` entry matches ImageMagick font warnings.
 `ImageMagick/ImageMagick` found no matching GitHub thread.
 No upstream filing is warranted:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
     No established fault.
     The documented behavior allows
     usable output with a warning and narrows `-regard-warnings` to some cases.
-2.  **Fixability:**
+2.  Fixability:
     The CLI could offer a new all-warnings-fatal mode,
     but that is a separate feature request,
     not a demonstrated regression.
-3.  **Supported use case:**
+3.  Supported use case:
     Font fallback is documented;
     an all-warning failure
     guarantee is not.
-4.  **Contribution policy:**
+4.  Contribution policy:
     `.github/CONTRIBUTING.md`,
     `.github/ISSUE_TEMPLATE/bug-report.yml`,
     `.github/PULL_REQUEST_TEMPLATE.md` and tracker results were checked.
     They allow ordinary external reports and do not state an AI-assisted ban,
     but there is no bug to report.
-5.  **Expected upstream response:**
+5.  Expected upstream response:
     No matching issue or maintainer position
     establishes demand for an all-warnings-fatal option.
-6.  **Tested upstream fix:**
+6.  Tested upstream fix:
     None.
     Constraints 1 and 3 fail;
     the source audit supports a consumer-side guard,

@@ -255,7 +255,7 @@ Searches of open and closed QuickJS-ng issues and PRs for
  `console.warn console.error` found no matching thread.
 No QuickJS-ng report is warranted:
 
-- **Upstream fault:**
+- Upstream fault:
    no.
   The QuickJS-ng standard-library documentation at `docs/docs/stdlib.md:24-26`
   explicitly lists `console.log`,
@@ -266,23 +266,23 @@ No QuickJS-ng report is warranted:
 
   Same as `print()`.
   ```
-- **Upstream fixability:**
+- Upstream fixability:
    yes in principle,
   but adding browser console aliases or global timers would expand QuickJS-ng's API,
   not repair this logger's assumptions.
-- **Supported use case:**
+- Supported use case:
    no evidence that `qjs` promises a full browser console
   or global timers;
    its documented `qjs:os` module owns the timers.
-- **Contribution welcome:**
+- Contribution welcome:
    the tag's `README.md` and repository file list
   showed no contribution ban or special AI-report policy;
   that observation does not make an unrelated feature request appropriate.
-- **Likely upstream fix:**
+- Likely upstream fix:
    no maintainer commitment was found for this request;
   the reported behavior follows the documented API,
   so this is not an upstream defect to fix.
-- **Architecture-compatible upstream prototype:**
+- Architecture-compatible upstream prototype:
    not applicable because the
   correction belongs to `module-logger`;
   the verified package patch and regression test are committed here.

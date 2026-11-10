@@ -210,7 +210,7 @@ gh issue list --state open --limit 3 | head --lines=3
 
 Checked 2026-11-01 against `cli/cli` at `v2.103.3`.
 
-- **`.out-of-scope/`:**
+- `.out-of-scope/`:
   no entry for gh
   (the folder lists `bun-install.md`,
   `cargo-workspace.md`,
@@ -223,14 +223,14 @@ Checked 2026-11-01 against `cli/cli` at `v2.103.3`.
   `pi-gpt55-long-context.md`,
   `terminal-title-fork-parity-tests.md`
   and `typescript-project-references.md`).
-- **Duplicate search:**
+- Duplicate search:
   `gh search issues --repo cli/cli --match title,body` with each of
   "limit json total count",
   "warn results truncated limit",
   "jq limit truncated"
   and "totalCount --json"
   returned no issues.
-- **Work-in-progress search:**
+- Work-in-progress search:
   not run,
   because the decision is not to file.
 

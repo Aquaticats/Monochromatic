@@ -67,12 +67,12 @@ if it is accepted,
 Under investigation.
  Two hypotheses:
 
-1.  **Whitespace-flag parsing difference**:
+1.  Whitespace-flag parsing difference:
      the `ignore_whitespace` flag may
     alter how the leading `{8,}` is tokenised on ARM64,
      causing a valid (but
     slow-to-compile) parse.
-2.  **Common root with ARM64-BUG-1**:
+2.  Common root with ARM64-BUG-1:
      if the pattern does compile,
      the `\b\w+`
     portion triggers the same Unicode property class / word boundary minterm

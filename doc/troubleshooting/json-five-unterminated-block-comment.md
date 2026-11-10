@@ -634,7 +634,7 @@ Closest threads,
 
 ### Six constraints
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes.
     This is behavior,
      not wording:
@@ -642,15 +642,15 @@ Closest threads,
      and the README promises comment preservation.
     Nothing in the architecture requires it;
      the line-comment branch already adds one byte.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes;
     "Prototype fix" changes the three return expressions in `process_comment` and tracks the last consumed character.
-3.  **Supported use case:**
+3.  Supported use case:
     yes.
     `README.md:10` and `:12` list round-trip preservation of comments and "token-based round-tripping",
      `README.md:104-107` points at round-trip examples,
      and `src/rt/parser.rs` has block-comment tests for the round-trip parser.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes.
     `README.md:159-160` says
      "Questions,
@@ -662,12 +662,12 @@ Closest threads,
      and no AI-assistance policy (`.github/` holds only `workflows/`);
      no ban was found.
     An outside contributor's comparable report (#24) was fixed and released.
-5.  **Likely to fix:**
+5.  Likely to fix:
     yes.
     #24 was closed by #25 and released in 0.3.1 on the day of the fix (2026-01-08),
      and #26 merged on 2026-05-13.
     No won't-fix or non-goal was found.
-6.  **Prototype:**
+6.  Prototype:
     yes;
     see "Prototype fix".
 

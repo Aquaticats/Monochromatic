@@ -110,23 +110,23 @@ No matching entry under this repository's `.out-of-scope/` exempts this containe
  found no duplicate.
  No upstream report or patch was sent.
 
-1.  **Upstream fault**:
+1.  Upstream fault:
     no.
     The image config includes the required tool path;
     this harness chose a login shell that reset the path under `/etc/profile`.
-2.  **Upstream fixability**:
+2.  Upstream fixability:
     the image could override Debian login-profile behavior,
     but no change is needed to use Rustup through its documented image environment.
-3.  **Supported use case**:
+3.  Supported use case:
     direct and non-login invocations work;
     the inspected Dockerfile template does not promise that a login shell retains the Dockerfile's `ENV PATH`.
-4.  **Contribution welcome**:
+4.  Contribution welcome:
     not material to this diagnosis because the failure comes from the harness's shell invocation,
     not a defect to submit upstream.
-5.  **Likely upstream fix**:
+5.  Likely upstream fix:
     no relevant requested fix or maintainer commitment was found;
     likelihood is not inferred from silence.
-6.  **Prototype**:
+6.  Prototype:
     no upstream patch was attempted because the first constraint fails.
     The consumer-side shell change was executed and verified instead.
 

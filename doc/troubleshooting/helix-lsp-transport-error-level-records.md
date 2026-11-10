@@ -318,19 +318,19 @@ standard-error lines and error responses stay at ERROR.
 
 ## What does not work
 
-- **Another shutdown order in the worker:**
+- Another shutdown order in the worker:
   waiting for the answer to `shutdown` before `exit`,
   or waiting longer for the process,
   does not change which task logs the end of the stream.
-- **Dropping the registry without waiting for the processes:**
+- Dropping the registry without waiting for the processes:
   the record then depends on whether the runtime ends before the reader task runs.
   That hides the record by timing,
   kills servers that would have ended by themselves,
   and makes the scripted lifetime test fail because `shutdown` never reaches the server.
-- **Giving the server another standard error through the launch command:**
+- Giving the server another standard error through the launch command:
   `helix-lsp` always pipes the child's standard error (`helix-lsp/src/client.rs:235`),
   so a redirect inside the launch only moves the end of that pipe to the start of the session.
-- **Turning the `helix_lsp::transport` target off in the filter:**
+- Turning the `helix_lsp::transport` target off in the filter:
   it also hides `Exiting ... after unexpected error` and `Failed to send notification`,
   which report real failures,
   and it discards server standard error,

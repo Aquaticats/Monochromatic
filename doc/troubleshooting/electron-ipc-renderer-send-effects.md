@@ -147,22 +147,22 @@ That conservatism protects future fields and reflects the native serializer boun
 
 ## What does not work
 
-- **Treating `send(...): void` as observational:
-  ** return type says nothing about serialization or caller-code execution.
-- **Adding an Electron package-catalog effect:
-  ** the npm package ships a launcher and declarations,
+- Treating `send(...): void` as observational:
+  return type says nothing about serialization or caller-code execution.
+- Adding an Electron package-catalog effect:
+  the npm package ships a launcher and declarations,
   while authoritative behavior lives in the versioned native Electron binary and upstream C++ source.
   Package implementation inference cannot prove that mapping from shipped JavaScript alone.
-- **Copying the DTO before calling Electron:
-  ** another shallow copy can itself invoke accessors,
+- Copying the DTO before calling Electron:
+  another shallow copy can itself invoke accessors,
   adds an allocation,
   and does not remove the external serialization boundary.
-- **Claiming direct mutation:
-  ** the audited implementation serializes into owned bytes;
+- Claiming direct mutation:
+  the audited implementation serializes into owned bytes;
   uncertainty concerns observation and caller-code hooks,
   not evidence that Electron writes into the original DTO.
-- **Launching the disposable Electron renderer probe on this host:
-  ** both `--headless` and hidden Wayland launches remained blocked before `app.whenReady()` and emitted no diagnostic.
+- Launching the disposable Electron renderer probe on this host:
+  both `--headless` and hidden Wayland launches remained blocked before `app.whenReady()` and emitted no diagnostic.
   The processes were terminated and no runtime result was used as evidence.
 
 ## Upstream filing decision

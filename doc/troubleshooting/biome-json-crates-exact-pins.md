@@ -571,7 +571,7 @@ What the thread lacks,
 
 ### Six constraints
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes.
     Packaging behavior:
      patch releases added a required trait method,
@@ -579,19 +579,19 @@ What the thread lacks,
      and added a variant to an exhaustive public enum,
      each a major change under Cargo's SemVer guide,
      and the 0.5.8 crates under-declare their `biome_rowan` minimum.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes.
     Publishing the JSON crates against the 0.5.8 set,
      or a new version of every crate through the existing `publish-crates.yml`,
      fixes resolution;
      no architectural limit is involved.
-3.  **Supported use case:**
+3.  Supported use case:
     equivocal.
     The crates are `publish = true`,
      have crates.io badges,
      and have maintained publishing tooling,
      but the maintainer wrote "We don't guarantee the usage of our crates around these cases".
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     no,
      for anything this session could write.
     `CONTRIBUTING.md:71` says
@@ -601,13 +601,13 @@ What the thread lacks,
      and a fully human-authored comment is not something this session can truthfully provide.
     Biome does accept disclosed AI assistance for code (`CONTRIBUTING.md:47-65`),
      and `.github/agentscan.yml` configures agent detection.
-5.  **Likely to fix:**
+5.  Likely to fix:
     soft yes.
     The maintainer invited a pull request and labeled the issue help-wanted,
      and publishing tooling was updated through 2026-07-29;
      but the issue has had no maintainer activity since 2025-02-18,
      and nothing was published.
-6.  **Prototype:**
+6.  Prototype:
     not triggered,
      because constraint 4 fails.
     The minimal fix is also a release action by maintainers with the `crate-publish` environment

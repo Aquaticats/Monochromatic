@@ -2,16 +2,16 @@
 
 ## Metadata
 
-- **Status:**
+- Status:
   Diagnosed,
   adopted,
   and reboot-verified.
   The domain now uses every optional API capability exposed by the installed
   `virtio-vga-gl` device.
   No comparative frame-time or latency benchmark was run.
-- **Diagnosed:**
+- Diagnosed:
   2026-08-02.
-- **Affected environment:**
+- Affected environment:
   virt-manager 5.1.0,
   libvirt 12.4.0,
   QEMU 11.0.0,
@@ -20,10 +20,10 @@
   host and guest Linux 7.1,
   host and guest Mesa 26.1,
   and an AMD Radeon RX 7600 host GPU.
-- **Scope:**
+- Scope:
   `bazzite-labwc-test`,
   the libvirt domain backed by `$HOME/labwc-vm-test/disk.qcow2`.
-- **Disposition:**
+- Disposition:
   Keep the enhanced profile because the user explicitly prefers current GPU
   API capability over the narrower stable baseline.
   The user explicitly accepted the session-wide loss of QEMU seccomp after

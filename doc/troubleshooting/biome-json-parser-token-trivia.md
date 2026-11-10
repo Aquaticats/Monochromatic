@@ -137,20 +137,20 @@ This reads all comment-bearing trivia without losing the raw source body.
  `gh search issues 'trivia token comments' --repo biomejs/biome --include-prs --limit 20` returned no results.
  No upstream filing is proposed:
 
-- **Upstream fault:**
+- Upstream fault:
    No.
    The published token API documents that `text()` includes trivia and exposes trivia accessors.
-- **Can upstream change it:**
+- Can upstream change it:
    Yes,
    but no correctness change is required for this observed behavior.
-- **Supported use case:**
+- Supported use case:
    Yes,
    lossless syntax and comment trivia are part of the parser's API.
-- **Contribution policy:**
+- Contribution policy:
    Not evaluated for a proposed patch because there is no upstream fault.
-- **Likelihood of an upstream fix:**
+- Likelihood of an upstream fix:
    Not applicable without a defect or requested enhancement.
-- **Minimal upstream prototype:**
+- Minimal upstream prototype:
    Not applicable.
    The tested change is in the consumer's comment lookup,
    not in upstream source.

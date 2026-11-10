@@ -72,7 +72,7 @@ on 2026-09-22.
 
 ## Verification
 
-- **Version and provenance:**
+- Version and provenance:
   pinned tag and commit named under Root cause.
   The published 1.0 crates.io archive checksum was not verified in this source-only assessment.
 - **Source catalog,
@@ -110,7 +110,7 @@ on 2026-09-22.
   The source contract predicts that a safe call cannot prove the extra target features.
   The harness is a future check,
   **not** evidence of a particular compiler diagnostic.
-- **Execution status:**
+- Execution status:
   no crate was installed,
   compiled,
   or run.

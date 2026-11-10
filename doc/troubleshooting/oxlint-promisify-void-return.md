@@ -136,20 +136,20 @@ The `.out-of-scope/` search for Oxlint and callback exemptions found no matching
 No upstream filing is proposed:
 the adopted solution makes the actual callable contract explicit without changing upstream behavior.
 
-1.  **Upstream fault:**
+1.  Upstream fault:
     not established;
     the overload set does contain void-returning callback contracts.
-2.  **Upstream fixability:**
+2.  Upstream fixability:
     overload handling could be investigated separately,
     but no upstream change is required by this resolution.
-3.  **Supported use:**
+3.  Supported use:
     Node declares the specialized adapter contract used by the fix.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     not evaluated because no contribution is proposed.
-5.  **Likely upstream action:**
+5.  Likely upstream action:
     not evaluated;
     no change is requested.
-6.  **Fix prototype:**
+6.  Fix prototype:
     the verified change is at the consumer boundary,
     not an upstream patch.
 

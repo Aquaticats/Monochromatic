@@ -187,25 +187,25 @@ No entry under this repository's `.out-of-scope/` list exempts this crate or com
  not this line-comment case.
  No external filing was sent.
 
-1.  **Upstream fault**:
+1.  Upstream fault:
     yes.
     `src/de.rs:303-326` consumes bare CR inside a supported `//` comment,
     although the same parser treats CR as JSON whitespace.
-2.  **Fixability**:
+2.  Fixability:
     yes.
     The minimal scanner branch change and tests passed under the existing architecture.
-3.  **Supported use case**:
+3.  Supported use case:
     yes for human-authored JSON with `//` comments (`README.md:9-17`).
     The README does not advertise a special LF-only grammar.
-4.  **Contribution welcome**:
+4.  Contribution welcome:
     `README.md:44-50` gives contribution licensing terms.
     The inspected `.github/` has only a CI workflow,
     with no contribution prohibition or AI-assistance ban found.
-5.  **Maintainer disposition**:
+5.  Maintainer disposition:
     no searched issue,
     PR or repository policy declines this correction.
     Silence is not evidence of a response timetable.
-6.  **Prototype**:
+6.  Prototype:
     yes.
     [The patch](serde-json-lenient-cr-line-comment.patch) contains the small source change and
     consumer-boundary tests;

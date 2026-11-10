@@ -185,25 +185,25 @@ No matching exemption exists under this repository's `.out-of-scope/` entries.
  The upstream release list names `v0.1.5` as the latest published GitHub release.
  No external message was sent.
 
-1.  **Upstream fault:**
+1.  Upstream fault:
     yes.
     The source invokes `char::from_u32_unchecked` with a possible surrogate without its required safety proof.
-2.  **Fixability:**
+2.  Fixability:
     yes.
     Checked construction plus valid pair decoding was prototyped within the parser's current design.
-3.  **Supported use case:**
+3.  Supported use case:
     yes for parsing JSONC strings and valid escaped pairs,
     per the README's JSONC parser examples and `from_str` escaped-string documentation (`src/de.rs:41-59`).
     The README does not promise retaining unpaired surrogates as Rust strings.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     no explicit restriction or AI-report ban was found in the inspected README
     and `.github/` workflows;
     the repository has merged outside pull requests,
     but there is no `CONTRIBUTING.md` or issue template in the checked clone.
-5.  **Maintainer disposition:**
+5.  Maintainer disposition:
     no source policy or searched issue/PR explicitly declines such a safety fix.
     This is not a prediction of response time or acceptance.
-6.  **Prototype:**
+6.  Prototype:
     yes.
     The linked patch was checked against the pinned tag in the bounded container;
     its new and existing tests passed.

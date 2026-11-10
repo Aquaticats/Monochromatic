@@ -19,8 +19,8 @@ Cargo targets,
  dependency feature flags,
  and dependency default-feature settings.
 
-**Data quality note:
-** evidence is primary source unless marked otherwise.
+Data quality note:
+ evidence is primary source unless marked otherwise.
 I used the published `docs.rs` crate source,
  the upstream `v0.6.1` Git tag,
 and Cargo or Rust documentation for manifest semantics.
@@ -307,8 +307,8 @@ The same module constructs `TursoDatabaseSync<Bytes>` and calls sync operations 
  and `connect`:
 <https://github.com/tursodatabase/turso/blob/v0.6.1/bindings/rust/src/sync.rs#L281-L407>
 
-**Audit note:
-** unlike the HTTP/Tokio sync dependencies,
+Audit note:
+ unlike the HTTP/Tokio sync dependencies,
  `turso_sync_sdk_kit` is not optional in the original
 manifest.
  If the intent is to keep non-sync builds lean,

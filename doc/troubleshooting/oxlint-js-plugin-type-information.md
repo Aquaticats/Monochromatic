@@ -326,29 +326,29 @@ No upstream communication is proposed here.
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:
-    ** no.
+1.  Upstream fault:
+    no.
     Current documentation explicitly lists type-aware JavaScript rules as unsupported.
     This is a known feature gap,
     not behavior contradicting the supported contract.
-2.  **Upstream can fix it:
-    ** yes in principle.
+2.  Upstream can fix it:
+    yes in principle.
     The open issue tracks that work,
     while maintainer comments identify architecture and performance constraints.
-3.  **Supported use case:
-    ** no at present.
+3.  Supported use case:
+    no at present.
     Oxlint's JavaScript plugin documentation lists rules relying on TypeScript type awareness under unsupported APIs.
-4.  **Contribution welcome:
-    ** conditional yes.
+4.  Contribution welcome:
+    conditional yes.
     Oxc welcomes contributions and permits reviewed,
     disclosed AI assistance,
     but no patch exists to submit.
-5.  **Likely upstream action:
-    ** unresolved.
+5.  Likely upstream action:
+    unresolved.
     The issue remains open and assigned,
     with no update as of 2026-06-12.
-6.  **Compatible minimal fix prototyped:
-    ** no.
+6.  Compatible minimal fix prototyped:
+    no.
     A bridge between tsgo and JavaScript plugin contexts is upstream architecture work.
     Project-side independent semantic pipelines remain a separate investigation and do not constitute an upstream fix.
 

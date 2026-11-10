@@ -133,21 +133,21 @@ if early resource rejection is required.
  returned no results.
  No upstream report is proposed:
 
-- **Upstream fault:**
+- Upstream fault:
    No.
    Biome does not promise this editor's 512-container limit.
-- **Can upstream change it:**
+- Can upstream change it:
    Yes.
    An optional depth policy could be added,
    but no upstream correctness fix is necessary for the observed behavior.
-- **Supported use case:**
+- Supported use case:
    Parsing JSON and JSONC is supported;
    this consumer's exact depth boundary is not an advertised option.
-- **Contribution policy:**
+- Contribution policy:
    Not evaluated for a proposed patch because the consumer guard meets the measured acceptance need.
-- **Likelihood of an upstream fix:**
+- Likelihood of an upstream fix:
    Not evaluated without a requested upstream feature.
-- **Minimal upstream prototype:**
+- Minimal upstream prototype:
    Not applicable.
    The tested prototype is at the consumer boundary.
 

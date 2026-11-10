@@ -297,25 +297,25 @@ Those are additive,
 so the artifact is a comment on issue 26159,
 not a new issue.
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes;
     the rule declares `fix_dangerous` but emits safe fixes from name guesses.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes;
     the prototype below is 86 lines including tests.
-3.  **Supported use case:**
+3.  Supported use case:
     yes;
     the rule targets TypeScript and JavaScript,
     and typed-array receivers were already fixed once (pull request 26067 for issue 25868).
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes,
     with disclosure (`CONTRIBUTING.md:12-21`);
     both open pull requests disclose AI assistance.
-5.  **Likely to fix:**
+5.  Likely to fix:
     plausible;
     issue 24107 was closed as not planned with a maintainer stating no plans to make the rule type-aware,
     which the fix-kind approach does not need.
-6.  **Minimal fix prototyped:**
+6.  Minimal fix prototyped:
     yes.
     [oxlint-spread-autofix.no-useless-spread.patch](oxlint-spread-autofix.no-useless-spread.patch),
     against `oxc-project/oxc` `f51e67812ed15cea95c9bddfe614d889685f0703`:
@@ -400,25 +400,25 @@ so none is a candidate fix for this failure,
 and no open report covers it.
 The artifact is a new issue.
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes;
     the fix is a safe fix chosen from spelling heuristics.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes;
     the prototype below touches one file.
-3.  **Supported use case:**
+3.  Supported use case:
     yes;
     upstream already excludes direct typed-array and buffer receivers,
     so typed arrays are an intended non-target.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes,
     with disclosure (`CONTRIBUTING.md:12-21`).
-5.  **Likely to fix:**
+5.  Likely to fix:
     plausible;
     the rule receives regular receiver-exclusion fixes (pull requests 19478,
     23520,
     26935).
-6.  **Minimal fix prototyped:**
+6.  Minimal fix prototyped:
     yes.
     [oxlint-spread-autofix.prefer-spread.patch](oxlint-spread-autofix.prefer-spread.patch)
     (`crates/oxc_linter/src/rules/unicorn/prefer_spread.rs`,

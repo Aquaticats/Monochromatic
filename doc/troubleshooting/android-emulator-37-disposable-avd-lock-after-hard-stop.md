@@ -71,11 +71,11 @@ rule out a different hidden owner in another environment.
 
 ## Verification
 
-- **Failed case:**
+- Failed case:
   Starting `Fold_No_Hardware_Probe` under the same
   `podman run --memory=6g --cpus=2` fixture with both lock files present
   emitted the quoted FATAL and returned code `1` before ADB connected.
-- **Passing case:**
+- Passing case:
   Both exact files were moved to private scratch rather than deleted:
   `/home/user/temp/agent/fold-avd-lock-backup.zQiURuZu/`.
   Repeating the same bounded container command then reported

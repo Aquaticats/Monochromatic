@@ -553,7 +553,7 @@ At pinned tag `fearless_simd-v1.0.0` (`dcbd824a897a098ec0124c088f971ac6d890d0cd`
 the following conclusions are
 available without building either crate.
 
-- **Full Ice Lake proof versus narrow gate:**
+- Full Ice Lake proof versus narrow gate:
   `fearless_simd/src/lib.rs:286-369` checks features including VBMI2,
   VAES
 - and SHA in addition to F/BW/VBMI;
@@ -565,7 +565,7 @@ available without building either crate.
 - drop-in `as_avx512` rewrite is ruled out as an equivalent dispatch replacement,
   not proven slower on any measured
 - host.
-- **Safe-load-only candidate exists:**
+- Safe-load-only candidate exists:
   `fearless_simd/src/generated/simd_types.rs:7990-8001,8081-8083` creates
 - `u8x64<S>` from an exactly 64-byte array for any valid `S: Simd`,
   using checked transmutation;
@@ -585,7 +585,7 @@ available without building either crate.
   while retaining current dispatch and state width.
   It does
 - not show identical emitted loads or eliminate the unsafe x86 call.
-- **Shape of portable shuffle:**
+- Shape of portable shuffle:
   `fearless_simd/src/generated/simd_trait.rs:510-513,6303-6306` requires same-width
 - table,
   index and result for `u8x16` or `u8x64`.
@@ -599,7 +599,7 @@ available without building either crate.
 - `sheng2.rs:369-388`).
   A changed-width algorithm or native `kernel!` is required to express the old NEON state/output
 - shape.
-- **Out-of-range semantics are not a blocker for validated DFAs:**
+- Out-of-range semantics are not a blocker for validated DFAs:
   the fast x86 shuffle may wrap indices and the NEON
 - variant zeroes them (`src/generated/avx512.rs:13009-13021`,
   `generated/neon.rs:6383-6404`).
@@ -611,7 +611,7 @@ available without building either crate.
   `sheng2.rs:202-237`).
   This does not make unvalidated `Dfa::from_parts` data valid
 - by construction.
-- **What `kernel!` can and cannot remove:**
+- What `kernel!` can and cannot remove:
   `fearless_simd/src/kernel_macros.rs:4-21,68-99,340-383` safely calls a
 - target-feature-scoped inner function when given a genuine token;
   pointer intrinsics with extra requirements still
@@ -619,7 +619,7 @@ available without building either crate.
   The x86 `Avx512` variant cannot replace the existing narrow gate without changing eligibility.
 - Safe table loading is a separate possible improvement;
   counting `unsafe` keywords is not the safety proof.
-- **Proc macro cost:**
+- Proc macro cost:
   core `fearless_simd/Cargo.toml:23-43` has only optional `libm` and defaults to `std`.
 - `fearless_simd_macros/Cargo.toml:14-23` brings `syn`,
   `quote` and `proc-macro2` only if separately added;

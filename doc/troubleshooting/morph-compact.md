@@ -437,7 +437,7 @@ disable the plugin instead.
    not in a specific version.
    Reproduced on npm 10.
   x.
-- **`CLAUDE_CODE_DISABLE_*` env vars**:
+- `CLAUDE_CODE_DISABLE_*` env vars:
    there is no env var to skip
   SessionStart hooks selectively.
 - Reordering plugins in `enabledPlugins`:

@@ -111,7 +111,7 @@ run on nosimd build,
     parser's "unsupported pattern" check for `\b` inside a star does not fire
     under all `RegexOptions` configurations.
 
-5.  **ARM64-BUG-4**:
+5.  ARM64-BUG-4:
      `\B` timeout under full-unicode config.
      The nosimd
     build found `0xff5c42` (option byte 0xff,
@@ -123,7 +123,7 @@ run on nosimd build,
      The word-boundary negation class under
     full-unicode mode has a much steeper compile cost on ARM64.
 
-6.  **ARM64-BUG-5**:
+6.  ARM64-BUG-5:
      `div>~(\p{L}iv>_*)C/div>` compile timeout.
      Found by fork
     build in default config.
@@ -132,7 +132,7 @@ run on nosimd build,
      Same root as
     ARM64-BUG-1 but triggered via complement.
 
-7.  **ARM64-BUG-6**:
+7.  ARM64-BUG-6:
      `\p{L}\x1ehv...Hu?nter2024...` slow-unit in flag-bundle
     config.
      The Unicode property class followed by non-ASCII bytes and literal
@@ -141,7 +141,7 @@ run on nosimd build,
     tokenisation,
      allowing more of the pattern to be interpreted.
 
-8.  **ARM64-BUG-7**:
+8.  ARM64-BUG-7:
      `A-Z\p{L}5]8...` timeout in hardened config.
      Bracketed
     ASCII range followed by Unicode property class in a character class
@@ -149,7 +149,7 @@ run on nosimd build,
      Combines the bracketed-class and
     property-class cost factors.
 
-9.  **BUG-1 (suppressed)**:
+9.  BUG-1 (suppressed):
      `.*(.+)*.+` still panics in debug builds.
      The
     `reentrant-assert` feature is a default feature,
@@ -165,7 +165,7 @@ run on nosimd build,
     counted separately because the `compile` target's option-sweep triggers
     it differently (direct recursion vs `diff_regex`'s generated pattern).
 
-10. **BUG-4 suppressed (not fixed)**:
+10. BUG-4 suppressed (not fixed):
      `~(_*$)` complement with anchors now
     rejected as "unsupported pattern" instead of leaking `usize::MAX`.
      The

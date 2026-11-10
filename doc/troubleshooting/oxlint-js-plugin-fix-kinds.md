@@ -184,21 +184,21 @@ No matching open or closed issue or pull request was found for `JS plugin danger
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:
-    ** no.
+1.  Upstream fault:
+    no.
     The supported JavaScript API behaves as declared.
-2.  **Upstream can fix it:
-    ** yes.
+2.  Upstream can fix it:
+    yes.
     The protocol could gain an explicit fix kind.
-3.  **Supported use case:
-    ** no documented dangerous-plugin API exists.
-4.  **Contribution welcome:
-    ** conditional yes under Oxc's disclosed and reviewed AI-assistance policy.
-5.  **Likely upstream action:
-    ** unknown;
+3.  Supported use case:
+    no documented dangerous-plugin API exists.
+4.  Contribution welcome:
+    conditional yes under Oxc's disclosed and reviewed AI-assistance policy.
+5.  Likely upstream action:
+    unknown;
     no matching tracker signal was found.
-6.  **Compatible minimal fix prototyped:
-    ** no.
+6.  Compatible minimal fix prototyped:
+    no.
     Suggestions already satisfy the repository requirement,
     so an upstream protocol change is out of scope.
 

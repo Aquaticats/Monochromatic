@@ -231,22 +231,22 @@ There is nothing additive to post.
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
      Compose is not at fault because the consumer requested fill width.
     Slint's preferred-size limitation is upstream and is already tracked.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
      yes for Slint,
      demonstrated by merged [PR #12129][].
-3.  **Supported use case:**
+3.  Supported use case:
      yes,
      [#11936][] uses a nested wrapping `FlexboxLayout` reproducer.
-4.  **Contribution policy:**
+4.  Contribution policy:
      Slint's `CONTRIBUTING.md` welcomes issues and pull requests.
     Its `AGENTS.md` explicitly provides guidance for AI coding assistants and contains no filing ban.
-5.  **Likely fix:**
+5.  Likely fix:
      complete,
      because [PR #12129][] merged on June 17, 2026.
-6.  **Compatible prototype:**
+6.  Compatible prototype:
      complete upstream.
     The merged change includes compiler and core fixes plus layout regression cases.
 

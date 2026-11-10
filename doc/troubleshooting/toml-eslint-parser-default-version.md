@@ -110,23 +110,23 @@ Searches of open and closed issues and pull requests in `ota-meshi/toml-eslint-p
  for `default tomlVersion 1.1` found no matching report.
 No upstream filing is warranted:
 
-- **Upstream fault:**
+- Upstream fault:
   No.
   The release's README and source agree on TOML 1.1;
   our local comment was wrong.
-- **Upstream fixability:**
+- Upstream fixability:
   A default can be changed in source,
   but no correction is needed for this behavior.
-- **Supported use case:**
+- Supported use case:
   Yes.
   `README.md:51-53` lists explicit 1.0 and 1.1 options.
-- **Contribution welcome:**
+- Contribution welcome:
   The tag contains a README but no CONTRIBUTING or issue/PR template was found.
   No ban was found,
   but no contribution is needed.
-- **Likelihood of upstream fix:**
+- Likelihood of upstream fix:
   No defect is established for them to fix.
-- **Minimal compatible prototype:**
+- Minimal compatible prototype:
   No upstream patch was made because the local TSDoc and test were mistaken.
   The local test passed after explicitly selecting TOML 1.0 and pinning the default behavior.
 

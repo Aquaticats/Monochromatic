@@ -148,25 +148,25 @@ Searches of open and closed issues and pull requests in `RsyncProject/rsync`
  a closed unrelated `configure.ac` PR appeared.
 No upstream report is warranted:
 
-- **Upstream fault:**
+- Upstream fault:
   No.
   Rsync correctly reports a file that vanished from its input.
   The mutation harness included a disposable cache it did not need.
-- **Upstream fixability:**
+- Upstream fixability:
   Rsync could change how it classifies a missing sender file,
   but that would not solve this harness's input-scope error.
-- **Supported use case:**
+- Supported use case:
   Yes.
   Rsync supports exclusion patterns and documented vanished-file diagnostics;
   the harness uses the exclusion boundary.
-- **Contribution welcome:**
+- Contribution welcome:
   The inspected source snapshot includes `README.md`
   but no CONTRIBUTING or issue/PR template was found.
   No contribution policy ban was found,
   and no upstream change is needed.
-- **Likelihood of upstream fix:**
+- Likelihood of upstream fix:
   There is no upstream defect to fix.
-- **Minimal compatible prototype:**
+- Minimal compatible prototype:
   No upstream patch was made because the local exclusion solves the incident.
   The disposable rsync fixture and package tests verified the local correction.
 

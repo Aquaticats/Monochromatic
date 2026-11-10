@@ -340,26 +340,26 @@ kernel uses mailing-list review and an exact upstream thread already exists:
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
      yes.
      The proposed patch names the regressing commit and corrects SELinux state initialization order.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
      yes.
      The patch changes `security/selinux/hooks.c` without a userspace API change.
-3.  **Supported use case:**
+3.  Supported use case:
      yes.
      `BPF_OBJ_PIN` is a documented UAPI command and bpffs object creation supports maps,
      programs,
     and links in `kernel/bpf/inode.c`.
-4.  **Contribution policy:**
+4.  Contribution policy:
      yes.
      `Documentation/process/submitting-patches.rst` documents external patch submission and no
     AI-assistance ban was found in the checked process and code-of-conduct documents.
-5.  **Likely resolution:**
+5.  Likely resolution:
      yes.
      The patch was merged into `selinux/stable-7.2` and mainline as commit
      `28254722a459938d97150d3b0712b81e06d0645e`.
-6.  **Compatible minimal fix:**
+6.  Compatible minimal fix:
      yes.
      The upstream patch moves one existing guard before inode security initialization and
     includes the affected source location and regression commit.

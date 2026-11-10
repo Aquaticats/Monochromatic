@@ -58,19 +58,19 @@ auto-cleanup or always-on linter.
 
 Four invocation modes:
 
-1.  **Bare default**:
+1.  Bare default:
      `bunx fallow` with no config
-2.  **`fallow init` default**:
+2.  `fallow init` default:
      ran `bunx fallow init`,
      used the auto-generated config
-3.  **Hand-tuned `.fallowrc.json`**:
+3.  Hand-tuned `.fallowrc.json`:
      a manual config that adds entry-point patterns
     for this repo's conventions (`mise.*.ts`,
      `tsdown.*.config.ts`,
      editord client
     modules,
      test-fixture overrides) and disables rules that overlap with oxlint
-4.  **file-enforcer-generated config**:
+4.  file-enforcer-generated config:
      the prototype on branch `fallow-wrap-prototype`,
     where `file-enforcer.config.ts` adds a `generateFallowConfig()` step that
     globs `package/*/*/tsdown.*.config.ts`,

@@ -351,24 +351,24 @@ Tradeoffs:
 
 ## What does not work
 
-- **Relying on compaction summaries:**
+- Relying on compaction summaries:
    summary generation is not required to
   reproduce every project rule,
   so a summary is not a durable policy channel.
-- **Using only `buildContextEntries()`:**
+- Using only `buildContextEntries()`:
    that API intentionally represents
   conversation history after compaction;
   it does not return system-prompt context files.
-- **Reading `AGENTS.md` into conversation history:**
+- Reading `AGENTS.md` into conversation history:
    this is incidental and
   consumes context,
   and compaction can remove the tool result.
-- **Clearing snapshots at `agent_end`:**
+- Clearing snapshots at `agent_end`:
    Pi can compact and continue after that
   event.
   `agent_settled` is the first boundary after all automatic continuations for
   auto-mode's run-scoped snapshot.
-- **Sending the whole main-agent system prompt:**
+- Sending the whole main-agent system prompt:
    this would disclose unrelated
   tool and harness instructions and could let project text alter auto-mode's
   safety rubric.

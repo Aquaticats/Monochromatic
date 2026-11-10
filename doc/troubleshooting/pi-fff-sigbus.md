@@ -199,24 +199,24 @@ new defect,
 
 The six-constraint check is:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
      yes,
      the coredump enters FFF's native library.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
      yes,
      FFF has landed fixes for related native crashes.
-3.  **Supported use case:**
+3.  Supported use case:
      yes,
      FFF explicitly provides Pi's `ffgrep` tool.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
      no `CONTRIBUTING.md` was present in the checked FFF
     tag,
      and no prohibition on external reports was found in its README.
-5.  **Likely to fix it:**
+5.  Likely to fix it:
      yes,
      the related issues were triaged and closed with
     fixes.
-6.  **Minimal fix prototyped:**
+6.  Minimal fix prototyped:
      no applicable fix for this coredump.
      The issue 618
     fix was verified only as a differential check,

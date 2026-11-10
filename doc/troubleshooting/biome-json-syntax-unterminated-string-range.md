@@ -235,29 +235,29 @@ Patterns that do not panic:
  Because a matching thread exists and is already fixed in upstream source,
  **no new issue is drafted**.
 
-1.  **Upstream fault**:
+1.  Upstream fault:
     yes for published 0.5.7,
     where the lexer violates the helper's documented delimiter invariant.
     Upstream agrees:
     the issue carries `S-Bug-confirmed`.
-2.  **Upstream fixability**:
+2.  Upstream fixability:
     yes,
     and already fixed in source by emitting `ERROR_TOKEN` for unterminated strings.
-3.  **Supported use case**:
+3.  Supported use case:
     yes;
     the helper is public API on typed string values,
     and the tree it receives comes from upstream's own parser.
-4.  **Contribution welcome**:
+4.  Contribution welcome:
     yes with disclosure.
     `CONTRIBUTING.md:47-69` in the upstream clone requires disclosing any AI assistance in a pull request
     and gives an example disclosure;
     it does not ban outside or AI-assisted contributions.
-5.  **Likely to fix**:
+5.  Likely to fix:
     already merged upstream.
     The remaining gap is release timing for the published Rust crates,
     which upstream documents as on-demand
     (`RELEASES.md:35-36` in the same clone).
-6.  **Prototype**:
+6.  Prototype:
     yes for the helper-side clamp,
     red/green verified in bounded containers.
     It is now redundant with upstream's lexer fix,

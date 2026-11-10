@@ -908,7 +908,7 @@ Decision:
 Constraint 1 fails for every item,
  and constraint 5 fails for a default change.
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     no.
     The defaults are documented behavior (`src/parse_to_ast.rs:49-80`,
      `src/lib.rs:99-102`);
@@ -916,16 +916,16 @@ Constraint 1 fails for every item,
      scalar roots are valid JSON.
     Only the crates.io description is terse,
      and that is wording the README and crate docs already correct.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes,
      technically:
      changing defaults,
      the description,
      or adding an equality short-circuit to `set_value` is possible.
-3.  **Supported use case:**
+3.  Supported use case:
     yes.
     CST editing and strict parsing are both documented.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes.
     The repository has no `CONTRIBUTING.md`,
      no issue or pull request templates,
@@ -935,13 +935,13 @@ Constraint 1 fails for every item,
      and `workflows/`;
      the community profile API reports `contributing: null`);
      no ban was found.
-5.  **Likely to fix:**
+5.  Likely to fix:
     no for stricter defaults:
      the maintainer's direct guidance in jsonc-morph#7 is to opt in to strictness,
      and #38 led to more loose syntax,
      not less.
     No signal either way for the description.
-6.  **Prototype:**
+6.  Prototype:
     not triggered,
      because constraints 1 and 5 fail.
 
@@ -970,35 +970,35 @@ Decision:
  all six constraints hold,
  so the draft in "Draft issue" is fileable once a human completes "Before filing".
 
-1.  **Upstream's fault:**
+1.  Upstream's fault:
     yes.
     This is behavior:
      `scan_handling_comments` captures comment tokens before the only `allow_comments` check
      (`src/parse_to_ast.rs:181-183` against `:211-214`),
      while the documented option (`src/parse_to_ast.rs:52-53`) has no exception
      and the other parser implementation enforces it (`src/parser.rs:70-78`).
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     yes;
     "Prototype fix" adds the check to the `AsTokens` arm.
-3.  **Supported use case:**
+3.  Supported use case:
     yes.
     `CstRootNode::parse` takes `ParseOptions`,
      the crate docs present every-option-false as strict JSON (`src/lib.rs:99-121`),
      and `src/cst/mod.rs:4792-4805` already tests another strict option (`allow_missing_commas`) through the CST.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     yes;
     same evidence as the "Loose defaults" item:
      no contributing guide,
      templates,
      or AI policy,
      so no ban was found.
-5.  **Likely to fix:**
+5.  Likely to fix:
     yes.
     [#84][jsonc-84],
      the same class for `allow_missing_commas`,
      was reported on 2026-07-25 and fixed by the maintainer in #87,
      which merged and shipped as 0.33.1 on 2026-07-26.
-6.  **Prototype:**
+6.  Prototype:
     yes;
     see "Prototype fix".
 

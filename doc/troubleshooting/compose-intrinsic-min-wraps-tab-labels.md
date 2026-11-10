@@ -150,21 +150,21 @@ found no matching report.
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
      no.
     Compose implements the documented distinction between minimum and maximum intrinsic size.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
      not applicable because changing `Min` to mean maximum one-line width
     would break its contract.
-3.  **Supported use case:**
+3.  Supported use case:
      yes.
     The official intrinsic-measurement guide documents both variants.
-4.  **Contribution policy:**
+4.  Contribution policy:
      AndroidX source is public,
     but no contribution is appropriate for correct behavior.
-5.  **Likely fix:**
+5.  Likely fix:
      not applicable upstream.
-6.  **Compatible prototype:**
+6.  Compatible prototype:
      the consumer-side change to `IntrinsicSize.Max` is implemented and device-verified.
 
 No upstream issue or comment draft is retained because this was incorrect consumer API selection,

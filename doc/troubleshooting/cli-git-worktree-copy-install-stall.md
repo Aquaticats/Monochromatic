@@ -63,11 +63,11 @@ and the stage directory restored wrapped Git.
 
 Three failure modes are separate defects with separate evidence:
 
-- **Stall:**
+- Stall:
   installation after staging is quadratic in the ignored entry count.
-- **Blocking while live:**
+- Blocking while live:
   commands in other linked worktrees wait on the owner's settlement lock and give up after about one second.
-- **Blocking after death:**
+- Blocking after death:
   recovery rejects the dead owner's own partial work,
   and a failed installation never removes its journal,
   so every later command replays the failure.

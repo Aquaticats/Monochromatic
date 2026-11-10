@@ -459,12 +459,12 @@ exponential backoff but always uses the original token from
 
 A token file at `$TMPDIR/editord-<port>.token` persists the token across restarts:
 
-1.  **On startup**:
+1.  On startup:
      check if the token file exists and its mtime is within 3 seconds.
     If so,
      reuse the token (auto-restart detected).
      Otherwise generate a fresh UUID.
-2.  **While running**:
+2.  While running:
      re-write the token file every 1 second to keep its mtime fresh.
 3.  **On SIGTERM** (auto-restart from watchexec):
      stop the mtime touch interval

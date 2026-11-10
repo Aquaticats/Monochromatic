@@ -224,23 +224,23 @@ so a duplicate comment would add nothing.
 
 The filing constraints resolve as follows:
 
-1.  **Upstream fault:**
+1.  Upstream fault:
      yes.
      Slint's public `Window::take_snapshot()` reaches the defective FemtoVG OpenGL readback path.
-2.  **Upstream fixability:**
+2.  Upstream fixability:
      yes.
      Pull request [#13114][] demonstrates one minimal compatible change.
-3.  **Supported use case:**
+3.  Supported use case:
      yes.
      Slint documents MCP screenshots and exposes `Window::take_snapshot()` publicly.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
      yes.
      `CONTRIBUTING.md` welcomes issues and pull requests,
      subject to its CLA.
-5.  **Likely fix:**
+5.  Likely fix:
      no. The maintainer's comment on [#9239][] explicitly leans away from fixing this OpenGL route,
     and [#13114][] remains open pending a semantics decision.
-6.  **Local prototype:**
+6.  Local prototype:
      not required.
      Constraint 5 fails,
      and upstream already has the exact one-file prototype in [#13114][].

@@ -17,32 +17,31 @@ Total packages:
 
 ### Critical findings
 
-- **Malware:
-  ** None detected
-- **Known CVEs:
-  ** None detected (CVE/CVSS/EPSS columns empty for all 41 alerts)
-- **Typosquatting:
-  ** None detected
-- **Abandoned:
-  ** None detected
-- **Manifest confusion:
-  ** None detected
-- **Install scripts:
-  ** None detected
-- **Unlicensed:
-  ** None detected
-- **Obfuscated:
-  ** None detected
-- **High-entropy strings:
-  ** None detected
-- **Unstable ownership:
-  ** None detected
+- Malware:
+  None detected
+- Known CVEs:
+  None detected (CVE/CVSS/EPSS columns empty for all 41 alerts)
+- Typosquatting:
+  None detected
+- Abandoned:
+  None detected
+- Manifest confusion:
+  None detected
+- Install scripts:
+  None detected
+- Unlicensed:
+  None detected
+- Obfuscated:
+  None detected
+- High-entropy strings:
+  None detected
+- Unstable ownership:
+  None detected
 
 ### Dependency chains for flagged packages
 
-**`picomatch@2.3.2`:
- transitive via stylelint (dev-only):
-**
+`picomatch@2.3.2`:
+ transitive via stylelint (dev-only)
 
 ```text
 stylelint -> micromatch -> picomatch@2.3.2
@@ -68,9 +67,8 @@ The discussion continues in stylelint/stylelint#8051 and stylelint/stylelint#892
  fdir) is a separate major version
 and was never affected by these CVEs.
 
-**`openai@6.33.0`:
- direct dep of `package/dev-script/inference-canary`:
-**
+`openai@6.33.0`:
+ direct dep of `package/dev-script/inference-canary`
 Socket flags this as `potentialVulnerability` (medium behavioral risk).
 The `bin/cli` file defines a `migrate` subcommand that calls `spawnSync` to download and execute
 an unsigned tarball from GitHub (`stainless-api/migrate-ts`) via `npx -y`.
@@ -154,8 +152,7 @@ Count reduced from 54 in the previous scan after removing remark-cli,
  gray-matter,
  and @npmcli/* transitive trees.
 
-**Note on behavioral categories:
-**
+A note on behavioral categories:
 The previous vlt-based scan reported behavioral indicators (dynamic code execution,
  shell access,
 network access,
@@ -204,22 +201,20 @@ Dependencies excluded from full source code audit,
    Will be replaced with a simpler SSG
 - @astrojs/mdx:
    Will be removed with astro
-- **`@logtape/*`**:
+- `@logtape/*`:
    To be replaced by our custom logger
 
 ## Audited
 
 ### feedsmith
 
-- **Version:
-  ** >=3.0.0-next.
-  2
-- **Date:
-  ** 2026-03-01
-- **Verdict:
-  ** Acceptable
-- **Notes:
-  ** Single-author (macieklamberski),
+- Version: >=3.0.0-next.2
+- Date:
+  2026-03-01
+- Verdict:
+  Acceptable
+- Notes:
+  Single-author (macieklamberski),
    MIT,
    3 runtime deps (fast-xml-parser,
    entities,
@@ -244,14 +239,14 @@ Dependencies excluded from full source code audit,
 
 ### stylelint
 
-- **Version:
-  ** 17.4.0
-- **Date:
-  ** 2026-03-03
-- **Verdict:
-  ** Acceptable
-- **Notes:
-  ** The codebase is a straightforward CSS linter with:
+- Version:
+  17.4.0
+- Date:
+  2026-03-03
+- Verdict:
+  Acceptable
+- Notes:
+  The codebase is a straightforward CSS linter with:
   - No network activity
   - No shell execution
   - No dynamic code evaluation
@@ -261,14 +256,14 @@ Dependencies excluded from full source code audit,
 
 ### elysia
 
-- **Version:
-  ** 1.4.7
-- **Date:
-  ** 2026-03-03
-- **Verdict:
-  ** Acceptable
-- **Notes:
-  ** Elysia's source code is straightforward framework code with no "funny business.
+- Version:
+  1.4.7
+- Date:
+  2026-03-03
+- Verdict:
+  Acceptable
+- Notes:
+  Elysia's source code is straightforward framework code with no "funny business.
   " It has solid security hygiene (prototype
   pollution guards,
    timing-safe crypto,
@@ -279,19 +274,19 @@ Dependencies excluded from full source code audit,
 
 ### tsdown
 
-- **Version:
-  ** 0.18.1
-- **Date:
-  ** 2026-03-01
-- **Verdict:
-  ** Acceptable
-- **Notes:
-  ** Rolldown wrapper that does what it says on the tin.
+- Version:
+  0.18.1
+- Date:
+  2026-03-01
+- Verdict:
+  Acceptable
+- Notes:
+  Rolldown wrapper that does what it says on the tin.
 
 ### lfi
 
-- **Notes:
-  ** The lfi package (v4.1.2) should be approved for use.
+- Notes:
+  The lfi package (v4.1.2) should be approved for use.
    A thorough audit of both the GitHub source and the published npm tarball
   reveals no malicious code,
    no install hooks,
@@ -316,8 +311,8 @@ Dependencies excluded from full source code audit,
 
 ### happy-rusty AND happy-opfs
 
-- **Notes:
-  ** Both happy-rusty and happy-opfs are clean,
+- Notes:
+  Both happy-rusty and happy-opfs are clean,
    well-engineered TypeScript libraries with no security red
   flags.
    happy-rusty has zero runtime dependencies and provides Rust-style error handling primitives with strict typing and
@@ -345,8 +340,8 @@ Dependencies excluded from full source code audit,
 
 ### smol-toml
 
-- **Notes:
-  ** well-engineered,
+- Notes:
+  well-engineered,
    zero-runtime-dependency TOML parser/serializer with ~1,300 lines of TypeScript source.
    The audit
   found no suspicious code:
@@ -378,8 +373,8 @@ Dependencies excluded from full source code audit,
 
 ### superjson
 
-- **Notes:
-  ** well-engineered,
+- Notes:
+  well-engineered,
    minimal TypeScript library for serializing rich JavaScript types (Date,
   Map,
    Set,
@@ -409,8 +404,8 @@ Dependencies excluded from full source code audit,
 
 ### happy-dom
 
-- **Notes:
-  ** Uses of eval() and child_process are inherent to
+- Notes:
+  Uses of eval() and child_process are inherent to
   its purpose as a browser DOM simulator and mirror patterns found in the industry-standard jsdom.
    The project is 100% TypeScript
   with ~300 test files,

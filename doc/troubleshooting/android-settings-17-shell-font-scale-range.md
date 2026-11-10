@@ -181,20 +181,20 @@ No `.out-of-scope/` entry covers Android Settings font scaling.
 upstream:
  the observed behavior is not an Android defect.
 
-1.  **Upstream fault:**
+1.  Upstream fault:
     no.
     The shell stored the requested float and the UI exposed its packaged preset list.
     The error was interpreting those as the same capability.
-2.  **Upstream can fix it:**
+2.  Upstream can fix it:
     not applicable because no faulty behavior was found.
-3.  **Supported use case:**
+3.  Supported use case:
     Settings supports preset selection;
     arbitrary shell writes are a developer mechanism rather than a promise that every float appears in the UI.
-4.  **Contribution welcome:**
+4.  Contribution welcome:
     not evaluated because there is no defect or patch to contribute.
-5.  **Likely upstream action:**
+5.  Likely upstream action:
     not evaluated for the same reason.
-6.  **Compatible minimal fix:**
+6.  Compatible minimal fix:
     no upstream fix is appropriate.
     The consumer-side fix is to derive review scales from the installed resource.
 

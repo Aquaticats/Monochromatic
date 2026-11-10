@@ -80,29 +80,25 @@ No other multi-word category has this singular/plural mismatch.
 
 README `# heading` lines use at least four different conventions for the same kind of thing:
 
-**Full scoped package name:
-**
+Full scoped package name:
 `# @monochromatic-dev/module-es`,
  `# @monochromatic-dev/config-oxlint`,
  etc.
 
-**Bare package slug (no scope):
-**
+Package slug without a scope:
 `# config-dprint`,
  `# module-dom`,
  `# file-enforcer`,
  etc.
 
-**Human-readable title:
-**
+Human-readable title:
 `# Done`,
  `# RSS Reader`,
  `# Hall Monitor`,
  `# Exa Search Interface`,
  `# Islands Black`
 
-**Mixed / unique:
-**
+Mixed or unique:
 `# Tsconfig-monochromatic` (title-case with slug),
  `# @monochromatic-dev/build-css` (scope + different slug than directory `build-tool/css`),
 `# cli-vm (mvm)` (parenthetical alias),
@@ -329,8 +325,7 @@ test-fixture/css-importing,
 
 Two different naming conventions exist:
 
-**Fixed:
-** renamed `BUGREPORT.*` files to `BUG-REPORT.*` for consistency.
+Fixed by renaming `BUGREPORT.*` files to `BUG-REPORT.*` for consistency.
 
 ### TROUBLESHOOTING subtopic separator
 

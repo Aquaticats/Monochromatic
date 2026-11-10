@@ -176,15 +176,15 @@ and its standard tab includes favicon and close-control allocation.
 
 ## What does not work
 
-- **Treating raster pixels as DIPs:**
+- Treating raster pixels as DIPs:
    screenshot density makes geometry scale-dependent.
-- **Scaling every measured screenshot dimension by one guessed ratio:**
+- Scaling every measured screenshot dimension by one guessed ratio:
    text rendering and capture scaling can differ.
-- **Copying Chromium's `232`-DIP standard content width:**
+- Copying Chromium's `232`-DIP standard content width:
    violates the accepted content-width requirement.
-- **Using only a rounded rectangle:**
+- Using only a rounded rectangle:
    omits the outward lower shoulders that identify the supplied silhouette.
-- **Adding favicon or close glyphs for resemblance:**
+- Adding favicon or close glyphs for resemblance:
    creates affordances the page selector does not support.
 
 ## Upstream filing decision

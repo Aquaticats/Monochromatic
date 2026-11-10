@@ -741,13 +741,13 @@ Recorded 2026-11-09:
 
 ### The six-constraint check
 
-1.  **Is it really upstream's fault**:
+1.  Is it really upstream's fault:
     yes.
     A nil return from `LoadOrStore` is upstream's own contract break,
     and the panicking
     dereference is in upstream's own registry builder.
     No consumer input makes an unchecked nil dereference correct.
-2.  **Can upstream fix it**:
+2.  Can upstream fix it:
     yes.
     The minimal fix is in `dirty.SyncMap.LoadOrStore`:
     a tombstoned key must not answer nil
@@ -759,24 +759,24 @@ Recorded 2026-11-09:
     are others.
     The call sites that discard the boolean could be guarded as well,
     following line 177.
-3.  **Are they supporting this use case**:
+3.  Are they supporting this use case:
     yes.
     `internal/api` exists to serve external consumers,
     `createSnapshot({ openFiles })` is a
     documented call,
     and the report itself reproduces on the shipped package.
-4.  **Would the repo welcome our contribution**:
+4.  Would the repo welcome our contribution:
     not assessed.
     Filing is out of scope here,
     so the contribution policy,
     issue forms,
     and
     AI-assistance rules were not read.
-5.  **Will they likely fix it**:
+5.  Will they likely fix it:
     not assessed.
     The duplicate and its fix attempt show engagement,
     but no maintainer statement was read.
-6.  **Have we prototyped a minimal fix**:
+6.  Have we prototyped a minimal fix:
     no.
     Constraints 4 and 5 were left unassessed,
     and a prototype is what makes a filing

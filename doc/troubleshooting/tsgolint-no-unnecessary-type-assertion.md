@@ -348,7 +348,7 @@ type **without** contextual typing from the parent
  Three approaches were considered when the doc was first
 written:
 
-1.  **Extend the IIFE pattern to all generic calls**:
+1.  Extend the IIFE pattern to all generic calls:
      use
     `getResolvedSignature` + `GetReturnTypeOfSignature` for any
     call expression,
@@ -356,14 +356,14 @@ written:
      Avoids `GetTypeAtLocation`
     entirely for calls.
      Not pursued upstream.
-2.  **Check for generic function calls**:
+2.  Check for generic function calls:
      if the callee has
     generic type parameters,
      skip the rule (the same approach
     typescript-eslint acknowledged in
     [typescript-eslint#528](https://github.com/typescript-eslint/typescript-eslint/issues/528)).
     Not pursued upstream.
-3.  **Strip contextual type**:
+3.  Strip contextual type:
      temporarily remove the
     `AsExpression` parent before calling `GetTypeAtLocation`,
     or use a checker API that excludes contextual typing.

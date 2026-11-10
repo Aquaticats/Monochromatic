@@ -2,11 +2,11 @@
 
 ## Metadata
 
-- **Status:**
+- Status:
    Resolved locally and verified after a cold guest reboot.
-- **Diagnosed:**
+- Diagnosed:
    2026-08-01.
-- **Affected environment:**
+- Affected environment:
    virt-manager 5.1.0,
    QEMU 11.0.0,
   spice-gtk 0.42,
@@ -14,11 +14,11 @@
    xwayland-satellite 0.8.1,
   labwc 0.9.6,
    and Fedora 44 guest userspace.
-- **Scope:**
+- Scope:
    `bazzite-labwc-test`,
    a labwc Wayland guest whose X11 bridge is
   xwayland-satellite on `DISPLAY=:12`.
-- **Disposition:**
+- Disposition:
    Local systemd composition fix.
    No upstream issue filed.
 

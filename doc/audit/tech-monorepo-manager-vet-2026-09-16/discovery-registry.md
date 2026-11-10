@@ -1237,7 +1237,7 @@ not repository activity.
   last 2023-10;
   terms:
 - incremental builds and tests from changesets.
-- **monox (with @monoxon/* binaries)**:
+- monox (with @monoxon/* binaries):
   <https://github.com/monoxon/monox>;
   Q1 p8,
   Q1 p9,
@@ -1364,7 +1364,7 @@ not repository activity.
   manager (lightweight);
   survivor;
   last 2025-05.
-- **pmnps (with @pmnps/* plugins)**:
+- pmnps (with @pmnps/* plugins):
   <https://github.com/filefoxper/pmnps-workspace>;
   Q1 p9 to p13;
   manager;
