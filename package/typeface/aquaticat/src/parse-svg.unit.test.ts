@@ -219,6 +219,21 @@ await describe({
         },),
 
         //endregion Stroke detection
+
+        //region Unexpected input
+
+        it({
+          name: 'throws when a path arrives before the first cell rect',
+          fn: async () => {
+            expect(function callParse(): void {
+              parseSvg(svgDocument({
+                elements: `<path d='M0 0 L10 0' fill='black' />${cellRect({ xOffset: '', },)}`,
+              },),);
+            },).toThrow('before the first cell rect',);
+          },
+        },),
+
+        //endregion Unexpected input
       ],
     },),
 
@@ -299,6 +314,24 @@ await describe({
                 y: -20.25,
               },
             ],);
+          },
+        },),
+
+        it({
+          name: 'throws when the path data ends after an X coordinate',
+          fn: async () => {
+            expect(function callTokenize(): void {
+              parseSvgPathD('M10',);
+            },).toThrow('Y coordinate',);
+          },
+        },),
+
+        it({
+          name: 'throws when a command letter sits where a Y coordinate belongs',
+          fn: async () => {
+            expect(function callTokenize(): void {
+              parseSvgPathD('M10 Z',);
+            },).toThrow('Y coordinate',);
           },
         },),
       ],

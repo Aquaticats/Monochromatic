@@ -25,6 +25,8 @@ type Point = readonly [
  
  @returns intersection point
  
+ @throws When the two directions are parallel, so the lines never meet
+ 
  @example
  ```ts
  lineIntersection({
@@ -53,6 +55,11 @@ function lineIntersection({
   const cross = (d1[0]
     * d2[1]) - (d1[1]
       * d2[0]);
+  if (cross === 0) {
+    throw new Error(
+      `consecutive polygon edges are collinear, so their offset lines never meet: [${d1.join(',',)}] and [${d2.join(',',)}]`,
+    );
+  }
   /**
    X offset from `p1` to `p2`, used to project the gap onto `d1`'s parameter axis.
    */
@@ -86,6 +93,8 @@ function lineIntersection({
  @param offset - signed offset distance (positive = outward, negative = inward)
  
  @returns new polygon vertices at the requested offset
+ 
+ @throws When two consecutive vertices coincide, or two consecutive edges are collinear
  
  @example
  ```ts
@@ -136,6 +145,11 @@ export function offsetPolygon({
       dx,
       dy,
     );
+    if (len === 0) {
+      throw new Error(
+        `polygon edge ${vertexIndex} is a zero-length edge: vertices ${vertexIndex} and ${(vertexIndex + 1) % vertexCount} coincide at [${vertex.join(',',)}]`,
+      );
+    }
     /**
      X component of the outward normal scaled by `offset` (CW polygon, Y-down SVG coords).
      */

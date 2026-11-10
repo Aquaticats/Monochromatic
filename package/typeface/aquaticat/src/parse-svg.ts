@@ -233,14 +233,14 @@ export function parseSvg(svgContent: string,): Cell[] {
      Most recently pushed cell, which owns every `<path>` until the next `<rect>` appears.
      */
     const currentCell = cells.at(-1,);
-    if (currentCell !== undefined) {
-      currentCell.paths
-        .push({
-          d,
-          isStroked,
-          strokeWidth,
-        },);
-    }
+    if (currentCell === undefined)
+      throw new Error(`path data before the first cell rect: ${d}`,);
+    currentCell.paths
+      .push({
+        d,
+        isStroked,
+        strokeWidth,
+      },);
   }
 
   return cells;
@@ -340,15 +340,26 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
        */
       const yTok = tokens.next();
       if (yTok.done === true)
-        break;
+        throw new Error(
+          `path data ends where a Y coordinate belongs, after ${num}: ${d}`,
+        );
       /**
        Named capture groups of the paired Y token; `number` holds the coordinate value.
        */
       const { groups: yGroups, } = yTok.value;
+      /**
+       Numeric text of the paired Y coordinate, absent when the token is a command letter.
+       */
+      const yNumber = yGroups?.number;
+      if (yNumber === undefined) {
+        throw new Error(
+          `expected a Y coordinate after ${num} in path data: ${d}`,
+        );
+      }
       commands.push({
         type: currentCmd,
         x: num,
-        y: Number(yGroups?.number,),
+        y: Number(yNumber,),
       },);
     }
     else if (currentCmd === 'H') {
