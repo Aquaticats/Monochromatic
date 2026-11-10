@@ -319,6 +319,16 @@ fn a_path_the_person_deleted_that_the_merge_changes_is_named_as_deleted() {
     assert!(!words.contains("holds what you wrote"), "the line claims no file that holds their bytes: {words}");
     assert!(!words.contains("your bytes are kept at"), "the line claims no bytes of theirs at the path: {words}");
     assert!(words.contains("git restore --source=HEAD --staged --worktree -- a.txt"), "the line names how to take the merge's version: {words}");
+    // The command the line names reaches the merge's version. This repository's policy guards a restore in a main worktree,
+    //  so the control passes the hatch that policy names; a linked worktree runs the line's command as written.
+    let restored: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["restore", "--no-enforce-worktree", "--source=HEAD", "--staged", "--worktree", "--", "a.txt"],
+    );
+    assert_eq!(restored.code, Some(0), "the line's command runs: {}", said(&restored));
+    let back: String = text_at(repo.as_path(), "a.txt").expect("the merge's version is back in the checkout");
+    assert!(back.contains(FEATURE_THIRD), "the checkout holds the merge's version of a.txt: {back:?}");
     remove_settled(&fixture);
 }
 
