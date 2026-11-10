@@ -437,7 +437,8 @@ which is the last thing between the person and a run nothing can take back:
 the command runs after every refusal that costs nothing,
 from the crate's own directory,
 with what this machine has and a GitHub runner does not.
-The dispatch prints `Waiting for <the command>` and then everything the gate printed;
+The dispatch prints `Waiting for <the command>` and hands the gate its own streams,
+so everything the gate prints stays visible for as long as it takes;
 when the gate exits nonzero the dispatch refuses,
 shows the line that names the gate and its status,
 and never calls `gh`.

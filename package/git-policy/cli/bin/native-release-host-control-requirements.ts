@@ -18,18 +18,23 @@ export const hostControlTask = '//package/git-policy/cli:native:test:host:btrfs'
  Deadline the gate gives that run, in seconds.
 
  A person waits behind this run for a release, and nothing should ever wait forever or indefinitely (the owner's words),
- so a run that hangs is stopped and refuses the release instead of holding it open. The value leaves room for a slower
- host than the one the run was timed on, without leaving a hung run in place for a working day.
+ so a run that hangs is stopped and refuses the release instead of holding it open. Two measurements on this host size
+ it: the full run below took {@link measuredFullRunSeconds} seconds, and a second run beside more of this host's other
+ building agents was completing tests at about three quarters of that rate, which projects a whole run near a hundred
+ minutes. Three hours is three times the measured run and twice that projection, and it is the most a person waits for a
+ release that then dispatches or refuses.
  */
-export const hostControlLimitSeconds = 7_200;
+export const hostControlLimitSeconds = 10_800;
 
 /**
  Seconds the full run of the task took on this host, which the deadline above is sized from.
 
- Measured on 2026-11-10 in its own `systemd-run --user --scope` limited to 600% CPU and 20 GB, with this host's other
- agents working.
+ Timed on 2026-11-10 in its own `systemd-run --user --scope` limited to 600% CPU and 20 GB, with this host's other agents
+ building: 6974 tests in 54 minutes 46 seconds. The three controls {@link requiredHostControls} names passed in that run,
+ and 979 tests failed because another agent's build replaced this worktree's test binary under the run, which is the
+ contention the deadline has to tolerate rather than a property of the suite.
  */
-export const measuredFullRunSeconds = 0;
+export const measuredFullRunSeconds = 3_286;
 
 /**
  When that run was timed, which a refusal quotes beside the deadline it sizes.
