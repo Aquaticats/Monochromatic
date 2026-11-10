@@ -10,8 +10,8 @@ import { getSize, } from './size.ts';
  Asserts that a recognized container is empty (zero size), returning the same value.
  
  Recognized container shapes (see {@link getSize} in `size.ts`): strings, arrays,
- `Set`, `Map`, plain objects. Values without a recognized size shape throw,
- as do values whose size is non-zero.
+ `Set`, `Map`, and plain objects (`Object.prototype` or `null` prototype). Values
+ without a recognized size shape throw, as do values whose size is non-zero.
  
  Type narrowing is intentionally pass-through. TypeScript cannot represent
  "empty array" or "empty string" usefully without literal-type tricks, so the
