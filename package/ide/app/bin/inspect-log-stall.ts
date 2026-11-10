@@ -23,6 +23,7 @@ import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor, endedWithin } from './nested-compositor.ts';
+import { keyStamps } from './key-stamps.ts';
 import { containerBounds } from './container-bounds.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
@@ -272,7 +273,7 @@ const session = async (variant: Variant): Promise<Variant> => {
     variant.forcedByCompositor = readFileSync(join(directory, 'compositor.log'), 'utf8').includes('forcing shutdown');
     // The IDE stamps each key it handles on the window's thread; the longest pause between two of them inside
     // the measured interval is the window's own account of how long it could not handle input.
-    const handled = text.split('\n').filter(line => line.includes('monochromatic_ide::native::input:')).map(line => Date.parse(line.slice(0, 27))).filter(at => at >= (measuredFrom ?? Infinity) && at <= (measuredTo ?? -Infinity));
+    const handled = keyStamps(text).filter(at => at >= (measuredFrom ?? Infinity) && at <= (measuredTo ?? -Infinity));
     variant.keysHandled = handled.length;
     variant.measured = measuredFrom === undefined || measuredTo === undefined ? null : { from: new Date(measuredFrom).toISOString(), to: new Date(measuredTo).toISOString() };
     // The interval's start and end count as edges, so a window that stops handling keys for good shows that pause too.
