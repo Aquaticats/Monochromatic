@@ -237,18 +237,18 @@ Visible diagnostic themes in the human run:
 
 ## Suggested resume plan
 
-1. Run `git status --short` and protect any unrelated human changes.
-2. Fix failing packages in small batches with targeted package lint after each batch.
-   Start with the plugin and Pi package failures already visible in `proc_14`,
-   then work through the webapp-productivity packages from the human rerun.
-3. For database calls where `prepare` returns a Promise,
-   introduce named prepared statement constants before `.get`,
-    `.all`,
-    or `.run`.
-   That should address both `TS2339` and downstream unsafe-call diagnostics.
-4. For catch blocks that intentionally tolerate a failure,
-   narrow `error: unknown` and rethrow unexpected values.
-   Do not leave unused bindings.
-5. Commit after each meaningful batch with explicit pathspecs.
-6. Rerun `mise run lint` only after targeted failures pass,
-   because the root fanout is large and currently reports many independent packages.
+1.  Run `git status --short` and protect any unrelated human changes.
+2.  Fix failing packages in small batches with targeted package lint after each batch.
+    Start with the plugin and Pi package failures already visible in `proc_14`,
+    then work through the webapp-productivity packages from the human rerun.
+3.  For database calls where `prepare` returns a Promise,
+    introduce named prepared statement constants before `.get`,
+     `.all`,
+     or `.run`.
+    That should address both `TS2339` and downstream unsafe-call diagnostics.
+4.  For catch blocks that intentionally tolerate a failure,
+    narrow `error: unknown` and rethrow unexpected values.
+    Do not leave unused bindings.
+5.  Commit after each meaningful batch with explicit pathspecs.
+6.  Rerun `mise run lint` only after targeted failures pass,
+    because the root fanout is large and currently reports many independent packages.

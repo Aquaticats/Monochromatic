@@ -130,7 +130,9 @@ struct RemoveEachEntry {
 
 /// What:
 ///  Remove the entry at `entry` of the trash `inside`,
-/// found by the name and identity the manifest recorded.
+/// found by the name and identity the manifest recorded,
+/// and at the lowest
+///  I/O priority Linux offers.
 /// Why:
 ///   One body removes one entry,
 /// so the job of the pool,
@@ -138,15 +140,25 @@ struct RemoveEachEntry {
 ///  different things or report a different reason.
 /// The reason names the entry,
 /// because the list keeps no index.
+/// The
+///  priority is lowered here,
+/// on the thread that removes,
+/// rather than on the whole service,
+/// which pushes a branch and reads the
+///  repository on its other threads meanwhile;
+/// every `unlink` of a trash starts a btrfs transaction,
+/// and hundreds of
+///  thousands of them made ten concurrent adds spend more than ten minutes each on 2026-11-10
+///  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const removal = remove(inside, trash, entryName(entry), manifest.entries[entry])
+/// const removal = withIdleIoPriority(() => remove(inside, trash, entryName(entry), manifest.entries[entry]));
 /// ```
 fn remove_one(inside: &Path, trash: &File, manifest: &TrashManifest, remove: &RemoveOne, entry: usize) -> Result<Removal, String> {
     // The reason the removal gives is the person's, word for word: the entry's name is in it already, and a prefix would say it
     //  twice.
-    return remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry]));
+    return crate::idle_io_priority::with_idle_io_priority(|| return remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry])));
 }
 
 impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {

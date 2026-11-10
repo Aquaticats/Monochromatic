@@ -25,6 +25,8 @@ import {
   reconcileCreate,
 } from './reconcile.ts';
 
+//region HTTP status and retry constants
+
 /**
  Successful GitHub Issue creation status.
  */
@@ -64,6 +66,10 @@ const TRANSIENT_RETRY_BASE_MS = 1_000;
  Base rate retry delay when headers are absent.
  */
 const RATE_RETRY_BASE_MS = 60_000;
+
+//endregion HTTP status and retry constants
+
+//region Attempt shape
 
 /**
  One create attempt response or process failure.
@@ -124,6 +130,10 @@ async function attemptCreate({
     throw error;
   }
 }
+
+//endregion Attempt shape
+
+//region Response classification
 
 /**
  Parses successful Issue create response.
@@ -189,6 +199,10 @@ function isServerError(response: IncludedResponse,): boolean {
   return (response.status >= HTTP_SERVER_ERROR_MINIMUM)
     && (response.status <= HTTP_SERVER_ERROR_MAXIMUM);
 }
+
+//endregion Response classification
+
+//region Retry delay
 
 /**
  Reads positive numeric header as milliseconds.
@@ -273,6 +287,10 @@ function rateDelay({
   }
   return RATE_RETRY_BASE_MS * (2 ** retryIndex);
 }
+
+//endregion Retry delay
+
+//region Create with retry
 
 /**
  Creates one Issue with three bounded retries and ambiguity reconciliation.
@@ -391,3 +409,5 @@ export async function createIssueWithRetry({
   }
   throw new IssuePublicationError('Issue creation retry loop reached an impossible state',);
 }
+
+//endregion Create with retry

@@ -6,6 +6,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  FIGMA_DOCUMENT_ABSENT,
+  KIWI_VALUE_ABSENT,
   KiwiDecodeError,
   createBinaryReader,
   decodeDocument,
@@ -506,6 +508,39 @@ await describe({
               schema: schemaOf({ definitions: [], },),
             },),);
             expect(refusal.message,).toContain('Message definition not found in schema',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'KIWI_VALUE_ABSENT',
+      children: [
+        it({
+          name: 'stays a symbol no other exported sentinel shares',
+          fn: async () => {
+            expect(typeof KIWI_VALUE_ABSENT,).toBe('symbol',);
+            expect(KIWI_VALUE_ABSENT,).not.toBe(FIGMA_DOCUMENT_ABSENT,);
+          },
+        },),
+        it({
+          name: 'never appears among the values a message decodes to',
+          fn: async () => {
+            const sample = structDefinition({
+              fields: [
+                field({ name: 'count', tag: 1, type: UINT_TYPE, },),
+                field({ name: 'total', tag: 2, type: UINT_TYPE, },),
+              ],
+              kind: 'MESSAGE',
+              name: 'Sample',
+            },);
+            const decoded = decodeMessage({
+              def: sample,
+              depth: 0,
+              reader: createBinaryReader({ data: new Uint8Array([0x01, 0x05, 0x02, 0x09, 0x00,],), },),
+              schema: schemaOf({ definitions: [sample,], },),
+            },);
+            expect(Object.values(decoded,),).not.toContain(KIWI_VALUE_ABSENT,);
           },
         },),
       ],

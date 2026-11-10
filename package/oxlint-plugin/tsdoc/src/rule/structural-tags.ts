@@ -40,14 +40,14 @@ import {
 export const NO_LEADING_TAG: unique symbol = Symbol('tsdoc/no-leading-tag',);
 
 /**
- Extracts the leading `@word` token from `s`, including the `@`.
+ Extracts the leading `@word` token from `line`, including the `@`.
  
  Linear scan: walks word characters starting at index 1 (just past `@`)
  and stops at the first non-word char. Mirrors `/^(@\w+)/`.
  
- @param s - line content (with the leading `*` already stripped and trimmed)
+ @param line - line content (with the leading `*` already stripped and trimmed)
  
- @returns captured tag (e.g. `'@param'`) or {@link NO_LEADING_TAG} when `s` does not begin with `@word`
+ @returns captured tag (e.g. `'@param'`) or {@link NO_LEADING_TAG} when `line` does not begin with `@word`
  
  @example
  ```ts
@@ -55,19 +55,19 @@ export const NO_LEADING_TAG: unique symbol = Symbol('tsdoc/no-leading-tag',);
  extractLeadingTag('plain text'); // NO_LEADING_TAG
  ```
  */
-export function extractLeadingTag(s: string,): string | typeof NO_LEADING_TAG {
-  if (!s.startsWith('@',))
+export function extractLeadingTag(line: string,): string | typeof NO_LEADING_TAG {
+  if (!line.startsWith('@',))
     return NO_LEADING_TAG;
   /**
    Exclusive end of the tag-name run; cursor starts at 1 to skip the leading at-sign.
    */
   const end = wordRunEnd({
-    text: s,
+    text: line,
     start: 1,
   },);
   if (end === 1)
     return NO_LEADING_TAG;
-  return s.slice(
+  return line.slice(
     0,
     end,
   );

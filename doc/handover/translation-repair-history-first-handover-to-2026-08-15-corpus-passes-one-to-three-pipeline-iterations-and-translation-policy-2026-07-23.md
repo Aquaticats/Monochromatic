@@ -499,51 +499,51 @@ architecture always held that policy files are optional and the
 system must work without them;
 these are the first policy rules
 the user has stated directly):
-1. A phrase the ORIGINAL writes in a language other than its own
-   keeps that original wording in the TRANSLATION and carries its
-   meaning ALONGSIDE,
-   side by side.
-   Never replaced by meaning
-   alone,
-   never left bare.
-   New category
-   `policy/foreign-phrase-gloss`,
-   distinct from
-   `accuracy/untranslated` because the remedy differs:
-   gloss beside
-   preserved wording,
-   not replacement.
-   Prompted by a real finding
-   on Anilovr,
-   where a critic flagged an Esperanto line as
-   `accuracy/untranslated`,
-   whose remedy would have destroyed the
-   original wording.
-2. Prioritize emotional completeness and naturalness over
-   one-to-one meaning correspondence.
-   Critics must not report
-   non-literal renderings as defects,
-   and must report flattened
-   voice,
-   warmth,
-   humor,
-   irony,
-   grief,
-   or intimacy as the new
-   `style/emotional-flattening`;
-   stiff literal renderings are
-   `style/awkward-phrasing` even when every word matches.
-   Editors
-   recast wording,
-   sentence boundaries,
-   and clause order freely to
-   serve the feeling.
-   Two guards keep this from becoming license:
-   "Naturalness never licenses dropping content" pairs with the
-   existing clause-enumeration rule,
-   and "Never introduce content
-   the ORIGINAL does not support" stays (milestone two measured
-   embellishment as a real failure mode).
+1.  A phrase the ORIGINAL writes in a language other than its own
+    keeps that original wording in the TRANSLATION and carries its
+    meaning ALONGSIDE,
+    side by side.
+    Never replaced by meaning
+    alone,
+    never left bare.
+    New category
+    `policy/foreign-phrase-gloss`,
+    distinct from
+    `accuracy/untranslated` because the remedy differs:
+    gloss beside
+    preserved wording,
+    not replacement.
+    Prompted by a real finding
+    on Anilovr,
+    where a critic flagged an Esperanto line as
+    `accuracy/untranslated`,
+    whose remedy would have destroyed the
+    original wording.
+2.  Prioritize emotional completeness and naturalness over
+    one-to-one meaning correspondence.
+    Critics must not report
+    non-literal renderings as defects,
+    and must report flattened
+    voice,
+    warmth,
+    humor,
+    irony,
+    grief,
+    or intimacy as the new
+    `style/emotional-flattening`;
+    stiff literal renderings are
+    `style/awkward-phrasing` even when every word matches.
+    Editors
+    recast wording,
+    sentence boundaries,
+    and clause order freely to
+    serve the feeling.
+    Two guards keep this from becoming license:
+    "Naturalness never licenses dropping content" pairs with the
+    existing clause-enumeration rule,
+    and "Never introduce content
+    the ORIGINAL does not support" stays (milestone two measured
+    embellishment as a real failure mode).
 Taxonomy growth is safe:
    `remapCategoryLeaf` derives owners from
 the category list,

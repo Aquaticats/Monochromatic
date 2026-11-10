@@ -3,7 +3,8 @@
 //! hold it where nothing drains it,
 //! promote it when
 //!  the producer approves it,
-//! and forget it when the producer refuses it.
+//! and forget it when the producer refuses it,
+//! and the verdict the producer refused it with.
 //! Why:
 //!   A landed commit's push must be durable before the command that owes it can be killed,
 //! and it must not run
@@ -12,6 +13,10 @@
 //! no round lists the `held` state,
 //! so
 //!  only an explicit promotion makes the item runnable.
+//!   A refusal outlives the command that made it:
+//! the queue pushes the branch and not one commit,
+//! so the next push of
+//!  that branch must still know which commits it may not publish.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -82,24 +87,151 @@ pub fn promote(work_dir: &Path, id: &str) -> bool {
 pub const BLOCKED: &str = "blocked";
 
 /// What:
+///  One commit a post-commit gate kept local,
+/// the branch it landed on,
+/// and the words of the verdict.
+/// Why:
+///   The record's name carries the commit and a digest of the branch,
+/// and a digest cannot be read back:
+/// the automatic push
+///  and every command's notice need the branch itself and the reason
+/// the gate gave,
+/// so both are written beside the
+///  verdict.
+///   A record of an earlier release holds no reason;
+/// `reason` is empty then and the lines that name it fall back to
+///  naming only the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BlockedVerdict = { branchRef: string; commit: string; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlockedVerdict {
+    /// The branch reference the blocked commit landed on.
+    pub branch_ref: String,
+    /// The commit the gate kept local.
+    pub commit: String,
+    /// What the gate said,
+    /// as one line,
+    /// or empty for a record an earlier release wrote.
+    pub reason: String,
+}
+
+/// What:
 ///  Says durably that the gate of this commit kept it local,
+/// with the words of the verdict,
 /// and gives the held record up.
 /// Why:
 ///   `forget_the_push` alone leaves no trace of the verdict,
 /// so a later recovery of the same batch would hold the push again
 ///  and publish a commit the gate refused.
+///   The verdict keeps the branch and the reason as well,
+/// because the automatic push must stop before this commit and every
+///  command must say why,
+/// and a digest of the branch is not the branch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// block(workDir, id) // write `blocked/<id>`, hold nothing
+/// block(workDir, item, reason) // write `blocked/<id>` with the branch and the words, hold nothing
 /// ```
-pub fn block(work_dir: &Path, id: &str) {
+pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) {
+    let id: String = item.id();
     if create_private_directory_all(state_directory(work_dir, BLOCKED).as_path()).is_err() {
         crate::service_error!("the blocked verdict of the push record {id} cannot be kept");
         return;
     }
-    let _written: std::io::Result<()> = write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id).as_path(), b"blocked\n");
-    forget_held(work_dir, id);
+    let record: String = blocked_record(item.branch_ref.as_str(), item.oid.as_str(), reason);
+    let _written: std::io::Result<()> = write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id.as_str()).as_path(), record.as_bytes());
+    forget_held(work_dir, id.as_str());
+}
+
+/// What:
+///  The one JSON line of a blocked verdict.
+/// Why:
+///   The branch and the words hold no character the record's own reader cannot read back,
+/// and JSON escapes the ones they
+///  might hold,
+/// so a branch name with a line feed and a message with a quote both survive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// JSON.stringify({ v: 1, branch, commit, reason }) + '\n'
+/// ```
+fn blocked_record(branch_ref: &str, commit: &str, reason: &str) -> String {
+    let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    fields.insert(String::from("v"), serde_json::Value::from(1));
+    for (name, text) in [("branch", branch_ref), ("commit", commit), ("reason", reason)] {
+        fields.insert(String::from(name), serde_json::Value::from(text));
+    }
+    return format!("{}\n", serde_json::Value::Object(fields));
+}
+
+/// What:
+///  Every verdict this worktree's queue kept,
+/// in name order,
+/// each naming its branch,
+/// its commit and the gate's words.
+/// Why:
+///   The records are the only statement of a verdict,
+/// so the automatic push and every command's notice read them here rather than
+///  remembering anything.
+/// A record that cannot be read is still a verdict on a commit the gate refused,
+/// so it is
+///  named without its branch and words:
+/// silence would let that commit be published.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// blockedVerdicts(workDir) // one entry per file in `blocked`, oldest name first
+/// ```
+pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
+    let blocked: PathBuf = state_directory(work_dir, BLOCKED);
+    let Ok(listing) = std::fs::read_dir(blocked.as_path()) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        entries.push((name, entry.path()));
+    }
+    entries.sort();
+    let mut verdicts: Vec<BlockedVerdict> = Vec::new();
+    for (name, path) in entries {
+        let commit: String = match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
+            Some(object) => object.to_owned(),
+            None => continue,
+        };
+        // A record that cannot be read is still a verdict on a commit the gate refused, so it keeps the commit and says nothing more.
+        let read: Option<BlockedVerdict> = match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => blocked_verdict_of(text.as_str(), commit.as_str()),
+            Err(_unreadable) => None,
+        };
+        verdicts.push(read.unwrap_or(BlockedVerdict { branch_ref: String::new(), commit, reason: String::new() }));
+    }
+    return verdicts;
+}
+
+/// What:
+///  The verdict one record's text holds,
+/// or nothing when it is not one.
+/// Why:
+///   A record an earlier release wrote holds the word `blocked` alone,
+/// which names no branch and no words;
+/// the caller
+///  then keeps the commit and says only what the name holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parse = (text, commit) => { try { const held = JSON.parse(text); return { branchRef: held.branch, commit, reason: held.reason }; } catch { return undefined; } };
+/// ```
+fn blocked_verdict_of(text: &str, commit: &str) -> Option<BlockedVerdict> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    return Some(BlockedVerdict {
+        branch_ref: value.get("branch").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned(),
+        commit: commit.to_owned(),
+        reason: value.get("reason").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned(),
+    });
 }
 
 /// Whether the gate of this commit kept it local.

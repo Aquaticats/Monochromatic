@@ -255,21 +255,21 @@ Landed on 2026-10-10 as a fast-forward to merge `b111c0ca39`,
 pushed.
 The order that avoided a window in which commits failed:
 
-1. Built the wrapper's `dist` in the branch worktree from the branch tree
-   (`mise run //package/git-policy/cli:build:js:node`).
-   The installed wrapper runs the repository's `dist`,
-   whose old Markdown policy runs the deleted CLI,
-   so it had to be replaced
-   at the same moment the deletion landed.
-2. Committed two files other sessions had left uncommitted in the main checkout
-   (`pnpm-lock.yaml`,
-   `package/config/pnpr/config.yaml`),
-   with the user's approval,
-   because the fast-forward touched both.
-3. Fast-forwarded `main`,
-   copied the built `dist` over the live one by rename,
-   ran `git cli-git trust --yes`
-   for the changed `cli-git.config.ts` (the user approved this on 2026-10-10) and ran the pinned tool install.
+1.  Built the wrapper's `dist` in the branch worktree from the branch tree
+    (`mise run //package/git-policy/cli:build:js:node`).
+    The installed wrapper runs the repository's `dist`,
+    whose old Markdown policy runs the deleted CLI,
+    so it had to be replaced
+    at the same moment the deletion landed.
+2.  Committed two files other sessions had left uncommitted in the main checkout
+    (`pnpm-lock.yaml`,
+    `package/config/pnpr/config.yaml`),
+    with the user's approval,
+    because the fast-forward touched both.
+3.  Fast-forwarded `main`,
+    copied the built `dist` over the live one by rename,
+    ran `git cli-git trust --yes`
+    for the changed `cli-git.config.ts` (the user approved this on 2026-10-10) and ran the pinned tool install.
 
 The user approved the trust step.
 Commits made on the branch used `--no-enforce-markdown/autofix` while the installed wrapper still ran the deleted CLI.

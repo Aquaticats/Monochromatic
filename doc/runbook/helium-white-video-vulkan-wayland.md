@@ -63,29 +63,29 @@ Record the current values of these entries if the previous configuration must be
 Status:
 TODO
 
-1. Press **Ctrl+L**.
-   Helium selects the current address.
-2. Type `chrome://flags/#enable-vulkan`.
-   The address bar contains `chrome://flags/#enable-vulkan`.
-3. Press **Enter**.
-   The **Vulkan** entry appears highlighted.
-4. Open the dropdown beside **Vulkan**.
-   The dropdown displays **Default**,
-    **Enabled**,
-    and **Disabled**.
-5. Select **Default**.
-   **Vulkan** displays **Default**,
-    and the **Relaunch** button appears.
-6. Press **Ctrl+L**.
-   Helium selects the flags address.
-7. Type `chrome://flags/#skia-graphite`.
-   The address bar contains `chrome://flags/#skia-graphite`.
-8. Press **Enter**.
-   The **Skia Graphite** entry appears highlighted.
-9. Open the dropdown beside **Skia Graphite**.
-   The dropdown displays **Default**,
-    **Enabled**,
-    and **Disabled**.
+1.  Press **Ctrl+L**.
+    Helium selects the current address.
+2.  Type `chrome://flags/#enable-vulkan`.
+    The address bar contains `chrome://flags/#enable-vulkan`.
+3.  Press **Enter**.
+    The **Vulkan** entry appears highlighted.
+4.  Open the dropdown beside **Vulkan**.
+    The dropdown displays **Default**,
+     **Enabled**,
+     and **Disabled**.
+5.  Select **Default**.
+    **Vulkan** displays **Default**,
+     and the **Relaunch** button appears.
+6.  Press **Ctrl+L**.
+    Helium selects the flags address.
+7.  Type `chrome://flags/#skia-graphite`.
+    The address bar contains `chrome://flags/#skia-graphite`.
+8.  Press **Enter**.
+    The **Skia Graphite** entry appears highlighted.
+9.  Open the dropdown beside **Skia Graphite**.
+    The dropdown displays **Default**,
+     **Enabled**,
+     and **Disabled**.
 10. Select **Enabled**.
     **Skia Graphite** displays **Enabled**.
 11. Press **Ctrl+L**.

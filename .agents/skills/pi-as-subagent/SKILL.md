@@ -86,7 +86,39 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
-Audits and reviews sit outside that limit and use another model.
+A run on another provider's account is outside it.
+The owner on 2026-11-10:
+"Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+The owner the same day:
+"You can use -flex postfix on neuralwatt models.
+They have their own separate pool of 22 slots.
+They're around 100% slower than standard in practice."
+So `neuralwatt/deepseek-v4.1-flash-flex` is a pool of its own.
+Picking all three pools,
+standard Neuralwatt,
+flex and `opencode-go`,
+the owner wrote:
+"In practice,
+opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
+so prefer neuralwatt."
+New runs fill standard Neuralwatt,
+then flex with twice the wall clock,
+then `opencode-go`.
+Audits and reviews sit outside that limit and use other models.
+Reviews of a change run on Kimi K3.1 Pro alone,
+and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
+rules `KRV` and `LHZ` in `AGENTS.md`,
+from the owner's "Kimi alone" and "Both side by side (Recommended)"
+after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Kimi runs through Pi on Synthetic,
+under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
+and the trial caught none,
+so rerun a finding's reproduction before believing it,
+and have its brief forbid `ps` with `args`,
+the one channel through which the trial's runs saw other runs' names.
+
+Small GPT audits also sit outside the limit.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
 Those don't count within the 20 limit."
@@ -102,11 +134,7 @@ The command is rule `XVW` in `AGENTS.md`.
 The owner then limited those runs:
 "Keep GPT runs small.
 GPT models cannot be trusted on any long horizon work."
-and moved the long ones:
-"Use Claude Sonnet on long horizon reviews and audits."
-That holds in every harness,
-Pi included:
-rule `LHZ` in `AGENTS.md`.
+
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
@@ -185,7 +213,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
-      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
+      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
       --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
@@ -280,6 +308,12 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     fix anything wrong with further commits,
     regenerate anything `file-enforcer` owns,
     and merge a worktree's branch into `main`.
+    The owner wrote "I don't think you'd need to rerun the same lints or tests another agent did, do you?":
+    read which suites the agent's report names instead of running them again.
+    After merging `main` into the branch,
+    run only the compile or type check,
+    which is what the agent could not have run on the combined tree,
+    and skip that too when `main` was already in the branch.
 
 ## Protocol
 
