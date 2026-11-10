@@ -51,7 +51,7 @@ use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest};
+use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -168,24 +168,57 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let mode: u32 = root_metadata.mode() & 0o7777;
     // The wrapper's last write into the stage is done, so the record of the object it made now names the instant after
     // which nothing of the wrapper's is in that folder: everything born later is somebody else's, and keeps it.
+    // What a snapshot of the main checkout set aside is handed to the commit service once the worktree is in place, and the add
+    //  does not wait for it. Nothing is set aside for a linked worktree.
+    let pending: Option<PendingTrash> = trash.map(|manifest: TrashManifest| return PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet });
     crate::worktree_snapshot::record_made_of_the_stage(source, stage, *made);
     let exchange_entered: bool = begin_step("exchange");
     let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
     end_step(exchange_entered);
     let placed: ObjectId = exchange_outcome?;
+    // The trash stands in the published worktree from here, so its record is written now, before this rung returns: a command
+    //  killed after the swap leaves a trash a service will empty, where a manifest that lived only in memory left one nothing
+    //  would ever name.
+    let handed_later: Option<PendingTrash> = pending.and_then(record_before_the_rung_returns);
     let settle_displaced_entered: bool = begin_step("settleDisplaced");
     let settle_displaced_outcome = settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice());
     end_step(settle_displaced_entered);
     for note in settle_displaced_outcome {
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
-    // What a snapshot of the main checkout set aside is handed to the commit service once the worktree is in place, and the add
-    //  does not wait for it. Nothing is set aside for a linked worktree.
-    let mut pending: Option<PendingTrash> = None;
-    if let Some(manifest) = trash {
-        pending = Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, quiet: plan.quiet });
+    return Ok(Served { line: target.line, placed, trash: handed_later });
+}
+
+/// What:
+///  Write the trash's record now that the worktree holding it is published,
+/// and answer what the hand-over still owes,
+///  which is the same trash when the record is written.
+/// Why:
+///   The record is what outlives the command,
+/// so it is written before the rung returns,
+/// and a command killed after
+///  the swap leaves a trash the service empties.
+/// A record that cannot be written is a trash nothing will ever empty,
+/// and the add
+///  pays the emptying itself in that case,
+/// which no ordinary add reaches;
+/// a trash that then stays is reported with its path
+///  and the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordBeforeTheRungReturns = (pending) => { try { recordTheTrash(pending); return pending; } catch (reason) { warn(reason); deleteTrash(pending); return undefined; } };
+/// ```
+fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
+    let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
+    if let Err(reason) = record_the_trash(&pending) {
+        warn(TAG, format!("monochromatic-git-policy-cli: the record of the trash {} could not be written ({reason}), so this add empties it before it returns", shown.display()).as_str());
+        if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
+            warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
+        }
+        return None;
     }
-    return Ok(Served { line: target.line, placed, trash: pending });
+    return Some(pending);
 }
 
 /// What:

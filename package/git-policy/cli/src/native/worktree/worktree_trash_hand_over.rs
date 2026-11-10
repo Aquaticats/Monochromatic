@@ -113,6 +113,63 @@ pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, noti
 }
 
 /// What:
+///  The record of one trash:
+/// the worktree that holds it,
+/// the repository's common directory whose service empties it,
+/// and what the
+///  leave-out made and moved.
+/// Why:
+///   The record and the wake name the same directory,
+/// so the two must not be built in two places;
+/// the path goes in as
+///  its bytes as well as its text (`path_bytes_in_records.rs`),
+/// so a worktree whose path is not text is named like any
+///  other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const trashItem = (trash) => ({ kind: 'trash', repository: trash.destination, gitDir: trash.commonDir, ref: TRASH_REFERENCE, oid: trash.manifest.name, parent: encodeManifest(trash.manifest) });
+/// ```
+fn trash_item(trash: &PendingTrash) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Trash,
+        repository: trash.destination.clone(),
+        git_dir: trash.common_dir.clone(),
+        branch_ref: String::from(TRASH_REFERENCE),
+        oid: trash.manifest.name.clone(),
+        parent: trash.manifest.encode(),
+        created: now_iso(),
+        tries: 0,
+    };
+}
+
+/// What:
+///  Write this trash as a durable work item now,
+/// and answer the reason it could not be written.
+/// Why:
+///   The record is what outlives the command,
+/// so it is written the moment its trash stands in the published worktree,
+///  before the add does anything else:
+/// a command killed after that leaves a record a service empties,
+/// where a manifest that
+///  lived only in the add's memory left a trash nothing would ever empty.
+/// Writing it twice is one record:
+/// the queue's id
+///  is the trash's name,
+/// so a second write finds the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordTheTrash(trash) // enqueue(workDir(trash.commonDir), trashItem(trash))
+/// ```
+pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
+    return match enqueue(work_directory(trash.common_dir.as_path()).as_path(), &trash_item(trash)) {
+        Ok(_added) => Ok(()),
+        Err(reason) => Err(reason),
+    };
+}
+
+/// What:
 ///  `hand_over_to_the_service` with the route finder and the provisioner injected,
 /// so a control reaches no
 ///  service and no session bus.
@@ -127,27 +184,11 @@ pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, noti
 /// handOverWith({ context, trash, notices, reach });
 /// ```
 pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
-    // A path that is not text is left to the emptying here: the wake message to the service still spells a Git directory as
-    //  text, so a record alone cannot reach it.
-    let (Some(repository), Some(common_dir_text)) = (trash.destination.to_str(), trash.common_dir.to_str()) else {
-        debug(TAG, format!("{} or the repository's common directory is not valid UTF-8, so no work item can name it", trash.destination.display()).as_str());
-        return Err(stays_words(trash, "the path of the worktree is not valid UTF-8, so no work item can name it", None));
-    };
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Trash,
-        repository: PathBuf::from(repository),
-        git_dir: PathBuf::from(common_dir_text),
-        branch_ref: String::from(TRASH_REFERENCE),
-        oid: trash.manifest.name.clone(),
-        parent: trash.manifest.encode(),
-        created: now_iso(),
-        tries: 0,
-    };
-    if let Err(reason) = enqueue(work_directory(trash.common_dir.as_path()).as_path(), &item) {
+    if let Err(reason) = record_the_trash(trash) {
         debug(TAG, format!("the work item could not be written: {reason}").as_str());
         return Err(stays_words(trash, format!("the work item could not be written: {reason}").as_str(), None));
     }
-    let record: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), PENDING).join(item.id());
+    let record: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), PENDING).join(trash_item(trash).id());
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
@@ -189,6 +230,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
         Err(why) => Err(stays_words(trash, why.as_str(), Some(record.as_path()))),
     };
 }
+
 
 /// What:
 ///  The line that tells the person what became of the directories the add set aside.

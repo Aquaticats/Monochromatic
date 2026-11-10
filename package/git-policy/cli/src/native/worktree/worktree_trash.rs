@@ -43,7 +43,7 @@ use crate::worktree_copy_prune::Prune;
 use crate::worktree_snapshot_source::SnapshotSource;
 pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, TrashLeft, delete_trash, delete_trash_awaiting, empty_trash, name_unaccounted_trash};
 pub use crate::worktree_trash_exclude_line::{TRASH_EXCLUDE_LINE, ensure_trash_is_excluded};
-pub use crate::worktree_trash_hand_over::{Reach, hand_over_to_the_service, hand_over_with};
+pub use crate::worktree_trash_hand_over::{Reach, hand_over_to_the_service, hand_over_with, record_the_trash};
 pub use crate::worktree_trash_dispose_awaiting::empty_trash_awaiting;
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use crate::worktree_trash_remove::remove_tree_beneath;
