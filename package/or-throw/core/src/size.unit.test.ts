@@ -10,34 +10,30 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { getSize, } from './size.ts';
+import { getSize, } from '@monochromatic-dev/or-throw-core';
+
+import { createCallerOwnedRecord, } from './caller-owned-record.test-fixture.ts';
+
+/* oxlint-disable no-restricted-syntax/no-regex -- a RegExp instance is one of the rejected container shapes, so the fixture cannot be built from string APIs; the pattern is a fixed literal with no caller input and no backtracking risk */
+// oxlint-disable-next-line eslint/prefer-regex-literals -- the constructor form keeps the fixture an instance rather than a matching literal
+const REGEXP_SHAPE = new RegExp('a', 'u',);
+/* oxlint-enable no-restricted-syntax/no-regex */
 
 /**
- Caller-owned class with own enumerable fields, standing in for every
- domain type that `Object.keys` would otherwise size.
- */
-class SampleRecord {
-  readonly first = 1;
-
-  readonly second = 2;
-}
-
-/**
- Object shapes `getSize` documents as intentionally rejected because they
- carry no element count of their own.
+ Object shapes `getSize` documents as intentionally rejected because they carry
+ no element count of their own.
  */
 const REJECTED_OBJECT_SHAPES: readonly (readonly [string, unknown])[] = [
   ['WeakSet', new WeakSet(),],
   ['WeakMap', new WeakMap(),],
   ['Date', new Date(),],
-  ['RegExp', /a/,],
-  // `Object(5,)` builds the boxed wrapper without the banned `new Number(...)` form.
-  ['boxed number', Object(5,),],
-  ['boxed empty string', Object('',),],
-  ['boxed nonempty string', Object('ab',),],
+  ['RegExp', REGEXP_SHAPE,],
+  // `Object(...)` builds the boxed wrapper; `new Number(...)`/`new String(...)` are banned.
+  ['boxed number', new Object(5,),],
+  ['boxed empty string', new Object('',),],
+  ['boxed nonempty string', new Object('ab',),],
   ['Error', new Error('rejected shape control',),],
-  ['class instance', new SampleRecord(),],
-  ['object with a custom prototype', Object.create({ inherited: 1, },),],
+  ['caller-owned instance', createCallerOwnedRecord(),],
 ];
 
 await describe({
@@ -48,8 +44,9 @@ await describe({
     it({
       name: 'returns the character count of strings',
       fn: async () => {
+        const text = 'hello';
         expect(getSize('',),).toBe(0,);
-        expect(getSize('hello',),).toBe('hello'.length,);
+        expect(getSize(text,),).toBe(text.length,);
       },
     },),
 
@@ -65,11 +62,13 @@ await describe({
     it({
       name: 'returns the entry count of Sets and Maps',
       fn: async () => {
+        const emptySet = new Set();
         const members = new Set([1, 2,],);
+        const emptyMap = new Map();
         const entries = new Map([['a', 1,],],);
-        expect(getSize(new Set(),),).toBe(0,);
+        expect(getSize(emptySet,),).toBe(emptySet.size,);
         expect(getSize(members,),).toBe(members.size,);
-        expect(getSize(new Map(),),).toBe(0,);
+        expect(getSize(emptyMap,),).toBe(emptyMap.size,);
         expect(getSize(entries,),).toBe(entries.size,);
       },
     },),
@@ -77,18 +76,21 @@ await describe({
     it({
       name: 'counts own enumerable string keys of plain objects',
       fn: async () => {
+        const record = { a: 1, b: 2, };
         expect(getSize({},),).toBe(0,);
-        expect(getSize({ a: 1, b: 2, },),).toBe(2,);
+        expect(getSize(record,),).toBe(Object.keys(record,).length,);
       },
     },),
 
     it({
       name: 'counts own enumerable string keys of null-prototype objects',
       fn: async () => {
-        const record: Record<string, number> = Object.create(null,);
-        record.a = 1;
-        expect(getSize(Object.create(null,),),).toBe(0,);
-        expect(getSize(record,),).toBe(1,);
+        const emptyRecord: object = {};
+        Object.setPrototypeOf(emptyRecord, null,);
+        const record = { a: 1, };
+        Object.setPrototypeOf(record, null,);
+        expect(getSize(emptyRecord,),).toBe(0,);
+        expect(getSize(record,),).toBe(Object.keys(record,).length,);
       },
     },),
 

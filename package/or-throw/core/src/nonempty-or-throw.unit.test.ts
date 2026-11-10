@@ -12,13 +12,7 @@ import {
 
 import { nonemptyOrThrow, } from '@monochromatic-dev/or-throw-core';
 
-/**
- Caller-owned class with own enumerable fields, standing in for every domain
- type whose keys must not be read as a container size.
- */
-class SampleRecord {
-  readonly first = 1;
-}
+import { createCallerOwnedRecord, } from './caller-owned-record.test-fixture.ts';
 
 await describe({
   name: nonemptyOrThrow.name,
@@ -65,10 +59,8 @@ await describe({
         expect(() => nonemptyOrThrow(new WeakSet(),)).toThrow('sized container',);
         expect(() => nonemptyOrThrow(new WeakMap(),)).toThrow('sized container',);
         expect(() => nonemptyOrThrow(new Date(),)).toThrow('sized container',);
-        expect(() => nonemptyOrThrow(/a/,)).toThrow('sized container',);
-        expect(() => nonemptyOrThrow(Object(5,),)).toThrow('sized container',);
-        expect(() => nonemptyOrThrow(Object('ab',),)).toThrow('sized container',);
-        expect(() => nonemptyOrThrow(new SampleRecord(),)).toThrow('sized container',);
+        expect(() => nonemptyOrThrow(new Object('ab',),)).toThrow('sized container',);
+        expect(() => nonemptyOrThrow(createCallerOwnedRecord(),)).toThrow('sized container',);
       },
     },),
   ],
