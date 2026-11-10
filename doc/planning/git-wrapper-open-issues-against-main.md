@@ -1124,7 +1124,7 @@ Why:
   the claim no longer holds on `main`.
  `doc/troubleshooting/git-policy-auto-push-reconciliation.md` was rebuilt in `6de0037d96`,
   one of the commits merge `5ac11cf09e` brought in.
-  Its second-level headings are the seven the skill requires,
+  Its title and six second-level headings are the seven sections the skill requires,
  `Symptom`,
  `Root cause`,
  `Verification`,
@@ -1145,7 +1145,7 @@ Why:
   the claim no longer holds on `main`.
  `doc/troubleshooting/git-policy-shadow-lfs.md` was rebuilt in `7d9121d810`,
   one of the commits merge `5ac11cf09e` brought in.
-  It carries the seven required headings,
+  It carries the title and all six required sections,
   its `Root cause` walks the chain to the read-only `.git/lfs` and the absent `tmp` subdirectory,
   and `Reading the observation as an unidentified boundary failure` now sits under `What does not work`,
   so the two records no longer disagree about whether the cause is known.
@@ -1166,7 +1166,7 @@ Why:
   so the second incident is one pointer now rather than a section after the remedy,
   and the file no longer duplicates that record or contradicts its verdict,
   and the claim in the issue's title is gone.
- Its headings are still not the seven the skill requires:
+ Its title and headings are still not the seven sections the skill requires:
   it has `Symptom`,
  `Root cause`,
  `Verification` and `Remedy and ownership`,
