@@ -28,10 +28,13 @@ extends = "format:oxlint"
 [tasks."lint:types"]
 extends = "lint:types"
 
-[tasks.test]
-description = "Run unit tests for every numeric-format category"
-run = "node src/self.unit.test.ts"
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["build"]
 
-[tasks.buildAndTest]
-description = "Build the neutral bundle, then run unit tests against the built dist"
-run = ["mise run build", "mise run test"]
+# The suite spans one file per numeric category. Each imports the bare package name, so
+# the neutral bundle the build writes has to exist first; the root unit glob runs these
+# same files for callers who never ask for this package task.
+[tasks.test]
+description = "Run every numeric-format unit test file against the built neutral bundle"
+run = "mise run test:unit"
