@@ -1,4 +1,5 @@
 import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ChatCompletionResponse,
   CompletionUsage,
@@ -265,6 +266,15 @@ export function parseVerdict(result: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' {
  */
 export async function analyze(sets: readonly CaptureSet[],): Promise<string> {
   /**
+   Analysis logger: the module holds one logging entry point, so its own name tags both the module
+   and the function boundary.
+   */
+  const l = tagged({
+    l: log,
+    tag: analyze.name,
+  },);
+
+  /**
    Capture sets trimmed to {@link MAX_CAPTURE_SETS} so prompt size stays bounded.
    */
   const capped = sets.slice(
@@ -374,8 +384,8 @@ export async function analyze(sets: readonly CaptureSet[],): Promise<string> {
     completion_tokens,
   } = data.usage;
 
-  log.debug(
-    `[analyze] ${prompt_tokens} prompt + ${completion_tokens} completion tokens, ${elapsed}s`,
+  l.debug(
+    `${prompt_tokens} prompt + ${completion_tokens} completion tokens, ${elapsed}s`,
   );
   /**
    First completion choice; treated as the canonical response since `n=1`.

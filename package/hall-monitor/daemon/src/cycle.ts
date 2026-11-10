@@ -1,5 +1,6 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   analyze,
@@ -59,10 +60,19 @@ const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow
  ```
  */
 export async function cycle(): Promise<void> {
+  /**
+   Cycle logger: the module holds one entry point, so its own name tags both the module and the
+   function boundary.
+   */
+  const l = tagged({
+    l: log,
+    tag: cycle.name,
+  },);
+
   // Skip the entire cycle when the session is locked: no point capturing
   // a lock screen, and it avoids waking the GPU for inference.
   if (await isScreenLocked()) {
-    log.debug('[cycle] Screen is locked: skipping cycle',);
+    l.debug('Screen is locked: skipping cycle',);
     return;
   }
 
@@ -70,7 +80,7 @@ export async function cycle(): Promise<void> {
    Capture-cycle timestamp; reused for both the log line and the buffered capture set.
    */
   const ts = Date.now();
-  log.debug(`[${new Date(ts,).toLocaleTimeString()}] Starting capture cycle...`,);
+  l.debug(`Starting capture cycle at ${new Date(ts,).toLocaleTimeString()}`,);
 
   try {
     /**
@@ -84,11 +94,11 @@ export async function cycle(): Promise<void> {
     // If the webcam image is mostly black the privacy cover is probably down;
     // skip analysis so the user isn't penalised while away.
     if (await isBlackFrame(webcam,)) {
-      log.debug('[cycle] Webcam image is black (cover down?), skipping cycle',);
+      l.debug('Webcam image is black (cover down?), skipping cycle',);
       return;
     }
-    log.debug(
-      `[capture] Screenshot: ${
+    l.debug(
+      `Screenshot: ${
         (screenshot.length
           / BYTES_PER_KIB).toFixed(0,)
       }KiB, Webcam: ${(webcam.length
@@ -104,7 +114,7 @@ export async function cycle(): Promise<void> {
      Recent capture sets snapshot fed to the LLM; includes the just-stored entry.
      */
     const sets = getRecent();
-    log.debug(`[memory] ${sets.length} capture set(s) in buffer`,);
+    l.debug(`${sets.length} capture set(s) in buffer`,);
 
     await startLlama();
     /**
@@ -131,8 +141,8 @@ export async function cycle(): Promise<void> {
     },);
     state.decisions = filledWindow;
 
-    log.info(`[report] ${result}`,);
-    log.info(`[verdict] ${verdict} (streak: ${streakCount}/${DECISION_WINDOW_SIZE})`,);
+    l.info(`LLM response: ${result}`,);
+    l.info(`Verdict: ${verdict} (streak: ${streakCount}/${DECISION_WINDOW_SIZE})`,);
 
     if (notified) {
       // The window is reset only after the user has actually been told, so a failed notification keeps the
@@ -148,7 +158,7 @@ export async function cycle(): Promise<void> {
     const message = caughtValueText(err,);
     // One event, one record: the journal sink is the only channel, so a second
     // console write here filed every failure twice.
-    log.error(`[error] ${message}`,);
+    l.error(`Cycle failed: ${message}`,);
     try {
       await stopLlama();
     }
@@ -157,7 +167,7 @@ export async function cycle(): Promise<void> {
        Cleanup failure string for best-effort GPU process shutdown logging.
        */
       const cleanupMessage = caughtValueText(cleanupError,);
-      log.debug(`[cleanup] ${cleanupMessage}`,);
+      l.debug(`Cleanup after the failed cycle also failed: ${cleanupMessage}`,);
     }
   }
 }

@@ -69,7 +69,7 @@ const LOG_LEVELS: readonly Level[] = [
  */
 const RECORD: LogRecord = {
   level: 'info',
-  message: '[cycle] capture complete',
+  message: 'capture complete',
   timestamp: 0,
 };
 

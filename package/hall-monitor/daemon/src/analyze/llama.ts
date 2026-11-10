@@ -4,9 +4,19 @@ import {
 } from 'node:child_process';
 import { setTimeout, } from 'node:timers/promises';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
 import { log, } from '../infra/syslog.ts';
+
+/**
+ Module logger: the journal identity this package files every record under, then this module's
+ subsystem tag.
+ */
+const l = tagged({
+  l: log,
+  tag: 'llama',
+},);
 
 // LFM2.5-VL-1.6B: smaller/faster than Qwen3-VL-2B while still vision-capable
 /**
@@ -71,7 +81,14 @@ export async function start(): Promise<void> {
   if (state.server)
     return;
 
-  log.debug('[llama] Starting llama-server via distrobox...',);
+  /**
+   Start logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: start.name,
+  },);
+  fnLog.debug('Starting llama-server via distrobox...',);
   state.server = cpSpawn(
     'distrobox',
     [
@@ -104,7 +121,7 @@ export async function start(): Promise<void> {
   );
 
   await waitForHealth();
-  log.debug('[llama] Server ready.',);
+  fnLog.debug('Server ready.',);
 }
 
 /**
@@ -120,7 +137,14 @@ export async function start(): Promise<void> {
 export async function stop(): Promise<void> {
   if (!state.server)
     return;
-  log.debug('[llama] Stopping llama-server...',);
+  /**
+   Stop logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: stop.name,
+  },);
+  fnLog.debug('Stopping llama-server...',);
 
   // Kill the actual llama-server process by name since distrobox wraps it
   try {
@@ -169,7 +193,7 @@ export async function stop(): Promise<void> {
 
   // Wait briefly for port to free up
   await setTimeout(PORT_FREE_DELAY_MS,);
-  log.debug('[llama] Server stopped.',);
+  fnLog.debug('Server stopped.',);
 }
 
 /**

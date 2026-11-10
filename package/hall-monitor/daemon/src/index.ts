@@ -4,6 +4,7 @@ import {
   MS_PER_SECOND,
   SECONDS_PER_MINUTE,
 } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { forceCleanup, } from './analyze/llama.ts';
 import { cycle, } from './cycle.ts';
@@ -63,7 +64,14 @@ const JOURNAL_FLUSH_ON_EXIT: AsyncDisposable = {
  llama-server processes via {@link forceCleanup}.
  */
 async function shutdown(): Promise<void> {
-  log.debug('Shutting down...',);
+  /**
+   Shutdown logger, tagged with this function's name so the last records of a run name their origin.
+   */
+  const l = tagged({
+    l: log,
+    tag: shutdown.name,
+  },);
+  l.debug('Shutting down...',);
   state.running = false;
   closeLock();
   /**
@@ -103,15 +111,22 @@ async function main(): Promise<void> {
       await killExisting();
     else {
       throw new Error(
-        '[hall-monitor] Another instance is already running. Use --kill-existing to replace it.',
+        'Another instance is already running. Use --kill-existing to replace it.',
       );
     }
   }
 
-  log.debug(
+  /**
+   Startup logger, tagged with this function's name.
+   */
+  const l = tagged({
+    l: log,
+    tag: main.name,
+  },);
+  l.debug(
     'Starting: capturing every 5 minutes, retaining last 10 minutes',
   );
-  log.debug(`PID ${process.pid}, lock: abstract socket`,);
+  l.debug(`PID ${process.pid}, lock: abstract socket`,);
 
   await cycle();
 
