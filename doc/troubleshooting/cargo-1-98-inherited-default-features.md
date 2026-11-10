@@ -6,6 +6,10 @@ when built with cargo 1.98.0,
 the toolchain in the `localhost/monochromatic/ide` image.
 It blocked the IDE 0.1.3 release until commit `d1477a13ba`.
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/cargo/catalog/default-features.ts` left the tree on 2026-10-31 in
+`e7b5130459`.
+
 ## Symptom
 
 `cargo metadata` (and any build) exits 101 while loading the manifest,

@@ -27,10 +27,6 @@
 #[derive(Debug)]
 pub struct RandomSourceError(pub String);
 
-/// Lowercase hexadecimal digits,
-///  the alphabet `randomUUID` prints.
-const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
-
 /// What:
 ///  Format 16 bytes as a version-4 UUID in canonical lowercase layout.
 ///       `[u8; 16]` is a fixed array of sixteen bytes.
@@ -55,9 +51,8 @@ pub fn format_uuid_v4(bytes: [u8; 16]) -> String {
         if index == 4 || index == 6 || index == 8 || index == 10 {
             text.push('-');
         }
-        // Each byte is two digits: the high nibble, then the low nibble.
-        text.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
-        text.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
+        // Each byte is two digits, from the crate's one encoder of bytes as hexadecimal (`hexadecimal_of_bytes.rs`).
+        crate::hexadecimal_of_bytes::write_hexadecimal(&mut text, *byte);
     }
     return text;
 }

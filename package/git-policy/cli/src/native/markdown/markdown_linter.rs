@@ -199,7 +199,7 @@ const ABANDONED_REASON: &str = "an earlier Markdown check in this command did no
 fn guard_failure_reason(failure: &GuardFailure) -> String {
     match failure {
         GuardFailure::Start(reason) => {
-            return format!("monochromatic-git-policy-cli could not start the thread that runs monochromatic-lint: {reason}");
+            return format!("monochromatic-git-policy-cli did not run the markdown check: {reason}");
         }
         GuardFailure::Panicked(reason) => {
             return format!(

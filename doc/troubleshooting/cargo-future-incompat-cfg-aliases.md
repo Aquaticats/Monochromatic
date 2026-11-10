@@ -11,6 +11,9 @@ Failure mode:
  Cargo reports `trailing semicolon in macro used in expression position`
 from dependency build scripts that invoke the macro.
 
+Note 2026-11-09T16:56:27-05:00:
+`package/linter/rust/Cargo.lock` left the tree on 2026-10-06 in `5bc05682ec`.
+
 ## Symptom
 
 The report names these packages:

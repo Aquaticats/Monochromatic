@@ -487,6 +487,24 @@ mod service_replay;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// A landed commit whose wrapper was killed between promoting its held push and waking the service:
+/// the next command says the push is queued,
+/// and a service that starts pushes it with no further commit.
+#[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
+mod push_queued_after_a_killed_wrapper;
+
+/// A held push whose commit a later push of the branch carried to the remote:
+/// the record is settled on Git's proof,
+/// so no command says the opposite of `git status`.
+#[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
+mod held_push_carried_by_a_later_push;
+
+/// The report a reconcile owes when it published a merge but could not move the local branch,
+/// or moved it beside uncommitted work,
+/// shown once by a later command.
+#[path = "binary_reconcile_report_shown_once_tests.rs"]
+mod reconcile_report_shown_once;
+
 /// Merge,
 /// pull's merge,
 /// cherry-pick,
@@ -602,6 +620,13 @@ mod service_sequencer;
 /// and the merge is carried forward.
 #[path = "binary_commit_during_merge_tests.rs"]
 mod commit_during_merge;
+
+/// A commit that concludes a merge,
+/// a cherry-pick or a revert,
+/// and an amend,
+/// whose branch another command moved while the commit waited.
+#[path = "binary_conclusion_on_a_moved_branch_tests.rs"]
+mod conclusion_on_a_moved_branch;
 
 /// Guard:
 /// no option of the wrapper's follows the person's `--` in any Git start,

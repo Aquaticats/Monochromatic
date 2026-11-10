@@ -13,6 +13,7 @@
 use super::{LoadRequest, PENDING, protected_request};
 use crate::frx_load::LoadedRules;
 use crate::rules_list::RulesEntry;
+use crate::runtime_cache::CacheAccess;
 use std::path::PathBuf;
 
 /// Owned fixture arguments avoid filesystem/cache side effects.
@@ -21,6 +22,7 @@ fn request() -> LoadRequest {
         entries: vec![RulesEntry { path: PathBuf::from("fixture-rules"), optional: false }],
         builtin: false,
         implicit: false,
+        access: CacheAccess::ReadWrite,
     };
 }
 

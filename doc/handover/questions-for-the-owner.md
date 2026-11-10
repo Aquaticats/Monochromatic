@@ -26,6 +26,140 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Should a commit land when a killed Git left a branch's lock behind?, asked 2026-11-09T18:30:54-05:00
+
+A Claude Sonnet audit killed `git update-ref` during a commit.
+The kill left `refs/heads/main.lock`,
+and every later commit on that branch exited 1 with a false reason
+("The branch main changed 3 times").
+Evidence:
+`~/temp/agent/sonnet-audits/commit-kills-and-concurrency/findings.md`.
+
+The branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-moved-branch` fixes the false reason.
+Such a commit now waits up to 7 s,
+then fails naming the lock and giving the exact `rm --` that clears it.
+The run measured 7,356 ms to that message.
+That is better than today,
+so it is being tested for landing whatever you pick.
+
+It does not make the commit land,
+and your rule is "Commits should never fail."
+Clearing the lock automatically needs proof that the Git holding it has ended.
+The agent's report states that the repository has no such proof for a reference lock,
+because reviews removed every rule based on a process number,
+birth time,
+emptiness or boot time as able to remove a live Git's lock.
+Your earlier pick,
+"Keep narrowed removal (Recommended)"
+(`doc/handover/cli-git-rust-implementation.md:7348-7353`),
+now has no removal to keep
+(`doc/handover/cli-git-rust-implementation.md:1022`).
+
+#### Option A: make the commit and hold it until the lock is gone
+
+The commit is written and kept on a side ref.
+The command exits 0,
+says the branch has not moved yet,
+and names the lock.
+The next command that finds the lock gone moves the branch.
+
+Pros:
+it meets "Commits should never fail."
+and removes nothing,
+and it matches what you chose for a merge behind a held `index.lock`
+(`package/git-policy/cli/SPEC.md:3320-3328`).
+
+Cons:
+it is not built and adds a mechanism to the commit path,
+the branch does not show the commit until the lock goes,
+and held commits collect if nobody removes the lock.
+
+#### Option B: keep what the branch does
+
+The commit fails after the bounded wait and names the lock and the command.
+
+Pros:
+it is built and tested,
+and nothing is hidden.
+
+Cons:
+the commit fails,
+against the rule,
+and every later commit fails until someone removes the lock.
+
+#### Option C: remove the lock once it has stood for a fixed time
+
+Pros:
+commits recover with nobody acting.
+
+Cons:
+nothing proves the holder has ended,
+so a Git stopped for longer than the limit loses its lock,
+and two Gits can then both write the branch.
+The reviews rejected rules of this kind.
+
+Ranking:
+A > B > C,
+because A alone meets the rule without deleting anything,
+and B fails honestly where C can damage a branch under a live Git.
+
+To answer,
+write A,
+B or C under this question and save.
+
+### Should the next command remove the snapshot a killed `git worktree add` left behind?, asked 2026-11-09T17:05:48-05:00
+
+A Claude Sonnet audit killed `git worktree add --detach <path>` ten times on a main checkout that is a subvolume.
+Two of those kills left a folder named `.cli-git-worktree-copy-<uuid>` beside the destination.
+Each one is a complete snapshot of the main checkout:
+`.env` and `secrets/key.pem` (mode `0600` kept),
+caches,
+`node_modules`,
+and a full copy of `.git`.
+Every later command in a linked worktree prints that the folder was left by an interrupted add and that you should remove it yourself,
+and nothing ever does.
+`package/git-policy/cli/SPEC.md:2317` says "The stage is the person's to remove".
+Removing it is a deletion,
+so this is your call.
+Evidence:
+`~/temp/agent/sonnet-audits/worktree-lifecycle/findings.md`,
+finding `F-H`.
+
+- A.
+  The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
+  and prints what it removed.
+  Pro:
+  nothing piles up,
+  and a second copy of credentials goes away by itself.
+  Con:
+  it deletes a folder without being asked,
+  so anything someone put there by hand after the kill goes with it.
+- B.
+  As A,
+  but the stage moves to the worktree's trash folder first and is emptied later.
+  Pro:
+  a mistaken reap can still be undone.
+  Con:
+  the credentials stay on disk for longer,
+  and there is one more place to clean.
+- C.
+  Keep today's rule:
+  a notice on every command,
+  and the person deletes it.
+  Pro:
+  the wrapper never deletes a folder on its own.
+  Con:
+  the snapshot and its credentials stay until someone acts,
+  and the notice repeats on every command.
+
+Ranking:
+A > B > C,
+because A clears the extra copy of credentials with proof of ownership,
+B keeps that copy around to guard against a mistake the record already rules out,
+and C leaves the problem in place.
+The same audit found small records of killed adds piling up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`;
+under A or B the same sweep would remove them.
+
 ### How should a fuzz sidecar that stops compiling get caught?, asked 2026-11-09T16:25:06-05:00
 
 The wrapper's fuzz sidecar (`package/git-policy/cli.fuzz`) stopped compiling because later wrapper changes moved the code it uses,
@@ -1563,6 +1697,11 @@ nothing here needs an answer.
   in the code a person's conflict resolution depends on.
   Both ways are recorded in `doc/planning/git-policy-cli-full-tokio.md`.
   Say "undo" to have awaited twins instead.
+  Carried out on the branch `refactor/git-policy-cli-merge-second-pass-awaited`
+  at `403254deeb`;
+  the awaited push chain stops at the branch move,
+  because the recovery of an interrupted merge still reads Git synchronously,
+  as that document's step record measures.
 - 2026-11-09T16:22:51-05:00,
   all 22 crates that declare a build profile are now covered by `file-enforcer` presets,
   with a new rule for the shape the shadow crates share (`cargo-profile-shadow`),

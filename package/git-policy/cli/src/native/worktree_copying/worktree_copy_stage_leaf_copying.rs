@@ -372,7 +372,7 @@ fn copy_leaves(
 ) -> Result<SliceCopy, WorktreeCopyError> {
     let mut last_parent: Option<PathBuf> = None;
     let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(positions.len());
-    let mut gone: Vec<String> = Vec::new();
+    let mut gone: Vec<Vec<u8>> = Vec::new();
     for at in positions {
         let Some(entry) = entries.get(*at) else { continue };
         if failed.load(Ordering::Relaxed) {
@@ -382,7 +382,7 @@ fn copy_leaves(
             stamps.push(None);
             continue;
         }
-        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
         let parent: PathBuf = parent_of(stage_path.as_path());
         if last_parent.as_ref() != Some(&parent) {
             create_private_tree(parent.as_path())?;
@@ -437,7 +437,7 @@ pub enum CopiedLeaf {
 /// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT') return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
 /// ```
 pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopyEntry, clone: fn(&std::fs::File, &std::fs::File) -> bool) -> Result<CopiedLeaf, WorktreeCopyError> {
-    let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
+    let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_slice())?;
     return match entry.kind {
         EntryKind::Directory => Ok(CopiedLeaf::Staged(None)),
         EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone) {
@@ -504,13 +504,15 @@ fn named_source_failure(source_path: &Path, what: &str, error: &WorktreeCopyErro
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SliceCopy = { stamps: (FileStamp | undefined)[]; gone: string[] };
+/// type SliceCopy = { stamps: (FileStamp | undefined)[]; gone: Uint8Array[] };
 /// ```
 struct SliceCopy {
-    /// The stamp of every position of the slice, in position order.
+    /// The stamp of every position of the slice,
+    /// in position order.
     stamps: Vec<Option<FileStamp>>,
-    /// The entries the source no longer held when their turn came.
-    gone: Vec<String>,
+    /// The entries the source no longer held when their turn came,
+    /// as the bytes of each name.
+    gone: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -524,7 +526,7 @@ struct SliceCopy {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CopiedManifest = { stamps: (FileStamp | undefined)[]; gone: string[] };
+/// type CopiedManifest = { stamps: (FileStamp | undefined)[]; gone: Uint8Array[] };
 /// ```
 pub struct CopiedManifest {
     /// The stamp of each entry,
@@ -533,8 +535,9 @@ pub struct CopiedManifest {
     /// and for every entry the source no longer held.
     pub stamps: Vec<Option<FileStamp>>,
     /// The manifest entries the source no longer held when their turn came,
-    /// in manifest order.
-    pub gone: Vec<String>,
+    /// in manifest order,
+    /// as the bytes of each name.
+    pub gone: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -663,7 +666,7 @@ async fn copy_manifest_entries_awaiting(
         if entry.kind != EntryKind::Directory {
             continue;
         }
-        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
         create_private_tree(stage_path.as_path())?;
     }
     let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];
@@ -687,7 +690,7 @@ async fn copy_manifest_entries_awaiting(
             Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a copy worker did not run ({refused})")))),
         });
     }
-    let mut gone: Vec<String> = Vec::new();
+    let mut gone: Vec<Vec<u8>> = Vec::new();
     for (range, outcome) in slices.into_iter().zip(outcomes) {
         let copied: SliceCopy = outcome?;
         // A slice writes the stamps of its own positions, so a slice that stopped early cannot shift another's.

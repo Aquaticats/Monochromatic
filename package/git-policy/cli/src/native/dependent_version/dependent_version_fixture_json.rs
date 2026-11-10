@@ -107,11 +107,7 @@ pub fn quote(value: &str) -> String {
 
 /// Bytes as a quoted lower-case hexadecimal string.
 pub fn quote_hex(bytes: &[u8]) -> String {
-    let digits: String = bytes
-        .iter()
-        .map(|byte| return format!("{byte:02x}"))
-        .collect();
-    return format!("\"{digits}\"");
+    return format!("\"{}\"", crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes));
 }
 
 /// A canonical JSON array of already canonical items.

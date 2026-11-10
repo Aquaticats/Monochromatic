@@ -104,6 +104,9 @@ pub mod commit_index;
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
 
+/// The one read of the real index that every private copy of a commit is written from.
+pub mod commit_index_bytes;
+
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 

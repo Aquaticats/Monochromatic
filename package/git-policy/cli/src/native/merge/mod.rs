@@ -37,6 +37,10 @@ pub mod merge_second_pass_tree;
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
 
+/// The files a forwarded second pass merged,
+/// staged as resolved and written to the worktree.
+pub mod merge_second_pass_worktree_install;
+
 /// What the word-level second pass will not replace:
 /// a path another command moved while it computed its merge.
 pub mod merge_second_pass_worktree_unchanged;
@@ -70,6 +74,10 @@ pub mod merge_isolation_recovery;
 
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
+
+/// Whether the recovery of an interrupted merge may write the index now,
+/// and the clearing of a lock a killed Git left.
+pub mod merge_isolation_recovery_index_lock;
 
 /// Finishing a merge from its record:
 /// the install and the branch move,
@@ -107,9 +115,13 @@ pub mod merge_isolation_report;
 pub mod merge_isolation;
 
 /// The writing half of an isolated merge:
-/// the merge tree,
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
+
+/// The merge tree of an isolated merge,
+/// computed from objects,
+/// and the word-level second pass over its conflicts.
+pub mod merge_isolation_merge_tree;
 
 /// The questions an isolated merge asks Git and the terminal.
 pub mod merge_isolation_git_reads;

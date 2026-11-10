@@ -24,8 +24,8 @@ use crate::doctor::{CheckoutViewpoint, doctor_action_with_section, doctor_failur
 /// which the doctor's report is built on.
 use crate::lazy_runtime::run_on_runtime;
 use crate::service_route::service_status;
-use crate::management_service_settle_earlier_batches::{earlier_batches_note, plan_settle_earlier_batches, state_dir_of};
-use crate::management_service_stop_units_of_removed_worktrees::{plan_stop_units_of_removed_worktrees, units_note};
+use crate::management_service_settle_earlier_batches::{plan_settle_earlier_batches};
+use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -53,6 +53,8 @@ use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
 use std::path::{Path, PathBuf};
+/// The notes the doctor's action gains on standard error at its end.
+pub use crate::management_action_notes::{with_earlier_batches_note, with_units_note};
 
 /// What:
 ///  The command word of a retired command.
@@ -364,73 +366,6 @@ fn plan_doctor(
     let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
     let noted: Action = with_units_note(batches_noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
-}
-
-/// What:
-///  The doctor's action with the note about commit service units that belong to worktrees that no longer exist.
-/// Why:
-///   Like the note about earlier batches it is informational and read-only,
-/// and a run that could not examine the repository (status 2) gets none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// withUnitsNote(action, environment)
-/// ```
-fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Action {
-    // `match` picks the exit shape and gives its report back unchanged;
-    //  `stderr: text` binds the field under a new name.
-    match action {
-        Action::Exit { code, stdout, stderr } => {
-            if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::Exit { code, stdout, stderr };
-            }
-            let note: String = units_note(environment);
-            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
-        }
-        Action::ExitBytes { code, stdout, stderr } => {
-            if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::ExitBytes { code, stdout, stderr };
-            }
-            let note: String = units_note(environment);
-            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
-        }
-        other => return other,
-    }
-}
-
-/// What:
-///  The doctor's action with the note about the batches the earlier release left open for this worktree on standard error.
-/// Why:
-///   The note is informational and read-only;
-/// it changes neither the status nor standard output,
-/// and a run that could not
-///  examine the repository (status 2) gets none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// withEarlierBatchesNote(action, globalArguments, environment, realGit)
-/// ```
-fn with_earlier_batches_note(action: Action, global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: &Path) -> Action {
-    // `match` picks the exit shape and gives its report back unchanged.
-    match action {
-        Action::Exit { code, stdout, stderr } => {
-            if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::Exit { code, stdout, stderr };
-            }
-            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
-            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
-            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
-        }
-        Action::ExitBytes { code, stdout, stderr } => {
-            if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::ExitBytes { code, stdout, stderr };
-            }
-            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
-            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
-            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
-        }
-        other => return other,
-    }
 }
 
 /// What:

@@ -1,5 +1,9 @@
 # pnpm keeps a stale `typescript@7.0.2` optional-peer instance for `valibot` after a prerelease catalog move
 
+Note 2026-11-09T16:51:44-05:00:
+`package/pi-shared/model-selection` is now `package/agent-harness-shared/model-selection`,
+moved 2026-10-20 in `b710410e81`.
+
 ## Symptom
 
 Moving the workspace catalog entry `'typescript'` from `7.0.2` to the `7.1.0-beta` prerelease

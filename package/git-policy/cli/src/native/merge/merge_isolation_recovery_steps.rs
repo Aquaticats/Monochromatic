@@ -18,7 +18,6 @@
 //! const standing = standing(change, state); // 'merged' | 'untouched' | ...
 //! ```
 
-use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
 use crate::inner_git_words::record_words;
 use crate::merge_isolation_changes::{
     Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state,
@@ -28,7 +27,7 @@ use crate::recovery_error::{RecoveryError, io_failure};
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
-pub use crate::merge_isolation_index_reading::{entry_of, index_entries, index_standings, standing_of_index};
+pub use crate::merge_isolation_index_reading::{entries_by_path, index_entries, index_standings, standing_of_index};
 pub use crate::merge_isolation_take_asides::{
     Take, TakeFailure, TakenOnDisk, finish_asides, put_back, put_back_stranded_takes, remove_empty_parents,
     restore_what_git_did_not_write, take_aside,
@@ -62,6 +61,37 @@ pub struct RecoveryPlace {
     pub common_dir: PathBuf,
     /// The Git directory of the worktree whose index recovery writes.
     pub git_dir: PathBuf,
+}
+
+/// What:
+///  The place recovery runs in when a command that started its own merge has to settle it.
+/// Why:
+///   The two directories stay apart:
+///  the worktree's own Git directory is what recovery writes through,
+///  and the repository's common one is where every worktree of it keeps what they share.
+///  A linked worktree's own Git directory lives under the main repository's `worktrees` directory,
+///  and only its `commondir` file names the repository's own
+///  (`foundation/common_directory_of_a_git_directory.rs`),
+///  so filling the common field with the worktree's directory would point every reader of it
+///  at a directory that goes away with the worktree.
+///  The context carries the invocation's common directory;
+///  one built without it still knows the worktree's Git directory,
+/// whose `commondir` names the rest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = { git, cwd: root, commonDir: context.commonDir ?? commonDirectoryOf(gitDir), gitDir };
+/// ```
+impl RecoveryPlace {
+    /// The place a settling command needs,
+    /// from its context and the two directories.
+    pub fn settling(git: &GitContext, git_dir: &Path, root: &Path) -> RecoveryPlace {
+        let common_dir: PathBuf = match git.common_dir.as_ref() {
+            Some(found) => found.clone(),
+            None => crate::common_directory_of_a_git_directory::common_directory_of(git_dir),
+        };
+        return RecoveryPlace { git: GitContext { global_prefix: Vec::new(), ..git.clone() }, cwd: root.to_path_buf(), common_dir, git_dir: git_dir.to_path_buf() };
+    }
 }
 
 /// What recovery did for one record.
@@ -377,26 +407,6 @@ pub enum Installed {
     IndexHeld,
 }
 
-/// What:
-///  Whether the merge may be written after this wait for the index lock.
-/// Why:
-///  A wait that ended with the lock still held means the index cannot be written,
-/// and trying would fail with Git's
-///  own sentence in place of the record;
-/// leaving the record and writing nothing is safe,
-/// because the recovery is idempotent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mayInstall = (waited: IndexWait) => waited !== 'gave-up' && waited !== 'owner-gone';
-/// ```
-pub fn may_install(waited: IndexWait) -> bool {
-    return match waited {
-        IndexWait::NotHeld | IndexWait::Released(_) => true,
-        IndexWait::GaveUp(_) | IndexWait::OwnerGone(_) => false,
-    };
-}
-
 /// What the worktree held at one changed path when recovery judged it.
 ///
 /// In TS you'd write (pseudocode):
@@ -466,8 +476,18 @@ fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<Tak
 /// so the write waits for
 ///  a holder first,
 /// bounded and naming it (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 2);
-///  a lock that outlasts the bound leaves everything as it was and the record for the next command.
+/// finding 2)
+///  when part of the merge is already in the checkout;
+/// a merge with nothing of itself in the checkout does not wait at
+///  all,
+/// because the next command finishes it once the lock is free
+/// (finding 3 of the merge-and-pull audit of 2026-11-09).
+///  A lock that outlasts the bound leaves everything as it was and the record for the next command,
+/// and a lock whose PID file
+///  names a process that no longer runs is cleared on the commit service's proof of disuse,
+/// so the merge happens
+///  instead of every command exiting 2 until the person deletes the file (finding 4 of the merge-and-pull audit
+///  of 2026-11-09).
 ///   Every path that is not already at the state the change ends in is taken aside before anything is written,
 /// and
 ///  the taken file is checked against what was judged,
@@ -491,8 +511,8 @@ pub fn install_entries(
     installed_before: bool,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
-    if !may_install(waited) {
+    // Whether the index may be written now, and why not: `merge_isolation_recovery_index_lock.rs`.
+    if !crate::merge_isolation_recovery_index_lock::may_write(place.git_dir.as_path(), installed_before, out) {
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.

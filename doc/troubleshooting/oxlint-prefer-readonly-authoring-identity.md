@@ -1,5 +1,15 @@
 # Semantic readonly checks for identity-preserving policy authoring APIs
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/api/src/policy-types.ts` left the tree on 2026-10-13 in `a2b56c548c`.
+`package/git-policy/api/` is not in the tree;
+its files were deleted on 2026-10-13 in `a2b56c548c`.
+`package/git-policy/api/src/authoring.ts` left the tree on 2026-10-13 in `a2b56c548c`.
+`package/git-policy/cli/src/api/authoring.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/api/` is not in the tree;
+its files were deleted on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 Cli-git's authoring helpers preserve caller-provided declarations by identity:

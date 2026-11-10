@@ -9,6 +9,7 @@
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/llm-llm-type": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "devDependencies": {

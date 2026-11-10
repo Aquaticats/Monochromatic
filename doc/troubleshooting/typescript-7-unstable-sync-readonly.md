@@ -1,5 +1,8 @@
 # TypeScript 7 semantic lint plugins need the sync API and an internal mapped-readonly flag
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/bin.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 Code written for the TypeScript 6 compiler API cannot obtain a `Program` or `TypeChecker` from the repository's

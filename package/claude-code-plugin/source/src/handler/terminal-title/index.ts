@@ -14,7 +14,9 @@ import type { ReadonlyDeep, } from 'type-fest';
 import { open, } from 'node:fs/promises';
 
 import {
+  makeHookInputParser,
   NO_STDOUT,
+  type Parser,
   type WriterOutput,
 } from '../../runtime/handler-runtime.ts';
 import { TOOL_TITLES, } from './tool-titles.ts';
@@ -245,19 +247,12 @@ async function terminalTitleHandler(event: ReadonlyDeep<HookInput>,): Promise<Te
 /**
  Parses raw stdin as a hook event union.
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed hook event union
- 
  @example
  ```ts
  terminalTitleParser('{"hook_event_name":"Stop"}');
  ```
  */
-function terminalTitleParser(raw: string,): HookInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as HookInput;
-}
+const terminalTitleParser: Parser<HookInput> = makeHookInputParser<HookInput>();
 
 /**
  Returns {@link NO_STDOUT}; title output is written directly to `/dev/tty`.

@@ -133,6 +133,38 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
 }
 
 /// What:
+///  The identity of the stage reaches the file with the step marked after it and reads back,
+/// and a journal that records none or
+///  holds something that is not an identity answers none.
+/// Why:
+///   The rollback and the resume delete and fill that subvolume,
+/// and both judge it by this record;
+/// the identity
+///  stored in the same map as every other value is what lets one file carry all of them,
+/// it rides with the step's mark so one
+///  durable write carries both,
+/// and a value that is not an identity answers none so the callers refuse rather than
+///  guess.
+#[test]
+fn the_stage_identity_reads_back_from_the_recorded_value() {
+    let (parent, path) = journal_path("journal-stage-identity");
+    let identity = crate::fs_beneath::ObjectId { device: 0, inode: 256, birth: Some((7, 8)) };
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(journal.stage_identity(), None, "a journal that records none answers none");
+    journal.record_stage_identity(identity);
+    journal.mark("create", "done").expect("mark");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(reloaded.stage_identity(), Some(identity), "the identity is written and read back");
+    assert_eq!(reloaded.value(STAGE_ROOT), Some(identity.encode().as_str()), "it is one of the journal's values");
+    let mut not_an_identity: Journal = Journal::load(path.as_path()).expect("load");
+    not_an_identity.set_value(STAGE_ROOT, "not an identity");
+    not_an_identity.mark("verify", "done").expect("mark");
+    let after_a_foreign_value: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(after_a_foreign_value.stage_identity(), None, "a value that is not an identity answers none");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A value recorded beside a step reaches the file with that step and is read back after a reload,
 ///  and a journal of an
 ///  earlier release,

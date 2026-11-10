@@ -5,8 +5,26 @@
  Automatically sets `Content-Type: application/json` and shows a toast on error.
  */
 import { HTTP_NO_CONTENT, } from '@monochromatic-dev/const-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 
 import { showToast, } from '../component/toast-message.ts';
+
+//region Logging
+
+/**
+ Logger for this module: a failure response whose body is not JSON is reported before a generic payload is used.
+ */
+const l = tagged({
+  tag: 'done-client-api',
+  l: logger,
+},);
+
+//endregion Logging
 
 export { showToast, } from '../component/toast-message.ts';
 
@@ -89,10 +107,7 @@ export async function api<TResponse = unknown,>({
     }
     catch (errorBodyParseError: unknown) {
       // Error response body was not valid JSON; log it and use a generic payload.
-      console.error(
-        'api could not parse error response body as JSON:',
-        errorBodyParseError,
-      );
+      l.warn(`error response body is not JSON, so a generic payload is used: ${caughtValueText(errorBodyParseError,)}`,);
       error = { error: 'Request failed', };
     }
     /**

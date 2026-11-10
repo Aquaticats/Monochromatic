@@ -40,6 +40,14 @@ use std::path::{Path, PathBuf};
 /// The journal format version this code writes and reads.
 const SCHEMA: u64 = 1;
 
+/// The journal value that records the identity of the subvolume the migration made at the stage's name,
+/// as `device:inode:seconds:nanoseconds` (the birth time is `-` where the filesystem gives none).
+/// Why:
+///   It rides in the same map as the identity of the installed checkout,
+/// so one format carries every name a later
+///  command must judge before it deletes or exchanges a directory.
+pub const STAGE_ROOT: &str = "stage-root";
+
 /// The permissions of the journal:
 /// its owner reads and writes it.
 const PRIVATE_FILE_MODE: u32 = 0o600;
@@ -163,7 +171,8 @@ pub struct Journal {
     times: BTreeMap<String, i64>,
     /// Named values a step records beside its state
     /// (the identity of the subvolume the migration installed,
-    /// for one),
+    /// and of the one it made at the stage's name,
+    /// for two),
     /// kept in key order.
     values: BTreeMap<String, String>,
     /// Whether the file exists on disk.
@@ -205,6 +214,8 @@ impl Journal {
         let Some(steps) = value.get("steps").and_then(Value::as_object) else {
             return Err(broken_journal(path, "has no steps"));
         };
+        // A journal this release wrote names the stage it made in `values`; one an earlier release wrote names none, and the
+        // rollback then has only the stage's type to judge it by.
         let mut states: BTreeMap<String, String> = BTreeMap::new();
         let mut times: BTreeMap<String, i64> = BTreeMap::new();
         for (name, record) in steps {
@@ -325,6 +336,41 @@ impl Journal {
             Err(_) => 0,
         };
         self.times.insert(step.to_string(), now);
+        return self.persist();
+    }
+
+    /// What:
+    ///  Record the identity of the subvolume this migration made at the stage's name.
+    /// Why:
+    ///   The rollback deletes the stage,
+    /// and a subvolume another process puts at that name is not the one this
+    ///  migration made;
+    /// the identity recorded before anything is copied into the stage is what tells them apart.
+    ///  It reaches the file with the step marked next,
+    /// so one durable write carries the step and its identity and a
+    ///  kill cannot leave one without the other,
+    /// and the migration pays no second write of the journal on the step that
+    ///  creates the stage.
+    pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) {
+        self.set_value(STAGE_ROOT, identity.encode().as_str());
+    }
+
+    /// The identity this migration recorded for the stage,
+    /// if any;
+    /// nothing when the journal records none or holds a value that is not an identity,
+    /// which the
+    ///  callers treat the same way and refuse to destroy what they cannot name.
+    pub fn stage_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
+        return self.value(STAGE_ROOT).and_then(crate::fs_beneath::ObjectId::decode);
+    }
+
+    /// Write the journal as it stands,
+    /// through a sibling created exclusively and renamed over it.
+    fn persist(&mut self) -> Result<(), MigrateError> {
+        let now: i64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+            Err(_) => 0,
+        };
         let mut steps: Map<String, Value> = Map::new();
         for (name, recorded) in &self.states {
             let milliseconds: i64 = self.times.get(name).copied().unwrap_or(now);

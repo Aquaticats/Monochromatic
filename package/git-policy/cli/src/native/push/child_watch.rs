@@ -623,7 +623,7 @@ pub fn output_watched_within_for_a_stop(
             }
             if let Err(error) = waiter {
                 watch.end();
-                return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
+                return Err(std::io::Error::other(format!("{waiting_for} was started but {}", crate::scoped_start::refused_thread_sentence("wait for it", &error))));
             }
             match receiver.recv_timeout(after.saturating_add(extra)) {
                 Ok(finished) => match finished {

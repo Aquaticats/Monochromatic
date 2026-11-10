@@ -132,7 +132,17 @@ Read-only commands,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
-  Concurrent commits from several worktrees or sessions therefore never overwrite each other.
+  The commit that concludes a merge,
+   a cherry-pick or a revert is made again the same way on the branch as it is now,
+   with the parents its state names,
+   and an amend whose branch moved becomes a new commit on top of the branch,
+  with the amended message and authorship,
+   leaving the commit it named and the commit that moved the branch as they are,
+  and a line says what it became
+   (`SPEC.md`,
+  "Retry after a moved branch").
+  Concurrent commits from several worktrees or sessions therefore never overwrite each other,
+   and none waits for another.
   The wrapper takes no lock of its own:
   a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
@@ -2174,13 +2184,37 @@ says it has changed nothing yet,
 names the lock and the holder with its proof
  (an open descriptor or Git's PID file),
 and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
-No lock is ever removed.
+No lock is ever removed by the wait itself.
+A lock whose Git lock PID file names a process that no longer runs is released by nobody,
+ so the merge clears it on the commit service's proof of disuse
+ (an empty lock with no marker,
+no Git lock PID file naming a process this table has,
+and no process a complete scan finds holding it)
+and goes on;
+a lock that proof does not cover stays where it is,
+and so does one whose content is not empty.
 Native Git,
 measured in a fixture,
 never waits:
 a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
+
+#### A merge saved for a later command
+
+When the lock is still held after the bound,
+or a lock the proof does not cover holds it at once,
+the merge saves its commit on `refs/cli-git/kept/<n>`,
+records that the checkout is still to be finished,
+says so and exits 0.
+Nothing of that merge is in the checkout,
+so no later command waits for the lock:
+ a command that meets the record says where the merge is saved and goes on at once,
+and the first command run once the lock is free finishes the merge.
+A merge that had already begun its checkout update is the other case:
+a command that meets one waits for the lock,
+ bounded,
+because only finishing that merge lets the command read the checkout.
 
 #### A branch that moved while the merge was prepared
 
@@ -3222,6 +3256,40 @@ on the blocking pool and never on the landing thread:
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
 
+A commit does not write that cache itself.
+When the cache holds no compiled form of the rules text a command needs,
+the command asks the service of that worktree to compile and publish it,
+with the same one-way `warm` message a worktree-moving command sends,
+and loads the rules without writing:
+the rules it compiled are the ones it scans with,
+and the artifact becomes the service's write rather than the command's.
+The question is asked only when the cache holds no artifact for that text,
+which one `stat` answers,
+so a warm cache pays nothing beside the read it always made.
+
+Two cases keep the write on the command's path,
+because nothing else can make it:
+
+- a machine where no service runs for that worktree,
+  which is the first command after a boot or a fresh home;
+- a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+  rules files,
+  since the service's own environment carries no such variable and it would compile the configuration's files
+  (or the default appendix) instead.
+  A configuration that names files wins over the variable,
+  so a repository with both lists leaves them to the service.
+
+The artifact itself is published without a file or directory sync:
+a reader validates its magic,
+scanner version,
+platform,
+source digest,
+payload digest and engine digest,
+so a copy a crash tore is rejected and recompiled,
+and forcing the bytes to the device made the writer wait for a file that is derived data
+(6.7 s and 3.0 s of `fsync` in one measured commit,
+and 1.5 s in its `rename`).
+
 ## Reading the repository in process
 
 The wrapper starts real Git as rarely as it can.
@@ -3533,6 +3601,13 @@ A directory `cli-git-transactions` in the worktree's Git directory belongs to an
 A merge in progress keeps a one-line record in `monochromatic-git-policy-cli-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
 Do not remove it by hand unless a command says so.
+The record is written and its directory flushed before Git starts,
+and its removal is not flushed:
+a record a power loss brings back names a merge the branch already holds,
+which the next command drops as already landed,
+or one whose branch moved,
+which it settles as it would settle any such record.
+The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
