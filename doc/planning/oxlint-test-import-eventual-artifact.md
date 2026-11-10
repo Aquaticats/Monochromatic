@@ -271,23 +271,35 @@ so dropping that rule changes nothing it reports
 ### Migration progress, worktree `fix/test-import-remaining-sites-1651`, 2026-11-10T08:20:00-05:00
 
 The sweep opened at 178 sites across 108 files in 22 packages,
-and closed at 55 sites across 34 files in 5 packages,
-after 123 sites in 16 packages were converted.
+and closed at 45 sites across 24 files in 4 packages,
+after 123 sites were converted on this worktree and 10 more by
+`1afe6af368`'s `oxlint-plugin/tsdoc` conversion,
+which reached `main` while this worktree ran.
 The 178 is 177 from the sweep plus one the crash pass below found:
 `package/vmsync/cli/src/import.unit.test.ts`.
 
+Five of the 123 were re-expressed in a shape from `main`,
+which converted the same package while this worktree ran:
+`vmsync/cli` now keeps one library barrel at `src/index.ts`,
+its own `src/cli.ts` bin,
+two entries built by `perEntryNodeConfig`,
+and suites that import `../dist/final/node/index.mjs`,
+so the `testing.ts` entry this worktree had written there is gone,
+and the lifecycle test's regex is replaced by `main`'s index-scan helper
+rather than only suppressed.
+
 Packages converted,
-each green on every check:
+each green on every check after the merge:
 `lint:oxlint`,
 `lint:types`
-and `test:unit`.
+and `test:unit`,
+with `build` too for each one:
 `fy/cli`,
 `numeric-format/core`,
 `llm/llm-type`,
 `agent-harness-shared/text-scan`,
 `agent-harness-shared/usage-projection`,
 `agent-harness-shared/session-discovery`,
-`pi-plugin/terminal-title`,
 `pi-plugin/statusline`,
 `pi-plugin/spawn`,
 `pi-plugin/current-time-context`,
@@ -297,23 +309,34 @@ and `test:unit`.
 `git-clone-size/cli`,
 and `watch-restart/cli`.
 
-Three more have their sites converted and stop one check short of green,
-each on debt that predates this work.
-`pi-plugin/thinking-default` meets two pi 1.5.1 type errors in its extension entry:
-`Model<any>` against `ModelWithId` under `exactOptionalPropertyTypes`,
-and the `pi.on` `model_select` overload.
-`watch-restart/cli` meets one `consistent-function-scoping` warning in its shutdown
-handler,
-whose hoist exposes `unicorn/no-process-exit`,
-a rule this repository enables repo-wide with no per-file allowance.
-`test-harness/core` carries 8 errors and 17 warnings in `src/scratch-root.ts` and its
-suite:
-four declarations without TSDoc,
-`mkdirSync` and `realpathSync` against the no-sync rule,
-two `try`/`finally` blocks against the no-try-finally rule,
-and stylistic findings.
-Its scratch root is a synchronous API 258 files import,
-so making it async is a published-API change rather than a lint fix.
+Four more have their sites converted and stop one check short of green,
+each on a lint failure that the same command reports on `main` unchanged,
+with fewer findings here than there:
+
+-   `pi-plugin/thinking-default` keeps two pi 1.5.1 type errors in its extension entry:
+    `Model<any>` against `ModelWithId` under `exactOptionalPropertyTypes`,
+    and the `pi.on` `model_select` overload.
+    `main` reports those plus the six `test-import` sites and one exec-result field this
+    worktree fixed.
+-   `pi-plugin/terminal-title` keeps one `prefer-readonly-parameter-types` error in
+    `src/index.ts`,
+     a file this worktree does not touch;
+    `main` reports it plus one `test-import` site.
+-   `watch-restart/cli` keeps one `consistent-function-scoping` warning in its shutdown
+    handler,
+    whose hoist exposes `unicorn/no-process-exit`,
+    a rule this repository enables repo-wide with no per-file allowance.
+    `main` reports two of those plus two `no-deprecated` warnings and 35 `test-import`
+    sites.
+-   `test-harness/core` keeps 8 errors and 17 warnings in `src/scratch-root.ts` and its
+    suite:
+    four declarations without TSDoc,
+    `mkdirSync` and `realpathSync` against the no-sync rule,
+    two `try`/`finally` blocks against the no-try-finally rule,
+    and stylistic findings.
+    Its scratch root is a synchronous API 258 files import,
+    so making it async is a published-API change rather than a lint fix.
+    `main` reports the same list plus two `test-import` sites.
 
 Three shapes covered every case,
 in the order to prefer them.
@@ -338,22 +361,23 @@ or `depends = ["build:js:node"]` for a site whose build is expensive.
 ### Measuring this rule is not one command
 
 A sweep can silently lose findings.
-On the run above,
-20 files produced `Error running JS plugin` after the TypeScript semantic bridge
+On the run that closed this worktree,
+23 files produced `Error running JS plugin` after the TypeScript semantic bridge
 retired,
-and one of them,
+and on the earlier run one of them,
 `package/vmsync/cli/src/import.unit.test.ts`,
 hid a real site that a single-file run reports.
 The crashed files must be re-run on their own,
 and a count that skips that pass is a lower bound rather than the count.
 `OXLINT_THREADS=1` cut the run time and did not remove the crashes.
+The two Rust packages whose scripts the rule reports crash in a single-file run too,
+and both are test-free build scripts,
+so no finding hides there.
 
-### Remaining sites, 2026-11-10T08:55:00-05:00
+### Remaining sites, 2026-11-10T09:40:00-05:00
 
 -   `dependency-catalog/cli-cube` 21
 -   `i18n-compose/core` 17
--   `oxlint-plugin/tsdoc` 10,
-     carried by the unmerged branch `fix/hyperscript-and-oxlint-plugin-lint`
 -   `ide/app` 6
 -   `terminal/app` 1
 
