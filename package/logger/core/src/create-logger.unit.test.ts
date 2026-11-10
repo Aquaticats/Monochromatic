@@ -1100,6 +1100,36 @@ await describe({
             },),
 
             it({
+              name: 'a probe that rejects with the deadline text is retired as a failure, not reported as a deadline',
+              timeout: DEADLINE_TEST_TIMEOUT_MS,
+              fn: async ({ sinon, },) => {
+                const warn = sinon.stub(
+                  console,
+                  'warn',
+                );
+                const spoofed = recordingSink({
+                  name: 'spoofed backend',
+                  verify: function verifyRejectsWithDeadlineText(): Promise<boolean> {
+                    // Exactly the text the timeout utility builds, which a
+                    // message match cannot tell apart from a deadline.
+                    throw new Error(`Timed out after ${String(SHORT_DEADLINE_MS,)}ms: sink 0 verify`,);
+                  },
+                },);
+                const { initPromise, } = createLogger({
+                  sinks: [spoofed.sink,],
+                  verifyTimeoutMs: SHORT_DEADLINE_MS,
+                },);
+                await initPromise;
+
+                // A backend that throws is a failure, whatever its words.
+                expect(verifyDeadlineBreadcrumbs({ warn, },),)
+                  .toHaveLength(0,);
+                expect(verifyFailureBreadcrumbs({ warn, },),)
+                  .toHaveLength(1,);
+              },
+            },),
+
+            it({
               name: 'a verify that answers after the time limit still receives the records kept for it',
               timeout: DEADLINE_TEST_TIMEOUT_MS,
               fn: async ({ sinon, },) => {

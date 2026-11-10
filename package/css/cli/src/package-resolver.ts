@@ -12,11 +12,12 @@ import {
 } from '@monochromatic-dev/fs-path-core/ts';
 import {
   existsSync,
-  readCssFileSync,
+  readTextFileSync,
 } from './fs.ts';
+import { CssPackageManifestError, } from './errors.ts';
 import { splitPackageSpecifier, } from './specifier.ts';
 
-//region Package Resolution
+//region Sentinels and package lookup
 
 /**
  Sentinel returned by {@link findPackageDir} when no `node_modules/<pkg>` exists.
@@ -99,10 +100,16 @@ export function findPackageDir({
 
 /**
  Reads and parses a package.json from the given directory.
+ Absence is decided before reading, so a manifest that exists but cannot be
+ read or parsed is reported as such instead of being mistaken for one the
+ package does not have.
  
  @param packageDir - Absolute path to the package directory
  
- @returns Parsed package.json, or {@link PACKAGE_JSON_ABSENT} when missing or unparseable
+ @returns Parsed package.json, or {@link PACKAGE_JSON_ABSENT} when the directory holds no manifest
+ 
+ @throws CssPackageManifestError when a manifest exists but cannot be read or
+ parsed; it names the manifest path and carries the underlying failure
  
  @example
  ```ts
@@ -121,25 +128,226 @@ export function readPackageJson(
       'package.json',
     ],
   );
+  if (!existsSync(packageJsonPath,))
+    return PACKAGE_JSON_ABSENT;
+
   try {
     /**
      Raw JSON text
      */
-    const raw = readCssFileSync(packageJsonPath,);
+    const raw = readTextFileSync(packageJsonPath,);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns unknown; package.json shape is Record<string, unknown>
     return JSON.parse(raw,) as Record<string, unknown>;
   }
   catch (error: unknown) {
-    if (Error.isError(error,))
-      return PACKAGE_JSON_ABSENT;
-
-    throw error;
+    throw new CssPackageManifestError({
+      manifestPath: packageJsonPath,
+      cause: error,
+    },);
   }
 }
 
+//endregion Sentinels and package lookup
+
+//region Exports field resolution
+
 /**
- Resolves a subpath using package.json `exports` field.
- Supports simple string mappings and condition objects with `style`, `import`, `default` keys.
+ Condition keys honored inside an exports entry, in the order they win.
+ `style` comes first because a stylesheet consumer asked for CSS; `import`
+ and `default` are Node's own fallbacks.
+ */
+const EXPORT_CONDITION_KEYS = [
+  'style',
+  'import',
+  'default',
+] as const;
+
+/**
+ Sentinel returned by {@link matchSubpathPattern} when a pattern key does not
+ describe the requested subpath.
+ */
+const NO_PATTERN_MATCH: unique symbol = Symbol('exports pattern did not match the subpath',);
+
+/**
+ Normalizes an `exports` value into a map keyed by subpath.
+ Node allows the field to be a string, an array of alternatives, or a
+ condition object at the top level; all three describe the `.` subpath, so
+ they are wrapped in one rather than rejected.
+ 
+ @param exports - The `exports` field value from package.json
+ 
+ @returns Subpath-keyed map, or {@link NO_EXPORT_MATCH} when the value cannot
+ describe any subpath
+ */
+function toSubpathMap(exports: unknown,): Record<string, unknown> | typeof NO_EXPORT_MATCH {
+  if (((typeof exports) === 'string') || Array.isArray(exports,))
+    return { '.': exports, };
+
+  if (((typeof exports) !== 'object') || (exports === null))
+    return NO_EXPORT_MATCH;
+
+  /**
+   Exports object, keyed either by subpath or by condition.
+   */
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from object to Record for property access
+  const exportsRecord = exports as Record<string, unknown>;
+  /**
+   Whether the object is keyed by subpath rather than by condition name.
+   */
+  const isSubpathMap = Object.keys(exportsRecord,)
+    .some(function startsWithDot(key,) {
+      return key.startsWith('.',);
+    },);
+  return isSubpathMap ? exportsRecord : { '.': exportsRecord, };
+}
+
+/**
+ Resolves one exports entry to a path: a string stands for itself, an array
+ lists alternatives in preference order, and an object is a condition map
+ read in {@link EXPORT_CONDITION_KEYS} order.
+ Substitutes the pattern wildcard into the chosen target, as Node does for
+ `./*` style keys.
+ 
+ @param target - Exports entry or nested condition value
+ 
+ @param wildcard - Text a pattern key captured, empty for an exact key
+ 
+ @returns Relative path, or {@link NO_EXPORT_MATCH} when no alternative yields one
+ */
+function resolveExportTarget({
+  target,
+  wildcard,
+}: {
+  readonly target: unknown;
+  readonly wildcard: string;
+},): string | typeof NO_EXPORT_MATCH {
+  if ((typeof target) === 'string')
+    return target.replaceAll(
+      '*',
+      wildcard,
+    );
+
+  if (Array.isArray(target,)) {
+    for (const alternative of target) {
+      /**
+       First alternative that resolves wins; Node treats the rest as
+       unreachable for a resolvable specifier.
+       */
+      const resolvedAlternative = resolveExportTarget({
+        target: alternative,
+        wildcard,
+      },);
+      if (resolvedAlternative !== NO_EXPORT_MATCH)
+        return resolvedAlternative;
+    }
+    return NO_EXPORT_MATCH;
+  }
+
+  if (((typeof target) === 'object') && (target !== null)) {
+    /**
+     Condition map for this entry
+     */
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from object to Record for condition access
+    const conditions = target as Record<string, unknown>;
+    for (const key of EXPORT_CONDITION_KEYS) {
+      /**
+       Value the condition selects, absent when the manifest omits the key.
+       */
+      const conditionTarget = conditions[key];
+      if (conditionTarget === undefined)
+        continue;
+
+      /**
+       Path the condition selects, when it selects one.
+       */
+      const resolvedCondition = resolveExportTarget({
+        target: conditionTarget,
+        wildcard,
+      },);
+      if (resolvedCondition !== NO_EXPORT_MATCH)
+        return resolvedCondition;
+    }
+  }
+
+  return NO_EXPORT_MATCH;
+}
+
+/**
+ Text a `*` in an exports key captures for a requested subpath.
+ 
+ @param pattern - Exports key holding one `*`
+ 
+ @param subpath - Requested subpath
+ 
+ @returns Captured text, or {@link NO_PATTERN_MATCH} when the key does not
+ describe the subpath
+ */
+function matchSubpathPattern({
+  pattern,
+  subpath,
+}: {
+  readonly pattern: string;
+  readonly subpath: string;
+},): string | typeof NO_PATTERN_MATCH {
+  /**
+   Index of the single wildcard a pattern key may hold.
+   */
+  const starIndex = pattern.indexOf('*',);
+  if (starIndex === (-1))
+    return NO_PATTERN_MATCH;
+
+  /**
+   Key text the subpath must start with.
+   */
+  const prefix = pattern.slice(
+    0,
+    starIndex,
+  );
+  /**
+   Key text the subpath must end with.
+   */
+  const suffix = pattern.slice(starIndex + 1,);
+  if ((!subpath.startsWith(prefix,)) || (!subpath.endsWith(suffix,)))
+    return NO_PATTERN_MATCH;
+  if (subpath.length < (prefix.length + suffix.length))
+    return NO_PATTERN_MATCH;
+
+  return subpath.slice(
+    prefix.length,
+    subpath.length - suffix.length,
+  );
+}
+
+/**
+ Pattern keys of an exports map, most specific first: Node prefers the
+ pattern whose prefix before the wildcard is longest, then the longest key.
+ 
+ @param subpathMap - Exports map keyed by subpath
+ 
+ @returns Pattern keys in resolution order
+ */
+function patternKeysBySpecificity(
+  subpathMap: Readonly<Record<string, unknown>>,
+): string[] {
+  return Object.keys(subpathMap,)
+    .filter(function holdsWildcard(key,) {
+      return key.includes('*',);
+    },)
+    .toSorted(function mostSpecificFirst(
+      left,
+      right,
+    ) {
+      return (right.indexOf('*',) - left.indexOf('*',))
+        || (right.length - left.length);
+    },);
+}
+
+/**
+ Resolves a subpath using package.json `exports` field, following Node's
+ resolution shapes: a top-level string or array describes `.`, exact subpath
+ keys win outright, `*` keys match by longest prefix, and a value may be a
+ string, an array of alternatives, or nested condition objects read in
+ `style` then `import` then `default` order.
  
  @param exports - The `exports` field value from package.json
  
@@ -162,50 +370,62 @@ export function resolveExports({
   readonly exports: unknown;
   readonly subpath: string;
 },): string | typeof NO_EXPORT_MATCH {
-  if (((typeof exports) !== 'object') || (exports === null))
+  /**
+   Exports map keyed by subpath, or the sentinel when the field shape cannot
+   describe any subpath.
+   */
+  const subpathMap = toSubpathMap(exports,);
+  if (subpathMap === NO_EXPORT_MATCH)
     return NO_EXPORT_MATCH;
 
   /**
-   Exports object keyed by subpath pattern
+   Value the exact subpath key carries, absent when the map has no such key.
    */
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from object to Record for property access
-  const exportsMap = exports as Record<string, unknown>;
-  /**
-   Value for the requested subpath
-   */
-  const entry = exportsMap[subpath];
+  const exactTarget = subpathMap[subpath];
+  // An exact key states its own answer; no pattern may override it.
+  if (exactTarget !== undefined) {
+    return resolveExportTarget({
+      target: exactTarget,
+      wildcard: '',
+    },);
+  }
 
-  if ((typeof entry) === 'string')
-    return entry;
-
-  // Condition object: check style -> import -> default
-  if (((typeof entry) === 'object') && (entry !== null)) {
+  for (const pattern of patternKeysBySpecificity(subpathMap,)) {
     /**
-     Condition map for this subpath
+     Text the pattern captures for this subpath.
      */
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from object to Record for condition access
-    const conditions = entry as Record<string, unknown>;
-    for (const key of [
-      'style',
-      'import',
-      'default',
-    ]) {
-      if ((typeof conditions[key]) === 'string')
-        return conditions[key];
-    }
+    const wildcard = matchSubpathPattern({
+      pattern,
+      subpath,
+    },);
+    if (wildcard === NO_PATTERN_MATCH)
+      continue;
+
+    /**
+     Path the matching pattern selects.
+     */
+    const resolved = resolveExportTarget({
+      target: subpathMap[pattern],
+      wildcard,
+    },);
+    if (resolved !== NO_EXPORT_MATCH)
+      return resolved;
   }
 
   return NO_EXPORT_MATCH;
 }
 
+//endregion Exports field resolution
+
+//region Resolution pipeline
+
 /**
  Resolves a package specifier to an absolute file path.
- Tries `exports` field first (skipping past {@link NO_EXPORT_MATCH}), then
- falls back to `style`/`main` fields, then to the direct file path within
- the package. Throws when {@link findPackageDir} reports
- {@link PACKAGE_NOT_FOUND} or every fallback is exhausted; a
- {@link PACKAGE_JSON_ABSENT} manifest just skips the `exports`/`style`/`main`
- lookups and falls through to the direct file path.
+ A package that declares `exports` answers from that map alone: a subpath the
+ map does not match, or matches to a missing file, throws instead of reaching
+ into the package tree for something the author did not export. Without an
+ `exports` field the `style`/`main` fields answer a bare `.` reference, and a
+ direct file path answers any other subpath.
  
  @param specifier - Full package specifier (e.g. `\@scope/pkg/index.css`)
  
@@ -213,7 +433,7 @@ export function resolveExports({
  
  @returns Absolute resolved path
  
- @throws When the package or file cannot be found
+ @throws When the package, the exported subpath, or the file cannot be found
  
  @example
  ```ts
@@ -251,29 +471,36 @@ export function resolvePackage({
   const packageJson = readPackageJson(packageDir,);
 
   if (packageJson !== PACKAGE_JSON_ABSENT) {
-    // Try exports field
     if (packageJson.exports
       !== undefined) {
       /**
-       Resolved path from exports map
+       Path the exports map names for this subpath.
        */
       const resolved = resolveExports({
         exports: packageJson.exports,
         subpath,
       },);
-      if (resolved !== NO_EXPORT_MATCH) {
-        /**
-         Absolute path from exports resolution
-         */
-        const absolutePath = resolve(
-          [
-            packageDir,
-            resolved,
-          ],
+      if (resolved === NO_EXPORT_MATCH) {
+        throw new Error(
+          `Cannot resolve '${specifier}' from '${fromDir}': package '${packageName}' does not export subpath '${subpath}'`,
         );
-        if (existsSync(absolutePath,))
-          return absolutePath;
       }
+
+      /**
+       Absolute path from exports resolution
+       */
+      const absolutePath = resolve(
+        [
+          packageDir,
+          resolved,
+        ],
+      );
+      if (!existsSync(absolutePath,)) {
+        throw new Error(
+          `Cannot resolve '${specifier}' from '${fromDir}': package '${packageName}' exports subpath '${subpath}' as '${resolved}', which does not exist`,
+        );
+      }
+      return absolutePath;
     }
 
     // For bare package reference (subpath is '.'), try style/main fields
@@ -303,7 +530,8 @@ export function resolvePackage({
     }
   }
 
-  // Direct file path fallback: resolve subpath relative to package directory
+  // Direct file path fallback: reachable only for a package without an
+  // exports map, which answered style/main above or has no manifest at all.
   if (subpath !== '.') {
     // subpath starts with './': strip it for join
     /**
@@ -324,8 +552,8 @@ export function resolvePackage({
   }
 
   throw new Error(
-    `Cannot resolve '${specifier}' from '${fromDir}': no matching export, style/main field, or direct file in '${packageDir}'`,
+    `Cannot resolve '${specifier}' from '${fromDir}': no style/main field or direct file in '${packageDir}'`,
   );
 }
 
-//endregion Package Resolution
+//endregion Resolution pipeline

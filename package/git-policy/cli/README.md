@@ -2181,13 +2181,37 @@ says it has changed nothing yet,
 names the lock and the holder with its proof
  (an open descriptor or Git's PID file),
 and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
-No lock is ever removed.
+No lock is ever removed by the wait itself.
+A lock whose Git lock PID file names a process that no longer runs is released by nobody,
+ so the merge clears it on the commit service's proof of disuse
+ (an empty lock with no marker,
+no Git lock PID file naming a process this table has,
+and no process a complete scan finds holding it)
+and goes on;
+a lock that proof does not cover stays where it is,
+and so does one whose content is not empty.
 Native Git,
 measured in a fixture,
 never waits:
 a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
+
+#### A merge saved for a later command
+
+When the lock is still held after the bound,
+or a lock the proof does not cover holds it at once,
+the merge saves its commit on `refs/cli-git/kept/<n>`,
+records that the checkout is still to be finished,
+says so and exits 0.
+Nothing of that merge is in the checkout,
+so no later command waits for the lock:
+ a command that meets the record says where the merge is saved and goes on at once,
+and the first command run once the lock is free finishes the merge.
+A merge that had already begun its checkout update is the other case:
+a command that meets one waits for the lock,
+ bounded,
+because only finishing that merge lets the command read the checkout.
 
 #### A branch that moved while the merge was prepared
 
@@ -3574,6 +3598,13 @@ A directory `cli-git-transactions` in the worktree's Git directory belongs to an
 A merge in progress keeps a one-line record in `monochromatic-git-policy-cli-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
 Do not remove it by hand unless a command says so.
+The record is written and its directory flushed before Git starts,
+and its removal is not flushed:
+a record a power loss brings back names a merge the branch already holds,
+which the next command drops as already landed,
+or one whose branch moved,
+which it settles as it would settle any such record.
+The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
