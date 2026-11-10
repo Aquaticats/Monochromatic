@@ -52,50 +52,6 @@ Ranking:
 A > B,
 because the migration is mechanical and a second owner is the defect the issue names.
 
-### Which package owns the small helpers that many packages copy?, asked 2026-11-10T01:52:36-05:00
-
-Four small shapes are written out again in package after package,
-and open issues ask for one owner each:
-`isRecord` (issue 1671,
-58 declarations),
-the absence sentinel `unique symbol` (issue 1669,
-76 declarations by the issue's count),
-a named error class setting `this.name` (issue 1668 and its duplicate 666,
-413 sites),
-and `isErrnoException` (issue 1670,
-six implementations).
-Nothing can move until a home is named.
-The families can each take a different answer,
-so "A for `isRecord`,
-C for the sentinel" is valid.
-
-#### A: one new package for these helpers
-
-For example `import { isRecord, isErrnoException } from '@monochromatic-dev/type-guard-core'`.
-Every copy goes,
-and the one definition has a name that says what it holds.
-It adds a package and a workspace dependency to dozens of packages.
-
-#### B: the existing `or-throw` package
-
-`package/or-throw/core` already holds small checks that many packages import,
-so no package is added.
-Its name stops describing its contents,
-because `isRecord` throws nothing.
-
-#### C: keep the copies under one written rule
-
-A written convention fixes the name and spelling of each shape,
-and each copy stays.
-No dependency is added and no package changes shape,
-and build-isolated packages need no exception.
-A defect in the shape still has to be fixed at every copy.
-
-Ranking:
-A > B > C,
-because A gives every family an honest name where B bends one,
-and B still removes the copies that C leaves.
-
 ### What does deleting a JSONC array index past the end do?, asked 2026-11-10T01:52:36-05:00
 
 Issue 1409 asks that get,
@@ -417,102 +373,6 @@ Ranking:
 A > B,
 because the invariant is yours and the rename is mechanical.
 
-### Should agents work on packages under `package-paused`?, asked 2026-11-09T20:45:42-05:00
-
-An agent spent a run fixing issues 1482 to 1484 in `package-paused/pi-plugin/morph-compact`,
-because those issues name its old path and the issue sweep filter did not know it had moved.
-The fixes landed as `5340d97ff1`.
-
-Nothing under `package-paused/*/*` can be reached the normal way:
-it is in neither the `packages` list of `pnpm-workspace.yaml` nor `config_roots` in `mise.toml`,
-while `doc/howto/deprecate-package.md` says `package-deprecated/*/*` is in both.
-So `mise run //package-paused/pi-plugin/morph-compact:test:unit` answers `no task ... found`,
-`pnpm install` does not repair its links,
-and `package/config/oxlint/src/config-base.ts:79` ignores the folder,
-so `lint:oxlint` answers `No files found to lint`.
-The agent relinked eight `node_modules` entries by hand to run the tests.
-
-#### A: a pause means no work
-
-The issue sweep leaves out anything whose code now lives under `package-paused`,
-and those issues wait for an unpause.
-
-- Pro:
-  a paused package costs nothing,
-  which is what pausing it asked for.
-- Con:
-  defects in paused code stay open.
-
-#### B: add `package-paused/*/*` to both lists
-
-`mise run //package-paused/pi-plugin/morph-compact:test:unit` then works from the root,
-and `pnpm install` keeps its links.
-
-- Pro:
-  a paused package can be tested when someone does touch it.
-- Con:
-  every install and every task lookup pays for packages nobody is working on.
-- Con:
-  `lint:oxlint` still ignores the folder unless the shared config changes,
-  and changing that needs your approval.
-
-#### C: move morph-compact back to `package/`
-
-- Pro:
-  every tool works on it again.
-- Con:
-  undoes the pause of commit `64046360d2`.
-
-Ranking:
-A > B > C,
-because A is what a pause already means and costs nothing,
-while B adds a standing cost to keep paused code runnable;
-and B keeps the pause,
-which C undoes.
-
-### Where should a shared named error class live? (issues 1668 and 666), asked 2026-11-09T20:45:42-05:00
-
-Custom errors set their own name by hand:
-`git ls-files -- 'package/**' | xargs rg -n "this\.name = "` found 413 such lines in 318 files.
-Issue 666 records the open choice:
-"Decision needed:
-the home package for NamedError".
-Nothing can be derived from until a class exists,
-so issue 1668 is stopped on this.
-
-A concrete example of either home:
-`class ConfParseError extends NamedError {}` replaces a constructor whose only job is `this.name = 'ConfParseError'`.
-
-#### A: a new package holding only that class
-
-- Pro:
-  no dependencies of its own,
-  so every package can depend on it without pulling anything else in.
-- Con:
-  one more package to publish and keep.
-
-#### B: the existing package of throw helpers
-
-Issue 666 names it `module/throws`.
-
-- Pro:
-  no new package.
-- Con:
-  every error class would depend on the helpers beside it.
-
-#### C: leave the hand-written lines
-
-- Pro:
-  no migration across 318 files.
-- Con:
-  the lines stay,
-  and each new error class copies them.
-
-Ranking:
-A > B > C,
-because A costs one small package and spares every consumer a wider dependency,
-and B still removes the lines that C keeps.
-
 ### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
 
 Issue 1540:
@@ -544,54 +404,6 @@ Ranking:
 A > B,
 because the colour carries the verdict,
 and B gives that up to save a pair of tokens.
-
-### Who should own task definitions, `mise.toml` or `task.ts`? (issues 5500 and 2103), asked 2026-11-09T16:22:51-05:00
-
-Issue 5500 says `mise.toml` should have been deleted where a `task.ts` exists.
-An agent measured 169 folders holding both,
-and the task names agree in all but one:
-`package/fs-path/core` declares `watch:lint:types` in `task.ts` only.
-It compared names,
-not task bodies.
-`doc/decision/mise-free-ci.md` keeps `mise.toml` as the local system and makes each `task.ts` a mirror of it,
-and `doc/planning/task-slice-pants-migration.md` calls that mirror "a stopgap,
-not an owner to extend",
-so deleting either side breaks an accepted rule or a live surface.
-
-- A.
-  Keep both and add a check that fails when the names differ.
-  Pro:
-  it closes the one risk measured,
-  drift,
-  and contradicts no decision.
-  Con:
-  two files stay to keep in step.
-- B.
-  Leave it until the Pants migration decides.
-  Pro:
-  no work now.
-  Con:
-  nothing catches drift meanwhile.
-- C.
-  `mise.toml` stays the source and `task.ts` is generated from it.
-  Pro:
-  one owner.
-  Con:
-  it builds a generator for something the plan calls a stopgap.
-- D.
-  `task.ts` becomes the source and local `mise run //package/...` retires.
-  Pro:
-  one owner with no `mise.toml`.
-  Con:
-  it contradicts `AGENTS.md` rules `CM3` and `CM5`.
-
-Ranking:
-A > B > C > D,
-because A closes the measured risk that B leaves open,
-B costs nothing where C builds for something planned away,
-and C keeps the rules that D breaks.
-Please also say whether `package/fs-path/core` should gain the missing name meanwhile,
-and whether issue 5500 should fold into 2103.
 
 ### What should happen to catalog entries only paused packages use? (issue 1667), asked 2026-11-09T16:22:51-05:00
 
@@ -695,85 +507,6 @@ Write "push it" here to overrule this.
 The same fact raises a question that does need you,
 `What should the next push do with a commit its checks blocked?`.
 
-### Should forced checkouts and resets refuse when they would replace an ignored file?
-
-The discarding-commands branch hands a `switch` over an ignored file to Git,
-which refuses.
-Force overrides that:
-the agent measured that `git checkout -f --no-overwrite-ignore other` still replaced `.env`,
-and `git reset --hard` has no such option.
-In a clean linked worktree those forms can still replace an ignored file the target tree carries.
-
-The session will build option A unless you say otherwise,
-because you wrote "never discard user data":
-read the target tree and the ignored paths,
-refuse naming the paths they share.
-The agent estimates that adds 40 to 120 ms,
-only for these forms and only in a linked worktree.
-Option B is to accept it and document it.
-Option C,
-refusing whenever any ignored file exists,
-would refuse every worktree with `node_modules`.
-Ranking:
-A > B > C,
-because A protects the file at a small cost on a rare form,
-B leaves the loss in place,
-and C blocks routine work.
-
-### `git clean -fdx` is now refused in a linked worktree that has ignored files
-
-This is the same branch,
-and agents will notice it.
-`git clean -fdx` deletes ignored files,
-so the guard now counts them,
-and a worktree with `node_modules` is refused.
-`git clean -nx` shows what would go.
-It follows from "never discard user data",
-and it changes a common way of getting a fresh build.
-Write "allow it in linked worktrees" here if you want the old behaviour back.
-
-### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
-
-The session picked the audit's recommendation,
-extending the fixed list,
-because it starts no process and is non-destructive.
-A fix agent is queued for it.
-Write "ask Git" here to change that.
-
-The policy exists so `git add` names the paths it stages
-(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
-It reads the arguments alone and compares each positional pathspec with four
-byte strings,
-`.`,
-`./`,
-`*` and `:/`
-(`package/git-policy/cli/src/native/command/command_add.rs:113`).
-Five spellings that Git resolves to the whole tree pass that list and staged
-every file in a reproduction:
-`:/*`,
-`:/**`,
-`:(top)`,
-`**` and
-`:(glob)**`
-(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
-finding 2).
-`:(top)` is the one a person writes expecting a scope rather than a sweep.
-A sixth,
-`:(top)/*`,
-fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
-`content-unavailable`,
-which is Git's own failure and not this choice.
-
-Recommended:
-extend the list with those five and name them in the rejection text,
-because the decision stays argument-only and starts no process before Git
-does,
-and the accidents this policy is about are the common spellings.
-The alternative asks Git what the pathspec selects,
-which catches every form including ones added to Git later,
-at the cost of one Git start per `git add`
-and a decision that no longer follows from the arguments.
-
 ### May a moved-path note be added to records in `doc/decision/`?
 
 Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
@@ -820,33 +553,6 @@ add a file-enforcer rule for `repository` and `homepage`,
 matching what it already does for `Cargo.toml`,
 so one run corrects them all and they stay correct.
 The alternative is a single rewrite with nothing to keep it true.
-
-### Are the three findings left on the stat-data landing worth another round?
-
-The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
-The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
-and the coordinator landed it with them open because each needs something unusual:
-
-- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
-- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
-  which moves no timestamp.
-- A FUSE filesystem leaves a read of a regular file unanswered.
-  That one is the open question about a stalled regular-file read in this file,
-  which also covers every other read of a regular file.
-
-In the first two,
-a file can be recorded as clean when its contents differ.
-Each is reachable only by another process acting in a window of microseconds.
-Say if any of them should get another round.
-
-### Conversion: is a late change of mode or owner a defect or accepted risk?
-
-An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
-because the comparison that decides the old tree can be deleted does not look at mode,
-owner or extended attributes.
-The coordinator read this as a defect and queued a fix,
-since that comparison exists to catch a late change.
-Say if you would rather accept the risk than pay for the wider comparison.
 
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
@@ -916,9 +622,6 @@ Each record is cited so the context is one read away.
   and that package has none.
   Should it gain a `dist` build,
   or an exemption?
-- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
-  Should a systemd timer run it,
-  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
 - `mpm-shadow` launcher records named a folder carrying the version,
   so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
   The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
@@ -970,6 +673,118 @@ because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in the question tool, recorded 2026-11-10T08:04:14-05:00
+
+The first two were asked again after the owner wrote "I don't know.
+Try asking better." about each.
+
+### `git clean -fdx` in a linked worktree
+
+"Allow and log (Recommended)":
+"All four are deleted,
+exit 0,
+and the audit log records the command."
+The example held `node_modules/`,
+`dist/`,
+a `.env` copied from main and a hand-written `notes.local.txt`,
+all ignored.
+The main checkout always refuses,
+and that stays.
+
+### A `git add` that selects the whole repository
+
+"However spelled (Recommended)":
+"Any spelling that selects everything is refused,
+and the message says how many files it selected."
+Ordinary named paths skip the check.
+
+### The tests that need a real btrfs disk
+
+"Before each release (Recommended)":
+"A wrapper release waits for that run,
+and a skipped test fails it."
+
+### What the 860 move left behind
+
+"Delete both (Recommended)",
+for the 538 read-only snapshots in `~/repository-move-snapshots` on the NVMe and the 537 read-only copies in `repository/received-read-only/` on the 860.
+
+### Where copied helpers live (issues 1671, 1670 and 1669)
+
+"New small package (Recommended)",
+with the owner's note "adopt remedajs.com",
+then the later message:
+"I changed my mind.
+Instead of adopting remeda,
+adopt sindresorhus/is instead."
+What `@sindresorhus/is` does not hold,
+such as `isErrnoException` and the absence marker,
+is what the new package is for;
+that reading is the session's and is open to correction.
+
+### Where a shared named error class lives (issues 1668 and 666)
+
+"Its own tiny package (Recommended)".
+
+### Packages under `package-paused`
+
+"Pause means no work (Recommended)".
+The issue sweep skips anything whose code now lives under `package-paused`,
+and those issues wait for an unpause.
+
+### Who owns task definitions (issues 5500 and 2103)
+
+"Wait for Pants.
+And you focus on the git wrapper."
+
+## Answered in plain messages, recorded 2026-11-10T07:24:16-05:00
+
+### Forced checkouts and resets over an ignored file
+
+"Yes forced checkouts and resets should refuse when they'd replace an ignored file."
+The agent `forced-checkout-refuses-over-an-ignored-file` built this on `fix/git-policy-cli-forced-checkout-refuses-over-an-ignored-file`,
+and that branch is next in the landing queue.
+
+### Another review round on the stat-data landing
+
+On the three findings left on that landing:
+"yes,
+when we finish the kimi trial."
+
+### A late mode or owner change during a conversion
+
+"accepted risk."
+The wider comparison had already landed on `main` before this answer,
+and it stays there unless the owner asks for it to go.
+
+### New exemption rules and the running tunnel
+
+"As for tunnel:
+I think that's a UX issue you need to fix.
+The user shouldn't have to do that."
+The agent `wg-quicker-new-exemptions-apply-themselves` is on it.
+
+### Skills and plugins from claude.ai
+
+"Claude.ai:
+Don't mind it.
+And the fact you can read Claude.ai skills is bad.
+Try changing Claude Code settings so you won't be able to."
+and "Turn off syncClaudeAiPlugins too."
+`syncClaudeAiSkills` and `syncClaudeAiPlugins` are now `false` in the user's Claude Code settings.
+The description of each setting in Claude Code 2.1.321 says it hides what was synced from every session started afterwards,
+so the session that made the change still has them.
+
+### The old trees of the 860 move
+
+"860 move:
+You delete it."
+
+### The kopia job
+
+"Kopia:
+Make the kopia job more resilient."
 
 ## Answered in the question tool, recorded 2026-11-10T05:40:16-05:00
 
