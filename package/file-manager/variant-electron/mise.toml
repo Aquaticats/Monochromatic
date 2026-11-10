@@ -5,6 +5,7 @@ run = [
   "mise run build:js:main",
   "mise run build:js:preload",
   "mise run build:ts:app",
+  "mise run build:ts:main",
   "mise run build:ts:tools",
   "mise run build:stage",
 ]
@@ -14,7 +15,7 @@ description = "Remove generated app and tool outputs"
 shell = "node --input-type=module-typescript -e"
 run = """
 const { rmSync } = await import('node:fs')
-for (const path of ['dist/app', 'dist/preload', 'dist/tools']) {
+for (const path of ['dist/app', 'dist/main', 'dist/preload', 'dist/tools']) {
   rmSync(path, { recursive: true, force: true })
 }
 """
@@ -22,6 +23,10 @@ for (const path of ['dist/app', 'dist/preload', 'dist/tools']) {
 [tasks."build:ts:app"]
 description = "Compile renderer-side TypeScript to browser ESM"
 run = "tsc --project tsconfig.build.json"
+
+[tasks."build:ts:main"]
+description = "Compile main-process modules to Node ESM the unit tests import"
+run = "tsc --project tsconfig.main.json"
 
 [tasks."build:js:main"]
 description = "Bundle Electron main process to self-contained ESM"

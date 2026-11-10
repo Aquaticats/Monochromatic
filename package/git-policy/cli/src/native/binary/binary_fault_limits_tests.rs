@@ -154,7 +154,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
 /// The smallest value in `low..=high` for which `works` holds,
 /// found by halving;
 /// `works` is taken to hold from some value on.
-fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> u64 {
+pub(super) fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> u64 {
     let (mut below, mut above): (u64, u64) = (low, high);
     while below < above {
         let middle: u64 = below + (above - below) / 2;
