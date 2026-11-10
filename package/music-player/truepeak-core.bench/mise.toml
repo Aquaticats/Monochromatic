@@ -4,8 +4,10 @@ run = "cargo build --release"
 
 [tasks.run]
 description = "Evaluate + search a corpus: pass the tracks.jsonl path after --"
+# The package ships two binaries (the report and the corpus collector), so the task names
+# the one every documented invocation runs.
 # Example: mise run //package/music-player/truepeak-core.bench:run -- out/tracks.jsonl
-run = "cargo run --release --"
+run = "cargo run --release --bin truepeak-core-bench --"
 
 [tasks.lint]
 description = "cargo check (no codegen)"
