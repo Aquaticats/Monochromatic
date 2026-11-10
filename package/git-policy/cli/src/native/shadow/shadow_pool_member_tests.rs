@@ -25,7 +25,8 @@ fn template_of(repo: &Path) -> ShadowTemplate {
     return ShadowTemplate::of(&context, &layout).expect("template");
 }
 
-/// A shadow of a fixture, made exactly as a commit makes it,
+/// A shadow of a fixture,
+/// made exactly as a commit makes it,
 /// at a path of the control's choosing.
 fn creation(root: &Path, template: &ShadowTemplate, name: &str) -> PathBuf {
     let shadow: PathBuf = root.join(name);

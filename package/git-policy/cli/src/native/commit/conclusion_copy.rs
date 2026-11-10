@@ -130,7 +130,8 @@ fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<Stri
 ///  A worktree with nothing to conclude gets no copies directory at all:
 /// its one `mkdir` was the largest stretch of a build in the records
 /// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-/// "What each part of a commit's private repository is for, and how many commits need it"),
+/// "What each part of a commit's private repository is for,
+/// and how many commits need it"),
 ///  and an absent directory is the same answer to the landing as an empty one.
 ///
 /// In TS you'd write (pseudocode):
@@ -190,10 +191,10 @@ pub fn copy_conclusion_state(
             write_private_file(copies.join(name).as_path(), bytes.as_slice()),
         )?;
     }
-    if let Some(record) = record {
+    if let Some(text) = record {
         io_step(
             "writing the store-held record",
-            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{record}\n").as_bytes()),
+            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{text}\n").as_bytes()),
         )?;
     }
     if sequencer_present {

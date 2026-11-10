@@ -24,7 +24,8 @@
 //! startPoolFill({ context, request }); // returns at once
 //! ```
 
-/// One thread per fill, which the system may refuse.
+/// One thread per fill,
+/// which the system may refuse.
 use crate::scoped_start::{refused_thread_sentence, spawn_named};
 /// What a commit request names,
 /// and the facts a shadow is made from.
@@ -69,14 +70,14 @@ pub fn start(context: &GitContext, request: &CommitRequest) {
     if FILLING.swap(true, Ordering::AcqRel) {
         return;
     }
-    let context: GitContext = context.clone();
+    let own: GitContext = context.clone();
     let named: String = request.common_dir.display().to_string();
     let common_dir: PathBuf = request.common_dir.clone();
     let git_dir: PathBuf = request.git_dir.clone();
     let repository: PathBuf = request.repository.clone();
     let started = spawn_named("shadow-pool-fill", move || {
         // The flag is cleared however the fill ends, so one refused Git start does not stop every later fill.
-        let outcome: Result<Option<PathBuf>, GitFailure> = fill_one(&context, &common_dir, &git_dir, &repository);
+        let outcome: Result<Option<PathBuf>, GitFailure> = fill_one(&own, &common_dir, &git_dir, &repository);
         FILLING.store(false, Ordering::Release);
         match outcome {
             Ok(_made) => {}
@@ -92,7 +93,8 @@ pub fn start(context: &GitContext, request: &CommitRequest) {
 }
 
 /// What:
-///  One fill, from the facts of the repository the request names.
+///  One fill,
+/// from the facts of the repository the request names.
 /// Why:
 ///   The facts are read here rather than in the request,
 /// because a request carries what a landing needs and not what a creation does;
@@ -151,7 +153,8 @@ fn template_of(
 }
 
 /// What:
-///  The object directory, the object format and the ref backend of a worktree,
+///  The object directory,
+/// the object format and the ref backend of a worktree,
 ///  as one Git start answers them.
 /// Why:
 ///   The three facts come from the same repository,

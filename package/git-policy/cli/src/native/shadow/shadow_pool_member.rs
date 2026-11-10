@@ -6,7 +6,8 @@
 //!  A commit takes a shadow another process made,
 //! so the one new risk is trusting a tree made earlier.
 //!  That risk has one answer a test can hold:
-//! a member is either the tree a creation makes, or it is refused
+//! a member is either the tree a creation makes,
+//! or it is refused
 //! (`doc/handover/questions-for-the-owner.md`,
 //! "May a commit take its private repository from a pool made ahead?").
 //!  Everything here is a read:
@@ -17,13 +18,16 @@
 //! const refusal = await resizeMember(template, member); // undefined when the member is what a creation makes
 //! ```
 
-/// The creation's own `HEAD`, before any commit names its branch.
+/// The creation's own `HEAD`,
+/// before any commit names its branch.
 use crate::shadow_skeleton::PLACEHOLDER_HEAD;
-/// The creation's skeleton, which a member must hold whole.
+/// The creation's skeleton,
+/// which a member must hold whole.
 use crate::shadow_skeleton::SKELETON_DIRECTORIES;
 /// The facts a creation is made from.
 use crate::shadow_create::ShadowTemplate;
-/// The entries a creation links, and the per-worktree file it copies.
+/// The entries a creation links,
+/// and the per-worktree file it copies.
 use crate::shadow_links::{has_worktree_config, shared_entries_of};
 /// The directories of a shadow that stay the creation's own.
 use std::path::Path;
@@ -32,7 +36,9 @@ use std::path::Path;
 ///  The entries of a member that the skeleton and the creation always make,
 /// which no link and no copy stands in for.
 /// Why:
-///  A member holds these plus the shared entries and, for a linked worktree, one copied file,
+///  A member holds these plus the shared entries and,
+/// for a linked worktree,
+/// one copied file,
 /// and anything else is a leftover of a use that would be trusted by the next commit.
 ///
 /// In TS you'd write (pseudocode):
@@ -91,11 +97,17 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     }
     let copies_worktree_config: bool = has_worktree_config(template.git_dir.as_path())?;
     // Every entry of the member must be one this invocation's creation makes.
-    for entry in std::fs::read_dir(member)? {
-        let entry: std::fs::DirEntry = entry?;
+    for listed in std::fs::read_dir(member)? {
+        let entry: std::fs::DirEntry = listed?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&name.as_str()) || (copies_worktree_config && name == WORKTREE_CONFIG);
-        let linked: bool = shared.iter().any(|candidate| candidate.name.to_string_lossy() == name);
+        let mut linked: bool = false;
+        for candidate in &shared {
+            if candidate.name.to_string_lossy() == name {
+                linked = true;
+                break;
+            }
+        }
         if !own && !linked {
             return Ok(Some(format!("it holds {name}, which this invocation's creation does not make")));
         }

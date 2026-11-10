@@ -189,7 +189,8 @@ fn reftable_store_held_pseudoref_is_copied_through_the_ref_store() {
 /// Why:
 ///  The single `mkdir` of that directory was the largest stretch of a build in the records
 ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-///  "What each part of a commit's private repository is for, and how many commits need it"),
+///  "What each part of a commit's private repository is for,
+/// and how many commits need it"),
 ///  and a commit that concludes nothing has nothing the directory could hold.
 ///  The landing answers an absent directory as no conclusion state at all,
 ///  so the absence says what the empty directory said.
@@ -223,7 +224,8 @@ fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
 ///  A worktree whose only conclusion state is the sequencer's gets the copies directory,
 ///  and the directory a commit that does conclude gets holds its entries.
 /// Why:
-///  The directory follows the state, and not the other way round:
+///  The directory follows the state,
+/// and not the other way round:
 ///  the sequencer's files are the one conclusion entry that is a directory.
 #[test]
 fn only_a_conclusion_with_something_to_copy_gets_a_copies_directory() {

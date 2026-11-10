@@ -189,7 +189,8 @@ fn an_abandoned_fill_is_removed_by_a_later_fill() {
 }
 
 /// A reftable repository is never pooled:
-/// its shadow is Git's own tables, which no member holds.
+/// its shadow is Git's own tables,
+/// which no member holds.
 #[test]
 fn a_reftable_repository_is_never_pooled() {
     let root: PathBuf = fixture("shadow-pool-reftable");
@@ -209,8 +210,10 @@ fn a_reftable_repository_is_never_pooled() {
 ///  from the same private index and the same message.
 /// Why:
 ///  A commit that takes a finished shadow must produce what a commit that makes one produces,
-///  which is what the owner's "a member is exactly what a creation makes, or it is refused" asks for.
-///  The identities and the dates are fixed, so the two commits are the same bytes rather than only the same tree.
+///  which is what the owner's "a member is exactly what a creation makes,
+/// or it is refused" asks for.
+///  The identities and the dates are fixed,
+/// so the two commits are the same bytes rather than only the same tree.
 #[test]
 fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
     let root: PathBuf = fixture("shadow-pool-parity");

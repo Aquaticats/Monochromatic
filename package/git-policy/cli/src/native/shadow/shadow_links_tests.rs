@@ -296,7 +296,8 @@ fn a_shared_info_that_is_not_a_directory_is_an_error() {
 ///  so a shadow that linked one held an entry a creation made a moment ago and no other creation would make,
 ///  which is exactly what the pool refuses a member for.
 ///  The name is `<lock>.cli-git-marker-<pid>.<namespace>-<batch>-<token>`,
-///  and the lock can be a ref's, not only the index's.
+///  and the lock can be a ref's,
+/// not only the index's.
 #[test]
 fn a_staged_lock_marker_never_reaches_the_shadow() {
     let root: PathBuf = fixture("shadow-links-lock-marker");

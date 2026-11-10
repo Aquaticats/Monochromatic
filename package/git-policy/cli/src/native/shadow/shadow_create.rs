@@ -263,7 +263,10 @@ fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, 
 ///  The facts a shadow repository is made from,
 ///  resolved once so a member made ahead and a creation made here cannot disagree.
 /// Why:
-///   The creation writes the repository format, the common directory, the worktree root, the object directory and the ref
+///   The creation writes the repository format,
+/// the common directory,
+/// the worktree root,
+/// the object directory and the ref
 /// backend into the shadow;
 ///  the pool's fill and the pool's claim compare those same facts,
 /// so a member is only ever taken by a commit that would have written it.
@@ -274,9 +277,11 @@ fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, 
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShadowTemplate {
-    /// The repository's common Git directory, whose `config` the shadow includes.
+    /// The repository's common Git directory,
+    /// whose `config` the shadow includes.
     pub common_dir: PathBuf,
-    /// The worktree's own Git directory, whose per-worktree state is copied.
+    /// The worktree's own Git directory,
+    /// whose per-worktree state is copied.
     pub git_dir: PathBuf,
     /// The worktree root the shadow's `core.worktree` names.
     pub repository_root: PathBuf,
@@ -431,7 +436,8 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
-///  The shadow of one commit: a finished one this invocation can use,
+///  The shadow of one commit:
+/// a finished one this invocation can use,
 /// or one made here when the pool holds none that is what a creation would make.
 /// Why:
 ///   The creation is about 40 calls that create a directory entry on the volume the commit already waits on:
@@ -444,7 +450,8 @@ pub fn create_shadow_repository_carrying(
 /// and a commit the pool cannot serve
 ///  makes the creation exactly as it did before
 /// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-/// "What each part of a commit's private repository is for, and how many commits need it").
+/// "What each part of a commit's private repository is for,
+/// and how many commits need it").
 ///   The ref store and the conclusion state are always this commit's,
 /// after a claim as well as after a creation:
 /// they name the branch and base of this invocation.
@@ -520,7 +527,8 @@ pub fn create_shadow_template(
 }
 
 /// What:
-///  Adds what belongs to this commit alone: the conclusion state it concludes and the ref store it points at.
+///  Adds what belongs to this commit alone:
+/// the conclusion state it concludes and the ref store it points at.
 /// Why:
 ///   A member of the pool is made before any commit names a branch,
 /// so these two run after the claim as they run after a creation.

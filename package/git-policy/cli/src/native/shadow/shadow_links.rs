@@ -224,18 +224,23 @@ impl SkipRule {
     }
 }
 
-/// One entry the link step shares with a shadow: its name, the real path it links to, and whether that path is a
+/// One entry the link step shares with a shadow:
+/// its name,
+/// the real path it links to,
+/// and whether that path is a
 /// directory.
 /// Why:
 ///  The link step and the pool's check of a finished member read the same list,
 /// so a member holds exactly the entries a creation would make and nothing else.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SharedEntry {
-    /// The name under the common Git directory, and under the shadow.
+    /// The name under the common Git directory,
+    /// and under the shadow.
     pub name: std::ffi::OsString,
     /// The real entry the shadow links to.
     pub source: PathBuf,
-    /// Whether the real entry is a directory, which Windows links differently.
+    /// Whether the real entry is a directory,
+    /// which Windows links differently.
     pub directory: bool,
 }
 
@@ -273,7 +278,8 @@ fn shared_entries(
 /// What:
 ///  Links every shared entry of one real directory into one shadow directory.
 /// Why:
-///   The entries are the ones `shared_entries` lists, so the two never disagree.
+///   The entries are the ones `shared_entries` lists,
+/// so the two never disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -320,7 +326,8 @@ pub fn shared_entries_of(
 /// What:
 ///  Whether the creation copies a `config.worktree` into the shadow.
 /// Why:
-///   A linked worktree's own configuration reaches a shadow as a copy, and a pool member must hold it too.
+///   A linked worktree's own configuration reaches a shadow as a copy,
+/// and a pool member must hold it too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

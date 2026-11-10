@@ -33,7 +33,8 @@
 use crate::private_storage::{create_private_directory_all, remove_tree};
 /// Random member names.
 use crate::random_id::random_uuid;
-/// The facts a creation is made from, and the creation without a commit's own parts.
+/// The facts a creation is made from,
+/// and the creation without a commit's own parts.
 use crate::shadow_create::{ShadowTemplate, create_shadow_template};
 /// What a member must be for this invocation.
 use crate::shadow_pool_member::refusal;
@@ -41,13 +42,15 @@ use crate::shadow_pool_member::refusal;
 use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// One Git start.
 use crate::transaction_git::{GitContext, GitFailure};
-/// The build's named stretches, which the fill names its own work under.
+/// The build's named stretches,
+/// which the fill names its own work under.
 use crate::commit_build_part_durations::BuildPartClock;
 /// Paths and time.
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// The folder of finished shadows, inside the repository scratch root,
+/// The folder of finished shadows,
+/// inside the repository scratch root,
 /// beside the shadow of a transaction.
 pub const SHADOW_POOL_NAME: &str = "shadow-pool";
 
@@ -59,14 +62,16 @@ pub const SHADOW_POOL_NAME: &str = "shadow-pool";
 /// so a pool of two covers the moment two commits of one worktree overlap while the fill after the last landing runs,
 /// and a third member is one a busy repository would keep for nothing.
 /// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-/// "What each part of a commit's private repository is for, and how many commits need it".)
+/// "What each part of a commit's private repository is for,
+/// and how many commits need it".)
 pub const POOL_LIMIT: usize = 2;
 
 /// How old a half-made member must be before a fill removes it.
 /// Measured:
 /// a fill is about 40 calls and took 2 to 10 ms in the traces of
 /// `doc/planning/cli-git-commit-latency-under-many-agents.md`
-/// ("The creation is, counted"),
+/// ("The creation is,
+/// counted"),
 /// and the volume has held one call for 64 s,
 /// so this covers a fill that waits and leaves nothing a commit could take.
 pub const FILLING_STALE_AFTER: Duration = Duration::from_secs(900);
@@ -78,7 +83,8 @@ const MEMBER_PREFIX: &str = "member-";
 const FILLING_PREFIX: &str = "filling-";
 
 /// How many members one claim looks at before it makes its own shadow.
-/// Two members is the pool's whole size, and a refused one is removed as it is found,
+/// Two members is the pool's whole size,
+/// and a refused one is removed as it is found,
 /// so a claim that finds more than this is looking at a pool another fill is repairing.
 const CLAIM_ATTEMPTS: usize = 4;
 
@@ -171,12 +177,14 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
 }
 
 /// What:
-///  Makes one finished shadow ahead, when the pool holds room for it.
+///  Makes one finished shadow ahead,
+/// when the pool holds room for it.
 /// Why:
 ///   The resident service runs this beside the landing of a commit it already answered,
 /// so no commit pays for the creation of another.
 ///  Nothing here can fail a commit:
-/// a fill that cannot run leaves an empty pool, and the next commit makes its own creation.
+/// a fill that cannot run leaves an empty pool,
+/// and the next commit makes its own creation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,7 +194,8 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
 /// # Errors
 ///
 /// `GitFailure` when the shadow could not be created;
-/// the half-made member is removed first, so the pool never holds one.
+/// the half-made member is removed first,
+/// so the pool never holds one.
 pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<PathBuf>, GitFailure> {
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return Ok(None);
@@ -195,8 +204,9 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     if members(root.as_path()).len() >= POOL_LIMIT {
         return Ok(None);
     }
-    create_private_directory_all(root.as_path())
-        .map_err(|error| GitFailure(format!("the shadow pool {} cannot be made: {error}", root.display())))?;
+    if let Err(error) = create_private_directory_all(root.as_path()) {
+        return Err(GitFailure(format!("the shadow pool {} cannot be made: {error}", root.display())));
+    }
     sweep_abandoned(root.as_path(), SystemTime::now());
     let staging: PathBuf = root.join(format!("{FILLING_PREFIX}{}", random_uuid().unwrap_or_default()));
     // The creation names its own stretches; nothing reads them here, so they are taken and dropped rather than
@@ -260,8 +270,8 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
         if !name.starts_with(FILLING_PREFIX) {
             continue;
         }
-        let old: bool = match entry.metadata().and_then(|metadata| metadata.modified()) {
-            Ok(modified) => now.duration_since(modified).is_ok_and(|age| age > FILLING_STALE_AFTER),
+        let old: bool = match entry.metadata().and_then(modification_time) {
+            Ok(modified) => now.duration_since(modified).is_ok_and(older_than_the_fill_age),
             Err(_) => false,
         };
         if old {
@@ -269,6 +279,33 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
             crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
         }
     }
+}
+
+/// What:
+///  When one entry of the pool was last written.
+/// Why:
+///  A fill that was killed leaves a folder whose age says whether a fill is still writing into it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const modificationTime = (metadata) => metadata.modified();
+/// ```
+fn modification_time(metadata: std::fs::Metadata) -> std::io::Result<SystemTime> {
+    return metadata.modified();
+}
+
+/// What:
+///  Whether a fill has been unfinished for longer than any fill takes.
+/// Why:
+///  `sweep_abandoned` removes what this answers yes for,
+/// and names the age it uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const olderThanTheFillAge = (age) => age > FILLING_STALE_AFTER;
+/// ```
+fn older_than_the_fill_age(age: Duration) -> bool {
+    return age > FILLING_STALE_AFTER;
 }
 
 /// Pool controls stay out of the release executable.
