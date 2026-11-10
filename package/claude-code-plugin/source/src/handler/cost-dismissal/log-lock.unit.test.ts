@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { wait, } from '@monochromatic-dev/async-time-core';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   mkdir,
   mkdtempDisposable,

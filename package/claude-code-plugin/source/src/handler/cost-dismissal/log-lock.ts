@@ -10,7 +10,7 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/async-time-core';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   mkdir,

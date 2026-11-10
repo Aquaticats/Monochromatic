@@ -43,7 +43,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { fileURLToPath, } from 'node:url';
-import { wait, } from '@monochromatic-dev/async-time-core';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
   DEFAULT_MAX_SPAWN_DEPTH,
