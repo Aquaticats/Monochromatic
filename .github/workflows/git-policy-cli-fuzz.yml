@@ -106,8 +106,10 @@ jobs:
 
     - name: Install the pinned Rust toolchain
       if: steps.scope.outputs.run == 'true'
+      # Clippy is a component, not part of the minimal profile, and the second check
+      # of the task is a Clippy run.
       run: |
-        rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+        rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy --no-self-update
         rustup default "$RUST_TOOLCHAIN"
 
     - name: Fetch the locked crates
