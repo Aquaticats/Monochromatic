@@ -69,6 +69,12 @@ pub mod shadow_refs;
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
 
+/// The pool of finished shadows a commit can take instead of making one.
+pub mod shadow_pool;
+
+/// What a member of that pool must be for one invocation to take it.
+pub mod shadow_pool_member;
+
 /// The entries of an empty bare repository,
 /// created in-process instead of by `git init`.
 pub mod shadow_skeleton;

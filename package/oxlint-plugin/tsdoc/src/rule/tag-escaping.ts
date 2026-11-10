@@ -26,27 +26,27 @@ import {
  
  Linear scan: each candidate `*\/` is found by `indexOf`, the previous
  character is checked, and the cursor advances past the match before the
- next `indexOf` call, so worst-case work is bounded by the length of `s`.
+ next `indexOf` call, so worst-case work is bounded by the length of `line`.
  
- @param s - line content (with the leading `*` already stripped)
+ @param line - line content (with the leading `*` already stripped)
  
- @returns whether an unescaped comment closer appears in `s`
+ @returns whether an unescaped comment closer appears in `line`
  
  @example
  ```ts
  hasUnescapedCommentClose('plain content'); // false
  ```
  */
-export function hasUnescapedCommentClose(s: string,): boolean {
+export function hasUnescapedCommentClose(line: string,): boolean {
   // Linear walk: each `*\/` is located by `indexOf`, the cursor advances past
-  // every escaped match, so total work is bounded by the length of `s` and the
+  // every escaped match, so total work is bounded by the length of `line` and the
   // stack stays flat regardless of how many escaped closers appear.
-  for (let from = 0; from <= s
+  for (let from = 0; from <= line
     .length;) {
     /**
      Position of the next `*\/`; -1 means the rest of the string is safe.
      */
-    const idx = s.indexOf(
+    const idx = line.indexOf(
       '*/',
       from,
     );
@@ -55,7 +55,7 @@ export function hasUnescapedCommentClose(s: string,): boolean {
     /**
      Char immediately before the match; backslash means the closer is escaped.
      */
-    const prev = idx === 0 ? '' : s.charAt(idx - 1,);
+    const prev = idx === 0 ? '' : line.charAt(idx - 1,);
     if (prev !== '\\')
       return true;
     from = idx + 2;

@@ -111,6 +111,48 @@ fn workspace(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
+/// A committed workspace whose packages form the chain `@s/a` ← `@s/b` ← `@s/c`,
+/// configured for the policy,
+/// with `@s/a` raised to `1.1.0` in the worktree:
+/// `@s/c` reaches the raised `@s/a` only through `@s/b`,
+/// so its bump proves the ripple is transitive.
+fn chain_workspace(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    write(
+        repo.as_path(),
+        "package/module/a/package.json",
+        &manifest("@s/a", "1.0.0", None),
+    );
+    write(
+        repo.as_path(),
+        "package/module/b/package.json",
+        &manifest("@s/b", "2.0.0", Some("@s/a")),
+    );
+    write(
+        repo.as_path(),
+        "package/module/c/package.json",
+        &manifest("@s/c", "3.0.0", Some("@s/b")),
+    );
+    write(
+        repo.as_path(),
+        "package/config/pnpr/config.yaml",
+        &publish_set(&["@s/a", "@s/b", "@s/c"]),
+    );
+    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=chain"],
+    );
+    write(
+        repo.as_path(),
+        "package/module/a/package.json",
+        &manifest("@s/a", "1.1.0", None),
+    );
+    return repo;
+}
+
 /// The stale finding event about dependent `name` at `sequence`.
 fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
     return format!(
@@ -581,6 +623,265 @@ fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
             .as_str()
         ),
         "{events}"
+    );
+    remove(&fixture);
+}
+
+/// The manifest the commit at `HEAD` holds for dependent `name`.
+fn committed_manifest(fixture: &Fixture, repo: &Path, name: &str) -> String {
+    return git_text(
+        fixture,
+        repo,
+        &[
+            "show",
+            format!("HEAD:package/module/{name}/package.json").as_str(),
+        ],
+    );
+}
+
+/// A wrapped commit of a hand-raised manifest carries its dependents' patch bumps in the
+/// same commit,
+/// through the whole chain,
+/// and brings their worktree copies to the committed bytes:
+/// both copies still matched `HEAD`,
+/// so the update discards nothing.
+#[test]
+fn a_commit_adds_and_updates_the_dependents_of_a_hand_bump() {
+    let fixture: Fixture = fixture("dependent-version-commit-adds");
+    let repo: PathBuf = chain_workspace(&fixture);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &[
+            "commit",
+            "--message=bump",
+            "--",
+            "package/module/a/package.json",
+        ],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "a"),
+        manifest("@s/a", "1.1.0", None)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a"))
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b"))
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a"))
+    );
+    assert_eq!(
+        read(repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b"))
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["status", "--porcelain"]),
+        ""
+    );
+    remove(&fixture);
+}
+
+/// A dependent whose worktree copy no longer matches `HEAD` holds an edit the commit does
+/// not carry:
+/// the commit keeps that copy,
+/// leaves the dependent out of the commit,
+/// lands the dependents it can,
+/// and says which dependent it left behind and why.
+#[test]
+fn a_commit_leaves_a_dependent_whose_worktree_copy_changed() {
+    let fixture: Fixture = fixture("dependent-version-commit-kept-copy");
+    let repo: PathBuf = chain_workspace(&fixture);
+    let edited: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
+    write(repo.as_path(), "package/module/b/package.json", &edited);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &[
+            "commit",
+            "--message=bump",
+            "--",
+            "package/module/a/package.json",
+        ],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "a"),
+        manifest("@s/a", "1.1.0", None),
+        "the hand bump lands"
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.0", Some("@s/a")),
+        "the dependent whose worktree copy holds an edit keeps its version"
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b")),
+        "the dependents whose copies match HEAD are added"
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        edited,
+        "the edit in the worktree is kept"
+    );
+    assert_eq!(
+        read(repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b")),
+        "a copy that matched HEAD takes the committed bytes"
+    );
+    let errors: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert!(
+        errors.contains("package/module/b/package.json"),
+        "the report names the dependent: {errors}"
+    );
+    assert!(
+        errors.contains("its worktree copy has unstaged changes"),
+        "the report names the reason: {errors}"
+    );
+    remove(&fixture);
+}
+
+/// A dependent whose manifest is staged but not part of the commit is left behind:
+/// the landing writes the commit's entry into the real index,
+/// so adding it would replace what the person
+///  staged.
+/// The commit lands with only the hand bump,
+/// the staging survives,
+/// and the report names both.
+#[test]
+fn a_commit_leaves_behind_a_dependent_the_real_index_already_changes() {
+    let fixture: Fixture = fixture("dependent-version-commit-staged");
+    let repo: PathBuf = chain_workspace(&fixture);
+    let staged_on_top: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
+    write(repo.as_path(), "package/module/b/package.json", &staged_on_top);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/b/package.json"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &[
+            "commit",
+            "--message=bump",
+            "--",
+            "package/module/a/package.json",
+        ],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.0", Some("@s/a")),
+        "the dependent stays at the version the branch holds"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["diff", "--cached", "--name-only"]
+        ),
+        "package/module/b/package.json\n",
+        "the staging the person made is still staged"
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        staged_on_top,
+        "the staged copy is untouched"
+    );
+    let errors: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert!(
+        errors.contains("package/module/b/package.json"),
+        "the report names the dependent: {errors}"
+    );
+    assert!(
+        errors.contains("it has staged changes"),
+        "the report names the reason: {errors}"
+    );
+    remove(&fixture);
+}
+
+/// An index commit carries the same ripple:
+/// the mode that names no paths stages the raised manifest,
+/// and the dependents join the
+///  commit from the private index all the same.
+#[test]
+fn an_index_commit_adds_and_updates_the_dependents_of_a_hand_bump() {
+    let fixture: Fixture = fixture("dependent-version-index-commit");
+    let repo: PathBuf = chain_workspace(&fixture);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    // `--no-only` commits the whole index: the wrapper's commit-only transform otherwise demands a pathspec.
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--no-only", "--message=bump"],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a"))
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b"))
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a")),
+        "the worktree copy takes the committed bytes"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["status", "--porcelain"]),
+        ""
     );
     remove(&fixture);
 }

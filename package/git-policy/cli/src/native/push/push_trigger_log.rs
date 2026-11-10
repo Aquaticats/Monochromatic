@@ -17,7 +17,8 @@
 
 use crate::wrapper_names_old_and_new::PUSH_TRIGGER_LOG;
 use crate::diagnostic_log::debug;
-use crate::discard_audit::append_line;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::ObjectWriter;
 use crate::lfs_output_mask::mask_userinfo_text;
@@ -179,7 +180,7 @@ pub fn record_decision(decision: &Decision<'_>) {
     let Some(directory) = decision.common_dir else { return };
     let target = directory.join(TRIGGER_FILE);
     let line: String = trigger_line(decision);
-    if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
+    if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
         debug(TAG, &format!("the trigger record could not be written to {}: {error}", target.display()));
     }
 }

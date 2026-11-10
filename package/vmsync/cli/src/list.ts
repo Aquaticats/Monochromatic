@@ -24,6 +24,8 @@ import {
   type VmsyncConfig,
 } from './types.ts';
 
+//region Logger root
+
 /**
  Logger root for vmsync after removing the package log shim.
  
@@ -33,6 +35,10 @@ import {
  ```
  */
 const l = tagged({ tag: 'vmsync', },);
+
+//endregion Logger root
+
+//region Data directory scan
 
 /**
  Reads the data directory, returning an empty array if it does not exist.
@@ -53,6 +59,10 @@ async function safeReaddir(rl: Logger,): Promise<string[]> {
     return [];
   }
 }
+
+//endregion Data directory scan
+
+//region Managed VM listing
 
 /**
  Lists all managed VMs by scanning the vmsync data directory.
@@ -120,6 +130,10 @@ export async function listVms(): Promise<readonly string[]> {
   rl.info(`found ${String(names.length,)} managed VMs`,);
   return names;
 }
+
+//endregion Managed VM listing
+
+//region Summary table
 
 /**
  Prints a summary table of all managed VMs, sourced via {@link listVms}.
@@ -200,3 +214,5 @@ export async function printVmList(): Promise<void> {
     },
   );
 }
+
+//endregion Summary table

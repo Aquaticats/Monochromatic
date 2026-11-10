@@ -154,23 +154,29 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 }
 
 /// What:
-///  Takes the push record back when the post-commit gate blocks the backup.
+///  Takes the push record back when the post-commit gate blocks the backup,
+/// and keeps what the gate said.
 /// Why:
 ///   A blocked gate keeps the commit local,
 /// and a record left behind would push it at the next wake.
 /// A record another round already
 ///  claimed is not reached here:
 /// the gate is what says whether the push may run.
+///   The verdict keeps the gate's words,
+/// because the queue pushes the branch and not the commit:
+/// the next push of
+///  that branch must stop before this commit and say why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// forgetThePush(handoff, landed) // unlink the pending record
+/// forgetThePush(handoff, landed, reason) // unlink the pending record, keep the verdict
 /// ```
-pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
+pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) {
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let item: WorkItem = push_item(handoff, landed);
-    // The verdict is durable: a later recovery of the same batch must not hold the push again.
-    crate::work_item::block(work_dir.as_path(), item.id().as_str());
+    // The verdict is durable: a later recovery of the same batch must not hold the push again, and the next push of the branch
+    //  reads the same verdict to know where it must stop.
+    crate::work_item::block(work_dir.as_path(), &item, reason);
     // A record an earlier release named by the kind and the commit alone is this push's too, so the gate forgets it as well:
     //  left in `pending`, the next wake would push a commit the gate kept local.
     for id in [item.id(), item.id_before_the_branch()] {

@@ -21,6 +21,8 @@ import {
   type InvalidRateLimitSnapshot,
 } from './rate-limit-parse-helpers.ts';
 
+//region Anthropic header families
+
 /**
  Anthropic header groups that describe token usage capacity.
  
@@ -77,6 +79,10 @@ const ANTHROPIC_RATE_LIMIT_HEADER_FAMILIES: readonly RateLimitHeaderFamily[] = [
     windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
   },
 ];
+
+//endregion Anthropic header families
+
+//region Single family parsing
 
 /**
  Parses one Anthropic header family into a usage snapshot.
@@ -157,6 +163,10 @@ function parseAnthropicRateLimitSnapshot({
   },);
 }
 
+//endregion Single family parsing
+
+//region Header collection parsing
+
 /**
  Parses supported Anthropic rate-limit header groups.
  
@@ -190,6 +200,8 @@ function parseAnthropicRateLimitSnapshots({
       return isRateLimitSnapshot(snapshot,);
     },);
 }
+
+//endregion Header collection parsing
 
 export {
   ANTHROPIC_RATE_LIMIT_HEADER_FAMILIES,

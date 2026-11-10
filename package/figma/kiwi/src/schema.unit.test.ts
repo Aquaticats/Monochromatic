@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  KIWI_PRIMITIVES,
   parseKiwiSchema,
   resolveTypeName,
   type KiwiEnum,
@@ -60,6 +61,25 @@ const MISSING_DEFINITION_TYPE = 9;
  Primitive index no Kiwi primitive table entry occupies.
  */
 const UNKNOWN_PRIMITIVE_TYPE = -99;
+
+/**
+ Primitive names in the order the format numbers them.
+
+ Copied from Kiwi's own primitive list rather than read out of
+ {@link KIWI_PRIMITIVES}: an expectation taken from the table under test would
+ follow any reordering, and the table decides which primitive every negative
+ type code names. Editing this list asserts a different wire format.
+ */
+const PRIMITIVE_NAMES_IN_TYPE_CODE_ORDER = [
+  'bool',
+  'byte',
+  'int',
+  'uint',
+  'float',
+  'string',
+  'int64',
+  'uint64',
+] as const;
 
 /**
  Encodes text as UTF-8 bytes.
@@ -313,6 +333,34 @@ await describe({
             const schema = parseKiwiSchema(schemaBytes([],),);
             expect(resolveTypeName({ schema, typeCode: MISSING_DEFINITION_TYPE, },),).toBe('ref[9]',);
           },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'KIWI_PRIMITIVES',
+      children: [
+        it({
+          name: 'names the primitives in the order the format numbers them',
+          fn: async () => {
+            expect([...KIWI_PRIMITIVES,],).toEqual([...PRIMITIVE_NAMES_IN_TYPE_CODE_ORDER,],);
+          },
+        },),
+        ...KIWI_PRIMITIVES.map(function resolveEachPrimitive(
+          primitiveName,
+          primitiveIndex,
+        ) {
+          return it({
+            name: `resolves the ${primitiveName} type code to its own name`,
+            fn: async () => {
+              const schema = parseKiwiSchema(schemaBytes([],),);
+              /**
+               Inverted type code the format assigns this table index.
+               */
+              const typeCode = -(primitiveIndex + 1);
+              expect(resolveTypeName({ schema, typeCode, },),).toBe(primitiveName,);
+            },
+          },);
         },),
       ],
     },),

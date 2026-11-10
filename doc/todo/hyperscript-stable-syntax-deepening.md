@@ -2016,17 +2016,17 @@ The future implementer should commit after each meaningful change.
 
 Recommended order:
 
-1. Add shared `HtmlFragment` type and `unsafeHtml`.
-2. Change `hHtml` return type,
-   `html`,
-   and `children` to `HtmlFragment`.
-3. Add `tag: ''` text-fragment mode for `hHtml`.
-4. Make `hHtml` content modes mutually exclusive.
-5. Remove top-level `class` and `style` from `hHtml`.
-6. Add HTML name and attr validation.
-7. Add void-content type and runtime checks.
-8. Update hHtml callers.
-9. Mirror accepted rules in `hDom`.
+1.  Add shared `HtmlFragment` type and `unsafeHtml`.
+2.  Change `hHtml` return type,
+    `html`,
+    and `children` to `HtmlFragment`.
+3.  Add `tag: ''` text-fragment mode for `hHtml`.
+4.  Make `hHtml` content modes mutually exclusive.
+5.  Remove top-level `class` and `style` from `hHtml`.
+6.  Add HTML name and attr validation.
+7.  Add void-content type and runtime checks.
+8.  Update hHtml callers.
+9.  Mirror accepted rules in `hDom`.
 10. Add DOM tests.
 11. Add SVG namespace Adapter.
 12. Add `XmlFragment` and `unsafeXml`.
