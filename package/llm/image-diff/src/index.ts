@@ -34,7 +34,21 @@
  @packageDocumentation
  */
 
+/**
+ Provider list `compareAll` dispatches over, exported so the suite asserts that
+ dispatch through the built artifact rather than package source.
+ 
+ @internal
+ */
+export { ALL_PROVIDERS as COMPARE_PROVIDERS, } from './client.multi.compare.ts';
 export { compareAll, } from './client.multi.compare.ts';
+/**
+ Provider list `embedAll` and `embedBatchAll` dispatch over, exported so the suite
+ asserts that dispatch through the built artifact rather than package source.
+ 
+ @internal
+ */
+export { ALL_PROVIDERS as EMBED_PROVIDERS, } from './client.multi.ts';
 export {
   embedAll,
   embedBatchAll,
