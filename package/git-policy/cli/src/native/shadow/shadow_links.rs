@@ -216,11 +216,56 @@ impl SkipRule {
     }
 }
 
+/// One entry the link step shares with a shadow: its name, the real path it links to, and whether that path is a
+/// directory.
+/// Why:
+///  The link step and the pool's check of a finished member read the same list,
+/// so a member holds exactly the entries a creation would make and nothing else.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SharedEntry {
+    /// The name under the common Git directory, and under the shadow.
+    pub name: std::ffi::OsString,
+    /// The real entry the shadow links to.
+    pub source: PathBuf,
+    /// Whether the real entry is a directory, which Windows links differently.
+    pub directory: bool,
+}
+
 /// What:
-///  Links every shared entry of one real directory into one shadow directory.
+///  The entries of one real directory that a shadow shares,
+/// with the path each becomes.
 /// Why:
 ///   Entries are typed without following links,
 ///  so a link in the real directory is shared as a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sharedEntries(sourceDirectory, skip);
+/// ```
+fn shared_entries(
+    source_directory: &Path,
+    skip: SkipRule,
+) -> std::io::Result<Vec<SharedEntry>> {
+    let mut shared: Vec<SharedEntry> = Vec::new();
+    for entry_result in std::fs::read_dir(source_directory)? {
+        let entry: std::fs::DirEntry = entry_result?;
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if skip.skips(name.as_str()) {
+            continue;
+        }
+        shared.push(SharedEntry {
+            source: entry.path(),
+            name: entry.file_name(),
+            directory: entry.file_type()?.is_dir(),
+        });
+    }
+    return Ok(shared);
+}
+
+/// What:
+///  Links every shared entry of one real directory into one shadow directory.
+/// Why:
+///   The entries are the ones `shared_entries` lists, so the two never disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -231,18 +276,50 @@ fn link_directory_entries(
     shadow_directory: &Path,
     skip: SkipRule,
 ) -> std::io::Result<()> {
-    for entry_result in std::fs::read_dir(source_directory)? {
-        let entry: std::fs::DirEntry = entry_result?;
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if skip.skips(name.as_str()) {
-            continue;
-        }
-        let destination: PathBuf = shadow_directory.join(&name);
+    for entry in shared_entries(source_directory, skip)? {
+        let destination: PathBuf = shadow_directory.join(&entry.name);
         // `git init` may have created a template entry of the same name; the real one replaces it.
-        let directory: bool = entry.file_type()?.is_dir();
-        share_replacing_template(entry.path().as_path(), destination.as_path(), directory)?;
+        share_replacing_template(entry.source.as_path(), destination.as_path(), entry.directory)?;
     }
     return Ok(());
+}
+
+/// What:
+///  The entries a shadow of this worktree shares,
+/// and whether this worktree also keeps its own `info`.
+/// Why:
+///   The pool fills a member once and checks it on every claim,
+/// and both need the same list the creation links.
+///  A worktree that keeps its own `info` builds its own `info` directory and copies a sparse checkout into it,
+/// so its shadows are made where the commit is and never taken from a pool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sharedEntriesOf({ commonDir, gitDir }) // { entries, ownInfo }
+/// ```
+pub fn shared_entries_of(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> std::io::Result<(Vec<SharedEntry>, bool)> {
+    let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
+    let mixed_info: bool =
+        git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?;
+    let entries: Vec<SharedEntry> =
+        shared_entries(common_dir, SkipRule::PrivateEntries { also_info: mixed_info })?;
+    return Ok((entries, mixed_info));
+}
+
+/// What:
+///  Whether the creation copies a `config.worktree` into the shadow.
+/// Why:
+///   A linked worktree's own configuration reaches a shadow as a copy, and a pool member must hold it too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await hasWorktreeConfig(gitDir);
+/// ```
+pub fn has_worktree_config(git_dir: &Path) -> std::io::Result<bool> {
+    return regular_file_exists(git_dir.join("config.worktree").as_path());
 }
 
 /// What:
