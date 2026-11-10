@@ -11,10 +11,6 @@
  ```
  */
 
-import {
-  rename,
-  writeFile,
-} from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import {
   join,
@@ -27,6 +23,7 @@ import {
   ipcMain,
 } from 'electron';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { writeJsonFileAtomically, } from '@monochromatic-dev/electron-infra-core/ts/atomic-json';
 import { tagged, } from '@monochromatic-dev/logger-core';
 
 import type { BridgeFileEntry, } from './bridge-types.js';
@@ -154,6 +151,9 @@ function isShallowScalarRecord(
 /**
  Persists renderer state atomically when the boundary-test state path is set.
  
+ The write is `writeJsonFileAtomically` from the shared Electron infra package,
+ so this app never keeps a second definition of the temp-file plus rename.
+ 
  @param state - Shallow scalar state snapshot.
  
  @mutates state - `JSON.stringify` may invoke record accessors or proxy traps.
@@ -174,24 +174,10 @@ async function writeObservedState(
   if (statePath === undefined)
     return;
 
-  /**
-   Unique temp path so state readers never observe a truncated JSON file.
-   */
-  const tempStatePath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-
-  await writeFile(
-    tempStatePath,
-    `${JSON.stringify(
-      state,
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  );
-  await rename(
-    tempStatePath,
-    statePath,
-  );
+  await writeJsonFileAtomically({
+    filePath: statePath,
+    value: state,
+  },);
 }
 
 /**
