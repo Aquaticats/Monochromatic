@@ -419,3 +419,21 @@ pub mod service_scratch_ref_of_a_dropped_batch;
 /// The record that names the worktree of a batch's scratch reference,
 /// so a restart can remove a reference whose landing was killed before its intent.
 pub mod service_scratch_ref_marker_of_a_batch;
+
+/// The record of a commit a reference lock keeps off its branch:
+/// what the branch was,
+/// what it goes to,
+/// the locks that refused the write,
+/// and when the commit was held.
+pub mod held_commit_record;
+
+/// The change of a held commit put onto the branch as it is now,
+/// when that branch moved while the lock stood.
+pub mod held_commit_replay;
+
+/// Moving the branch of a held commit once nothing stands in the way,
+/// and finishing what the landing owes after the move.
+pub mod held_commit_settle;
+
+/// What the wrapper says about a commit that a reference lock keeps off its branch.
+pub mod held_commit_words;

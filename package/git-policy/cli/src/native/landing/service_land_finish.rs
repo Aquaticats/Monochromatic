@@ -307,6 +307,10 @@ pub enum Handled {
     /// its commit is written to `refs/cli-git/kept/<number>` when Git writes that ref,
     /// and its intent and records are removed.
     Dropped,
+    /// The batch waits for a reference lock that nothing proves gone,
+    /// so its intent and its commit are left as they are
+    /// (`held_commit_record.rs`).
+    Held,
     /// The batch looks as if it never landed,
     /// and its journal is another service's:
     /// the intent and records stay on disk.
@@ -590,11 +594,24 @@ settled from the worktree's own record of it, and the file may be removed once t
             continue;
         }
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
+        // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the lock has not gone, so the
+        //  branch still names the commit before it, and dropping it would take the commit the person made. The settlement tries it
+        //  first, and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
+        if let Some(held) = crate::held_commit_settle::record_of(&intent, context.journal.as_path()) {
+            let settled: crate::held_commit_settle::Settled = crate::held_commit_settle::one(&git, &held, crate::held_commit_settle::Clearing::Proved);
+            crate::service_log!("batch {} is held behind a reference lock: {settled:?}", intent.seq);
+            if crate::held_commit_record::path_of(intent.git_dir.as_path(), intent.seq).exists() {
+                reports.push(RecoveryReport { seq: intent.seq, decision: Recovery::Hold, handled: Handled::Held });
+                continue;
+            }
+        }
         let Some(decision) = decision_for(&git, &intent) else {
             crate::service_error!("batch {} stays open: Git gave no answer about {} in {}, so its intent is kept", intent.seq, intent.reference, intent.repository.display());
             continue;
         };
         let handled: Handled = match (decision, owner) {
+            // The branch holds no batch of this one's kind: a held batch's own record decided above, so nothing here reaches Hold.
+            (Recovery::Hold, _) => Handled::Held,
             (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
             (Recovery::Drop, JournalOwner::ThisService) => {
                 keep_what_the_branch_does_not_show(&git, &intent);

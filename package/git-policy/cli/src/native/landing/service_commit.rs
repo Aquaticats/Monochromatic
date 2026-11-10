@@ -82,6 +82,7 @@ use crate::transaction_phase::Phase;
 /// which says whether the branch existed at all.
 use crate::transaction_journal::Base;
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 /// What the service path returns:
@@ -330,6 +331,14 @@ pub fn service_commit<F: RepositoryFacts>(
                 });
                 timing.after_landing += after_landing.elapsed();
                 return Ok(outcome);
+            }
+            Ok(Submitted::Held { words, .. }) => {
+                // The commit is written and kept, and a reference lock keeps its branch where it is: the owner's rule is that
+                //  commits never fail, so the command says what became of it and exits 0 (`SPEC.md`, "A commit held behind a
+                //  reference lock"). Nothing is pushed and nothing is reviewed here: no branch names the commit yet, and the
+                //  command that made it is over before its gate could run.
+                let _written = writeln!(std::io::stderr(), "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
+                return Ok(ServiceCommit { result: TransactionResult { events: Vec::new(), exit_code: 0, landed_oid: None, uses_lfs: false }, handoff: None });
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
                 // The service did not land this attempt, so it left the tree to this command, which reads the change it
