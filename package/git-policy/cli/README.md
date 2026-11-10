@@ -2975,7 +2975,7 @@ wrapper never waits without saying so.
 A wait with no bound of the wrapper's own is a scratch `git commit` the kernel has taken:
 once the ceiling's `SIGKILL` reaches a process in uninterruptible sleep it cannot act on it,
 and the commit waits until the kernel releases the step,
-saying so in one line
+saying so once and again while that wait lasts
 (owner,
 2026-11-10,
 "Keep waiting and say so").
@@ -3385,18 +3385,25 @@ Each line names what the command waits for,
    a process in uninterruptible sleep (state `D`,
    a stalled disk or a file system that stopped answering)
    cannot act on the `SIGKILL` until the call it is inside returns,
-   so one line names that `git commit` (its process),
-   says the stop was sent and the kernel has not released it,
+   so the wait that keeps waiting says,
+   once and again for as long as it lasts,
+   that the stop was sent and the kernel has not released the step,
+   names that `git commit` and the process the kernel is holding
+   (the step itself or a program it started),
    says that nothing was committed and that the person's index and files are as they were,
    and says the terminal stays there until the kernel lets go.
+   It says it from the wait and never from the notice's thread,
+   which a process at its thread limit never started.
    The owner chose that wait,
    over leaving after a bound and failing the commit
    (2026-11-10,
    "Keep waiting and say so"),
    as an exception to "nothing should ever wait forever or indefinitely";
    the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
-   The line is said only of a step that still reports that state one look interval after the signal,
-   so a step that acts on its stop in that interval is never said to be held.
+   The line is said only of a process that still reports that state one look interval after the signal,
+   so one that acts on its stop in that interval is never said to be held,
+   a look that could not be made is made again rather than read as the kernel having let go,
+   and a line the writer could not take is said again as soon as it can be.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;

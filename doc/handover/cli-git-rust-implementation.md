@@ -82,6 +82,49 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The held-step line is the wait's, said again while the wait lasts (2026-11-10T15:30:41-05:00)
+
+Branch `fix/git-policy-cli-stuck-step-notice-review-findings`,
+off `main` at `62994776ec` (the merge the Kimi K3.1 Pro review read,
+`/var/home/user/temp/agent/kimi-reviews/stuck-step-kernel-notice-1/review.md`).
+
+The review named four defects in the held-step notice,
+all found by reading and none reproduced by its author.
+Each is reproduced here by a control committed beside its fix,
+with a test seam that states the kernel's answer where no host process can be put into
+uninterruptible sleep (`BOX`):
+
+- A commit whose notice thread the system refused at its thread limit printed nothing at all,
+  and its wait on the kernel-held step was silent.
+  The wait that owns the child says the line now,
+  through the notice's writer thread,
+  which is started whether or not the notice thread is
+  (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+- One failed read of `/proc` was read as "the step is not held",
+  and the report ended for good.
+  A look that failed now states nothing and is made again,
+  and each held look says the line again at the notice interval,
+  which is also what keeps a long wait explained.
+- A full one-line queue refused the held-step line while an older advisory line sat in it,
+  and the line was never handed over.
+  A hand-off the writer refused is retried at the quarter second the first look uses,
+  so the line lands within that much of the reader taking lines again.
+- A look reports the step first and every program below it after,
+  and any process in `D` made the line say the step itself was in that state.
+  The line names the process the kernel is actually holding,
+  and says so in its own words when that process is a program the step started.
+
+The words,
+the look and the writer thread stay with the commit step
+(`commit/scratch_step_held_by_the_kernel.rs`,
+`commit/scratch_step_look_below.rs`,
+`commit/native_commit_waiting_notice.rs`);
+the timing of the repetition is the wait's.
+SPEC.md,
+README.md and
+`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`
+say what the command says now.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`

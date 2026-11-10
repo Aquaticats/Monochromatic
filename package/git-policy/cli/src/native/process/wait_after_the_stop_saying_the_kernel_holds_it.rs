@@ -108,7 +108,7 @@ pub struct HeldStepWords<'a> {
 ///
 /// The error of a wait the system failed.
 pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words: Option<HeldStepWords<'_>>) -> std::io::Result<ExitStatus> {
-    let Some(words) = words else {
+    let Some(the_words) = words else {
         return owned.wait().await;
     };
     let Some(step) = i32::try_from(owned.id()).ok() else {
@@ -131,8 +131,8 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
                 //       holds the one before; a whole notice interval later is a wait that looked stuck to anyone who
                 //       was reading (finding 3 of the 2026-11-10 review of the held-step notice).
                 //       The copy that was not taken is not lost: it is said again, so it is not counted as a drop.
-                pause = match words.lines.try_send(line) {
-                    Ok(()) => words.again_every,
+                pause = match the_words.lines.try_send(line) {
+                    Ok(()) => the_words.again_every,
                     Err(TrySendError::Full(_untaken) | TrySendError::Disconnected(_untaken)) => AFTER_THE_STOP,
                 };
             }
@@ -161,62 +161,8 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
 /// ```
 async fn reaped(owned: &mut OwnedChild) -> std::io::Result<ExitStatus> {
     #[cfg(all(test, target_os = "linux"))]
-    a_control_says_the_reap_has_not_returned::until_the_control_lets_the_reap_go().await;
+    the_controls_window::until_the_control_lets_the_reap_go().await;
     return owned.wait().await;
-}
-
-// What:
-//  A control that holds the reap of the step past the stop.
-// Why:
-//   The wait this module exists for lasts as long as the kernel has not released the step,
-//   and every step a control can start here acts on `SIGKILL` at once,
-//  so its reap returns before a look after the pause is made.
-//  A control states that the reap has not returned,
-//  which is the one fact a real uninterruptible call would give it.
-// Limits:
-//  Test-only, and one window for the process, so a control takes it before it holds anything.
-#[cfg(all(test, target_os = "linux"))]
-mod a_control_says_the_reap_has_not_returned {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Mutex, MutexGuard};
-    use std::time::{Duration, Instant};
-
-    /// Whether a control states that the step's end has not been collected.
-    static HELD: AtomicBool = AtomicBool::new(false);
-    /// Held by the control that holds a reap.
-    static WINDOW: Mutex<()> = Mutex::new(());
-    /// The longest a control's hold lasts, so a control's mistake ends the run with this wait's own answer.
-    const A_CONTROLS_BOUND: Duration = Duration::from_secs(30);
-    /// How often a held reap looks at the control's word.
-    const LOOK_PAUSE: Duration = Duration::from_millis(5);
-
-    /// Take the window for the control that is about to use it,
-    /// with no hold planted.
-    pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
-        let taken: MutexGuard<'static, ()> = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        HELD.store(false, Ordering::SeqCst);
-        return taken;
-    }
-
-    /// State that the step's end has not been collected.
-    pub(crate) fn hold_the_reap() {
-        HELD.store(true, Ordering::SeqCst);
-    }
-
-    /// Let the reap return.
-    pub(crate) fn let_the_reap_go() {
-        HELD.store(false, Ordering::SeqCst);
-    }
-
-    /// Wait,
-    /// no longer than `A_CONTROLS_BOUND`,
-    /// for the control to let the reap return.
-    pub(crate) async fn until_the_control_lets_the_reap_go() {
-        let deadline: Instant = Instant::now() + A_CONTROLS_BOUND;
-        while HELD.load(Ordering::SeqCst) && Instant::now() < deadline {
-            tokio::time::sleep(LOOK_PAUSE).await;
-        }
-    }
 }
 
 /// What:
@@ -266,6 +212,11 @@ fn the_look(step: i32) -> TheLook {
         None => TheLook::NotHeld,
     };
 }
+
+/// A control's hold on the reap of a step the kernel is said to hold.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs"]
+pub(crate) mod the_controls_window;
 
 /// The wait and its controls stay out of the release executable.
 #[cfg(test)]

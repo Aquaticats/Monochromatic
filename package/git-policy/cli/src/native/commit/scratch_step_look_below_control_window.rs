@@ -16,7 +16,8 @@
 //!  Both are one window for the process,
 //!  so a control takes it before it plants anything.
 //! Limits:
-//!  Test-only. A release build reads no atomic and holds no lock here.
+//!  Test-only.
+//!  A release build reads no atomic and holds no lock here.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard};

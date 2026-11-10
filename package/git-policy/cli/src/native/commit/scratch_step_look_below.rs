@@ -162,7 +162,12 @@ pub(crate) fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
 /// const held = below.find(processIsBlocked); // { pid, name, state: 'D' } | undefined
 /// ```
 pub(crate) fn the_process_the_kernel_holds(below: &[(i32, ProcessUse)]) -> Option<&(i32, ProcessUse)> {
-    return below.iter().find(|entry| { return process_is_blocked(entry); });
+    for entry in below {
+        if process_is_blocked(entry) {
+            return Some(entry);
+        }
+    }
+    return None;
 }
 
 /// The look and its controls stay out of the release executable.

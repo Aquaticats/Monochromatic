@@ -10,8 +10,9 @@
 //!  and states that the step's end has not been collected:
 //!  those two are the whole of what a real hold gives the wait
 //!  (`scratch_step_look_below_control_window.rs`,
-//!  `a_control_says_the_reap_has_not_returned`).
-//!  Every control here starts a real `sleep` as the step, and the wait ends it for real.
+//!  `wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
+//!  Every control here starts a real `sleep` as the step,
+//!  and the wait ends it for real.
 #![cfg(target_os = "linux")]
 
 use super::*;
@@ -20,7 +21,7 @@ use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_e
 use crate::forwarding::ChildOutcome;
 use crate::lazy_runtime::run_on_runtime;
 use crate::native_commit_waiting_notice::{NativeCommitNotice, NoticeStart, refuse_the_next_notice_thread};
-use crate::scratch_step_look_below::the_controls_window;
+use crate::scratch_step_look_below::the_controls_window as the_look_controls;
 use crate::test_support::SharedSink;
 use crate::wait_progress::Cadence;
 use std::io::Write;
@@ -51,7 +52,9 @@ fn number_of(child: &std::process::Child) -> i32 {
 const A_LINE_BOUND: Duration = Duration::from_secs(10);
 
 /// How long a control holds a step the kernel is said to be holding,
-/// so the wait has said its line and, where the control counts lines, said it more than once.
+/// so the wait has said its line and,
+/// where the control counts lines,
+/// said it more than once.
 const A_HOLD_BOUND: Duration = Duration::from_millis(1500);
 
 /// What:
@@ -80,8 +83,8 @@ fn until_the_text(read: &dyn Fn() -> String, bound: Duration, needle: &str) -> S
 ///   Every control here runs the same wait with the same words,
 ///  and differs only in what the kernel answers and in how the reader behaves.
 fn says_while_the_wait_lasts(lines: Option<&SyncSender<String>>, again_every: Duration, step: std::process::Child, read: &dyn Fn() -> String) -> String {
-    let lines: &SyncSender<String> = lines.expect("the notice's writer thread runs");
-    let words: HeldStepWords<'_> = HeldStepWords { lines, again_every };
+    let the_lines: &SyncSender<String> = lines.expect("the notice's writer thread runs");
+    let words: HeldStepWords<'_> = HeldStepWords { lines: the_lines, again_every };
     let (outcome, a_stop): (ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) =
         run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Duration::from_millis(300), "a step", Some(words)))
             .expect("the runtime")
@@ -139,8 +142,8 @@ impl Write for AReaderThatStops {
 /// ```
 #[test]
 fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step() {
-    let _look_window = the_controls_window::take_the_window();
-    let _reap_window = a_control_says_the_reap_has_not_returned::take_the_window();
+    let _look_window = the_look_controls::take_the_window();
+    let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
     let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
     refuse_the_next_notice_thread(1);
@@ -153,11 +156,11 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
     });
     let step: std::process::Child = sleeping_step();
     let number: i32 = number_of(&step);
-    the_controls_window::the_kernel_holds(number, "git");
-    a_control_says_the_reap_has_not_returned::hold_the_reap();
+    the_look_controls::the_kernel_holds(number, "git");
+    the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
         std::thread::sleep(A_HOLD_BOUND);
-        a_control_says_the_reap_has_not_returned::let_the_reap_go();
+        the_controls_window::let_the_reap_go();
     });
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
@@ -184,8 +187,8 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
 /// ```
 #[test]
 fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
-    let _look_window = the_controls_window::take_the_window();
-    let _reap_window = a_control_says_the_reap_has_not_returned::take_the_window();
+    let _look_window = the_look_controls::take_the_window();
+    let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
     let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
@@ -196,11 +199,11 @@ fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
         sink: Box::new(sink.clone()),
     });
     let step: std::process::Child = sleeping_step();
-    the_controls_window::the_kernel_holds(number_of(&step), "git");
-    a_control_says_the_reap_has_not_returned::hold_the_reap();
+    the_look_controls::the_kernel_holds(number_of(&step), "git");
+    the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
         std::thread::sleep(A_HOLD_BOUND);
-        a_control_says_the_reap_has_not_returned::let_the_reap_go();
+        the_controls_window::let_the_reap_go();
     });
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
@@ -213,10 +216,12 @@ fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
 ///  A look that could not be made is made again,
 ///  never read as the kernel having let go.
 /// Why:
-///   `/proc` can refuse a read for a moment (a descriptor limit, a walk that named processes and let none of them be read),
+///   `/proc` can refuse a read for a moment (a descriptor limit,
+///   a walk that named processes and let none of them be read),
 ///  and reading that as "the step is not held" lost the whole explanation for a wait that then lasted
 ///  (finding 2 of the 2026-11-10 review of the held-step notice).
-///  The step still is held in this control, and only the first look fails.
+///  The step still is held in this control,
+///  and only the first look fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -224,8 +229,8 @@ fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
 /// ```
 #[test]
 fn a_look_that_could_not_be_made_is_made_again() {
-    let _look_window = the_controls_window::take_the_window();
-    let _reap_window = a_control_says_the_reap_has_not_returned::take_the_window();
+    let _look_window = the_look_controls::take_the_window();
+    let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
     let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
@@ -237,12 +242,12 @@ fn a_look_that_could_not_be_made_is_made_again() {
     });
     let step: std::process::Child = sleeping_step();
     let number: i32 = number_of(&step);
-    the_controls_window::the_kernel_holds(number, "git");
-    the_controls_window::plant_looks_that_cannot_be_made(1);
-    a_control_says_the_reap_has_not_returned::hold_the_reap();
+    the_look_controls::the_kernel_holds(number, "git");
+    the_look_controls::plant_looks_that_cannot_be_made(1);
+    the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
         std::thread::sleep(A_HOLD_BOUND);
-        a_control_says_the_reap_has_not_returned::let_the_reap_go();
+        the_controls_window::let_the_reap_go();
     });
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
@@ -256,7 +261,8 @@ fn a_look_that_could_not_be_made_is_made_again() {
 /// What:
 ///  A line the writer could not take is said again as soon as the writer can take it.
 /// Why:
-///   The queue holds one line, and a reader that stopped reading fills it with an older advisory line,
+///   The queue holds one line,
+///   and a reader that stopped reading fills it with an older advisory line,
 ///  so the line that explains a wait of unknown length was dropped and never handed over again
 ///  (finding 3 of the 2026-11-10 review of the held-step notice).
 ///  The reader here takes nothing until it is let go halfway through the wait,
@@ -269,8 +275,8 @@ fn a_look_that_could_not_be_made_is_made_again() {
 /// ```
 #[test]
 fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
-    let _look_window = the_controls_window::take_the_window();
-    let _reap_window = a_control_says_the_reap_has_not_returned::take_the_window();
+    let _look_window = the_look_controls::take_the_window();
+    let _reap_window = the_controls_window::take_the_window();
     let entered: Arc<AtomicBool> = Arc::default();
     let released: Arc<AtomicBool> = Arc::default();
     let written: Arc<std::sync::Mutex<Vec<u8>>> = Arc::default();
@@ -292,20 +298,22 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
     // Two more intervals: the writer holds the first line, and the line behind it fills the one queue place.
     std::thread::sleep(Duration::from_millis(250));
     let step: std::process::Child = sleeping_step();
-    the_controls_window::the_kernel_holds(number_of(&step), "git");
-    a_control_says_the_reap_has_not_returned::hold_the_reap();
+    the_look_controls::the_kernel_holds(number_of(&step), "git");
+    the_controls_window::hold_the_reap();
     let release = {
-        let released: Arc<AtomicBool> = released.clone();
+        let letting_go: Arc<AtomicBool> = released.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(1200));
-            released.store(true, Ordering::SeqCst);
+            letting_go.store(true, Ordering::SeqCst);
             std::thread::sleep(Duration::from_millis(1000));
-            a_control_says_the_reap_has_not_returned::let_the_reap_go();
+            the_controls_window::let_the_reap_go();
         })
     };
     let read = {
-        let written: Arc<std::sync::Mutex<Vec<u8>>> = written.clone();
-        move || -> String { return String::from_utf8_lossy(written.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice()).into_owned(); }
+        let written_by_the_reader: Arc<std::sync::Mutex<Vec<u8>>> = written.clone();
+        move || -> String {
+            return String::from_utf8_lossy(written_by_the_reader.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice()).into_owned();
+        }
     };
     // Far longer than the wait lasts, so a line that waited for the next interval never arrives in it.
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), Duration::from_secs(30), step, &read);
@@ -333,8 +341,8 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
 /// ```
 #[test]
 fn a_helper_held_below_the_step_is_the_process_the_line_names() {
-    let _look_window = the_controls_window::take_the_window();
-    let _reap_window = a_control_says_the_reap_has_not_returned::take_the_window();
+    let _look_window = the_look_controls::take_the_window();
+    let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
     let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
@@ -348,11 +356,11 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
     let mut helper: std::process::Child = std::process::Command::new("sleep").arg("120").spawn().expect("a helper");
     let step_number: i32 = number_of(&step);
     let helper_number: i32 = number_of(&helper);
-    the_controls_window::the_kernel_holds(helper_number, "ssh-keygen");
-    a_control_says_the_reap_has_not_returned::hold_the_reap();
+    the_look_controls::the_kernel_holds(helper_number, "ssh-keygen");
+    the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
         std::thread::sleep(A_HOLD_BOUND);
-        a_control_says_the_reap_has_not_returned::let_the_reap_go();
+        the_controls_window::let_the_reap_go();
     });
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
     release.join().expect("the control's thread");

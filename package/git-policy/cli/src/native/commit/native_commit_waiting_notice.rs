@@ -412,7 +412,8 @@ impl NativeCommitNotice {
     /// Why:
     ///   The wait that stops a step the kernel then holds is the only code that keeps waiting,
     /// and the line that explains that wait must reach the person even when no notice thread was started.
-    ///  The writer thread is this notice's, and this is the queue it takes whole lines from.
+    ///  The writer thread is this notice's,
+    ///  and this is the queue it takes whole lines from.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
