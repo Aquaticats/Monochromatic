@@ -30,7 +30,7 @@
 use crate::fs_beneath::ObjectId;
 use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic};
+use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic_unsynced};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use std::path::{Path, PathBuf};
@@ -176,10 +176,20 @@ pub fn read_made(claim: &Path) -> Option<MadeObject> {
 /// and called again after the wrapper's last write into it,
 /// so the record's
 ///  instant is the cut-off the accounting compares against.
+/// Neither call flushes anything:
+/// the record is published whole by one rename,
+/// a kill leaves the page cache
+///  intact,
+/// and a machine crash that loses it only makes a later command report the folder instead of removing
+///  it,
+/// which is the safe direction;
+/// a flush on the ladder's path is what the swap of a subvolume makes a
+///  commit of the whole filesystem,
+/// which waits behind every other writer's data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordStageMadeObject({ commonDir, container, object });
+/// await recordStageMadeObject({ commonDir, container, object }); // rename only, no flush
 /// ```
 pub fn record_made(common_dir: &Path, container: &Path, object: ObjectId) -> Result<(), WorktreeCopyError> {
     return record_made_at(common_dir, container, object, SystemTime::now());
@@ -203,7 +213,7 @@ pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, wri
         return Ok(());
     };
     ensure_journal_root(common_dir)?;
-    return write_atomic(path.as_path(), made_text(container, object, written).as_bytes(), "stage object record");
+    return write_atomic_unsynced(path.as_path(), made_text(container, object, written).as_bytes(), "stage object record");
 }
 
 /// What:
