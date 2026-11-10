@@ -10228,7 +10228,8 @@ The next commit then only places that file (a rename that does not replace),
 so the flush is not on its path.
 The flush starts there because it is seconds long on a loaded disk and the landing's own work pays for it:
 a measured landing waited 9 to 13 seconds for a flush that had started after the landing before
-(`lock_stage_kind=pre`, 2026-11-10),
+(`lock_stage_kind=pre`,
+2026-11-10),
 against the owner's rule that a commit through the wrapper is not five seconds slower than native Git.
 A landing that finds the flush still running never waits for it:
 it stages its own marker the ordinary way,
