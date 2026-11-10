@@ -6,7 +6,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { usesClipboardApi } from './command-question.markup-scan.mjs';
+import { pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
 
 const root = process.cwd();
 // This round is archived: its template and page live in `questions/archive`, and
@@ -213,7 +213,7 @@ function validate() {
   }
   const scenes = Object.values(groups)
     .flat();
-  const urls = [...html.matchAll(/data:image\/png;base64,([A-Za-z0-9+/=]+)/g)].map((match) => match[1]);
+  const urls = pngPayloads(html);
   const reference = readFileSync(join(
     root,
     'questions',
@@ -292,7 +292,7 @@ function validate() {
     const figure = figures[index];
     const expectedCode = `${scene.kind
       .toUpperCase()}${scene.variant}`;
-    const captures = [...figure.matchAll(/data:image\/png;base64,([A-Za-z0-9+/=]+)/g)].map((match) => match[1]);
+    const captures = pngPayloads(figure);
     const expectedWidth = scene.size === 'wide' ? 1_100 : (scene.size === 'stress' ? 360 : 480);
     const expectedHeight = scene.size === 'compact' ? 600 : 640;
     if ((!figure.includes(`data-label="${expectedCode} ·`)) || (captures.length !== 2)

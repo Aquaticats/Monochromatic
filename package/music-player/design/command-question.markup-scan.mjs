@@ -65,3 +65,30 @@ export function usesClipboardApi(text) {
   }
 }
 //endregion
+
+//region The raster guard reads the prefix and its alphabet run, not a pattern
+/** Prefix every embedded raster carries before its base64 payload. */
+const PNG_DATA_PREFIX = 'data:image/png;base64,';
+
+/** Characters a base64 payload may carry, padding included. */
+const BASE64_ALPHABET = new Set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=');
+
+/**
+ * Reads every embedded raster payload, in page order.
+ * The prefix has no proper prefix that is also a suffix, so a prefix with no
+ * payload after it resumes past the whole prefix without skipping a later match.
+ */
+export function pngPayloads(text) {
+  const payloads = [];
+  let cursor = 0;
+  for (;;) {
+    const prefixAt = text.indexOf(PNG_DATA_PREFIX, cursor);
+    if (prefixAt === -1) return payloads;
+    const payloadAt = prefixAt + PNG_DATA_PREFIX.length;
+    let end = payloadAt;
+    while (end < text.length && BASE64_ALPHABET.has(text[end])) end += 1;
+    if (end > payloadAt) payloads.push(text.slice(payloadAt, end));
+    cursor = end;
+  }
+}
+//endregion

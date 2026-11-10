@@ -9,7 +9,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { usesClipboardApi } from './command-question.markup-scan.mjs';
+import { pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -29,6 +29,12 @@ const scriptPath = join(
   root,
   'command-question.mjs'
 );
+const PNG_PREFIX = 'data:image/png;base64,';
+
+/** Reports one value pair when a reading and its expectation disagree. */
+function fail(name, found, expected) {
+  throw new Error(`The scan reads ${JSON.stringify(found)} for ${name}; the withdrawn pattern read ${JSON.stringify(expected)}.`);
+}
 
 //region A page that reaches for the clipboard is refused, and the scan reads the same literals the pattern did
 // Every case names what the markup carries and what the withdrawn pattern answered for it, so the scan is held to
@@ -52,24 +58,50 @@ const clipboardCases = [
 ];
 for (const [name, markup, expected] of clipboardCases) {
   const found = usesClipboardApi(markup);
-  if (found !== expected) throw new Error(`The clipboard scan reports ${found} for ${name}: ${JSON.stringify(markup)}`);
+  if (found !== expected) fail(name, found, expected);
 }
+//endregion
 
-// The site string is the one issue #787 records. It has to stay out of the script, and the search has to be able to
-// find it at all, so the control runs the same search over a page that carries it.
-const CLIPBOARD_SITE = String.raw`/navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/`;
-const siteSearchControl = `if (${CLIPBOARD_SITE}.test(html)) throw`;
-if (!siteSearchControl.includes(CLIPBOARD_SITE)) throw new Error('The site search cannot see the site string it looks for.');
+//region Every embedded raster payload is read, in page order, and stops at its alphabet's edge
+const payloadCases = [
+  ['a page without a raster', '<figure><img alt="none"></figure>', []],
+  ['one payload', `<img src="${PNG_PREFIX}AAAA">`, ['AAAA']],
+  ['two payloads', `<img src="${PNG_PREFIX}AA=="><img src="${PNG_PREFIX}BB+/">`, ['AA==', 'BB+/']],
+  ['a payload that ends the page', `${PNG_PREFIX}CCCC`, ['CCCC']],
+  ['a prefix with no payload after it', `${PNG_PREFIX}</p><img src="${PNG_PREFIX}DDDD">`, ['DDDD']],
+  ['a payload stopped by a character base64 never carries', `${PNG_PREFIX}EE-f`, ['EE']],
+  ['adjacent prefixes in separate markup', `${PNG_PREFIX}FF>${PNG_PREFIX}GG`, ['FF', 'GG']],
+  // A prefix's own letters are base64 characters, so one issued inside a run continues that run.
+  ['a prefix that continues a base64 run', `${PNG_PREFIX}FF${PNG_PREFIX}GG`, ['FFdata']],
+  ['nothing at all', '', []],
+];
+for (const [name, markup, expected] of payloadCases) {
+  const found = pngPayloads(markup);
+  if (JSON.stringify(found) !== JSON.stringify(expected)) fail(name, found, expected);
+}
+//endregion
+
+//region The script carries none of the patterns the audit filed against it
+// Each entry is the site string its issue records. The control runs the same search over a page that carries the
+// first site, so an empty result means the pattern is gone rather than that the search reads nothing.
+const FILED_SITES = [
+  [String.raw`/navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/`, '#787'],
+  [String.raw`/data:image\/png;base64,([A-Za-z0-9+/=]+)/g`, '#788 and #789'],
+];
+const siteSearchControl = `if (${FILED_SITES[0][0]}.test(html)) throw`;
+if (!siteSearchControl.includes(FILED_SITES[0][0])) throw new Error('The site search cannot see the site string it looks for.');
 const script = readFileSync(
   scriptPath,
   'utf8'
 );
-if (script.includes(CLIPBOARD_SITE)) throw new Error(`command-question.mjs still carries the filed clipboard pattern: ${CLIPBOARD_SITE}`);
+for (const [site, issues] of FILED_SITES) {
+  if (script.includes(site)) throw new Error(`command-question.mjs still carries the pattern filed as ${issues}: ${site}`);
+}
 //endregion
 
-//region The validator still refuses every page the swapped guard refused
+//region The validator still refuses every page the swapped guards refused
 // A disposable copy of the questionnaire builds its page from the committed template, captures and reference, so the
-// validator runs against real markup and every mutation is one addition to that page.
+// validator runs against real markup and every mutation is one change to that page.
 const fixture = mkdtempSync(join(
   scratchBase,
   'command-question-'
@@ -150,31 +182,45 @@ try {
   );
   const accepted = invoke('validate');
   if (accepted.status !== 0) throw new Error(`The built questionnaire did not validate: ${accepted.stderr}`);
-  // Each mutation adds markup the guard refuses; the built page is restored before the next one.
+  // Each mutation adds markup the guard refuses or rewrites one reading of the page, and names the sentence that has
+  // to come back. The built page is restored before the next one.
   const mutations = [
-    [
-      'a clipboard object',
-      '<p data-probe="navigator.clipboard"></p>'
-    ],
-    [
-      'a copy command',
-      '<p data-probe="execCommand(\n  \'copy\')"></p>'
-    ],
+    {
+      name: 'a clipboard object',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<p data-probe="navigator.clipboard"></p></body>'
+      ),
+      diagnostic: 'depends on an external resource or clipboard API',
+    },
+    {
+      name: 'a copy command',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<p data-probe="execCommand(\n  \'copy\')"></p></body>'
+      ),
+      diagnostic: 'depends on an external resource or clipboard API',
+    },
+    {
+      name: 'a raster prefix that lost its comma',
+      mutate: (page) => page.replace(
+        PNG_PREFIX,
+        'data:image/png;base64'
+      ),
+      diagnostic: 'data URLs',
+    },
   ];
-  for (const [name, markup] of mutations) {
-    const mutated = pristine.replace(
-      '</body>',
-      `${markup}</body>`
-    );
-    if (mutated === pristine) throw new Error('The fixture page lost its closing body tag.');
+  for (const { name, mutate, diagnostic } of mutations) {
+    const mutated = mutate(pristine);
+    // A mutation that rewrites nothing would pass the check below for the wrong reason.
+    if (mutated === pristine) throw new Error(`The fixture page cannot carry ${name}.`);
     writeFileSync(
       output,
       mutated
     );
     const refused = invoke('validate');
     if (refused.status === 0) throw new Error(`The validator accepted a page carrying ${name}.`);
-    // One sentence covers the external-resource guard and the clipboard guard, so the message is the pair's.
-    if (!refused.stderr.includes('depends on an external resource or clipboard API')) {
+    if (!refused.stderr.includes(diagnostic)) {
       throw new Error(`The validator refused ${name} with an unexpected diagnostic: ${refused.stderr}`);
     }
     writeFileSync(
@@ -182,7 +228,7 @@ try {
       pristine
     );
   }
-  console.log(`Command questionnaire: ${clipboardCases.length} clipboard readings hold, the filed pattern is gone, and ${mutations.length} added clipboard reach is refused.`);
+  console.log(`Command questionnaire: ${clipboardCases.length} clipboard readings and ${payloadCases.length} payload readings hold, ${FILED_SITES.length} filed patterns are gone, and ${mutations.length} changed pages are refused.`);
 } finally {
   rmSync(
     fixture,
