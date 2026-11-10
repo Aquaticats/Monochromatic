@@ -16,7 +16,7 @@
  @module
  */
 
-import spawn from 'nano-spawn';
+import spawn, { SubprocessError, } from 'nano-spawn';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
@@ -143,6 +143,52 @@ const rlSearch = tagged({
 },);
 
 /**
+ Runs ripgrep for one glob in the music directory.
+ 
+ @param glob - Ripgrep glob pattern.
+ 
+ @param musicDir - Absolute path to search in.
+ 
+ @returns rg's stdout, holding one null-terminated path per match.
+ 
+ @throws When `rg` reports no match, naming the glob and the directory searched.
+ */
+async function runRipgrep({
+  glob,
+  musicDir,
+}: {
+  readonly glob: string;
+  readonly musicDir: string;
+},): Promise<string> {
+  try {
+    /**
+     Completed rg run, whose stdout is the null-separated file list.
+     */
+    const rgRun = await spawn(
+      'rg',
+      [
+        '--files',
+        '-g',
+        glob,
+        musicDir,
+        '--null',
+      ],
+    );
+    return rgRun.stdout;
+  }
+  catch (error: unknown) {
+    // rg exits 1 when no files match the glob
+    if ((error instanceof SubprocessError) && (error.exitCode === 1)) {
+      throw new Error(
+        `No files matching glob "${glob}" in "${musicDir}"`,
+        { cause: error, },
+      );
+    }
+    throw error;
+  }
+}
+
+/**
  Searches for music files matching the glob pattern.
  
  Uses `rg --files -g <glob> <dir> --null` for null-separated output,
@@ -170,41 +216,10 @@ async function findFiles({
   /**
    Raw stdout from rg, null-byte-separated.
    */
-  const rgOutput = await spawn(
-    'rg',
-    [
-      '--files',
-      '-g',
-      glob,
-      musicDir,
-      '--null',
-    ],
-  )
-    .then(
-    function extractStdout({ stdout, }: Readonly<{ stdout: string; }>,): string {
-      return stdout;
-    },
-    function handleRgError(err: unknown,) {
-        // rg exits 1 when no files match the glob
-      if ((err !== null)
-        && (err !== undefined)
-        && ((typeof err) === 'object')
-        && ('exitCode' in err))
-        {
-          /**
-           Process exit code pulled off the spawn error so the no-match case (1) can be rethrown with a clearer message.
-           */
-        const { exitCode, } = err;
-        if (exitCode === 1) {
-          throw new Error(
-            `No files matching glob "${glob}" in "${musicDir}"`,
-            { cause: err, },
-          );
-        }
-      }
-      throw err;
-    },
-    );
+  const rgOutput = await runRipgrep({
+    glob,
+    musicDir,
+  },);
 
   /**
    Matched file paths split from the null-separated rg output; empty fragments dropped so the count reflects real matches.
