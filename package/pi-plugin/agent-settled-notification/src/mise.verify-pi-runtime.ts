@@ -12,6 +12,11 @@ import {
   discoverAndLoadExtensions,
 } from '@earendil-works/pi-coding-agent';
 
+import {
+  createAgentSettledEvent,
+  createExtensionContext,
+} from './test-fixtures.ts';
+
 //region Constants
 
 /**
@@ -97,8 +102,8 @@ async function verifyPiLoader(): Promise<string> {
     throw new Error(`missing ${AGENT_SETTLED_EVENT} handler`,);
 
   await handler(
-    { type: AGENT_SETTLED_EVENT, },
-    undefined,
+    createAgentSettledEvent({ aborted: false, },),
+    createExtensionContext(),
   );
 
   return 'agent-settled-notification Pi-loader verification passed';

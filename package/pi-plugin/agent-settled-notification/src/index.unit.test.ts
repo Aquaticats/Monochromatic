@@ -4,7 +4,6 @@
  @module
  */
 
-import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import {
   describe,
   expect,
@@ -20,103 +19,12 @@ import agentSettledNotification, {
   type NotificationInvocation,
   type NotificationProcessInput,
 } from '../dist/final/node/index.mjs';
-
-//region Test harness
-
-/** Minimal event handler shape needed to drive the registered Pi lifecycle callback. */
-type EventHandler = (
-  event: unknown,
-  context: unknown,
-) => unknown;
-
-/** Fake Pi API and captured lifecycle registrations. */
-type FakePiHarness = {
-  /** API supplied to the extension under test. */
-  readonly api: ExtensionAPI;
-
-  /** Handlers grouped by lifecycle event name. */
-  readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-};
-
-/**
- Creates a fake Pi extension API that records lifecycle subscriptions.
- 
- @returns fake API and captured event handlers
- 
- @example
- ```ts
- const harness = createFakePiHarness();
- ```
- */
-function createFakePiHarness(): FakePiHarness {
-  /** Mutable registrations populated through the fake `on()` method. */
-  const handlersByEvent = new Map<string, EventHandler[]>();
-
-  /** Fake Pi API implementing only the event-registration surface under test. */
-  const api = {
-    on(
-      event: string,
-      handler: EventHandler,
-    ): void {
-      /** Existing handlers registered for this lifecycle event. */
-      const existingHandlers = handlersByEvent.get(event,)
-        ?? [];
-      handlersByEvent.set(
-        event,
-        [
-          ...existingHandlers,
-          handler,
-        ],
-      );
-    },
-  } as unknown as ExtensionAPI;
-
-  return {
-    api,
-    handlersByEvent,
-  };
-}
-
-/**
- Retrieves the only handler registered for an event.
- 
- @param handlersByEvent - captured Pi registrations
- 
- @param event - lifecycle event whose callback is needed
- 
- @returns registered lifecycle callback
- 
- @throws when registration is absent or duplicated
- 
- @example
- ```ts
- getOnlyHandler({ handlersByEvent: new Map(), event: 'agent_settled' });
- ```
- */
-function getOnlyHandler(
-  {
-    handlersByEvent,
-    event,
-  }: {
-    readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-    readonly event: string;
-  },
-): EventHandler {
-  /** Captured handlers for the requested event. */
-  const handlers = handlersByEvent.get(event,);
-  if (handlers === undefined)
-    throw new Error(`Missing handler registration: ${event}`,);
-  if (handlers.length !== 1)
-    throw new Error(`Expected one handler for ${event}, received ${handlers.length}`,);
-
-  /** Sole handler registered for the requested lifecycle event. */
-  const [handler,] = handlers;
-  if (handler === undefined)
-    throw new Error(`Missing handler registration: ${event}`,);
-  return handler;
-}
-
-//endregion Test harness
+import {
+  createAgentSettledEvent,
+  createExtensionContext,
+  createFakePiHarness,
+  getOnlyHandler,
+} from './test-fixtures.ts';
 
 await describe({
   name: '',
@@ -148,7 +56,7 @@ await describe({
       name: registerAgentSettledNotification.name,
       children: [
         it({
-          name: 'delivers one static notification for each settled event',
+          name: 'delivers one static notification for completed and aborted settlements',
           fn: async () => {
             /** Fake Pi registration harness. */
             const harness = createFakePiHarness();
@@ -170,8 +78,14 @@ await describe({
               handlersByEvent: harness.handlersByEvent,
               event: 'agent_settled',
             },);
-            await handler({}, {},);
-            await handler({}, {},);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            await handler(
+              createAgentSettledEvent({ aborted: true, },),
+              createExtensionContext(),
+            );
 
             expect(invocations,).toEqual([
               {
