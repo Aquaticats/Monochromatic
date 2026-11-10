@@ -1,4 +1,8 @@
 import {
+  isWhitespaceChar,
+  isWordChar,
+} from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import {
   describe,
   expect,
   it,
@@ -26,7 +30,7 @@ type StubNode = {
   readonly type: string;
   readonly start: number;
   readonly end: number;
-  readonly [key: string]: string | number | undefined | StubNode | readonly StubNode[];
+  readonly [key: string]: string | number | StubNode | readonly StubNode[];
 };
 
 /** Parameters for {@link expectationsOf}. */
@@ -117,7 +121,8 @@ function tokenAt({
  
  Keywords and identifiers arrive as word runs, punctuators as single
  characters; the model reads only token roles and line-leading offsets, so
- the scan need not reproduce full lexing.
+ the scan need not reproduce full lexing. The shared ASCII character
+ predicates cover every fixture these tests build.
  
  @param sourceText - text to scan
  
@@ -156,7 +161,7 @@ function tokensOf(sourceText: string,): readonly ExpectationToken[] {
   let cursor = 0;
   while (cursor < sourceText.length) {
     const character = sourceText.charAt(cursor,);
-    if (/\s/u.test(character,)) {
+    if (isWhitespaceChar(character,)) {
       cursor += 1;
       continue;
     }
@@ -169,11 +174,11 @@ function tokensOf(sourceText: string,): readonly ExpectationToken[] {
       cursor += 1;
       continue;
     }
-    if (/[\p{Letter}\p{Number}]/u.test(character,)) {
+    if (isWordChar(character,)) {
       let end = cursor;
       while (
         (end < sourceText.length)
-          && /[\p{Letter}\p{Number}]/u.test(sourceText.charAt(end,),)
+          && isWordChar(sourceText.charAt(end,),)
       ) {
         end += 1;
       }
@@ -1109,7 +1114,7 @@ await describe({
 // Close-bracket mapping including its unreachable-value throw.
 
 await describe({
-  name: 'closeValueOfOpenBracket',
+  name: closeValueOfOpenBracket.name,
   children: [
     it({
       name: 'maps every open bracket to its close bracket',
