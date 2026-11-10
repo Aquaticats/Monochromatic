@@ -186,7 +186,8 @@ fn name_the_process(world: &Setup) {
 /// Linux `include/uapi/linux/binfmts.h`),
 /// and the kernel refuses a command line and environment together above 6 MiB (`fs/exec.c`,
 /// `bprm_stack_limits`).
-/// This control's line is 200 words of 1 KiB, 204,800 bytes:
+/// This control's line is 200 words of 1 KiB,
+/// 204,800 bytes:
 /// longer than the 65,536 bytes the look used to read whole,
 /// and far below what a program may carry.
 const LONG_COMMAND_LINE_WORD_BYTES: usize = 1024;
@@ -218,7 +219,8 @@ fn long_command_line() -> Vec<String> {
 /// A process whose line was longer counted as one that may be the earlier helper,
 /// so it refused the command with the words of a look that ran out of time,
 /// for as long as that program ran,
-/// and no retry could clear it, because nothing about it changes.
+/// and no retry could clear it,
+/// because nothing about it changes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,7 +268,7 @@ fn a_process_whose_command_line_cannot_be_read_is_named_with_the_answer_and_the_
     run_process(&world, [String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")].as_slice());
     name_the_process(&world);
     let cmdline: PathBuf = world.proc_root.join("77/cmdline");
-    std::fs::set_permissions(cmdline.as_path(), std::fs::Permissions::from_mode(0)).expect("a command line no one may read");
+    std::fs::set_permissions(cmdline.as_path(), std::fs::Permissions::from_mode(0o0)).expect("a command line no one may read");
     let ((code, stdout, stderr), before) = run(&world.request());
     assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""), "the command refused and acted on nothing: {stderr}");
     assert!(stderr.contains(crate::earlier_service_process_look::Hold::CannotLook.words()), "the reason's words stay: {stderr}");

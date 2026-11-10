@@ -24,7 +24,8 @@ fn look_with(ceiling: Duration) -> ServiceLook {
 /// Linux `include/uapi/linux/binfmts.h`),
 /// and the kernel refuses a command line and environment together above 6 MiB (`fs/exec.c`,
 /// `bprm_stack_limits`).
-/// This control's line is 200 words of 1 KiB, 204,800 bytes:
+/// This control's line is 200 words of 1 KiB,
+/// 204,800 bytes:
 /// longer than the 65,536 bytes the look used to read whole,
 /// and far below what a program may carry.
 const LONG_LINE_WORD_BYTES: usize = 1024;
@@ -33,7 +34,8 @@ const LONG_LINE_WORDS: usize = 200;
 /// The process number the fake process table lists.
 const FAKE_PID: u32 = 77;
 
-/// What a process of a fake table is called, as the kernel keeps its program's name.
+/// What a process of a fake table is called,
+/// as the kernel keeps its program's name.
 const FAKE_PROGRAM_NAME: &str = "unrelated-tool";
 
 /// What:

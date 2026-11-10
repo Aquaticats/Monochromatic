@@ -70,7 +70,23 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// 0.64 s in all
 ///  (the look itself starts no process,
 /// so it is faster).
-/// Ten seconds is 15 times that and well below `START_CEILING`.
+/// Read again on 2026-11-10 as the look itself makes it,
+/// with the host's load average at 56 of 8 threads:
+/// 40 samples of the socket table,
+/// the process table and one read of every command line of the user's 617 to 625 processes
+/// (1,336 processes of all users were listed),
+/// 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest;
+/// the command-line reads took 16.9 ms at the median and 35.7 ms at the slowest,
+/// and the socket table 3.5 to 6.2 ms.
+/// The slowest read of one process took 6.4 ms.
+/// Ten seconds is 185 times the slowest whole look read here:
+/// it is the bound a read that waits for a process stuck in the kernel needs,
+/// never what an ordinary look costs.
+/// What does not end at this bound is a command line the look cannot prove:
+/// `landing/earlier_service_process_look.rs` reads up to the kernel's own ceiling on a command line,
+/// and a process it may not read at all holds the look back until that process ends
+/// (`doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md`).
 pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 
 /// The longest wait for a foreign program's `index.lock` that ended because the program let go,
