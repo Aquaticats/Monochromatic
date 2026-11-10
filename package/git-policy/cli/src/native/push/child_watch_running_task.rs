@@ -76,6 +76,25 @@ pub(crate) fn a_waiter_thread_is_refused_now() -> Option<std::io::Error> {
 ///  stubborn descendant that holds no pipe.
 pub(crate) const WATCHER_END_BOUND: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING.saturating_add(STOP_TAIL_ALLOWANCE);
 
+/// How long the wait for a watched step's output gives the watch to end the step before that wait ends it itself.
+/// Why:
+///  A watch that reaches the step's ceiling ends the step through `stop_process`:
+/// the request,
+///  the grace it is given to remove its own lock files,
+/// the kill,
+/// the look at what is still there,
+/// and the sweep
+///  of the locks it left.
+/// That is the same work `WATCHER_END_BOUND` bounds for the drop of a watch,
+/// whose citation holds
+///  the measurement and the owner's margin behind the figure,
+/// so a wait that is only the backstop gives the watch the same
+///  time and never takes the ending away from a watch that is still at it.
+/// A stop that sits in uninterruptible I/O past
+///  this bound is taken over by that wait,
+/// which ends the step at the same ceiling and says so.
+pub(crate) const THE_WATCH_HAS_ITS_ENDING: Duration = WATCHER_END_BOUND;
+
 /// What a stop needs beyond its grace:
 /// the kill,
 /// the look at the processes,

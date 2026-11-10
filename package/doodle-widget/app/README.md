@@ -39,3 +39,20 @@ mise run //package/doodle-widget/app:build
 
 Output:
  `dist/final/index.html`
+
+The build also writes `dist/final/node/index.mjs`,
+ which re-exports the DOM-free stroke state,
+ drawing configuration,
+ and eraser modules of `src/index.ts`.
+No consumer imports it:
+it exists so unit tests load a bundle rather than sibling source.
+
+## Test
+
+```sh
+mise run //package/doodle-widget/app:test:unit
+```
+
+Unit tests live beside the modules they cover as `*.unit.test.ts`
+and import `dist/final/node/index.mjs`,
+ which the task rebuilds first.

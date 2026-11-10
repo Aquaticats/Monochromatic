@@ -18,6 +18,8 @@ import {
 } from '../shard-schema.ts';
 import type { Mutant, } from '../engine/types.ts';
 
+//region Group shape
+
 /**
  One source file's mutants with their selected tests.
  */
@@ -26,6 +28,22 @@ export type MutantGroup = {
   readonly mutants: readonly Mutant[];
   readonly tests: readonly string[];
 };
+
+/**
+ Mutants and selected tests of one source file, as grouped manifests read them.
+
+ The accumulator inside {@link composeReshard} appends to its own mutable
+ array while ids are grouped; this read-only view is the boundary the grouping
+ callback receives, so no callback can restructure what was grouped.
+ */
+type ReshardBucket = {
+  readonly mutants: readonly Mutant[];
+  readonly tests: readonly string[];
+};
+
+//endregion Group shape
+
+//region Chunking
 
 /**
  Splits one array into consecutive chunks of at most size.
@@ -63,6 +81,10 @@ export function chunk<const T,>(options: {
     },
   );
 }
+
+//endregion Chunking
+
+//region Shard composition
 
 /**
  Composes shard manifests from per-file mutant groups.
@@ -105,6 +127,10 @@ export function composeShards(options: {
         },);
     },);
 }
+
+//endregion Shard composition
+
+//region Taint resharding
 
 /**
  Rebuilds manifests for a set of mutant ids at a given shard size,
@@ -165,13 +191,21 @@ export function composeReshard(options: {
 
   return composeShards({
     groups: [...byFile.entries(),]
-      .map(function toGroup(entry,): MutantGroup {
+      .map(function toGroup(entry: readonly [
+        string,
+        ReshardBucket,
+      ],): MutantGroup {
+        /**
+         Source file and its grouped mutants.
+         */
+        const [
+          file,
+          bucket,
+        ] = entry;
         return {
-          file: entry[0],
-          mutants: entry[1]
-            .mutants,
-          tests: entry[1]
-            .tests,
+          file,
+          mutants: bucket.mutants,
+          tests: bucket.tests,
         };
       },),
     shardSize: options.size,
@@ -180,3 +214,5 @@ export function composeReshard(options: {
     packagePath: options.packagePath,
   },);
 }
+
+//endregion Taint resharding
