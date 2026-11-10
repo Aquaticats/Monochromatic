@@ -10,6 +10,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   delimiter,
   join,
+  posix,
 } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 import { promisify, } from 'node:util';
@@ -669,6 +670,33 @@ await describe({
           pathExtensions: '.COM;.EXE;.BAT;.CMD',
           commonGitPaths: [exeGit.toLowerCase(),],
         },),).toBe(exeGit,);
+      },
+    },),
+    it({
+      name: 'splits injected POSIX PATH on the POSIX delimiter regardless of host',
+      fn: async function splitsInjectedPosixPath(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         PATH entry that exposes no executable.
+         */
+        const absentBin = 'absent-bin';
+        /**
+         PATH entry that exposes the selected executable.
+         */
+        const externalBin = 'external-bin';
+        await mkdir(join(tempDirectory.path, externalBin,),);
+        /**
+         Executable exposed by the second POSIX PATH entry.
+         */
+        const externalGit = join(tempDirectory.path, externalBin, 'git',);
+        await writeExecutable({ path: externalGit, content: REAL_GIT_CONTENT, },);
+
+        expect(await resolveRealGit({
+          pathEnv: [absentBin, externalBin,].join(posix.delimiter,),
+          cwd: tempDirectory.path,
+          platform: 'linux',
+          commonGitPaths: [],
+        },),).toBe(externalGit,);
       },
     },),
     it({

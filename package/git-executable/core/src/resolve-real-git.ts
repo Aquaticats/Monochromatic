@@ -1,7 +1,7 @@
 import { constants, } from 'node:fs';
 import { access, } from 'node:fs/promises';
 import {
-  delimiter,
+  posix,
   resolve,
   win32,
 } from 'node:path';
@@ -172,7 +172,7 @@ function buildCandidateSequence({
    */
   const pathDelimiter = platform === 'win32'
     ? win32.delimiter
-    : delimiter;
+    : posix.delimiter;
   /**
    Absolute executable candidates derived from PATH directory order.
    */
