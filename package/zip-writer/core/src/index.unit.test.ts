@@ -14,21 +14,20 @@ import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
 
-import { EOCD_FIXED_SIZE, LFH_FIXED_SIZE, } from './constants.ts';
 import {
+  crc32,
+  type DosDateTime,
+  dosDateTime,
   DOS_DATE_MONTH_SHIFT,
   DOS_DATE_YEAR_SHIFT,
   DOS_EPOCH_YEAR,
   DOS_TIME_HOUR_SHIFT,
   DOS_TIME_MINUTE_SHIFT,
   DOS_TIME_SECOND_SHIFT,
-} from './dos-time.ts';
-import {
-  crc32,
-  type DosDateTime,
-  dosDateTime,
+  EOCD_FIXED_SIZE,
+  LFH_FIXED_SIZE,
   ZipWriter,
-} from './index.ts';
+} from '../dist/final/node/index.mjs';
 
 /**
  Calendar fields recovered from an encoded DOS timestamp.
