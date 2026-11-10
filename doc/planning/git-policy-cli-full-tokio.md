@@ -9926,7 +9926,9 @@ and each shown to fail against the shape it replaces:
   `1180 tests run: 1180 passed, 5121 skipped` in 56.411 s,
   seven of them this run's.
 - `native:clippy` on every target:
-  `Finished` of the `dev` profile in 41.36 s with warnings denied.
+  `Finished` of the `dev` profile in 41.36 s after the last code change,
+  and 57.49 s at the tip,
+  with warnings denied.
 - `//:lint:monochromatic-lint --max-warnings 0` on the five files this run touched:
   0 errors and 0 warnings,
   after it refused two lines the prose rule asked to break
@@ -9948,10 +9950,10 @@ and each shown to fail against the shape it replaces:
   `serve_in_a_landing`),
   then the commit path,
   in the plan's own order.
-  Measured on this branch,
-  the landing folder holds 24 production files of 50 synchronous Git starts
-  (`rg -n 'run_git' src/native/landing`,
-  tests excluded),
+  Measured on this branch in `package/git-policy/cli/src/native/landing`,
+  with the controls excluded,
+  the folder holds 24 production files of 50 synchronous Git starts:
+  36 `run_git(` and 14 `run_git_checked(`,
   two of them in each of this run's files because their synchronous faces stay.
   The leaf files that remain and name a synchronous start in one or two places each are
   `service_land_finish.rs`,
