@@ -241,23 +241,39 @@ function getNormalizedItem(item: Item,): NormalizedItem {
   const link = atomEntry.links
     ?.at(0,);
   /**
-   Output item object built up incrementally to preserve only defined fields.
+   Output item object typed as the RSS item shape it claims, so an Atom value
+   left unwrapped is rejected here instead of at render time.
    */
-  const newItem: Record<
-    string,
-    string | AtomFeed.Link<string> | AtomFeed.Category[]
-    > = {};
-  if (atomEntry.title
+  const newItem: RssFeed.Item<string> = {};
+  /**
+   Entry title construct, the source of the RSS-shaped title string.
+   */
+  const entryTitle = atomEntry.title;
+  if (entryTitle !== undefined)
+    newItem.title = entryTitle.value;
+  if (link?.href
     !== undefined)
-    newItem.title = atomEntry.title;
-  if (link !== undefined)
-    newItem.link = link;
-  if (atomEntry.content
+    newItem.link = link.href;
+  /**
+   Inline content body, the only Atom content form carrying text to embed.
+   */
+  const content = atomEntry.content
+    ?.value;
+  if (content
     !== undefined)
-    newItem.description = atomEntry.content;
-  if (atomEntry.categories
-    !== undefined)
-    newItem.categories = atomEntry.categories;
+    newItem.description = content;
+  /**
+   Atom categories carrying a term, mapped to the RSS category shape so a
+   feedsmith Atom value never reaches the renderer.
+   */
+  const categories = atomEntry.categories
+    ?.flatMap(function toRssCategory(category,) {
+      if (category.term === undefined)
+        return [];
+      return [{ name: category.term, }];
+    },);
+  if ((categories !== undefined) && (categories.length > 0))
+    newItem.categories = categories;
   /**
    Preferred timestamp falling back to `published` so feeds without `updated` still sort.
    */
@@ -267,8 +283,9 @@ function getNormalizedItem(item: Item,): NormalizedItem {
   if (pubDate !== undefined)
     newItem.pubDate = pubDate;
   if (atomEntry.id
-    !== undefined)
-    newItem.guid = atomEntry.id;
+    !== undefined) {
+    newItem.guid = { value: atomEntry.id, };
+  }
 
   return {
     ...item,
