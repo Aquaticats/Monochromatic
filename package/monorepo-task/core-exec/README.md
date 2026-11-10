@@ -386,7 +386,7 @@ Several behaviors differ from invoking `oxlint` directly.
  They are intentional;
 this list exists so they are not mistaken for bugs.
 
-**`--fix` loops until the tree reaches a fixpoint, instead of running one pass.
+**`--fix` loops until the tree reaches a fixpoint instead of running one pass.
 **
 Oxlint applies at most one fix per overlapping byte region per pass
 and does not re-lint the file it just rewrote,

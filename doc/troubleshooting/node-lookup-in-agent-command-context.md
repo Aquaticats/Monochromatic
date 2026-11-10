@@ -49,7 +49,7 @@ delete the TypeScript Git policy wrapper,
 its tasks,
 bins and trust workflow).
 The line numbers above belong to that deleted shim.
-pnpm 12.18.0, the version installed here, still writes the same node-resolution chain
+The installed pnpm 12.18.0 still writes the same node-resolution chain
 for a workspace bin,
 in a newer template:
 `elif [ -x "$basedir/node" ]`,

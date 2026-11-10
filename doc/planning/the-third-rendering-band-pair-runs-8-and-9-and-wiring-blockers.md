@@ -332,7 +332,7 @@ The pair does not measure the wrapping varying between two runs.
 but run 9 recorded `declined-indecision` at that slice,
 and a declined gate ships the standing text,
 which is lane output and already wrapped.
-The wrapping was re-derived once at that slice, not twice,
+That slice re-derived the wrapping once rather than twice,
 so its two runs contrast a consolidation with an untouched standing text.
 
 So wiring this stage as it stands would regress line structure on roughly three slices in five

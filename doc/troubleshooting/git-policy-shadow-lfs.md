@@ -60,7 +60,8 @@ The worker stops Git retries and preserves its complete original tool event and 
 Supervisor delivery of those exact paths through the qualified host wrapper succeeds as `9363d8998b`.
 This establishes an environment-sensitive boundary failure,
 without identifying why the LFS temporary path is unavailable.
-A second probe, recorded under "Root cause" and "Verification" in this file,
+A second probe,
+recorded under "Root cause" and "Verification" in this file,
 identified the mechanism and showed raw Git failing the same way;
 it did not inspect the consumer's mount permissions.
 
