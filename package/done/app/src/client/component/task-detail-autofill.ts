@@ -20,6 +20,7 @@ import {
   type AutofillResult,
   METADATA_UNSET,
 } from './task-detail-types.ts';
+import { api, } from '../lib/api.ts';
 
 //region Logging
 
@@ -143,76 +144,69 @@ export function createAutofillController(callbacks: AutofillCallbacks,): Autofil
 
     try {
       /**
-       Server response containing the AI-suggested metadata payload.
+       Suggested metadata from the shared API client, which shows a toast and
+       throws on a rejected request, so a 429 or 500 reaches the person instead
+       of leaving the field silently empty.
        */
-      const response = await fetch(
-        '/api/ai/autofill',
-        {
+      const result = await api<AutofillResult>({
+        path: '/api/ai/autofill',
+        options: {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', },
           body: JSON.stringify({ title, },),
           signal: controller.signal,
         },
-      );
+      },);
 
-      if (response.ok) {
-        /* oxlint-disable typescript/no-unsafe-type-assertion -- API response shape enforced by the server endpoint contract */
-        /**
-         Parsed autofill payload; shape is enforced by the server endpoint contract.
-         */
-        const result = (await response.json()) as AutofillResult;
-        /* oxlint-enable typescript/no-unsafe-type-assertion */
+      state.autofilled
+        .clear();
+      /**
+       Current field values from the host so empty-field merging can be done.
+       */
+      const current = callbacks.getState();
+      /**
+       Patch accumulating only fields that were empty before the AI suggestion.
+       */
+      const update: {
+        tags?: readonly string[];
+        locations?: readonly string[];
+        priority?: TaskPriority;
+        complexity?: TaskComplexity;
+      } = {};
+
+      if ((result.tags
+        .length
+        > 0) && (current.tags
+          .length
+          === 0)) {
+        update.tags = result.tags;
         state.autofilled
-          .clear();
-        /**
-         Current field values from the host so empty-field merging can be done.
-         */
-        const current = callbacks.getState();
-        /**
-         Patch accumulating only fields that were empty before the AI suggestion.
-         */
-        const update: {
-          tags?: readonly string[];
-          locations?: readonly string[];
-          priority?: TaskPriority;
-          complexity?: TaskComplexity;
-        } = {};
-
-        if ((result.tags
-          .length
-          > 0) && (current.tags
-            .length
-            === 0)) {
-          update.tags = result.tags;
-          state.autofilled
-            .add('tags',);
-        }
-        if ((result.locations
-          .length
-          > 0) && (current.locations
-            .length
-            === 0)) {
-          update.locations = result.locations;
-          state.autofilled
-            .add('locations',);
-        }
-        if ((result.priority
-          !== undefined) && (current.priority
-            === METADATA_UNSET)) {
-          update.priority = result.priority;
-          state.autofilled
-            .add('priority',);
-        }
-        if ((result.complexity
-          !== undefined) && (current.complexity
-            === METADATA_UNSET)) {
-          update.complexity = result.complexity;
-          state.autofilled
-            .add('complexity',);
-        }
-
-        callbacks.setState(update,);
+          .add('tags',);
       }
+      if ((result.locations
+        .length
+        > 0) && (current.locations
+          .length
+          === 0)) {
+        update.locations = result.locations;
+        state.autofilled
+          .add('locations',);
+      }
+      if ((result.priority
+        !== undefined) && (current.priority
+          === METADATA_UNSET)) {
+        update.priority = result.priority;
+        state.autofilled
+          .add('priority',);
+      }
+      if ((result.complexity
+        !== undefined) && (current.complexity
+          === METADATA_UNSET)) {
+        update.complexity = result.complexity;
+        state.autofilled
+          .add('complexity',);
+      }
+
+      callbacks.setState(update,);
     }
     catch (error: unknown) {
       if (!((error instanceof DOMException) && (error.name
