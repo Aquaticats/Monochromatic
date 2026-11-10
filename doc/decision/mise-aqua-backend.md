@@ -112,65 +112,65 @@ The install path is download,
 independent contributors,
  and this is the key to reading the per-tool table.
 
-1. Registry-declared verification.
-    mise runs cosign,
-    SLSA,
-    minisign,
-    and GitHub
-   artifact attestations only when the package's registry entry declares them,
-    and
-   verifies a registry checksum file only when the entry has a `checksum:` block.
-   Each is gated by `if let Some(...) = &pkg.<field>` in `verify_provenance`
-   (`src/backend/aqua.rs:1872`).
-    No declaration means that mechanism never runs.
-   All of cosign,
-    slsa,
-    minisign,
-    and github_attestations default to enabled
-   (`settings.toml`),
-    so the gate is the registry,
-    not a mise setting.
-2. GitHub API digest fallback.
-    Independently,
-    if the GitHub releases API returns a
-   `digest` for the downloaded asset,
-    mise records it and verifies the bytes
-   against it even with no registry checksum config
-   (`src/backend/aqua.rs:148`,
-    `:538`,
-    `:1684`;
-    logged as
-   "using GitHub API digest for checksum verification").
-    This is integrity against
-   GitHub's own record,
-    fetched over a separate API call than the CDN download.
-    It
-   catches transit,
-    mirror,
-    and corruption tampering.
-    It does not bind the artifact
-   to a publisher build identity,
-    so it is weaker than cosign,
-    SLSA,
-    or
-   attestations,
-    and it is absent for assets GitHub has no digest for (older
-   releases,
-    non-GitHub hosts),
-    in which case the next paragraph applies.
-3. Final checksum gate.
-    `verify_checksum` (`src/backend/mod.rs:2284`) verifies the
-   artifact against whatever checksum was recorded by step 1 or 2.
-    If neither
-   recorded one,
-    it does not fail:
-    it either generates a trust-on-first-use blake3
-   when a lockfile is in play,
-    or does nothing.
-    So with no declared verification,
-   no API digest,
-    and no lockfile,
-    the install is TLS-in-transit only.
+1.  Registry-declared verification.
+     mise runs cosign,
+     SLSA,
+     minisign,
+     and GitHub
+    artifact attestations only when the package's registry entry declares them,
+     and
+    verifies a registry checksum file only when the entry has a `checksum:` block.
+    Each is gated by `if let Some(...) = &pkg.<field>` in `verify_provenance`
+    (`src/backend/aqua.rs:1872`).
+     No declaration means that mechanism never runs.
+    All of cosign,
+     slsa,
+     minisign,
+     and github_attestations default to enabled
+    (`settings.toml`),
+     so the gate is the registry,
+     not a mise setting.
+2.  GitHub API digest fallback.
+     Independently,
+     if the GitHub releases API returns a
+    `digest` for the downloaded asset,
+     mise records it and verifies the bytes
+    against it even with no registry checksum config
+    (`src/backend/aqua.rs:148`,
+     `:538`,
+     `:1684`;
+     logged as
+    "using GitHub API digest for checksum verification").
+     This is integrity against
+    GitHub's own record,
+     fetched over a separate API call than the CDN download.
+     It
+    catches transit,
+     mirror,
+     and corruption tampering.
+     It does not bind the artifact
+    to a publisher build identity,
+     so it is weaker than cosign,
+     SLSA,
+     or
+    attestations,
+     and it is absent for assets GitHub has no digest for (older
+    releases,
+     non-GitHub hosts),
+     in which case the next paragraph applies.
+3.  Final checksum gate.
+     `verify_checksum` (`src/backend/mod.rs:2284`) verifies the
+    artifact against whatever checksum was recorded by step 1 or 2.
+     If neither
+    recorded one,
+     it does not fail:
+     it either generates a trust-on-first-use blake3
+    when a lockfile is in play,
+     or does nothing.
+     So with no declared verification,
+    no API digest,
+     and no lockfile,
+     the install is TLS-in-transit only.
 
 ### The registry mise reads is the baked snapshot, not the live registry
 
@@ -434,37 +434,37 @@ with why each is not a wholesale replacement:
 Keep the aqua backend.
  Harden in this order.
 
-1. Run `mise lock` and commit the resulting `mise.lock`.
-    This pins exact bytes
-   (digest or checksum) for all five tools across every machine and CI,
-    records
-   provenance where it does run,
-    and makes mise fail closed on a later mismatch or
-   verification downgrade instead of silently re-deriving trust.
-    Caveat to state
-   plainly:
-    a lockfile pin is trust-on-first-use;
-    it guarantees reproducibility,
-   not that the first download was publisher-authentic for the three tools with no
-   declared verification.
-2. Keep mise current.
-    The installed `2026.5.15` is behind (`2026.6.1` is
-   available),
-    and the baked registry only advances with mise.
-    Upgrading is what
-   delivers the betterleaks cosign config and fd-style registry fixes.
-3. Optionally set `aqua.baked_registry = false` if you want registry fixes and new
-   verification config without waiting for a mise upgrade.
-    The trade is a network
-   fetch on cache miss (weekly TTL) and a live dependency on the registry repo.
-   Reasonable for a single-maintainer machine,
-    weigh it for CI.
-4. Treat hk's missing attestation as a known gap,
-    not a regression to chase
-   locally.
-    The fix is upstream in mise (implement `github_release_attestations`);
-   until then hk is digest-verified,
-    which is the same posture as the other tools.
+1.  Run `mise lock` and commit the resulting `mise.lock`.
+     This pins exact bytes
+    (digest or checksum) for all five tools across every machine and CI,
+     records
+    provenance where it does run,
+     and makes mise fail closed on a later mismatch or
+    verification downgrade instead of silently re-deriving trust.
+     Caveat to state
+    plainly:
+     a lockfile pin is trust-on-first-use;
+     it guarantees reproducibility,
+    not that the first download was publisher-authentic for the three tools with no
+    declared verification.
+2.  Keep mise current.
+     The installed `2026.5.15` is behind (`2026.6.1` is
+    available),
+     and the baked registry only advances with mise.
+     Upgrading is what
+    delivers the betterleaks cosign config and fd-style registry fixes.
+3.  Optionally set `aqua.baked_registry = false` if you want registry fixes and new
+    verification config without waiting for a mise upgrade.
+     The trade is a network
+    fetch on cache miss (weekly TTL) and a live dependency on the registry repo.
+    Reasonable for a single-maintainer machine,
+     weigh it for CI.
+4.  Treat hk's missing attestation as a known gap,
+     not a regression to chase
+    locally.
+     The fix is upstream in mise (implement `github_release_attestations`);
+    until then hk is digest-verified,
+     which is the same posture as the other tools.
 
 This is an assessment,
  not a change.

@@ -225,23 +225,23 @@ All current safety policies default to `error`.
 
 Each pass uses this fixed staged order:
 
-1. Built-in configurable safety policies in fixed core order.
-2. Fixed idempotent command transformers.
-3. Plugin policies in consumer namespace registration order and plugin declaration order.
+1.  Built-in configurable safety policies in fixed core order.
+2.  Fixed idempotent command transformers.
+3.  Plugin policies in consumer namespace registration order and plugin declaration order.
 
 The built-in order is:
 
-1. `require-root`.
-2. `linked-worktree-only`.
-3. `branch-worktree-only`.
-4. `add-explicit`.
-5. `final-newline`.
+1.  `require-root`.
+2.  `linked-worktree-only`.
+3.  `branch-worktree-only`.
+4.  `add-explicit`.
+5.  `final-newline`.
 
 The fixed transformer order is:
 
-1. atomic push;
-2. commit only;
-3. status hints off.
+1.  atomic push;
+2.  commit only;
+3.  status hints off.
 
 Post-commit policies now inspect exact landed OID and tree facts before auto-push.
 Error findings and engine failures retain the commit,
@@ -366,9 +366,9 @@ Ordinary Git commands continue to invoke the resolved real Git executable by abs
 Discovery is bounded to the effective Git repository root.
 Precedence is:
 
-1. `cli-git.config.mjs`;
-2. `cli-git.config.ts`;
-3. built-in policies only.
+1.  `cli-git.config.mjs`;
+2.  `cli-git.config.ts`;
+3.  built-in policies only.
 
 Keeping both files is valid;
 MJS wins.

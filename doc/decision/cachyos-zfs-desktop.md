@@ -135,16 +135,16 @@ The choice must continue to satisfy:
 The frozen source-only rubric used weight 1 for every criterion.
 It produced:
 
-1. openSUSE Tumbleweed BLS:
-   31/40;
-1. Garuda Btrfs plus GRUB:
-   29/40;
-1. CachyOS Btrfs plus Limine:
-   28.5/40;
-1. CachyOS ZFS plus ZFSBootMenu:
-   25.5/40;
-1. Shanios blue/green:
-   18.5/40.
+1.  openSUSE Tumbleweed BLS:
+    31/40;
+1.  Garuda Btrfs plus GRUB:
+    29/40;
+1.  CachyOS Btrfs plus Limine:
+    28.5/40;
+1.  CachyOS ZFS plus ZFSBootMenu:
+    25.5/40;
+1.  Shanios blue/green:
+    18.5/40.
 
 The user adopted the personal recommendation rather than that equal-weight source order.
 The deciding preference is the migration’s reason:
@@ -164,26 +164,26 @@ Independent backup remains part of the architecture.
 
 The adoption-context ranking is:
 
-1. **CachyOS ZFS plus ZFSBootMenu**.
-   It provides the strongest boot-environment interaction,
-   materially different storage-pressure mechanisms,
-   and exact-version CachyOS ZFS module packages.
-1. **openSUSE Tumbleweed Btrfs plus BLS**.
-   It has stronger distribution ownership but returns to Btrfs,
-   qgroups,
-   and snapshot-cleanup behavior that the migration is deliberately diversifying away from.
-1. **Garuda Btrfs plus GRUB**.
-   It avoids qgroups and snapshots encrypted `/boot`,
-   but its recovery integration has less distribution-level ownership than Tumbleweed’s BLS chain.
-1. **CachyOS Btrfs plus Limine**.
-   It has current artifact-preserving rollback and qgroups disabled,
-   but Garuda’s source-only rollback evidence scored slightly higher and neither provides ZFS’s architectural change.
-1. **Shanios blue/green**.
-   It directly boots one previous slot,
-   but shared writable configuration,
-   continuous `beesd`,
-   a Nix-backed session path,
-   and concentrated maintenance make it the least suitable finalist.
+1.  **CachyOS ZFS plus ZFSBootMenu**.
+    It provides the strongest boot-environment interaction,
+    materially different storage-pressure mechanisms,
+    and exact-version CachyOS ZFS module packages.
+1.  **openSUSE Tumbleweed Btrfs plus BLS**.
+    It has stronger distribution ownership but returns to Btrfs,
+    qgroups,
+    and snapshot-cleanup behavior that the migration is deliberately diversifying away from.
+1.  **Garuda Btrfs plus GRUB**.
+    It avoids qgroups and snapshots encrypted `/boot`,
+    but its recovery integration has less distribution-level ownership than Tumbleweed’s BLS chain.
+1.  **CachyOS Btrfs plus Limine**.
+    It has current artifact-preserving rollback and qgroups disabled,
+    but Garuda’s source-only rollback evidence scored slightly higher and neither provides ZFS’s architectural change.
+1.  **Shanios blue/green**.
+    It directly boots one previous slot,
+    but shared writable configuration,
+    continuous `beesd`,
+    a Nix-backed session path,
+    and concentrated maintenance make it the least suitable finalist.
 
 CachyOS ZFS ranks over Tumbleweed because the user accepted uncommon integration ownership in exchange for storage
 architecture diversity and ZFS latency-smoothing mechanisms.
@@ -244,26 +244,26 @@ The controlling procedure is
 [`doc/runbook/migrate-bazzite-to-cachyos-zfsbootmenu.md`](../runbook/migrate-bazzite-to-cachyos-zfsbootmenu.md).
 Its order is mandatory:
 
-1. verify local and independent backups;
-1. authenticate the pinned ISO and installer;
-1. execute encrypted install,
-   boot selection,
-   rollback,
-   promotion,
-   labwc,
-   and authenticated-media recovery tests in disposable UEFI VMs;
-1. write authenticated USB media;
-1. disconnect the 4 TB SSD;
-1. erase only the identified 2 TB NVMe;
-1. verify encryption,
-   boot artifacts,
-   package pairing,
-   pool health,
-   and directly selectable environments;
-1. reconnect and verify the protected SSD;
-1. restore and exercise the rehearsed session;
-1. restore applications and backups;
-1. create and boot the post-migration `known-good` environment.
+1.  verify local and independent backups;
+1.  authenticate the pinned ISO and installer;
+1.  execute encrypted install,
+    boot selection,
+    rollback,
+    promotion,
+    labwc,
+    and authenticated-media recovery tests in disposable UEFI VMs;
+1.  write authenticated USB media;
+1.  disconnect the 4 TB SSD;
+1.  erase only the identified 2 TB NVMe;
+1.  verify encryption,
+    boot artifacts,
+    package pairing,
+    pool health,
+    and directly selectable environments;
+1.  reconnect and verify the protected SSD;
+1.  restore and exercise the rehearsed session;
+1.  restore applications and backups;
+1.  create and boot the post-migration `known-good` environment.
 
 A failed disposable test stops physical adoption and returns the choice to Tumbleweed.
 A failed physical installer does not authorize repair commands or reconnecting the protected data SSD during diagnosis.

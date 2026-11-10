@@ -142,37 +142,37 @@ The reasons are in the tasks themselves:
 
 The steps are:
 
-1. Build the base image with `mise run //package/terminal/app:image:release`.
-   The release workflow builds in Ubuntu 24.04 images,
-   not the CachyOS development images
-   (`doc/decision/container-base-distro.md`):
-   the base is `localhost/monochromatic/terminal-release`,
-   built from `package/terminal/app/Containerfile.release`.
-   The IDE release image is `FROM localhost/monochromatic/terminal-release` (`package/ide/app/Containerfile.release`),
-   and the tasks build the IDE image on demand but not its base.
-   The job sets `IDE_RELEASE=1`,
-   which makes every IDE task use the release image.
-   (Until 2026-10-29 the release built in the Fedora 41 images of `Containerfile`;
-   the decisions and measurements here that name Fedora 41 describe those.)
-2. Build the IDE image with `mise run //package/ide/app:image:release`;
-   it is tagged `localhost/monochromatic/ide-release`.
-3. Run a bounded container once to print `rustc --version --verbose`,
-   `cargo --version` and `cargo-about --version`,
-   with the same kinds of limits the tasks pass (memory,
-   CPUs,
-   processes,
-   open files).
-   The Alpine job proves `--memory` and `--cpus` on this runner image;
-   `--pids-limit` and `--ulimit` were not proven,
-   and this step makes them fail early and not an hour into the build.
-4. Run `mise run //package/ide/app:bundle`.
-   `MISE_JOBS=1` runs one task at a time
-   (`mise run --help` of mise 2026.10.0 lists `--jobs` with `[env: MISE_JOBS]`),
-   because the container bound applies per container and not per task graph.
-   `IDE_CONTAINER_CPUS=4` and `IDE_CONTAINER_MEMORY=12g` replace the default 90 percent share
-   (`package/ide/app/bin/container-bounds.ts`),
-   as the Alpine job's `BUILD_CPUS` and `BUILD_MEMORY` do,
-   so the runner keeps room for podman and the runner processes.
+1.  Build the base image with `mise run //package/terminal/app:image:release`.
+    The release workflow builds in Ubuntu 24.04 images,
+    not the CachyOS development images
+    (`doc/decision/container-base-distro.md`):
+    the base is `localhost/monochromatic/terminal-release`,
+    built from `package/terminal/app/Containerfile.release`.
+    The IDE release image is `FROM localhost/monochromatic/terminal-release` (`package/ide/app/Containerfile.release`),
+    and the tasks build the IDE image on demand but not its base.
+    The job sets `IDE_RELEASE=1`,
+    which makes every IDE task use the release image.
+    (Until 2026-10-29 the release built in the Fedora 41 images of `Containerfile`;
+    the decisions and measurements here that name Fedora 41 describe those.)
+2.  Build the IDE image with `mise run //package/ide/app:image:release`;
+    it is tagged `localhost/monochromatic/ide-release`.
+3.  Run a bounded container once to print `rustc --version --verbose`,
+    `cargo --version` and `cargo-about --version`,
+    with the same kinds of limits the tasks pass (memory,
+    CPUs,
+    processes,
+    open files).
+    The Alpine job proves `--memory` and `--cpus` on this runner image;
+    `--pids-limit` and `--ulimit` were not proven,
+    and this step makes them fail early and not an hour into the build.
+4.  Run `mise run //package/ide/app:bundle`.
+    `MISE_JOBS=1` runs one task at a time
+    (`mise run --help` of mise 2026.10.0 lists `--jobs` with `[env: MISE_JOBS]`),
+    because the container bound applies per container and not per task graph.
+    `IDE_CONTAINER_CPUS=4` and `IDE_CONTAINER_MEMORY=12g` replace the default 90 percent share
+    (`package/ide/app/bin/container-bounds.ts`),
+    as the Alpine job's `BUILD_CPUS` and `BUILD_MEMORY` do,
+    so the runner keeps room for podman and the runner processes.
 
 The `build` task passes no `--locked` to cargo.
 The workflow fails the job if `git diff` shows a change in `package/ide/app/Cargo.lock` or in any tracked

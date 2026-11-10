@@ -210,15 +210,15 @@ and shells out through a filesystem-oriented API,
 
 ## Ranking
 
-1. `ignore`,
+1.  `ignore`,
  chosen.
-2. `fast-ignore`,
+2.  `fast-ignore`,
  acceptable only for non-guardrail boolean matching.
-3. `ignore-walk`,
+3.  `ignore-walk`,
  useful walker but wrong API.
-4. `cspell-gitignore`,
+4.  `cspell-gitignore`,
  active but git-incompatible for tested nested negation.
-5. `gitignore-matcher`,
+5.  `gitignore-matcher`,
  native ESM but git-incompatible for tested slash anchoring.
 
 `ignore` beats `fast-ignore` because the guardrail needs rule provenance,

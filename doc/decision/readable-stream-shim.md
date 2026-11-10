@@ -363,77 +363,77 @@ After wiring (`pnpm-workspace.yaml` override added,
  shim package created,
  `pnpm install` run outside sandbox per project convention):
 
-1. Confirm the override took effect.
-   - `find /var/home/user/Monochromatic/node_modules/.pnpm -maxdepth 3 -name 'readable-stream' -type l` should list
-   - three symlinks (one per consumer:
-      `winston@3.15.0`,
-      `winston-transport@4.9.0`,
-      `isomorphic-git@1.37.6`),
-      each pointing at `../../../../package/pnpm-override/shim-readable-stream`.
-   - Two orphan store directories may linger at `node_modules/.pnpm/readable-stream@3.6.2/` and
-   - `node_modules/.pnpm/readable-stream@4.7.0/`.
-      They are inert:
-      no consumer's symlink resolves through them,
-      so they contribute zero LOC to the reachable module graph.
-      Treat them as pnpm cache leftovers,
-      not a sign the override missed.
-     The primary signal that the override is live is the three consumer symlinks above;
-      the orphan dirs disappear on the next full `node_modules` rebuild.
-2. Type-check and lint the shim package itself.
-   - `mise run //package/pnpm-override/shim-readable-stream:lint:types`
-   - `mise run //package/pnpm-override/shim-readable-stream:lint:oxlint`
-3. Exercise winston via the mcp/nvim chain.
-   - `mise run //package/mcp/nvim:lint:types` (the package depends on `neovim`,
-      which depends on `winston`;
-      type-check confirms the type shape of the shim matches what winston's `.d.ts` files expect).
-   - Runtime is untested at the `mcp/nvim → neovim → winston` integration boundary:
-      mcp/nvim ships no test surface and the workspace has no `start` task on this package that would exercise neovim's
-      logger end-to-end through an MCP host.
-     As a stand-in,
-      the implementer ran a one-shot script that `require`s winston from its absolute installed path,
-      creates a `winston.createLogger({ transports: [new winston.transports.Console()] })`,
-      and emits info/warn/error lines.
-     All three log lines flushed and the consumer reached every `readable-stream` entry winston traverses (`logger.js`,
-      `exception-stream.js`,
-      `rejection-stream.js`,
-      `transports/file.js`,
-      `transports/http.js`,
-      `tail-file.js`).
-     `winston-transport@4.9.0/modern.js`'s deep import of `readable-stream/lib/_stream_writable.js` resolved without
-     `ERR_PACKAGE_PATH_NOT_EXPORTED`.
-     A future MCP host integration test would close this gap.
-4. Exercise isomorphic-git via webapp-forge/server.
-   - `mise run //package/webapp-forge/server:lint:types`
-   - `mise run //package/webapp-forge/server:dev` (which expands to `mise watch -w src -r -- start:server`,
-      then `bun src/index.ts`).
-     Hit an endpoint that drives `src/git/iso-server.ts` (the file identified as the iso-git entry point) and look for:
-     - successful HTTP responses;
-     - no errors mentioning `PassThrough`,
-        `readable-stream`,
-        or `node:stream`;
-     - on a clone or fetch operation,
-        pack data streams without truncation (full object count returned).
-5. Exercise isomorphic-git via webapp-forge/stress.
-   - `mise run //package/webapp-forge/stress:lint:types`
-   - `mise run //package/webapp-forge/stress:stress:hot-repo` (the hot-repo scenario uses iso-git heavily through
-   - `src/scenarios/force-push.ts`).
-     Look for:
-      scenario completes its declared iteration count;
-      no stream-related errors in the scenario output;
-      pack/unpack operations report expected object counts.
-6. Confirm `instanceof` parity.
-   - Inside any one of the live processes above,
-      evaluate `require('readable-stream').Readable === require('node:stream').Readable` in a one-shot Bun invocation:
-     `bun -e "const r = require('readable-stream'); const s = require('node:stream'); console.log(r.Readable === s.Reada
-     ble, r.Writable === s.Writable, r.Stream === s)"`
-     All three should print `true`.
-     The third confirms the `module.exports.Stream = Stream` assignment took effect.
-7. Final build-and-test pass across the affected packages.
-   - `mise run //package/mcp/nvim:test` (if a test task exists;
-      the read showed only lint tasks,
-      so this may be a no-op).
-   - `mise run //package/webapp-forge/server:test:unit`
-   - `mise run //package/webapp-forge/stress:test:unit`
+1.  Confirm the override took effect.
+    - `find /var/home/user/Monochromatic/node_modules/.pnpm -maxdepth 3 -name 'readable-stream' -type l` should list
+    - three symlinks (one per consumer:
+       `winston@3.15.0`,
+       `winston-transport@4.9.0`,
+       `isomorphic-git@1.37.6`),
+       each pointing at `../../../../package/pnpm-override/shim-readable-stream`.
+    - Two orphan store directories may linger at `node_modules/.pnpm/readable-stream@3.6.2/` and
+    - `node_modules/.pnpm/readable-stream@4.7.0/`.
+       They are inert:
+       no consumer's symlink resolves through them,
+       so they contribute zero LOC to the reachable module graph.
+       Treat them as pnpm cache leftovers,
+       not a sign the override missed.
+      The primary signal that the override is live is the three consumer symlinks above;
+       the orphan dirs disappear on the next full `node_modules` rebuild.
+2.  Type-check and lint the shim package itself.
+    - `mise run //package/pnpm-override/shim-readable-stream:lint:types`
+    - `mise run //package/pnpm-override/shim-readable-stream:lint:oxlint`
+3.  Exercise winston via the mcp/nvim chain.
+    - `mise run //package/mcp/nvim:lint:types` (the package depends on `neovim`,
+       which depends on `winston`;
+       type-check confirms the type shape of the shim matches what winston's `.d.ts` files expect).
+    - Runtime is untested at the `mcp/nvim → neovim → winston` integration boundary:
+       mcp/nvim ships no test surface and the workspace has no `start` task on this package that would exercise neovim's
+       logger end-to-end through an MCP host.
+      As a stand-in,
+       the implementer ran a one-shot script that `require`s winston from its absolute installed path,
+       creates a `winston.createLogger({ transports: [new winston.transports.Console()] })`,
+       and emits info/warn/error lines.
+      All three log lines flushed and the consumer reached every `readable-stream` entry winston traverses (`logger.js`,
+       `exception-stream.js`,
+       `rejection-stream.js`,
+       `transports/file.js`,
+       `transports/http.js`,
+       `tail-file.js`).
+      `winston-transport@4.9.0/modern.js`'s deep import of `readable-stream/lib/_stream_writable.js` resolved without
+      `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+      A future MCP host integration test would close this gap.
+4.  Exercise isomorphic-git via webapp-forge/server.
+    - `mise run //package/webapp-forge/server:lint:types`
+    - `mise run //package/webapp-forge/server:dev` (which expands to `mise watch -w src -r -- start:server`,
+       then `bun src/index.ts`).
+      Hit an endpoint that drives `src/git/iso-server.ts` (the file identified as the iso-git entry point) and look for:
+      - successful HTTP responses;
+      - no errors mentioning `PassThrough`,
+         `readable-stream`,
+         or `node:stream`;
+      - on a clone or fetch operation,
+         pack data streams without truncation (full object count returned).
+5.  Exercise isomorphic-git via webapp-forge/stress.
+    - `mise run //package/webapp-forge/stress:lint:types`
+    - `mise run //package/webapp-forge/stress:stress:hot-repo` (the hot-repo scenario uses iso-git heavily through
+    - `src/scenarios/force-push.ts`).
+      Look for:
+       scenario completes its declared iteration count;
+       no stream-related errors in the scenario output;
+       pack/unpack operations report expected object counts.
+6.  Confirm `instanceof` parity.
+    - Inside any one of the live processes above,
+       evaluate `require('readable-stream').Readable === require('node:stream').Readable` in a one-shot Bun invocation:
+      `bun -e "const r = require('readable-stream'); const s = require('node:stream'); console.log(r.Readable === s.Reada
+      ble, r.Writable === s.Writable, r.Stream === s)"`
+      All three should print `true`.
+      The third confirms the `module.exports.Stream = Stream` assignment took effect.
+7.  Final build-and-test pass across the affected packages.
+    - `mise run //package/mcp/nvim:test` (if a test task exists;
+       the read showed only lint tasks,
+       so this may be a no-op).
+    - `mise run //package/webapp-forge/server:test:unit`
+    - `mise run //package/webapp-forge/stress:test:unit`
 
 The verification crosses the integration boundary in steps 3 to 5 (running the consumer,
  observing real I/O).
@@ -447,70 +447,70 @@ Specific behavior differences between `node:stream@22.x` and the ported `readabl
 our consumer paths.
 Listed in declining order of likelihood:
 
-1. **Default `autoDestroy` and `emitClose` semantics.**
-   `readable-stream@3.6.2` defaulted `autoDestroy: false` for several years;
-   `readable-stream@4.x` and `node:stream@16+` default it to `true`.
-   Winston's transports rely on `'finish'` and `'close'` ordering to flush log buffers.
-   The post-shim path uses `node:stream`'s defaults uniformly,
-    which is the same default v4 already used;
-    the change only affects winston (v3 path).
-   Inspect `winston/lib/winston/transports/file.js` flush behavior under load in the verification step.
-   Symptom to watch for:
-    missing trailing log lines on process exit.
-2. **`construct()` / `_construct()` lifecycle hook.**
-   Added to `node:stream` in Node 15;
-    `readable-stream@3.6.2` does not ship it.
-   Any winston or winston-transport subclass that defines `_construct` was previously a no-op under v3 and now runs.
-   Quick grep of the consumer source rules this out for the current code paths,
-    but a future winston update could expose it.
-3. **`Readable.from` iterable handling for sync iterators.**
-   `node:stream`'s `Readable.from` is slightly stricter about `Symbol.iterator` vs `Symbol.asyncIterator` than v3's
-   port.
-   Not used by the reachable consumers (winston builds streams via class construction;
-    iso-git builds `PassThrough` directly).
-4. **`pipeline` argument shape.**
-   `node:stream.pipeline` supports `AbortSignal` in the options object (added Node 15+).
-   v3's port supports the same surface in 3.6.
-   x.
-   Behavior parity is high;
-    the named risk is that `node:stream` propagates errors through `AbortSignal.abort()` cleanup more strictly.
-   Not used by reachable consumers' top-level imports;
-    the guarded `globalThis.AbortController || require('abort-controller')` blocks inside `readable-stream@4`'s
-    `pipeline.js`,
-    `duplexify.js`,
-    and `operators.js` become unreachable once the shim replaces v4 entirely,
-    which closes a separate concern.
-5. **iso-git pack streaming `highWaterMark`.**
-   isomorphic-git's `http/node/index.js` constructs `new PassThrough()` with default options.
-   `node:stream.PassThrough` defaults `highWaterMark` to 16 KiB;
-    v4's port also defaults to 16 KiB.
-   No change expected.
-   The risk is if iso-git internals pass through a long-running stream that previously benefited from v4's
-   `setDefaultHighWaterMark` global;
-    the workspace does not call `setDefaultHighWaterMark`,
-    and iso-git does not call it on its imported `PassThrough`,
-    so this is informational only.
-6. **`instanceof` identity flip.**
-   Pre-shim,
-    winston creates streams via its imported `readable-stream` classes;
-    if some downstream code did `obj instanceof require('stream').Readable` against a winston-produced stream,
-    it returned `false`.
-   Post-shim,
-    it returns `true`.
-   This is a behavior improvement,
-    but if any consumer relies on the negative result (defensive type-narrowing branches),
-    it changes shape.
-   No instance of this pattern was found in the reachable consumers;
-    calling it out for the audit record.
-7. **TypeScript namespace import shape.**
-   `index.d.cts` re-exports the `node:stream` namespace via `import Stream = require('node:stream'); export = Stream;`.
-   Most TypeScript users of `readable-stream` consume types from `@types/readable-stream`,
-    which itself re-exports `node:stream`'s types.
-   The shim's `.d.cts` shape is therefore congruent with the `@types` package;
-    any callsite that types `import type { Readable } from 'readable-stream'` resolves to `Readable` from `node:stream`
-    identically.
-   Symptom to watch for in verification step 2:
-    any TS2305 (has no exported member) diagnostic against the shim's namespace.
+1.  **Default `autoDestroy` and `emitClose` semantics.**
+    `readable-stream@3.6.2` defaulted `autoDestroy: false` for several years;
+    `readable-stream@4.x` and `node:stream@16+` default it to `true`.
+    Winston's transports rely on `'finish'` and `'close'` ordering to flush log buffers.
+    The post-shim path uses `node:stream`'s defaults uniformly,
+     which is the same default v4 already used;
+     the change only affects winston (v3 path).
+    Inspect `winston/lib/winston/transports/file.js` flush behavior under load in the verification step.
+    Symptom to watch for:
+     missing trailing log lines on process exit.
+2.  **`construct()` / `_construct()` lifecycle hook.**
+    Added to `node:stream` in Node 15;
+     `readable-stream@3.6.2` does not ship it.
+    Any winston or winston-transport subclass that defines `_construct` was previously a no-op under v3 and now runs.
+    Quick grep of the consumer source rules this out for the current code paths,
+     but a future winston update could expose it.
+3.  **`Readable.from` iterable handling for sync iterators.**
+    `node:stream`'s `Readable.from` is slightly stricter about `Symbol.iterator` vs `Symbol.asyncIterator` than v3's
+    port.
+    Not used by the reachable consumers (winston builds streams via class construction;
+     iso-git builds `PassThrough` directly).
+4.  **`pipeline` argument shape.**
+    `node:stream.pipeline` supports `AbortSignal` in the options object (added Node 15+).
+    v3's port supports the same surface in 3.6.
+    x.
+    Behavior parity is high;
+     the named risk is that `node:stream` propagates errors through `AbortSignal.abort()` cleanup more strictly.
+    Not used by reachable consumers' top-level imports;
+     the guarded `globalThis.AbortController || require('abort-controller')` blocks inside `readable-stream@4`'s
+     `pipeline.js`,
+     `duplexify.js`,
+     and `operators.js` become unreachable once the shim replaces v4 entirely,
+     which closes a separate concern.
+5.  **iso-git pack streaming `highWaterMark`.**
+    isomorphic-git's `http/node/index.js` constructs `new PassThrough()` with default options.
+    `node:stream.PassThrough` defaults `highWaterMark` to 16 KiB;
+     v4's port also defaults to 16 KiB.
+    No change expected.
+    The risk is if iso-git internals pass through a long-running stream that previously benefited from v4's
+    `setDefaultHighWaterMark` global;
+     the workspace does not call `setDefaultHighWaterMark`,
+     and iso-git does not call it on its imported `PassThrough`,
+     so this is informational only.
+6.  **`instanceof` identity flip.**
+    Pre-shim,
+     winston creates streams via its imported `readable-stream` classes;
+     if some downstream code did `obj instanceof require('stream').Readable` against a winston-produced stream,
+     it returned `false`.
+    Post-shim,
+     it returns `true`.
+    This is a behavior improvement,
+     but if any consumer relies on the negative result (defensive type-narrowing branches),
+     it changes shape.
+    No instance of this pattern was found in the reachable consumers;
+     calling it out for the audit record.
+7.  **TypeScript namespace import shape.**
+    `index.d.cts` re-exports the `node:stream` namespace via `import Stream = require('node:stream'); export = Stream;`.
+    Most TypeScript users of `readable-stream` consume types from `@types/readable-stream`,
+     which itself re-exports `node:stream`'s types.
+    The shim's `.d.cts` shape is therefore congruent with the `@types` package;
+     any callsite that types `import type { Readable } from 'readable-stream'` resolves to `Readable` from `node:stream`
+     identically.
+    Symptom to watch for in verification step 2:
+     any TS2305 (has no exported member) diagnostic against the shim's namespace.
 
 The browser concern is out of scope:
  both consumer chains (`webapp-forge/server` and `webapp-forge/stress`) are Bun/Node processes,

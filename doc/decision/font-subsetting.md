@@ -70,32 +70,32 @@ and `hb-subset-wasm` plus `woff2-encode-wasm` ship native TypeScript types.
 Used previously.
  Rejected for three reasons surfaced during audit:
 
-1. **Transitive deps incompatible with workspace policy.
-   ** Pulls
-   `lodash@^4.17.21` for a single `_.once` call (`subset-font/index.js:6`)
-   and `p-limit@^3.1.0` for a one-line concurrency-1 mutex
-   (`subset-font/index.js:187-188`).
-    lodash is on the workspace blocklist;
-   `p-limit@3.1.0` is the last CJS release (4.
-   x is ESM-only) so the pin is
-   forced by `subset-font` being CJS.
-2. **WASM-memory-growth bug.
-   ** Captures `heapu8 = new Uint8Array(harfbuzzJsWasm.memory.buffer)`
-   once at init (`subset-font/index.js:13`) and never re-reads.
-    When the
-   harfbuzz heap grows during a subset call,
-    subsequent reads against the
-   stale view target detached memory.
-    `hb-subset-wasm` re-reads `memory.buffer`
-   after every wasm call (`hb-subset-wasm/src/api.ts:484-485`,
-    "Re-read
-   buffer in case memory grew during subset").
-3. **Resource leak on `variationAxes` error paths.
-   ** Throws at
-   `subset-font/index.js:107-110, 119-122, 136-139` free `fontBuffer` and
-   destroy `face` before throwing but never call `hb_subset_input_destroy(input)`.
-   `hb-subset-wasm`'s C wrapper destroys both `input` and `face` on every
-   error path (`hb-subset-wasm/wasm/wrapper.c:115-138`).
+1.  **Transitive deps incompatible with workspace policy.
+    ** Pulls
+    `lodash@^4.17.21` for a single `_.once` call (`subset-font/index.js:6`)
+    and `p-limit@^3.1.0` for a one-line concurrency-1 mutex
+    (`subset-font/index.js:187-188`).
+     lodash is on the workspace blocklist;
+    `p-limit@3.1.0` is the last CJS release (4.
+    x is ESM-only) so the pin is
+    forced by `subset-font` being CJS.
+2.  **WASM-memory-growth bug.
+    ** Captures `heapu8 = new Uint8Array(harfbuzzJsWasm.memory.buffer)`
+    once at init (`subset-font/index.js:13`) and never re-reads.
+     When the
+    harfbuzz heap grows during a subset call,
+     subsequent reads against the
+    stale view target detached memory.
+     `hb-subset-wasm` re-reads `memory.buffer`
+    after every wasm call (`hb-subset-wasm/src/api.ts:484-485`,
+     "Re-read
+    buffer in case memory grew during subset").
+3.  **Resource leak on `variationAxes` error paths.
+    ** Throws at
+    `subset-font/index.js:107-110, 119-122, 136-139` free `fontBuffer` and
+    destroy `face` before throwing but never call `hb_subset_input_destroy(input)`.
+    `hb-subset-wasm`'s C wrapper destroys both `input` and `face` on every
+    error path (`hb-subset-wasm/wasm/wrapper.c:115-138`).
 
 CJS-only with no `"type": "module"` is a secondary cost (forces an ambient
 type shim and a CJS interop hop).

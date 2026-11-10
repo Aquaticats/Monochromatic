@@ -260,29 +260,29 @@ which runs `mpm-shadow install`.
 
 ## Migration
 
-1. Land the tool plan,
+1.  Land the tool plan,
  generators,
  providers,
  and `toolchain:sync` while Mise still declares `[tools]`.
-2. Seed `toolchain.lock.json` from the current `mise.lock` resolutions,
+2.  Seed `toolchain.lock.json` from the current `mise.lock` resolutions,
  preserving every pin,
  floating request,
  URL and checksum.
-3. Provision through `toolchain:sync` in a disposable home on Linux x64
+3.  Provision through `toolchain:sync` in a disposable home on Linux x64
  and run representative TypeScript,
  Rust,
  and lint tasks against the provisioned tools.
-4. Remove `[tools]` and tool-install settings from `mise.no-env.toml`,
+4.  Remove `[tools]` and tool-install settings from `mise.no-env.toml`,
  regenerate `mise.toml` with file-enforcer,
  retire `mise.lock`,
  and repoint the `bootstrap` task.
  (Historical:
-   since the Rust file-enforcer cutover `mise.no-env.toml` is the hand-written `mise.toml`
+    since the Rust file-enforcer cutover `mise.no-env.toml` is the hand-written `mise.toml`
  and nothing generates it.)
-5. Repoint CI version reads
+5.  Repoint CI version reads
  (`task-cli-setup` inputs and the `mise.lock` scrapers in release workflows)
  at `toolchain.lock.json`.
-6. Update `AGENTS.md`,
+6.  Update `AGENTS.md`,
  `CLAUDE.md`,
  `README.md`,
  and the `doc/planning/mise-removal-coverage.md` ownership rows.

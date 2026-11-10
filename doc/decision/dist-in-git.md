@@ -140,13 +140,13 @@ The specific blocker for this workspace is the dependency shape of its plugins,
 The current bundled `dist/final/node/index.mjs` files do two things that no individual move replicates
 without other costs:
 
-1. Inline the workspace's shared plugin source (`@monochromatic-dev/claude-code-plugin-source`) into each
-   plugin without that source needing to exist on npm.
-2. Inline the rest of the runtime dependency tree so the consumer needs only the Node binary,
-    with no
-   package manager step,
-    no network access,
-    and no per-machine build toolchain.
+1.  Inline the workspace's shared plugin source (`@monochromatic-dev/claude-code-plugin-source`) into each
+    plugin without that source needing to exist on npm.
+2.  Inline the rest of the runtime dependency tree so the consumer needs only the Node binary,
+     with no
+    package manager step,
+     no network access,
+     and no per-machine build toolchain.
 
 Every alternative trades one of those properties for fewer committed files.
 For an eight-plugin scope,
@@ -274,23 +274,23 @@ Rejected because:
 
 Reconsider this decision only if at least one of the following becomes true:
 
-1. The workspace begins publishing `@monochromatic-dev/claude-code-plugin-source` and its build-config
-   peers to npm,
-    eliminating the workspace-only dependency blocker.
-   At that point the SessionStart-install pattern becomes practical and the trade reopens.
-2. Claude Code's plugin contract adds a richer install-time phase (a documented "package manager run on
-   the cache directory" step,
-    or a pluggable build pipeline) that does not require `npm install` to
-   succeed inside `${CLAUDE_PLUGIN_DATA}`.
-3. The plugins migrate out of this monorepo into a dedicated distribution repo,
-    at which point this
-   decision is superseded by the new repo's policy.
-4. The committed `dist/` footprint grows past the eight-plugin scope (for example,
-    by adding new plugin
-   categories),
-    and the carve-out starts catching files it should not.
-5. A bug class emerges where stale committed dist drifts from source in ways that confuse contributors,
-   despite the session-start-housekeeping cleanup.
+1.  The workspace begins publishing `@monochromatic-dev/claude-code-plugin-source` and its build-config
+    peers to npm,
+     eliminating the workspace-only dependency blocker.
+    At that point the SessionStart-install pattern becomes practical and the trade reopens.
+2.  Claude Code's plugin contract adds a richer install-time phase (a documented "package manager run on
+    the cache directory" step,
+     or a pluggable build pipeline) that does not require `npm install` to
+    succeed inside `${CLAUDE_PLUGIN_DATA}`.
+3.  The plugins migrate out of this monorepo into a dedicated distribution repo,
+     at which point this
+    decision is superseded by the new repo's policy.
+4.  The committed `dist/` footprint grows past the eight-plugin scope (for example,
+     by adding new plugin
+    categories),
+     and the carve-out starts catching files it should not.
+5.  A bug class emerges where stale committed dist drifts from source in ways that confuse contributors,
+    despite the session-start-housekeeping cleanup.
 
 The general "no dist in git" default for the rest of the workspace stays in force regardless of how this
 specific carve-out evolves.

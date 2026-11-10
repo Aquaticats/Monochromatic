@@ -134,65 +134,65 @@ is reproducible without a real rasterizer.
 
 ## Source audit: limits (cited)
 
-1. No screenshot / golden support in this API.
-    `TestingWindow`'s renderer only
-   computes text/char sizes (`testing_backend.rs:375` onward);
-    it does not rasterize to
-   a pixel buffer.
-    Pixel/golden testing is a separate mechanism:
-    the software renderer
-   (`i-slint-renderer-software` feature `testing`) plus `tests/screenshots/` comparing
-   PNGs (`doc/testing.md` "Screenshot tests",
-    `tests/screenshots/testing.rs`).
-    The two
-   are orthogonal:
-    the accessibility API is structural,
-    not visual.
+1.  No screenshot / golden support in this API.
+     `TestingWindow`'s renderer only
+    computes text/char sizes (`testing_backend.rs:375` onward);
+     it does not rasterize to
+    a pixel buffer.
+     Pixel/golden testing is a separate mechanism:
+     the software renderer
+    (`i-slint-renderer-software` feature `testing`) plus `tests/screenshots/` comparing
+    PNGs (`doc/testing.md` "Screenshot tests",
+     `tests/screenshots/testing.rs`).
+     The two
+    are orthogonal:
+     the accessibility API is structural,
+     not visual.
 
-2. No keyboard/key-event method on `ElementHandle` at all (grep:
-    none in `search_api.rs`).
-   The only keyboard helpers are window-adapter free functions
-   `send_keyboard_key_text` / `send_keyboard_char` / `send_keyboard_string_sequence`
-   (`testing_backend.rs:80-130`),
-    and every one of them is gated behind
-   `#[cfg(any(feature = "internal", feature = "ffi"))]`.
-    The crate's default feature set
-   is empty (no `default = [...]` in `internal/backends/testing/Cargo.toml`;
-    `internal`
-   is labeled "only enabled for Slint's own tests").
-    `send_mouse_click` is likewise
-   `internal`/`ffi`-gated.
-    So an external consumer on the published default-feature crate
-   has NO supported way to type text into a focused element.
-    Workarounds:
-    drive value via
-   `set_accessible_value` on the target element,
-    or opt into the unsupported `internal`
-   feature to reach `send_keyboard_string_sequence`.
-    This is the main gap vs Compose's
-   `performTextInput`.
+2.  No keyboard/key-event method on `ElementHandle` at all (grep:
+     none in `search_api.rs`).
+    The only keyboard helpers are window-adapter free functions
+    `send_keyboard_key_text` / `send_keyboard_char` / `send_keyboard_string_sequence`
+    (`testing_backend.rs:80-130`),
+     and every one of them is gated behind
+    `#[cfg(any(feature = "internal", feature = "ffi"))]`.
+     The crate's default feature set
+    is empty (no `default = [...]` in `internal/backends/testing/Cargo.toml`;
+     `internal`
+    is labeled "only enabled for Slint's own tests").
+     `send_mouse_click` is likewise
+    `internal`/`ffi`-gated.
+     So an external consumer on the published default-feature crate
+    has NO supported way to type text into a focused element.
+     Workarounds:
+     drive value via
+    `set_accessible_value` on the target element,
+     or opt into the unsupported `internal`
+    feature to reach `send_keyboard_string_sequence`.
+     This is the main gap vs Compose's
+    `performTextInput`.
 
-3. Visibility requirement:
-    descendant search skips not-visible elements
-   (`visit_descendants_impl` `search_api.rs:339`,
-    `if !item_rc.is_visible() continue`).
-   A component created without laying out the window (e.g. `init_no_event_loop()` then an
-   immediate query) yields zero-size,
-    not-visible items and finds nothing.
-    The fix is the
-   event-loop pattern plus `app.show()` (see verification).
-    This bit my first attempt.
+3.  Visibility requirement:
+     descendant search skips not-visible elements
+    (`visit_descendants_impl` `search_api.rs:339`,
+     `if !item_rc.is_visible() continue`).
+    A component created without laying out the window (e.g. `init_no_event_loop()` then an
+    immediate query) yields zero-size,
+     not-visible items and finds nothing.
+     The fix is the
+    event-loop pattern plus `app.show()` (see verification).
+     This bit my first attempt.
 
-4. Debug-info requirement:
-    the `ElementHandle` introspection API panics at runtime unless
-   the Slint compiler emitted debug info.
-    Message:
-    "The use of the ElementHandle API
-   requires the presence of debug info ... Set `SLINT_EMIT_DEBUG_INFO=1` ... or use
-   `compile_with_config` and `with_debug_info`".
-    For `slint-build` users,
-    set
-   `CompilerConfiguration::with_debug_info(true)` in `build.rs`.
+4.  Debug-info requirement:
+     the `ElementHandle` introspection API panics at runtime unless
+    the Slint compiler emitted debug info.
+     Message:
+     "The use of the ElementHandle API
+    requires the presence of debug info ... Set `SLINT_EMIT_DEBUG_INFO=1` ... or use
+    `compile_with_config` and `with_debug_info`".
+     For `slint-build` users,
+     set
+    `CompilerConfiguration::with_debug_info(true)` in `build.rs`.
 
 ## Tests / CI / fuzzing evidence (per source-audit rule)
 

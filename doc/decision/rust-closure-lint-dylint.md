@@ -75,19 +75,19 @@ the package README says so.
 
 ## Staging
 
-1. A new package for the lint with tests that include positive controls and adversarial cases,
-   a README,
-   and tasks in its `mise.toml`.
-   No change to the IDE package.
-2. Run it over the IDE,
-   record the verdicts for the 67 closures,
-   and propose the attribute placement and the
-   `check-cfg` entry the IDE needs (package `Cargo.toml` files are managed by file-enforcer).
-3. After review:
-   the IDE integration,
-   the five known reports,
-   and the fate of the syntax-only
-   `rust/no-anonymous-functions` rule in `monochromatic-lint`.
+1.  A new package for the lint with tests that include positive controls and adversarial cases,
+    a README,
+    and tasks in its `mise.toml`.
+    No change to the IDE package.
+2.  Run it over the IDE,
+    record the verdicts for the 67 closures,
+    and propose the attribute placement and the
+    `check-cfg` entry the IDE needs (package `Cargo.toml` files are managed by file-enforcer).
+3.  After review:
+    the IDE integration,
+    the five known reports,
+    and the fate of the syntax-only
+    `rust/no-anonymous-functions` rule in `monochromatic-lint`.
 
 ## Removal of `rust/no-anonymous-functions`
 

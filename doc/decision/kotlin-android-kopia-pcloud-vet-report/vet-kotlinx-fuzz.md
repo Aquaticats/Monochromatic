@@ -360,67 +360,67 @@ fuzz wraps,
  and unlike kotlinx.
 fuzz it is actually installable.
 
-1. **Jazzer directly** (`com.code-intelligence:jazzer`,
-    `jazzer-junit`).
-   Pros:
-    the actual coverage-guided (libFuzzer + sanitizers) engine;
-    on Maven Central
-   (verified 200);
-    JUnit5 `@FuzzTest` integration;
-    the upstream kotlinx.
-   fuzz itself relies
-   on it.
-   Rejection reason:
-    Java-first ergonomics:
-   you consume `FuzzedDataProvider` instead of
-   kotlinx.
-   fuzz's typed `KFuzzer` API,
-    there is no Gradle `fuzz`/`regression` task,
-    no
-   crash-dedup/reproducer-`.kt` generation,
-    and JVM-only.
-    You lose kotlinx.
-   fuzz's Kotlin
-   conveniences,
-    but you gain a maintained,
-    installable engine.
-    If coverage-guided fuzzing
-   is a hard requirement,
-    this is the pick,
-    not kotlinx.
-   fuzz.
+1.  **Jazzer directly** (`com.code-intelligence:jazzer`,
+     `jazzer-junit`).
+    Pros:
+     the actual coverage-guided (libFuzzer + sanitizers) engine;
+     on Maven Central
+    (verified 200);
+     JUnit5 `@FuzzTest` integration;
+     the upstream kotlinx.
+    fuzz itself relies
+    on it.
+    Rejection reason:
+     Java-first ergonomics:
+    you consume `FuzzedDataProvider` instead of
+    kotlinx.
+    fuzz's typed `KFuzzer` API,
+     there is no Gradle `fuzz`/`regression` task,
+     no
+    crash-dedup/reproducer-`.kt` generation,
+     and JVM-only.
+     You lose kotlinx.
+    fuzz's Kotlin
+    conveniences,
+     but you gain a maintained,
+     installable engine.
+     If coverage-guided fuzzing
+    is a hard requirement,
+     this is the pick,
+     not kotlinx.
+    fuzz.
 
-2. **jqwik** (`net.jqwik:jqwik`).
-   Pros:
-    mature JUnit5 property-based testing with shrinking;
-    on Maven Central;
-    stable.
-   Rejection reason:
-    property-based,
-    **not** coverage-guided.
-    Inputs come from random/
-   exhaustive generators with no libFuzzer corpus evolution or instrumentation feedback,
-    so
-   it will not drive deep multi-branch paths (the `int()%2 / %3 / %31` style guarded
-   crashes) the way a coverage-guided fuzzer does.
-    Kotlin support is Java-centric.
+2.  **jqwik** (`net.jqwik:jqwik`).
+    Pros:
+     mature JUnit5 property-based testing with shrinking;
+     on Maven Central;
+     stable.
+    Rejection reason:
+     property-based,
+     **not** coverage-guided.
+     Inputs come from random/
+    exhaustive generators with no libFuzzer corpus evolution or instrumentation feedback,
+     so
+    it will not drive deep multi-branch paths (the `int()%2 / %3 / %31` style guarded
+    crashes) the way a coverage-guided fuzzer does.
+     Kotlin support is Java-centric.
 
-3. **Kotest property testing** (`io.kotest:kotest-property`).
-   Pros:
-    idiomatic Kotlin `Arb`/`checkAll` API,
-    best Kotlin ergonomics of the three,
-    on
-   Maven Central,
-    actively maintained.
-   Rejection reason:
-    same class limitation as jqwik:
-   property-based generation with
-   shrinking,
-    no coverage instrumentation or corpus feedback.
-    Good for shallow invariant
-   checking,
-    not for guided crash discovery.
-    Not a fuzzer.
+3.  **Kotest property testing** (`io.kotest:kotest-property`).
+    Pros:
+     idiomatic Kotlin `Arb`/`checkAll` API,
+     best Kotlin ergonomics of the three,
+     on
+    Maven Central,
+     actively maintained.
+    Rejection reason:
+     same class limitation as jqwik:
+    property-based generation with
+    shrinking,
+     no coverage instrumentation or corpus feedback.
+     Good for shallow invariant
+    checking,
+     not for guided crash discovery.
+     Not a fuzzer.
 
 ## Files inspected
 

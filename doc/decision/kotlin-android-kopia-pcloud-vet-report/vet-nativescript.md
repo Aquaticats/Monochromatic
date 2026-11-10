@@ -447,25 +447,25 @@ than Slint.
 
 ## Friction log (every obstacle hit, in order)
 
-1. No Node / `ns` CLI / newer SDK platform in the base image:
-    derived `localhost/nativescript-android-builder`
-   from the slint base,
-    adding Node 22 + `nativescript@9.0.6` + platforms android-34/35 (one-time setup cost).
-2. SELinux on the Fedora host denied the unlabeled bind mount (`EACCES` on `ns create`);
-    fixed with `:Z` on
-   the `-v` volume.
-3. Each ephemeral `--rm` build container generated its own random debug keystore
-   (`/root/.android/debug.keystore` not persisted),
-    so the second APK failed `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
-   (signature mismatch);
-    resolved by `adb uninstall` before reinstalling.
-    Persisting `/root/.android` as a
-   volume would avoid it for repeat builds.
-4. The decisive obstacle:
-    V8 cannot initialize on the device (`TSEC_FLAG_DENY_EXECMEM`),
-    and `--jitless` does
-   not fix it.
-    No app-side workaround exists.
+1.  No Node / `ns` CLI / newer SDK platform in the base image:
+     derived `localhost/nativescript-android-builder`
+    from the slint base,
+     adding Node 22 + `nativescript@9.0.6` + platforms android-34/35 (one-time setup cost).
+2.  SELinux on the Fedora host denied the unlabeled bind mount (`EACCES` on `ns create`);
+     fixed with `:Z` on
+    the `-v` volume.
+3.  Each ephemeral `--rm` build container generated its own random debug keystore
+    (`/root/.android/debug.keystore` not persisted),
+     so the second APK failed `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
+    (signature mismatch);
+     resolved by `adb uninstall` before reinstalling.
+     Persisting `/root/.android` as a
+    volume would avoid it for repeat builds.
+4.  The decisive obstacle:
+     V8 cannot initialize on the device (`TSEC_FLAG_DENY_EXECMEM`),
+     and `--jitless` does
+    not fix it.
+     No app-side workaround exists.
 
 What worked:
  the toolchain installed cleanly;

@@ -93,16 +93,16 @@ That distinction is moot now that `mise.lock` is retired.
 Met on 2026-10-28 by supersession rather than by the steps the stopgap
 recorded:
 
-1. Commit `a5cdc3158d` removed `[tools]`,
-   `lockfile` and
-   `lockfile_platforms` from `mise.no-env.toml` for
-   `doc/decision/mpm-toolchain-adoption.md`.
-2. Commit `4cb480344f` deleted `mise.lock`;
-   `toolchain.lock.json` is the pinned record.
-3. `doc/handover/mise-lock-2026-10-20-followup.md` was deleted.
-   This document stays as history because
-   `doc/planning/mpm-toolchain-migration.md` points at it and because
-   `toolchain.lock.json` still inherits the Linux-only artifact rows.
+1.  Commit `a5cdc3158d` removed `[tools]`,
+    `lockfile` and
+    `lockfile_platforms` from `mise.no-env.toml` for
+    `doc/decision/mpm-toolchain-adoption.md`.
+2.  Commit `4cb480344f` deleted `mise.lock`;
+    `toolchain.lock.json` is the pinned record.
+3.  `doc/handover/mise-lock-2026-10-20-followup.md` was deleted.
+    This document stays as history because
+    `doc/planning/mpm-toolchain-migration.md` points at it and because
+    `toolchain.lock.json` still inherits the Linux-only artifact rows.
 
 ## Alternatives rejected
 

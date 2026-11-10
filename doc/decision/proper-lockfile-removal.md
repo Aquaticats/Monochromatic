@@ -105,53 +105,53 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
 
 ## Ranked decision
 
-1. **API-compatible shim (recommended).**
-   Real implementation of `lockSync(path, options)`
-   and `lock(path, options)` via `node:fs.mkdirSync({ recursive: false })` on a sibling `.<basename>.lock` directory.
-   Returns a release function (sync from `lockSync`,
-    the same sync function from `lock`).
-   Both sync and async startup paths execute correctly,
-    including `await release()`.
-   Decoupled from the silent stub's thenable trap.
-   Matches the precedent at `package/pnpm-override/shim-node-domexception/` and `package/pnpm-override/shim-readable-stream/`.
+1.  **API-compatible shim (recommended).**
+    Real implementation of `lockSync(path, options)`
+    and `lock(path, options)` via `node:fs.mkdirSync({ recursive: false })` on a sibling `.<basename>.lock` directory.
+    Returns a release function (sync from `lockSync`,
+     the same sync function from `lock`).
+    Both sync and async startup paths execute correctly,
+     including `await release()`.
+    Decoupled from the silent stub's thenable trap.
+    Matches the precedent at `package/pnpm-override/shim-node-domexception/` and `package/pnpm-override/shim-readable-stream/`.
 
-   - Pros:
-      every existing call site keeps working;
-      no latent hang;
-      future pi versions that exercise additional `AuthStorage`/`SettingsManager` methods continue to work.
-   - Cons:
-      five new files plus a `tsconfig.json`;
-      the shim's `mkdirSync`-based locking is simpler than upstream (no stale-file detection,
-      no `onCompromised` callback,
-      no retry-with-jitter),
-      so it does not protect against crashed pi processes leaving stale lock dirs.
+    - Pros:
+       every existing call site keeps working;
+       no latent hang;
+       future pi versions that exercise additional `AuthStorage`/`SettingsManager` methods continue to work.
+    - Cons:
+       five new files plus a `tsconfig.json`;
+       the shim's `mkdirSync`-based locking is simpler than upstream (no stale-file detection,
+       no `onCompromised` callback,
+       no retry-with-jitter),
+       so it does not protect against crashed pi processes leaving stale lock dirs.
 
-2. **Silent stub.**
-   Add `proper-lockfile` to `.pnpmfile.mjs` `POLICY` with `action: 'silent'`.
-   Works for the sync path but hangs the async path under `await release` and under `await lockfile.lock(...)`
-   because the workspace stub's Proxy treats every property access (including `.then`) as a self-return.
+2.  **Silent stub.**
+    Add `proper-lockfile` to `.pnpmfile.mjs` `POLICY` with `action: 'silent'`.
+    Works for the sync path but hangs the async path under `await release` and under `await lockfile.lock(...)`
+    because the workspace stub's Proxy treats every property access (including `.then`) as a self-return.
 
-   - Pros:
-      one-line change,
-      no new package.
-   - Cons:
-      hangs pi on every startup that resolves a model API key (`model-registry.js:519` is on the hot path,
-      not just OAuth refresh).
+    - Pros:
+       one-line change,
+       no new package.
+    - Cons:
+       hangs pi on every startup that resolves a model API key (`model-registry.js:519` is on the hot path,
+       not just OAuth refresh).
 
-3. **Removal**
-   (`pnpm-workspace.yaml` `overrides: { 'proper-lockfile': '-' }`
+3.  **Removal**
+    (`pnpm-workspace.yaml` `overrides: { 'proper-lockfile': '-' }`
 or parent-scoped `'@earendil-works/pi-coding-agent>proper-lockfile': '-'`).
-   Causes `auth-storage.js:12` and `settings-manager.js:4` to throw `MODULE_NOT_FOUND` at module load.
-   Since `dist/index.js:6,22` statically re-exports both,
-    pi-coding-agent itself fails to load.
-   The runtime extension load chain (`package/pi-plugin/auto-mode` -> host pi -> `pi-coding-agent/dist/index.js`)
-   breaks.
+    Causes `auth-storage.js:12` and `settings-manager.js:4` to throw `MODULE_NOT_FOUND` at module load.
+    Since `dist/index.js:6,22` statically re-exports both,
+     pi-coding-agent itself fails to load.
+    The runtime extension load chain (`package/pi-plugin/auto-mode` -> host pi -> `pi-coding-agent/dist/index.js`)
+    breaks.
 
-   - Pros:
-      smallest possible install footprint.
-   - Cons:
-      not viable;
-      crashes pi.
+    - Pros:
+       smallest possible install footprint.
+    - Cons:
+       not viable;
+       crashes pi.
 
 Ranking:
  1 > 2 > 3.
@@ -267,38 +267,38 @@ After wiring (`pnpm-workspace.yaml` override added,
  shim package created,
  `pnpm install` run outside sandbox per project convention):
 
-1. **Install reshapes the graph.**
-   `mise run prepare:pnpm:install` outside sandbox.
-   `pnpm why proper-lockfile` should show resolution through `link:package/pnpm-override/shim-proper-lockfile`,
-    not `proper-lockfile@4.1.2`.
-   The `node_modules/.pnpm/proper-lockfile@*` directory should no longer exist.
-2. **Shim loads and exports the right shape.**
-   `node -e "const l = require('@monochromatic-dev/pnpm-override-shim-proper-lockfile'); console.log(typeof l.lockSync, typeof l.lock);"` -> `function function`.
-3. **Sync lock works and `release()` cleans up.**
-   Probe:
-    write a target file,
-    call `lockSync(p)`,
-    check the `.<basename>.lock` directory exists,
-    call `release()`,
-    check the directory is gone.
-4. **Async lock works under `await release()`.**
-   Probe:
-    write a target file,
-    `release = await lock(p, { retries: 0 })`,
-    `await release()`.
-   Expect `typeof release === 'function'` and clean release.
-5. **ELOCKED is thrown when the lock is held.**
-   Probe:
-    call `lockSync(p)` twice;
-    second call should throw with `err.code === 'ELOCKED'`.
-6. **pi-coding-agent loads end-to-end.**
-   `node -e "import('@earendil-works/pi-coding-agent').then(m => console.log('AuthStorage:', typeof m.AuthStorage, 'SettingsManager:', typeof m.SettingsManager));"`.
-   Expect `AuthStorage: function SettingsManager: function`.
-   This proves the shim's resolution unblocks pi-coding-agent's module load,
-    but does not exercise `withLockAsync`.
-7. **End-to-end via the pi CLI.**
-   `pi --help` should print help text and exit 0.
-   A hang indicates the async lock path is still failing.
+1.  **Install reshapes the graph.**
+    `mise run prepare:pnpm:install` outside sandbox.
+    `pnpm why proper-lockfile` should show resolution through `link:package/pnpm-override/shim-proper-lockfile`,
+     not `proper-lockfile@4.1.2`.
+    The `node_modules/.pnpm/proper-lockfile@*` directory should no longer exist.
+2.  **Shim loads and exports the right shape.**
+    `node -e "const l = require('@monochromatic-dev/pnpm-override-shim-proper-lockfile'); console.log(typeof l.lockSync, typeof l.lock);"` -> `function function`.
+3.  **Sync lock works and `release()` cleans up.**
+    Probe:
+     write a target file,
+     call `lockSync(p)`,
+     check the `.<basename>.lock` directory exists,
+     call `release()`,
+     check the directory is gone.
+4.  **Async lock works under `await release()`.**
+    Probe:
+     write a target file,
+     `release = await lock(p, { retries: 0 })`,
+     `await release()`.
+    Expect `typeof release === 'function'` and clean release.
+5.  **ELOCKED is thrown when the lock is held.**
+    Probe:
+     call `lockSync(p)` twice;
+     second call should throw with `err.code === 'ELOCKED'`.
+6.  **pi-coding-agent loads end-to-end.**
+    `node -e "import('@earendil-works/pi-coding-agent').then(m => console.log('AuthStorage:', typeof m.AuthStorage, 'SettingsManager:', typeof m.SettingsManager));"`.
+    Expect `AuthStorage: function SettingsManager: function`.
+    This proves the shim's resolution unblocks pi-coding-agent's module load,
+     but does not exercise `withLockAsync`.
+7.  **End-to-end via the pi CLI.**
+    `pi --help` should print help text and exit 0.
+    A hang indicates the async lock path is still failing.
 
 Caveat:
  `settings-manager.js:69` only acquires the lock when the settings file already exists,
@@ -309,32 +309,32 @@ To force the lock path on a fresh machine:
 
 ## Risk callouts
 
-1. **Crashed pi leaves stale lock dir.**
-   Without stale detection,
-    the next pi invocation throws ELOCKED until the user `rmdir`s the lock directory.
-   Manual recovery is acceptable in single-instance workflows;
-    document in the README so the operator knows where to look.
-2. **Concurrent pi instances are not supported.**
-   Upstream's locking provides cross-process safety with retry+jitter;
-    the shim provides only the EEXIST atomic primitive.
-   Multiple concurrent pi instances would serialise correctly (mkdirSync is atomic),
-    but the deterministic backoff could synchronise their retries into a livelock.
-   The workspace does not run multiple concurrent pi instances;
-    if that changes,
-    revisit the shim.
-3. **NFS-mounted home directories.**
-   The upstream's `realpath` option exists partly to normalize symlinks before locking on NFS.
-   The shim never calls `realpath`,
-    so on an NFS mount where `~/.pi` is a symlink,
-    the lock directory is created at the symlink's target path.
-   Same effective behaviour as upstream-with-`realpath:false`,
-    which is what pi-coding-agent always passes.
-   Informational;
-    no action required.
-4. **Future pi-coding-agent versions may use `unlock`/`unlockSync`/`check`/`checkSync`.**
-   The shim does not export these.
-   If a future version adds calls to them,
-    module-load succeeds (since `import lockfile from "proper-lockfile"` only fails if the package is missing,
-    not if specific named functions are absent) but the call site throws `TypeError: lockfile.unlock is not a function`.
-   When that happens,
-    add the missing functions to the shim and re-pin the audit entry.
+1.  **Crashed pi leaves stale lock dir.**
+    Without stale detection,
+     the next pi invocation throws ELOCKED until the user `rmdir`s the lock directory.
+    Manual recovery is acceptable in single-instance workflows;
+     document in the README so the operator knows where to look.
+2.  **Concurrent pi instances are not supported.**
+    Upstream's locking provides cross-process safety with retry+jitter;
+     the shim provides only the EEXIST atomic primitive.
+    Multiple concurrent pi instances would serialise correctly (mkdirSync is atomic),
+     but the deterministic backoff could synchronise their retries into a livelock.
+    The workspace does not run multiple concurrent pi instances;
+     if that changes,
+     revisit the shim.
+3.  **NFS-mounted home directories.**
+    The upstream's `realpath` option exists partly to normalize symlinks before locking on NFS.
+    The shim never calls `realpath`,
+     so on an NFS mount where `~/.pi` is a symlink,
+     the lock directory is created at the symlink's target path.
+    Same effective behaviour as upstream-with-`realpath:false`,
+     which is what pi-coding-agent always passes.
+    Informational;
+     no action required.
+4.  **Future pi-coding-agent versions may use `unlock`/`unlockSync`/`check`/`checkSync`.**
+    The shim does not export these.
+    If a future version adds calls to them,
+     module-load succeeds (since `import lockfile from "proper-lockfile"` only fails if the package is missing,
+     not if specific named functions are absent) but the call site throws `TypeError: lockfile.unlock is not a function`.
+    When that happens,
+     add the missing functions to the shim and re-pin the audit entry.

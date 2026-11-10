@@ -191,17 +191,17 @@ Client is WebdriverIO `remote()` (`/tmp/agent/tdrv/wdio/test.mjs`).
  Two real issues had to
 be handled to get a pass:
 
-1. `'wdio:enforceWebDriverClassic': true` in capabilities,
-    so wdio 9.27 does not request a
-   BiDi session that WebKitWebDriver rejects (issue #15415).
-2. Native W3C element click returns `unsupported operation` (issue #6541),
-    so the test
-   tries native click,
-    catches it,
-    and falls back to an `execute`-script click.
-    Element
-   find and `getText` work natively;
-    only the pointer-interaction endpoints are broken.
+1.  `'wdio:enforceWebDriverClassic': true` in capabilities,
+     so wdio 9.27 does not request a
+    BiDi session that WebKitWebDriver rejects (issue #15415).
+2.  Native W3C element click returns `unsupported operation` (issue #6541),
+     so the test
+    tries native click,
+     catches it,
+     and falls back to an `execute`-script click.
+     Element
+    find and `getText` work natively;
+     only the pointer-interaction endpoints are broken.
 
 Passing output (`/tmp/agent/tdrv-PASS.log`,
  verbatim,

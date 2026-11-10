@@ -403,29 +403,41 @@ For a one-off run where the location should be known in advance,
 The section "The build-dir layout is internal" ends with "Do not write repository tooling that parses these paths."
 That sentence stays in force for every tool except one reader.
 
-The owner answered, in the question tool on 2026-11-07 (recorded at 2026-11-07T22:19:43-05:00 in
-`doc/handover/questions-for-the-owner.md`), the question of how every build folder stays lean
+The owner answered,
+in the question tool on 2026-11-07 (recorded at 2026-11-07T22:19:43-05:00 in
+`doc/handover/questions-for-the-owner.md`),
+the question of how every build folder stays lean
 (`doc/planning/lean-build-dirs.md`):
-"A to F, B allowed (Recommended)".
+"A to F,
+B allowed (Recommended)".
 Mechanism B of that plan is the in-place sweep of units that an older compiler built,
 and it cannot decide what to remove without reading the compiler that each unit's fingerprint records.
 
-What is allowed, and nothing beyond it:
+What is allowed,
+and nothing beyond it:
 
-- The sweep in `package/cargo-shadow/cli` (the `cargo-shadow lean` command) reads, in a profile directory of a build
-  folder, the `rustc` field of the fingerprint JSON files and the modification time of `invoked.timestamp`.
+- The sweep in `package/cargo-shadow/cli` (the `cargo-shadow lean` command) reads,
+  in a profile directory of a build
+  folder,
+  the `rustc` field of the fingerprint JSON files and the modification time of `invoked.timestamp`.
   Both layouts above are read:
   `.fingerprint/<package>-<hash>/` and `build/<package>/<hash>/fingerprint/`.
 - It is a reader that does nothing when it cannot parse:
   a profile directory whose layout or fingerprint it does not recognise is left untouched and reported as unknown.
 - It parses no other path or file of Cargo's build directory for any purpose.
-  Every other tool, and every other use of these paths in the sweep, stays under the sentence quoted above.
+  Every other tool,
+  and every other use of these paths in the sweep,
+  stays under the sentence quoted above.
 - The size caps (mechanism E) evict by the same unit enumeration and the same `invoked.timestamp` times,
   through the same reader and under the same rule.
-  Toolchain-keyed folders (A) and the collection of idle trees (C) decide from file times, sizes, locks and the
-  workspace ledger, and read no fingerprint.
+  Toolchain-keyed folders (A) and the collection of idle trees (C) decide from file times,
+  sizes,
+  locks and the
+  workspace ledger,
+  and read no fingerprint.
 
-The layout is still "internal to Cargo, and subject to change".
+The layout is still "internal to Cargo,
+and subject to change".
 A layout change that the sweep does not recognise therefore makes it remove nothing,
 and the sweep's tests name the layouts they know.
 

@@ -71,101 +71,101 @@ change;
 
 ## Decision
 
-1. **Figma `decompressZstd`** becomes a one-line call to `node:zlib`'s `zstdDecompressSync`.
-    The
-   optional `@bokuwatch/zstd` path and the `zstd` CLI fallback are removed,
-    and `nano-spawn` is
-   dropped from the package's dependencies (it has no other use there).
-    This is correctness-only:
-   one-shot decompression of a single frame,
-    no level or threading concerns.
-    Validated by full
-   interop (every produced frame round-trips byte-identically) and by the package's existing
-   integration test that decodes real `.fig` / `.deck` / `.jam` files.
+1.  **Figma `decompressZstd`** becomes a one-line call to `node:zlib`'s `zstdDecompressSync`.
+     The
+    optional `@bokuwatch/zstd` path and the `zstd` CLI fallback are removed,
+     and `nano-spawn` is
+    dropped from the package's dependencies (it has no other use there).
+     This is correctness-only:
+    one-shot decompression of a single frame,
+     no level or threading concerns.
+     Validated by full
+    interop (every produced frame round-trips byte-identically) and by the package's existing
+    integration test that decodes real `.fig` / `.deck` / `.jam` files.
 
-2. **The ssg `build:compress` task** becomes a build script (`src/build/compress.ts`,
-    alongside the
-   existing `postprocess.ts`) that walks `dist/`,
-    compresses each file with `node:zlib`,
-    and writes
-   `<file>.zst`.
-    The workspace has migrated off Bun,
-    so this script must run under **Node**;
-    the
-   engine choice is made for Node,
-    with Bun numbers kept only as reference.
-    Specifics,
-    each justified
-   by the benchmark:
-   - **Engine + threading:
-     ** shard the file list across **`node:worker_threads` (about 8 workers,
-     matching the physical-core count)**,
-      each worker running synchronous `zstdCompressSync`.
-      This is
-     the fastest Node approach measured,
-      and at matched ratio (level 19) it is faster than the zstd
-     CLI itself (168 ms versus 217 ms on tmpfs for the real `dist/`).
-      Three other approaches were
-     measured and rejected:
-      Node's **async** `zstdCompress` via `Promise.all` is pathologically slow
-     (about 1 second at level 19,
-      7.8 seconds at level 22) because Node's async zlib carries a large
-     fixed per-call overhead;
-      the CLI's in-frame `-T0` multithreading is useless for many small
-     files;
-      the CLI's cross-file process parallelism is catastrophic (process-spawn bound,
-      seconds to
-     tens of seconds).
-      Node sequential `zstdCompressSync` is the simple fallback (243 ms) if the
-     worker_threads machinery is judged not worth it,
-      but it does not scale with file count the way
-     worker_threads does (2,000 files:
-      787 ms sequential versus 253 ms with 8 workers).
-      Over-
-     subscribing to all 16 logical threads is slightly slower than 8 for CPU-bound zstd.
-      Bun's async
-     parallel path is faster still (72 ms) but Bun is no longer the target runtime.
-   - **Level:
-     ** fixed **level 19**.
-      `node:zlib` has no equivalent of `--adapt`,
-      so a fixed level is
-     required,
-      and a fixed level also makes the build's output reproducible (`--adapt` is not;
-      see
-     caveats).
-      Level 19 is the best practical ratio;
-      under the chosen Node worker_threads engine its
-     full wall time on the real `dist/` is ~168 ms (tmpfs) / ~177 ms (SSD).
-      Level 15 is the knee of
-     the ratio curve (within 0.1 percentage points of level 19's ratio at ~20% less time:
-      ~141 ms /
-     ~146 ms) and is the better pick only if dev-rebuild latency is ever a felt pain;
-      since
-     precompressed assets are paid for once and served repeatedly,
-      level 19 is preferred.
-   - **Exclusion policy ("keep if smaller" + extension skip):
-     ** write `<file>.zst` only when it is
-     strictly smaller than the original,
-      and skip known-incompressible extensions
-     (images,
-      fonts,
-      video,
-      already-compressed) without reading them.
-      This is stricter and more
-     correct than the CLI's `--exclude-compressed` (which is extension-only and can leave a `.zst`
-     larger than its source);
-      incompressible input always grows under zstd (frame overhead),
-      so
-     keeping the raw bytes is the right behavior for `wireSize` and for any precompressed server.
-     The set of produced `.zst` files therefore differs from the CLI's by design.
+2.  **The ssg `build:compress` task** becomes a build script (`src/build/compress.ts`,
+     alongside the
+    existing `postprocess.ts`) that walks `dist/`,
+     compresses each file with `node:zlib`,
+     and writes
+    `<file>.zst`.
+     The workspace has migrated off Bun,
+     so this script must run under **Node**;
+     the
+    engine choice is made for Node,
+     with Bun numbers kept only as reference.
+     Specifics,
+     each justified
+    by the benchmark:
+    - **Engine + threading:
+      ** shard the file list across **`node:worker_threads` (about 8 workers,
+      matching the physical-core count)**,
+       each worker running synchronous `zstdCompressSync`.
+       This is
+      the fastest Node approach measured,
+       and at matched ratio (level 19) it is faster than the zstd
+      CLI itself (168 ms versus 217 ms on tmpfs for the real `dist/`).
+       Three other approaches were
+      measured and rejected:
+       Node's **async** `zstdCompress` via `Promise.all` is pathologically slow
+      (about 1 second at level 19,
+       7.8 seconds at level 22) because Node's async zlib carries a large
+      fixed per-call overhead;
+       the CLI's in-frame `-T0` multithreading is useless for many small
+      files;
+       the CLI's cross-file process parallelism is catastrophic (process-spawn bound,
+       seconds to
+      tens of seconds).
+       Node sequential `zstdCompressSync` is the simple fallback (243 ms) if the
+      worker_threads machinery is judged not worth it,
+       but it does not scale with file count the way
+      worker_threads does (2,000 files:
+       787 ms sequential versus 253 ms with 8 workers).
+       Over-
+      subscribing to all 16 logical threads is slightly slower than 8 for CPU-bound zstd.
+       Bun's async
+      parallel path is faster still (72 ms) but Bun is no longer the target runtime.
+    - **Level:
+      ** fixed **level 19**.
+       `node:zlib` has no equivalent of `--adapt`,
+       so a fixed level is
+      required,
+       and a fixed level also makes the build's output reproducible (`--adapt` is not;
+       see
+      caveats).
+       Level 19 is the best practical ratio;
+       under the chosen Node worker_threads engine its
+      full wall time on the real `dist/` is ~168 ms (tmpfs) / ~177 ms (SSD).
+       Level 15 is the knee of
+      the ratio curve (within 0.1 percentage points of level 19's ratio at ~20% less time:
+       ~141 ms /
+      ~146 ms) and is the better pick only if dev-rebuild latency is ever a felt pain;
+       since
+      precompressed assets are paid for once and served repeatedly,
+       level 19 is preferred.
+    - **Exclusion policy ("keep if smaller" + extension skip):
+      ** write `<file>.zst` only when it is
+      strictly smaller than the original,
+       and skip known-incompressible extensions
+      (images,
+       fonts,
+       video,
+       already-compressed) without reading them.
+       This is stricter and more
+      correct than the CLI's `--exclude-compressed` (which is extension-only and can leave a `.zst`
+      larger than its source);
+       incompressible input always grows under zstd (frame overhead),
+       so
+      keeping the raw bytes is the right behavior for `wireSize` and for any precompressed server.
+      The set of produced `.zst` files therefore differs from the CLI's by design.
 
-3. **Remove the external tool.
-   ** Drop `"github:facebook/zstd" = "latest"` from `mise.toml` and
-   `mise.no-env.toml` once both call sites are migrated.
-    No other workspace code invokes the `zstd`
-   binary (the lone remaining textual reference is a tool-name entry in the bash-output-filter
-   allowlist,
-    which is generic and harmless).
+3.  **Remove the external tool.
+    ** Drop `"github:facebook/zstd" = "latest"` from `mise.toml` and
+    `mise.no-env.toml` once both call sites are migrated.
+     No other workspace code invokes the `zstd`
+    binary (the lone remaining textual reference is a tool-name entry in the bash-output-filter
+    allowlist,
+     which is generic and harmless).
 
 The decompression change (1) is unconditionally safe.
  The compression change (2) is the one the

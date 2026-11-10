@@ -278,31 +278,31 @@ BUILD:
 three iterations,
  each a finding:
 
-1. `slint = { version = "1.16", default-features = false, features = ["compat-1-2",
-   "backend-android-activity-06"] }` => **compile error in slint 1.16.1 itself**:
-   `slint-1.16.1/android.rs:157: cannot find type 'Box' in this scope` (E0433).
-    The released
-   crate's Android entry omits the no_std `Box` import;
-    master 1.17 fixes it by fully-qualifying
-   `alloc::boxed::Box`.
-    This is exactly why the repo pins a slint git rev rather than crates.
-   io.
-2. Re-enabling default features (=> `std`) compiled cleanly.
-    Output:
-   `target/debug/apk/slintcounter.apk` (~150 MB debug;
-    signed with the auto debug keystore;
-   contains `lib/arm64-v8a/libslintcounter.so`).
-3. First device run surfaced an **Android 16 "16 KB page size" compatibility warning**:
-   `libslintcounter.so : LOAD segment not aligned` (cargo-apk 0.10.0 + NDK r26 emit 4 KB-aligned
-   LOAD segments;
-    Android 15+/16 flags them).
-    Fixed by injecting
-   `RUSTFLAGS=-Clink-arg=-Wl,-z,max-page-size=16384` (cargo-apk appends to existing RUSTFLAGS,
-   verified in ndk-build/src/`cargo.rs`).
-    `readelf -l` then showed all LOAD aligns = `0x4000`
-   (16 KB).
-    Rebuild produced a clean,
-    16 KB-aligned APK.
+1.  `slint = { version = "1.16", default-features = false, features = ["compat-1-2",
+    "backend-android-activity-06"] }` => **compile error in slint 1.16.1 itself**:
+    `slint-1.16.1/android.rs:157: cannot find type 'Box' in this scope` (E0433).
+     The released
+    crate's Android entry omits the no_std `Box` import;
+     master 1.17 fixes it by fully-qualifying
+    `alloc::boxed::Box`.
+     This is exactly why the repo pins a slint git rev rather than crates.
+    io.
+2.  Re-enabling default features (=> `std`) compiled cleanly.
+     Output:
+    `target/debug/apk/slintcounter.apk` (~150 MB debug;
+     signed with the auto debug keystore;
+    contains `lib/arm64-v8a/libslintcounter.so`).
+3.  First device run surfaced an **Android 16 "16 KB page size" compatibility warning**:
+    `libslintcounter.so : LOAD segment not aligned` (cargo-apk 0.10.0 + NDK r26 emit 4 KB-aligned
+    LOAD segments;
+     Android 15+/16 flags them).
+     Fixed by injecting
+    `RUSTFLAGS=-Clink-arg=-Wl,-z,max-page-size=16384` (cargo-apk appends to existing RUSTFLAGS,
+    verified in ndk-build/src/`cargo.rs`).
+     `readelf -l` then showed all LOAD aligns = `0x4000`
+    (16 KB).
+     Rebuild produced a clean,
+     16 KB-aligned APK.
 
 RUN:
 on the shared Pixel 6 (oriole),

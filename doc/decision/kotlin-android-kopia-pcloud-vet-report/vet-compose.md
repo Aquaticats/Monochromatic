@@ -513,50 +513,50 @@ The technologies work,
  but they produced roughly as much grief as value.
  Full list:
 
-1. Split repos:
-    `compose-multiplatform` does NOT contain the runtime/ui-test source;
-    it lives in
-   `compose-multiplatform-core` (a second clone was needed to audit runComposeUiTest at all).
-2. Official template is stale:
-    pins Compose 1.5.11 / Kotlin 1.9.21 / AGP 8.0.2 / Gradle 8.2.1 (~2.5 yrs old).
-3. `compose.uiTest` Gradle DSL accessor does not exist in 1.5.11 -> `Unresolved reference: uiTest`.
-   Worked around with explicit coordinate `org.jetbrains.compose.ui:ui-test:1.5.11`.
-4. Even then,
-    `runComposeUiTest` / `ComposeUiTest` / `setContent` / `assertExists` are ABSENT from
-   1.5.11's ui-test artifact (only the finder/assertion DSL ships).
-    The template's pinned version
-   literally cannot run the API under test.
-    => had to abandon the template's versions.
-5. Moving to the current stack required JDK 21 to RUN AGP 9.2.1 (the repo's own CI Docker uses JDK 21),
-   even though compile target stays Java 17.
-    Had to install a second JDK.
-6. AGP 9.0 hard break:
-    `com.android.library`/`com.android.application` + `org.jetbrains.kotlin.multiplatform`
-   is rejected ("not compatible ... since AGP 9.0").
-    The official template uses exactly that combo,
-   so the template does not build on the current AGP at all.
-7. The documented bypass (`android.builtInKotlin=false`,
-    `android.newDsl=false`) cleared the hard stop
-   but then threw `ClassCastException: DefaultAndroidLibrarySourceSet_Decorated` on the template's legacy
-   `android { sourceSets["main"]... }` DSL.
-    Bypass is not actually usable with the template.
-8. Real fix = restructure to match JetBrains' current examples:
-   - shared -> `com.android.kotlin.multiplatform.library`,
-      android config moved INSIDE
-     `kotlin { android { namespace; compileSdk; minSdk; compilerOptions { jvmTarget } } }`,
-      drop `androidTarget()`.
-   - androidApp -> plain `com.android.application` (AGP-9 built-in Kotlin,
-      no kotlin-multiplatform),
-     sources moved `src/androidMain` -> `src/main`,
-      `AppCompatActivity` -> `ComponentActivity`,
-     `Theme.AppCompat` -> `@android:style/Theme.Material...`.
-   A non-trivial migration just to compile on the latest toolchain.
-9. API gotcha:
-    `assertExists` is a MEMBER of `SemanticsNodeInteraction` (no import);
-    `assertIsDisplayed`,
-   `onNodeWithText` are top-level extensions.
-    Importing `assertExists` as top-level fails to compile.
-   This single wrong import was the last thing standing between "looks broken" and "green test".
+1.  Split repos:
+     `compose-multiplatform` does NOT contain the runtime/ui-test source;
+     it lives in
+    `compose-multiplatform-core` (a second clone was needed to audit runComposeUiTest at all).
+2.  Official template is stale:
+     pins Compose 1.5.11 / Kotlin 1.9.21 / AGP 8.0.2 / Gradle 8.2.1 (~2.5 yrs old).
+3.  `compose.uiTest` Gradle DSL accessor does not exist in 1.5.11 -> `Unresolved reference: uiTest`.
+    Worked around with explicit coordinate `org.jetbrains.compose.ui:ui-test:1.5.11`.
+4.  Even then,
+     `runComposeUiTest` / `ComposeUiTest` / `setContent` / `assertExists` are ABSENT from
+    1.5.11's ui-test artifact (only the finder/assertion DSL ships).
+     The template's pinned version
+    literally cannot run the API under test.
+     => had to abandon the template's versions.
+5.  Moving to the current stack required JDK 21 to RUN AGP 9.2.1 (the repo's own CI Docker uses JDK 21),
+    even though compile target stays Java 17.
+     Had to install a second JDK.
+6.  AGP 9.0 hard break:
+     `com.android.library`/`com.android.application` + `org.jetbrains.kotlin.multiplatform`
+    is rejected ("not compatible ... since AGP 9.0").
+     The official template uses exactly that combo,
+    so the template does not build on the current AGP at all.
+7.  The documented bypass (`android.builtInKotlin=false`,
+     `android.newDsl=false`) cleared the hard stop
+    but then threw `ClassCastException: DefaultAndroidLibrarySourceSet_Decorated` on the template's legacy
+    `android { sourceSets["main"]... }` DSL.
+     Bypass is not actually usable with the template.
+8.  Real fix = restructure to match JetBrains' current examples:
+    - shared -> `com.android.kotlin.multiplatform.library`,
+       android config moved INSIDE
+      `kotlin { android { namespace; compileSdk; minSdk; compilerOptions { jvmTarget } } }`,
+       drop `androidTarget()`.
+    - androidApp -> plain `com.android.application` (AGP-9 built-in Kotlin,
+       no kotlin-multiplatform),
+      sources moved `src/androidMain` -> `src/main`,
+       `AppCompatActivity` -> `ComponentActivity`,
+      `Theme.AppCompat` -> `@android:style/Theme.Material...`.
+    A non-trivial migration just to compile on the latest toolchain.
+9.  API gotcha:
+     `assertExists` is a MEMBER of `SemanticsNodeInteraction` (no import);
+     `assertIsDisplayed`,
+    `onNodeWithText` are top-level extensions.
+     Importing `assertExists` as top-level fails to compile.
+    This single wrong import was the last thing standing between "looks broken" and "green test".
 10. Every Android assemble prints `❌ KMP Dependencies Resolution Failure` diagnostics (non-fatal;
      APK
     still builds),

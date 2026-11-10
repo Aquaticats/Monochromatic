@@ -100,37 +100,37 @@ a different name from rustup's `x86_64-unknown-linux-musl`.
 Each was found by running the Alpine build or the app,
 not by reading.
 
-1. `gxhash` refused to compile without the `aes` target feature,
-   so the first Alpine build stopped with `Gxhash requires aes and sse2 intrinsics`.
-   A `[target.'cfg(all(target_os = "linux", target_env = "musl"))']` table with `-C target-feature=+aes` fixed it,
-   and the same 11 inputs gave the same 11 hashes on x86_64 and aarch64 (under qemu).
-   Main then replaced `gxhash` with XXH3-64 from `twox-hash` (`doc/decision/music-player-fingerprint-hash.md`),
-   which picks its SIMD kernel at run time,
-   so the merge dropped the musl table and the Alpine build needs no target feature and no special CPU.
-2. The background sweep silently stayed at normal priority.
-   musl's `sched_setscheduler` always returns -1 with errno 38 (ENOSYS),
-   measured with a C program;
-   the raw system call returns 0 in the same container.
-   `src/measure.rs` now calls the system call directly,
-   which has the same per-thread meaning on glibc and musl,
-   zeroes `sched_param` (the struct literal does not compile on musl,
-   which has extra `sched_ss_*` fields),
-   and logs the OS error if the call fails.
-   A test reads the scheduling policy back from the kernel.
-3. Linux audio was PipeWire only.
-   With no PipeWire daemon the engine logged `audio init failed; degrading to silent mode` and played nothing,
-   and on Alpine no daemon runs by default.
-   A new cargo feature `alsa-fallback` (off by default,
-   so every other Linux build is unchanged) makes
-   `output::Output` try PipeWire first and the default ALSA device second,
-   through cpal and the existing
-   `output_cpal.rs` (`src/output_linux.rs`).
-   The Alpine build turns it on.
-4. The window said nothing when no audio output could be opened.
-   The engine now sends `Update::AudioUnavailable` and the window shows a message that names PipeWire and ALSA
-   and says to restart the player.
-5. `output_cpal.rs` failed the repository's `implicit_return` clippy rule once it compiled on Linux,
-   so its five implicit returns are explicit.
+1.  `gxhash` refused to compile without the `aes` target feature,
+    so the first Alpine build stopped with `Gxhash requires aes and sse2 intrinsics`.
+    A `[target.'cfg(all(target_os = "linux", target_env = "musl"))']` table with `-C target-feature=+aes` fixed it,
+    and the same 11 inputs gave the same 11 hashes on x86_64 and aarch64 (under qemu).
+    Main then replaced `gxhash` with XXH3-64 from `twox-hash` (`doc/decision/music-player-fingerprint-hash.md`),
+    which picks its SIMD kernel at run time,
+    so the merge dropped the musl table and the Alpine build needs no target feature and no special CPU.
+2.  The background sweep silently stayed at normal priority.
+    musl's `sched_setscheduler` always returns -1 with errno 38 (ENOSYS),
+    measured with a C program;
+    the raw system call returns 0 in the same container.
+    `src/measure.rs` now calls the system call directly,
+    which has the same per-thread meaning on glibc and musl,
+    zeroes `sched_param` (the struct literal does not compile on musl,
+    which has extra `sched_ss_*` fields),
+    and logs the OS error if the call fails.
+    A test reads the scheduling policy back from the kernel.
+3.  Linux audio was PipeWire only.
+    With no PipeWire daemon the engine logged `audio init failed; degrading to silent mode` and played nothing,
+    and on Alpine no daemon runs by default.
+    A new cargo feature `alsa-fallback` (off by default,
+    so every other Linux build is unchanged) makes
+    `output::Output` try PipeWire first and the default ALSA device second,
+    through cpal and the existing
+    `output_cpal.rs` (`src/output_linux.rs`).
+    The Alpine build turns it on.
+4.  The window said nothing when no audio output could be opened.
+    The engine now sends `Update::AudioUnavailable` and the window shows a message that names PipeWire and ALSA
+    and says to restart the player.
+5.  `output_cpal.rs` failed the repository's `implicit_return` clippy rule once it compiled on Linux,
+    so its five implicit returns are explicit.
 
 One finding needs a prerequisite,
 not a code change.
@@ -273,18 +273,18 @@ It no longer runs on pull requests or on every push that touches the player
 which did).
 Each architecture runs natively (`ubuntu-latest` and `ubuntu-24.04-arm`) and:
 
-1. builds `Containerfile.alpine` (targets `build` and `smoke`),
-2. runs the nextest suite with `--features alsa-fallback`,
-3. builds the app and builds the compositor from source in the container,
-4. runs `music-player-smoke` in the `smoke` image:
-   three scenarios (no audio,
-   ALSA,
-   PipeWire),
-   each asserting the
-   first screen was drawn,
-   no panic,
-   a non-blank screenshot,
-   and the audio line for that scenario.
+1.  builds `Containerfile.alpine` (targets `build` and `smoke`),
+2.  runs the nextest suite with `--features alsa-fallback`,
+3.  builds the app and builds the compositor from source in the container,
+4.  runs `music-player-smoke` in the `smoke` image:
+    three scenarios (no audio,
+    ALSA,
+    PipeWire),
+    each asserting the
+    first screen was drawn,
+    no panic,
+    a non-blank screenshot,
+    and the audio line for that scenario.
 
 ### Caching
 
@@ -387,56 +387,56 @@ and the expected list in the `SHA256SUMS` job gains the two names.
 Job steps,
 with `permissions: contents: read, id-token: write, attestations: write` and the `VERSION` of the `detect` job:
 
-1. Checkout with `actions/checkout`,
-   `persist-credentials: false`.
-2. Build the images from the repository's `Containerfile.alpine`:
+1.  Checkout with `actions/checkout`,
+    `persist-credentials: false`.
+2.  Build the images from the repository's `Containerfile.alpine`:
 
-   ```sh
-   # the release job, per architecture
-   context="$(mktemp -d)"
-   podman build --target build --tag music-player-alpine-build \
-     --file package/music-player/desktop-app/Containerfile.alpine "$context"
-   podman build --target runtime --tag music-player-alpine-runtime \
-     --file package/music-player/desktop-app/Containerfile.alpine "$context"
-   ```
+    ```sh
+    # the release job, per architecture
+    context="$(mktemp -d)"
+    podman build --target build --tag music-player-alpine-build \
+      --file package/music-player/desktop-app/Containerfile.alpine "$context"
+    podman build --target runtime --tag music-player-alpine-runtime \
+      --file package/music-player/desktop-app/Containerfile.alpine "$context"
+    ```
 
-3. Build with the shipping profile and the feature.
-   There is no `--target` option because Alpine's host triple is already the musl one:
+3.  Build with the shipping profile and the feature.
+    There is no `--target` option because Alpine's host triple is already the musl one:
 
-   ```sh
-   # the release job, per architecture
-   mkdir --parents "$RUNNER_TEMP/cargo" "$RUNNER_TEMP/target"
-   podman run --rm --memory=12g --cpus=4 --security-opt label=disable \
-     --volume "$PWD/package/music-player:/src:ro" \
-     --volume "$RUNNER_TEMP/cargo:/cargo" --volume "$RUNNER_TEMP/target:/target" \
-     --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
-     --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 --workdir /src/desktop-app \
-     music-player-alpine-build \
-     cargo build --release --locked --features alsa-fallback
-   ```
+    ```sh
+    # the release job, per architecture
+    mkdir --parents "$RUNNER_TEMP/cargo" "$RUNNER_TEMP/target"
+    podman run --rm --memory=12g --cpus=4 --security-opt label=disable \
+      --volume "$PWD/package/music-player:/src:ro" \
+      --volume "$RUNNER_TEMP/cargo:/cargo" --volume "$RUNNER_TEMP/target:/target" \
+      --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
+      --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 --workdir /src/desktop-app \
+      music-player-alpine-build \
+      cargo build --release --locked --features alsa-fallback
+    ```
 
-4. Check the libraries,
-   not only the link.
-   The `runtime` image holds exactly the packages listed above,
-   so this fails if that list is short:
+4.  Check the libraries,
+    not only the link.
+    The `runtime` image holds exactly the packages listed above,
+    so this fails if that list is short:
 
-   ```sh
-   # the release job, per architecture
-   podman run --rm --security-opt label=disable \
-     --volume "$RUNNER_TEMP/target/release/music-player:/usr/local/bin/music-player:ro" \
-     music-player-alpine-runtime music-player --version
-   ```
+    ```sh
+    # the release job, per architecture
+    podman run --rm --security-opt label=disable \
+      --volume "$RUNNER_TEMP/target/release/music-player:/usr/local/bin/music-player:ro" \
+      music-player-alpine-runtime music-player --version
+    ```
 
-   The output must equal `music-player ${VERSION}`,
-   as the glibc job checks.
-   The release binary also passed `--version` and all three smoke scenarios in a local run;
-   the job may add the scenarios by running `music-player-smoke` in the `smoke` image.
-5. Package like the glibc job (fixed order,
-   owner and timestamps),
-   with the stage name `music-player-${VERSION}-linux-musl-${ARCH}`,
-   and `ARCH` equal to `x64` or `arm64`.
-6. Attest the tarball with `actions/attest-build-provenance`,
-   then upload it with `actions/upload-artifact` under the name `asset-linux-musl-${ARCH}`.
+    The output must equal `music-player ${VERSION}`,
+    as the glibc job checks.
+    The release binary also passed `--version` and all three smoke scenarios in a local run;
+    the job may add the scenarios by running `music-player-smoke` in the `smoke` image.
+5.  Package like the glibc job (fixed order,
+    owner and timestamps),
+    with the stage name `music-player-${VERSION}-linux-musl-${ARCH}`,
+    and `ARCH` equal to `x64` or `arm64`.
+6.  Attest the tarball with `actions/attest-build-provenance`,
+    then upload it with `actions/upload-artifact` under the name `asset-linux-musl-${ARCH}`.
 
 The release binary measured 54 MB.
 On a local run with 8 cpus the final crate compile (thin LTO) took 5 min 28 s after the dependencies were built.

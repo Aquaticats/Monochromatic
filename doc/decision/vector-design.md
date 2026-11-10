@@ -1030,30 +1030,30 @@ The earlier draft had a single criterion that conflated Bevy's instancing
 throughput with Vello's path-rendering pipeline.
 Split into criteria that test what each layer is responsible for:
 
-1. **Bevy entity scale** (tested in phase 0b regardless of Vello adoption):
-   1M Bevy ECS entities at 60 fps p99 on the target hardware,
-   with a system that updates 10k randomly per frame.
-2. **Vello path rendering**:
-   render a realistic-shape vector benchmark
-   (e.g. paris-30k or a synthetic stress scene with comparable path complexity)
-   through bevy_vello at 60 fps p99 on the target hardware.
-   This validates Vello's compute-shader path pipeline,
-   which is what adopting Vello buys us.
-3. **Vello text rendering at our scale**:
-   render the visible-glyph count expected after the 48 px LOD threshold
-   (or whatever threshold phase 0 settles on)
-   at 60 fps p99 with Vello's current glyph caching.
-4. **Feature gap acceptable**:
-   Vello's "alpha" caveats
-   (blur and filter effects unimplemented,
-    glyph-caching optimization in progress,
-   GPU memory allocation strategy in progress,
-    conflations artifacts)
-   do not block v1 use cases.
-   D8 scope (render plus pan/zoom plus select-to-inspect) does not require blur
-   or filter effects,
-    so this criterion is met by inspection,
-    not benchmark.
+1.  **Bevy entity scale** (tested in phase 0b regardless of Vello adoption):
+    1M Bevy ECS entities at 60 fps p99 on the target hardware,
+    with a system that updates 10k randomly per frame.
+2.  **Vello path rendering**:
+    render a realistic-shape vector benchmark
+    (e.g. paris-30k or a synthetic stress scene with comparable path complexity)
+    through bevy_vello at 60 fps p99 on the target hardware.
+    This validates Vello's compute-shader path pipeline,
+    which is what adopting Vello buys us.
+3.  **Vello text rendering at our scale**:
+    render the visible-glyph count expected after the 48 px LOD threshold
+    (or whatever threshold phase 0 settles on)
+    at 60 fps p99 with Vello's current glyph caching.
+4.  **Feature gap acceptable**:
+    Vello's "alpha" caveats
+    (blur and filter effects unimplemented,
+     glyph-caching optimization in progress,
+    GPU memory allocation strategy in progress,
+     conflations artifacts)
+    do not block v1 use cases.
+    D8 scope (render plus pan/zoom plus select-to-inspect) does not require blur
+    or filter effects,
+     so this criterion is met by inspection,
+     not benchmark.
 
 If 1 plus 2 plus 3 pass,
  adopt Vello and shrink phases 2 and 3 of the
@@ -1167,21 +1167,21 @@ Just `wgpu` plus `winit` plus a hand-written render loop.
 
 Build:
 
-1. A wgpu smoke test:
-   render a triangle,
-    dispatch a compute shader,
-    validate RADV-on-Navi-33
-   does not have edge cases that block compute-heavy pipelines.
-2. 1M instanced placeholder rectangles in a single draw call.
-   Pan and zoom via a camera transform.
-   Frustum-cull on CPU (a single AABB test per node,
-    no spatial index yet).
-   Measure p99 frame time across the zoom range:
-   tightest (one node fills viewport) to loosest (all 1M visible).
-3. Add a tile-pyramid prototype only if step 2 cannot hit p99 ≤ 16.67 ms
-   in the all-1M-visible case.
-   The tile pyramid is a complexity earned by failure on step 2;
-   it is not a default.
+1.  A wgpu smoke test:
+    render a triangle,
+     dispatch a compute shader,
+     validate RADV-on-Navi-33
+    does not have edge cases that block compute-heavy pipelines.
+2.  1M instanced placeholder rectangles in a single draw call.
+    Pan and zoom via a camera transform.
+    Frustum-cull on CPU (a single AABB test per node,
+     no spatial index yet).
+    Measure p99 frame time across the zoom range:
+    tightest (one node fills viewport) to loosest (all 1M visible).
+3.  Add a tile-pyramid prototype only if step 2 cannot hit p99 ≤ 16.67 ms
+    in the all-1M-visible case.
+    The tile pyramid is a complexity earned by failure on step 2;
+    it is not a default.
 
 Decision gates:
 
@@ -1202,23 +1202,23 @@ Decision gates:
 
 Take whatever architecture phase 0a settled on and port to Bevy:
 
-1. Replace the bare-wgpu render loop with a Bevy app.
-2. Move the rectangles into Bevy ECS entities
-   (single archetype:
-    Transform + GlobalTransform + Aabb + RectMarker).
-3. Replicate the phase 0a benchmark;
-    measure the delta.
-4. If delta is small (Bevy adds < 10 percent overhead),
-    D4 stands.
-   If delta is large,
-    investigate before committing.
-5. Test ECS at 1M with mixed archetypes
-   (rect / path / text placeholders,
-    ~250k each)
-   to validate D5's small-N archetype assumption.
-6. If Vello adoption is on the table (D10),
-    wire bevy_vello in
-   and run the D10 split criteria.
+1.  Replace the bare-wgpu render loop with a Bevy app.
+2.  Move the rectangles into Bevy ECS entities
+    (single archetype:
+     Transform + GlobalTransform + Aabb + RectMarker).
+3.  Replicate the phase 0a benchmark;
+     measure the delta.
+4.  If delta is small (Bevy adds < 10 percent overhead),
+     D4 stands.
+    If delta is large,
+     investigate before committing.
+5.  Test ECS at 1M with mixed archetypes
+    (rect / path / text placeholders,
+     ~250k each)
+    to validate D5's small-N archetype assumption.
+6.  If Vello adoption is on the table (D10),
+     wire bevy_vello in
+    and run the D10 split criteria.
 
 ### Decision gates after phase 0
 
@@ -1237,16 +1237,16 @@ after phase 0 wraps.
 
 When proposing a major technology change to this project:
 
-1. Add a new D<N> section with the picked option and the rejected
-   alternatives.
-2. State the reason for rejection per alternative concretely
-   (not "doesn't fit";
-    cite the specific incompatibility,
-    license clause,
-   benchmark,
-    or measurement).
-3. Update earlier decisions if a downstream choice forces re-evaluation
-   (mark superseded with a pointer to the new decision;
-    do not delete).
-4. Reference related decisions inline (e.g. "see D4 for engine pick")
-   rather than re-explaining context.
+1.  Add a new D<N> section with the picked option and the rejected
+    alternatives.
+2.  State the reason for rejection per alternative concretely
+    (not "doesn't fit";
+     cite the specific incompatibility,
+     license clause,
+    benchmark,
+     or measurement).
+3.  Update earlier decisions if a downstream choice forces re-evaluation
+    (mark superseded with a pointer to the new decision;
+     do not delete).
+4.  Reference related decisions inline (e.g. "see D4 for engine pick")
+    rather than re-explaining context.

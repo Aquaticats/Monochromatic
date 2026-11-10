@@ -252,25 +252,25 @@ Rejection reason:
 
 Reject `npm:pi-context` for this Pi profile:
 
-1. **Capability mismatch**:
-    the plugin only supports checkpoint,
-    timeline inspection,
-    and branch-level compacting.
-    It cannot prune specific messages or line ranges,
-    which limits its usefulness for precise context hygiene.
-2. **Maturity gaps**:
-    no automated tests,
-    no CI,
-    no repository `LICENSE` file,
-    and a single maintainer.
-3. **Interaction risk**:
-    this profile already installs `@monochromatic-dev/pi-plugin-morph-compact`,
-    a local compaction replacement.
-    Running two compaction-touching plugins together is untested and risks session-tree corruption.
-4. **Prefer alternatives if the need returns**:
-    for simple on-demand compaction use `pi-context-tools`;
-    for autonomous task collapse use `pi-boomerang`;
-    for agentic checkpoints wait for Pi core support or a plugin with message-level pruning and proper test coverage.
+1.  **Capability mismatch**:
+     the plugin only supports checkpoint,
+     timeline inspection,
+     and branch-level compacting.
+     It cannot prune specific messages or line ranges,
+     which limits its usefulness for precise context hygiene.
+2.  **Maturity gaps**:
+     no automated tests,
+     no CI,
+     no repository `LICENSE` file,
+     and a single maintainer.
+3.  **Interaction risk**:
+     this profile already installs `@monochromatic-dev/pi-plugin-morph-compact`,
+     a local compaction replacement.
+     Running two compaction-touching plugins together is untested and risks session-tree corruption.
+4.  **Prefer alternatives if the need returns**:
+     for simple on-demand compaction use `pi-context-tools`;
+     for autonomous task collapse use `pi-boomerang`;
+     for agentic checkpoints wait for Pi core support or a plugin with message-level pruning and proper test coverage.
 
 Decision owner and date:
  AI agent,

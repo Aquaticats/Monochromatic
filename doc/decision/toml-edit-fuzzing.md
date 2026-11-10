@@ -451,25 +451,25 @@ Before calling a fuzz target's suite strong,
 distilled diagnosis of why the original wrapper-only suite was green-but-weak,
 and they generalize to the next target.
 
-1. Is the tested layer where the logic and the bugs live,
-    not a thin wrapper over
-    it?
-2. Are all public entry points and internal seams covered,
-    the seams exposed
-    through stable observability exports when needed?
-3. Is every oracle stronger than no-crash or returns-a-string (semantic equality,
-    round-trip,
-    metamorphic,
-    conformance,
-    or a differential reference)?
-4. Do the generators cover the full grammar and its boundary cases,
-    with an
-    independent encoder so the generator never reuses the code under test?
-5. Are real corpus seeds,
-    every discovered counterexample,
-    and coverage feedback
-    wired in,
-    so a regression in reach fails rather than passing quietly?
+1.  Is the tested layer where the logic and the bugs live,
+     not a thin wrapper over
+     it?
+2.  Are all public entry points and internal seams covered,
+     the seams exposed
+     through stable observability exports when needed?
+3.  Is every oracle stronger than no-crash or returns-a-string (semantic equality,
+     round-trip,
+     metamorphic,
+     conformance,
+     or a differential reference)?
+4.  Do the generators cover the full grammar and its boundary cases,
+     with an
+     independent encoder so the generator never reuses the code under test?
+5.  Are real corpus seeds,
+     every discovered counterexample,
+     and coverage feedback
+     wired in,
+     so a regression in reach fails rather than passing quietly?
 
 ## Deferred
 

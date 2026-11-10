@@ -178,35 +178,35 @@ and why they are not the default:
 
 In order:
 
-1. The program's own license:
-   the LGPL-3.0 text (repository `LICENSE`) and the GPL-3.0 text it supplements.
-2. Assets:
-   the Inter typeface with its OFL 1.1 notice (desktop only) and the Material Symbols icons with the
-   Apache-2.0 text.
-3. The Rust standard library:
-   the notice the pinned toolchain ships (`share/doc/rust/COPYRIGHT-library.html`,
-   part of
-   the `rustc` component),
-   converted to text.
-4. Desktop only:
-   the MinGW-w64 runtime (Zope Public License 2.1 text,
-   `desktop-app/notices/mingw-w64-runtime.txt`,
-   from mingw-w64 13.0.0) and winpthreads (`desktop-app/notices/winpthreads.txt`,
-   from
-   `mingw-w64-libraries/winpthreads/COPYING`),
-   which only the Windows GNU program links.
-   libgcc is under the GCC Runtime Library Exception,
-   which asks for no notice.
-5. Android only:
-   the Android libraries by license,
-   with each `group:artifact:version`,
-   the license text,
-   and the
-   collected NOTICE files.
-6. Every Rust crate,
-   one entry per distinct license text,
-   with the crates it covers by name and version and whether
-   the text came from the crate's own file or is the standard SPDX text.
+1.  The program's own license:
+    the LGPL-3.0 text (repository `LICENSE`) and the GPL-3.0 text it supplements.
+2.  Assets:
+    the Inter typeface with its OFL 1.1 notice (desktop only) and the Material Symbols icons with the
+    Apache-2.0 text.
+3.  The Rust standard library:
+    the notice the pinned toolchain ships (`share/doc/rust/COPYRIGHT-library.html`,
+    part of
+    the `rustc` component),
+    converted to text.
+4.  Desktop only:
+    the MinGW-w64 runtime (Zope Public License 2.1 text,
+    `desktop-app/notices/mingw-w64-runtime.txt`,
+    from mingw-w64 13.0.0) and winpthreads (`desktop-app/notices/winpthreads.txt`,
+    from
+    `mingw-w64-libraries/winpthreads/COPYING`),
+    which only the Windows GNU program links.
+    libgcc is under the GCC Runtime Library Exception,
+    which asks for no notice.
+5.  Android only:
+    the Android libraries by license,
+    with each `group:artifact:version`,
+    the license text,
+    and the
+    collected NOTICE files.
+6.  Every Rust crate,
+    one entry per distinct license text,
+    with the crates it covers by name and version and whether
+    the text came from the crate's own file or is the standard SPDX text.
 
 One desktop file covers every desktop target (the `targets` list of `desktop-app/about.toml`,
 with the
@@ -369,16 +369,16 @@ The human made that decision on 2026-10-18 (see [Licenses row in Settings](#lice
 On 2026-10-18 the owner decided,
 through the agent's question tool:
 
-1. The desktop releases use Slint under its **Royalty-free Desktop,
-   Mobile,
-   and Web Applications License,
-   version 2.0**
-   instead of GPL-3.0-only.
-2. Settings gets a **Licenses row** on both platforms.
-   It needs no mockups:
-   the owner called it simple and low in design impact.
-   The desktop row is built;
-   the Android row is a separate change.
+1.  The desktop releases use Slint under its **Royalty-free Desktop,
+    Mobile,
+    and Web Applications License,
+    version 2.0**
+    instead of GPL-3.0-only.
+2.  Settings gets a **Licenses row** on both platforms.
+    It needs no mockups:
+    the owner called it simple and low in design impact.
+    The desktop row is built;
+    the Android row is a separate change.
 
 This replaces the default of 2026-10-15 ([Slint](#slint)) and answers two of the [Open decisions](#open-decisions).
 

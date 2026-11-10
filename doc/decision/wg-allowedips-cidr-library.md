@@ -46,12 +46,12 @@ The frozen score weights were:
 
 The validated finalist ranking was:
 
-1. `cidr-tools` 12.1.3:
-   `63 / 72`,
-   or 87.5%;
-2. `@h3mantd/ip-kit` 1.1.0:
-   provisional `35 / 72`,
-   or 48.6%.
+1.  `cidr-tools` 12.1.3:
+    `63 / 72`,
+    or 87.5%;
+2.  `@h3mantd/ip-kit` 1.1.0:
+    provisional `35 / 72`,
+    or 48.6%.
 
 `cidr-tools` won because `excludeCidr(allowed, disallowed)` directly matches the required operation,
 its audited runtime surface is smaller,

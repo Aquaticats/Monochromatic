@@ -422,66 +422,66 @@ Toolchain:
    but two cited sources are mis-attributed and one objc2 feature is overstated.
    Details:
 
-1. MIS-CITATION (contradicted sub-claim,
-    does NOT move the verdict):
-    The audit cites `tools/viewer/main.rs:153 (fn main -> component.run())` as evidence for the AOT runtime model.
-    Line 153 is indeed `fn main() -> Result<()>` (confirmed),
-    but the "-> component.
-   run()" part is wrong for the iOS code path of that very binary.
-    On iOS,
-    viewer main forces `--remote` (`main.rs`:
-   170-171),
-    returns early via `remote::run(...)` (`main.rs`:
-   194),
-    which calls `slint_interpreter::run_event_loop()` (`remote.rs`:
-   56) and dynamically COMPILES .
-   slint at runtime via `slint_interpreter::Compiler` (`remote.rs`:
-   217,238).
-    The `component.run()` line is `main.rs`:
-   278 and is NEVER reached on iOS.
-    So the audit cited the one shipped Slint iOS binary whose iOS path is interpreter-mode,
-    not AOT.
-    The correct evidence for the AOT `.run()` pattern is the music-player's own `src/main.rs:2004 app.run()`
-    (with `slint::include_modules!()` at src/`main.rs`:
-   19).
-    Corrected fact/source:
-    AOT model is proven by music-player `build.rs`:
-   5 `slint_build::compile("ui/app.slint")` + `main.rs`:
-   19 `include_modules!()` + `main.rs`:
-   2004 `app.run()` + zero interpreter deps in its `Cargo.toml`;
-    the viewer is the wrong citation for it.
+1.  MIS-CITATION (contradicted sub-claim,
+     does NOT move the verdict):
+     The audit cites `tools/viewer/main.rs:153 (fn main -> component.run())` as evidence for the AOT runtime model.
+     Line 153 is indeed `fn main() -> Result<()>` (confirmed),
+     but the "-> component.
+    run()" part is wrong for the iOS code path of that very binary.
+     On iOS,
+     viewer main forces `--remote` (`main.rs`:
+    170-171),
+     returns early via `remote::run(...)` (`main.rs`:
+    194),
+     which calls `slint_interpreter::run_event_loop()` (`remote.rs`:
+    56) and dynamically COMPILES .
+    slint at runtime via `slint_interpreter::Compiler` (`remote.rs`:
+    217,238).
+     The `component.run()` line is `main.rs`:
+    278 and is NEVER reached on iOS.
+     So the audit cited the one shipped Slint iOS binary whose iOS path is interpreter-mode,
+     not AOT.
+     The correct evidence for the AOT `.run()` pattern is the music-player's own `src/main.rs:2004 app.run()`
+     (with `slint::include_modules!()` at src/`main.rs`:
+    19).
+     Corrected fact/source:
+     AOT model is proven by music-player `build.rs`:
+    5 `slint_build::compile("ui/app.slint")` + `main.rs`:
+    19 `include_modules!()` + `main.rs`:
+    2004 `app.run()` + zero interpreter deps in its `Cargo.toml`;
+     the viewer is the wrong citation for it.
 
-2. EVIDENCE/SHIPS GAP:
-    The cited `scripts/build_for_ios_with_cargo.bash` is the slint-VIEWER's iOS build script,
-    invoked as `slint-viewer --features remote` (tools/viewer/`ios-project.yml`:
-   57),
-    not the music-player's.
-    Line 57 (`cargo build --target $CARGO_TARGET --bin "$1"`)
-    and the `aarch64-apple-ios` target (line 46) accurately demonstrate the native-cargo-binary model
-    that BOTH walls rest on,
-    so the wall-1 premise (native --bin into which any static archive links via Rust FFI) is supported.
-    But what that script actually builds is the interpreter-mode viewer;
-    the music-player has no iOS build script in-repo yet.
-    The verdict still holds because (a) music-player is AOT (verified independently)
-    and (b) even the interpreter has NO JIT/cranelift/wasmtime/PROT_EXEC/mprotect
-    (internal/interpreter is a tree-walking `eval.rs`),
-    so no Slint code path trips W^X/DENY_EXECMEM regardless.
+2.  EVIDENCE/SHIPS GAP:
+     The cited `scripts/build_for_ios_with_cargo.bash` is the slint-VIEWER's iOS build script,
+     invoked as `slint-viewer --features remote` (tools/viewer/`ios-project.yml`:
+    57),
+     not the music-player's.
+     Line 57 (`cargo build --target $CARGO_TARGET --bin "$1"`)
+     and the `aarch64-apple-ios` target (line 46) accurately demonstrate the native-cargo-binary model
+     that BOTH walls rest on,
+     so the wall-1 premise (native --bin into which any static archive links via Rust FFI) is supported.
+     But what that script actually builds is the interpreter-mode viewer;
+     the music-player has no iOS build script in-repo yet.
+     The verdict still holds because (a) music-player is AOT (verified independently)
+     and (b) even the interpreter has NO JIT/cranelift/wasmtime/PROT_EXEC/mprotect
+     (internal/interpreter is a tree-walking `eval.rs`),
+     so no Slint code path trips W^X/DENY_EXECMEM regardless.
 
-3. MINOR OVERSTATEMENT:
-    iosRuntimeModel lists "objc2-ui-kit:
-    UIApplication/UIView/UIScreen".
-    At internal/backends/winit/`Cargo.toml`:
-   133,
-    the objc2-ui-kit feature list includes UIScreen,
-    UIWindow,
-    UIView,
-    UIResponder,
-    UIInterface,
-    etc.,
-    but NOT UIApplication.
-    UIView/UIScreen and CADisplayLink (objc2-quartz-core,
-    line 134) are confirmed;
-    UIApplication is not an enabled feature there.
+3.  MINOR OVERSTATEMENT:
+     iosRuntimeModel lists "objc2-ui-kit:
+     UIApplication/UIView/UIScreen".
+     At internal/backends/winit/`Cargo.toml`:
+    133,
+     the objc2-ui-kit feature list includes UIScreen,
+     UIWindow,
+     UIView,
+     UIResponder,
+     UIInterface,
+     etc.,
+     but NOT UIApplication.
+     UIView/UIScreen and CADisplayLink (objc2-quartz-core,
+     line 134) are confirmed;
+     UIApplication is not an enabled feature there.
 - Sources checked:
    /tmp/agent/slint-audit-20260612/scripts/build_for_ios_with_cargo.
   bash (line 57 cargo build --bin confirmed;

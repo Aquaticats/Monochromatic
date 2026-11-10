@@ -330,31 +330,31 @@ each bounded by what can cut it.
 The park works at the seam between entries,
 because the wait must sit outside any exchange:
 
-1. The dry gate (`pass-dry-stop.ts`) receives the refusal (or the bench error that carries the return),
-   records a park instead of tripping,
-   logs the start with the reason and the UTC return time,
-   and aborts the shared signal so the entry in flight ends.
-2. The queue (`runAttemptQueue`) sees the pass is parked,
-   puts that entry back at the front with no verdict line,
-   so none of `REATTEMPT`,
-   `STALLED` and `INCOMPLETE` is printed,
-   and calls the gate's wait before asking the budget whether the pass goes on.
-3. The gate waits for what is left of the return,
-   stored as an instant on its monotonic clock,
-   counted from the read that named the return where the failure carries that stamp
-   (the seat reader's bench error and its all-dry refusal both do,
-   as `neuralwattReadAtMs`,
-   so slices that unwind late do not push the wait past the return)
-   and from the moment the failure arrived otherwise,
-   as for the router's own refusal,
-   which names the distance as it is raised,
-   logs the end,
-   and gives the pass a fresh signal.
-4. A refusal for the day start of a park that has ended trips instead of parking again,
-   since the account has then not rolled to the new day it should have,
-   and parking again would wait a day in a loop.
-   This replaces a 60 s window copied from the budget layer's freshness window,
-   which was not the mechanism and let a refusal an hour later park for another day.
+1.  The dry gate (`pass-dry-stop.ts`) receives the refusal (or the bench error that carries the return),
+    records a park instead of tripping,
+    logs the start with the reason and the UTC return time,
+    and aborts the shared signal so the entry in flight ends.
+2.  The queue (`runAttemptQueue`) sees the pass is parked,
+    puts that entry back at the front with no verdict line,
+    so none of `REATTEMPT`,
+    `STALLED` and `INCOMPLETE` is printed,
+    and calls the gate's wait before asking the budget whether the pass goes on.
+3.  The gate waits for what is left of the return,
+    stored as an instant on its monotonic clock,
+    counted from the read that named the return where the failure carries that stamp
+    (the seat reader's bench error and its all-dry refusal both do,
+    as `neuralwattReadAtMs`,
+    so slices that unwind late do not push the wait past the return)
+    and from the moment the failure arrived otherwise,
+    as for the router's own refusal,
+    which names the distance as it is raised,
+    logs the end,
+    and gives the pass a fresh signal.
+4.  A refusal for the day start of a park that has ended trips instead of parking again,
+    since the account has then not rolled to the new day it should have,
+    and parking again would wait a day in a loop.
+    This replaces a 60 s window copied from the budget layer's freshness window,
+    which was not the mechanism and let a refusal an hour later park for another day.
 
 Known costs of the park:
 the attempt it interrupts is already counted in the attempt map,

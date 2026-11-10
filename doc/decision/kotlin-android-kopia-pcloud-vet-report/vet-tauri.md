@@ -520,38 +520,38 @@ upside).
 
 ## 5. Friction log (every obstacle hit, in order)
 
-1. cargo-binstall placed `cargo-tauri` without the exec bit after a cross-device copy fallback ("Permission
-   denied");
-    `chmod +x` fixed it.
-    Trivial,
-    environment-specific.
-2. No JDK/Android SDK/NDK/cargo-tauri preinstalled;
-    had to install JDK 17 + cmdline-tools + platform-36 +
-   build-tools-36 + NDK-29 + cargo-tauri.
-    Standard mobile setup cost,
-    not Tauri-specific.
-3. The generated `tauri.conf.json` ships `beforeDevCommand: npm run dev` / `beforeBuildCommand: npm run build`;
-   for a no-bundler static frontend these had to be removed or `android build` would invoke a missing npm script.
-4. `withGlobalTauri` is off by default;
-    had to enable it to use `window.__TAURI__.core.invoke` without the
-   `@tauri-apps/api` npm package.
-    (Real apps using a bundler would instead import the api package.
-   )
-5. The default app template no longer ships a sample command;
-    the counter/greet commands and `invoke_handler`
-   were added by hand (expected).
-6. Binary-exec on Android:
-    no Tauri sidecar path for mobile (section 1) -> the kopia binary needs the manual
-   jniLibs/`libkopia.so` packaging.
-    The single largest design task this stack leaves to you.
-7. Background execution:
-    no Tauri Service abstraction -> a Kotlin foreground Service must be hand-added.
-8. Android IPC reliability has a live bug class (#14994,
-    fixed-at-HEAD #15491) -> pin to a release that includes
-   the deadlock fix and watch mobile IPC issues.
-9. Debug APK is large (135 MB) due to unstripped Rust debug symbols;
-    use `--release` (and per-abi splits) for any
-   real artifact.
+1.  cargo-binstall placed `cargo-tauri` without the exec bit after a cross-device copy fallback ("Permission
+    denied");
+     `chmod +x` fixed it.
+     Trivial,
+     environment-specific.
+2.  No JDK/Android SDK/NDK/cargo-tauri preinstalled;
+     had to install JDK 17 + cmdline-tools + platform-36 +
+    build-tools-36 + NDK-29 + cargo-tauri.
+     Standard mobile setup cost,
+     not Tauri-specific.
+3.  The generated `tauri.conf.json` ships `beforeDevCommand: npm run dev` / `beforeBuildCommand: npm run build`;
+    for a no-bundler static frontend these had to be removed or `android build` would invoke a missing npm script.
+4.  `withGlobalTauri` is off by default;
+     had to enable it to use `window.__TAURI__.core.invoke` without the
+    `@tauri-apps/api` npm package.
+     (Real apps using a bundler would instead import the api package.
+    )
+5.  The default app template no longer ships a sample command;
+     the counter/greet commands and `invoke_handler`
+    were added by hand (expected).
+6.  Binary-exec on Android:
+     no Tauri sidecar path for mobile (section 1) -> the kopia binary needs the manual
+    jniLibs/`libkopia.so` packaging.
+     The single largest design task this stack leaves to you.
+7.  Background execution:
+     no Tauri Service abstraction -> a Kotlin foreground Service must be hand-added.
+8.  Android IPC reliability has a live bug class (#14994,
+     fixed-at-HEAD #15491) -> pin to a release that includes
+    the deadlock fix and watch mobile IPC issues.
+9.  Debug APK is large (135 MB) due to unstripped Rust debug symbols;
+     use `--release` (and per-abi splits) for any
+    real artifact.
 
 What worked well:
  `cargo tauri android init`/`build` worked first try with zero manual Gradle migration (contrast

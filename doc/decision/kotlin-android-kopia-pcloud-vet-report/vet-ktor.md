@@ -31,28 +31,28 @@ Maven Central,
 The strong reservations are not about Ktor's quality.
  They are:
 
-1. Stack fit.
-    Monochromatic is TypeScript-dominant (2901 `.ts`,
-    105 `.rs`,
-    zero Kotlin/Gradle/Java).
-   Adopting Ktor drags in an entire JVM/Kotlin toolchain (JDK,
-    Gradle,
-    Kotlin compiler) that has no
-   foothold in this repo.
-    This is a constraint-fit problem,
-    not a Ktor defect.
-2. Test-rigor gap.
-    No fuzzing,
-    no property-based testing,
-    no mutation testing,
-    and no concurrency
-   model-checking (lincheck) anywhere in the tree,
-    despite the framework being heavily concurrent.
-3. CI opacity.
-    The real test CI runs on JetBrains-internal TeamCity;
-    public GitHub Actions do not run
-   the test suite.
-    You cannot inspect green/red test runs from the public repo.
+1.  Stack fit.
+     Monochromatic is TypeScript-dominant (2901 `.ts`,
+     105 `.rs`,
+     zero Kotlin/Gradle/Java).
+    Adopting Ktor drags in an entire JVM/Kotlin toolchain (JDK,
+     Gradle,
+     Kotlin compiler) that has no
+    foothold in this repo.
+     This is a constraint-fit problem,
+     not a Ktor defect.
+2.  Test-rigor gap.
+     No fuzzing,
+     no property-based testing,
+     no mutation testing,
+     and no concurrency
+    model-checking (lincheck) anywhere in the tree,
+     despite the framework being heavily concurrent.
+3.  CI opacity.
+     The real test CI runs on JetBrains-internal TeamCity;
+     public GitHub Actions do not run
+    the test suite.
+     You cannot inspect green/red test runs from the public repo.
 
 Recommendation:
  technically sound and safe to adopt for a JVM/Kotlin or Kotlin-Multiplatform project.
@@ -334,25 +334,25 @@ Resolved artifacts (from the Gradle cache,
 
 Iteration notes (honest record):
 
-1. First container run hit `exit 126` / "Permission denied" on `gradlew`.
-    Cause:
-    Fedora SELinux
-   bind-mount.
-    Fix:
-    `:Z` relabel on the volume plus invoking via `bash ./gradlew`.
-    This is a host
-   environment quirk,
-    not a Ktor issue.
-2. Second run reached `compileKotlin` (proving the full toolchain and all four Ktor artifacts
-   resolved from Maven Central) and failed only on my own API misuse:
-    I wrote `install(Routing){}`
-   instead of the `routing {}` DSL.
-    Fixed and re-ran.
-    Third run:
-    green.
-    The compile-then-run path
-   was therefore exercised,
-    including a real (uncached) dependency resolution on the first attempt.
+1.  First container run hit `exit 126` / "Permission denied" on `gradlew`.
+     Cause:
+     Fedora SELinux
+    bind-mount.
+     Fix:
+     `:Z` relabel on the volume plus invoking via `bash ./gradlew`.
+     This is a host
+    environment quirk,
+     not a Ktor issue.
+2.  Second run reached `compileKotlin` (proving the full toolchain and all four Ktor artifacts
+    resolved from Maven Central) and failed only on my own API misuse:
+     I wrote `install(Routing){}`
+    instead of the `routing {}` DSL.
+     Fixed and re-ran.
+     Third run:
+     green.
+     The compile-then-run path
+    was therefore exercised,
+     including a real (uncached) dependency resolution on the first attempt.
 
 ## 5. Maintenance signals
 

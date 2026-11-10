@@ -47,43 +47,43 @@ before matching.
 
 ## Alternatives
 
-1. **Zeptomatch,
-    chosen.**
+1.  **Zeptomatch,
+     chosen.**
 
-   - Pros:
-      direct string matcher,
-      shipped types,
-      already present through catalogued packages,
-      no filesystem traversal.
-   - Cons:
-      no `nocase` option,
-      so callers must normalize case explicitly;
-      no extglobs or POSIX classes.
+    - Pros:
+       direct string matcher,
+       shipped types,
+       already present through catalogued packages,
+       no filesystem traversal.
+    - Cons:
+       no `nocase` option,
+       so callers must normalize case explicitly;
+       no extglobs or POSIX classes.
 
-2. **Picomatch.**
+2.  **Picomatch.**
 
-   - Pros:
-      broad minimatch-like glob syntax and a `nocase` option.
-   - Cons:
-      no bundled TypeScript declarations in the installed v4 package,
-      so this repo would need another ambient shim.
+    - Pros:
+       broad minimatch-like glob syntax and a `nocase` option.
+    - Cons:
+       no bundled TypeScript declarations in the installed v4 package,
+       so this repo would need another ambient shim.
 
-3. **In-repo matcher.**
+3.  **In-repo matcher.**
 
-   - Pros:
-      no external runtime dependency.
-   - Cons:
-      the repo would own glob semantics,
-      escaping rules,
-      character classes,
-      and future edge-case tests.
+    - Pros:
+       no external runtime dependency.
+    - Cons:
+       the repo would own glob semantics,
+       escaping rules,
+       character classes,
+       and future edge-case tests.
 
-4. **tiny-readdir-glob.**
+4.  **tiny-readdir-glob.**
 
-   - Pros:
-      already catalogued and useful for filesystem glob expansion.
-   - Cons:
-      wrong abstraction for model selection because it traverses directories through `tiny-readdir` before matching.
+    - Pros:
+       already catalogued and useful for filesystem glob expansion.
+    - Cons:
+       wrong abstraction for model selection because it traverses directories through `tiny-readdir` before matching.
 
 Ranking:
  1 > 2 > 3 > 4.

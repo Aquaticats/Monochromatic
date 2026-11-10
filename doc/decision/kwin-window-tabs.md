@@ -240,17 +240,17 @@ Reconsider only if at least one of these becomes true:
 Start with a hard-gated spike,
  not a product build:
 
-1. Spend at most 15 hours on a KWin-script-only no-UI spike.
-2. Validate group creation,
-    tab switching,
-    geometry sync,
-    minimize/restore,
-    close cleanup,
-   and panic recovery on the current Plasma Wayland session.
-3. Stop if focus,
-    stacking,
-    or geometry behavior is unreliable before adding visible tab UI.
-4. Add QML effect UI only after the no-UI behavior feels stable.
-5. Do not add task manager integration,
-    persistence,
-    or CSD polish in v1.
+1.  Spend at most 15 hours on a KWin-script-only no-UI spike.
+2.  Validate group creation,
+     tab switching,
+     geometry sync,
+     minimize/restore,
+     close cleanup,
+    and panic recovery on the current Plasma Wayland session.
+3.  Stop if focus,
+     stacking,
+     or geometry behavior is unreliable before adding visible tab UI.
+4.  Add QML effect UI only after the no-UI behavior feels stable.
+5.  Do not add task manager integration,
+     persistence,
+     or CSD polish in v1.

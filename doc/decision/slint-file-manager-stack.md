@@ -240,22 +240,22 @@ but the project goal explicitly avoids a browser or WebView UI layer for the pri
 
 ## Ranking
 
-1. Slint plus Rust,
-   chosen if spike gates pass.
-2. Qt,
-   first fallback for mature native file-manager behavior.
-3. GPUI,
-   fallback if custom pane rendering dominates widget maturity.
-4. Flutter,
-   viable but pulls the product into Dart and platform channels.
-5. Avalonia,
-   viable for dotnet but not Rust-aligned.
-6. Iced,
-   Rust-native but experimental.
-7. Tauri,
-   safer than Electron but still WebView and IPC based.
-8. Slint plus TypeScript,
-   weakest Slint option for this trust boundary.
+1.  Slint plus Rust,
+    chosen if spike gates pass.
+2.  Qt,
+    first fallback for mature native file-manager behavior.
+3.  GPUI,
+    fallback if custom pane rendering dominates widget maturity.
+4.  Flutter,
+    viable but pulls the product into Dart and platform channels.
+5.  Avalonia,
+    viable for dotnet but not Rust-aligned.
+6.  Iced,
+    Rust-native but experimental.
+7.  Tauri,
+    safer than Electron but still WebView and IPC based.
+8.  Slint plus TypeScript,
+    weakest Slint option for this trust boundary.
 
 Slint plus Rust beats Qt because the desired product is Rust-first and can stay smaller if the Slint spikes pass.
 Qt beats GPUI because file-manager widgets and native behavior are more mature.
