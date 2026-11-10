@@ -416,19 +416,19 @@ The defect is in `package/git-policy/cli`,
 this repository's own code;
 Git behaved as documented throughout.
 
-1. Upstream's fault:
-   no;
-   the unbounded range and the fan-out are ours.
-2. Upstream can fix:
-   not applicable.
-3. Upstream supports the use case:
-   not applicable.
-4. Contribution welcome:
-   not applicable.
-5. Likely to fix:
-   not applicable.
-6. Prototyped fix:
-   the fix itself landed in this repository.
+1.  Upstream's fault:
+    no;
+    the unbounded range and the fan-out are ours.
+2.  Upstream can fix:
+    not applicable.
+3.  Upstream supports the use case:
+    not applicable.
+4.  Contribution welcome:
+    not applicable.
+5.  Likely to fix:
+    not applicable.
+6.  Prototyped fix:
+    the fix itself landed in this repository.
 
 `.out-of-scope/` has no Git entry;
 it is moot because there is nothing to file.

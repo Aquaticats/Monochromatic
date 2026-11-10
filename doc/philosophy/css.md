@@ -83,16 +83,16 @@ function buttonOutlined(): CssDeclarations {
 
 Advantages over CSS `@mixin`/`@apply`:
 
-- **Parameterized**:
+- Parameterized:
    `focusOutline({ offset: '0.25rem' })` (function arguments replace mixin variables)
-- **Type-checked**:
+- Type-checked:
    return type `CssDeclarations` ensures property names and values are valid CSS
-- **Composable**:
+- Composable:
    object spread merges declarations;
    later properties override earlier ones
-- **Refactorable**:
+- Refactorable:
    rename a mixin function and TypeScript reports every call site
-- **No custom syntax**:
+- No custom syntax:
    standard TypeScript that any editor,
    linter,
    and formatter understands

@@ -1196,137 +1196,137 @@ Items 1,
 and 5 were actioned while this audit was being written and are recorded as
 done or settled rather than open.
 
-1. Done:
-   the instruction budget cap was raised to 131072,
-   which stops `AGENTS.md` being omitted.
-   It lives in the `preset-cordis` override rather than a host-level row,
-   because `dsh-web-app` sets the host `agent-instructions` row to
-   `disabled: true`.
-   Still open:
-   DSH agents continue to receive Claude Code's 49-line preamble,
-   and only a DSH-specific instruction file removes that contradiction.
-   The change needs a server start to take effect and has not been observed.
-   Resolved 2026-10-18,
-   and not by the DSH-specific file this item proposed.
-   The cap raise was observed live in a new session,
-   and the profile now sets `instructionFileCandidates: ["AGENTS.md"]` on the
-   same preset row,
-   which drops `CLAUDE.md` and its preamble entirely.
-   The rendered instruction payload fell from 68231 to 33237 bytes,
-   measured through the plugin's own loader.
-   The second-pass subsection of the instruction budget section records the
-   probe,
-   the four measured configurations,
-   and the owner decision to drop the two harness-neutral preamble rules
-   rather than relocate them.
+1.  Done:
+    the instruction budget cap was raised to 131072,
+    which stops `AGENTS.md` being omitted.
+    It lives in the `preset-cordis` override rather than a host-level row,
+    because `dsh-web-app` sets the host `agent-instructions` row to
+    `disabled: true`.
+    Still open:
+    DSH agents continue to receive Claude Code's 49-line preamble,
+    and only a DSH-specific instruction file removes that contradiction.
+    The change needs a server start to take effect and has not been observed.
+    Resolved 2026-10-18,
+    and not by the DSH-specific file this item proposed.
+    The cap raise was observed live in a new session,
+    and the profile now sets `instructionFileCandidates: ["AGENTS.md"]` on the
+    same preset row,
+    which drops `CLAUDE.md` and its preamble entirely.
+    The rendered instruction payload fell from 68231 to 33237 bytes,
+    measured through the plugin's own loader.
+    The second-pass subsection of the instruction budget section records the
+    probe,
+    the four measured configurations,
+    and the owner decision to drop the two harness-neutral preamble rules
+    rather than relocate them.
 
-2. Decide what to do about the 14 hidden workflow skills.
-   These are the handoff,
-   spec,
-   ticket,
-   and triage flows.
-   Leaving them unreachable means DSH sessions cannot follow the same
-   workflow vocabulary as Pi and Claude Code sessions.
-   Owner decision recorded as "leave as an audit finding",
-   so this stays open by choice rather than by oversight.
+2.  Decide what to do about the 14 hidden workflow skills.
+    These are the handoff,
+    spec,
+    ticket,
+    and triage flows.
+    Leaving them unreachable means DSH sessions cannot follow the same
+    workflow vocabulary as Pi and Claude Code sessions.
+    Owner decision recorded as "leave as an audit finding",
+    so this stays open by choice rather than by oversight.
 
-3. Done for search,
-   open for breadth.
-   One MCP bridge is composed:
-   `package/dsh-plugin/search-fetch` connects the repo's shared search and
-   fetch server,
-   which restores the web search capability this machine had no route to.
-   The web search section records the four boundary probes that verified it.
-   Still open:
-   the other Claude Code integrations.
-   `morph` is the next candidate for code intelligence,
-   since Pi deliberately sets `serena` to `"enabled": false`
-   and its Claude Code allow-list entries are historical.
-   Copy Pi's deferred-exposure idea rather than mounting every
-   server's schema eagerly.
-   Correction 2026-10-18:
-   `morph` is not installed on this host,
-   so the named candidate does not exist here and that recommendation is
-   withdrawn.
-   The measured inventory is thinner than this item assumed.
-   Claude Code's global config declares six servers:
-   `linkup` over HTTP,
-   which duplicates the Linkup fallback already wired into `search-fetch`;
-   `serena`,
-   which Pi deliberately disables;
-   `idea` on `127.0.0.1:64342`;
-   `safari-mcp-stp`,
-   which shells through `ssh` to a macOS Safari Technology Preview path;
-   `BrowserOS` on `127.0.0.1:9001`;
-   and `mvm`,
-   a stdio server pointing at `package/mcp/mvm/dist/final/node/index.mjs`.
-   Pi declares four:
-   `browseros`,
-   `linear`,
-   `serena` disabled,
-   and `safari-mcp-stp`.
-   Only `mvm` is repo-owned and viable on this Linux host,
-   and its CLI is already on `PATH`,
-   so bridging it would add typed schemas and discoverability rather than
-   capability.
-   `linear` is the only genuinely new capability in either inventory,
-   and it needs a token.
-   MCP breadth is therefore a lower-value direction than this item implied.
-   The deferred-exposure advice stands independently of that.
+3.  Done for search,
+    open for breadth.
+    One MCP bridge is composed:
+    `package/dsh-plugin/search-fetch` connects the repo's shared search and
+    fetch server,
+    which restores the web search capability this machine had no route to.
+    The web search section records the four boundary probes that verified it.
+    Still open:
+    the other Claude Code integrations.
+    `morph` is the next candidate for code intelligence,
+    since Pi deliberately sets `serena` to `"enabled": false`
+    and its Claude Code allow-list entries are historical.
+    Copy Pi's deferred-exposure idea rather than mounting every
+    server's schema eagerly.
+    Correction 2026-10-18:
+    `morph` is not installed on this host,
+    so the named candidate does not exist here and that recommendation is
+    withdrawn.
+    The measured inventory is thinner than this item assumed.
+    Claude Code's global config declares six servers:
+    `linkup` over HTTP,
+    which duplicates the Linkup fallback already wired into `search-fetch`;
+    `serena`,
+    which Pi deliberately disables;
+    `idea` on `127.0.0.1:64342`;
+    `safari-mcp-stp`,
+    which shells through `ssh` to a macOS Safari Technology Preview path;
+    `BrowserOS` on `127.0.0.1:9001`;
+    and `mvm`,
+    a stdio server pointing at `package/mcp/mvm/dist/final/node/index.mjs`.
+    Pi declares four:
+    `browseros`,
+    `linear`,
+    `serena` disabled,
+    and `safari-mcp-stp`.
+    Only `mvm` is repo-owned and viable on this Linux host,
+    and its CLI is already on `PATH`,
+    so bridging it would add typed schemas and discoverability rather than
+    capability.
+    `linear` is the only genuinely new capability in either inventory,
+    and it needs a token.
+    MCP breadth is therefore a lower-value direction than this item implied.
+    The deferred-exposure advice stands independently of that.
 
-4. Settled:
-   both fetch tools stay.
-   The native `web_fetch` accepts any public HTTP(S) destination,
-   while `mcp__search-fetch__web_fetch` enforces the 23-entry blocklist,
-   routes GitHub URLs through `gh`,
-   and strips base64 data-URL images,
-   so the native tool is a route around the blocklist.
-   Keeping it buys an account-free fetch path that survives an Exa or Linkup
-   outage or rate limit.
-   `fetch: false` on the `tool-web` preset row remains the one-line change if
-   that trade is revisited.
+4.  Settled:
+    both fetch tools stay.
+    The native `web_fetch` accepts any public HTTP(S) destination,
+    while `mcp__search-fetch__web_fetch` enforces the 23-entry blocklist,
+    routes GitHub URLs through `gh`,
+    and strips base64 data-URL images,
+    so the native tool is a route around the blocklist.
+    Keeping it buys an account-free fetch path that survives an Exa or Linkup
+    outage or rate limit.
+    `fetch: false` on the `tool-web` preset row remains the one-line change if
+    that trade is revisited.
 
-5. Done:
-   the 24 inert `disabled: false` patch entries were reverted,
-   and the patch file again carries only rows that change profile behavior.
-   Two rows that ended `disabled: true` for cause were removed with them,
-   since neither can activate here:
-   `pwsh-sandbox` and `optional-terminal-pwsh` both collide with the bash
-   sandbox's `shell` service registration on Linux,
-   and `desktop-product-telemetry` requires an OTel collector `endpoint`,
-   `channel`,
-   `serviceName`,
-   and `serviceVersion` that are not configured,
-   which leaves `product-analytics` pending on a service that never arrives.
+5.  Done:
+    the 24 inert `disabled: false` patch entries were reverted,
+    and the patch file again carries only rows that change profile behavior.
+    Two rows that ended `disabled: true` for cause were removed with them,
+    since neither can activate here:
+    `pwsh-sandbox` and `optional-terminal-pwsh` both collide with the bash
+    sandbox's `shell` service registration on Linux,
+    and `desktop-product-telemetry` requires an OTel collector `endpoint`,
+    `channel`,
+    `serviceName`,
+    and `serviceVersion` that are not configured,
+    which leaves `product-analytics` pending on a service that never arrives.
 
-6. Port `bash-output-filter` behavior if Bash output volume is a context
-   problem in DSH sessions.
-   It is the one hook with a direct,
-   measurable context cost.
+6.  Port `bash-output-filter` behavior if Bash output volume is a context
+    problem in DSH sessions.
+    It is the one hook with a direct,
+    measurable context cost.
 
-7. Guard the `preset-cordis` override against upgrade drift.
-   Measured 2026-10-18:
-   the override restates all 35 ids of the shipped preset in the same order,
-   23 of them top-level plugin rows and the rest nested group children,
-   and a diff of the two id lists is empty.
-   Nothing was dropped,
-   which is what the check was for.
-   It also means the entire shipped preset is shadowed,
-   so any upstream change to `presets/cordis.patch.yml` at the next upgrade is
-   lost silently,
-   with the `MAINTENANCE` comment as the only defence.
-   The comment and the override moved to `~/.dsh/cordis.patch.yml` on
-   2026-10-29,
-   and that file now restates three preset lists after the tool disable
-   recorded in the section Glob and grep disabled user-wide,
-   2026-10-29,
-   so a drift guard has three lists to cover.
-   A repo task that diffs the shipped preset against the override and fails on
-   drift would turn that into a loud failure,
-   and it would also protect the `agent-instructions` and `tool-web` settings
-   that items 1 and 3 depend on.
-   Proposed and not taken,
-   so it stays open.
+7.  Guard the `preset-cordis` override against upgrade drift.
+    Measured 2026-10-18:
+    the override restates all 35 ids of the shipped preset in the same order,
+    23 of them top-level plugin rows and the rest nested group children,
+    and a diff of the two id lists is empty.
+    Nothing was dropped,
+    which is what the check was for.
+    It also means the entire shipped preset is shadowed,
+    so any upstream change to `presets/cordis.patch.yml` at the next upgrade is
+    lost silently,
+    with the `MAINTENANCE` comment as the only defence.
+    The comment and the override moved to `~/.dsh/cordis.patch.yml` on
+    2026-10-29,
+    and that file now restates three preset lists after the tool disable
+    recorded in the section Glob and grep disabled user-wide,
+    2026-10-29,
+    so a drift guard has three lists to cover.
+    A repo task that diffs the shipped preset against the override and fails on
+    drift would turn that into a loud failure,
+    and it would also protect the `agent-instructions` and `tool-web` settings
+    that items 1 and 3 depend on.
+    Proposed and not taken,
+    so it stays open.
 
 Machine-local findings from this audit,
 covering credential handling and local harness configuration,

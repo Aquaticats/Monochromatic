@@ -11,7 +11,7 @@ No JSR (`npm.jsr.io`),
 
 JSR's npm compatibility bridge (`npm.jsr.io`) has chronic quality issues:
 
-- **Broken registry endpoints**:
+- Broken registry endpoints:
    JSR does not implement the version-specific packument endpoint
   (`GET /<package>/<version>`) that the npm API defines.
    Returns 404.
@@ -20,11 +20,11 @@ JSR's npm compatibility bridge (`npm.jsr.io`) has chronic quality issues:
   Package managers that use this endpoint (vlt,
    potentially others) fail on JSR transitive deps.
   See `TROUBLESHOOTING.vlt-jsr.md` for the full investigation.
-- **Past incidents**:
+- Past incidents:
    `bun install` failures with 502 errors on JSR's `If-None-Match` handling
   (jsr-io/jsr#1323).
    See `TROUBLESHOOTING.jsr.md`.
-- **Transitive contamination**:
+- Transitive contamination:
    npm packages published from JSR (e.g. `happy-opfs`) embed
   `@jsr/*` transitive dependencies in their `package.json`.
    These only resolve if the
@@ -64,23 +64,23 @@ NueJS:
 
 ## Linting and formatting
 
-- **oxlint**:
+- oxlint:
    primary JS/TS linter
-- **dprint**:
+- dprint:
    universal formatter
 
 Rejected alternatives:
 
-- **Biome**:
+- Biome:
    insufficient rules
-- **Stylelint**:
+- Stylelint:
    removed 2026-10-04 and not an adoption candidate.
    All `pnpm audit` findings for the unpatched `braces` advisory (GHSA-vfj7-8cjw-p6xm)
    were reachable only through stylelint's tree,
    and the repo writes little CSS.
    A first-party replacement is tracked in issue #587;
    see `doc/decision/remove-stylelint.md`.
-- **ESLint**:
+- ESLint:
    removed 2026-03-13 and not an adoption candidate.
    Oxlint covers the rules we relied on (gaps were filled by writing `@monochromatic-dev/oxlint-plugin-tsdoc`,
    `@monochromatic-dev/oxlint-plugin-no-restricted-syntax`,
@@ -126,11 +126,11 @@ No plans to implement an MCP server for codebase indexing or semantic code searc
 
 Vercel AI SDK forces React dependencies for non-React projects:
 
-- **Dependency chain**:
+- Dependency chain:
    `ai` → `@ai-sdk/react` → `swr` → `react`
-- **Bloated tree**:
+- Bloated tree:
    Frontend UI concerns bundled with backend logic
-- **No core package**:
+- No core package:
    Missing modular `@ai-sdk/core` without UI dependencies
 
 OpenAI SDK:
@@ -187,31 +187,31 @@ then the code generator omits unused parsing steps from the generated function.
 
 Problems with this approach:
 
-- **Security**:
+- Security:
    code generation without input sanitization produced an RCE chain
   (GHSA-8vch-m3f4-q8jf + GHSA-hxj9-33pp-j2cc,
    patched 1.4.17).
   Cookie config was interpolated into generated code strings unsanitized.
-- **Self-defeating optimizer**:
+- Self-defeating optimizer:
    issue #1604 showed AOT-enabled Elysia at 3,853 req/s
   vs 175,951 req/s with `aot: false` (45x regression).
   Hono (no code generation) hit 237,229 req/s in the same benchmark.
-- **Dual codepath divergence**:
+- Dual codepath divergence:
    AOT and non-AOT modes behave differently.
   Issues #1753,
    #952,
    #1458 document parsing,
    hook,
    and routing inconsistencies between modes.
-- **Fragile source analysis**:
+- Fragile source analysis:
    `Function.toString()` breaks under minification (issue #1617),
   `bun build --minify` breaks integrating libraries (issue #740).
   Sucrose uses hardcoded character positions that assume unminified source formatting.
-- **CSP incompatible**:
+- CSP incompatible:
    `new Function()` requires `unsafe-eval` in Content-Security-Policy.
   Cloudflare Workers blocks it entirely (issue #58).
   The `aot: false` workaround itself breaks routing in plugin compositions (issue #1244).
-- **Diminishing returns**:
+- Diminishing returns:
    Bun.
   serve() absorbs framework optimizations over time
   (built-in route tree with SIMD parameter decoding,
@@ -221,7 +221,7 @@ Problems with this approach:
    dead code elimination,
   and type specialization that Elysia reimplements in userland.
   The optimization gap narrows with each runtime release while the complexity cost is fixed.
-- **God class**:
+- God class:
    `index.ts` is 8,292 lines containing routing,
    lifecycle hooks,
   plugin system,
@@ -267,30 +267,30 @@ and breaks with 3+ chained middlewares (#3587).
 
 ### Why h3 v2
 
-- **Minimal core**:
+- Minimal core:
    H3 class is 216 lines.
    Delegates routing to rou3,
    server adapters to srvx.
-- **Focused scope**:
+- Focused scope:
    HTTP primitives only.
    No JSX,
    no CSS,
    no SSG,
    no client runtime.
-- **Lazy evaluation**:
+- Lazy evaluation:
    getters and symbols defer body parsing,
    session loading,
   and response header construction.
    Same "skip what you don't use" benefit as Elysia's Sucrose
   without source code parsing.
-- **Standard Schema validation**:
+- Standard Schema validation:
    works with Zod,
    Valibot,
    ArkType via Standard Schema v1 interface.
   No bundled validation library.
-- **Battle-tested indirectly**:
+- Battle-tested indirectly:
    srvx + rou3 power Nuxt/Nitro's deployment base.
-- **No code generation**:
+- No code generation:
    no `new Function()`,
    no `eval()`,
    no `Function.toString()`.
@@ -353,22 +353,22 @@ Rolldown's primary customer is Vite (application bundling).
 Library bundling is a secondary concern for the rolldown team.
 tsdown fills the gap with:
 
-- **Auto-externalization**:
+- Auto-externalization:
    reads `dependencies` + `peerDependencies` from `package.json`
   and marks them external via a rolldown `resolveId` plugin (`dep.ts`,
    193 lines).
   Also scans the final bundle for leaked node_modules imports (`inlineOnly` safety net).
-- **DTS generation**:
+- DTS generation:
    wires `rolldown-plugin-dts`,
    handles the CJS special case
   (separate rolldown build pass for `.d.cts` files when format is CJS + DTS enabled).
-- **Output extension matrix**:
+- Output extension matrix:
    `.mjs`/`.cjs`/`.js` determined by format x `package.json` `type` x `fixedExtension` flag.
-- **Watch-safe clean**:
+- Watch-safe clean:
    in watch mode,
    deletes only previous output chunks instead of nuking the directory.
   Prevents race conditions when watch-building multiple interdependent packages in parallel.
-- **Config file loading**:
+- Config file loading:
    detects Bun/native TS support and uses native `import()` with zero transpilation overhead,
   falls back to `unrun` otherwise.
    No jiti/esbuild for config loading.

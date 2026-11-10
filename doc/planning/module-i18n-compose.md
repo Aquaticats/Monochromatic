@@ -164,105 +164,105 @@ and package-name public import consumption.
 
 These trapped the first implementation and will trap the next contributor unless they are recorded:
 
-1. **`createI18n` type-parameter inference is fragile.
-   ** The naive
-   `createI18n<Locales, Label, Subject, Verb, Noun>(config)` with `LocaleSpec` arrow-typed methods refuses
-   to compile:
-    renderer parameters (`key: Label`) are in contravariant position,
-    so `LocaleSpec<TestLabel, ...>`
-   is not assignable to `LocaleSpec<string, ...>` (the inferred default when `Label` has no inference source).
-   Method shorthand syntax makes positions bivariant and the assignment works,
-    but then TypeScript can widen
-   or union vocabulary across locale specs in ways that are unsafe at runtime.
-    The working pattern is method
-   shorthand for `LocaleSpec` plus a `Spec` generic in `createI18n` constrained against
-   `AnyLocaleSpec = LocaleSpec<string, string, string, string>`,
-    conditional `LabelOf` / `SubjectOf` /
-   `VerbOf` / `NounOf` extractors,
-    and `EnforceSharedVocabulary` to reject spec records where one locale has
-   keys another locale lacks.
-    The returned `I18n` surface uses `SharedLabelOf` / `SharedSubjectOf` /
-   `SharedVerbOf` / `SharedNounOf`,
-    not the raw union across `Specs[Locales[number]]`.
-    Touch this at your peril.
+1.  **`createI18n` type-parameter inference is fragile.
+    ** The naive
+    `createI18n<Locales, Label, Subject, Verb, Noun>(config)` with `LocaleSpec` arrow-typed methods refuses
+    to compile:
+     renderer parameters (`key: Label`) are in contravariant position,
+     so `LocaleSpec<TestLabel, ...>`
+    is not assignable to `LocaleSpec<string, ...>` (the inferred default when `Label` has no inference source).
+    Method shorthand syntax makes positions bivariant and the assignment works,
+     but then TypeScript can widen
+    or union vocabulary across locale specs in ways that are unsafe at runtime.
+     The working pattern is method
+    shorthand for `LocaleSpec` plus a `Spec` generic in `createI18n` constrained against
+    `AnyLocaleSpec = LocaleSpec<string, string, string, string>`,
+     conditional `LabelOf` / `SubjectOf` /
+    `VerbOf` / `NounOf` extractors,
+     and `EnforceSharedVocabulary` to reject spec records where one locale has
+    keys another locale lacks.
+     The returned `I18n` surface uses `SharedLabelOf` / `SharedSubjectOf` /
+    `SharedVerbOf` / `SharedNounOf`,
+     not the raw union across `Specs[Locales[number]]`.
+     Touch this at your peril.
 
-2. **`'who' as Subject` is unsafe and unnecessary.
-   ** A first cut threaded `SubjectRef<Subject>` into every verb-form helper,
-    then synthesized `{ kind: 'subject.key', subject: 'who' as Subject }` for wh-subject questions.
-    Oxlint correctly rejects the cast.
-    The fix lives in `agreement.ts`:
-    helpers take `SubjectAgreement = { person, number }`,
-    `subjectAgreement({ ref, subjects })` extracts it from a real subject reference,
-    and `WH_SUBJECT_AGREEMENT` is a pre-built `{ person: 3, number: 'singular' }` constant the wh-subject branches pass
-    directly.
-    The locale's `Subject` union is never abused.
+2.  **`'who' as Subject` is unsafe and unnecessary.
+    ** A first cut threaded `SubjectRef<Subject>` into every verb-form helper,
+     then synthesized `{ kind: 'subject.key', subject: 'who' as Subject }` for wh-subject questions.
+     Oxlint correctly rejects the cast.
+     The fix lives in `agreement.ts`:
+     helpers take `SubjectAgreement = { person, number }`,
+     `subjectAgreement({ ref, subjects })` extracts it from a real subject reference,
+     and `WH_SUBJECT_AGREEMENT` is a pre-built `{ person: 3, number: 'singular' }` constant the wh-subject branches pass
+     directly.
+     The locale's `Subject` union is never abused.
 
-3. **`max-lines: 300` (effective) forced the flat-file plan to split.
-   ** The plan listed `locales/ca.ts`,
-    `locales/en.ts`,
-    `locales/zh.ts` as single files.
-    Each implementation grew past 400 effective lines once TSDoc was added to every local;
-    oxlint's `eslint/max-lines` is `error` and `AGENTS.md` forbids disabling it.
-    The remediation is the
-    `locales/<lang>/{index,types,render-np,render-adverbial,render-vp,render-sentence,render-fragment}.ts` split
-    documented in the `package/i18n-compose/core/` tree under "Implementation status".
-    `test-vocab.ts` hit the same limit and split into `test-vocab/{index,types,en,zh,ca}.ts`.
-    Plan §12's flat layout is normative for the public API surface but not for source-file organization.
+3.  **`max-lines: 300` (effective) forced the flat-file plan to split.
+    ** The plan listed `locales/ca.ts`,
+     `locales/en.ts`,
+     `locales/zh.ts` as single files.
+     Each implementation grew past 400 effective lines once TSDoc was added to every local;
+     oxlint's `eslint/max-lines` is `error` and `AGENTS.md` forbids disabling it.
+     The remediation is the
+     `locales/<lang>/{index,types,render-np,render-adverbial,render-vp,render-sentence,render-fragment}.ts` split
+     documented in the `package/i18n-compose/core/` tree under "Implementation status".
+     `test-vocab.ts` hit the same limit and split into `test-vocab/{index,types,en,zh,ca}.ts`.
+     Plan §12's flat layout is normative for the public API surface but not for source-file organization.
 
-4. **TSDoc rules are stricter than `or-throw` makes them look.
-   ** Every local `const` requires a TSDoc comment (`tsdoc/require-tsdoc`).
-    Every function parameter must be documented by name (`tsdoc/require-param`).
-    For destructured params,
-    each destructured field needs its own `@param <field> - description` line,
-    not a single `@param input - ...` covering the bundle (`tsdoc/check-param-names`).
-    Single-line TSDocs that contain a tag (e.g. `/** Dependency bundle for {@link X}. */`) must be expanded to
-    multi-line (`tsdoc/multiline-blocks`).
-    The `>` character inside TSDoc body text must be replaced with `to` (the helpfully-titled
-    `tsdoc-escape-greater-than` rule).
-    Plan for ~3x the lines you would naively write,
-    and use named extracted helpers when an inner function body would otherwise need 8+ documented locals.
+4.  **TSDoc rules are stricter than `or-throw` makes them look.
+    ** Every local `const` requires a TSDoc comment (`tsdoc/require-tsdoc`).
+     Every function parameter must be documented by name (`tsdoc/require-param`).
+     For destructured params,
+     each destructured field needs its own `@param <field> - description` line,
+     not a single `@param input - ...` covering the bundle (`tsdoc/check-param-names`).
+     Single-line TSDocs that contain a tag (e.g. `/** Dependency bundle for {@link X}. */`) must be expanded to
+     multi-line (`tsdoc/multiline-blocks`).
+     The `>` character inside TSDoc body text must be replaced with `to` (the helpfully-titled
+     `tsdoc-escape-greater-than` rule).
+     Plan for ~3x the lines you would naively write,
+     and use named extracted helpers when an inner function body would otherwise need 8+ documented locals.
 
-5. **`eslint/no-magic-numbers` rejects `3` even inside a named-const definition.
-   ** `AGENTS.md` exempts
-   `-2..2`,
-    but English needs the third-person literal for agreement checks.
-    Use the composed constant
-   `const THIRD_PERSON = 1 + 2`;
-    do not cast it to `Person`,
-    because type-aware oxlint flags the narrowing
-   assertion as unsafe.
+5.  **`eslint/no-magic-numbers` rejects `3` even inside a named-const definition.
+    ** `AGENTS.md` exempts
+    `-2..2`,
+     but English needs the third-person literal for agreement checks.
+     Use the composed constant
+    `const THIRD_PERSON = 1 + 2`;
+     do not cast it to `Person`,
+     because type-aware oxlint flags the narrowing
+    assertion as unsafe.
 
-6. **dprint and oxlint disagree on inline object/array literals.
-   ** dprint leaves `{ entry, count, }` on one line
-   when it fits in 90 columns;
-    oxlint's `stylistic/object-property-per-line` and
-   `stylistic/array-element-per-line` (warnings,
-    not errors) want one property/element per line regardless.
-   `mise run //:format:oxlint` (or `oxlint --fix` directly) auto-fixes both rules,
-    but the full-tree
-   `//:format` task fails on unrelated `figma/kiwi` lint errors before reaching the fixer.
-   Run the package-local fixer directly when working on this package;
-    the fix is autofixable.
-   `unicorn/no-nested-ternary` is disabled in `package/config/oxlint/src/rule/style.ts` to match the existing
-   project preference for nested ternaries.
+6.  **dprint and oxlint disagree on inline object/array literals.
+    ** dprint leaves `{ entry, count, }` on one line
+    when it fits in 90 columns;
+     oxlint's `stylistic/object-property-per-line` and
+    `stylistic/array-element-per-line` (warnings,
+     not errors) want one property/element per line regardless.
+    `mise run //:format:oxlint` (or `oxlint --fix` directly) auto-fixes both rules,
+     but the full-tree
+    `//:format` task fails on unrelated `figma/kiwi` lint errors before reaching the fixer.
+    Run the package-local fixer directly when working on this package;
+     the fix is autofixable.
+    `unicorn/no-nested-ternary` is disabled in `package/config/oxlint/src/rule/style.ts` to match the existing
+    project preference for nested ternaries.
 
-7. **Plan §11 short-form examples are wrong;
-    the AST type is normative.
-   ** The §11 examples use `kind: 'counted'`,
-    `kind: 'bare'`,
-    etc.,
-    but the actual variant kinds are namespaced (`'noun.counted'`,
-    `'noun.bare'`,
-    ...).
-    The implementation follows the type,
-    not the §11 short-form.
-    Test fixtures and the `ssg-test` migration must use the namespaced form.
+7.  **Plan §11 short-form examples are wrong;
+     the AST type is normative.
+    ** The §11 examples use `kind: 'counted'`,
+     `kind: 'bare'`,
+     etc.,
+     but the actual variant kinds are namespaced (`'noun.counted'`,
+     `'noun.bare'`,
+     ...).
+     The implementation follows the type,
+     not the §11 short-form.
+     Test fixtures and the `ssg-test` migration must use the namespaced form.
 
-8. **The plan's `*.type.test.ts` convention does not exist in this workspace.
-   ** Workspace tests put type assertions inline in `*.unit.test.ts` files using `expectTypeOf` re-exported from
-   `@monochromatic-dev/test-harness-core`.
-    The implementation followed the workspace convention;
-    `src/ast-types.unit.test.ts` is the type-assertion file.
+8.  **The plan's `*.type.test.ts` convention does not exist in this workspace.
+    ** Workspace tests put type assertions inline in `*.unit.test.ts` files using `expectTypeOf` re-exported from
+    `@monochromatic-dev/test-harness-core`.
+     The implementation followed the workspace convention;
+     `src/ast-types.unit.test.ts` is the type-assertion file.
 
 ## What the Phase 6 contributor should know
 

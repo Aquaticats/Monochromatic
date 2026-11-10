@@ -602,22 +602,22 @@ Recommendation within this design:
    nothing in the repository uses `zig cc`,
    so it has no role here `[I]`.
 - Design:
-  1. Fetch Ghostty at the pinned commit with `git_repository` or `http_archive`
-     and pass it as `GHOSTTY_SOURCE_DIR` through `build_script_env` `[I]`.
-  2. Pre-fetch Ghostty's Zig packages in a repository rule
-     so the build action needs no network `[I]`;
-     the exact Zig 0.15.2 fetch-only invocation is `[U]`.
-  3. Patch `libghostty-vt-sys`'s `build.rs` through `crate.annotation(patches = ...)`
-     to pass writable `--cache-dir` and `--global-cache-dir` under `OUT_DIR`,
-     because the Ghostty source is a read-only input
-     and `zig build` writes `.zig-cache` into its working directory `[I]`.
-  4. Put the Zig toolchain on `PATH` for the build script,
-     since `build.rs` calls `Command::new("zig")` and `tools` are not added to `PATH` by name
-     (`cargo_build_script.bzl:846-850` documents only "Tools required by the build script")
-     `[V]` for the attribute,
-     `[I]` for `PATH`.
-  5. Wrap the produced shared library in `cc_import` and give `monochromatic-terminal`
-     the rpath link option dropped from `build.rs` `[I]`.
+  1.  Fetch Ghostty at the pinned commit with `git_repository` or `http_archive`
+      and pass it as `GHOSTTY_SOURCE_DIR` through `build_script_env` `[I]`.
+  2.  Pre-fetch Ghostty's Zig packages in a repository rule
+      so the build action needs no network `[I]`;
+      the exact Zig 0.15.2 fetch-only invocation is `[U]`.
+  3.  Patch `libghostty-vt-sys`'s `build.rs` through `crate.annotation(patches = ...)`
+      to pass writable `--cache-dir` and `--global-cache-dir` under `OUT_DIR`,
+      because the Ghostty source is a read-only input
+      and `zig build` writes `.zig-cache` into its working directory `[I]`.
+  4.  Put the Zig toolchain on `PATH` for the build script,
+      since `build.rs` calls `Command::new("zig")` and `tools` are not added to `PATH` by name
+      (`cargo_build_script.bzl:846-850` documents only "Tools required by the build script")
+      `[V]` for the attribute,
+      `[I]` for `PATH`.
+  5.  Wrap the produced shared library in `cc_import` and give `monochromatic-terminal`
+      the rpath link option dropped from `build.rs` `[I]`.
 - Alternative:
    `override_target_lib` replaces the `-sys` crate with a hand-written `rust_library`
    over its checked-in `src/bindings.rs` plus a Bazel action running `zig build` `[I]`.
@@ -966,116 +966,116 @@ and `mise.toml` `[V]`:
 
 Ordered by how directly each one could disqualify the Bazel route or force a redesign of existing architecture.
 
-1. Rust dependency model conflicts with the enforced no-workspace architecture.
-   - Evidence:
-      all 19 manifests are workspace roots,
-      enforced per `doc/planning/cargo-toml-file-enforcer.md:17-31` `[V]`;
-      crate_universe refuses several workspace roots in one hub
-      (`crate_universe/src/splicing/splicer.rs:44-66`) `[V]`;
-      hubs name crate repositories per hub (`crate_universe/extensions.bzl:742`) `[V]`;
-      the four linter crates must share one `ra_ap_syntax` crate instance (`package/linter/rust/Cargo.toml`) `[V]`.
-   - Why:
-      Bazel either collapses the islands into one resolution
-      that differs from the 19 `Cargo.lock` files Cargo keeps using,
-      or keeps 19 hubs and stamps shared first-party crates once per hub to avoid split type identity `[I]`.
-      Both change a decision the repository records as forbidden.
-2. Android instrumentation tests have no Bazel test rule.
-   - Evidence:
-      no `android_instrumentation_test` in Bazel 9 `src/main` or rules_android's public rules
-      (`rules_android/android/rules.bzl:65-75`) `[V]`;
-      rules_android #102 open,
-      #296 unanswered,
-      `rules_utp` archived `[V]`;
-      Bazel 9.1.0 documentation still presents the removed rule `[V]`.
-   - Why:
-      the owner's device tests (`NativeBridgeTest`,
-     `RustEngineTest`,
-     `PeakSweepWorkerTest`)
-      become `bazel run` scripts outside `bazel test`,
-      and the documentation contradiction is itself the kind of confusion trigger that excluded Bazel in the vet `[I]`.
-3. Android Lint has no Bazel integration.
-   - Evidence:
-      rules_android #321 open,
-      latest comment reports a CLI wrapper with project XML averaging 7 to 10 minutes `[V]`;
-      no lint attribute or rule in rules_android `[V]`.
-   - Why:
-      `lint` (`./gradlew :app:lintDebug`) either stays on Gradle,
-      keeping two Android build definitions,
-      or becomes a repository-owned wrapper generating lint project descriptors `[I]`.
-4. The Android IDE workflow loses its project model.
-   - Evidence:
-      the user edits Android in IntelliJ IDEA with `GradleProjectSystem` (`.idea/AndroidProjectSystem.xml`) `[V]`;
-      the JetBrains Bazel plugin states Java and Kotlin support only `[V]`;
-      "Bazel for Android Studio" targets Android Studio builds only,
-      pinned per build `[V]`.
-   - Why:
-      Compose previews,
-     Device Manager deploys,
-     and resource-aware editing in IDEA depend on a Gradle model
-      that a Bazel-only Android build does not provide `[U]` for feature-level behavior.
-5. rules_android is a self-declared incomplete preview on the path that matters.
-   - Evidence:
-      `rules_android/README.md:5-6` `[V]`;
-      open issues on manifest merging (#101,
-     #445),
-     `android_local_test` fragility (#169),
-      and `kt_android_library` aspect traversal (#506) `[V]`;
-      no maintained rules_rust Android example and open linking issue #1276 `[V]`.
-   - Why:
-      the Kotlin,
-     Compose,
-     AAR,
-     manifest-merge,
-     and Rust-JNI combination this app needs
-      has no single upstream example that exercises it together `[I]`,
-      so a failure surfaces only after the port.
-6. Ghostty's Zig build is a networked foreign build system inside a Cargo build script.
-   - Evidence:
-      `libghostty-vt-sys` clones Ghostty and runs `zig build` (`build.rs`) `[V]`;
-      15 direct and 30 cached Zig packages `[V]`;
-      rules_zig has no `build.zig` rule (`docs/rules.md:23-24`) `[V]`;
-      a recorded zig 0.15.2 path-space spawn bug (`doc/troubleshooting/desktop-app-host-build.md:141-215`) `[V]`;
-      no public Bazel precedent found `[V]`.
-   - Why:
-      a sandboxed,
-     cacheable build requires patching the crate,
-      pre-fetching Zig packages in a repository rule,
-      and relocating Zig caches,
-      all repository-owned with no upstream reference `[I]`.
-7. Cargo cannot be removed for Rust.
-   - Evidence:
-      no crates.io publish rule in rules_rust `[V]`;
-      no Rust support in rules_fuzzing (`README.md:7`) `[V]`;
-      `cargo package` verification compiles with Cargo (`.github/workflows/cargo-publish.yml`) `[V]`.
-   - Why:
-      the three published crates and both fuzz crates keep Cargo builds permanently,
-      so every Rust change must stay green under two build definitions `[I]`.
-8. System-library crates make cache hits depend on undeclared host state.
-   - Evidence:
-      `cargo_build_script` inherits the default shell environment by default
-      (`cargo_build_script.bzl:449-457`,
-     `cargo/settings/settings.bzl:38-44`) `[V]`;
-      GTK,
-     PipeWire,
-     Wayland,
-     DRM,
-     Qt (`cxx-qt-build` via `qmake6`),
-     fontconfig,
-     and libclang
-      are host-provided today `[V]`.
-   - Why:
-      after an `rpm-ostree` upgrade of those libraries,
-      Bazel's action keys are unchanged and cached `-sys` outputs are reused `[I]`,
-      which removes the sandbox-enforced-input advantage the route comparison credited to Bazel for these packages.
-9. cargo-nextest's process isolation is load-bearing for some tests.
-   - Evidence:
-      `rust-linter-core/src/config/load_tests.rs:320` changes the process working directory;
-      `forbidden-strings/src/frx_scan_tests.rs:92` swaps the process panic hook `[V]`;
-      rules_rust has no nextest integration `[V]`.
-   - Why:
-      under a single-process libtest harness these tests can race with concurrent tests `[I]`;
-      fixable per target,
-      but a silent flake source during migration.
+1.  Rust dependency model conflicts with the enforced no-workspace architecture.
+    - Evidence:
+       all 19 manifests are workspace roots,
+       enforced per `doc/planning/cargo-toml-file-enforcer.md:17-31` `[V]`;
+       crate_universe refuses several workspace roots in one hub
+       (`crate_universe/src/splicing/splicer.rs:44-66`) `[V]`;
+       hubs name crate repositories per hub (`crate_universe/extensions.bzl:742`) `[V]`;
+       the four linter crates must share one `ra_ap_syntax` crate instance (`package/linter/rust/Cargo.toml`) `[V]`.
+    - Why:
+       Bazel either collapses the islands into one resolution
+       that differs from the 19 `Cargo.lock` files Cargo keeps using,
+       or keeps 19 hubs and stamps shared first-party crates once per hub to avoid split type identity `[I]`.
+       Both change a decision the repository records as forbidden.
+2.  Android instrumentation tests have no Bazel test rule.
+    - Evidence:
+       no `android_instrumentation_test` in Bazel 9 `src/main` or rules_android's public rules
+       (`rules_android/android/rules.bzl:65-75`) `[V]`;
+       rules_android #102 open,
+       #296 unanswered,
+       `rules_utp` archived `[V]`;
+       Bazel 9.1.0 documentation still presents the removed rule `[V]`.
+    - Why:
+       the owner's device tests (`NativeBridgeTest`,
+      `RustEngineTest`,
+      `PeakSweepWorkerTest`)
+       become `bazel run` scripts outside `bazel test`,
+       and the documentation contradiction is itself the kind of confusion trigger that excluded Bazel in the vet `[I]`.
+3.  Android Lint has no Bazel integration.
+    - Evidence:
+       rules_android #321 open,
+       latest comment reports a CLI wrapper with project XML averaging 7 to 10 minutes `[V]`;
+       no lint attribute or rule in rules_android `[V]`.
+    - Why:
+       `lint` (`./gradlew :app:lintDebug`) either stays on Gradle,
+       keeping two Android build definitions,
+       or becomes a repository-owned wrapper generating lint project descriptors `[I]`.
+4.  The Android IDE workflow loses its project model.
+    - Evidence:
+       the user edits Android in IntelliJ IDEA with `GradleProjectSystem` (`.idea/AndroidProjectSystem.xml`) `[V]`;
+       the JetBrains Bazel plugin states Java and Kotlin support only `[V]`;
+       "Bazel for Android Studio" targets Android Studio builds only,
+       pinned per build `[V]`.
+    - Why:
+       Compose previews,
+      Device Manager deploys,
+      and resource-aware editing in IDEA depend on a Gradle model
+       that a Bazel-only Android build does not provide `[U]` for feature-level behavior.
+5.  rules_android is a self-declared incomplete preview on the path that matters.
+    - Evidence:
+       `rules_android/README.md:5-6` `[V]`;
+       open issues on manifest merging (#101,
+      #445),
+      `android_local_test` fragility (#169),
+       and `kt_android_library` aspect traversal (#506) `[V]`;
+       no maintained rules_rust Android example and open linking issue #1276 `[V]`.
+    - Why:
+       the Kotlin,
+      Compose,
+      AAR,
+      manifest-merge,
+      and Rust-JNI combination this app needs
+       has no single upstream example that exercises it together `[I]`,
+       so a failure surfaces only after the port.
+6.  Ghostty's Zig build is a networked foreign build system inside a Cargo build script.
+    - Evidence:
+       `libghostty-vt-sys` clones Ghostty and runs `zig build` (`build.rs`) `[V]`;
+       15 direct and 30 cached Zig packages `[V]`;
+       rules_zig has no `build.zig` rule (`docs/rules.md:23-24`) `[V]`;
+       a recorded zig 0.15.2 path-space spawn bug (`doc/troubleshooting/desktop-app-host-build.md:141-215`) `[V]`;
+       no public Bazel precedent found `[V]`.
+    - Why:
+       a sandboxed,
+      cacheable build requires patching the crate,
+       pre-fetching Zig packages in a repository rule,
+       and relocating Zig caches,
+       all repository-owned with no upstream reference `[I]`.
+7.  Cargo cannot be removed for Rust.
+    - Evidence:
+       no crates.io publish rule in rules_rust `[V]`;
+       no Rust support in rules_fuzzing (`README.md:7`) `[V]`;
+       `cargo package` verification compiles with Cargo (`.github/workflows/cargo-publish.yml`) `[V]`.
+    - Why:
+       the three published crates and both fuzz crates keep Cargo builds permanently,
+       so every Rust change must stay green under two build definitions `[I]`.
+8.  System-library crates make cache hits depend on undeclared host state.
+    - Evidence:
+       `cargo_build_script` inherits the default shell environment by default
+       (`cargo_build_script.bzl:449-457`,
+      `cargo/settings/settings.bzl:38-44`) `[V]`;
+       GTK,
+      PipeWire,
+      Wayland,
+      DRM,
+      Qt (`cxx-qt-build` via `qmake6`),
+      fontconfig,
+      and libclang
+       are host-provided today `[V]`.
+    - Why:
+       after an `rpm-ostree` upgrade of those libraries,
+       Bazel's action keys are unchanged and cached `-sys` outputs are reused `[I]`,
+       which removes the sandbox-enforced-input advantage the route comparison credited to Bazel for these packages.
+9.  cargo-nextest's process isolation is load-bearing for some tests.
+    - Evidence:
+       `rust-linter-core/src/config/load_tests.rs:320` changes the process working directory;
+       `forbidden-strings/src/frx_scan_tests.rs:92` swaps the process panic hook `[V]`;
+       rules_rust has no nextest integration `[V]`.
+    - Why:
+       under a single-process libtest harness these tests can race with concurrent tests `[I]`;
+       fixable per target,
+       but a silent flake source during migration.
 10. Silent loss of the terminal's rpath.
     - Evidence:
        `rustc-link-arg-bin` is dropped with only a warning

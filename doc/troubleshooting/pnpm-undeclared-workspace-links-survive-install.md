@@ -794,36 +794,36 @@ read:
 
 Constraints:
 
-1. Upstream's fault:
-   no.
-   The install pass is documented upstream as a current-minus-wanted diff,
-   and the extraneous scan is the designated
-   remedy (#17154).
-   The absent `config-typescript` link is documented `dedupeDirectDeps` behavior.
-   The remaining gap is wording:
-   `Already up to date` is printed when stale links exist.
-2. Upstream can fix it:
-   yes (the install could run the scan,
-   at the cost of the fast path).
-3. Supported use case:
-   yes,
-   workspaces with `dedupeDirectDeps` are supported.
-4. Contributions welcome:
-   yes.
-   `CONTRIBUTING.md` "AI-assisted contributions" (line 325) welcomes agent-made contributions and requires a footer
-   naming the agent and the model,
-   which the draft carries.
-   No issue template or ban against agent-assisted reports was found.
-5. Likely to fix:
-   unknown.
-   Nearby bugs were fixed within weeks (#13775,
-   #14891),
-   and maintainers just shipped #17154 as the answer to this class,
-   which leans toward "use `pnpm prune`".
-6. Prototype:
-   not attempted.
-   Constraint 1 is a no,
-   and the skill's auto-prototype step applies only when constraints 1 to 5 hold or sorta-hold.
+1.  Upstream's fault:
+    no.
+    The install pass is documented upstream as a current-minus-wanted diff,
+    and the extraneous scan is the designated
+    remedy (#17154).
+    The absent `config-typescript` link is documented `dedupeDirectDeps` behavior.
+    The remaining gap is wording:
+    `Already up to date` is printed when stale links exist.
+2.  Upstream can fix it:
+    yes (the install could run the scan,
+    at the cost of the fast path).
+3.  Supported use case:
+    yes,
+    workspaces with `dedupeDirectDeps` are supported.
+4.  Contributions welcome:
+    yes.
+    `CONTRIBUTING.md` "AI-assisted contributions" (line 325) welcomes agent-made contributions and requires a footer
+    naming the agent and the model,
+    which the draft carries.
+    No issue template or ban against agent-assisted reports was found.
+5.  Likely to fix:
+    unknown.
+    Nearby bugs were fixed within weeks (#13775,
+    #14891),
+    and maintainers just shipped #17154 as the answer to this class,
+    which leans toward "use `pnpm prune`".
+6.  Prototype:
+    not attempted.
+    Constraint 1 is a no,
+    and the skill's auto-prototype step applies only when constraints 1 to 5 hold or sorta-hold.
 
 Verdict:
 do not file.

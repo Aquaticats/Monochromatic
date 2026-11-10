@@ -55,14 +55,14 @@ The peak observed start rate was 131 workflow runs in one hour.
 The cause is now traced in
 `doc/troubleshooting/github-codeql-protected-branch-run-amplification.md`:
 
-1. Classic GitHub branch-protection pattern `*` matches every non-default branch.
-2. All 25 live branches were protected when measured.
-3. GitHub documents that CodeQL default setup runs on each push to the default branch or any protected branch
-   (<https://docs.github.com/en/code-security/concepts/code-scanning/setup-types>).
-4. Each CodeQL run fans out into `actions`,
-    `c-cpp`,
-    and `javascript-typescript` jobs.
-5. Default setup exposes no repository workflow file in which to add a concurrency group.
+1.  Classic GitHub branch-protection pattern `*` matches every non-default branch.
+2.  All 25 live branches were protected when measured.
+3.  GitHub documents that CodeQL default setup runs on each push to the default branch or any protected branch
+    (<https://docs.github.com/en/code-security/concepts/code-scanning/setup-types>).
+4.  Each CodeQL run fans out into `actions`,
+     `c-cpp`,
+     and `javascript-typescript` jobs.
+5.  Default setup exposes no repository workflow file in which to add a concurrency group.
 
 Namespace's documented migration is a `runs-on` label change
 (<https://namespace.so/docs/solutions/github-actions/migration>).
@@ -921,13 +921,13 @@ Cons:
 This is an order of investigation,
 not a managed-runner vendor selection:
 
-1. Keep the monorepo and repair GitHub orchestration.
-2. If measured latency remains after redundant runs are removed,
-   trial Namespace on one representative slow job.
-3. Consider a full runner migration only if that trial passes every platform,
-   security,
-   reliability,
-   and cost boundary.
+1.  Keep the monorepo and repair GitHub orchestration.
+2.  If measured latency remains after redundant runs are removed,
+    trial Namespace on one representative slow job.
+3.  Consider a full runner migration only if that trial passes every platform,
+    security,
+    reliability,
+    and cost boundary.
 
 The first option outranks the second because it removes work,
 while the second only accelerates work and remains unvalidated.
