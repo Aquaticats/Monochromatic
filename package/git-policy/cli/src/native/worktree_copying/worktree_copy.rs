@@ -326,7 +326,7 @@ fn settle_creation(
     // and its rung settles it, so it is carried forward rather than reserved again. Otherwise one exclusive creation
     // decides the owner, and no other command's Git can be the one whose worktree this command fills.
     let mut made_here: bool = false;
-    let reserved: Reservation = match (copies, ladder.destination_identity()) {
+    let reserved_before_git: Reservation = match (copies, ladder.destination_identity()) {
         (true, Some(identity)) => match invocation.destination.as_deref() {
             Some(destination) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(identity) }),
             None => Reservation::NotAttempted,
@@ -378,7 +378,7 @@ fn settle_creation(
     // would leave its copy record behind).
     let reserved: Reservation = match (finished.placed, invocation.destination.as_deref()) {
         (Some(placed), Some(destination)) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(placed) }),
-        _ => reserved,
+        _ => reserved_before_git,
     };
     #[cfg(target_os = "linux")]
     let trash: Option<PendingTrash> = finished.trash;
