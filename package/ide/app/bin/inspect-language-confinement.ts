@@ -11,8 +11,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { isProcessNumberName } from './process-number-name.ts';
+import { projectStateDirectoryName } from './project-state-directory-name.ts';
 
 const inspect = resolve('target/debug/ide-language-inspect');
 const scripted = resolve('target/debug/ide-scripted-lsp');
@@ -185,7 +186,7 @@ const stateRoot = join(base, 'app-cache', 'monochromatic-ide', 'language');
 const stateOf = ({ project, server, root = stateRoot }: { project: string; server: string; root?: string }): string => {
   let hash = 0xcbf29ce484222325n;
   for (const byte of Buffer.from(project)) hash = ((hash ^ BigInt(byte)) * 0x100000001b3n) & 0xffffffffffffffffn;
-  const name = basename(project).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 40);
+  const name = projectStateDirectoryName(project);
   return join(root, name + '-' + hash.toString(16).padStart(16, '0'), server);
 };
 // The host path of the private /tmp of the most recent run for one server's state directory. Each process binds its own
