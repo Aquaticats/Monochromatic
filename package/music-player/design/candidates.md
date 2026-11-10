@@ -856,7 +856,7 @@ see open-questions.md #3).
 <tr>
 <td>**scan-b**</td>
 <td>860×~540</td>
-<td>Scan indicator, reflow-free version, half of the intended behaviour.</td>
+<td>Scan indicator, reflow-free version: half of the intended behaviour.</td>
 </tr>
 <tr>
 <td>**scan-d**</td>
