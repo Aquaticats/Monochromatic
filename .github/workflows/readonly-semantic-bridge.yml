@@ -1,5 +1,10 @@
 name: readonly semantic bridge host evidence
 
+# push and pull_request are path-filtered to the six packages below. merge_group cannot be
+# path-filtered (a GitHub limitation), so the Scope step in the job compares the queued
+# diff with the same paths and skips the three-OS install, build and test when no listed
+# path changed; the job still succeeds so a required merge-queue check stays green.
+
 on:
   pull_request:
     branches: ['main']
@@ -48,16 +53,64 @@ jobs:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
-        fetch-depth: 1
+        # Full history so the merge_group scope check can diff the event's own commits.
+        fetch-depth: 0
+
+    - name: Scope to the semantic-bridge changes
+      id: scope
+      # push and pull_request are already filtered to the paths above, so they always run.
+      # merge_group cannot be path-filtered, so this step asks whether the queue entry touches
+      # any of them and skips the heavy steps when it does not. The comparison uses the event's
+      # own immutable base and head commits, never a moving `origin/main`, and a comparison that
+      # cannot run fails the step instead of reporting nothing changed
+      # (doc/decision/toml-edit-ci-scope.md).
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        # The pull_request and push filters above, as one alternation. Directory prefixes end in `/`.
+        SCOPE_PATTERN: '^(package/config/oxlint/|package/ownership-markers/foreign-borrowed/|package/oxlint-plugin/no-restricted-syntax/|package/oxlint-plugin/prefer-readonly-parameter-type/|package/oxlint-plugin/shared/|package/test-fixture/oxlint-no-restricted-syntax/|pnpm-lock[.]yaml$|.github/workflows/readonly-semantic-bridge[.]yml$)'
+      run: |
+        set -euo pipefail
+        run=true
+        if [ "${{ github.event_name }}" = 'merge_group' ]; then
+          # Both revisions are 40 lowercase hex digits, and a value that is not one never reaches git
+          # as an option or a revision expression.
+          for revision in "$BASE_SHA" "$HEAD_SHA"; do
+            case "$revision" in
+              '' | *[!0-9a-f]*) echo "::error::The merge group's commit is not a full lowercase SHA." >&2; exit 1 ;;
+            esac
+            if [ "${#revision}" -ne 40 ]; then
+              echo "::error::The merge group's commit is not a full lowercase SHA." >&2
+              exit 1
+            fi
+          done
+          # `-z` keeps a path holding a newline in one piece; the translation to lines is what grep reads.
+          if ! changed=$(git diff --name-only --no-renames -z "$BASE_SHA...$HEAD_SHA" | tr '\0' '\n'); then
+            echo '::error::Could not list the files the merge group changes.' >&2
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -qE "$SCOPE_PATTERN"; then
+            echo 'A listed path changes in this merge group; running the matrix.'
+          else
+            run=false
+            echo 'No listed path changes in this merge group; skipping the heavy steps.'
+          fi
+        fi
+        echo "run=$run" >> "$GITHUB_OUTPUT"
 
     - name: Set up node, pnpm and the task CLI
+      if: steps.scope.outputs.run == 'true'
       uses: ./.github/actions/task-cli-setup
 
     - name: Build semantic plugin artifact
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node
 
     - name: Verify native bridge lifecycle and platform paths
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host
 
     - name: Verify external consumer artifact
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host
