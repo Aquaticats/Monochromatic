@@ -22,6 +22,10 @@ import {
 } from './effect-summaries.ts';
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';
 
+//region Offset and set helpers
+// Converting a TypeScript offset to an Oxlint one after the byte-order mark is
+// stripped, and comparing finite parameter-index sets.
+
 /**
  Converts TypeScript offset to Oxlint offset after BOM stripping.
  
@@ -65,6 +69,11 @@ function equalIndexes({
       return right.has(index,);
     },);
 }
+
+//endregion Offset and set helpers
+
+//region Report location
+// The location of a callable's name, or of its declaration span.
 
 /**
  Builds report location for callable name or declaration span.
@@ -118,6 +127,12 @@ function declarationLocation({
       .getLocFromIndex(end,), },
   };
 }
+
+//endregion Report location
+
+//region The check
+// Reporting an implementation whose actual effects differ from the union of its
+// overload contracts.
 
 /**
  Reports implementation whose actual effects differ from union of overload contracts.
@@ -272,3 +287,4 @@ export function verifyOverloadConsistency({
     },);
   },);
 }
+//endregion The check

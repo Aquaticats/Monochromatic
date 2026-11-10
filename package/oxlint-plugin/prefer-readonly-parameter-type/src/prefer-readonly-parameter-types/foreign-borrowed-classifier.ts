@@ -27,10 +27,19 @@ import type {
 
 import { isForeignBorrowedType, } from './foreign-borrowed-identity.ts';
 import { classifyReadonlyType, } from './readonly-classifier.ts';
+//region Ownership coverage
+// The three coverages a type's caller-observable mutable state can have.
+
 /**
  Ownership coverage of caller-observable mutable state in one expression.
  */
 type ForeignCoverage = 'foreign' | 'owned' | 'primitive';
+
+//endregion Ownership coverage
+
+//region Classifying one type
+// The semantic classifier, and the combination that keeps one foreign field from
+// hiding owned state beside it.
 
 /**
  Classifies semantic type by foreign, owned, or primitive state coverage.
@@ -81,6 +90,11 @@ function combinedForeignCoverage(
   return coverages.includes('foreign',) ? 'foreign' : 'primitive';
 }
 
+//endregion Classifying one type
+
+//region Classifying bindings
+// Parameter bindings and their destructuring, classified by mutable ownership.
+
 /**
  Classifies parameter binding and nested destructuring by mutable ownership.
  
@@ -121,6 +135,11 @@ function bindingForeignCoverage({
       },);
     },),);
 }
+
+//endregion Classifying bindings
+
+//region Classifying expressions
+// Authored expressions and packaged values in the same terms.
 
 /**
  Tests whether all mutable state in parameter binding is explicitly foreign-owned.
@@ -243,6 +262,11 @@ function expressionForeignCoverage({
     },);
 }
 
+//endregion Classifying expressions
+
+//region Call arguments
+// Whether every mutable state an argument carries is foreign-owned.
+
 /**
  Tests whether all mutable state in call argument has foreign provenance.
  
@@ -269,3 +293,4 @@ export function expressionContainsForeignBorrowed({
     node,
   },) === 'foreign';
 }
+//endregion Call arguments

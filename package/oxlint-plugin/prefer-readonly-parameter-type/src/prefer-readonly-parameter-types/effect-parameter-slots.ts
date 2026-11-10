@@ -38,6 +38,10 @@ import {
 } from './effect-slot-identity.ts';
 import type { EffectCallableDeclaration, } from './effect-summary-model.ts';
 
+//region Slot shapes
+// One callable's slots and how they map back to its parameters, and one binding
+// name with the slot its state attributes to.
+
 /**
  Slots of one callable, and how they map back to its parameters.
  */
@@ -56,6 +60,12 @@ export type ParameterBindingSlot = {
   readonly name: Node;
   readonly slot: EffectSlot;
 };
+
+//endregion Slot shapes
+
+//region Pattern inspection
+// Whether a node destructures, the static property key one binding element
+// names, and the canonical keys one parameter's pattern reads.
 
 /**
  Tests whether a node destructures rather than naming one binding.
@@ -143,6 +153,12 @@ function parameterPropertyKeys(
       },),),
   ];
 }
+
+//endregion Pattern inspection
+
+//region Slot allocation
+// Allocating every slot one callable declaration owns, and grouping them by the
+// parameter that owns them.
 
 /**
  Allocates every slot one callable declaration owns.
@@ -243,6 +259,12 @@ export function slotsByParameterFrom(
   },);
   return grouped;
 }
+
+//endregion Slot allocation
+
+//region Binding flattening
+// Every identifier a binding name introduces, however nested, paired with the
+// slot it attributes to.
 
 /**
  Collects every identifier one binding name introduces, however deeply nested.
@@ -372,3 +394,4 @@ export function parameterBindingSlots({
         },);
     },);
 }
+//endregion Binding flattening

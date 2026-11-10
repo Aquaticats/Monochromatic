@@ -42,6 +42,11 @@ import {
 } from './effect-summary-model.ts';
 import type { EffectSlot, } from './effect-slot-identity.ts';
 
+//region Deferrable result detection
+// The sentinel for an expression no call underlies, the recogniser that names
+// the call whose result an expression is, and the wrapper normalisation more
+// than one question needs.
+
 /**
  No call underlies this expression, so no result use can be deferred against one.
  */
@@ -127,6 +132,12 @@ export function transparentValueRoot(node: Node,): Node {
   return cursor.current;
 }
 
+//endregion Deferrable result detection
+
+//region Recording deferred uses
+// Recording that a caller uses one call's result, or the results of named calls,
+// in a way whose origins must be resolved.
+
 /**
  Records that a caller uses one call's result in a way whose origins must be resolved.
  
@@ -203,6 +214,12 @@ export function recordResultApplicationSites({
       },);
   },);
 }
+
+//endregion Recording deferred uses
+
+//region Recording retained results
+// Recording that a caller hands a call's result to something outliving the call,
+// which is a different question from applying it inside the call.
 
 /**
  Records that a caller hands one call's result to something outliving the call.
@@ -283,6 +300,12 @@ export function recordResultRetentionSites({
       },);
   },);
 }
+
+//endregion Recording retained results
+
+//region Carrying origins across an edge
+// Opacity and provenance for every caller origin a retained result carries, and
+// every caller origin a callee's returned slots map to through one edge.
 
 /**
  Adds opacity and provenance for every caller origin a retained result carries.
@@ -487,6 +510,13 @@ function resultCarriedOrigins({
  */
 const NO_EDGES: readonly CallEdge[] = [];
 
+//endregion Carrying origins across an edge
+
+//region Substitution
+// The empty edge list a use with no owned edge shares, the resolution of one
+// caller's deferred uses against its callees' returned state, and the seeding
+// that follows it.
+
 /**
  Resolves one caller's deferred result uses against its callees' returned state.
  
@@ -643,3 +673,4 @@ export function seedReturnedSlots(
   }
   return growth.any;
 }
+//endregion Substitution

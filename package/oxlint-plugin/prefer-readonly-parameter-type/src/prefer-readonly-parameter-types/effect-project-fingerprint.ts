@@ -32,6 +32,10 @@ import {
   checkingOptionsKey,
 } from './shared-analysis-options.ts';
 
+//region Fingerprint logger and shapes
+// The module logger, the whole-scope invalidation surfaces, the program inputs
+// the cross-project key binds, and one project snapshot's fingerprint.
+
 /**
  Project fingerprint logger.
  */
@@ -78,6 +82,12 @@ export type EffectProjectFingerprint = {
   readonly shared: EffectSharedSurfaces;
 };
 
+//endregion Fingerprint logger and shapes
+
+//region Augmentation reach
+// Whether source text can carry a global or module augmentation, which
+// over-approximates rather than missing one.
+
 /**
  Tests whether source text can carry global or module augmentation.
  
@@ -92,6 +102,12 @@ function containsAugmentationToken(sourceText: string,): boolean {
   return sourceText.includes('declare global',)
     || sourceText.includes('declare module',);
 }
+
+//endregion Augmentation reach
+
+//region Lockfile discovery
+// The sentinel for a project no pnpm lockfile governs, and the search for the
+// nearest one above a configured project.
 
 /**
  Sentinel when no governing pnpm lockfile exists.
@@ -122,6 +138,12 @@ function nearestLockfile(
   }
   return LOCKFILE_NOT_FOUND;
 }
+
+//endregion Lockfile discovery
+
+//region Reading snapshot source
+// Exact source text from the active overlay, the analysed snapshot, or disk: the
+// state the fingerprint beneath it names.
 
 /**
  Reads exact source text from active overlay, analysed snapshot, or disk.
@@ -206,6 +228,12 @@ function projectSourceText({
     );
   }
 }
+
+//endregion Reading snapshot source
+
+//region Computing the fingerprint
+// The exported computation of one project's fingerprint and per-source digest
+// map.
 
 /**
  Computes exact semantic project fingerprint and source digest map.
@@ -391,3 +419,4 @@ export function effectProjectFingerprint({
     },
   };
 }
+//endregion Computing the fingerprint
