@@ -16,6 +16,8 @@ import type {
   GoalMessageMarker,
 } from './types.ts';
 
+//region Settlement freshness
+
 /**
  Revalidate controller identities before touching captured session context.
  
@@ -92,6 +94,10 @@ function settlementReviewStillCurrent(
     request,
   },) && (branchLeafId === request.branchLeafId);
 }
+
+//endregion Settlement freshness
+
+//region Continuation after denial
 
 /**
  Persist valid denial and emit one task-only continuation.
@@ -233,6 +239,10 @@ function continueGoalAfterDenial(
   };
 }
 
+//endregion Continuation after denial
+
+//region Approval
+
 /**
  Persist valid model approval as terminal completion.
  
@@ -332,6 +342,8 @@ function approveGoalCompletion(
     ],
   };
 }
+
+//endregion Approval
 
 export {
   approveGoalCompletion,

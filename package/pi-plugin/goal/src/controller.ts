@@ -23,6 +23,8 @@ import type {
   GoalState,
 } from './types.ts';
 
+//region Construction
+
 /**
  Create fresh controller for one extension runtime epoch.
  
@@ -82,6 +84,10 @@ function restoreGoalController(
       : [{ type: 'clear_footer', },],
   };
 }
+
+//endregion Construction
+
+//region Start
 
 /**
  Start new run or atomically supersede active or terminal record.
@@ -228,6 +234,10 @@ function startGoal(
   };
 }
 
+//endregion Start
+
+//region Rotation
+
 /**
  Rotate active generation during runtime restoration or tree navigation.
  
@@ -315,6 +325,10 @@ function rotateGoalGeneration(
   };
 }
 
+//endregion Rotation
+
+//region Clear
+
 /**
  Clear current active or terminal record without aborting Pi turn.
  
@@ -394,6 +408,8 @@ function clearGoal(
     ],
   };
 }
+
+//endregion Clear
 
 export {
   clearGoal,

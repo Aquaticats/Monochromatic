@@ -10,10 +10,16 @@ import type {
   GoalState,
 } from './types.ts';
 
+//region Canonical absent state
+
 /**
  Canonical absent goal state.
  */
 const ABSENT_GOAL_STATE: AbsentGoalState = { phase: 'absent', };
+
+//endregion Canonical absent state
+
+//region Event reduction
 
 /**
  Reduce one immutable event over current branch state.
@@ -191,6 +197,8 @@ function reduceGoalEvents(events: readonly GoalEvent[],): GoalState {
     ABSENT_GOAL_STATE,
   );
 }
+
+//endregion Event reduction
 
 export {
   ABSENT_GOAL_STATE,
