@@ -126,7 +126,7 @@ export async function launchWithLargeContext({
     /**
      Socket path returned by the unix-socket tier; surfaced as a CLI flag.
      */
-    const { socketPath, } = createOneShotSocketServer(compressedText,);
+    const { socketPath, } = await createOneShotSocketServer(compressedText,);
     await launchTerminal({
       dir: cwd,
       command: [
