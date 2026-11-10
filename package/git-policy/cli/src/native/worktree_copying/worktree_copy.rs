@@ -41,6 +41,7 @@
 
 use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing};
 use crate::diagnostic_log::warn;
+use crate::forwarding::{ChildStarted, NoChildRecorded};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
@@ -199,7 +200,7 @@ pub trait GitRunner {
     /// Run `step` and report how Git ended,
     /// naming the process number of the Git it started to `child_started` as soon as it has one,
     /// so the add's record can say which Git may still be at work if this command is killed.
-    fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn FnMut(u32)) -> Result<GitStatus, WorktreeCopyError>;
+    fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError>;
 }
 
 /// What:
@@ -267,11 +268,40 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// ```
 fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyError> {
     // Nothing is copied here, so there is no record for the child's name.
-    let git: GitStatus = run_git.run(&GitStep::Person, &mut |_pid: u32| {})?;
+    let git: GitStatus = run_git.run(&GitStep::Person, &mut NoChildRecorded)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
     });
+}
+
+/// What:
+///  The record of the Git a creating command started:
+///  the claim the command made before Git ran,
+///  and the destination its Git fills.
+/// Why:
+///   The run reports the child's number while that child is still unreaped,
+///  and the only thing to do with the number is name it in the claim;
+///  so the claim and the destination are the report's own fields
+///  instead of closures over them.
+///  Both are absent when the command recorded nothing or named no destination,
+///  and the report then does nothing.
+struct ChildOfACreatingCommand<'a> {
+    /// The claim made before Git ran,
+    /// when the command made one.
+    claim: Option<&'a StageClaim>,
+    /// The destination the person's command line named.
+    destination: Option<&'a Path>,
+}
+
+impl ChildStarted for ChildOfACreatingCommand<'_> {
+    /// Name the Git in the claim,
+    /// when the command has both a claim and a destination.
+    fn started(&mut self, pid: u32) {
+        if let (Some(claim), Some(destination)) = (self.claim, self.destination) {
+            claim.remember_running_child(destination, pid);
+        }
+    }
 }
 
 /// What:
@@ -347,12 +377,13 @@ fn settle_creation(
     // The record names the Git the person's command started, so a command that runs after this one was killed can tell
     //  an add whose Git is still making the destination from one whose Git is gone.
     let naming_destination: Option<&Path> = invocation.destination.as_deref();
-    let mut child_started = |pid: u32| {
-        if let (Some(claim), Some(destination)) = (held.as_ref(), naming_destination) {
-            claim.remember_running_child(destination, pid);
-        }
-    };
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step(), &mut child_started);
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(
+        &ladder.first_step(),
+        &mut ChildOfACreatingCommand {
+            claim: held.as_ref(),
+            destination: naming_destination,
+        },
+    );
     end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {

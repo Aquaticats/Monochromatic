@@ -3442,17 +3442,24 @@ and "never discard user data"):
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
   so `git merge --ff-only` takes them as it always did,
   and a path that changed after the capture stops the step with nothing written.
-- After the branch moved, each layer is merged with the merge's own:
+- After the branch moved,
+  each layer is merged with the merge's own:
   the worktree's file form and the index's blob separately,
   so a staged edit stays staged and an unsaved one stays unsaved.
-  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  A side unchanged on either side takes the other side;
+  the bytes of a layer nothing of the merge reaches are written back exactly;
   a text both sides changed goes through `merge_second_pass`,
   the pass this package already runs,
   and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
-  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  A binary file,
+  a link,
+  a mode the pass cannot take,
+  a path the merge deletes and a path the person deleted keep the
   person's side whole and are named on standard error with what to do;
   a path written after the capture is left alone and named.
-  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+  Every such finding exits 0:
+  the merge is made,
+  and the person's work is theirs to judge.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
   a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
