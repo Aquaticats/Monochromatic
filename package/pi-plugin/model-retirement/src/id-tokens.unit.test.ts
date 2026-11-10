@@ -67,7 +67,9 @@ type DateCase = {
 
 /**
  Date controls for every accepted width and for the near misses that must stay
- version numbers, including the leading-zero pair `0813` and `813`.
+ version numbers, including the leading-zero pair `0813` and `813`, and the
+ `YYMM` year halves `32` and `99` that the documented 2000 to 2099 year range
+ makes plausible.
  */
 const DATE_CASES: readonly DateCase[] = [
   { raw: '0813', expected: true, },
@@ -75,11 +77,15 @@ const DATE_CASES: readonly DateCase[] = [
   { raw: '2512', expected: true, },
   { raw: '2407', expected: true, },
   { raw: '0324', expected: true, },
+  { raw: '3201', expected: true, },
+  { raw: '9912', expected: true, },
   { raw: '250715', expected: true, },
   { raw: '20260420', expected: true, },
   { raw: '20250805', expected: true, },
   { raw: '813', expected: false, },
   { raw: '2024', expected: false, },
+  { raw: '3200', expected: false, },
+  { raw: '9932', expected: false, },
   { raw: '13', expected: false, },
   { raw: '5', expected: false, },
   { raw: '9999', expected: false, },

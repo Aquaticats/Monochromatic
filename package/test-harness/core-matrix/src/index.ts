@@ -28,7 +28,7 @@ export {
 } from './runtime.ts';
 
 /**
- @internal Container command building, OS specification parsing and image resolution for
+ @internal Container command building, OS specification parsing, image resolution and the container backend itself for
  built-artifact tests; not part of the supported matrix API.
  */
 export {
@@ -36,7 +36,21 @@ export {
   containerRunArguments,
   parseOs,
   resolveImage,
+  runContainer,
 } from './container.ts';
+
+/**
+ @internal The host backend, for built-artifact tests that check what it does with a run's stderr; not part of the
+ supported matrix API.
+ */
+export { runHost, } from './host.ts';
+
+/**
+ @internal This package's own library sources with their comments blanked, for the source scans of its built-artifact
+ tests; not part of the supported matrix API.
+ */
+export { librarySourceTexts, } from './library-source-text.ts';
+export type { LibrarySource, } from './library-source-text.ts';
 
 /**
  The read-only mount that lets any container resolve this checkout's installed packages, for every task in the

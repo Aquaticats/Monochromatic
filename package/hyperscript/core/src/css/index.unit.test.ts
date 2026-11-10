@@ -14,7 +14,7 @@ import {
   cssVar,
   cssVi,
   hCss as $,
-} from '@monochromatic-dev/hyperscript-core/ts';
+} from '@monochromatic-dev/hyperscript-core';
 import {
   describe,
   expect,
@@ -22,7 +22,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 await describe({
-  name: $.name,
+  name: 'hCss',
   children: [
     //region Style rules
 

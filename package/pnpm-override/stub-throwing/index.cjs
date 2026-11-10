@@ -1,7 +1,7 @@
 'use strict';
 
 throw new Error(
-  '[blocked-dep] This package was blocklisted in pnpm-workspace.yaml/.pnpmfile.mjs '
+  '[blocked-dep] This package was blocklisted in .pnpmfile.policies.json '
     + 'and substituted with @monochromatic-dev/pnpm-override-stub-throwing. '
-    + 'See doc/dependency-blocklist.md for the policy table and rationale.',
+    + 'See doc/dependency-blocklist.md for the decision rule and rationale.',
 );

@@ -13,7 +13,7 @@ import {
 import {
   createObservable,
   type Observable,
-} from './create-observable.ts';
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: createObservable.name,

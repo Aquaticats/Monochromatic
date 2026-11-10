@@ -1,6 +1,9 @@
 import { readFile, } from 'node:fs/promises';
 
-import { BypassRouteError, } from './errors.ts';
+import {
+  BypassRouteError,
+  isErrnoException,
+} from './errors.ts';
 import { PROCESS_ABSENT, } from './linux-process-identity.ts';
 
 /**
@@ -11,24 +14,6 @@ export type WatcherProcessIdentity = {
   readonly pid: number;
   readonly startTime: string;
 };
-
-/**
- Narrows caught value to Node filesystem error.
- 
- @param error - Caught value.
- 
- @returns Whether value carries error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' }); // true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Resolves watcher identity sidecar for state path.
