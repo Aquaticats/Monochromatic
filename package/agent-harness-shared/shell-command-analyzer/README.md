@@ -325,6 +325,66 @@ never resolved.
 When real-Git resolution fails the guard stays inactive and logs at debug level:
 a throwing hook would fail every Bash call.
 
+## Process-name wait guard
+
+`waitsOnProcessName` reports shell source whose repeating loop looks a process up by name,
+which this repository bans because the Bash tool runs the command inside a wrapper shell
+whose command line contains the command text,
+so `pgrep --full <pattern>` matches that wrapper and the loop never sees the process exit.
+`PROCESS_NAME_WAIT_BAN_REASON` carries the replacements, which wait on a PID under a bound.
+
+### What the ban reads
+
+Loop membership covers the condition list and the loop body,
+so `until ! pgrep -f x; do sleep 1; done` and `while true; do pgrep -f x || break; done` both match,
+while `pgrep -af x` on its own stays allowed.
+A lookup word is read by its last path segment,
+so `/usr/bin/pgrep` and `pg"rep"` are the same lookup as `pgrep`.
+A shell's `-c` script string is read as a command line,
+so `timeout 60 bash -c 'until ! pgrep -f x; do sleep 1; done'` matches.
+
+### A command the parser rejects
+
+A command that does not parse is read from its raw words instead of answering "no",
+because the visible text is the only evidence such a command carries.
+The reader reports the runs of words that begin where a command can begin,
+named wrapper layers are stripped,
+and any `pgrep` or `pidof` standing where a program can stand is refused,
+because the loop around that lookup could not be read at all.
+`until ! pgrep x; do`, `env pgrep -f build "unterminated` and
+`timeout 60 bash -c 'while pgrep -f x; do sleep 1; done' "unterminated` are refused for that reason.
+So is straight-line `pgrep -af build "unterminated`,
+which the parsed path allows: an unparsable command gives the guard no way to tell a loop from a
+single lookup.
+Prose that never reaches a program position stays allowed,
+so `printf pgrep pidof "unterminated` and `echo "use pgrep in a while loop` are not refused.
+
+### What stays undetected or over-refused
+
+The raw reader never follows the redirect that declares a here-document,
+so a here-document body is read as command text:
+`cat <<EOF` whose body spells `while pgrep x; do sleep 1; done` is refused
+even though the body is document text rather than a command.
+The same quote bookkeeping cuts the other way:
+a here-document body or any unparsable word carrying an unbalanced quote
+hides everything after that quote,
+so a real loop spelled later in that command is missed.
+
+A lookup spelled through a variable (`while "$LOOKUP" -f x; do sleep 1; done`)
+is not read, in a parsed command or an unparsable one.
+A shell script read from standard input (`bash <<< 'until ! pgrep x; do sleep 1; done'`)
+is not followed either.
+
+A parsed command is read by its own program word and by shell `-c` script strings only,
+so a wrapper or a command string in front of the lookup is not followed there:
+`while sudo pgrep -f x; do sleep 1; done`,
+`while env pgrep -f x; do sleep 1; done`,
+`while timeout 5 pgrep -f x; do sleep 1; done`,
+`eval "while pgrep -f x; do sleep 1; done"`
+and `find . -exec pgrep -f x \;` stay allowed.
+The unparsable path does strip those wrapper layers, so the same spellings are refused
+after a parse error.
+
 ## Pi dependency trust
 
 PJE:
