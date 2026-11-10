@@ -219,11 +219,19 @@ fn text(held: &Held) -> String {
 /// The value of a field of a record's text.
 fn value_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
     for line in text.lines() {
-        if let Some(found) = line.strip_prefix(key).and_then(|rest| rest.strip_prefix('=')) {
+        if let Some(found) = line.strip_prefix(key).and_then(without_the_key) {
             return Some(found);
         }
     }
     return None;
+}
+
+/// The rest of a record line after the `=` that ends its key.
+/// Why:
+///  `value_of` reads one field of the text,
+///  and the separator belongs to the spelling of a record and to no other step.
+fn without_the_key(rest: &str) -> Option<&str> {
+    return rest.strip_prefix('=');
 }
 
 /// The words of a list field,
@@ -327,8 +335,14 @@ pub fn list(git_dir: &Path) -> (Vec<Held>, Vec<PathBuf>) {
             None => damaged.push(path),
         }
     }
-    found.sort_by_key(|held| held.seq);
+    found.sort_by_key(number_of);
     return (found, damaged);
+}
+
+/// The batch number of a record,
+/// for the listing that puts them in the order they were made.
+fn number_of(held: &Held) -> u64 {
+    return held.seq;
 }
 
 /// What:

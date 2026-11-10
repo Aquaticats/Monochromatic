@@ -20,7 +20,7 @@
 //! plant('refs/heads/main.lock'); const refused = commit(); expect(refused.stderr).toContain('rm -- '); rm(lock); expect(commit().code).toBe(0);
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, FixtureService, bounded_for, fixture, git, repository, start_fixture_service, wrapper_first_path};
 use super::support_fixture_service_log::service_log;
 use std::ffi::OsStr;
@@ -37,7 +37,8 @@ const PATIENCE: Duration = Duration::from_secs(60);
 /// installs the index entries and marks the batch done included,
 /// so it costs what a landing costs;
 /// on a shared host whose disk queue is deep that is minutes and not milliseconds,
-/// and the bound is a guard against a hang, not a measure of the work.
+/// and the bound is a guard against a hang,
+/// not a measure of the work.
 const SETTLE_BOUND_SECONDS: &str = "600";
 
 /// The longest a control waits for a settlement on a shared host.
@@ -151,7 +152,8 @@ fn head_subject(fixture: &Fixture, repo: &Path) -> String {
 ///  names the lock,
 ///  and the next command that finds the lock gone moves the branch.
 /// Why:
-///  The owner chose "Make it, hold until lock goes" (2026-11-09),
+///  The owner chose "Make it,
+/// hold until lock goes" (2026-11-09),
 ///  and the rule it answers is "Commits should never fail.":
 ///  the commit is written and kept,
 ///  nothing of the person's is lost,

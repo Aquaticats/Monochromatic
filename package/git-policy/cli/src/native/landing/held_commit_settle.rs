@@ -2,7 +2,8 @@
 //!  Moving the branch of a held commit once nothing stands in the way,
 //!  and finishing what a landing owes after the move.
 //! Why:
-//!  The owner chose "Make it, hold until lock goes" (2026-11-09):
+//!  The owner chose "Make it,
+//! hold until lock goes" (2026-11-09):
 //!  the commit is written and kept,
 //!  the command exits `0`,
 //!  and the next command that finds the lock gone moves the branch.
@@ -37,6 +38,12 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+/// What a Git that could not be started is said to be,
+/// in one sentence the callers share.
+fn git_did_not_start(error: std::io::Error) -> String {
+    return format!("Git could not be started ({error})");
+}
+
 /// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
 const NOT_AN_ANCESTOR: i32 = 1;
 
@@ -51,7 +58,8 @@ pub enum Settled {
         /// The commit the branch now names.
         commit: String,
     },
-    /// The branch moved, and the index entries wait for the index lock or for a record this build cannot read.
+    /// The branch moved,
+    /// and the index entries wait for the index lock or for a record this build cannot read.
     /// The record of the owed update finishes them at the next command (`owed_index_update.rs`).
     LandedTheIndexWaits {
         /// The commit the branch now names.
@@ -85,7 +93,8 @@ pub enum Settled {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Clearing {
     /// Never remove one:
-    /// the caller is a command resuming work, not a landing.
+    /// the caller is a command resuming work,
+    /// not a landing.
     Never,
     /// Clear the ones a proof reaches,
     /// as the landing that waits for them does.
@@ -168,7 +177,7 @@ fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &str, expect
     request.arguments.push(crate::path_bytes::os_from_path_bytes(held.reflog.as_slice()));
     request.arguments.push(OsStr::new("--stdin").to_os_string());
     request.input = Some(text.into_bytes());
-    let output: GitOutput = run_git(git, &request).map_err(|error| format!("Git could not be started ({error})"))?;
+    let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
     if output.succeeded() {
         return Ok(true);
     }
@@ -252,12 +261,15 @@ fn index_lock_of(held: &Held, intent: &Intent) -> Option<crate::service_index_lo
 /// Why:
 ///  This is the landing's own step after the branch moved,
 ///  with the one difference a held commit forces:
-///  the lock, and the witness written under it, are the settlement's,
+///  the lock,
+/// and the witness written under it,
+/// are the settlement's,
 ///  so the entries are installed whatever another command did to the index while the lock stood.
 ///  Nothing is installed for a worktree that left the branch,
 ///  whose index describes another branch,
 ///  and the conclusion state is removed in every case
-///  (`service_land_finish.rs`, `finish_after_move`).
+///  (`service_land_finish.rs`,
+/// `finish_after_move`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -280,7 +292,7 @@ fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::
         Ok(_) => crate::service_land_finish::follow_up(git, intent.repository.as_path(), intent, lock, held.journal.as_path()),
     };
     if installed {
-        let _settled = crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
+        crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
         crate::service_journal::remove_start(held.journal.as_path(), intent.seq);
     }
     return !installed;
@@ -290,7 +302,8 @@ fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::
 ///  Finishes what the batch owes after its branch moved,
 ///  and answers whether its index entries still wait.
 /// Why:
-///   The index update, the conclusion state and the held push are the landing's own steps after a move
+///   The index update,
+/// the conclusion state and the held push are the landing's own steps after a move
 ///  (`service_land_finish.rs`),
 ///  and they are settled here the way a restart settles them when the settlement could not take the index lock,
 ///  so a kill between the move and the index update leaves nothing unsettled for good.
@@ -456,6 +469,37 @@ pub fn one(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
         }
     }
     return Settled::Cannot { commit: intent.new.clone(), because: String::from("the branch kept moving while its write was being made") };
+}
+
+/// What:
+///  Settles the batch a restart found open when a record says a reference lock kept it off its branch,
+///  and answers the report of a batch still waiting.
+/// Why:
+///   A restart decides an open batch from the branch,
+///  and while the lock stands the branch still names the commit before it,
+///  so that decision would drop a commit the person made and kept.
+///  The settlement runs first with the clearing a landing may do,
+///  and a record that is still there says the batch waits:
+///  nothing is decided about it until a command finds the lock gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = recordOf(intent, journal); if (!held) return undefined; settleOne(held); return recordStillThere ? { handled: 'held' } : undefined
+/// ```
+pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent) -> Option<crate::service_land_finish::RecoveryReport> {
+    let held: Held = record_of(intent, journal)?;
+    let settled: Settled = one(git, &held, Clearing::Proved);
+    let seq: u64 = intent.seq;
+    crate::service_log!("batch {seq} is held behind a reference lock: {settled:?}");
+    let still_held: bool = crate::held_commit_record::path_of(intent.git_dir.as_path(), seq).exists();
+    if !still_held {
+        return None;
+    }
+    return Some(crate::service_land_finish::RecoveryReport {
+        seq,
+        decision: crate::service_journal::Recovery::Hold,
+        handled: crate::service_land_finish::Handled::Held,
+    });
 }
 
 /// What:

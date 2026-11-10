@@ -40,6 +40,12 @@ use std::path::Path;
 /// a tree ID still prints.
 const MERGE_CONFLICT_EXIT: i32 = 1;
 
+/// What a Git that could not be started is said to be,
+/// in one sentence the callers share.
+fn git_did_not_start(error: std::io::Error) -> String {
+    return format!("Git could not be started ({error})");
+}
+
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object.
 const NAME_IS_NO_OBJECT: i32 = 1;
 
@@ -127,7 +133,7 @@ fn merged_tree(git: &GitContext, held: &Held, base: &str, head: &str, prepared: 
     let probing: ContextRunner = ContextRunner { context: git, cwd: held.repository.as_path(), without_prefix: true, object_directory: None, environment: Vec::new() };
     let probe: AttributeProbe = AttributeProbe { directory: held.repository.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     request.environment.extend(attribute_tree_variables_on_the_runtime(head, &probe));
-    let output: GitOutput = run_git(git, &request).map_err(|error| format!("Git could not be started ({error})"))?;
+    let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
     let (tree, conflicts) = conflicts_of_merge_tree(output.stdout.as_slice());
     return match output.code {
         Some(0) => Ok(Ok(tree)),
@@ -179,10 +185,10 @@ pub fn onto(git: &GitContext, held: &Held, current: &str, common_dir: &Path) -> 
     let Ok(scratch) = crate::scratch_location::prepare_repository_scratch(common_dir) else {
         return Replay::Cannot { because: String::from("the repository's scratch directory cannot be written") };
     };
-    let Ok(tree) = tempfile::tempdir_in(scratch.as_path()) else {
+    let Ok(message_folder) = tempfile::tempdir_in(scratch.as_path()) else {
         return Replay::Cannot { because: String::from("a temporary directory cannot be made in the repository's scratch directory") };
     };
-    let site: BuildSite<'_> = BuildSite { context: git, cwd: held.repository.as_path(), scratch: tree.path(), signing: None };
+    let site: BuildSite<'_> = BuildSite { context: git, cwd: held.repository.as_path(), scratch: message_folder.path(), signing: None };
     let mut head: String = current.to_string();
     let mut base: String = held.old.clone();
     let mut written: Vec<String> = Vec::new();
@@ -197,9 +203,9 @@ pub fn onto(git: &GitContext, held: &Held, current: &str, common_dir: &Path) -> 
                 return Replay::Cannot { because: format!("the commit {prepared} has {many} parents, and a commit that concludes a merge cannot be carried onto another head") };
             }
         }
-        let tree: String = match merged_tree(git, held, base.as_str(), head.as_str(), prepared.as_str()) {
+        let merged: String = match merged_tree(git, held, base.as_str(), head.as_str(), prepared.as_str()) {
             Err(because) => return Replay::Cannot { because },
-            Ok(Ok(tree)) => tree,
+            Ok(Ok(merged)) => merged,
             Ok(Err(paths)) => return Replay::Conflict { paths },
         };
         let Some(raw) = raw_commit(git, held.repository.as_path(), prepared.as_str()) else {
@@ -211,7 +217,7 @@ pub fn onto(git: &GitContext, held: &Held, current: &str, common_dir: &Path) -> 
         if fields.is_signed() {
             return Replay::Cannot { because: format!("the commit {prepared} is signed, and a commit made again would have to be signed again by a program that may ask for a key") };
         }
-        match rebuilt_onto(&fields, &site, tree.as_str(), head.as_str()) {
+        match rebuilt_onto(&fields, &site, merged.as_str(), head.as_str()) {
             Ok(rebuilt) => {
                 written.push(rebuilt.clone());
                 head = rebuilt;

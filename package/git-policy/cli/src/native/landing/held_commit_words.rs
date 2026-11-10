@@ -74,7 +74,8 @@ pub fn locks_named(locks: &[PathBuf]) -> String {
 /// Why:
 ///   The wrapper never removes a reference lock itself
 ///  (`SPEC.md`,
-///  "The rule: a lock is removed only on a proof about its holder"),
+///  "The rule:
+/// a lock is removed only on a proof about its holder"),
 ///  so the person is given the command that removes it,
 ///  quoted so a shell reads exactly that path.
 ///

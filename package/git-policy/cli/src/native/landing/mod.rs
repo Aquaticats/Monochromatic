@@ -437,3 +437,16 @@ pub mod held_commit_settle;
 
 /// What the wrapper says about a commit that a reference lock keeps off its branch.
 pub mod held_commit_words;
+
+/// What a commit does when the service answered without landing it:
+/// the words for content a prune removed,
+/// and the aftermath of a service that failed or went silent.
+pub mod service_commit_after_a_failure;
+
+/// What a landing does when a reference lock keeps its branch where it is,
+/// and what it gives back when a batch will never land.
+pub mod service_land_hold_a_batch;
+
+/// The commit of a batch a recovery drops,
+/// kept on `refs/cli-git/kept/<number>`.
+pub mod service_land_kept_commit;

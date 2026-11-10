@@ -191,7 +191,8 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 ///  and says what became of them,
 ///  on standard error.
 /// Why:
-///   The owner chose "Make it, hold until lock goes" (2026-11-09):
+///   The owner chose "Make it,
+/// hold until lock goes" (2026-11-09):
 ///  the commit is written and kept,
 ///  the command exits `0`,
 ///  and the next command that finds the lock gone moves the branch.
