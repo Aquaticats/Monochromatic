@@ -7,12 +7,14 @@
  `run`, so the ordering is declared as `depends = ["build"]` on the package task; `package/config/pnpr/mise.toml` is the
  model every other package follows.
 
- The scan reads every `*.unit.test.ts` under `package/<category>/<name>` and every relative import specifier in it. A specifier that
- resolves inside the same package's own `dist/` folder makes the package a dist reader. Two controls prove the scan can
- see such an import and can also stay silent about a package whose unit tests only reach sibling source.
+ The scan reads every `*.unit.test.ts` under `package/<category>/<name>` and every module specifier in it. A specifier
+ that resolves inside the same package's own `dist/` folder makes the package a dist reader. Two controls prove the scan
+ can see such an import and can also stay silent about a package whose unit tests only reach sibling source.
 
  A dist reader that declares no `build` task cannot be guarded at all, so the first check names it rather than letting
  the guard pass in silence.
+
+ @module
  */
 
 import {
@@ -27,7 +29,7 @@ import {
 import { join, } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-//region The paths, headers and patterns the scan reads
+//region The words, headers and paths the scan reads
 
 /**
  The repository root, because a test file runs with its package folder as the working directory.
@@ -35,27 +37,32 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url,),);
 
 /**
- One pattern per import form that can name a relative module: a static import or re-export, a dynamic import call, and a
- side-effect import. Each captures the specifier in group one.
+ The characters that open and close a quoted module specifier.
  */
-const relativeSpecifierSources: readonly string[] = [
-  'from\\s*[\'"](\\.{1,2}/[^\'"]*)[\'"]',
-  'import\\s*\\(\\s*[\'"](\\.{1,2}/[^\'"]*)[\'"]',
-  '^\\s*import\\s+[\'"](\\.{1,2}/[^\'"]*)[\'"]',
-];
+const quoteCharacters: readonly string[] = ['"', '\'',];
 
 /**
- The folder whose presence at the top of a resolved specifier means a test reads a build product.
+ The word a re-export or a static import names its module after.
+ */
+const fromKeyword = 'from';
+
+/**
+ The word a side-effect import, a dynamic import call and a static import all begin with.
+ */
+const importKeyword = 'import';
+
+/**
+ The prefixes every relative module specifier starts with, which are the only specifiers a package's own build satisfies.
+ */
+const relativeSpecifierPrefixes: readonly string[] = ['./', '../',];
+
+/**
+ The folder whose presence just below a package folder means a test reads a build product.
  */
 const buildOutputFolder = 'dist';
 
 /**
- The folder name every package's build output sits in, used as the guard's dependency.
- */
-const buildTaskName = 'build';
-
-/**
- Header of the task whose dependency the guard belongs on.
+ Header of the task the guard is a dependency of.
  */
 const unitTestTaskHeader = '[tasks."test:unit"]';
 
@@ -65,70 +72,171 @@ const unitTestTaskHeader = '[tasks."test:unit"]';
 const testTaskHeader = '[tasks.test]';
 
 /**
- Header of the task every dist reader needs, because the guard is a dependency on it.
+ Header of the task every dist reader needs, because the guard depends on it.
  */
 const buildTaskHeader = '[tasks.build]';
 
 /**
- The dependency line a guarded task carries.
+ The dependency entry a guarded task carries.
  */
 const dependencyLine = 'depends';
 
 /**
- A package whose unit tests read the package's own build output, with the task that runs them.
+ The task-name segment a build dependency holds, so `build`, `build:js:node` and `//package/a/b:build` all count.
+
+ A dependency on one build target counts, because the package decides which target its suites read. The check owns the
+ ordering, not the target choice, and a neutral-target reader that guarded only the node target still passes here; that
+ limit is recorded rather than guessed at.
  */
-interface DistReadingPackage {
-  /** Repository-relative package folder, such as `package/config/pnpr`. */
-  readonly path: string;
-  /** The package's unit test files that import a path inside its own `dist/`. */
-  readonly testFiles: readonly string[];
-  /** The package's `test:unit` task, absent when the package declares none. */
-  readonly unitTestTask: TaskBlock | undefined;
-  /** The package's `test` task, absent when the package declares none. */
-  readonly testTask: TaskBlock | undefined;
-  /** The package's `build` task, absent when the package declares none. */
-  readonly buildTask: TaskBlock | undefined;
-}
+const buildTaskSegment = 'build';
 
 /**
  One task table of a `mise.toml`, with the task names it depends on.
  */
-interface TaskBlock {
+type TaskBlock = {
   /** The table header, exactly as written, such as `[tasks."test:unit"]`. */
   readonly header: string;
   /** Everything between this header and the next one. */
   readonly body: string;
   /** The task names the block's `depends` entries name. */
   readonly dependencies: readonly string[];
-}
+};
+
+/**
+ A package whose unit tests read the package's own build output.
+ */
+type DistReadingPackage = {
+  /** Repository-relative package folder, such as `package/config/pnpr`. */
+  readonly path: string;
+  /** The package's unit test files that import a path inside the package's own `dist` folder. */
+  readonly testFiles: readonly string[];
+  /** Whether the package declares the build task the guard depends on. */
+  readonly hasBuildTask: boolean;
+  /** Whether the package declares its own `test:unit` task. */
+  readonly hasUnitTestTask: boolean;
+  /** The task names that package `test:unit` depends on. */
+  readonly unitTestDependencies: readonly string[];
+  /** Whether the package declares a `test` task. */
+  readonly hasTestTask: boolean;
+  /** The task names that package `test` task depends on. */
+  readonly testDependencies: readonly string[];
+};
+
+/**
+ A package folder with where its `mise.toml` header line sits.
+ */
+type LocatedHeader = {
+  /** The header line, trimmed. */
+  readonly header: string;
+  /** Index of the header line among the file's lines. */
+  readonly index: number;
+};
 
 //endregion
 
-//region Readings
+//region Reading a text
 
 /**
- The quoted words of a text, in order.
+ Whether one dependency name reaches a build task.
 
- @param text - text holding TOML string values or an array of them
+ @param name - one task name from a block's `depends`
 
- @returns every quoted word, so a dependency of either the string or the inline-table form is read
+ @returns true when the name holds `build` as a whole `:`-separated segment
 
  @example
  ```ts
- const names = quotedWordsOf('depends = ["build"]');
+ namesBuildTask('build:js:node'); // true
  ```
  */
-function quotedWordsOf(text: string,): readonly string[] {
-  return [...text.matchAll(/["']([^"']+)["']/gu),].map(function nameOf(match,) {
-    return match[1];
+function namesBuildTask(name: string,): boolean {
+  return name.split(':',).includes(buildTaskSegment,);
+}
+
+/**
+ The quoted strings that follow an import word on the same line, which is where a module specifier sits.
+
+ Both a `from` and an `import` occurrence is read, because a re-export, a static import, a side-effect import and a
+ dynamic import call each put the specifier within one line of one of them. Splitting on the keyword yields the text
+ after each occurrence, and only the rest of that occurrence's own line is read.
+
+ @param text - the contents of a file
+
+ @returns every quoted string an import word introduces, in source order
+
+ @example
+ ```ts
+ const specifiers = moduleSpecifiersOf("import { a } from '../dist/final/neutral/index.mjs'");
+ ```
+ */
+function moduleSpecifiersOf(text: string,): readonly string[] {
+  return [fromKeyword, importKeyword,].flatMap(function specifiersOfKeyword(keyword,) {
+    const [, ...afterKeyword] = text.split(keyword,);
+    return afterKeyword.flatMap(function specifierOf(rest,) {
+      const [lineRest = '',] = rest.split('\n',);
+      return quotedPathAfterImportWord(lineRest,);
+    },);
+  },);
+}
+
+/**
+ The quoted path that opens right after an import word, which is where a module specifier sits.
+
+ Only whitespace, and for a dynamic import call one parenthesis, may stand between the word and the path, so an import
+ written inside a string of a fixture is not mistaken for one this file performs. The path runs to the next occurrence
+ of its own quote character, so a quote that never closes before the line ends contributes nothing.
+
+ @param restOfLine - the text after an import word, up to the end of its line
+
+ @returns the quoted path as a one-element list, or an empty list when no quote opens there
+
+ @example
+ ```ts
+ quotedPathAfterImportWord(" { a } from '../x.mjs'"); // []
+ ```
+ */
+function quotedPathAfterImportWord(restOfLine: string,): readonly string[] {
+  const trimmed = restOfLine.trimStart();
+  const withoutParenthesis = trimmed.startsWith('(',) ? trimmed.slice(1,).trimStart() : trimmed;
+  const quote = quoteCharacters.find(function opensThePath(candidate,) {
+    return withoutParenthesis.startsWith(candidate,);
+  },);
+  if (quote === undefined)
+    return [];
+  const parts = withoutParenthesis.slice(1,).split(quote,);
+  if (parts.length < 2)
+    return [];
+  const path = parts.at(0,);
+  return path === undefined ? [] : [path,];
+}
+
+/**
+ The double-quoted names of a text.
+
+ Splitting on the quote character leaves the quoted contents at every odd index, so a text reads as its names with no
+ scan. Single-quoted names are not read, and a `depends` written that way fails the checks below instead of passing
+ them.
+
+ @param text - the text of a `depends` entry, on one line or broken across several
+
+ @returns every double-quoted name it holds, in order
+
+ @example
+ ```ts
+ quotedNamesOf('["build", "lint"]'); // ['build', 'lint']
+ ```
+ */
+function quotedNamesOf(text: string,): readonly string[] {
+  const [, ...afterFirstQuote] = text.split('"',);
+  return afterFirstQuote.filter(function wasQuoted(_chunk, index,) {
+    return (index % 2) === 0;
   },);
 }
 
 /**
  The task names a task block's `depends` entry names.
 
- The entry is read as the lines from `depends` to its closing bracket, so an array broken across lines reads the same as
- one written on one line.
+ The entry is read from the first `depends` word to the first closing bracket, so an array broken across lines reads
+ the same as one written on one line.
 
  @param body - a task block's body
 
@@ -140,17 +248,9 @@ function quotedWordsOf(text: string,): readonly string[] {
  ```
  */
 function dependenciesOfTaskBody(body: string,): readonly string[] {
-  const dependencyText: string[] = [];
-  let insideDependency = false;
-  for (const line of body.split('\n',)) {
-    if (!insideDependency && !line.trimStart().startsWith(`${dependencyLine} `,))
-      continue;
-    insideDependency = true;
-    dependencyText.push(line,);
-    if (line.includes(']',))
-      break;
-  }
-  return quotedWordsOf(dependencyText.join('\n',),);
+  const [, afterDependency = '',] = body.split(dependencyLine,);
+  const [entry = '',] = afterDependency.split(']',);
+  return quotedNamesOf(entry,);
 }
 
 /**
@@ -169,72 +269,20 @@ function dependenciesOfTaskBody(body: string,): readonly string[] {
  ```
  */
 function taskBlocksOf(text: string,): readonly TaskBlock[] {
-  const blocks: TaskBlock[] = [];
-  let header: string | undefined;
-  let body: string[] = [];
-  const push = (): void => {
-    if (header === undefined)
-      return;
-    const oneBody = body.join('\n',);
-    blocks.push({ header, body: oneBody, dependencies: dependenciesOfTaskBody(oneBody,), },);
-  };
-  for (const line of text.split('\n',)) {
-    if (line.startsWith('[',)) {
-      push();
-      header = line.trim();
-      body = [];
-      continue;
-    }
-    body.push(line,);
-  }
-  push();
-  return blocks;
-}
-
-/**
- The task block of one table header.
-
- @param blocks - the task blocks of a `mise.toml`
-
- @param header - the table header to find, exactly as written
-
- @returns the block, or undefined when the file declares no such table
-
- @example
- ```ts
- const buildTask = taskBlockOf({ blocks, header: '[tasks.build]' });
- ```
- */
-function taskBlockOf(
-  { blocks, header, }: { readonly blocks: readonly TaskBlock[]; readonly header: string; },
-): TaskBlock | undefined {
-  return blocks.find(function hasHeader(block,) {
-    return block.header === header;
+  const lines = text.split('\n',);
+  const headers = lines.flatMap(function locateHeader(line, index,) {
+    return line.startsWith('[',) ? [{ header: line.trim(), index, },] : [];
+  },);
+  return headers.map(function blockAt(entry, position,) {
+    const next = headers.at(position + 1,);
+    const body = lines.slice(entry.index + 1, next === undefined ? lines.length : next.index,)
+      .join('\n',);
+    return { header: entry.header, body, dependencies: dependenciesOfTaskBody(body,), };
   },);
 }
 
 /**
- The relative import specifiers of one test file.
-
- @param text - the contents of a test file
-
- @returns every relative specifier, in source order, across the import forms the sources above name
-
- @example
- ```ts
- const specifiers = relativeSpecifiersOf("import { a } from '../dist/final/neutral/index.mjs'");
- ```
- */
-function relativeSpecifiersOf(text: string,): readonly string[] {
-  return relativeSpecifierSources.flatMap(function specifiersOfSource(source,) {
-    return [...text.matchAll(new RegExp(source, 'gmu',),),].map(function specifierOf(match,) {
-      return match[1];
-    },);
-  },);
-}
-
-/**
- Where a relative specifier points, as repository-relative path segments.
+ Where a relative module specifier points, as repository-relative path segments.
 
  @param file - repository-relative path of the importing file
 
@@ -244,19 +292,20 @@ function relativeSpecifiersOf(text: string,): readonly string[] {
 
  @example
  ```ts
- const segments = resolvedSegmentsOf({ file: 'package/a/b/src/x.unit.test.ts', specifier: '../dist/x.mjs' });
+ resolvedSegmentsOf({ file: 'package/a/b/src/x.unit.test.ts', specifier: '../dist/x.mjs' });
  ```
  */
 function resolvedSegmentsOf(
   { file, specifier, }: { readonly file: string; readonly specifier: string; },
 ): readonly string[] {
-  return specifier.split('/',).reduce<readonly string[]>(function resolve(segments, part,) {
-    if (part === '.' || part === '')
-      return segments;
+  const segments = file.split('/',).slice(0, -1,);
+  for (const part of specifier.split('/',)) {
     if (part === '..')
-      return segments.slice(0, -1,);
-    return [...segments, part,];
-  }, file.split('/',).slice(0, -1,),);
+      segments.pop();
+    else if ((part !== '.') && (part !== ''))
+      segments.push(part,);
+  }
+  return segments;
 }
 
 /**
@@ -268,7 +317,7 @@ function resolvedSegmentsOf(
 
  @param specifier - the relative specifier to resolve
 
- @returns true when the resolved path sits at or under the package's own `dist/` folder
+ @returns true when the resolved path sits inside the package's own `dist` folder
 
  @example
  ```ts
@@ -284,9 +333,14 @@ function reachesOwnDist(
 ): boolean {
   const packageSegments = packagePath.split('/',);
   const resolved = resolvedSegmentsOf({ file, specifier, },);
-  return resolved.slice(0, packageSegments.length,).join('/',) === packagePath
-    && resolved[packageSegments.length] === buildOutputFolder;
+  if (resolved.slice(0, packageSegments.length,).join('/',) !== packagePath)
+    return false;
+  return resolved.at(packageSegments.length,) === buildOutputFolder;
 }
+
+//endregion
+
+//region Reading the packages
 
 /**
  Every package folder under `package/<category>/<name>`, which is the shape the root `[monorepo] config_roots` declares.
@@ -295,20 +349,21 @@ function reachesOwnDist(
 
  @example
  ```ts
- const packages = await packagePaths();
+ const folders = await packagePaths();
  ```
  */
 async function packagePaths(): Promise<readonly string[]> {
+  const manifestSuffix = '/mise.toml';
   const manifestPaths = await Array.fromAsync(
-    glob('package/*/*/mise.toml', { cwd: repositoryRoot, },),
+    glob(`package/*/*${manifestSuffix}`, { cwd: repositoryRoot, },),
   );
-  return manifestPaths.map(function packageOf(manifestPath,) {
-    return manifestPath.slice(0, -'/mise.toml'.length,);
+  return manifestPaths.map(function folderOf(manifestPath,) {
+    return manifestPath.slice(0, -manifestSuffix.length,);
   },).toSorted();
 }
 
 /**
- Whether a package's unit test files import its own build output.
+ Whether a package's unit test files import the package's own build output.
 
  @param path - repository-relative package folder
 
@@ -320,29 +375,63 @@ async function packagePaths(): Promise<readonly string[]> {
  ```
  */
 async function distReadingTestFiles(path: string,): Promise<readonly string[]> {
-  const testFiles = await Array.fromAsync(
+  const relativeTestFiles = await Array.fromAsync(
     glob('**/*.unit.test.ts', {
       cwd: join(repositoryRoot, path,),
       exclude: function isSkippedFolder(name,) {
-        return name === 'node_modules' || name === buildOutputFolder;
+        return (name === 'node_modules') || (name === buildOutputFolder);
       },
     },),
   );
-  const readers: string[] = [];
-  for (const testFile of testFiles.toSorted()) {
-    const file = `${path}/${testFile}`;
+  const readings = await Promise.all(relativeTestFiles.toSorted().map(async function readsDist(
+    relativeTestFile,
+  ) {
+    const file = `${path}/${relativeTestFile}`;
     const text = await readFile(join(repositoryRoot, file,), 'utf8',);
-    const readsDist = relativeSpecifiersOf(text,).some(function specifierReachesDist(specifier,) {
-      return reachesOwnDist({ file, packagePath: path, specifier, },);
+    const specifiers = moduleSpecifiersOf(text,).filter(function isRelative(specifier,) {
+      return relativeSpecifierPrefixes.some(function startsRelative(prefix,) {
+        return specifier.startsWith(prefix,);
+      },);
     },);
-    if (readsDist)
-      readers.push(file,);
-  }
-  return readers;
+    return {
+      file,
+      readsDist: specifiers.some(function reachesDist(specifier,) {
+        return reachesOwnDist({ file, packagePath: path, specifier, },);
+      },),
+    };
+  },),);
+  return readings.filter(function isReader(reading,) {
+    return reading.readsDist;
+  },).map(function fileOf(reading,) {
+    return reading.file;
+  },);
 }
 
 /**
- Every package whose unit tests read its own build output, with the tasks that must rebuild it first.
+ The task names one task table's entry declares.
+
+ @param blocks - the task tables of a `mise.toml`
+
+ @param header - the table header to read, exactly as written
+
+ @returns the task names that table depends on; empty when the file declares no such table
+
+ @example
+ ```ts
+ const names = dependenciesOfHeader({ blocks, header: '[tasks.build]' });
+ ```
+ */
+function dependenciesOfHeader(
+  { blocks, header, }: { readonly blocks: readonly TaskBlock[]; readonly header: string; },
+): readonly string[] {
+  const block = blocks.find(function hasHeader(candidate,) {
+    return candidate.header === header;
+  },);
+  return block === undefined ? [] : block.dependencies;
+}
+
+/**
+ Every package whose unit tests read its own build output, with the tasks whose ordering the guard owns.
 
  @returns the dist readers, sorted by package path
 
@@ -355,68 +444,84 @@ async function distReadingPackages(): Promise<readonly DistReadingPackage[]> {
   const candidates = await packagePaths();
   const scanned = await Promise.all(candidates.map(async function scan(path,) {
     const testFiles = await distReadingTestFiles(path,);
-    if (testFiles.length === 0)
-      return undefined;
     const text = await readFile(join(repositoryRoot, path, 'mise.toml',), 'utf8',);
     const blocks = taskBlocksOf(text,);
+    const headers = new Set(blocks.map(function headerOf(block,) {
+      return block.header;
+    },),);
     return {
       path,
       testFiles,
-      unitTestTask: taskBlockOf({ blocks, header: unitTestTaskHeader, },),
-      testTask: taskBlockOf({ blocks, header: testTaskHeader, },),
-      buildTask: taskBlockOf({ blocks, header: buildTaskHeader, },),
+      hasBuildTask: headers.has(buildTaskHeader,),
+      hasUnitTestTask: headers.has(unitTestTaskHeader,),
+      unitTestDependencies: dependenciesOfHeader({ blocks, header: unitTestTaskHeader, },),
+      hasTestTask: headers.has(testTaskHeader,),
+      testDependencies: dependenciesOfHeader({ blocks, header: testTaskHeader, },),
     } satisfies DistReadingPackage;
   },),);
-  return scanned.filter(function isReader(reader,) {
-    return reader !== undefined;
+  return scanned.filter(function readsDist(row,) {
+    return row.testFiles.length > 0;
   },);
 }
 
 /**
- The readers whose named task carries no build dependency.
+ One line naming a dist reader and the task whose guard is missing.
 
- @param readers - the dist readers
+ @param reader - the package the guard is missing from
 
- @param taskOf - which task of a reader to inspect
+ @param detail - what the missing guard would have been declared on
 
- @returns one line per offender, naming the package and the task header the guard is missing from
+ @returns a line that names the package, its dist-reading file count and the task
 
  @example
  ```ts
- const offenders = unguardedReaders({ readers, taskOf: (reader) => reader.unitTestTask });
+ const line = offenderLineOf({ reader, detail: unitTestTaskHeader });
  ```
  */
-function unguardedReaders(
-  { readers, taskOf, }: {
-    readonly readers: readonly DistReadingPackage[];
-    readonly taskOf: (reader: DistReadingPackage) => TaskBlock | undefined;
-  },
-): readonly string[] {
-  return readers.filter(function lacksGuard(reader,) {
-    const task = taskOf(reader,);
-    return task === undefined || !task.dependencies.includes(buildTaskName,);
-  },).map(function describeOffender(reader,) {
-    return `${reader.path} (${String(reader.testFiles.length,)} dist-reading unit test `
-      + `files, ${unitTestTaskHeader} first: ${reader.testFiles[0] ?? reader.path})`;
-  },);
+function offenderLineOf(
+  { reader, detail, }: { readonly reader: DistReadingPackage; readonly detail: string; },
+): string {
+  const firstTestFile = reader.testFiles.at(0,) ?? reader.path;
+  return `${reader.path} (${String(reader.testFiles.length,)} dist-reading unit test files, `
+    + `first ${firstTestFile}): ${detail}`;
 }
 
 /**
- The readers the scan must find and the reader it must not find, as the controls below prove.
+ The dependency names of a task, or a word saying it declares none.
+
+ @param dependencies - the task names a block depends on
+
+ @returns the names, comma separated
+
+ @example
+ ```ts
+ const text = dependencyNamesOf([]); // 'nothing'
+ ```
+ */
+function dependencyNamesOf(dependencies: readonly string[],): string {
+  return dependencies.length === 0 ? 'nothing' : dependencies.join(', ',);
+}
+
+//endregion
+
+//region The two controls
+
+/**
+ The package whose guard is the model every other package follows, which the scan must find.
  */
 const knownDistReader = 'package/config/pnpr';
 
 /**
- A package whose unit tests import sibling source only, so the scan must stay silent about it.
+ A package whose unit tests import sibling source only, about which the scan must stay silent.
  */
 const knownSiblingOnlyReader = 'package/or-throw/core';
 
 //endregion
 
-//region Right now
+//region What the checks read
 
-// Both readings are taken before the suites so every check below reads the same snapshot, and so a failure names the
-// package rather than re-walking the tree once per check.
+// Both readings are taken once so every check below reads the same snapshot, and so a failure names a package rather
+// than walking the tree again per check.
 const readers = await distReadingPackages();
 const readerPaths = readers.map(function pathOf(reader,) {
   return reader.path;
@@ -441,7 +546,7 @@ await describe({
     it({
       name: 'finds no build output among unit tests that import sibling source only',
       fn: async (): Promise<void> => {
-        /** A scan that flagged every package would pass vacuously. */
+        /** A scan that flagged every package would pass the checks below vacuously. */
         expect(readerPaths,).not.toContain(knownSiblingOnlyReader,);
       },
     },),
@@ -455,9 +560,9 @@ await describe({
       fn: async (): Promise<void> => {
         /** Without a build task the guard has no target, so the package needs a decision, not a dependency. */
         const offenders = readers.filter(function lacksBuildTask(reader,) {
-          return reader.buildTask === undefined;
-        },).map(function nameOffender(reader,) {
-          return reader.path;
+          return !reader.hasBuildTask;
+        },).map(function pathOf(reader,) {
+          return offenderLineOf({ reader, detail: `no ${buildTaskHeader}`, },);
         },);
         expect(offenders,).toEqual([],);
       },
@@ -466,13 +571,15 @@ await describe({
       name: 'rebuilds before every package test:unit that runs dist-reading unit tests',
       fn: async (): Promise<void> => {
         /** The trap this check closes: a package test:unit run against a stale or absent build. */
-        const offenders = unguardedReaders({
-          readers: readers.filter(function hasUnitTestTask(reader,) {
-            return reader.unitTestTask !== undefined;
-          },),
-          taskOf: function unitTestTaskOf(reader,) {
-            return reader.unitTestTask;
-          },
+        const offenders = readers.filter(function lacksUnitGuard(reader,) {
+          if (!reader.hasUnitTestTask)
+            return false;
+          return !reader.unitTestDependencies.some(namesBuildTask,);
+        },).map(function describeOffender(reader,) {
+          return offenderLineOf({
+            reader,
+            detail: `${unitTestTaskHeader} depends on ${dependencyNamesOf(reader.unitTestDependencies,)}`,
+          },);
         },);
         expect(offenders,).toEqual([],);
       },
@@ -485,17 +592,18 @@ await describe({
          with neither task is named here, because the root aggregate builds nothing either.
          */
         const offenders = readers.filter(function lacksUnitTestTask(reader,) {
-          return reader.unitTestTask === undefined;
-        },).map(function describeOffender(reader,) {
-          if (reader.testTask === undefined)
-            return `${reader.path} (${String(reader.testFiles.length,)} dist-reading unit test files, no `
-              + `${unitTestTaskHeader} and no ${testTaskHeader})`;
-          return reader.testTask.dependencies.includes(buildTaskName,)
-            ? undefined
-            : `${reader.path} (${String(reader.testFiles.length,)} dist-reading unit test files, `
-              + `${testTaskHeader} depends on ${reader.testTask.dependencies.join(', ',)}, not ${buildTaskName})`;
-        },).filter(function isOffender(line,) {
-          return line !== undefined;
+          return !reader.hasUnitTestTask;
+        },).flatMap(function describeOffender(reader,) {
+          if (!reader.hasTestTask)
+            return [offenderLineOf({ reader, detail: `no ${unitTestTaskHeader} and no ${testTaskHeader}`, },),];
+          return reader.testDependencies.some(namesBuildTask,)
+            ? []
+            : [
+              offenderLineOf({
+                reader,
+                detail: `${testTaskHeader} depends on ${dependencyNamesOf(reader.testDependencies,)}`,
+              },),
+            ];
         },);
         expect(offenders,).toEqual([],);
       },
