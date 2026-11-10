@@ -188,6 +188,12 @@ The wrapper factories tag the intended kind:
    `HH:MM` or `HH:MM:SS` with an optional fraction,
    and no date or offset.
 
+A bare JS number is written as a TOML integer when it is integral,
+ with one exception:
+ `-0`,
+ which TOML spells only as the float `-0.0`,
+ so a bare `-0` emits `-0.0` and keeps its sign across a reparse.
+
 A wrapper payload is written as bare TOML text,
  so it is checked against its kind before any of it reaches the document.
 A payload the kind cannot represent
