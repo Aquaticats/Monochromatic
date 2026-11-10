@@ -280,11 +280,12 @@ fn btrfs_the_stand_ins_join_the_trash_the_leave_out_made() {
     remove(root.as_path());
 }
 
-/// The snapshot of a repository with nested subvolumes up to, but not including,
-/// the stand-in sweep of the snapshot rung.
+/// The snapshot of a repository with nested subvolumes,
+/// taken up to but not including the stand-in sweep of the snapshot rung.
 /// Why:
-///   A control that plants a directory between the check of a worktree folder and its rename needs the rung's steps
-///  below the sweep, and only the seam of the sweep writes there.
+///   A control that plants a directory between the check of a worktree folder and its rename needs the rung's
+///  steps below the sweep,
+/// and only the seam of the sweep writes there.
 struct BeforeTheSweep {
     stage: PathBuf,
     source: SnapshotSource,
@@ -293,7 +294,8 @@ struct BeforeTheSweep {
     hand_over: HandOver,
 }
 
-/// The snapshot of `repo` at `destination`, taken as the rung takes it and left before the stand-in sweep.
+/// The snapshot of `repo` at `destination`,
+/// taken as the rung takes it and left before the stand-in sweep.
 fn snapshot_before_the_sweep(root: &Path, repo: &Path, destination: &str) -> BeforeTheSweep {
     git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination]);
     let made: PathBuf = std::fs::canonicalize(repo.join(destination)).expect("destination");

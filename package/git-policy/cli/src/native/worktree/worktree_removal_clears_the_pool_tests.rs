@@ -7,7 +7,8 @@
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
 
-/// A repository, its canonical common directory and the pool a linked worktree of it fills.
+/// A repository,
+/// its canonical common directory and the pool a linked worktree of it fills.
 /// Why:
 ///   The pool's name is worked out from the administrative directory the removal deletes,
 /// so a control seeds it where the

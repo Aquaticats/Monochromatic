@@ -10,6 +10,7 @@
 use super::*;
 use crate::worktree_trash_ignore_rule::trash_location_is_ignored;
 use crate::claim_time::ClaimTime;
+use crate::fs_beneath::{identity_at, identity_of, open_directory_at};
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::iso_time::now_iso;

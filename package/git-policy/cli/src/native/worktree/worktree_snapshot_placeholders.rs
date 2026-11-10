@@ -524,7 +524,15 @@ fn holds_only_empty_stand_ins(folder: &File) -> bool {
         Ok(found) => found,
         Err(_unreadable) => return false,
     };
-    return !listed.is_empty() && listed.iter().all(|entry: &OsString| return is_an_empty_stand_in(folder, entry.as_os_str()));
+    if listed.is_empty() {
+        return false;
+    }
+    for entry in &listed {
+        if !is_an_empty_stand_in(folder, entry.as_os_str()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
