@@ -56,7 +56,7 @@ use std::path::Path;
 /// ```ts
 /// const mayWrite = (gitDir, installedBefore, stderr) => installedBefore ? mayInstall(gitDir, wait(gitDir, stderr)) : lockOfANothingInstalledMergeStands(gitDir, stderr) === false;
 /// ```
-pub fn may_write(git_dir: &Path, installed_before: bool, out: &mut dyn Write) -> bool {
+pub fn may_write<W: Write + ?Sized>(git_dir: &Path, installed_before: bool, out: &mut W) -> bool {
     let index: std::path::PathBuf = git_dir.join("index");
     return match installed_before {
         true => may_install(git_dir, wait_for_index_release_while_finishing_a_merge(index.as_path(), out)),
@@ -108,7 +108,7 @@ pub fn may_install(git_dir: &Path, waited: IndexWait) -> bool {
 ///   case 'held': return true;
 /// };
 /// ```
-fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way(git_dir: &Path, index: &Path, out: &mut dyn Write) -> bool {
+fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way<W: Write + ?Sized>(git_dir: &Path, index: &Path, out: &mut W) -> bool {
     return match look_at_the_index_lock_once(index) {
         IndexLook::Free => false,
         IndexLook::LeftByAGoneProcess(pid) => {
