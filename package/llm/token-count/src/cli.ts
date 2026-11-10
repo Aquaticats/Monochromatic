@@ -96,9 +96,9 @@ if (results.length
   const total = results.reduce(
     function sumTokens(
       sum,
-      r,
+      fileResult,
     ) {
-      return sum + r
+      return sum + fileResult
         .inputTokens;
     },
     0,
