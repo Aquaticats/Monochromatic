@@ -2,14 +2,14 @@ import {
   ABSENT,
   createStore,
   type Store,
-} from '@monochromatic-dev/kv-store-core/ts';
+} from '@monochromatic-dev/kv-store-core';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { memoizeAsync, } from './index.ts';
+import { memoizeAsync, } from '../dist/final/node/index.mjs';
 
 await describe({
   name: memoizeAsync.name,
