@@ -408,10 +408,6 @@ with a comment (Recommended)".
 "TypeScript reports an error":
 `delete(doc, ['list', 5])` throws `JsoncPathNotFoundError` in TypeScript and returns `PathNotFound` in Rust.
 
-### kv-store `set('')` (issues 1408 and 1412)
-
-"Reject empty keys (Recommended)".
-
 ### vmsync and a name that starts badly (issue 1243)
 
 "Keep refusing,
