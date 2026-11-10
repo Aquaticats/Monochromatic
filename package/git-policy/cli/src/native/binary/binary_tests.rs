@@ -175,6 +175,13 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The remote settings every worktree of a repository shares:
+/// refused from a linked worktree,
+/// unchanged in the main checkout,
+/// and readable everywhere.
+#[path = "binary_shared_remote_tests.rs"]
+mod shared_remote;
+
 /// A clone made with `--no-checkout` has no index file,
 /// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
