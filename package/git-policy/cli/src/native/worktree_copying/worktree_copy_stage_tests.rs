@@ -226,9 +226,19 @@ fn a_refused_exclusive_copy_reports_the_operating_systems_error() {
     let root: PathBuf = fixture("stage-exclusive-kind");
     std::fs::write(root.join("source"), b"payload").expect("source");
     copy_file_exclusive(root.join("source").as_path(), root.join("copy").as_path()).expect("copy");
+    let existing: std::io::Error = copy_file_exclusive(
+        root.join("source").as_path(),
+        root.join("copy").as_path(),
+    )
+    .expect_err("existing destination");
+    assert_eq!(existing.kind(), std::io::ErrorKind::AlreadyExists);
+    let missing: std::io::Error = copy_file_exclusive(
+        root.join("absent").as_path(),
+        root.join("other").as_path(),
+    )
+    .expect_err("missing source");
+    assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
     remove(root.as_path());
-    // Red: the primitive still answers with the copy's message newtype, which holds text and no kind.
-    let _: std::io::Error = todo!("copy_file_exclusive answers with std::io::Error");
 }
 
 /// A private container under a missing parent is never created,
