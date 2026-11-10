@@ -6,6 +6,9 @@
    pending a full CSS-token pass. */
 
 :root {
+  /* Platform color, so it follows `color-scheme` with no light/dark pair. */
+  --color-bg: Canvas;
+
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   line-height: 1.5;
@@ -248,7 +251,7 @@ body {
 
   border-radius: 0.25rem;
 
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-bg);
 
   font-size: 0.75rem;
 
