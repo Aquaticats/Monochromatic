@@ -1728,21 +1728,28 @@ The rule is:
    clean or not.
 - In a linked worktree it is rejected while the worktree holds uncommitted tracked changes
    (for `git clean`,
-  also untracked files,
-  and for `git clean -x` or `-X`,
-  ignored files),
+  also untracked files),
    and runs when the worktree is clean.
-- An ignored file counts where the command can delete or replace it:
-  `git clean -x` is rejected while any tracked,
-  untracked or ignored file exists,
-  and `git clean -X` while any ignored file does.
-  A `git clean -fd`,
+- An ignored file is not a reason to refuse a clean in a linked worktree,
+  by the owner's decision of 2026-11-10 ("Allow and log",
+  because a refusal only moves the same loss to `rm -rf`):
+  `git clean -x` counts tracked and untracked files only,
+  and `git clean -X` deletes ignored files and nothing else,
+  so that one runs whatever the worktree holds.
+  Both exit with Git's own status and leave one audit line naming the command and the worktree,
+  and its `dirty` field is `null` for `git clean -X`,
+  because no question was asked.
+  The main checkout still refuses both.
+- A `git clean -fd`,
   which keeps the ignored files,
-  is unaffected.
-  `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
+  is unaffected,
+  and `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
   A `git clean -X` that names its own exclusions (`-e`,
-  `--exclude`) is measured by Git's own dry run of that clean,
-  because those patterns decide what it deletes and a status cannot see them.
+  `--exclude`) is measured by Git's own dry runs of that clean,
+  because those patterns decide what it deletes and a status cannot see them:
+  the clean as typed and the same clean without the patterns are printed by Git,
+  and the command is refused while only the patterns call a path ignored,
+  because that path is an untracked file the clean would lose.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
