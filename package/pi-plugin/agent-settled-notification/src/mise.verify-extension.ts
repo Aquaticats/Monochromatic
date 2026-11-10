@@ -9,6 +9,13 @@ import type {
   ExtensionFactory,
 } from '@earendil-works/pi-coding-agent';
 
+import {
+  createAgentSettledEvent,
+  createExtensionContext,
+  createFakePiHarness,
+  getOnlyHandler,
+} from './test-fixtures.ts';
+
 //region Constants
 
 /**
@@ -36,14 +43,6 @@ const EXPECTED_TITLE = 'Pi agent finished';
 //region Types
 
 /**
- Minimal event callback shape captured from Pi's extension API.
- */
-type EventHandler = (
-  event: unknown,
-  context: unknown,
-) => unknown;
-
-/**
  Shape exported by the built extension package.
  */
 type AgentSettledNotificationModule = {
@@ -66,70 +65,9 @@ type AgentSettledNotificationModule = {
   ) => void;
 };
 
-/**
- Fake Pi API and captured lifecycle subscriptions.
- */
-type FakePiHarness = {
-  /**
-   API passed to the built extension.
-   */
-  readonly api: ExtensionAPI;
-
-  /**
-   Handlers grouped by lifecycle-event name.
-   */
-  readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-};
-
 //endregion Types
 
-//region Harness
-
-/**
- Creates a fake Pi API that records event-handler registration.
- 
- @returns fake API and lifecycle-handler inventory
- 
- @example
- ```ts
- const harness = createFakePiHarness();
- ```
- */
-function createFakePiHarness(): FakePiHarness {
-  /**
-   Mutable event-handler storage populated by the fake API.
-   */
-  const handlersByEvent = new Map<string, EventHandler[]>();
-
-  /**
-   Fake Pi extension API exposing the registration method the extension uses.
-   */
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Built-extension verifier only needs `ExtensionAPI.on()`.
-  const api = {
-    on(
-      event: string,
-      handler: EventHandler,
-    ): void {
-      /**
-       Existing handlers for the registered lifecycle event.
-       */
-      const existingHandlers = handlersByEvent.get(event,)
-        ?? [];
-      handlersByEvent.set(
-        event,
-        [
-          ...existingHandlers,
-          handler,
-        ],
-      );
-    },
-  } as unknown as ExtensionAPI;
-
-  return {
-    api,
-    handlersByEvent,
-  };
-}
+//region Verification
 
 /**
  Narrows an imported module to the built extension's public shape.
@@ -153,53 +91,6 @@ function isAgentSettledNotificationModule(
     && ('registerAgentSettledNotification' in value)
     && ((typeof value.registerAgentSettledNotification) === 'function');
 }
-
-/**
- Retrieves one registered lifecycle callback.
- 
- @param handlersByEvent - fake Pi registrations
- 
- @param event - lifecycle event to retrieve
- 
- @returns sole registered callback
- 
- @throws when event is absent or has a registration count other than one
- 
- @example
- ```ts
- getOnlyHandler({ handlersByEvent: new Map(), event: 'agent_settled' });
- ```
- */
-function getOnlyHandler(
-  {
-    handlersByEvent,
-    event,
-  }: {
-    readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-    readonly event: string;
-  },
-): EventHandler {
-  /**
-   Captured handlers for the selected lifecycle event.
-   */
-  const handlers = handlersByEvent.get(event,);
-  if (handlers === undefined)
-    throw new Error(`missing event registration: ${event}`,);
-  if (handlers.length !== 1)
-    throw new Error(`expected one event registration for ${event}, received ${handlers.length}`,);
-
-  /**
-   Sole lifecycle handler registered by the extension.
-   */
-  const [handler,] = handlers;
-  if (handler === undefined)
-    throw new Error(`missing event registration: ${event}`,);
-  return handler;
-}
-
-//endregion Harness
-
-//region Verification
 
 /**
  Verifies built extension registration and delivery behavior without touching the real desktop.
@@ -273,8 +164,8 @@ async function verifyBuiltExtension(): Promise<string> {
     event: AGENT_SETTLED_EVENT,
   },);
   await handler(
-    {},
-    {},
+    createAgentSettledEvent({ aborted: false, },),
+    createExtensionContext(),
   );
 
   /**

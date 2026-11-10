@@ -12,8 +12,6 @@
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
-
 import type { TomlComment, } from './types.ts';
 
 /**
@@ -116,20 +114,6 @@ export function attachedCommentValues(
   },
 ): readonly string[] {
   /**
-   Index of the last comment ending before `at`; the backward walk starts here.
-   */
-  const initialIdx = comments.reduce(
-    function step(
-      acc,
-      c,
-      i,
-    ) {
-      return c.range[1]
-        < at ? i : acc;
-    },
-    -1,
-  );
-  /**
    Cursor retreating to each attached comment's start as the block grows.
    */
   let cursorPos = at;
@@ -137,11 +121,12 @@ export function attachedCommentValues(
    Collected nearest-first; reversed to source order on return.
    */
   const collected: string[] = [];
-  for (let idx = initialIdx; idx >= 0; idx--) {
+  // The block ends at `at`, so comments further along the source are skipped by
+  // the cursor check below and the walk starts from the list's end.
+  for (const comment of comments.toReversed()) {
     /**
      Candidate comment so the gap check can decide whether it stays attached.
      */
-    const comment = nonNullishOrThrow(comments[idx],);
     if (comment.range[1]
       >= cursorPos)
       continue;
