@@ -1282,12 +1282,49 @@ into a trash directory
 by rename.
 A stand-in directory the snapshot shows where the source holds a nested subvolume (inode 2,
 btrfs's stand-in for a
-subvolume a snapshot did not carry) is never moved:
+subvolume a snapshot did not carry) is never moved by the leave-out:
 it holds nothing,
 so it carries no ignored state,
 and btrfs refuses to rename it.
 It stays for the stand-in sweep,
-which removes it as an empty directory in the folders that hold this repository's worktrees.
+which reads the folders that hold this repository's worktrees once each and takes a folder whole when every entry
+of it is such a stand-in:
+one rename into the snapshot's trash,
+and a fresh empty folder with the mode of the one it replaced takes
+its place.
+The stand-ins are deleted after the add returns by the same commit service and in the same work item as the rest
+of the trash,
+so an add pays one rename and one directory made again however many worktrees the repository has,
+and
+not one btrfs metadata change for each of them
+(`doc/planning/cli-git-worktree-add-stand-ins-off-the-waiting-path.md` measures the
+counts).
+When the leave-out set nothing aside the sweep makes that trash itself;
+a source whose Git does not ignore
+the trash place gets none,
+and its stand-ins are removed as empty directories where they are,
+because a trash the
+new worktree's Git does not ignore can be staged.
+A folder that holds one entry that is not such a stand-in stays where it
+is,
+because every other entry may be someone's data,
+and only the stand-ins in it are removed one by one.
+A stand-in
+whose subvolume no worktree names stays,
+since the snapshot never carried its files and their absence must stay visible.
+The service's emptying allows a stand-in through the device check that stops it at a nested subvolume or another
+filesystem:
+a stand-in reports a device of its own and belongs to the tree being removed.
+The snapshot's own `.git` copy goes into that trash behind one rename,
+after the index is installed and before the
+new worktree's pointer is written:
+it is the whole common directory,
+with one administrative directory for every worktree of the
+repository,
+and removing it inside the add costs one btrfs metadata change for each of them.
+A source whose `.git` is a pointer
+file has one file there,
+and it is unlinked as before.
 Names are kept as bytes:
 a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
 Every directory is opened by one plain name below the handle of the one above,
@@ -3598,6 +3635,9 @@ everything not listed above.
 Refusals that may still end a commit or merge with an error:
 policy errors at error severity,
 an empty message,
+a named path an ignore rule matches while no index entry tracks it
+(the `explicit-path-commit/named-path-ignored` finding,
+"Core finding event"),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -8560,45 +8600,128 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
-reads no file and starts no process.
-It rejects `-A`,
+`add-explicit` refuses a `git add` whose pathspec selects every path it could reach,
+however that pathspec is spelled,
+and the finding says how many paths it selected.
+
+`-A`,
 `--all`,
 `-u`
-and `--update`
-with the option spellings Git accepts,
-and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
-the whole worktree
-(or,
-for `.` and `./`,
-to every changed path below the working directory):
+and `--update` are decided from the arguments alone,
+with the option spellings Git accepts.
+They stage every changed path whatever the tree holds,
+so they are refused without asking the repository anything,
+and the finding says whether every changed path or every changed tracked path is swept up.
+
+A positional pathspec is judged by what Git says it selects.
+An ordinary named path,
+meaning one with no pathspec magic,
+no glob character and no `.` or `..` segment
+(`file.ts`,
+`dir/`,
+`.hidden`),
+stages what its name holds:
+it is let through and starts no process.
+Every other spelling is measured,
+with two listings after the caller's own global options:
+
+- `ls-files -z --cached --others --exclude-standard` with the caller's own pathspecs,
+  in the caller's own pathspec mode,
+  so `--literal-pathspecs` and `GIT_LITERAL_PATHSPECS` answer for that caller.
+  `--cached` and `--others` together are the paths `git add` can stage,
+  and `--exclude-standard` leaves out the ignored ones it would skip.
+- when that listing holds at least one path,
+  `--no-literal-pathspecs ls-files -z --cached --others --exclude-standard --full-name -- :/`
+  is every path the worktree gives.
+  The wrapper wrote that pathspec,
+  so no caller mode may read it as a name,
+  and the paths under the caller's own directory prefix are the set that directory gives.
+
+`require-root` refuses a command run below the worktree's top level before this check,
+so the directory set decides only where that policy is off,
+or where `-C` names a directory below the top with the command itself still at the root.
+It keeps the guard as strict as it was for such callers,
+who had `.` and `./` refused before.
+
+A selection is always a subset of those paths,
+so equal counts are equal sets,
+and the policy refuses a pathspec when its selection is the repository's whole set
+or the set of the directory the command runs in,
+and only then when the spelling names no character of a name:
+a pattern of wildcards alone (`*`,
+`**`,
+`:(glob)**`),
+a spelling that resolves to a directory (`sub/..`,
+`.//`,
+`././`),
+an exclusion (`:!x`,
+`:^x`,
+`:(exclude)x`,
+`:(attr:!nope)`),
+or a filter such as case-insensitive matching with no pattern that names anything.
+A spelling that names a character of a name is let through even where the tree happens to fit it,
+because `*.txt` in a repository whose every path is a `.txt` file stages by name and not by reach.
+Several pathspecs of one command are measured together,
+and only the reach-only ones are named.
+
+The finding names every refused token as the caller wrote it,
+says what it selects
+(`It selects all 5 paths of this repository.`,
+`It selects all 2 paths of this directory.`),
+and offers `--no-enforce-bulk-add` for one invocation.
+A flag alone says the set it reaches instead,
+which needs no measurement:
+`It selects every changed path in this repository.` or
+`It selects every changed tracked path in this repository.`
+
+Under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1` the pattern of a spelling is a name,
+so only a spelling that resolves to a directory is reach-only:
 `.`,
-`./`,
-`*`,
-`:/`,
-`:/*`,
-`:/**`,
-`:(top)`,
-`**`
-and `:(glob)**`.
-The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
-pathspec magic and globs can select the same set in further spellings.
-`:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
-(`fatal: oops in prep_exclude`),
-so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
-The rejection names every matched token as the caller wrote it and offers
-`--no-enforce-bulk-add` for one invocation.
-A token that names the working directory still does so whatever pathspec mode the caller set,
-so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
-every other spelling of the list is one plain name under that mode
-(so `**` stages a file named `**`,
-and `:/` names no file and is left to Git's own refusal),
-and the policy reads the caller's mode
-(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
-and otherwise the variable's own boolean reading)
-before it judges a spelling.
-A variable value Git would refuse to read as a boolean is no mode,
-so an unmodelled spelling keeps the rejection rather than lifting it.
+`./`
+and `sub/..` are refused there,
+while `**` stages the one file of that name.
+The mode is the last of `--literal-pathspecs` and `--no-literal-pathspecs` among the caller's global options,
+and otherwise the variable's own boolean reading;
+a value Git would refuse to read as a boolean is no mode.
+
+A listing that cannot start,
+fails or reaches the read ceiling never blocks the command:
+the add runs unchanged,
+and one line on standard error says the check could not be made with the reason Git gave.
+The read is bounded by `READ_CEILING` in `repo_read/git_metadata.rs`,
+which is `PLUMBING_STEP_CEILING` in `service/wait_ceilings.rs`,
+two minutes,
+and the person is never held longer.
+A spelling Git itself cannot prepare,
+such as `:(top)/*` (Git 2.56.0 fails in its own `prep_exclude`),
+gets that line and then Git's own refusal,
+unless an enabled content policy reads the command's candidates first:
+the candidate prediction runs that same `git add` on a private index and stops on its failure,
+which names Git's refusal and no line of this check.
+
+The two listings run before Git does,
+so a path that appears between them and the forwarded command is not counted:
+a spelling that covered every path up to then is still refused,
+and one that covered all but that new path is let through.
+The window is the policy pass's own,
+and no file is read twice.
+
+A pattern written only in wildcard syntax,
+such as a class holding `*` or an escaped `*`,
+is read as naming no character of a name,
+because Git's character classes and escapes are not modelled here:
+a repository whose entire content is one file of that name is refused,
+and nothing else is,
+since such a spelling names no path a person means.
+
+An ordinary name costs nothing;
+a spelling that is no ordinary name costs two listing reads,
+the second only when the first found a path.
+Measured on 2026-11-10 in a worktree of 22,993 paths,
+five samples of each:
+the selection listing took 8.9 to 9.7 ms and the worktree listing 46.8 to 49.2 ms,
+so the guard adds under 60 ms to a `git add` whose pathspec is no ordinary name,
+and the whole worktree listing is the larger part.
 
 ## Whole-sequence fixing
 
@@ -8796,14 +8919,17 @@ export type CoreFindingEvent = EventBase & {
   readonly coreId:
     | 'commit-only'
     | 'commit-normalization'
-    | 'concurrent-commit';
+    | 'concurrent-commit'
+    | 'explicit-path-commit';
   readonly code:
     | 'commit-only/all-flag'
     | 'commit-only/pathspec-required'
     | 'commit-only/staged-changes-ignored'
+    | 'commit-only/staged-deletion-worktree-present'
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
-    | 'concurrent-commit/already-committed';
+    | 'concurrent-commit/already-committed'
+    | 'explicit-path-commit/named-path-ignored';
   readonly message: string;
 };
 ```
@@ -8825,6 +8951,23 @@ and cannot be disabled or assigned a severity through repository config.
 - `concurrent-commit/already-committed`:
   the captured change merged onto the branch equals the branch,
   because a commit that landed meanwhile already holds it.
+- `commit-only/staged-deletion-worktree-present`:
+  an explicit-path commit names a path whose deletion the real index stages while an entry still exists at that
+  worktree path,
+  so the pathspec cannot record the deletion.
+  The message names the paths and both ways forward
+  (`commit_staged_deletions.rs`).
+- `explicit-path-commit/named-path-ignored`:
+  an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
+  so the private staging would refuse it.
+  It is decided from the selection's own elements before any `git add` runs,
+  the commit is not made,
+  nothing is staged by it,
+  and the message names every rejected path with both ways forward:
+  leave the file out of the commit's paths,
+  or stage it with `git add --force -- <path>` when it is meant to become tracked
+  (`commit_named_ignored_files.rs`;
+  issue 6278).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -11455,8 +11598,23 @@ For injected commit-only semantics:
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
-    and a path that an ignore rule matches and that no index stages is refused with the message that says
-    to stage it with `git add --force` first.
+    and a path that an ignore rule matches and that no index stages is refused before that staging runs,
+    with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
+    the selection's own elements that name one file are asked of
+    `git check-ignore -z --stdin` under the real index,
+    so nothing depends on the words of a Git message and a path the real index tracks is left out,
+    as `git add` leaves it out.
+    The commit is not made,
+    nothing is staged by it,
+    and the message names every rejected path with both ways forward:
+    leave the file out of the commit's paths,
+    or stage it with `git add --force -- <path>` when it is meant to become tracked.
+    Real Git 2.56.0 on a disposable repository refuses the same command line either way:
+    `git commit -- <untracked ignored path>` exits 1,
+    its pathspec matching no file Git knows,
+    and `git add -- <the same path>` exits 1 with
+    "The following paths are ignored by one of your .gitignore files"
+    and the force-add hint.
     A backslash is Git's escape and not a pattern character:
     `a\b.txt` names the file whose pathname spells it when one is there.
     Every other element is a directory,

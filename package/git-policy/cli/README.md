@@ -115,7 +115,14 @@ Read-only commands,
   `linked-worktree-only` keeps every command form that can discard uncommitted work out of the main worktree,
    and out of a linked worktree while it holds uncommitted work (see "Discarding commands").
   `branch-worktree-only` sends branch creation through `git worktree add`.
-  `add-explicit` rejects bulk staging patterns such as `git add .`.
+  `add-explicit` refuses a `git add` whose pathspec selects every path of the repository or of the
+   directory it runs in,
+   however that pathspec is spelled (`git add .`,
+  `git add *`,
+  `git add .//`,
+  `git add sub/..`),
+   and says how many paths it selected.
+  A `git add` that names its paths starts no process for this.
 - Commits landed by a service.
   A `git commit` is prepared in a private index,
    the content policies check the exact bytes,
@@ -2733,6 +2740,17 @@ none is waited out or retried on the moved head yet:
   (see "A commit held behind a reference lock").
   A reference lock that nothing proves gone is otherwise no longer one of these.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
+- A named path an ignore rule matches while no index entry tracks it.
+  The commit is not made,
+   nothing is staged by it,
+   and the finding `explicit-path-commit/named-path-ignored` names every rejected path
+   with both ways forward:
+   leave the ignored generated file out of the commit's paths,
+   or stage it with `git add --force -- <path>` when it is meant to become tracked (`SPEC.md`,
+  "Core finding event").
+  The decision comes from the paths the command names,
+   before any private `git add` runs,
+   so it no longer depends on the wording of a Git message (issue 6278).
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -2826,6 +2844,15 @@ Listing one with a severity is the only way to turn it on,
    default `error`.
 - `add-explicit`:
    default `error`.
+  A `git add` must name the paths it stages.
+  Bulk flags (`-A`,
+  `--all`,
+  `-u`,
+  `--update`) are refused from the arguments alone,
+  and a positional pathspec is refused when Git finds it selects every path of the repository or of
+   the directory the command runs in,
+   unless the spelling names a character of a name (see `SPEC.md`,
+  "Bulk staging").
 - `final-newline`:
    default `warn`.
   Text files end with exactly one line feed.
