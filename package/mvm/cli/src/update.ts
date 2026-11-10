@@ -5,6 +5,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { IMAGES_DIR, } from './config.ts';
 import {
   IMAGES,
+  type ImageSpec,
   VIRTIO_WIN_FILENAME,
 } from './registry.ts';
 import { pathExists, } from './path-exists.ts';
@@ -19,6 +20,14 @@ import { ensureTemplate, } from './template.ts';
  ```
  */
 const l = tagged({ tag: 'mvm', },);
+
+/**
+ One image registry entry: its identifier and the specification it resolves to.
+ */
+type ImageEntry = readonly [
+  string,
+  ImageSpec,
+];
 
 /**
  Updates all template images unconditionally by deleting cached base images
@@ -60,7 +69,7 @@ export async function update(): Promise<void> {
   const removePromises = (await Promise.all(
     Object.entries(IMAGES,)
       .map(
-      async function buildRemoveOps([name, spec,],): Promise<readonly Promise<void>[]> {
+      async function buildRemoveOps([name, spec,]: ImageEntry,): Promise<readonly Promise<void>[]> {
           /**
            Pending remove operations for this image; collected so `flat()` returns a flat array.
            */

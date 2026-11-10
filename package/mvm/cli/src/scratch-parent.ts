@@ -40,12 +40,29 @@ export async function scratchParent(): Promise<string> {
    Directory under which every monochromatic tool keeps its scratch.
    */
   const base = nodeModules === NO_NODE_MODULES_FOUND
-    ? join(process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache',), 'monochromatic-dev',)
-    : join(nodeModules, '.monochromatic',);
+    ? join(
+      process.env
+        .XDG_CACHE_HOME
+        ?? join(
+          homedir(),
+          '.cache',
+        ),
+      'monochromatic-dev',
+    )
+    : join(
+      nodeModules,
+      '.monochromatic',
+    );
   /**
    This tool's own scratch parent.
    */
-  const parent = join(base, 'mvm',);
-  await mkdir(parent, { recursive: true, },);
+  const parent = join(
+    base,
+    'mvm',
+  );
+  await mkdir(
+    parent,
+    { recursive: true, },
+  );
   return parent;
 }

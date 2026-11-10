@@ -32,6 +32,12 @@ export {
 } from './distribution-targets.js';
 export { readElectronVersion, } from './electron-version.js';
 export {
+  readProductModules,
+  SUBSTANTIAL_MODULE_LINE_COUNT,
+  unmarkedSubstantialModules,
+  type ModuleText,
+} from './region-markers.js';
+export {
   stageElectronApp,
   type ElectronAppStageOptions,
   type StaticAssetMapping,

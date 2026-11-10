@@ -18,6 +18,8 @@ import {
   INITIAL_COUNT,
 } from './counter.js';
 
+//region DOM and state shapes
+
 /**
  DOM elements needed by the counter renderer.
  
@@ -69,6 +71,10 @@ type CounterState = {
   readonly increment: () => number;
 };
 
+//endregion DOM and state shapes
+
+//region Renderer state
+
 /**
  Creates mutable renderer state isolated behind functions.
  
@@ -95,6 +101,10 @@ function createCounterState(): CounterState {
     },
   };
 }
+
+//endregion Renderer state
+
+//region Static markup lookup
 
 /**
  Error thrown when expected static markup is missing or has an unexpected tag.
@@ -180,6 +190,10 @@ function getCounterElements(): CounterElements {
   };
 }
 
+//endregion Static markup lookup
+
+//region Rendering
+
 /**
  Synchronises visible counter text, accessible button text, and document title.
  
@@ -252,3 +266,5 @@ function renderCounterApp(): void {
 }
 
 renderCounterApp();
+
+//endregion Rendering

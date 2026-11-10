@@ -11,6 +11,23 @@ import {
   type BoundedProcessRunner,
 } from '../dist/final/node/index.mjs';
 
+/**
+ Reports the error a repository selector is refused with.
+ 
+ @param value - Candidate `--repo` value.
+ 
+ @returns The thrown value, or `undefined` when the selector is accepted.
+ */
+function refusalOf(value: string,): unknown {
+  try {
+    parseRepositoryUrl(value,);
+    return undefined;
+  }
+  catch (error: unknown) {
+    return error;
+  }
+}
+
 await describe({
   name: parseRepositoryUrl.name,
   children: [
@@ -39,18 +56,36 @@ await describe({
           'https://example.com/Aquaticat/issues-api',
         ];
         for (const value of values) {
-          /**
-           Captured repository validation failure.
-           */
-          let caught: unknown;
-          try {
-            parseRepositoryUrl(value,);
-          }
-          catch (error: unknown) {
-            caught = error;
-          }
-          expect(caught,).toBeInstanceOf(RepositorySelectionError,);
+          expect(refusalOf(value,),).toBeInstanceOf(RepositorySelectionError,);
         }
+      },
+    },),
+    it({
+      name: 'rejects a non-ASCII owner character',
+      fn: async () => {
+        expect(refusalOf('https://github.com/Aquaticat\u00E9/issues-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
+      },
+    },),
+    it({
+      name: 'rejects a supplementary plane owner character',
+      fn: async () => {
+        expect(refusalOf('https://github.com/Aquaticat\u{1F600}/issues-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
+      },
+    },),
+    it({
+      name: 'rejects a supplementary plane repository name character',
+      fn: async () => {
+        expect(refusalOf('https://github.com/Aquaticat/issues\u{1F600}-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
+      },
+    },),
+    it({
+      name: 'rejects a lone surrogate in the repository name',
+      fn: async () => {
+        expect(refusalOf('https://github.com/Aquaticat/issues\uD800-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
       },
     },),
     it({

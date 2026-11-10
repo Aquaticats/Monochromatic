@@ -396,7 +396,7 @@ not a decision:
 give `worktree` a guarded form in the same reading the other commands use.
 A `remove` or `prune` whose subcommand words and `--force` count are read from Git's own
 `builtin/worktree.c` table,
-judged by the *removed worktree's* status rather than the running worktree's,
+judged by the **removed worktree's** status rather than the running worktree's,
 with the hatch and the audit line the other forms have,
 and with the conflict-free copy of the tracked changes the owner's "never discard user data" asks for.
 Whether that copy is a patch,
@@ -580,7 +580,7 @@ and because the form is a single word away from `stash list`.
 Where:
 `stash` is `NeedsEffectiveTarget(Stash)` for every state-changing subcommand
 (`src/native/command/rule_linked_worktree.rs:235`),
-which means the decision is taken by the *running worktree's* status
+which means the decision is taken by the **running worktree's** status
 (`src/native/policy/policy_checks.rs:403`).
 `stash drop` and `stash clear` delete entries of `refs/stash`,
 which is shared by every worktree of the repository,
@@ -631,7 +631,7 @@ Ranked fifth because what it destroys is a ref rather than worktree files,
 and the commits stay in the object store until Git's expiry.
 
 Where:
-`rule_branch_worktree.rs:137` reads only the words that *create* a branch,
+`rule_branch_worktree.rs:137` reads only the words that **create** a branch,
 and `SPEC.md:8098` to :8116 lists no branch deletion.
 `guarded_decision` has no `branch` arm.
 

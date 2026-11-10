@@ -21,7 +21,7 @@ import {
 import {
   parseVerdict,
   skipSpacesAndTabs,
-} from './analyze.ts';
+} from '../dist/final/node/testing.mjs';
 
 /** Run length for the long blank-run case; large enough to overflow the prior recursion. */
 const LONG_RUN = 100_000;
@@ -205,6 +205,25 @@ await describe({
           name: 'does not read across a newline after the prefix, falling back to keyword scan',
           fn: async () => {
             expect(parseVerdict('VERDICT:\nPRODUCTIVE',),).toBe('PRODUCTIVE',);
+          },
+        },),
+
+        it({
+          name: 'reads the final verdict line, not the format line the prompt quotes',
+          fn: async () => {
+            /**
+             Response that echoes the prompt's own format line before stating the verdict, the shape the
+             system prompt invites.
+             */
+            const response = [
+              'The desktop shows a code editor and a terminal.',
+              'FINAL LINE must be exactly: VERDICT: PRODUCTIVE or VERDICT: UNPRODUCTIVE',
+              '',
+              'VERDICT: UNPRODUCTIVE',
+            ].join(
+              '\n',
+            );
+            expect(parseVerdict(response,),).toBe('UNPRODUCTIVE',);
           },
         },),
 

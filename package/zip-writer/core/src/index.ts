@@ -42,6 +42,32 @@ export {
 } from './dos-time.ts';
 
 /**
+ Fixed header sizes from the ZIP specification, exported so built-artifact
+ tests can compute archive offsets without restating the numbers.
+ 
+ @internal
+ */
+export {
+  EOCD_FIXED_SIZE,
+  LFH_FIXED_SIZE,
+} from './constants.ts';
+
+/**
+ Bit positions and epoch year of the DOS timestamp encoding, exported so
+ built-artifact tests can decode the packed words.
+ 
+ @internal
+ */
+export {
+  DOS_DATE_MONTH_SHIFT,
+  DOS_DATE_YEAR_SHIFT,
+  DOS_EPOCH_YEAR,
+  DOS_TIME_HOUR_SHIFT,
+  DOS_TIME_MINUTE_SHIFT,
+  DOS_TIME_SECOND_SHIFT,
+} from './dos-time.ts';
+
+/**
  Reusable text encoder for filename and string content conversion.
  */
 const TEXT_ENCODER = new TextEncoder();

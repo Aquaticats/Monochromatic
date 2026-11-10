@@ -36,7 +36,7 @@
     },
     "mpm": {
       "request": "pipx:meta-package-manager@latest",
-      "version": "8.2.0",
+      "version": "8.3.0",
       "route": "mpm-uvx",
       "bins": [
         "mpm",
@@ -51,20 +51,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
-          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+          "url": "https://files.pythonhosted.org/packages/d8/0a/8fb3cd32612cf28f5d9a108f193dc7168940fbe2e14b137a3ea64a030a26/meta_package_manager-8.3.0-py3-none-any.whl",
+          "sha256": "5f311e0c5b732838ddfd4d89a9d6b3630d8665394342b0c6a6381c28709f901c"
         },
         "linux-arm64-musl": {
-          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
-          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+          "url": "https://files.pythonhosted.org/packages/d8/0a/8fb3cd32612cf28f5d9a108f193dc7168940fbe2e14b137a3ea64a030a26/meta_package_manager-8.3.0-py3-none-any.whl",
+          "sha256": "5f311e0c5b732838ddfd4d89a9d6b3630d8665394342b0c6a6381c28709f901c"
         },
         "linux-x64": {
-          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
-          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+          "url": "https://files.pythonhosted.org/packages/d8/0a/8fb3cd32612cf28f5d9a108f193dc7168940fbe2e14b137a3ea64a030a26/meta_package_manager-8.3.0-py3-none-any.whl",
+          "sha256": "5f311e0c5b732838ddfd4d89a9d6b3630d8665394342b0c6a6381c28709f901c"
         },
         "linux-x64-musl": {
-          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
-          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+          "url": "https://files.pythonhosted.org/packages/d8/0a/8fb3cd32612cf28f5d9a108f193dc7168940fbe2e14b137a3ea64a030a26/meta_package_manager-8.3.0-py3-none-any.whl",
+          "sha256": "5f311e0c5b732838ddfd4d89a9d6b3630d8665394342b0c6a6381c28709f901c"
         }
       }
     },
@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-09",
+      "version": "nightly-2026-11-10",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-09",
+      "packageId": "nightly-2026-11-10",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-09"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-10"
       },
       "options": {
         "rustComponents": [
@@ -613,7 +613,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.6.1-alpha.5",
+      "version": "0.6.1-alpha.6",
       "route": "archive",
       "bins": [
         "monochromatic-git-policy-cli"
@@ -635,20 +635,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.5/monochromatic-git-policy-cli-0.6.1-alpha.5-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "a32e911bc2062e8c9855d12d112eae3c8df114c4ad65cc972e1e646cb3b353cf"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.6/monochromatic-git-policy-cli-0.6.1-alpha.6-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "0e4ef5f9c188f9f90c6f116a332d17c95499db681a265d5c15bd478ad4c9b562"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.5/monochromatic-git-policy-cli-0.6.1-alpha.5-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "a32e911bc2062e8c9855d12d112eae3c8df114c4ad65cc972e1e646cb3b353cf"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.6/monochromatic-git-policy-cli-0.6.1-alpha.6-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "0e4ef5f9c188f9f90c6f116a332d17c95499db681a265d5c15bd478ad4c9b562"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.5/monochromatic-git-policy-cli-0.6.1-alpha.5-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "5860151b3cab42d138a15a5738dda252f1d6fe8e8377e6f205f2abf470cb67ce"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.6/monochromatic-git-policy-cli-0.6.1-alpha.6-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "0708e11eccb58e5c80c60bbf33e70a5e70b5a4ea367414ccac192c9e80d09862"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.5/monochromatic-git-policy-cli-0.6.1-alpha.5-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "5860151b3cab42d138a15a5738dda252f1d6fe8e8377e6f205f2abf470cb67ce"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.6/monochromatic-git-policy-cli-0.6.1-alpha.6-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "0708e11eccb58e5c80c60bbf33e70a5e70b5a4ea367414ccac192c9e80d09862"
         }
       }
     },
@@ -1466,7 +1466,7 @@
     },
     "npm:wrangler": {
       "request": "npm:wrangler@latest",
-      "version": "4.158.0",
+      "version": "4.159.0",
       "route": "mpm-pnpm",
       "bins": [
         "cf-wrangler",
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:2cc20313f58ac93f48dd232e3d7bd64358276badece37e400a8098001aa877a7"
+  "digest": "sha256:b990a2c4365537f3ae9d361081744fd81ae00d40f3b7b2a234ab5c6e59b2399e"
 }

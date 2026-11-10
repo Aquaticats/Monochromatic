@@ -26,3 +26,10 @@ extends = "lint:types"
 extends = "lint:oxlint"
 [tasks."format:oxlint"]
 extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the Node bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
