@@ -189,6 +189,14 @@ type RecordedProviderCall = {
    Model the dispatch handed the fake module.
    */
   readonly model: Model<Api>;
+  /**
+   Context the dispatch handed the fake module.
+   */
+  readonly context: TranscriptContext;
+  /**
+   Options the dispatch handed the fake module.
+   */
+  readonly options: unknown;
 };
 
 /**
@@ -236,19 +244,31 @@ function fakeProviderModule(
    Provider streams the fake factory returns.
    */
   const streams: ProviderStreams = {
-    stream: function recordStream(model,): AssistantMessageEventStream {
+    stream: function recordStream(
+      model,
+      context,
+      options,
+    ): AssistantMessageEventStream {
       calls.push({
         method: 'stream',
         moduleApi: api,
         model,
+        context,
+        options,
       },);
       return stream;
     },
-    streamSimple: function recordStreamSimple(model,): AssistantMessageEventStream {
+    streamSimple: function recordStreamSimple(
+      model,
+      context,
+      options,
+    ): AssistantMessageEventStream {
       calls.push({
         method: 'streamSimple',
         moduleApi: api,
         model,
+        context,
+        options,
       },);
       return stream;
     },
@@ -442,6 +462,8 @@ await describe({
             expect(calls[0]?.model.api,).toBe(api,);
             expect(calls[0]?.model,).toEqual(model,);
             expect(calls[0]?.model,).not.toBe(model,);
+            expect(calls[0]?.context,).toBe(REVIEW_CONTEXT,);
+            expect(calls[0]?.options,).toBe(REVIEW_OPTIONS,);
           },
         },);
       },),
