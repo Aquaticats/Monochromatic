@@ -663,14 +663,7 @@ Read-only commands,
      a worktree-specific configuration,
      a submodule,
      `.gitattributes`
-   files that differ between the source and the new `HEAD`,
-     and `--force`,
-     `--no-checkout`,
-     `-B`,
-     `--orphan`,
-     `--track`,
-   any `-c` option,
-     and `--no-worktree-copy`;
+   files that differ between the source and the new `HEAD`;
      rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git monochromatic-git-policy-cli migrate-to-subvolume` or `git monochromatic-git-policy-cli convert-worktree-to-subvolume` makes them
    subvolumes).
@@ -780,7 +773,20 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
-  Every worktree the wrapper creates on btrfs is a subvolume,
+  The ladder does not read `--force`,
+     `--no-checkout`,
+     `-B`,
+     `--orphan`,
+     `--track`,
+   any `-c` option,
+     or `--no-worktree-copy`:
+     Git makes such a worktree alone,
+   as an ordinary directory,
+     and `--no-worktree-copy` skips the ignored-state copy with it.
+     An add run from such a worktree says it is not a subvolume and names
+   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
+  Every worktree the ladder makes on btrfs is a subvolume,
+     whatever rung served it,
      so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung,
      because every real Git start of the wrapper switches hooks off.
