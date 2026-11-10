@@ -4236,6 +4236,26 @@ so a step that ended and was reaped between them leaves a number another process
 and nothing here reads a number
 (the wait that owns the step ends it instead,
 below);
+and a step the kernel has not released is said,
+once,
+in a line of its own:
+a process in uninterruptible sleep (`D`) cannot act on `SIGKILL` until the call it is inside returns,
+so the commit waits the kernel's time,
+and the line names the step and its process,
+says the stop was sent and the kernel has not released it,
+says what state the kernel reports for it,
+and says that nothing was committed and that the person's index and files are as they were
+(owner,
+2026-11-10,
+"Keep waiting and say so",
+chosen over leaving after a bound and failing the commit;
+the wait is an exception to his rule that nothing waits for ever,
+and `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` holds the kernel behaviour behind it and the options he did not choose);
+the line names only a step that two looks,
+one look interval apart after the signal,
+both find in uninterruptible sleep,
+so a step that acts on its stop in that interval is never said to be held,
+and a reader that stopped reading holds the writer thread and drops that line as it drops every other;
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
@@ -4272,8 +4292,11 @@ and ended through descriptors pinned the same way,
 with every program it could not pin or not signal counted as `belowUnended`,
 so the stop says what it could not end instead of reporting a walk that ended everything it listed;
 and the child is reaped there,
-a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
-so the kernel's release of it never holds the command,
+and a child the kernel holds in an uninterruptible call is waited for with no bound,
+so the kernel's release of it is what ends the command
+(the owner's answer of 2026-11-10,
+"Keep waiting and say so",
+and the notice's own line says so once while that wait runs),
 and the status that reap collects decides what ended the step:
 a step that finished by itself between the ceiling and the signal is answered with its own exit and no stop,
 because a kill cannot turn an exit into a signal,
@@ -4288,7 +4311,10 @@ which name the signer when the commit was signed and say nothing was committed.
 A stop is written once,
 by whichever enforcer ended the step first,
 and the wait's own record sets `armed` for a step whose notice thread never ran.
-There is no state in which a commit under a ceiling waits with nothing to end its step.
+There is no state in which a commit under a ceiling waits with nothing to end its step:
+a step the kernel holds is signalled already,
+and the only wait left is the kernel's release of it,
+which the owner chose to wait for and the notice's line names.
 
 ##### What a stop reads about a step, and what it sends
 
@@ -4703,6 +4729,17 @@ quoted by the options chosen:
   the service's retry plan keeps the push and tries again;
   the command returns with a line saying the push is
   queued.").
+
+A wait with no bound of the wrapper's own is the scratch `git commit` a commit builds,
+once the kernel has taken it:
+a process in uninterruptible sleep cannot act on the ceiling's `SIGKILL` until the call it is inside returns,
+so that wait ends when the kernel releases the step and never before.
+The owner chose it (2026-11-10,
+"Keep waiting and say so")
+over leaving after a bound and failing the commit,
+and one line says the stop was sent and the kernel has not released the step,
+so the wait is never silent
+(`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`).
 
 The inventory of every wait,
 with the end behavior of each and the options for the ones not decided,
