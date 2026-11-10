@@ -36,8 +36,9 @@ use crate::child_awaited_through_a_pidfd::OwnedChild;
 /// and its status.
 use std::process::ExitStatus;
 /// Where the line goes:
-/// the writer thread of the command's notice.
-use std::sync::mpsc::SyncSender;
+/// the writer thread of the command's notice,
+/// and what a queue that would not take it says.
+use std::sync::mpsc::{SyncSender, TrySendError};
 /// Time spans.
 use std::time::Duration;
 
@@ -125,8 +126,15 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
         match the_look(step) {
             TheLook::Held if seen_held => {
                 let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited });
-                let _taken = words.lines.try_send(line);
-                pause = words.again_every;
+                // What: A line the writer could not take is said again as soon as it can take one.
+                // Why:  The queue holds one line, and an older advisory line may be sitting in it while the writer
+                //       holds the one before; a whole notice interval later is a wait that looked stuck to anyone who
+                //       was reading (finding 3 of the 2026-11-10 review of the held-step notice).
+                //       The copy that was not taken is not lost: it is said again, so it is not counted as a drop.
+                pause = match words.lines.try_send(line) {
+                    Ok(()) => words.again_every,
+                    Err(TrySendError::Full(_untaken) | TrySendError::Disconnected(_untaken)) => AFTER_THE_STOP,
+                };
             }
             TheLook::Held => {
                 seen_held = true;
