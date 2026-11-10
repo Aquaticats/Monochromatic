@@ -1759,6 +1759,9 @@ importers:
 
   package/dependency-catalog/core-rust:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -2926,6 +2929,10 @@ importers:
         version: 7.1.0-beta
 
   package/logger/core:
+    dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
     devDependencies:
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
@@ -3647,6 +3654,9 @@ importers:
       '@csstools/css-tokenizer':
         specifier: 'catalog:'
         version: 4.0.2
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3900,6 +3910,9 @@ importers:
       '@monochromatic-dev/agent-harness-shared-current-time-context':
         specifier: workspace:*
         version: link:../../agent-harness-shared/current-time-context
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
@@ -4255,6 +4268,10 @@ importers:
         version: 26.6.6
 
   package/pi-shared/subagent-driver:
+    dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*

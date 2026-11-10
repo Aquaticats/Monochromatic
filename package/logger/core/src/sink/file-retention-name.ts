@@ -2,6 +2,8 @@
  Name-family classification for retention sweeps. @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Logger-owned names, identified by shape without regular expressions.
 /**
  Sentinel for names outside the logger's owned families,
@@ -58,22 +60,6 @@ const LOG_FILE_SUFFIX = '.log.jsonl';
  Suffix of directory probes: `{timestamp}.{uuid}.probe.tmp`.
  */
 const PROBE_FILE_SUFFIX = '.probe.tmp';
-
-/**
- Digit check over one character of a candidate name.
-
- @param character - single character under test
-
- @returns Whether the character is an ASCII digit
-
- @example
- ```ts
- const digit = isDigit('7');
- ```
- */
-function isDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
 
 /**
  Digit-run check over one day-key segment.

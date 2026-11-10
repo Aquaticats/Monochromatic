@@ -4,6 +4,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Constants
 
 /**
@@ -51,23 +53,6 @@ const SECOND_MINUTE_DIGIT_INDEX = 4;
 //region Shape checks
 
 /**
- Determines whether a string is one ASCII decimal digit.
- 
- @param value - single character to check
- 
- @returns whether value is between `0` and `9`
- 
- @example
- ```typescript
- isAsciiDigit('7');
- // true
- ```
- */
-function isAsciiDigit(value: string,): boolean {
-  return (value >= '0') && (value <= '9');
-}
-
-/**
  Determines whether content has exact `<time>HH:MM</time>` shape.
  
  @param value - candidate hidden current-time context content
@@ -100,12 +85,12 @@ function isTimeContextContent(value: string,): boolean {
         .length,
   );
 
-  return isAsciiDigit(middle.charAt(FIRST_HOUR_DIGIT_INDEX,),)
-    && isAsciiDigit(middle.charAt(SECOND_HOUR_DIGIT_INDEX,),)
+  return isDigit(middle.charAt(FIRST_HOUR_DIGIT_INDEX,),)
+    && isDigit(middle.charAt(SECOND_HOUR_DIGIT_INDEX,),)
     && (middle.charAt(TIME_SEPARATOR_INDEX,)
       === ':')
-    && isAsciiDigit(middle.charAt(FIRST_MINUTE_DIGIT_INDEX,),)
-    && isAsciiDigit(middle.charAt(SECOND_MINUTE_DIGIT_INDEX,),);
+    && isDigit(middle.charAt(FIRST_MINUTE_DIGIT_INDEX,),)
+    && isDigit(middle.charAt(SECOND_MINUTE_DIGIT_INDEX,),);
 }
 
 //endregion Shape checks

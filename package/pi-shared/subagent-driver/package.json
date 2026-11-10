@@ -19,6 +19,9 @@
     "watch-overdue-pi-runs": "dist/final/node/watch-overdue-pi-runs.mjs",
     "check-in-on-pi-runs": "dist/final/node/check-in-on-pi-runs.mjs"
   },
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*"
+  },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@csstools/css-tokenizer": "catalog:",
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",

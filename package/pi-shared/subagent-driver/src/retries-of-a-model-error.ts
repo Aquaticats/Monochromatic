@@ -22,6 +22,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
@@ -236,17 +238,6 @@ const WAIT_SEPARATORS: ReadonlySet<string> = new Set([
   ':',
   '=',
 ]);
-
-/**
- Tells whether a character is an ASCII digit.
-
- @param character - one character of the text
-
- @returns whether it is a digit
- */
-function isDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
 
 /**
  Tells whether a character is an ASCII letter or digit, so a number that touches one is part of a longer word, count or request

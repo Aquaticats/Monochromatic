@@ -7,6 +7,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Characters
 
 /**
@@ -31,22 +33,6 @@ function isAsciiLetter(character: string,): boolean {
 }
 
 /**
- Whether `character` is an ASCII digit.
-
- @param character - single character to test
-
- @returns whether it is `0` to `9`
-
- @example
- ```ts
- isAsciiDigit('7'); // true
- ```
- */
-function isAsciiDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
  Whether every character of `text` passes `accepts`.
 
  Scans UTF-16 code units by index. Every accepted character is ASCII, so any
@@ -61,7 +47,7 @@ function isAsciiDigit(character: string,): boolean {
 
  @example
  ```ts
- everyCharacter({ text: '104', accepts: isAsciiDigit, }); // true
+ everyCharacter({ text: '104', accepts: isDigit, }); // true
  ```
  */
 function everyCharacter(
@@ -113,7 +99,7 @@ export function isCrateName(name: string,): boolean {
   return everyCharacter({
     text: name,
     accepts: function isNameCharacter(character,): boolean {
-      return isAsciiLetter(character,) || isAsciiDigit(character,)
+      return isAsciiLetter(character,) || isDigit(character,)
         || (character === '-')
         || (character === '_');
     },
@@ -144,7 +130,7 @@ function isNumericComponent(part: string,): boolean {
     return false;
   return everyCharacter({
     text: part,
-    accepts: isAsciiDigit,
+    accepts: isDigit,
   },);
 }
 
@@ -161,7 +147,7 @@ function isNumericComponent(part: string,): boolean {
  ```
  */
 function isLabelCharacter(character: string,): boolean {
-  return isAsciiLetter(character,) || isAsciiDigit(character,)
+  return isAsciiLetter(character,) || isDigit(character,)
     || (character === '.')
     || (character === '-');
 }

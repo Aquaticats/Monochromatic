@@ -44,7 +44,9 @@
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*"
+  },
   "version": "0.4.6",
   "repository": {
     "type": "git",

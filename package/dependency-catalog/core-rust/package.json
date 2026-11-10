@@ -20,6 +20,7 @@
     "LICENSES"
   ],
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/toml-edit-core": "workspace:*"
   },

@@ -14,6 +14,8 @@ import type {
 import rehypeParse from 'rehype-parse';
 import { unified, } from 'unified';
 
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import type { DeepReadonly, } from './types.ts';
 import { startsWithUriScheme, } from './url-detect.ts';
 
@@ -158,26 +160,6 @@ function firstSrcsetUrl(srcset: string,): string | typeof NO_ASSET_URL {
   // `first` is trimmed and non-empty, so it carries at least one non-whitespace
   // character; the leading-token scan therefore always yields a non-empty URL.
   return firstNonWhitespaceToken(first,);
-}
-
-/**
- Whether `c` is one of the ASCII whitespace characters that bound a token:
- space, tab, newline, carriage return, form feed, vertical tab. Matches the
- exact set the prior recursive walkers tested (ASCII subset of regex `\s`),
- so a non-breaking space and other Unicode spaces are deliberately not
- treated as boundaries.
- 
- @param c - single character under inspection
- 
- @returns whether `c` is ASCII whitespace
- */
-function isWhitespace(c: string,): boolean {
-  return (c === ' ')
-    || (c === '\t')
-    || (c === '\n')
-    || (c === '\r')
-    || (c === '\f')
-    || (c === '\v');
 }
 
 /**
