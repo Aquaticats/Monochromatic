@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { computeChanges, } from './changes.ts';
+import { computeChanges, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: 'changes',

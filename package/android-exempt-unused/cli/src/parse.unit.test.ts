@@ -10,13 +10,13 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { AdbCommandError, } from './errors.ts';
 import {
+  AdbCommandError,
   isValidPackageName,
   parseDevices,
   parseExemptedQuery,
   parsePackageList,
-} from './parse.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: 'parse',
