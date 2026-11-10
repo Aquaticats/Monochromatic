@@ -15,7 +15,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core';
-import { scratchRoot, } from './scratch-root.ts';
+import { scratchRoot, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: scratchRoot.name,

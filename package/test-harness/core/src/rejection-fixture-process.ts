@@ -8,7 +8,10 @@ import { mkdtempDisposable, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { text, } from 'node:stream/consumers';
 
-import { scratchRoot, } from './scratch-root.ts';
+// The scratch root is node-only, so it is not in the package entry: the node build's
+// testing entry is where it lives for a consumer. Loading it from built output is what
+// `test-import/require-eventual-artifact` asks of a module this repository tests.
+import { scratchRoot, } from '../dist/final/node/testing.mjs';
 import { fileURLToPath, } from 'node:url';
 
 /**
