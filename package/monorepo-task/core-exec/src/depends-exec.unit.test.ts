@@ -187,16 +187,21 @@ await describe({
       },
     },),
     it({
-      name: 'treats a command that never started as a failure',
+      name: 'names the command it could not start, the reason, and what to check',
       fn: async () => {
+        const missingCommand = 'no-such-command-for-the-collapsed-output-test';
         const outcome = runExecutorInChild({
-          command: 'no-such-command-for-the-collapsed-output-test',
+          command: missingCommand,
           commandArgs: [],
           verbose: false,
           allowFailure: false,
           commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
         },);
+        // A command that never started reports no status of its own.
         expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+        expect(outcome.stderr,).toContain(missingCommand,);
+        expect(outcome.stderr,).toContain('ENOENT',);
+        expect(outcome.stderr,).toContain('PATH',);
       },
     },),
     it({
@@ -225,6 +230,24 @@ await describe({
           commandTimeoutMs: OUTLIVED_BOUND_MS,
         },);
         expect(outcome.stderr,).toContain('--command-timeout-seconds',);
+        expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+      },
+    },),
+    it({
+      name: 'dumps what a timed-out child printed before the bound ended it',
+      fn: async () => {
+        const outcome = runExecutorInChild({
+          command: process.execPath,
+          commandArgs: [
+            '--eval',
+            `process.stdout.write('printed before the bound\\n'); process.stderr.write('warned before the bound\\n'); setTimeout(function never(): void {}, 60_000)`,
+          ],
+          verbose: false,
+          allowFailure: false,
+          commandTimeoutMs: OUTLIVED_BOUND_MS,
+        },);
+        expect(outcome.stdout,).toContain('printed before the bound',);
+        expect(outcome.stderr,).toContain('warned before the bound',);
         expect(outcome.status,).toBe(UNREPORTED_STATUS,);
       },
     },),
