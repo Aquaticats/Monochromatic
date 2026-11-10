@@ -101,6 +101,8 @@ the notice comes after the destroy,
 which cannot be undone,
 and that command's `--help` is Git's own (`DESTROY_NOTICE`,
 `src/native/worktree/worktree_remove.rs`).
+A removal the person forced words its own line (`DESTROY_FORCED_NOTICE` in the same module),
+because nothing was checked for changes before that destroy.
 
 The sections that describe those commands carry the same statement beside their guards:
 "Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
@@ -2527,10 +2529,10 @@ an interrupted or failed add keeps naming the same worktree and stage in every c
 runs the recovery,
 until the person finishes or removes it.
 
-`git worktree remove <directory>` with no option and a non-empty directory name,
-for a clean,
-unlocked linked worktree
+`git worktree remove <directory>` with at most one `-f`/`--force` and a non-empty directory name,
+for an unlocked linked worktree
 that is a subvolume root,
+clean unless the person forced the removal,
 on a mount that lists `user_subvol_rm_allowed`,
 destroys the subvolume and deletes the
 administrative directory.
@@ -2573,7 +2575,23 @@ The wrapper serves the removal only when real Git would remove the same director
   an entry,
   or any other result of the lookup,
   leaves the removal to Git.
-- The worktree is clean by the proof of `worktree_clean.rs`.
+- The worktree is clean by the proof of `worktree_clean.rs`,
+  unless the person passed `-f` or `--force`.
+  Git's own removal makes that proof only when the force is zero
+  (`builtin/worktree.c`,
+  `remove_worktree`: `if (!force) check_clean_worktree(wt, av[0])`),
+  and a forced removal deletes the worktree it was given whatever it
+  holds,
+  so the destroy answers for the same set of files.
+  The proof is also the only place Git refuses a populated submodule
+  (`validate_no_submodules`, called from
+  `check_clean_worktree`),
+  so a forced removal leaves a populated submodule to the destroy exactly as Git leaves it to
+  `remove_dir_recursively`.
+  A second force stays Git's own:
+  `if (force < 2) reason = worktree_lock_reason(wt)` is what lets `-f -f` remove a locked worktree,
+  and the wrapper
+  reads one force only.
 
 Accepted risk,
 stated to the person who runs the command:
@@ -2646,9 +2664,12 @@ and gives both commands
 `convert-worktree-to-subvolume --abandon <path>` to
 discard the copy),
 because the removal deletes the registration and the journal in it is what names that copy.
-`git worktree remove --force` and `git worktree prune` are not seen by the wrapper,
-so they still remove the
+`git worktree prune` is not seen by the wrapper,
+and neither is a `git worktree remove --force` of a worktree that is not a subvolume or whose mount lacks the option,
+so those still remove the
 worktree and leave the copy behind;
+a forced removal the wrapper serves refuses like the option-free one,
+because the destroy deletes the registration that names the copy;
 `--abandon` reaches such a copy at its recorded identity,
 and a copy whose
 conversion left no record is kept and named.

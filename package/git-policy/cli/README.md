@@ -787,10 +787,14 @@ Read-only commands,
      so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung,
      because every real Git start of the wrapper switches hooks off.
-  `git worktree remove <directory>` (no option) destroys a clean,
-     unlocked subvolume worktree with one ioctl and deletes
-   its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the commands that set it);
+  `git worktree remove <directory>` (no option, or one `-f`/`--force`) destroys an unlocked subvolume worktree with one
+   ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the
+   commands that set it);
    in every other case Git removes it.
+  A forced removal is served without the cleanliness proof, because Git's own `--force` removal deletes a worktree that
+   holds changes whatever it holds (`builtin/worktree.c`: `if (!force) check_clean_worktree(wt, av[0])`),
+   and it words its own line on standard error because nothing was checked first.
+  A second force, which is what Git needs for a locked worktree, stays Git's own.
   It does so only for a worktree that the repository you run it in registered and that Git would pick for the name you typed
    (Git matches the name against the last components of every registered path before it resolves the path);
      an empty name,
