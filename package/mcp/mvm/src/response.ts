@@ -5,6 +5,10 @@
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import type {
+  TextContent,
+  ToolCallResult,
+} from '@monochromatic-dev/mcp-stdio/ts';
 
 import { diagnosticLogger, } from './diagnostic-logger.ts';
 
@@ -21,37 +25,29 @@ const responseLogger = tagged({
 
 //endregion Logging
 
-//region Types: response shape definitions
+//region Types: response shapes narrowed from the protocol's own
 
 /**
- Single text content item in an MCP response.
+ Successful response, narrowed from {@link ToolCallResult} to the single text item every
+ tool here returns.
+ 
+ Derived rather than restated, so a field the protocol adds or removes reaches these
+ builders; `Omit` replaces the property instead of intersecting two `content` types, and
+ the one-element tuple is what makes a second content item a compile error here rather
+ than a surprise at a client.
  */
-type TextContent = {
-  text: string;
-  type: 'text';
+type TextResult = Omit<ToolCallResult, 'content'> & {
+  readonly content: readonly [TextContent,];
 };
 
 /**
- Successful MCP response containing text content.
+ Refused call: a text result narrowed to the error flag every failure sets.
  */
-type TextResponse = { content: [TextContent,]; };
-
-/**
- MCP error response containing text content and an error flag.
- */
-type ErrorResponse = {
-  content: [TextContent,];
-  isError: true;
-};
+type TextErrorResult = Omit<TextResult, 'isError'> & { readonly isError: true; };
 
 //endregion Types
 
 //region Response builders: construct MCP-compliant response objects
-
-/**
- Literal type constant for text content items.
- */
-const TEXT_TYPE = 'text' as const;
 
 /**
  Build a successful MCP text response.
@@ -65,9 +61,9 @@ const TEXT_TYPE = 'text' as const;
  return textResponse('VM created.');
  ```
  */
-export function textResponse(text: string,): TextResponse {
+export function textResponse(text: string,): TextResult {
   return { content: [{
-    type: TEXT_TYPE,
+    type: 'text',
     text,
   },], };
 }
@@ -95,7 +91,7 @@ export function errorResponse({
 }: {
   readonly err: unknown;
   readonly tag: string;
-},): ErrorResponse {
+},): TextErrorResult {
   /**
    Human-readable text preserving caller-provided diagnostics.
    */
@@ -107,7 +103,7 @@ export function errorResponse({
     .error(`${tag} failed: ${message}`,);
   return {
     content: [{
-      type: TEXT_TYPE,
+      type: 'text',
       text: `Error: ${message}`,
     },],
     isError: true,
@@ -139,7 +135,7 @@ export function invalidArgumentsResponse({
 }: {
   readonly tag: string;
   readonly text: string;
-},): ErrorResponse {
+},): TextErrorResult {
   tagged({
     tag: invalidArgumentsResponse.name,
     l: responseLogger,
@@ -147,7 +143,7 @@ export function invalidArgumentsResponse({
     .warn(`${tag} refused: ${text}`,);
   return {
     content: [{
-      type: TEXT_TYPE,
+      type: 'text',
       text: `Error: ${text}`,
     },],
     isError: true,
