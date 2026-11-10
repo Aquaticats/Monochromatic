@@ -31,13 +31,13 @@ const EXPECTED_CMDLINE = `sleep${ARGUMENT_SEPARATOR}0.5${ARGUMENT_SEPARATOR}`;
 const OTHER_CMDLINE = `cat${ARGUMENT_SEPARATOR}${ARGUMENT_SEPARATOR}`;
 
 /** Process id of the listed process whose command line matches. */
-const MATCHING_PID = 41;
+const MATCHING_PID = 4_101;
 
 /** Process id of a listed process running another command. */
-const OTHER_PID = 42;
+const OTHER_PID = 4_102;
 
 /** Process id of a listed process that ends before its command line is read. */
-const VANISHING_PID = 43;
+const VANISHING_PID = 4_103;
 
 //endregion Fixture values
 
