@@ -38,21 +38,17 @@ use crate::random_id::random_uuid;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template};
 /// What a member must be for this invocation.
 use crate::shadow_pool_member::refusal;
-/// The repository scratch root the pool lives in.
-use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// One Git start.
 use crate::transaction_git::{GitContext, GitFailure};
+/// What the pool's folder is called,
+/// beside the repository scratch directory.
+use crate::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
 /// The build's named stretches,
 /// which the fill names its own work under.
 use crate::commit_build_part_durations::BuildPartClock;
 /// Paths and time.
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
-
-/// The folder of finished shadows,
-/// inside the repository scratch root,
-/// beside the shadow of a transaction.
-pub const SHADOW_POOL_NAME: &str = "shadow-pool";
 
 /// How many finished shadows are kept for one worktree.
 /// Measured:
@@ -94,10 +90,18 @@ const CLAIM_ATTEMPTS: usize = 4;
 ///  A member's config names the worktree root,
 /// so a linked worktree's members are its own;
 /// the service of a worktree is the one that fills them.
+///  It sits in the Git common directory beside the repository scratch directory and never inside it:
+/// a member is standing state the owner asked for
+/// (`doc/handover/questions-for-the-owner.md`,
+/// "The private repository every commit builds"),
+/// not scratch,
+/// so the check that a commit leaves no scratch behind keeps meaning what it says,
+/// and no sweep,
+/// no release of a commit's tree and no reclamation of a removed worktree treats a pooled shadow as a leftover.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// poolRoot(template) // <common-dir>/<scratch>/shadow-pool/<worktree>
+/// poolRoot(template) // <common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>
 /// ```
 pub fn pool_root(template: &ShadowTemplate) -> PathBuf {
     return pool_root_for(template.common_dir.as_path(), template.git_dir.as_path());
@@ -119,10 +123,7 @@ pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
         true => String::from("main"),
         false => format!("worktree-{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
     };
-    return common_dir
-        .join(REPOSITORY_SCRATCH.current)
-        .join(SHADOW_POOL_NAME)
-        .join(key);
+    return common_dir.join(SHADOW_POOL_FOLDER).join(key);
 }
 
 /// What:

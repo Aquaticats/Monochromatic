@@ -11170,6 +11170,13 @@ and the file a command stages a lock in
 is never linked:
 a shadow Git that wrote one would collide with the real holder,
 and every command of a repository stages a marker of its own while it runs.
+The wrapper's own state never is either:
+the repository scratch root,
+which holds the shadow itself,
+and the pool of finished shadows beside it,
+which holds the private trees of other commits.
+A link to either would let one shadow reach another's tree,
+and whether the pool exists would decide what a member has to hold.
 A per-worktree entry that Git resolves in the owning worktree's Git directory,
 such as a linked worktree's `info/sparse-checkout`,
 is copied;
@@ -11234,8 +11241,20 @@ and makes its creation exactly as it did before when it does not:
 an empty pool is not a failure,
 and nothing about a claim can fail a commit.
 
-The pool lives in `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+The pool lives in `<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`,
 one folder per worktree because a member's `config` names the worktree root the commit runs in.
+It is its own folder beside the repository scratch directory and never an entry of it:
+a member is standing state the owner asked for,
+not scratch,
+so the check that a commit leaves no scratch behind keeps meaning what it says,
+and neither the sweep a command that takes scratch runs
+(`prepare_repository_scratch`),
+nor the release of a commit's scratch tree after its landing,
+nor the reclamation of a removed worktree's scratch treats a pooled shadow as a leftover.
+The folder is a private shadow entry of the same kind as the scratch root,
+so no shadow links it
+(`shadow_links.rs`,
+`is_private_shadow_entry`).
 A member is everything the creation makes that does not depend on the commit:
 the skeleton,
 the private mode,
@@ -11273,8 +11292,10 @@ from this invocation's own capture.
   and stops at two members for a worktree.
 - A fill that a stop interrupts leaves a folder named as a fill,
   which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
-  The wrapper's own sweep of the repository scratch folder removes a pool that has gone unused for longer,
-  and the next landing fills it again.
+  Nothing else collects the pool:
+  it is not scratch,
+  so no age a sweep uses reaches a member,
+  and a pool left unused keeps its members until the next landing fills it again or a person removes the folder.
 
 `buildParts` names the claim `shadow pool`:
 a build that took a member names no `shadow skeleton`,
