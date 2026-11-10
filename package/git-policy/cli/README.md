@@ -3663,7 +3663,14 @@ which can hold gigabytes.
 The wrapper records that directory's name in the common Git directory before it creates it,
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
-Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+A directory a `git worktree add` was snapshotting into is removed the same way once the record written beside its name
+holds the identity of what stands there and the folder holds nothing that record cannot account for,
+which is how a whole snapshot of a checkout with its credentials and its `.git` stops outliving the command that was
+killed;
+a directory the wrapper cannot prove that way stays,
+is named on every command with the reason,
+and is yours to look at and remove by hand,
+and only when no `git` command is running in that repository.
 
 Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
 It is filled in a file the filesystem has given no name,
