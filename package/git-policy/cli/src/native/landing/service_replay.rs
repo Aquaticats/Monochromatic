@@ -192,13 +192,71 @@ pub struct MergeSite<'a> {
 /// ```
 pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<LandedCapture>) -> Result<Captured, TransactionStop> {
     let tree: String = captured_tree(context, cwd, ready.inputs.commit_index.as_path(), ready.inputs.capture.layout.object_directory.as_path())?;
+    return Ok(capture_of(ready, landed, tree));
+}
+
+/// What:
+///  What a retry replays when the change is the tree a prepared commit already holds,
+///  and not the private index.
+/// Why:
+///   A line whose own commit takes the index out of it (`--fixup=reword:<commit>`) did not capture the private index:
+///  the change such a commit stands for is the branch's own tree,
+///  and replaying that tree onto the branch as it is now lands an empty change there,
+///  which is the commit the person asked for
+///  (`service_commit.rs`,
+///  the arm for a branch that moved).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// retryOfAPreparedTree(ready, landed, tree)
+/// ```
+pub fn retry_of_a_prepared_tree(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captured {
+    return capture_of(ready, landed, tree);
+}
+
+/// What:
+///  The capture of one retry:
+///  its change on its base,
+///  its capture stamp,
+///  and the commits the service says landed since.
+/// Why:
+///   Both ways into a retry share every field but the tree,
+///  and the base is decided once here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// captureOf(ready, landed, tree)
+/// ```
+fn capture_of(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captured {
     // A branch that did not exist yet named the all-zero object as its base, which no Git step reads as a tree; the empty tree
     //  is what that base holds, and the change captured against it is the whole root tree the person staged.
     let unborn: bool = matches!(ready.inputs.capture.base, crate::transaction_journal::Base::Unborn);
     let base: String = if unborn { ready.inputs.capture.layout.empty_tree_oid.clone() } else { ready.base.clone() };
     // The state the preparation saw, not a reading now: another command may have concluded the operation while this commit
     //  waited, and the retry must find the same one.
-    return Ok(Captured { base, unborn, tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() });
+    return Captured { base, unborn, tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() };
+}
+
+/// What:
+///  The tree a prepared commit holds,
+///  which is the change a line that takes the index out of its commit captured.
+/// Why:
+///   Such a commit's tree is the one Git wrote into it,
+///  and it is the record of what the line stands for,
+///  so a replay reads it from the object rather than from the private index that Git ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await treeOfCommit(context, cwd, commit)
+/// ```
+///
+/// # Errors
+///
+/// `TransactionStop::Message` when the commit cannot be read.
+pub fn tree_of_commit(context: &GitContext, cwd: &Path, commit: &str) -> Result<String, TransactionStop> {
+    let spec: String = format!("{commit}^{{tree}}");
+    let read = run_git_checked(context, &GitRequest::new(cwd, &["rev-parse", "--verify", spec.as_str()]))?;
+    return Ok(String::from_utf8_lossy(read.stdout.as_slice()).trim().to_string());
 }
 
 /// What:

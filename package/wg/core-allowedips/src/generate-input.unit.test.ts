@@ -20,6 +20,19 @@ type InvalidCidrCase = {
 };
 
 /**
+ Awaits the console sink's queued flush so warnings emitted during one generation
+ are observable through `console.warn`.
+
+ The bundled logger batches same-level records and drains them on the microtask it
+ schedules when the first record arrives, so two microtask hops let that flush run
+ before the assertions read the spy.
+ */
+async function waitForQueuedLogFlush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+/**
  Dependency parser failure paths that must propagate.
  */
 const INVALID_CIDR_CASES: readonly InvalidCidrCase[] = [
@@ -39,6 +52,11 @@ const INVALID_CIDR_CASES: readonly InvalidCidrCase[] = [
 
 await describe({
   name: generateAllowedIpsWithLookup.name,
+  // The bundled logger keeps one process-wide console sink, and records buffered
+  // while its sink probes run are replayed in the async context that started it.
+  // Sequence the suite so this attempt's context-owned console.warn spy sees the
+  // warning runs its own generation triggers.
+  concurrency: 1,
   children: [
     //region Input lines
 
@@ -206,7 +224,7 @@ await describe({
       name: 'warns once for each ASN contributing no networks',
       fn: async ({ sinon, }) => {
         /**
-         Console warning spy observing built logger output after its microtask flush.
+         Console warning spy observing the console sink the logger writes warnings through.
          */
         const warningSpy = sinon.spy(
           console,
@@ -221,7 +239,7 @@ await describe({
           lookupAddresses: fixtureLookup,
           lookupAsnNetworks: fixtureAsnLookup,
         },);
-        await Promise.resolve();
+        await waitForQueuedLogFlush();
         /**
          Every console warning argument flattened for per-ASN occurrence checks.
          */
