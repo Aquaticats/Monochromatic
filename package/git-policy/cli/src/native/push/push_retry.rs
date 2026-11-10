@@ -601,6 +601,27 @@ impl PushRetries {
         }
     }
 
+    /// What:
+    ///  Apply what the workers of a round asked,
+    /// without writing the plan's own files:
+    /// the list changes here and the journal keeps what it holds.
+    /// Why:
+    ///   A caller that polls the runtime may not write storage itself,
+    /// and a job the system gives no thread for wrote nothing;
+    ///  the worker of each plan has already written the file it promised,
+    /// so the list is what this call must keep.
+    /// The next round writes the plan's files again when a thread can start.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// applyWithoutWriting(changes) // the store is out of the way for the length of the apply
+    /// ```
+    pub fn apply_without_writing(&mut self, changes: Vec<RetryChange>) {
+        let store: Option<PathBuf> = self.store.take();
+        self.apply(changes);
+        self.store = store;
+    }
+
     /// Remove and return the plans of this Git directory that are due at `now`.
     pub fn take_due(&mut self, git_dir: &Path, now: Instant) -> Vec<Due> {
         let mut kept: Vec<Waiting> = Vec::new();

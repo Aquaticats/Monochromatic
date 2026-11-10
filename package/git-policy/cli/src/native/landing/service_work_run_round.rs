@@ -27,7 +27,8 @@
 use crate::service_work_handlers_replanning_and_acceptance::*;
 use crate::service_work::GitHandlers;
 use crate::claim_time::ClaimTime;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::parallel_runner_on_the_runtime::OrderedRunError;
 use crate::push_retry::{PushRetries, RetryChange, Retrying};
 use crate::parallel_budget::HostResources;
@@ -40,6 +41,7 @@ use std::time::{Duration, Instant};
 /// What:
 ///  Apply what the round's workers asked of the retry plan,
 /// as a job of the process's blocking pool,
+/// awaited no longer than the journal's state write,
 ///  and give the plan back to its owner whichever way the job ended.
 /// Why:
 ///   A change writes or removes a plan's own file in the instance's journal,
@@ -49,25 +51,54 @@ use std::time::{Duration, Instant};
 /// The plan has one owner at a time,
 /// so the job takes it and hands it back,
 /// and nothing locks it.
-/// A job
-///  the system refuses a thread for makes the changes on this task instead,
-/// so nothing the workers promised is lost to a refusal.
+/// A task of the runtime never writes the plan itself:
+///  a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a job the system gives no thread for,
+/// or that starts on another thread,
+/// is answered by keeping the round's own changes in the list,
+/// which is what the loop's next wake reads.
+/// The plan's files are the workers' own: each wrote the plan it promised before the person was told a retry
+///  comes,
+/// so a round that writes nothing loses no promise,
+/// and the round after it writes the files again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// retries = await applyAwaiting(retries, changes)
 /// ```
 async fn apply_awaiting(retries: PushRetries, changes: Vec<RetryChange>) -> PushRetries {
-    let unchanged: PushRetries = retries.clone();
-    return match run_a_job_or_in_turn((retries, changes), apply_in_a_job).await {
-        Ok(back) => back,
-        // Nothing was written and nothing was removed, so every plan on disk stands where it was; this round's own plans
-        //  are made again by the round that asks for them next, and the notice of a new try stands with them.
-        Err(reason) => {
-            crate::service_warn!("the plan of this round's pushes was not kept: {reason}");
-            unchanged
+    let (kept, asked): (PushRetries, Vec<RetryChange>) = (retries.clone(), changes.clone());
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, (retries, changes), apply_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran(back) => back,
+        // The plan of this round is kept here and no file is written from a task of the runtime; the workers' own plans
+        //  stand on disk, and the round after this one writes this one's.
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the plan of this round's pushes was not written, because the system gave no thread for it; the round keeps it and the next round writes it");
+            apply_without_writing(kept, asked)
+        }
+        // The job started on another thread or gave no answer within its ceiling, so what it wrote is not known; the list
+        //  keeps the round's changes, which is what the loop's wake for these directories reads.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the plan of this round's pushes gave no answer, so whether the journal holds it is not known; the round keeps it and the next round writes it");
+            apply_without_writing(kept, asked)
         }
     };
+}
+
+/// What:
+///  `changes` applied to `retries` without writing the journal.
+/// Why:
+///  A task of the runtime may not write storage,
+/// and the worker of each plan already wrote the file it promised;
+/// this keeps the list the next wake reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// retries = applyWithoutWriting(retries, changes)
+/// ```
+fn apply_without_writing(mut retries: PushRetries, changes: Vec<RetryChange>) -> PushRetries {
+    retries.apply_without_writing(changes);
+    return retries;
 }
 
 /// `apply_awaiting`'s work,
@@ -335,3 +366,8 @@ pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>
     let asked: Vec<(PathBuf, Duration)> = asked_of(named, answered.waits.as_slice(), &retries, applied_at);
     return (retries, asked);
 }
+
+/// Controls for the plan of the pushes waiting for a new try stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_run_round_tests.rs"]
+mod tests;
