@@ -543,12 +543,35 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
 fn remove_the_trees(trees: &[(String, std::path::PathBuf)], handed_back: &std::collections::HashSet<String>) {
+    for tree in released_trees(trees, handed_back) {
+        crate::service_scratch_release_removal::start(tree.clone());
+    }
+}
+
+/// What:
+///  The trees of a group's requests that no client still reads.
+/// Why:
+///   A request the service handed back still reads the tree it named,
+///  so that one is the client's to remove;
+///  every other answer ends the landing that read the tree,
+///  and the service removes it beside the loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// releasedTrees(trees, handedBack) // the trees no client still reads
+/// ```
+fn released_trees<'a>(
+    trees: &'a [(String, std::path::PathBuf)],
+    handed_back: &std::collections::HashSet<String>,
+) -> Vec<&'a std::path::PathBuf> {
+    let mut released: Vec<&std::path::PathBuf> = Vec::new();
     for (id, tree) in trees {
         if handed_back.contains(id) {
             continue;
         }
-        crate::service_scratch_release_removal::start(tree.clone());
+        released.push(tree);
     }
+    return released;
 }
 
 /// Socket controls stay out of the release executable.

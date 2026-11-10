@@ -88,6 +88,33 @@ await describe({
         },),).toBe(false,);
       },
     },),
+    it({
+      name: 'matches both wildcard spellings by the same prefix rule',
+      fn: async function wildcardSpellingsAgree(): Promise<void> {
+        /**
+         Names covering a full match, a subpath, an unrelated name, and the
+         pattern's own stem without its trailing separator.
+         */
+        const names = [
+          '@monochromatic-dev',
+          '@monochromatic-dev/logger-core',
+          'lezer',
+          'lezer-german',
+          'nano-spawn',
+        ] as const;
+
+        for (const name of names) {
+          expect(matchesBundlePattern({
+            name,
+            pattern: '@monochromatic-dev/**',
+          },),).toBe(name.startsWith('@monochromatic-dev/',),);
+          expect(matchesBundlePattern({
+            name,
+            pattern: 'lezer-**',
+          },),).toBe(name.startsWith('lezer-',),);
+        }
+      },
+    },),
   ],
 },);
 

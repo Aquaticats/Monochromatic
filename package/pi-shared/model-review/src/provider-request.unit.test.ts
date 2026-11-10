@@ -35,7 +35,7 @@ import {
 import type { AddressInfo, } from 'node:net';
 import { zstdDecompressSync, } from 'node:zlib';
 
-import { runStructuredToolRequest, } from '../dist/final/node/index.mjs';
+import { StructuredReviewProviderError, runStructuredToolRequest, } from '../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -50,6 +50,12 @@ const TEST_TIMEOUT_MS = 10_000;
 
 /** HTTP status that makes providers stop after one captured request. */
 const CAPTURE_REJECT_STATUS = 400;
+
+/**
+ Provider diagnostic the capture server's rejection body carries, which the
+ provider module must hand back to the caller.
+ */
+const CAPTURE_REJECTION_MARKER = 'capture only';
 
 /** Unique system-prompt text searched for in captured request bodies. */
 const SYSTEM_PROMPT_MARKER = 'fixture reviewer system prompt marker';
@@ -330,6 +336,30 @@ const PROVIDER_WIRE_CASES: readonly ProviderWireCase[] = [
 ];
 
 /**
+ Capture async failure without letting a resolved request pass as a refusal.
+ 
+ @param action - request expected to fail
+ 
+ @returns thrown provider failure
+ 
+ @throws when the request resolves, because a refusal was expected
+ 
+ @example
+ ```ts
+ await captureFailure(async () => runStructuredToolRequest(request));
+ ```
+ */
+async function captureFailure(action: () => Promise<unknown>,): Promise<unknown> {
+  try {
+    await action();
+  }
+  catch (error) {
+    return error;
+  }
+  throw new Error('Expected the capture server refusal to fail the request',);
+}
+
+/**
  Send one forced-tool review through real provider module and return captured body.
 
  @param api - provider API under test
@@ -360,8 +390,21 @@ async function captureForcedToolRequest({
 }): Promise<CapturedRequest & { readonly body: Readonly<Record<string, unknown>>; }> {
   /** Local capture server for this request. */
   const capture = await startCaptureServer();
-  try {
-    await runStructuredToolRequest({
+  /** Listening capture server closed when this request finishes. */
+  using captureServerLifetime = {
+    [Symbol.dispose](): void {
+      capture.server.close();
+    },
+  };
+  /**
+   Provider failure the capture rejection must produce.
+   
+   The capture server rejects every request on purpose, so the refusal must
+   reach the caller as a provider failure carrying the rejection text, never as
+   an omitted tool call built from text the provider never sent.
+   */
+  const refusal = await captureFailure(async function sendForcedToolRequest() {
+    return runStructuredToolRequest({
       model: captureModel({
         api,
         baseUrl: `${capture.origin}${basePath}`,
@@ -375,13 +418,9 @@ async function captureForcedToolRequest({
       toolName: TOOL.name,
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS,),
     },);
-  }
-  catch (error) {
-    // The capture server rejects every request on purpose, so a provider that
-    // surfaces that rejection is expected; the recorded request is the assertion.
-    expect(error,).toBeInstanceOf(Error,);
-  }
-  capture.server.close();
+  },);
+  expect(refusal,).toBeInstanceOf(StructuredReviewProviderError,);
+  expect((refusal as Error).message,).toContain(CAPTURE_REJECTION_MARKER,);
   /** Captured requests that carried a provider body. */
   const providerRequests = capture.requests.filter(function hasBody(request,): boolean {
     return request.body !== undefined;
