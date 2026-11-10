@@ -120,3 +120,70 @@ fn measure_window_reads_one_window() {
     let peak = measure_window(&mut source, 1, 10).expect("window measures");
     assert!(peak >= 0.7);
 }
+
+/// The samples a synthetic bin corpus decodes to:
+///  bin `index` holds `bin_peaks[index]` for every one of its frames,
+///  so a window over that bin measures exactly that peak.
+fn samples_from_bin_peaks(bin_peaks: &[f32], bin_frames: usize) -> Vec<f32> {
+    let mut samples = Vec::with_capacity(bin_peaks.len() * bin_frames);
+    for &peak in bin_peaks {
+        samples.extend(std::iter::repeat_n(peak, bin_frames));
+    }
+    return samples
+}
+
+/// What:
+///  the production probe and the bench's lookup over a precomputed bin corpus
+///  measure the same bins,
+///  in the same order,
+///  for the same peak and the same count.
+/// Why:
+///  the bench's evidence is only playback's behaviour if both paths come through the
+///  one selection function;
+///  a private copy in the bench would drift silently.
+#[test]
+fn the_production_probe_and_the_bench_lookup_agree_on_a_bin_corpus() {
+    // A corpus with every phase's own shape: a flat floor, a hill the climb walks, a
+    // needle only the bones seed finds, and a quiet tail.
+    let mut bin_peaks = vec![0.05f32; 200];
+    bin_peaks[40] = 0.2;
+    bin_peaks[41] = 0.4;
+    bin_peaks[42] = 0.8;
+    bin_peaks[43] = 0.4;
+    bin_peaks[120] = 0.9;
+    let hot_bins = [120usize];
+    let bin_frames = 10u64;
+    let plan = ZoomPlan {
+        bin_frames,
+        total_frames: bin_peaks.len() as u64 * bin_frames,
+        coverage_fraction: 0.1,
+        even_coverage_fraction: 0.05,
+        bones_hot_bins: Some(&hot_bins),
+    };
+    let mut source = FakeSource::new(samples_from_bin_peaks(&bin_peaks, bin_frames as usize), 100);
+    let production_peak = zoom_probe(&mut source, 1, &plan).expect("probe runs");
+    let production_bins: Vec<usize> = source
+        .seeks
+        .iter()
+        .map(|&frame| return (frame / bin_frames) as usize)
+        .collect();
+
+    // The bench's shape: the same grid, measured by looking the precomputed peak up.
+    let mut bench_bins: Vec<usize> = Vec::new();
+    let grid = ProbeGrid {
+        bin_count: bin_peaks.len(),
+        coverage_fraction: plan.coverage_fraction,
+        even_coverage_fraction: plan.even_coverage_fraction,
+        bones_hot_bins: plan.bones_hot_bins,
+    };
+    let selection = select_probe_bins(grid, |index| {
+        bench_bins.push(index);
+        return Ok::<f32, Infallible>(bin_peaks[index])
+    })
+    .expect("a peak lookup cannot fail");
+
+    assert_eq!(production_bins, bench_bins, "both paths measure the same bins in the same order");
+    assert_eq!(production_peak, selection.peak, "both paths read the same loudest bin");
+    assert_eq!(production_bins.len(), selection.used_bins, "both paths spend the same budget");
+    assert_eq!(selection.peak, 0.9, "the bones seed must reach the needle");
+}
