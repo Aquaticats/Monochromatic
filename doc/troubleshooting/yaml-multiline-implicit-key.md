@@ -313,31 +313,31 @@ so no comment is kept.
 Constraint walk,
 targeting `eemeli/yaml` with `pi` as the consumer:
 
-1. Upstream fault:
-   no. The composer enforces the YAML 1.2 implicit-key rule,
-   Pi reports the parse
-   error as designed,
-   and our `SKILL.md` files were malformed.
-   Fails.
-2. Could upstream fix it:
-   the emitting library cannot relax a specification rule;
-   a consumer
-   auto-repairing wrapped values would be a feature,
-   not a bug fix.
-   Fails as a bug.
-3. Use case support:
-   both tools document block scalars as the multi-line value form.
-   Not a gap.
-4. Contribution welcome:
-   not reached,
-   since the gate closes at constraint 1.
-5. Likely fix:
-   behavior is intended and identical across `yaml` 2.9.0 to 3.0.0-2.
-   No.
-6. Minimal upstream fix prototyped:
-   not applicable.
-   The consumer-side fix is prototyped and landed,
-   see Verified workarounds.
+1.  Upstream fault:
+    no. The composer enforces the YAML 1.2 implicit-key rule,
+    Pi reports the parse
+    error as designed,
+    and our `SKILL.md` files were malformed.
+    Fails.
+2.  Could upstream fix it:
+    the emitting library cannot relax a specification rule;
+    a consumer
+    auto-repairing wrapped values would be a feature,
+    not a bug fix.
+    Fails as a bug.
+3.  Use case support:
+    both tools document block scalars as the multi-line value form.
+    Not a gap.
+4.  Contribution welcome:
+    not reached,
+    since the gate closes at constraint 1.
+5.  Likely fix:
+    behavior is intended and identical across `yaml` 2.9.0 to 3.0.0-2.
+    No.
+6.  Minimal upstream fix prototyped:
+    not applicable.
+    The consumer-side fix is prototyped and landed,
+    see Verified workarounds.
 
 Decision:
 do not file upstream (default policy).

@@ -676,103 +676,103 @@ does not satisfy all six is treated as a publicity incident.
 Walking the six constraints against the resharp complement-of-lookaround
 restriction:
 
-1. **Is it really upstream's fault?
-   ** Mostly no. The restriction is
-   architectural.
-    Brzozowski-style symbolic derivatives do not compose
-   naturally with position-sensitive constraints under reversal;
-    this
-   doc's "Why this restriction exists" section spells out the algebraic
-   reason.
-    The default-multiline `^`/`$` rewrite and the `\b` to
-   lookaround rewrite are defensible parser choices that interact badly
-   with the architectural restriction;
-    the badness lives in the
-   interaction,
-    not in any single decision.
-    The only narrow surface-
-   quality grievance is the generic "unsupported lookaround pattern"
-   string not naming the trigger,
-    but that is wording,
-    not behaviour.
+1.  **Is it really upstream's fault?
+    ** Mostly no. The restriction is
+    architectural.
+     Brzozowski-style symbolic derivatives do not compose
+    naturally with position-sensitive constraints under reversal;
+     this
+    doc's "Why this restriction exists" section spells out the algebraic
+    reason.
+     The default-multiline `^`/`$` rewrite and the `\b` to
+    lookaround rewrite are defensible parser choices that interact badly
+    with the architectural restriction;
+     the badness lives in the
+    interaction,
+     not in any single decision.
+     The only narrow surface-
+    quality grievance is the generic "unsupported lookaround pattern"
+    string not naming the trigger,
+     but that is wording,
+     not behaviour.
 
-2. **Can upstream fix it?
-   ** Partially.
-    Positive-lookaround reverse cases
-   are tractable via De Morgan body inversion;
-    negative-lookaround
-   reverse cases require preserving position-sensitive match-set
-   semantics through the complement structure,
-    which is non-trivial work
-   touching the algebraic core.
-    Not a 1-line change.
+2.  **Can upstream fix it?
+    ** Partially.
+     Positive-lookaround reverse cases
+    are tractable via De Morgan body inversion;
+     negative-lookaround
+    reverse cases require preserving position-sensitive match-set
+    semantics through the complement structure,
+     which is non-trivial work
+    touching the algebraic core.
+     Not a 1-line change.
 
-3. **Are they supporting this use case?
-   ** No documented signal.
-    The
-   crate's stated value proposition is "high-performance regex engine
-   with intersection and complement operations.
-   " Lookarounds-in-
-   complement sits at the intersection of two features that compose
-   poorly;
-    no upstream doc,
-    example,
-    or test shows the combination as
-   expected to work.
+3.  **Are they supporting this use case?
+    ** No documented signal.
+     The
+    crate's stated value proposition is "high-performance regex engine
+    with intersection and complement operations.
+    " Lookarounds-in-
+    complement sits at the intersection of two features that compose
+    poorly;
+     no upstream doc,
+     example,
+     or test shows the combination as
+    expected to work.
 
-4. **Would the repo welcome our contribution?
-   ** Yes.
-    The repo carries no
-   `CONTRIBUTING.md`,
-    issue template,
-    pull-request template,
-    or
-   AI-assistance policy (checked the repository contents and the absent
-   `.github/` directory),
-    so no rule bars an external or AI-assisted
-   filing;
-    absence of a policy is not a fail.
-    The positive signal is
-   direct:
-    issue
-   [ieviev/resharp#5](https://github.com/ieviev/resharp/issues/5),
-    a
-   comparable detailed multi-bug report with proposed fixes from this
-   project,
-    was accepted and closed as completed,
-    and the maintainer
-   shipped the error-message fix in 0.6.4.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+     The repo carries no
+    `CONTRIBUTING.md`,
+     issue template,
+     pull-request template,
+     or
+    AI-assistance policy (checked the repository contents and the absent
+    `.github/` directory),
+     so no rule bars an external or AI-assisted
+    filing;
+     absence of a policy is not a fail.
+     The positive signal is
+    direct:
+     issue
+    [ieviev/resharp#5](https://github.com/ieviev/resharp/issues/5),
+     a
+    comparable detailed multi-bug report with proposed fixes from this
+    project,
+     was accepted and closed as completed,
+     and the maintainer
+    shipped the error-message fix in 0.6.4.
 
-5. **Will they likely fix it?
-   ** Upstream signal points the other way.
-   Commit `e9676b4 2026-04-19 rejecting unsupported patterns, more
-   tests` shows the project scoping down what is supported;
-    commit
-   `b256ea8 2026-04-24 rewrite negative lookaheads on construction`
-   moved lookaround handling in a different direction (construction-
-   time rewrites).
-    The 0.5.1 to 0.5.2 delta was orthogonal (streaming/
-   seeking,
-    platform builds,
-    prefix-engine bugfix).
-    No movement on
-   complement-of-lookaround in the visible history.
+5.  **Will they likely fix it?
+    ** Upstream signal points the other way.
+    Commit `e9676b4 2026-04-19 rejecting unsupported patterns, more
+    tests` shows the project scoping down what is supported;
+     commit
+    `b256ea8 2026-04-24 rewrite negative lookaheads on construction`
+    moved lookaround handling in a different direction (construction-
+    time rewrites).
+     The 0.5.1 to 0.5.2 delta was orthogonal (streaming/
+    seeking,
+     platform builds,
+     prefix-engine bugfix).
+     No movement on
+    complement-of-lookaround in the visible history.
 
-6. **Have we prototyped a minimal fix compatible with their
-   architecture?
-   ** No,
-    and the auto-prototype step is not triggered:
-    it
-   fires only when constraints 1-5 hold or sorta-hold,
-    and here
-   constraints 1 and 5 fail outright (architectural fault,
-    upstream
-   leaning the other way).
-    The "Suggested fix" section below is
-   speculative design with no code,
-    no correctness argument,
-    no test
-   against any nontrivial rule set.
+6.  **Have we prototyped a minimal fix compatible with their
+    architecture?
+    ** No,
+     and the auto-prototype step is not triggered:
+     it
+    fires only when constraints 1-5 hold or sorta-hold,
+     and here
+    constraints 1 and 5 fail outright (architectural fault,
+     upstream
+    leaning the other way).
+     The "Suggested fix" section below is
+    speculative design with no code,
+     no correctness argument,
+     no test
+    against any nontrivial rule set.
 
 We fail constraints 1,
  5,
@@ -913,22 +913,22 @@ trigger and report the wrong limit upstream.
 
 Either of:
 
-1. Lift the "no lookaround inside complement" restriction by handling
-   the four lookaround reverse cases (`Kind::Lookahead` / `Kind::Lookbehind`,
-   positive / negative) inline at the `Kind::Compl` arm of `reverse`
-   (`resharp-algebra/src/lib.rs:2233`).
-    Positive lookarounds can be
-   pushed through De Morgan with body inversion;
-    negative lookarounds
-   require ensuring the complement structure of position-sensitive
-   match-set semantics is preserved.
+1.  Lift the "no lookaround inside complement" restriction by handling
+    the four lookaround reverse cases (`Kind::Lookahead` / `Kind::Lookbehind`,
+    positive / negative) inline at the `Kind::Compl` arm of `reverse`
+    (`resharp-algebra/src/lib.rs:2233`).
+     Positive lookarounds can be
+    pushed through De Morgan with body inversion;
+     negative lookarounds
+    require ensuring the complement structure of position-sensitive
+    match-set semantics is preserved.
 
-2. At minimum,
-    improve the error message to name the surface trigger.
-   `UnsupportedPattern` should distinguish "complement contains
-   lookaround (introduced by `\b`/`\B`/`^`/`$` rewrite)" from
-   "complement contains unhandled counted repetition" so users can map
-   the error to a workaround without reading the algebra source.
+2.  At minimum,
+     improve the error message to name the surface trigger.
+    `UnsupportedPattern` should distinguish "complement contains
+    lookaround (introduced by `\b`/`\B`/`^`/`$` rewrite)" from
+    "complement contains unhandled counted repetition" so users can map
+    the error to a workaround without reading the algebra source.
 
 ## Workaround
 

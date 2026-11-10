@@ -217,27 +217,27 @@ The upstream tracker search covered open and closed issues and pull requests con
 `non-terminal image pull`.
 [Pull request 1428][toolbx-pr-1428] is the exact change that introduced and justified the observed behavior.
 
-1. **Is it really upstream's fault?**
-   No bug was found.
-   Toolbx emits its documented and tested non-terminal safety diagnostic.
-2. **Can upstream fix it?**
-   Upstream could choose different behavior,
-   but no correction is needed for the observed contract.
-3. **Are they supporting this use case?**
-   Yes.
-   `doc/toolbox.1.md` documents `--assumeyes`,
-   and the system test covers non-terminal creation.
-4. **Would the repo welcome our contribution?**
-   `CONTRIBUTING.md` welcomes bug reports and pull requests,
-   and `.github/ISSUE_TEMPLATE/bug-report.md` requests a reproduction and environment details.
-   No AI-assistance prohibition was found.
-5. **Will they likely fix it?**
-   No change is indicated.
-   Maintainers merged the current behavior deliberately in pull request 1428.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Not applicable because constraint 1 fails.
-   A non-interactive consumer can use the supported flag,
-   and the runbook's candidate fallback was removed.
+1.  **Is it really upstream's fault?**
+    No bug was found.
+    Toolbx emits its documented and tested non-terminal safety diagnostic.
+2.  **Can upstream fix it?**
+    Upstream could choose different behavior,
+    but no correction is needed for the observed contract.
+3.  **Are they supporting this use case?**
+    Yes.
+    `doc/toolbox.1.md` documents `--assumeyes`,
+    and the system test covers non-terminal creation.
+4.  **Would the repo welcome our contribution?**
+    `CONTRIBUTING.md` welcomes bug reports and pull requests,
+    and `.github/ISSUE_TEMPLATE/bug-report.md` requests a reproduction and environment details.
+    No AI-assistance prohibition was found.
+5.  **Will they likely fix it?**
+    No change is indicated.
+    Maintainers merged the current behavior deliberately in pull request 1428.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Not applicable because constraint 1 fails.
+    A non-interactive consumer can use the supported flag,
+    and the runbook's candidate fallback was removed.
 
 There is nothing additive to post on pull request 1428 and no new issue to file.
 The upstream filing artifact is therefore intentionally empty.

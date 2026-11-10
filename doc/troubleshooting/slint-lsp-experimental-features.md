@@ -71,85 +71,85 @@ The element is defined and implemented;
  Walking the
 chain in `slint-ui/slint@85e3eb76`:
 
-1. `FlexboxLayout` is a real exported builtin component.
+1.  `FlexboxLayout` is a real exported builtin component.
 
-   ```text
-   internal/compiler/builtins.slint:2105
-   export component FlexboxLayout {
-   ```
+    ```text
+    internal/compiler/builtins.slint:2105
+    export component FlexboxLayout {
+    ```
 
-2. The non-experimental type register explicitly removes it,
-    while the
-   experimental register keeps everything.
+2.  The non-experimental type register explicitly removes it,
+     while the
+    experimental register keeps everything.
 
-   ```rust
-   // internal/compiler/typeregister.rs:655
-   pub fn builtin_experimental() -> Rc<RefCell<Self>> {
-       let register = Self::builtin_internal();
-       Rc::new(RefCell::new(register))
-   }
+    ```rust
+    // internal/compiler/typeregister.rs:655
+    pub fn builtin_experimental() -> Rc<RefCell<Self>> {
+        let register = Self::builtin_internal();
+        Rc::new(RefCell::new(register))
+    }
 
-   // internal/compiler/typeregister.rs:660
-   pub fn builtin() -> Rc<RefCell<Self>> {
-       let mut register = Self::builtin_internal();
-       register.elements.remove("ComponentContainer").unwrap();
-       register.types.remove("component-factory").unwrap();
-       register.elements.remove("FlexboxLayout").unwrap();   // :666
-       register.types.remove("FlexboxLayoutDirection").unwrap();
-       register.types.remove("FlexboxLayoutAlignContent").unwrap();
-       register.types.remove("FlexboxLayoutWrap").unwrap();
-       register.types.remove("FlexboxLayoutAlignSelf").unwrap();
-       Rc::new(RefCell::new(register))
-   }
-   ```
+    // internal/compiler/typeregister.rs:660
+    pub fn builtin() -> Rc<RefCell<Self>> {
+        let mut register = Self::builtin_internal();
+        register.elements.remove("ComponentContainer").unwrap();
+        register.types.remove("component-factory").unwrap();
+        register.elements.remove("FlexboxLayout").unwrap();   // :666
+        register.types.remove("FlexboxLayoutDirection").unwrap();
+        register.types.remove("FlexboxLayoutAlignContent").unwrap();
+        register.types.remove("FlexboxLayoutWrap").unwrap();
+        register.types.remove("FlexboxLayoutAlignSelf").unwrap();
+        Rc::new(RefCell::new(register))
+    }
+    ```
 
-3. The diagnostic text seen by the editor is emitted when lookup fails against
-   the active register.
+3.  The diagnostic text seen by the editor is emitted when lookup fails against
+    the active register.
 
-   ```rust
-   // internal/compiler/typeregister.rs:725
-   format!("Unknown element '{name}'")
-   ```
+    ```rust
+    // internal/compiler/typeregister.rs:725
+    format!("Unknown element '{name}'")
+    ```
 
-   The parenthetical sibling variant lives at
-   `internal/compiler/langtype.rs:587` and `:605`.
+    The parenthetical sibling variant lives at
+    `internal/compiler/langtype.rs:587` and `:605`.
 
-4. Which register is used is decided by `enable_experimental`,
-    read from the
-   environment when the default compiler configuration is constructed.
+4.  Which register is used is decided by `enable_experimental`,
+     read from the
+    environment when the default compiler configuration is constructed.
 
-   ```rust
-   // internal/compiler/lib.rs:248
-   let enable_experimental = std::env::var_os("SLINT_ENABLE_EXPERIMENTAL_FEATURES").is_some();
-   ```
+    ```rust
+    // internal/compiler/lib.rs:248
+    let enable_experimental = std::env::var_os("SLINT_ENABLE_EXPERIMENTAL_FEATURES").is_some();
+    ```
 
-5. The LSP deliberately leaves its own flag `false` and relies on that env-var
-   path;
-    there is no CLI flag and no other runtime switch.
+5.  The LSP deliberately leaves its own flag `false` and relies on that env-var
+    path;
+     there is no CLI flag and no other runtime switch.
 
-   ```rust
-   // tools/lsp/main.rs:451
-   // The i_slint_compiler::CompilerConfiguration::default() will read the environment variable
-   enable_experimental: false,
-   ```
+    ```rust
+    // tools/lsp/main.rs:451
+    // The i_slint_compiler::CompilerConfiguration::default() will read the environment variable
+    enable_experimental: false,
+    ```
 
-   The LSP's `Cli` struct (`tools/lsp/main.rs:69`) defines only `-I`,
-    `-L`,
-   `--style`,
-    `--backend`,
-    `--no-toolbar`,
-    and subcommands.
-    No `--experimental`.
-   When experimental is on,
-    the document cache swaps in the experimental
-   register:
+    The LSP's `Cli` struct (`tools/lsp/main.rs:69`) defines only `-I`,
+     `-L`,
+    `--style`,
+     `--backend`,
+     `--no-toolbar`,
+     and subcommands.
+     No `--experimental`.
+    When experimental is on,
+     the document cache swaps in the experimental
+    register:
 
-   ```rust
-   // tools/lsp/common/document_cache.rs:321
-   self.type_loader.compiler_config.enable_experimental = true;
-   // :323
-   Rc::into_inner(TypeRegister::builtin_experimental()).unwrap().into_inner();
-   ```
+    ```rust
+    // tools/lsp/common/document_cache.rs:321
+    self.type_loader.compiler_config.enable_experimental = true;
+    // :323
+    Rc::into_inner(TypeRegister::builtin_experimental()).unwrap().into_inner();
+    ```
 
 On the editor side,
  the IntelliJ plugin `kizeevov/slint-idea-plugin` launches the
@@ -293,62 +293,62 @@ external LSP (Settings,
  enable external LSP),
 then choose one injection method.
 
-1. `env` launcher through the plugin's existing path and args fields (confirmed
-   working in IntelliJ).
+1.  `env` launcher through the plugin's existing path and args fields (confirmed
+    working in IntelliJ).
 
-   ```text
-   Slint-lsp path: /usr/bin/env
-   Arguments:      SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 /home/user/.local/share/mise/shims/slint-lsp
-   ```
+    ```text
+    Slint-lsp path: /usr/bin/env
+    Arguments:      SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 /home/user/.local/share/mise/shims/slint-lsp
+    ```
 
-   The plugin runs `env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 <slint-lsp> <its own
-   -I/--style/...>`;
-    `env` sets the var then execs slint-lsp with the rest.
-   Tradeoffs:
-    the LSP path is a machine-specific absolute path baked into IDE
-   settings;
-    using the mise shim (`.../mise/shims/slint-lsp`) keeps it tracking
-   the mise tool pin instead of a frozen install path;
-    this bypasses mise `[env]`
-   entirely,
-    so it does not depend on the LSP's working directory.
+    The plugin runs `env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 <slint-lsp> <its own
+    -I/--style/...>`;
+     `env` sets the var then execs slint-lsp with the rest.
+    Tradeoffs:
+     the LSP path is a machine-specific absolute path baked into IDE
+    settings;
+     using the mise shim (`.../mise/shims/slint-lsp`) keeps it tracking
+    the mise tool pin instead of a frozen install path;
+     this bypasses mise `[env]`
+    entirely,
+     so it does not depend on the LSP's working directory.
 
-2. mise launcher so a mise `[env]` is the source of truth.
+2.  mise launcher so a mise `[env]` is the source of truth.
 
-   ```text
-   Slint-lsp path: /home/user/.local/bin/mise
-   Arguments:      exec -- slint-lsp
-   ```
+    ```text
+    Slint-lsp path: /home/user/.local/bin/mise
+    Arguments:      exec -- slint-lsp
+    ```
 
-   with `SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"` in a mise `[env]` active at the
-   LSP's working directory.
-    Tradeoff:
-    mise `[env]` is directory-activated,
-    so this
-   only works if the plugin gives the LSP the directory whose mise config carries
-   the var (the monorepo root).
-    In practice this did not take effect in IntelliJ,
-   consistent with the plugin's LSP cwd not being the repo root;
-    prefer method 1
-   unless that cwd is confirmed.
-    The repo sets this var in the generated root
-   `mise.toml [env]` (via the `envSection` template in `file-enforcer.config.ts`),
-   which covers `mise exec` and builds run from the repo root.
+    with `SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"` in a mise `[env]` active at the
+    LSP's working directory.
+     Tradeoff:
+     mise `[env]` is directory-activated,
+     so this
+    only works if the plugin gives the LSP the directory whose mise config carries
+    the var (the monorepo root).
+     In practice this did not take effect in IntelliJ,
+    consistent with the plugin's LSP cwd not being the repo root;
+     prefer method 1
+    unless that cwd is confirmed.
+     The repo sets this var in the generated root
+    `mise.toml [env]` (via the `envSection` template in `file-enforcer.config.ts`),
+    which covers `mise exec` and builds run from the repo root.
 
-3. systemd user environment,
-    for a session-wide setting independent of the editor.
+3.  systemd user environment,
+     for a session-wide setting independent of the editor.
 
-   ```ini
-   # ~/.config/environment.d/slint.conf
-   SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
-   ```
+    ```ini
+    # ~/.config/environment.d/slint.conf
+    SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+    ```
 
-   Then log out and back in.
-    Tradeoff:
-    global to the whole graphical session
-   (every app inherits it;
-    harmless here),
-    and it needs a relogin.
+    Then log out and back in.
+     Tradeoff:
+     global to the whole graphical session
+    (every app inherits it;
+     harmless here),
+     and it needs a relogin.
 
 ## What does not work
 
@@ -386,57 +386,57 @@ constraints;
 
 slint-lsp (`slint-ui/slint`):
 
-1. Upstream's fault?
-    No. Stripping experimental builtins from the default
-   register (`typeregister.rs:660`) and gating restoration on
-   `SLINT_ENABLE_EXPERIMENTAL_FEATURES` (`lib.rs:248`,
-    `main.rs:451`) is
-   deliberate design,
-    not a defect.
-    The feature is experimental by intent.
-2. Can they fix?
-    Not applicable;
-    there is nothing to fix.
-3. Supporting the use case?
-    The env var is the documented switch for exactly
-   this;
-    it works as designed.
-4. Will they fix?
-    Not applicable.
-5. Minimal fix prototyped?
-    Not applicable;
-    no defect to fix.
+1.  Upstream's fault?
+     No. Stripping experimental builtins from the default
+    register (`typeregister.rs:660`) and gating restoration on
+    `SLINT_ENABLE_EXPERIMENTAL_FEATURES` (`lib.rs:248`,
+     `main.rs:451`) is
+    deliberate design,
+     not a defect.
+     The feature is experimental by intent.
+2.  Can they fix?
+     Not applicable;
+     there is nothing to fix.
+3.  Supporting the use case?
+     The env var is the documented switch for exactly
+    this;
+     it works as designed.
+4.  Will they fix?
+     Not applicable.
+5.  Minimal fix prototyped?
+     Not applicable;
+     no defect to fix.
 
 Constraint 1 fails,
  so no prototype and no issue.
 
 `kizeevov/slint-idea-plugin`:
 
-1. Upstream's fault?
-    Soft no. The plugin already exposes `path` and `args`,
-    and
-   the `/usr/bin/env` launcher (workaround 1) injects the env var through those
-   existing fields.
-    The use case is achievable today,
-    so the absent dedicated
-   env field is a convenience gap,
-    not a fault.
-    Bundling a stable 1.16 release as
-   the default is reasonable.
-2. Can they fix?
-    Yes,
-    trivially (add a settings map and a `withEnvironment`
-   call),
-    but see constraint 1.
-3. Supporting the use case?
-    Yes,
-    through external-LSP path plus args.
-4. Will they fix?
-    No signal either way.
-5. Minimal fix prototyped?
-    Not warranted,
-    because the workaround uses shipped
-   features and constraint 1 does not hold.
+1.  Upstream's fault?
+     Soft no. The plugin already exposes `path` and `args`,
+     and
+    the `/usr/bin/env` launcher (workaround 1) injects the env var through those
+    existing fields.
+     The use case is achievable today,
+     so the absent dedicated
+    env field is a convenience gap,
+     not a fault.
+     Bundling a stable 1.16 release as
+    the default is reasonable.
+2.  Can they fix?
+     Yes,
+     trivially (add a settings map and a `withEnvironment`
+    call),
+     but see constraint 1.
+3.  Supporting the use case?
+     Yes,
+     through external-LSP path plus args.
+4.  Will they fix?
+     No signal either way.
+5.  Minimal fix prototyped?
+     Not warranted,
+     because the workaround uses shipped
+    features and constraint 1 does not hold.
 
 Constraint 1 does not hold,
  so the auto-prototype trigger (constraints 1 to 4

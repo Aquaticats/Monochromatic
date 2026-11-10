@@ -288,27 +288,27 @@ No new upstream issue or comment would add reproduction,
 
 The required filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-    Yes for xdg-utils v1.2.1.
-   It invokes an executable that Qt packaging does not guarantee in `PATH`.
-2. **Can upstream fix it?**
-    Yes.
-   Commit `e6a6e4f1` resolves the configuration directory in shell.
-3. **Are they supporting this use case?**
-    Yes.
-   The project describes `xdg-mime` as its MIME association and default-application utility.
-4. **Would the repo welcome our contribution?**
-    Yes.
-   The repository has a public issue template and accepted the existing fix.
-   No contribution or AI-assistance prohibition appears in `README.md` or `.gitlab/issue_templates/Default.md`.
-5. **Will they likely fix it?**
-    Yes,
-    and the fix is already on the upstream branch.
-6. **Have we prototyped a compatible minimal fix?**
-    Yes.
-   The landed commit is the minimal compatible implementation,
-    and the disposable compatibility-command probe
-   independently confirms that the failing call is the only source of the warning.
+1.  **Is it really upstream's fault?**
+     Yes for xdg-utils v1.2.1.
+    It invokes an executable that Qt packaging does not guarantee in `PATH`.
+2.  **Can upstream fix it?**
+     Yes.
+    Commit `e6a6e4f1` resolves the configuration directory in shell.
+3.  **Are they supporting this use case?**
+     Yes.
+    The project describes `xdg-mime` as its MIME association and default-application utility.
+4.  **Would the repo welcome our contribution?**
+     Yes.
+    The repository has a public issue template and accepted the existing fix.
+    No contribution or AI-assistance prohibition appears in `README.md` or `.gitlab/issue_templates/Default.md`.
+5.  **Will they likely fix it?**
+     Yes,
+     and the fix is already on the upstream branch.
+6.  **Have we prototyped a compatible minimal fix?**
+     Yes.
+    The landed commit is the minimal compatible implementation,
+     and the disposable compatibility-command probe
+    independently confirms that the failing call is the only source of the warning.
 
 ### Nothing to add
 

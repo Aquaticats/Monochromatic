@@ -307,21 +307,21 @@ a response completed exactly at limit is conservatively rejected.
 
 `.out-of-scope/` has no matching Hyper exemption.
 
-1. Upstream fault:
-   **not established**.
-   Hyper does not promise a token-count endpoint.
-2. Upstream can fix:
-   **possibly** by documenting a supported count route or tokenizer identity,
-   but current model-author artifacts already support local raw-wire measurement.
-3. Supported use case:
-   **unknown** for token counting;
-   documented APIs cover generation and post-generation usage.
-4. Contribution welcome:
-   **unknown** because Hyper service and documentation source are not public.
-5. Likely fix:
-   **unknown** without public tracker or maintainer signal.
-6. Minimal compatible prototype:
-   **not applicable** because no public Hyper source exists.
+1.  Upstream fault:
+    **not established**.
+    Hyper does not promise a token-count endpoint.
+2.  Upstream can fix:
+    **possibly** by documenting a supported count route or tokenizer identity,
+    but current model-author artifacts already support local raw-wire measurement.
+3.  Supported use case:
+    **unknown** for token counting;
+    documented APIs cover generation and post-generation usage.
+4.  Contribution welcome:
+    **unknown** because Hyper service and documentation source are not public.
+5.  Likely fix:
+    **unknown** without public tracker or maintainer signal.
+6.  Minimal compatible prototype:
+    **not applicable** because no public Hyper source exists.
 
 ### Upstream filing artifact
 

@@ -328,33 +328,33 @@ No second issue should be opened.
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** Yes.
-   Pull request #310 explicitly promises preservation of full worktree content,
-   while the current pure-tail concatenation adds one byte.
-2. **Can upstream fix it?
-   ** Yes.
-   The verified change is local to the pure-tail override and its regression test.
-3. **Are they supporting this use case?
-   ** Yes.
-   Stash-based fixer preservation has dedicated source logic and Bats coverage.
-4. **Would the repo welcome our contribution?
-   ** Yes.
-   The contribution guide asks contributors to discuss non-obvious changes,
-   run CI,
-   and address automated review.
-   No AI-assistance ban was found;
-   the related upstream pull requests themselves disclose AI assistance.
-5. **Will they likely fix it?
-   ** Yes.
-   The maintainer merged #310 and #931 for adjacent exact-byte stash bugs.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes.
-   The saved patch changes the existing pure-tail branch,
-   adds an exact-byte Bats case,
-   builds successfully,
-   fails with the release binary,
-   and passes with the patched binary.
+1.  **Is it really upstream's fault?
+    ** Yes.
+    Pull request #310 explicitly promises preservation of full worktree content,
+    while the current pure-tail concatenation adds one byte.
+2.  **Can upstream fix it?
+    ** Yes.
+    The verified change is local to the pure-tail override and its regression test.
+3.  **Are they supporting this use case?
+    ** Yes.
+    Stash-based fixer preservation has dedicated source logic and Bats coverage.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+    The contribution guide asks contributors to discuss non-obvious changes,
+    run CI,
+    and address automated review.
+    No AI-assistance ban was found;
+    the related upstream pull requests themselves disclose AI assistance.
+5.  **Will they likely fix it?
+    ** Yes.
+    The maintainer merged #310 and #931 for adjacent exact-byte stash bugs.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes.
+    The saved patch changes the existing pure-tail branch,
+    adds an exact-byte Bats case,
+    builds successfully,
+    fails with the release binary,
+    and passes with the patched binary.
 
 Nothing was posted upstream.
 Because #310 is the existing thread,

@@ -423,24 +423,24 @@ Overlays:
 
 The user's order is lexicographic and sits outside score arithmetic:
 
-1. Tier A:
-   every FE item except FE14,
-   FE15,
-   FE18,
-   and FE19 is native,
-   and WR1,
-   WR2,
-   and WR3 are native.
-   FE14 and FE15 are repository-specific policies,
-   which the user classifies as pluggable by definition;
-   Tier A still requires a documented extension mechanism that can express them.
-   FE18 and FE19 belong to Meta Package Manager when delegated.
-2. Tier B:
-   some requirement is met only by plugging functionality into the tool through a documented extension mechanism.
-   Each plugged item records the extension point and what must be built.
-3. Tier C:
-   no tool qualifies and plugging is judged too hard;
-   the user would consider building a Bazel replacement.
+1.  Tier A:
+    every FE item except FE14,
+    FE15,
+    FE18,
+    and FE19 is native,
+    and WR1,
+    WR2,
+    and WR3 are native.
+    FE14 and FE15 are repository-specific policies,
+    which the user classifies as pluggable by definition;
+    Tier A still requires a documented extension mechanism that can express them.
+    FE18 and FE19 belong to Meta Package Manager when delegated.
+2.  Tier B:
+    some requirement is met only by plugging functionality into the tool through a documented extension mechanism.
+    Each plugged item records the extension point and what must be built.
+3.  Tier C:
+    no tool qualifies and plugging is judged too hard;
+    the user would consider building a Bazel replacement.
 
 No fix difficulty is estimated for unbuilt plug-ins.
 

@@ -285,15 +285,15 @@ each of the crates whose manifest carries the shadow policy passes its own Clipp
 
 ## What does not work
 
-- **Attribute on the macro call**:
+- Attribute on the macro call:
   rustc says `allow` is ignored on `slint::include_modules!()` and Clippy still inspects the included file.
-- **Fixing `target/.../out/app.rs`**:
+- Fixing `target/.../out/app.rs`:
   the file is generated and profile-specific;
   `slint-build` overwrites it on the next relevant build.
-- **Removing the package-level deny**:
+- Removing the package-level deny:
   this makes generated output quiet by also permitting implicit returns in maintained Rust,
   which discards the intended policy.
-- **Allowing the lint at crate root**:
+- Allowing the lint at crate root:
   this also exempts maintained source and is broader than the generated boundary.
 
 ## Upstream filing decision
@@ -308,31 +308,31 @@ Searches across open and closed Slint issues and pull requests used
 and `clippy generated Rust`.
 They returned no matching report as of 2026-08-29.
 
-1. **Is it really upstream's fault?**
-   Yes.
-   Slint owns the generated Rust and already emits lint allowances for generated-code style.
-   The missing restriction allowance exposes consumer policy to code consumers cannot maintain.
-2. **Can upstream fix it?**
-   Yes.
-   The verified fix changes the generated module header in one location.
-3. **Are they supporting this use case?**
-   Yes.
-   `slint-build` plus `slint::include_modules!()` is Slint's documented Rust integration,
-   and the generated header already accounts for Clippy.
-4. **Would the repository welcome the contribution?**
-   Yes.
-   `CONTRIBUTING.md:4-6` welcomes issues and pull requests.
-   The contribution guide,
-   issue template,
-   pull request template,
-   and a [recent merged external contribution][slint-pr-11907] contain no AI-assistance ban.
-5. **Will they likely fix it?**
-   Yes.
-   No contrary maintainer position or documented non-goal was found,
-   and the change extends an existing generated-code lint boundary.
-6. **Has a minimal compatible fix been prototyped?**
-   Yes.
-   The one-line patch passed the standalone path-dependency probe after the unmodified tag failed it.
+1.  **Is it really upstream's fault?**
+    Yes.
+    Slint owns the generated Rust and already emits lint allowances for generated-code style.
+    The missing restriction allowance exposes consumer policy to code consumers cannot maintain.
+2.  **Can upstream fix it?**
+    Yes.
+    The verified fix changes the generated module header in one location.
+3.  **Are they supporting this use case?**
+    Yes.
+    `slint-build` plus `slint::include_modules!()` is Slint's documented Rust integration,
+    and the generated header already accounts for Clippy.
+4.  **Would the repository welcome the contribution?**
+    Yes.
+    `CONTRIBUTING.md:4-6` welcomes issues and pull requests.
+    The contribution guide,
+    issue template,
+    pull request template,
+    and a [recent merged external contribution][slint-pr-11907] contain no AI-assistance ban.
+5.  **Will they likely fix it?**
+    Yes.
+    No contrary maintainer position or documented non-goal was found,
+    and the change extends an existing generated-code lint boundary.
+6.  **Has a minimal compatible fix been prototyped?**
+    Yes.
+    The one-line patch passed the standalone path-dependency probe after the unmodified tag failed it.
 
 The following draft is fileable after human review.
 It discloses AI assistance even though the checked contribution policy does not require that disclosure.

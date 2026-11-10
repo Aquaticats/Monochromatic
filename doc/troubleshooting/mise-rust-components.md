@@ -251,74 +251,74 @@ Current toolchain:
  and the `rustup component add` recipe stays the manual fix for a toolchain
  that is already present.
 
-1. Add the component to the already-installed toolchain directly with rustup:
+1.  Add the component to the already-installed toolchain directly with rustup:
 
-   ```bash
-   rustup component add rust-src --toolchain 1.96.0
-   ```
+    ```bash
+    rustup component add rust-src --toolchain 1.96.0
+    ```
 
-   Verified:
-    the std source directory appears and the component flips to
-   `(installed)`:
+    Verified:
+     the std source directory appears and the component flips to
+    `(installed)`:
 
-   ```console
-   $ rustup component add rust-src --toolchain 1.96.0
-   info: downloading component rust-src
-   $ ls -d /home/user/.rustup/toolchains/1.96.0-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std
-   .../lib/rustlib/src/rust/library/std
-   $ rustup component list --toolchain 1.96.0 | grep rust-src
-   rust-src (installed)
-   ```
+    ```console
+    $ rustup component add rust-src --toolchain 1.96.0
+    info: downloading component rust-src
+    $ ls -d /home/user/.rustup/toolchains/1.96.0-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std
+    .../lib/rustlib/src/rust/library/std
+    $ rustup component list --toolchain 1.96.0 | grep rust-src
+    rust-src (installed)
+    ```
 
-   Tradeoff:
-    the add is invisible to mise.
-    It is not recorded in mise state or
-   the lockfile,
-    so a teammate running only `mise install` on a fresh machine
-   still gets a toolchain without `rust-src` until the version is installed
-   fresh (see workaround 3) or they run this command too.
-    The mise declaration
-   and this manual add are belt-and-suspenders,
-    not redundant:
-    the declaration
-   covers fresh installs,
-    the manual add covers the already-present one.
+    Tradeoff:
+     the add is invisible to mise.
+     It is not recorded in mise state or
+    the lockfile,
+     so a teammate running only `mise install` on a fresh machine
+    still gets a toolchain without `rust-src` until the version is installed
+    fresh (see workaround 3) or they run this command too.
+     The mise declaration
+    and this manual add are belt-and-suspenders,
+     not redundant:
+     the declaration
+    covers fresh installs,
+     the manual add covers the already-present one.
 
-2. Force mise to reinstall the version so the install path re-runs with
-   `--component`:
+2.  Force mise to reinstall the version so the install path re-runs with
+    `--component`:
 
-   ```bash
-   mise uninstall rust@1.96.0
-   mise install
-   ```
+    ```bash
+    mise uninstall rust@1.96.0
+    mise install
+    ```
 
-   Tradeoff:
-    `mise uninstall` for the rust backend runs `rustup toolchain
-   uninstall 1.96.0` (`src/plugins/core/rust.rs:242`),
-    removing the toolchain
-   from rustup entirely,
-    not just from mise.
-    Anything else relying on that
-   rustup toolchain loses it until the reinstall finishes,
-    and the reinstall
-   re-downloads the whole toolchain.
-    Heavier and more disruptive than
-   workaround 1 for the sole goal of adding one component.
+    Tradeoff:
+     `mise uninstall` for the rust backend runs `rustup toolchain
+    uninstall 1.96.0` (`src/plugins/core/rust.rs:242`),
+     removing the toolchain
+    from rustup entirely,
+     not just from mise.
+     Anything else relying on that
+    rustup toolchain loses it until the reinstall finishes,
+     and the reinstall
+    re-downloads the whole toolchain.
+     Heavier and more disruptive than
+    workaround 1 for the sole goal of adding one component.
 
-3. Do nothing and let the next version bump carry it.
-    When `latest` next
-   resolves to a newer stable (e.g. `1.97.0`),
-    mise installs that version fresh
-   and passes `--component rust-src`,
-    so the new toolchain has it.
+3.  Do nothing and let the next version bump carry it.
+     When `latest` next
+    resolves to a newer stable (e.g. `1.97.0`),
+     mise installs that version fresh
+    and passes `--component rust-src`,
+     so the new toolchain has it.
 
-   Tradeoff:
-    indefinite wait,
-    and it never fixes the currently-pinned version;
-   the IDE stays broken until the bump.
-    Not a fix for the present,
-    only an
-   explanation of why the problem self-heals on the next stable release.
+    Tradeoff:
+     indefinite wait,
+     and it never fixes the currently-pinned version;
+    the IDE stays broken until the bump.
+     Not a fix for the present,
+     only an
+    explanation of why the problem self-heals on the next stable release.
 
 ## What does not work
 
@@ -347,69 +347,69 @@ Walking the five constraints.
 fails on direct maintainer evidence,
  so the decision is do not file.
 
-1. **Is it really upstream's fault?
-   ** Yes.
-    mise exposes `components`/`targets`
-   as first-class,
-    documented,
-    tested
-   (`src/plugins/core/rust.rs:489` `rust_options_reads_install_args`),
-   lockfile-recorded options.
-    A declarative config reads as desired-state,
-    yet
-   mise applies these options only at first install and silently ignores them
-   afterward.
-    The silent divergence between declared and applied state is a
-   defect,
-    not merely a documentation gap.
-2. **Can upstream fix it?
-   ** Yes.
-    The fix is not architecturally blocked,
-    and
-   upstream has already written it:
-    closed PR #9839 (see "Existing upstream
-   work") implements the same additive install-only predicate this doc
-   prototyped.
-    Constraint 2 passes.
-3. **Are they supporting this use case?
-   ** Partly.
-    `components` is documented and
-   tested,
-    but the maintainer questions whether mise should manage rust
-   toolchains at all (the rust backend,
-    see constraint 4),
-    so support for this
-   specific combination is shaky.
-4. **Will they likely fix it?
-   ** No,
-    and this is the constraint that fails.
-    It
-   fails on direct maintainer communication,
-    not absence of signal.
-    On the
-   near-identical PR #9839,
-    the maintainer (jdx) wrote "it's too hacky and this
-   isn't a bug I really care that much to resolve" and "I'm half-tempted to just
-   deprecate rust since I don't use it" (adding "though I know some do like it").
-   The author then withdrew the PR.
-    "Deprecate rust" here means the rust backend
-   that manages rustup toolchains for users,
-    not Rust the language mise is
-   written in;
-    the whole thread is about managing rust toolchains through mise,
-   which is precisely this use case.
-    A maintainer declining a comparable request
-   is exactly the lean-no this constraint tests for.
-5. **Have we prototyped a minimal fix compatible with their architecture?
-   **
-   Yes.
-    See "Prototype":
-    a built-and-verified patch against commit `310e325`,
-   recorded as [mise-rust-components.patch](mise-rust-components.patch).
-    It
-   converges independently on PR #9839's design,
-    further evidence that
-   feasibility was never the blocker.
+1.  **Is it really upstream's fault?
+    ** Yes.
+     mise exposes `components`/`targets`
+    as first-class,
+     documented,
+     tested
+    (`src/plugins/core/rust.rs:489` `rust_options_reads_install_args`),
+    lockfile-recorded options.
+     A declarative config reads as desired-state,
+     yet
+    mise applies these options only at first install and silently ignores them
+    afterward.
+     The silent divergence between declared and applied state is a
+    defect,
+     not merely a documentation gap.
+2.  **Can upstream fix it?
+    ** Yes.
+     The fix is not architecturally blocked,
+     and
+    upstream has already written it:
+     closed PR #9839 (see "Existing upstream
+    work") implements the same additive install-only predicate this doc
+    prototyped.
+     Constraint 2 passes.
+3.  **Are they supporting this use case?
+    ** Partly.
+     `components` is documented and
+    tested,
+     but the maintainer questions whether mise should manage rust
+    toolchains at all (the rust backend,
+     see constraint 4),
+     so support for this
+    specific combination is shaky.
+4.  **Will they likely fix it?
+    ** No,
+     and this is the constraint that fails.
+     It
+    fails on direct maintainer communication,
+     not absence of signal.
+     On the
+    near-identical PR #9839,
+     the maintainer (jdx) wrote "it's too hacky and this
+    isn't a bug I really care that much to resolve" and "I'm half-tempted to just
+    deprecate rust since I don't use it" (adding "though I know some do like it").
+    The author then withdrew the PR.
+     "Deprecate rust" here means the rust backend
+    that manages rustup toolchains for users,
+     not Rust the language mise is
+    written in;
+     the whole thread is about managing rust toolchains through mise,
+    which is precisely this use case.
+     A maintainer declining a comparable request
+    is exactly the lean-no this constraint tests for.
+5.  **Have we prototyped a minimal fix compatible with their architecture?
+    **
+    Yes.
+     See "Prototype":
+     a built-and-verified patch against commit `310e325`,
+    recorded as [mise-rust-components.patch](mise-rust-components.patch).
+     It
+    converges independently on PR #9839's design,
+     further evidence that
+    feasibility was never the blocker.
 
 Decision:
  do not file.

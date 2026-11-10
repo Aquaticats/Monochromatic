@@ -308,18 +308,18 @@ in "The scratch commit's ceiling ends a process beside the step".
 
 The sequence:
 
-1. A landing of one repository runs the scratch `git commit` through
-   `commit/commit_preparation.rs:208-221`,
-   which starts the notice with
-   `SCRATCH_COMMIT_STEP_CEILING`.
-2. The service runs landings of different repositories on worker threads of one process
-   (`landing/service_native.rs:226` runs the scratch commit;
-   `landing/service_round.rs:247-249` and `foundation/parallel_runner.rs:350-357` run the lanes at once),
-   so a second landing's Git step is a child of the same process at the same moment.
-3. The first landing's step reaches its ceiling.
-   The notice thread reads `descendants_of(std::process::id())`,
-   the whole process's children,
-   and sends `SIGKILL` to every one of them.
+1.  A landing of one repository runs the scratch `git commit` through
+    `commit/commit_preparation.rs:208-221`,
+    which starts the notice with
+    `SCRATCH_COMMIT_STEP_CEILING`.
+2.  The service runs landings of different repositories on worker threads of one process
+    (`landing/service_native.rs:226` runs the scratch commit;
+    `landing/service_round.rs:247-249` and `foundation/parallel_runner.rs:350-357` run the lanes at once),
+    so a second landing's Git step is a child of the same process at the same moment.
+3.  The first landing's step reaches its ceiling.
+    The notice thread reads `descendants_of(std::process::id())`,
+    the whole process's children,
+    and sends `SIGKILL` to every one of them.
 
 The wrong result:
 the second landing's step is cut in the middle of its write,
@@ -354,25 +354,25 @@ in "A read that a descendant holds does not end".
 
 The sequence:
 
-1. A step that ends at its ceiling starts with its output on two pipes
-   (`push/child_watch.rs:520-524`).
-2. The step's Git starts a program that inherits those streams and outlives it.
-   Hooks are off for every Git the wrapper starts,
-   so the programs left are the ones Git runs from
-   configuration:
-   a smudge or clean filter,
-   a merge driver,
-   or a signing program.
-3. The Git process ends while the program lives on,
-   so the kernel reparents the program away from it,
-   and the stop's own read of the tree
-   (`push/child_watch_clock_marks_and_stopping.rs:229-238`)
-   finds only the process that has ended
-   (a second window is a program the step starts after that read).
-4. `tokio::join!` of the two reads and the child's wait
-   (`step_output_read_whole_through_pipes.rs:199`) waits for both reads.
-   A read ends at end of file,
-   which needs every write end closed.
+1.  A step that ends at its ceiling starts with its output on two pipes
+    (`push/child_watch.rs:520-524`).
+2.  The step's Git starts a program that inherits those streams and outlives it.
+    Hooks are off for every Git the wrapper starts,
+    so the programs left are the ones Git runs from
+    configuration:
+    a smudge or clean filter,
+    a merge driver,
+    or a signing program.
+3.  The Git process ends while the program lives on,
+    so the kernel reparents the program away from it,
+    and the stop's own read of the tree
+    (`push/child_watch_clock_marks_and_stopping.rs:229-238`)
+    finds only the process that has ended
+    (a second window is a program the step starts after that read).
+4.  `tokio::join!` of the two reads and the child's wait
+    (`step_output_read_whole_through_pipes.rs:199`) waits for both reads.
+    A read ends at end of file,
+    which needs every write end closed.
 
 The wrong result:
 the commit or the landing never returns.
@@ -408,19 +408,19 @@ in "A notice whose sink blocks does not return".
 
 The sequence:
 
-1. A commit whose message came with the command starts the notice with
-   `sink: Box::new(std::io::stderr())` (`commit/commit_preparation.rs:210-219`).
-2. The wrapper's standard error is a pipe whose reader stops reading:
-   a pager a person stopped,
-   an editor or an agent that stopped draining it,
-   or a terminal stopped with the flow control key.
-   That state is one `NHP` names ("a closed terminal or broken pipe").
-3. The pipe fills,
-   and the notice thread blocks inside `sink.write_all`
-   (`native_commit_waiting_notice.rs:255-258`).
-4. The scratch `git commit` ends,
-   and `finish()` sends its stop byte and calls
-   `thread.join()`.
+1.  A commit whose message came with the command starts the notice with
+    `sink: Box::new(std::io::stderr())` (`commit/commit_preparation.rs:210-219`).
+2.  The wrapper's standard error is a pipe whose reader stops reading:
+    a pager a person stopped,
+    an editor or an agent that stopped draining it,
+    or a terminal stopped with the flow control key.
+    That state is one `NHP` names ("a closed terminal or broken pipe").
+3.  The pipe fills,
+    and the notice thread blocks inside `sink.write_all`
+    (`native_commit_waiting_notice.rs:255-258`).
+4.  The scratch `git commit` ends,
+    and `finish()` sends its stop byte and calls
+    `thread.join()`.
 
 The wrong result:
 the commit command never returns,
@@ -456,22 +456,22 @@ in "A root whose record could not be read is never signalled".
 
 The sequence:
 
-1. A watched step's quiet window passes,
-   or its ceiling comes.
-   `stop_process` reads `member_of(raw)` and `descendants_of(raw)`.
-2. Both reads open `/proc/<pid>/stat`,
-   and both fail:
-   at a descriptor limit (`NHR`'s "process and descriptor limits near exhaustion") with `EMFILE`,
-   or with `EACCES`,
-   `EIO`,
-   or `ENOMEM`.
-   `member_of` answers `None` and `descendants_of` answers an empty list,
-   because each answers `continue` or `None` on any error.
-3. `signal_root` then has `root: None` and `identified: true` on Linux,
-   so `root.as_ref().map_or(!identified, still_running)` is `false`,
-   and no `SIGTERM` and no
-   `SIGKILL` is ever sent to the step.
-4. `terminate_members` and `kill_members` have an empty list to walk.
+1.  A watched step's quiet window passes,
+    or its ceiling comes.
+    `stop_process` reads `member_of(raw)` and `descendants_of(raw)`.
+2.  Both reads open `/proc/<pid>/stat`,
+    and both fail:
+    at a descriptor limit (`NHR`'s "process and descriptor limits near exhaustion") with `EMFILE`,
+    or with `EACCES`,
+    `EIO`,
+    or `ENOMEM`.
+    `member_of` answers `None` and `descendants_of` answers an empty list,
+    because each answers `continue` or `None` on any error.
+3.  `signal_root` then has `root: None` and `identified: true` on Linux,
+    so `root.as_ref().map_or(!identified, still_running)` is `false`,
+    and no `SIGTERM` and no
+    `SIGKILL` is ever sent to the step.
+4.  `terminate_members` and `kill_members` have an empty list to walk.
 
 The wrong result:
 the child keeps running,
@@ -508,28 +508,28 @@ Read from the code only.
 The sequence,
 per instance:
 
-1. `push/auto_push_reconcile_merge_commit.rs:45-71` runs `git merge-tree`,
-   the word-level second
-   pass,
-   and `git commit-tree -S` with `spawn()` and `wait_with_output()`.
-   A signing program that waits for a smartcard touch,
-   or a second-pass command that never
-   answers,
-   blocks the reconcile with nothing printed,
-   no notice,
-   no meter and no ceiling.
-   The auto-push of that branch then waits for as long as the child does,
-   which is the owner's "nothing should ever wait forever or indefinitely" broken without a record,
-   on a path whose sibling (`push/bounded_push.rs`) has all four.
-2. `lfs/lfs_upload.rs:171-178` waits for `git-lfs push` through `SignalGuard` alone,
-   so a server that accepts the connection and never answers holds an interactive push forever.
-   Pick 9 ("Deadlines of tools that are not Git:
-   end only on no progress") is the decision this
-   instance does not carry out;
-   the bounded twin for the same program exists at `lfs/lfs_upload.rs:327`.
-3. `lfs/lfs_interactive.rs:95` and `repo_read/git_metadata.rs:96` block in `Command::output()`.
-4. `invocation/forwarding.rs:201` blocks in `Command::status()` for the forwarded command,
-   which is by design (the person's Git owns the terminal) and is named here for completeness.
+1.  `push/auto_push_reconcile_merge_commit.rs:45-71` runs `git merge-tree`,
+    the word-level second
+    pass,
+    and `git commit-tree -S` with `spawn()` and `wait_with_output()`.
+    A signing program that waits for a smartcard touch,
+    or a second-pass command that never
+    answers,
+    blocks the reconcile with nothing printed,
+    no notice,
+    no meter and no ceiling.
+    The auto-push of that branch then waits for as long as the child does,
+    which is the owner's "nothing should ever wait forever or indefinitely" broken without a record,
+    on a path whose sibling (`push/bounded_push.rs`) has all four.
+2.  `lfs/lfs_upload.rs:171-178` waits for `git-lfs push` through `SignalGuard` alone,
+    so a server that accepts the connection and never answers holds an interactive push forever.
+    Pick 9 ("Deadlines of tools that are not Git:
+    end only on no progress") is the decision this
+    instance does not carry out;
+    the bounded twin for the same program exists at `lfs/lfs_upload.rs:327`.
+3.  `lfs/lfs_interactive.rs:95` and `repo_read/git_metadata.rs:96` block in `Command::output()`.
+4.  `invocation/forwarding.rs:201` blocks in `Command::status()` for the forwarded command,
+    which is by design (the person's Git owns the terminal) and is named here for completeness.
 
 The wrong result:
 a command or the service's reconcile that waits forever,
@@ -557,20 +557,20 @@ Read from the code only.
 
 The sequence:
 
-1. A commit's Git runs under `SignalGuard::install()`,
-   which installs the four handlers
-   (`commit/commit_preparation.rs:241-250`,
-   `lfs/lfs_upload.rs:171`).
-2. `publish` fails:
-   `pidfd_open` is refused at a descriptor limit,
-   `ensure_relay_descriptor` cannot open `/dev/null`,
-   or `dup3` fails.
-   The failure is logged and returns `false`.
-3. The person sends `SIGINT`,
-   or the service sends `SIGTERM`.
-   `relay_handler` stores it in `PENDING` and calls `relay_pending`,
-   which returns at its first
-   line because `CHILD_PUBLISHED` is false.
+1.  A commit's Git runs under `SignalGuard::install()`,
+    which installs the four handlers
+    (`commit/commit_preparation.rs:241-250`,
+    `lfs/lfs_upload.rs:171`).
+2.  `publish` fails:
+    `pidfd_open` is refused at a descriptor limit,
+    `ensure_relay_descriptor` cannot open `/dev/null`,
+    or `dup3` fails.
+    The failure is logged and returns `false`.
+3.  The person sends `SIGINT`,
+    or the service sends `SIGTERM`.
+    `relay_handler` stores it in `PENDING` and calls `relay_pending`,
+    which returns at its first
+    line because `CHILD_PUBLISHED` is false.
 
 The wrong result:
 the signal reaches neither the child nor the wrapper.
@@ -607,10 +607,10 @@ Read from the code only.
 
 The sequence:
 
-1. `signal_members` reads `/proc/<pid>/stat` and matches the recorded start time.
-2. The process exits and the kernel reuses its number for a process of the same account,
-   which is what `/proc/sys/kernel/pid_max` allows once enough processes have been forked.
-3. `kill(pid, SIGKILL)` reaches the new process.
+1.  `signal_members` reads `/proc/<pid>/stat` and matches the recorded start time.
+2.  The process exits and the kernel reuses its number for a process of the same account,
+    which is what `/proc/sys/kernel/pid_max` allows once enough processes have been forked.
+3.  `kill(pid, SIGKILL)` reaches the new process.
 
 The wrong result:
 a process beside the wrapper,
@@ -640,18 +640,18 @@ Read from the code only.
 
 The sequence:
 
-1. The OS refuses a thread,
-   or the process's runtime cannot be built
-   (`NHR`'s "process and descriptor limits near exhaustion").
-2. `ChildWatch::start_under_stop` gets `None` from `spawn_on_runtime`.
-   The watch has no task,
-   so it announces nothing,
-   ends nothing,
-   and keeps no quiet figure.
-3. The caller waits as `push/child_watch.rs:585-600` says:
-   a pipe read on the runtime,
-   or a
-   blocking `Child::wait()`.
+1.  The OS refuses a thread,
+    or the process's runtime cannot be built
+    (`NHR`'s "process and descriptor limits near exhaustion").
+2.  `ChildWatch::start_under_stop` gets `None` from `spawn_on_runtime`.
+    The watch has no task,
+    so it announces nothing,
+    ends nothing,
+    and keeps no quiet figure.
+3.  The caller waits as `push/child_watch.rs:585-600` says:
+    a pipe read on the runtime,
+    or a
+    blocking `Child::wait()`.
 
 The wrong result:
 a step with no ceiling (`StepBound::Unbounded`) and one that keeps quiet are both waited for
@@ -678,18 +678,18 @@ and its reach is narrow.
 
 The sequence:
 
-1. `run_git_bytes` starts a Git that reads requests from standard input and answers on standard
-   output,
-   with both as pipes (`manual_push_range.rs:91-99`).
-   The only caller that passes input is `peel_commits`
-   (`manual_push_range.rs:157-173`,
-   `cat-file --batch-check`).
-2. The wrapper writes the whole request list with `write_all` **before** it reads anything.
-3. The reply pipe fills,
-   so Git blocks writing,
-   so it stops reading requests,
-   so the wrapper blocks
-   writing them.
+1.  `run_git_bytes` starts a Git that reads requests from standard input and answers on standard
+    output,
+    with both as pipes (`manual_push_range.rs:91-99`).
+    The only caller that passes input is `peel_commits`
+    (`manual_push_range.rs:157-173`,
+    `cat-file --batch-check`).
+2.  The wrapper writes the whole request list with `write_all` **before** it reads anything.
+3.  The reply pipe fills,
+    so Git blocks writing,
+    so it stops reading requests,
+    so the wrapper blocks
+    writing them.
 
 The wrong result:
 a deadlock,
@@ -908,21 +908,21 @@ PASS [   0.152s] (1/1) monochromatic-git-policy-cli commit::native_commit_waitin
 
 Read in this order:
 
-1. Finding 1,
-   and answer whether a step's ceiling may end a process it did not start.
-   The reproduction starts one `sleep` beside the notice and needs no load.
-2. Findings 2,
-   3 and 4 together,
-   because each one is a wait that nothing can end,
-   and each has a different fix that already exists elsewhere in the crate.
-3. Finding 5,
-   and say whether the reconcile's second pass and the interactive LFS upload are in
-   pick 9's scope.
-4. Findings 6,
-   7,
-   8 and 9 are the smaller ones;
-   each is a suggestion,
-   and each says which existing function to reuse.
+1.  Finding 1,
+    and answer whether a step's ceiling may end a process it did not start.
+    The reproduction starts one `sleep` beside the notice and needs no load.
+2.  Findings 2,
+    3 and 4 together,
+    because each one is a wait that nothing can end,
+    and each has a different fix that already exists elsewhere in the crate.
+3.  Finding 5,
+    and say whether the reconcile's second pass and the interactive LFS upload are in
+    pick 9's scope.
+4.  Findings 6,
+    7,
+    8 and 9 are the smaller ones;
+    each is a suggestion,
+    and each says which existing function to reuse.
 
 Nothing in this page is a decision.
 No production code was changed.

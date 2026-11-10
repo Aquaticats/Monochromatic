@@ -396,34 +396,34 @@ not nested review context.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-    No.
-   Pi 0.84.2 loads context files,
-   includes them in the main system prompt,
-   and exposes them through `systemPromptOptions`.
-   The two repository-owned plugins did not consume that field.
-2. **Can upstream fix it?**
-    No upstream fix is required.
-   The extension API already exposes the needed data and lifecycle events.
-3. **Are they supporting this use case?**
-    Yes.
-   Pi documents `before_agent_start.systemPromptOptions.contextFiles` for
-   context-aware extensions.
-4. **Would the repository welcome our contribution?**
-    Not as an AI-generated
-   filing.
-   `CONTRIBUTING.md` requires issues in the author's own voice and says not to
-   use an LLM to generate issue text unless a clearly labeled follow-up comment
-   is necessary.
-   New-contributor PRs also require prior maintainer `lgtm` approval.
-5. **Will they likely fix it?**
-    Not applicable.
-   The defect is in repository-owned extensions,
-   and upstream already supplies the necessary API.
-6. **Have we prototyped a minimal upstream-compatible fix?**
-    The consumer-side
-   fix is implemented and tested in both plugins.
-   An upstream patch would not address the faulty call sites.
+1.  **Is it really upstream's fault?**
+     No.
+    Pi 0.84.2 loads context files,
+    includes them in the main system prompt,
+    and exposes them through `systemPromptOptions`.
+    The two repository-owned plugins did not consume that field.
+2.  **Can upstream fix it?**
+     No upstream fix is required.
+    The extension API already exposes the needed data and lifecycle events.
+3.  **Are they supporting this use case?**
+     Yes.
+    Pi documents `before_agent_start.systemPromptOptions.contextFiles` for
+    context-aware extensions.
+4.  **Would the repository welcome our contribution?**
+     Not as an AI-generated
+    filing.
+    `CONTRIBUTING.md` requires issues in the author's own voice and says not to
+    use an LLM to generate issue text unless a clearly labeled follow-up comment
+    is necessary.
+    New-contributor PRs also require prior maintainer `lgtm` approval.
+5.  **Will they likely fix it?**
+     Not applicable.
+    The defect is in repository-owned extensions,
+    and upstream already supplies the necessary API.
+6.  **Have we prototyped a minimal upstream-compatible fix?**
+     The consumer-side
+    fix is implemented and tested in both plugins.
+    An upstream patch would not address the faulty call sites.
 
 ### Filing artifact
 

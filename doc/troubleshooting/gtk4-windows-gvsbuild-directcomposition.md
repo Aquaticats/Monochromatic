@@ -29,33 +29,33 @@ variable.
 
 Three gvsbuild build choices combine to leave only the software renderer usable.
 
-1. gvsbuild applies `patches/gtk4/0001-remove-direct-composition.patch`,
-    which turns
-   DirectComposition from a default-on GDK feature into an opt-in GDK debug flag.
-    The device
-   init in `gdk_win32_display_init_dcomp` changes from a feature check to a debug check:
+1.  gvsbuild applies `patches/gtk4/0001-remove-direct-composition.patch`,
+     which turns
+    DirectComposition from a default-on GDK feature into an opt-in GDK debug flag.
+     The device
+    init in `gdk_win32_display_init_dcomp` changes from a feature check to a debug check:
 
-   ```c
-   -  if (!gdk_has_feature (GDK_FEATURE_DCOMP))                  // upstream: on by default
-   +  if (!GDK_DISPLAY_DEBUG_CHECK (GDK_DISPLAY (self), DCOMP))  // gvsbuild: off unless asked
-        return;
-   ```
+    ```c
+    -  if (!gdk_has_feature (GDK_FEATURE_DCOMP))                  // upstream: on by default
+    +  if (!GDK_DISPLAY_DEBUG_CHECK (GDK_DISPLAY (self), DCOMP))  // gvsbuild: off unless asked
+         return;
+    ```
 
-   So no DirectComposition device is ever created unless you explicitly ask for it.
+    So no DirectComposition device is ever created unless you explicitly ask for it.
 
-2. GTK's Win32 GL renderer hard-requires a DirectComposition device.
-    In
-   `gdk_win32_gl_context_surface_attach`,
-    `if (!gdk_win32_display_get_dcomp_device (display))`
-   aborts with "OpenGL requires Direct Composition".
-    There is no env var or GDK_DEBUG flag in
-   the GL path to bypass this requirement (verified by reading `gdk/win32/gdkglcontext-win32.c`).
+2.  GTK's Win32 GL renderer hard-requires a DirectComposition device.
+     In
+    `gdk_win32_gl_context_surface_attach`,
+     `if (!gdk_win32_display_get_dcomp_device (display))`
+    aborts with "OpenGL requires Direct Composition".
+     There is no env var or GDK_DEBUG flag in
+    the GL path to bypass this requirement (verified by reading `gdk/win32/gdkglcontext-win32.c`).
 
-3. gvsbuild builds GTK with Vulkan disabled:
-    `gvsbuild/projects/gtk.py` passes
-   `self.add_param("-Dvulkan=disabled")`.
-    So the Vulkan renderer is not compiled in and cannot
-   be a fallback.
+3.  gvsbuild builds GTK with Vulkan disabled:
+     `gvsbuild/projects/gtk.py` passes
+    `self.add_param("-Dvulkan=disabled")`.
+     So the Vulkan renderer is not compiled in and cannot
+    be a fallback.
 
 Net:
  DirectComposition off by default,

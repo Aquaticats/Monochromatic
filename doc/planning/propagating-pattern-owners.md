@@ -523,15 +523,15 @@ owner,
 Each design is its own issue,
  filed 2026-10-09 and indexed at #665.
 
-1. #667 and #673 are mechanical and independently verifiable,
-    so they go first.
-2. #668 and #670 are small and local.
-3. #666 is the largest mechanical change and migrates package by package,
-    with the
-   name-against-class comparison run before and after each step.
-4. #669 waits on #69's decision about the `done-postcss` fork.
-5. #671 goes last and per site,
-    because it is the only one that can silently change ordering.
-6. #672 is a decision rather than an implementation,
-    and rejecting it on cost is a defensible
-   outcome.
+1.  #667 and #673 are mechanical and independently verifiable,
+     so they go first.
+2.  #668 and #670 are small and local.
+3.  #666 is the largest mechanical change and migrates package by package,
+     with the
+    name-against-class comparison run before and after each step.
+4.  #669 waits on #69's decision about the `done-postcss` fork.
+5.  #671 goes last and per site,
+     because it is the only one that can silently change ordering.
+6.  #672 is a decision rather than an implementation,
+     and rejecting it on cost is a defensible
+    outcome.

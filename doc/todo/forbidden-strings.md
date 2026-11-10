@@ -55,12 +55,15 @@ and are simply excluded from scanning by glob),
 
 Out of scope:
 
-- Credential/secret detection -- existing repo-level tooling and provider-side scanning cover that
+- Credential/secret detection:
+  existing repo-level tooling and provider-side scanning cover that
 - Content moderation by category (politics,
    brand,
-   legal) -- regex deny-lists are a tarpit for that;
+   legal);
+  regex deny-lists are a tarpit for that;
   use code review and threat-modeled per-PR checklists instead
-- Already-committed history -- requires a separate `git filter-repo` operation and force-push,
+- Already-committed history:
+  requires a separate `git filter-repo` operation and force-push,
   out of scope here
 
 ## Performance budget
@@ -190,7 +193,8 @@ so the engine sees a single uniform input.
 
 ### Why not the alternatives
 
-- **betterleaks (gitleaks fork)** -- evaluated and rejected on perf.
+- **betterleaks (gitleaks fork)**:
+  evaluated and rejected on perf.
   Has the right config story (`BETTERLEAKS_CONFIG` and `BETTERLEAKS_CONFIG_TOML` env vars
   load rules out-of-band;
    `--redact=100` suppresses matched values from output)
@@ -205,26 +209,32 @@ so the engine sees a single uniform input.
   forcing an `xargs git ls-files` shape that interacts with file-target config-handling bugs
   (issues #85,
    #87 still open as of writing).
-- **gitleaks + custom rules** -- same perf concerns as betterleaks plus
+- **gitleaks + custom rules**:
+  same perf concerns as betterleaks plus
   the canonical pattern stores patterns in a TOML file in the repo;
   out-of-band is possible but cuts against the tool's grain.
-- **git-secrets** -- AWS Labs project,
+- **git-secrets**:
+  AWS Labs project,
    last tag in 2020,
    no CI story without scripting it yourself.
   Rules live in opaque `git config` entries (good for the out-of-band requirement)
   but the project is effectively unmaintained.
-- **trufflehog** -- custom regex detectors require a `keywords` filter,
+- **trufflehog**:
+  custom regex detectors require a `keywords` filter,
   not a clean deny-list.
    Designed for credential scanning,
    not literal blocking.
-- **secretlint with `@secretlint/secretlint-rule-pattern`** -- works,
+- **secretlint with `@secretlint/secretlint-rule-pattern`**:
+  works,
   but pulls a JS-ecosystem secret-scanning framework for one rule type
   and inherits Node startup overhead.
-- **TypeScript scanner with `aho-corasick` + `re2-wasm`** -- viable on smaller repos
+- **TypeScript scanner with `aho-corasick` + `re2-wasm`**:
+  viable on smaller repos
   but on this one's corpus + rule budget the WASM regex engine is the bottleneck;
   Bun startup + WASM init + per-file overhead × 2.7k files exceeds the budget.
   Native code is the structural fix.
-- **RE2 directly (without resharp)** -- linear-time same as resharp.
+- **RE2 directly (without resharp)**:
+  linear-time same as resharp.
   Reasonable alternative;
    resharp's edge is the combined-pattern construction
   and intersection/complement primitives for future rule composition.
@@ -294,18 +304,23 @@ This means CI enforces whatever the secret holds,
 
 ### Files to add (committed)
 
-- `hk.pkl` -- hk configuration;
+- `hk.pkl`:
+  hk configuration;
    one `pre-commit` step invoking the scanner
-- `package/forbidden-strings/cli/` -- Rust crate (`Cargo.toml`,
+- `package/forbidden-strings/cli/`:
+  Rust crate (`Cargo.toml`,
    src/`main.rs`);
   binary name `forbidden-strings`,
    depends on the `resharp` crate plus a TOML parser
-- `package/forbidden-strings/cli/mise.toml` -- per-package build task
+- `package/forbidden-strings/cli/mise.toml`:
+  per-package build task
   (`cargo build --release`) and install task that drops the binary on PATH
-- `forbidden-strings.local.example.txt` -- placeholder template a contributor copies
+- `forbidden-strings.local.example.txt`:
+  placeholder template a contributor copies
   to `forbidden-strings.local.txt` on first setup;
   contains only an obviously-fake placeholder line
-- `.github/workflows/forbidden-strings.yml` -- CI mirror;
+- `.github/workflows/forbidden-strings.yml`:
+  CI mirror;
    materializes the deny-list
   from a repository secret,
    builds the scanner once (cached),
@@ -314,14 +329,17 @@ This means CI enforces whatever the secret holds,
 
 ### Files to modify
 
-- `.gitignore` -- add `forbidden-strings.local.txt`
-- Root `mise.toml` -- pin `hk` and `pkl`.
+- `.gitignore`:
+  add `forbidden-strings.local.txt`
+- Root `mise.toml`:
+  pin `hk` and `pkl`.
   `rust = "latest"` is already pinned and is enough;
   resharp is a library dependency declared in the scanner crate's `Cargo.toml`,
   not a `cargo:` tool (mise's `cargo:` backend installs binaries,
    not libraries).
   The scanner binary itself is built via the package's mise tasks rather than installed as a tool
-- Local git-hook wiring -- handled by `hk install --global` (recommended;
+- Local git-hook wiring:
+  handled by `hk install --global` (recommended;
    one-time per machine,
   Git 2.54+;
    the hook is a no-op in repos without `hk.pkl`) or `hk install` per-repo.
@@ -435,8 +453,10 @@ A single GitHub Actions job on pull_request and push to main:
 3. Build the scanner with `mise run //package/forbidden-strings/cli:build`
    (cache `target/` keyed on `Cargo.lock` to keep CI fast)
 4. Materialize `forbidden-strings.local.txt` from a repo secret
-   (e.g. `secrets.FORBIDDEN_STRINGS_LIST`) -- the secret holds the full plain-text deny-list
-5. `hk check --from-ref origin/main` -- runs the same steps the local hook runs,
+   (e.g. `secrets.FORBIDDEN_STRINGS_LIST`);
+   the secret holds the full plain-text deny-list
+5. `hk check --from-ref origin/main`;
+   runs the same steps the local hook runs,
    scoped to the changed files in the PR
 
 The workflow YAML must not echo the secret.

@@ -372,35 +372,35 @@ No `.out-of-scope/` entry covers IVPN or this behavior.
  Its full body and comments were read.
  It does not report a defect in the observed behavior.
 
-1. **Is it really upstream's fault?**
-    No.
-   IVPN's CLI says ordinary traffic circumvents VPNs in inverse mode,
-    and the implementation does exactly that.
-2. **Can upstream fix it?**
-    An interoperability warning could be added,
-    but no upstream correctness defect was found.
-3. **Are they supporting this use case?**
-    Yes.
-   Issue [#272][issue-272] requested selected-app-only VPN use,
-    and maintainers delivered it in v3.13.1.
-4. **Would the repo welcome our contribution?**
-    Generally yes.
-   `.github/CONTRIBUTING.md`,
-    the bug template,
-    and the pull-request template invite focused reports and patches.
-   No AI-assistance ban was found.
-5. **Will they likely fix it?**
-    Not as a bug.
-   The behavior is the feature's explicit contract,
-    so changing it would defeat inverse mode.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    Not applicable because constraint one
-   fails.
-   The required fix belongs in the consumer:
-    disable the conflicting feature,
-    detect its exact rule,
-    and prevent
-   WireGuard endpoint recursion.
+1.  **Is it really upstream's fault?**
+     No.
+    IVPN's CLI says ordinary traffic circumvents VPNs in inverse mode,
+     and the implementation does exactly that.
+2.  **Can upstream fix it?**
+     An interoperability warning could be added,
+     but no upstream correctness defect was found.
+3.  **Are they supporting this use case?**
+     Yes.
+    Issue [#272][issue-272] requested selected-app-only VPN use,
+     and maintainers delivered it in v3.13.1.
+4.  **Would the repo welcome our contribution?**
+     Generally yes.
+    `.github/CONTRIBUTING.md`,
+     the bug template,
+     and the pull-request template invite focused reports and patches.
+    No AI-assistance ban was found.
+5.  **Will they likely fix it?**
+     Not as a bug.
+    The behavior is the feature's explicit contract,
+     so changing it would defeat inverse mode.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     Not applicable because constraint one
+    fails.
+    The required fix belongs in the consumer:
+     disable the conflicting feature,
+     detect its exact rule,
+     and prevent
+    WireGuard endpoint recursion.
 
 Nothing should be filed upstream and there is no additive comment for issue [#272][issue-272].
  Posting the observation there would restate the requested behavior rather than advance that thread.

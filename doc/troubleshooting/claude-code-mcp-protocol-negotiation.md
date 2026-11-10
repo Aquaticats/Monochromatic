@@ -158,7 +158,7 @@ Both options below are about what the server chooses to serve,
  the user was shown the cost and elected to stay modern-only rather than add a legacy
 fallback or patch the client.
 
-**Accept it and verify elsewhere.**
+Accept it and verify elsewhere.
 Drive the built binary over stdio in tests,
  which is what `package/mcp/stdio` and `package/mcp/mvm` do.
 Tradeoff:
@@ -166,7 +166,7 @@ Tradeoff:
  and a real outage in that server looks identical to this,
  so the CLI stops being a usable signal for it.
 
-**Serve both eras.**
+Serve both eras.
 Answer `initialize` as well as `server/discover`,
  which makes the server work regardless of the gate.
 Tradeoff:
@@ -177,7 +177,7 @@ Tradeoff:
 
 ## What does not work
 
-**`MCP_PROTOCOL_NEGOTIATION=auto`.**
+`MCP_PROTOCOL_NEGOTIATION=auto`.
 The resolver reads it and the value is spelled correctly,
  yet the health check still sends `initialize`:
 
@@ -197,12 +197,12 @@ Note that the other call site in the bundle passes `$qa("sdk-control")`,
  because `xpS` is `new Set(["http","claudeai-proxy","ccr-proxy","stdio"])` and does not
 contain it.
 
-**Re-registering the server.**
+Re-registering the server.
 `claude mcp remove` plus `claude mcp add` changes nothing:
  the registration in `~/.claude.json` is a plain command entry with no cached era,
  confirmed by reading it.
 
-**Waiting for a retry.**
+Waiting for a retry.
 Repeated health checks give the same result;
  this is not a transient connection failure.
 
