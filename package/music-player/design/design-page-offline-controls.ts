@@ -6,12 +6,9 @@
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
-  mkdtempSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-
-import { designRoot } from './design-page-dependencies.ts';
 
 /** A file tree the guards read the way they read the committed one. */
 type Fixture = {
@@ -35,24 +32,6 @@ const ACCEPTED_RUNTIME = `(function () {
   document.head.appendChild(Object.assign(document.createElement("script"), { src: vendorScriptFor(REACT_BUILD) }));
 })();
 `;
-
-/** Scratch directory the fixtures live in, created under the package's gitignored tree. */
-export function scratchDirectory(): string {
-  const base = join(
-    designRoot,
-    'node_modules',
-    '.monochromatic',
-    'music-player-design',
-  );
-  mkdirSync(
-    base,
-    { recursive: true, },
-  );
-  return mkdtempSync(join(
-    base,
-    'offline-pages-',
-  ),);
-}
 
 /** Writes a fixture tree and answers its root. */
 function writeFixture(base: string, fixture: Fixture,): string {

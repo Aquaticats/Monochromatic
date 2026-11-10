@@ -9,7 +9,6 @@
 
 import {
   mkdirSync,
-  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -25,6 +24,7 @@ import {
   startSite,
   sweepCommands,
 } from './design-page-headless-sweep.ts';
+import { createScratch } from './offline-guard-scratch.ts';
 
 //region Findings
 
@@ -86,20 +86,7 @@ function requestFindings({ origin, recorded, }: {
 
 //region Report
 
-const scratchBase = join(
-  designRoot,
-  'node_modules',
-  '.monochromatic',
-  'music-player-design',
-);
-mkdirSync(
-  scratchBase,
-  { recursive: true, },
-);
-const scratch = mkdtempSync(join(
-  scratchBase,
-  'offline-render-',
-),);
+const scratch = createScratch({ prefix: 'offline-render-', },);
 let site: {
   baseUrl: string;
   server: Server;

@@ -17,10 +17,8 @@ import {
   unresolvedReferenceFindings,
   vendorRecordFindings,
 } from './design-page-offline-checks.ts';
-import {
-  scratchDirectory,
-  writeControls,
-} from './design-page-offline-controls.ts';
+import { writeControls } from './design-page-offline-controls.ts';
+import { createScratch } from './offline-guard-scratch.ts';
 
 //region Guards
 
@@ -96,7 +94,7 @@ const CONTROLS = [
 
 //region Report
 
-const base = scratchDirectory();
+const base = createScratch({ prefix: 'offline-pages-', },);
 try {
   const control = writeControls(base,);
   const failures: string[] = [];
