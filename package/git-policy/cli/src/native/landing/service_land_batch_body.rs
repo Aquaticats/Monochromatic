@@ -22,7 +22,7 @@ use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
 use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
-use crate::service_index_lock::{Announcer, IndexLock};
+use crate::service_index_lock::{Announce, Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
 use crate::service_land_follow::storage_failure;
@@ -33,6 +33,7 @@ use std::time::Instant;
 
 use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
+use crate::service_land_reference_lock::{Waiting, wait_out_the_reference_locks};
 use crate::service_land_settings::{LANDING_ATTEMPTS, Settings};
 /// The landing itself;
 /// `land_batch_timed` adds what is told when a step is ended at its ceiling.
@@ -62,9 +63,18 @@ pub(crate) fn land_batch_body(
     }
     let repository: &Path = first.repository.as_path();
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    // The Git directories whose reference locks may refuse this batch's branch write: the common one holds the references
+    //  and the packed references, and a linked worktree keeps its own `HEAD.lock` in its own Git directory.
+    let mut lock_roots: Vec<std::path::PathBuf> = vec![first.common_dir.clone()];
+    if first.git_dir != first.common_dir {
+        lock_roots.push(first.git_dir.clone());
+    }
     let scratch: String = scratch_ref(seq);
     let mut outcomes: Vec<Outcome>;
     let mut attempts_left: usize = LANDING_ATTEMPTS;
+    // When the branch write was first refused while the branch stood still: every wait for a reference lock that refused
+    //  it shares this one bound, so a lock that keeps being taken again cannot hold the landing past it.
+    let mut lock_deadline: Option<Instant> = None;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
     let unborn: bool = is_zero_object(first.base.as_str());
     loop {
@@ -254,6 +264,53 @@ pub(crate) fn land_batch_body(
             crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             remove_start(context.journal.as_path(), seq);
             let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+            // A branch that is no longer where this batch found it is the race the loop is built for. A branch that still
+            //  names it did not move, so something else refused the write, and a reference lock is what refuses it when one
+            //  stands: the wrapper clears the ones nothing live holds, waits out a live holder within one bound, and names the
+            //  rest with the command that clears them. Neither a lock nor a wait for one is a branch that changed.
+            let standing: String = checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None).unwrap_or_default();
+            if standing == old {
+                // The index lock is given up while the wait runs, so another program's commit is not held behind this one.
+                drop(held);
+                let deadline: Instant = match lock_deadline {
+                    Some(known) => known,
+                    None => {
+                        let first_refusal: Instant = Instant::now() + crate::wait_ceilings::REFERENCE_LOCK_WAIT;
+                        lock_deadline = Some(first_refusal);
+                        first_refusal
+                    }
+                };
+                let within_bound: bool = Instant::now() < deadline;
+                if within_bound {
+                    // The journal keeps what the landing waits for and how long, so a person reading it sees the lock a commit met.
+                    crate::service_warn!(
+                        "batch {seq} was refused the write of {} while the branch still names {old}, so a reference lock stands in the way; the landing waits for it until {} seconds after the first refusal",
+                        first.reference,
+                        crate::wait_ceilings::REFERENCE_LOCK_WAIT.as_secs()
+                    );
+                }
+                match wait_out_the_reference_locks(lock_roots.as_slice(), &crate::stale_ref_locks::Judge::here(), deadline) {
+                    // Nothing stands any more and the bound for waiting on one has not passed: the branch is where it was,
+                    //  so the write may be tried again.
+                    Waiting::Gone if within_bound => {
+                        timing.hold += hold_began.elapsed();
+                        continue;
+                    }
+                    // The bound has passed and nothing stands now: the refusal this batch keeps meeting is Git's own, and
+                    //  its words are what the person is told.
+                    Waiting::Gone => {
+                        let said: String = String::from_utf8_lossy(moved.stderr.as_slice()).trim().to_string();
+                        crate::service_error!("batch {seq} could not move {}: {said}", first.reference);
+                        announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
+                        return Err(FailureCode::ReferenceLocked);
+                    }
+                    Waiting::Blocked(words) => {
+                        crate::service_error!("batch {seq} could not move {}: a reference lock stands in the way; {words}", first.reference);
+                        announce.announce(Announce::Holder(words));
+                        return Err(FailureCode::ReferenceLocked);
+                    }
+                }
+            }
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             timing.hold += hold_began.elapsed();

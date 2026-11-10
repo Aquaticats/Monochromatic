@@ -1,82 +1,59 @@
-import { withTimeout, } from '@monochromatic-dev/async-time-core/ts';
-
 /**
- Awaits a sink operation under a deadline when the host has timers.
+ Waits for a sink operation under the host deadline, reporting the deadline as
+ a value rather than as an error. @module
+
  QuickJS-ng exposes `queueMicrotask` but no global `setTimeout`, so a timer
  cannot be scheduled there. When either timer primitive is missing, the
- operation is awaited directly: this preserves working sinks but cannot
- bound a custom sink that never settles. When both primitives exist, the
- original deadline remains intact.
+ operation is awaited directly: this preserves working sinks but cannot bound a
+ custom sink that never settles.
 
+ On a host with timers the wait has two possible endings, and callers need both:
+ the operation settled, or the deadline won. Reporting the second as a returned
+ value keeps a caller from having to recognize a rejection, which would tie this
+ package's classification to the wording another package builds its timeout
+ message from: a renamed label or a changed unit there would silently turn every
+ deadline into an ordinary failure.
+ */
+
+import { settleWithin, } from '@monochromatic-dev/async-time-core/ts';
+
+/**
+ Awaits a sink operation under the host deadline.
+ 
  @param promise - Sink operation to await.
-
- @param ms - Deadline used when the host exposes timers.
-
- @param label - Operation named in a timeout diagnostic.
-
- @returns Sink operation's result.
-
- @throws Error when a host with timers reaches the deadline.
-
+ 
+ @param ms - Deadline used when the host exposes both timer primitives.
+ 
+ @returns `'settled'` when the operation settled first, `'expired'` when the deadline did.
+ 
+ @throws The operation's own rejection. Reaching the deadline is never a throw,
+ because it travels as the returned value; anything caught here is the
+ operation's own failure.
+ 
+ @mutates promise - `settleWithin` races it, which assimilates it through its `then` capability.
+ 
  @example
  ```ts
- await withHostTimeout({ promise: sink.verify(), ms: 5_000, label: 'sink verify' });
+ const outcome = await settleWithinHostTimeout({ ms: 5_000, promise: sink.verify() });
+ if (outcome === 'expired') { /* startup stops waiting, the probe keeps running *\/ }
  ```
  */
-export async function withHostTimeout<const Result>({
-  promise,
-  ms,
-  label,
-}: {
-  readonly label: string;
-  readonly ms: number;
-  readonly promise: Promise<Result>;
-},): Promise<Result> {
-  if ((typeof globalThis.setTimeout) !== 'function')
-    return await promise;
-  if ((typeof globalThis.clearTimeout) !== 'function')
-    return await promise;
+export async function settleWithinHostTimeout(
+  {
+    ms,
+    promise,
+  }: {
+    readonly ms: number;
+    readonly promise: Promise<unknown>;
+  },
+): Promise<'settled' | 'expired'> {
+  if (((typeof globalThis.setTimeout) !== 'function') || ((typeof globalThis.clearTimeout) !== 'function')) {
+    await promise;
+    return 'settled';
+  }
 
-  return await withTimeout({
-    label,
+  return await settleWithin({
     ms,
     promise,
   },);
-}
-
-/**
- Tells a host deadline apart from the awaited operation's own failure.
-
- The timeout utility builds its message from the same label and limit, so a
- caller that has to react differently to a deadline, such as keeping a slow
- probe's answer instead of retiring its sink, recognizes it without duplicating
- the race. A caught value is the deadline when its message is exactly the one
- that label and limit produce.
-
- @param error - Caught value from {@link withHostTimeout}.
-
- @param ms - Deadline the caller passed.
-
- @param label - Operation label the caller passed.
-
- @returns Whether the caught value is this deadline elapsing.
-
- @example
- ```ts
- const label = 'sink 0 verify';
- try { await withHostTimeout({ promise: probe, ms: 5_000, label }); }
- catch (error) { if (isHostDeadlineElapsed({ error, label, ms: 5_000 })) { /* probe still running *\/ } }
- ```
- */
-export function isHostDeadlineElapsed({
-  error,
-  label,
-  ms,
-}: {
-  readonly error: unknown;
-  readonly label: string;
-  readonly ms: number;
-},): boolean {
-  return Error.isError(error,)
-    && (error.message === `Timed out after ${String(ms,)}ms: ${label}`);
 }
