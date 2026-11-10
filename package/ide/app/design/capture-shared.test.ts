@@ -213,7 +213,11 @@ test(
     try {
       mkdirSync(join(directory, 'project'), { recursive: true });
       const compositor = dyingCompositor({ directory, line: 'failed to spawn hosted client' });
-      await captureOver({ directory, compositor }).catch(() => undefined);
+      try {
+        await captureOver({ directory, compositor });
+      } catch {
+        // The session is expected to fail at startup; what it handed the compositor is what this check reads.
+      }
       const handed: string[] = JSON.parse(readFileSync(join(directory, 'arguments.json'), 'utf8'));
       const hosted = handed[handed.indexOf('--') + 1];
       assert.equal(hosted, resolve('target/debug/monochromatic-ide'), 'the application the caller named from its own folder is started by its path from the root');
