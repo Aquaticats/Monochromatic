@@ -30,6 +30,8 @@ import {
   goalEventKinds,
 } from './pi-runtime-verifier-session.ts';
 
+//region Expected call counts
+
 /**
  Expected provider calls before post-clear tool round.
  */
@@ -40,12 +42,20 @@ const EXPECTED_PRE_CLEAR_PROVIDER_CALLS = 5;
  */
 const EXPECTED_PROVIDER_CALLS = 7;
 
+//endregion Expected call counts
+
+//region Echo contracts
+
 /**
  Verification echo details proving custom callback execution.
  */
 type VerificationEchoDetails = {
   readonly verified: true;
 };
+
+//endregion Echo contracts
+
+//region Echo registration
 
 /**
  Register custom echo tool used by real AgentSession regression.
@@ -118,6 +128,10 @@ function createVerificationEchoFactory(
     },);
   };
 }
+
+//endregion Echo registration
+
+//region Ordinary tool verification
 
 /**
  Exercise ordinary tools through real AgentSession after aborted and errored goal turns.
@@ -387,5 +401,7 @@ async function verifyOrdinaryToolsAfterAbort(
     'verification_echo-after-abort-error-clear',
   ];
 }
+
+//endregion Ordinary tool verification
 
 export { verifyOrdinaryToolsAfterAbort, };

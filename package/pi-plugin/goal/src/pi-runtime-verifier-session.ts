@@ -7,6 +7,8 @@
 import type { SessionManager, } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Recorded goal event queries
+
 /**
  Count persisted goal events of selected kind.
  
@@ -104,6 +106,8 @@ function goalContinuationMessageCount(sessionManager: SessionManager,): number {
     },)
     .length;
 }
+
+//endregion Recorded goal event queries
 
 export {
   goalContinuationMessageCount,

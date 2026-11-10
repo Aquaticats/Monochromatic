@@ -1262,7 +1262,6 @@ Three roots reach that `debug`:
   `@earendil-works/pi-coding-agent`
    (`agent-harness-shared-advisor`,
    `agent-harness-shared-truncate`,
-   `pi-goal`,
    `pi-plugin-advisor`,
    `pi-plugin-agent-settled-notification`,
    `pi-plugin-ask-user-question`,
@@ -1270,6 +1269,7 @@ Three roots reach that `debug`:
    `pi-plugin-bash-poke`,
    `pi-plugin-cost-dismissal`,
    `pi-plugin-current-time-context`,
+   `pi-plugin-goal`,
    `pi-plugin-guardrail`,
    `pi-plugin-model-retirement`,
    `pi-plugin-neuralwatt`,
