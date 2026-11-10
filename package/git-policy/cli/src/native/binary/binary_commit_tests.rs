@@ -865,6 +865,47 @@ fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     remove_settled(&fixture);
 }
 
+/// An element of an explicit path selection that matches nothing is the command line's refusal,
+/// not an engine failure:
+/// exit `1`,
+/// a finding that names every such element and shows where its options belong,
+/// nothing landed and nothing staged,
+/// and the same paths land once the message is written before them.
+/// Why this matters:
+///  twenty-six stopped commits of 2026-11-10 were reported as `engine-failure` / `transaction-failed` with exit 2
+///  after the private `git add` refused the words of a message written after `--`
+///  (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
+#[test]
+fn an_explicit_path_commit_of_an_element_that_matches_nothing_names_where_the_options_belong() {
+    let fixture: Fixture = fixture("commit-unmatched-element");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let staged_before: String = git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]);
+    // `-m` and the message come after `--`, so Git reads them as pathspecs, exactly as native Git reads them.
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--", "a.txt", "-m", "one two"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/named-path-unmatched"), "{text}");
+    assert!(text.contains("[\\\"-m\\\",\\\"one two\\\"]"), "every element that matched nothing is named: {text}");
+    assert!(text.contains("this commit was not made and nothing was staged by it"), "{text}");
+    assert!(text.contains("git commit -m <message> -- <paths>"), "the way forward names the order: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("transaction-failed"), "{text}");
+    assert!(!text.contains("git log --oneline -3"), "the transaction-failure hint: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed");
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]),
+        staged_before,
+        "the refusal staged nothing"
+    );
+    assert_nothing_left(&fixture, repo.as_path());
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "-m", "one two", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "--name-only", "--format=", "HEAD"]), "a.txt\n");
+    remove_settled(&fixture);
+}
+
 /// A repository nothing was staged in has no index file;
 /// an explicit-path commit there reads it as empty instead of
 ///  failing on the missing file.
