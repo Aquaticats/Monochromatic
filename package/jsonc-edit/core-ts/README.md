@@ -149,9 +149,13 @@ so a read reports the path as absent (`jsoncHas` is `false`,
 `jsoncGetValue` throws `JsoncPathNotFoundError`,
 `jsoncKeys` and `jsoncGetComment` throw it too),
 and an edit throws `JsoncPathNotFoundError` as well.
-Deleting an address that holds nothing,
-such as a missing key or an index past the array length,
-leaves the document unchanged.
+Deleting a record key that is absent
+leaves the document unchanged,
+while a final array index at or past the array length throws
+`JsoncPathNotFoundError`,
+because a delete removes an element rather than appending one
+the way a set at the length does.
+The Rust port answers the same way for that address.
 
 ## Performance
 
