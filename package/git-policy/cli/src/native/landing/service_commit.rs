@@ -127,6 +127,9 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
+    // Whether this line asks for the one fixup whose commit Git makes from the branch and not from the index: such a commit
+    //  is empty by design, and the commit a moved branch makes of it is written from the fields Git stored.
+    let rewords: bool = crate::service_commit_line_reissued::rewords_a_commit(invocation.arguments, invocation.subcommand_index);
     let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
     // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
     //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
@@ -149,9 +152,11 @@ pub fn service_commit<F: RepositoryFacts>(
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
-    // The fields of the commit an amend prepared, kept from the attempt that prepared it: an amend whose branch moved lands
-    //  them as a new commit on the branch as it is now (`service_amend_replayed.rs`), because `git commit --amend` would
-    //  replace the commit that moved the branch.
+    // The fields of the commit the wrapper writes itself instead of building the line again, kept from the attempt that
+    //  prepared it. An amend whose branch moved lands them as a new commit on the branch as it is now
+    //  (`service_amend_replayed.rs`), because `git commit --amend` would replace the commit that moved the branch; a
+    //  `--fixup=reword:` commit lands them on the branch's own tree, because Git takes the index out of that command's commit
+    //  and running the line again would ask the person for the message a second time.
     let mut amended: Option<AmendedCommit> = None;
     // The first build's start: the ceiling on rebuilding is counted from it.
     let first_build_began: Instant = Instant::now();
@@ -164,7 +169,9 @@ pub fn service_commit<F: RepositoryFacts>(
         let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}-{attempt}");
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
-            allow_empty: invocation.region.allow_empty,
+            // A `--fixup=reword:` commit carries the branch's own tree, so the preparation of the attempt that lands it on the
+            //  branch as it is now holds no change at all, and an empty commit is exactly what the person asked for.
+            allow_empty: invocation.region.allow_empty || rewords,
             standard_input: standard_input.as_deref(),
             first: attempt == 0,
             replay,
@@ -314,7 +321,6 @@ pub fn service_commit<F: RepositoryFacts>(
                     first_parent,
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
-                    native,
                     amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
                     request_id: id.as_str(),
@@ -357,6 +363,23 @@ pub fn service_commit<F: RepositoryFacts>(
                     retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                     continue;
                 }
+                // A `--fixup=reword:<commit>` commit is made from the branch and not from the index: Git carries the branch's
+                //  own tree and takes the index out of the commit, so the person asked for an empty commit whose message says
+                //  which commit it rewrites. The commit the moved branch makes of it keeps that tree and that message, and the
+                //  staged change stays where it is; nothing the person chose is lost, and no command is refused for another
+                //  session's commit (the owner's "Commits should never fail.").
+                if amended.is_none() && rewords {
+                    let Some(commit) = sent.commit.as_deref() else { return Err(branch_moved(&ready)) };
+                    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+                    }
+                    // The change this commit stands for is the tree Git wrote into it, not the private index Git ignored.
+                    let captured: String = crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
+                    amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
+                    retry = Some(crate::service_replay::retry_of_a_prepared_tree(&ready, Vec::new(), captured));
+                    unlanded.extend(sent.commit.clone());
+                    continue;
+                }
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
                 //  again on the new tip (and signs it again), up to the bound.
                 //  A commit that concludes a merge, a cherry-pick or a revert depends on the state the worktree holds, not on
@@ -391,9 +414,9 @@ pub fn service_commit<F: RepositoryFacts>(
                         sent.commit.as_deref(),
                         ready.interactive,
                     )?;
-                    // A line a rebuild cannot read back (`--fixup=reword:` makes its commit from the branch rather than from
-                    //  the change this preparation captured) keeps no message file: the same command makes that message again,
-                    //  and saving it here would suggest a commit of another kind.
+                    // A line a rebuild cannot read back (an abbreviated borrowing option the wrapper does not guess at) keeps no
+                    //  message file: the same command makes that message again, and saving it here would suggest a commit of
+                    //  another kind.
                     if let Some(line) = reissued {
                         match std::fs::write(&file, text) {
                             Ok(()) => {
@@ -442,8 +465,7 @@ pub fn service_commit<F: RepositoryFacts>(
                         first_parent,
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
-                        native,
-                        amended_as_new: if lands_as_new { amended.as_ref() } else { None },
+                            amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
                         request_id: id.as_str(),
                         journal: journal.as_deref(),
