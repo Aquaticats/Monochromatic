@@ -32,7 +32,9 @@ function lockDirFor(target,) {
  * the lock and the caller must retry or surface ELOCKED.
  *
  * @param {string} target
- * @returns {() => void}
+ * @returns {() => void} Release callback. Calling it removes the lock directory
+ *   and tolerates that directory already being gone; any other removal failure
+ *   is rethrown, and the lock stays un-released so a later call retries.
  * @throws Error with `code === 'ELOCKED'` when the lock is already held;
  *   rethrows any other filesystem error unchanged.
  * @example
@@ -57,14 +59,20 @@ function acquire(target,) {
   return function release() {
     if (state.released)
       return;
-    state.released = true;
     try {
       rmdirSync(dir,);
     }
-    catch {
-      // Tolerate disappearance; a stale-cleanup sweep or a parallel holder
-      // running through its own release path may have removed the directory.
+    catch (error) {
+      // Disappearance is the only removal failure to tolerate: a stale-cleanup
+      // sweep or a parallel holder running through its own release path may
+      // have removed the directory already. EPERM, EBUSY, and ENOTEMPTY leave
+      // the directory in place, so they surface here instead of reporting a
+      // release that did not happen; `state.released` stays false and the next
+      // call retries.
+      if (error.code !== 'ENOENT')
+        throw error;
     }
+    state.released = true;
   };
 }
 
