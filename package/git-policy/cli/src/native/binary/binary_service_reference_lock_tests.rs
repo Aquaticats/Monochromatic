@@ -321,7 +321,9 @@ fn two_held_commits_wait_beside_each_other_and_both_land_in_order() {
 }
 
 /// What:
-///  A commit real Git built, held behind a lock, is on the side reference the answer names,
+///  A commit real Git built,
+///  held behind a lock,
+///  is on the side reference the answer names,
 ///  and real Git's maintenance keeps it.
 /// Why:
 ///  The answer says the commit is kept at `refs/worktree/cli-git-service/<batch>` either way,

@@ -399,7 +399,8 @@ fn carry(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> Resul
 ///  before it moves the branch (`carry`),
 ///  and the finished record is what names that commit after the branch moved.
 ///  A kill between the finished record and the removal of this one leaves this one naming the commit the batch started
-///  with, so the finished record is the only place the commit that landed is named.
+///  with,
+///  so the finished record is the only place the commit that landed is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
