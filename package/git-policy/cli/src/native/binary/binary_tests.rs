@@ -549,6 +549,12 @@ mod push_queued_after_a_killed_wrapper;
 #[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
 mod held_push_carried_by_a_later_push;
 
+/// A commit a post-commit gate refused:
+/// it stays local past the next commit of its branch,
+/// and every command names the commit and the check that hold the branch back.
+#[path = "binary_push_stops_before_a_refused_commit_tests.rs"]
+mod push_stops_before_a_refused_commit;
+
 /// The report a reconcile owes when it published a merge but could not move the local branch,
 /// or moved it beside uncommitted work,
 /// shown once by a later command.

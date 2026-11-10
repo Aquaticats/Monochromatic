@@ -3444,6 +3444,18 @@ returns `2`,
 and emits `commit-landed` after the causal events.
 Once the landed OID is known,
 repository-root or candidate-fact setup failure emits `content-unavailable` plus the same explicit landed state.
+The refusal is kept as a verdict in the work queue's `blocked` state,
+and it holds four things:
+the branch reference the commit landed on,
+the commit,
+the blocking event's own words
+(the policy's configuration name and its message,
+a fixed transform's name and message,
+or an engine failure's message,
+as one line),
+and the durable fact that this commit may not be published.
+A verdict outlives the command that wrote it,
+because the queue pushes a branch and not one commit (see "Auto-push").
 
 ### Auto-push
 
@@ -3472,6 +3484,60 @@ free,
 staying under its claim otherwise,
 where a later command finds it once this one is gone
 (`Notice::show`).
+
+#### A blocked commit is never published
+
+Owner answer (question tool,
+verbatim):
+"Hold the push at A (Recommended)",
+for the option
+"The automatic push stops at the commit before the blocked one,
+and every command says which commit is holding the branch back and why.
+A person's own git push is unchanged."
+So a branch that holds a verdict (see "Post-commit") is pushed only up to the commit before the blocked one:
+the refspec's source is the merge base of the blocked commits' first parents,
+never the branch's tip.
+Which verdicts are on the branch's way out is asked of the repository and never remembered:
+a verdict's commit must be an ancestor of the branch,
+and must not be an ancestor of the branch's upstream tracking ref,
+because Git already holding it in the branch's remote means no push of this branch publishes it.
+A verdict on another branch decides nothing,
+and one whose commit this repository no longer holds decides nothing either,
+since no push can publish an object it does not have.
+The base is the newest commit no verdict forbids,
+so the commits below the deepest blocked one still reach GitHub in the same push.
+
+Limits.
+A blocked commit that is a merge publishes only the first-parent side below it until it is fixed,
+because one refspec names one commit and no commit is invented for the other side;
+a blocked commit with no parent has nothing below it,
+so that push sends nothing.
+A push under `push.default=matching` names no refspec at all,
+so a stop cannot be expressed there and the push sends nothing.
+The upstream tracking ref can lag the remote,
+so a verdict already on the remote but not yet fetched still holds the branch back;
+that costs a push that could have run and publishes nothing it should not.
+
+A held-back push is never reconciled:
+the merge a reconcile publishes is made above the local tip,
+so it would carry the blocked commit.
+The push therefore stays a plain fast-forward of the base,
+and the service keeps trying the branch on its own retry plan,
+so the branch resumes without waiting for the next commit once the blocked commit is off its way out.
+
+Every command reads the same verdicts and asks the same questions,
+so the line it prints and the push that happened cannot disagree.
+For one verdict the line is
+"<branch> is held back by the commit <OID>,
+because <the verdict's words>.
+The automatic push stops before it,
+a person's own git push still sends it,
+and the push resumes once it is off <branch>'s way out.",
+and for several it names each commit with its words and says the push publishes nothing past them.
+A question Git cannot answer sends nothing and says so instead of naming a commit it could not place.
+A commit whose command died before its post-commit gate ran has no verdict,
+so it holds nothing back and the next push of the branch carries it,
+as it did before this rule.
 
 #### Merges and commits never fail
 
@@ -9000,6 +9066,17 @@ blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+A blocked record is not deleted:
+it is moved into the queue's `blocked` state with the branch and the gate's words,
+and it is what makes the next push of that branch stop before that commit (see "A blocked commit is never
+published").
+A record an earlier release wrote holds the word `blocked` alone,
+so its commit,
+its branch and its reason are read from the file's name and from nothing else;
+the commit is judged for every branch,
+which can stop a push that verdict never concerned,
+and no line names it,
+because no branch can be named.
 
 A held record is settled when Git proves its commit reached the remote.
 The question is put to the local repository alone,

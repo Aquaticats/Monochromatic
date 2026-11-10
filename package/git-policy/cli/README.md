@@ -480,6 +480,22 @@ Read-only commands,
    list each part merged by word (see "Word-level second merge pass").
   An amended or rebased branch is not merged,
   and its rejection is shown as before.
+  When a post-commit policy kept one of the branch's commits local,
+   the push stops at the commit before the first of them:
+  it publishes the newest commit that no such verdict forbids,
+  which is the merge base of the blocked commits' parents,
+   and it is never reconciled,
+  because the merge a reconcile publishes is made above the local tip and would carry the blocked commit.
+  The branch is then tried again by itself,
+   so the push resumes once the blocked commit is off the branch's way out.
+  Every command in that worktree says so in one line while it holds,
+   naming the branch,
+  the commit and the words of its verdict,
+   and the line goes once the commit is off the branch's way out or Git already holds it in the branch's remote.
+  A person's own `git push` is unchanged and still sends the branch whole,
+   and a commit whose command died before its check ran holds nothing back:
+  it has no verdict,
+   so the next push of the branch carries it.
   A failed push never fails the commit,
    and no configuration key turns the push off.
   Automatic maintenance,
@@ -2639,7 +2655,10 @@ Real Git keeps the normal standard streams.
    commit or engine failure.
 - When real Git runs,
    its exit status is preserved.
-  A landed commit that a post-commit policy then blocks exits `2` and stays local.
+  A landed commit that a post-commit policy then blocks exits `2` and stays local:
+  it stays local past later commits of the same branch,
+   because the automatic push of that branch stops before it and
+   every command says which commit holds the branch back and which check refused it.
 
 The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
