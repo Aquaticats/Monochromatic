@@ -186,6 +186,7 @@ fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
         old_oid: old.trim().to_owned(),
         new_oid: merge.clone(),
         side_ref: Some(String::from("refs/cli-git/kept/1")),
+        carried: None,
     };
     write_merge_intent(repo.join(".git").as_path(), &intent).expect("the merge record");
     return (old.trim().to_owned(), merge);

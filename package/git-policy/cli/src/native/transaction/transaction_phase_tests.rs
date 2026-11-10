@@ -76,9 +76,10 @@ fn malformed_values_are_refused() {
 #[test]
 fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
+    let phases: String = TRANSACTION_TEST_PHASES.map(Phase::name).join(", ");
     assert_eq!(
         error.to_string(),
-        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among merge-carried, merge-cleared, merge-intent, merge-applied, merge-carried-back, service-staged, service-prepared."
+        format!("CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {phases}.")
     );
 }
 
