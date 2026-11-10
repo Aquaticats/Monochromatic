@@ -3,7 +3,8 @@
 //!  and for the panic hook.
 //! Why:
 //!  A closed pipe is an ordinary end of output;
-//!  any other write failure must change the exit status.
+//!  any other write failure must change the exit status and name the stream and the error,
+//! while a run that wrote both streams keeps the status its findings earned.
 //! The panic hook is process-wide,
 //!  so its control runs one invocation in a child process.
 //! Argument parsing and real streams are exercised by the binary-level container tests.
@@ -11,12 +12,14 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! describe('emit', () => { /* bytes written, closed pipe tolerated, other failures reported */ });
+//! describe('writeOutputs', () => { /* refusal named on the surviving stream */ });
 //! ```
 
 /// Import the stream writer,
+///  the output writer,
 ///  the panic-hook decision and the invocation entry under test.
-use super::{emit, run_process_with, silences_panics};
-use crate::{cli_options::CliOptions, run_output::RunOutput};
+use super::{emit, run_process_with, silences_panics, write_outputs};
+use crate::{cli_options::CliOptions, run_finish::PROGRAM, run_output::RunOutput};
 use clap::Parser;
 use std::{
     io::{ErrorKind, Read, Write},
@@ -61,6 +64,24 @@ fn stream(write_failure: Option<ErrorKind>, flush_failure: Option<ErrorKind>) ->
     };
 }
 
+/// The text the stream accepted,
+///  read as UTF-8 because every caller writes UTF-8.
+impl Stream {
+    /// The accepted bytes as text.
+    fn text(&self) -> String {
+        return String::from_utf8(self.written.clone()).expect("streams carry UTF-8");
+    }
+}
+
+/// An output whose two streams carry text and whose status comes from the findings.
+fn output(stdout: &str, stderr: &str, exit_code: u8) -> RunOutput {
+    return RunOutput {
+        stdout: String::from(stdout),
+        stderr: String::from(stderr),
+        exit_code,
+    };
+}
+
 /// Accept or refuse bytes as configured.
 impl Write for Stream {
     /// Record the bytes,
@@ -89,30 +110,104 @@ impl Write for Stream {
 #[test]
 fn text_is_written_whole_and_flushed() {
     let mut open: Stream = stream(None, None);
-    assert!(emit(&mut open, "{\"code\":\"x\"}\n🚀\n"));
+    assert!(emit(&mut open, "{\"code\":\"x\"}\n🚀\n").is_ok());
     assert_eq!(open.written, "{\"code\":\"x\"}\n🚀\n".as_bytes());
     assert_eq!(open.flushes, 1);
     let mut untouched: Stream = stream(Some(ErrorKind::Other), Some(ErrorKind::Other));
-    assert!(emit(&mut untouched, ""));
+    assert!(emit(&mut untouched, "").is_ok());
     assert!(untouched.written.is_empty());
     assert_eq!(untouched.flushes, 0);
 }
 
 /// A closed pipe on write or flush is tolerated;
-///  any other failure is reported.
+///  any other failure is reported with its own kind.
 #[test]
 fn only_a_closed_pipe_is_tolerated() {
-    assert!(emit(&mut stream(Some(ErrorKind::BrokenPipe), None), "x"));
-    assert!(emit(&mut stream(None, Some(ErrorKind::BrokenPipe)), "x"));
-    assert!(!emit(
-        &mut stream(Some(ErrorKind::PermissionDenied), None),
-        "x"
-    ));
-    assert!(!emit(&mut stream(None, Some(ErrorKind::StorageFull)), "x"));
+    assert!(emit(&mut stream(Some(ErrorKind::BrokenPipe), None), "x").is_ok());
+    assert!(emit(&mut stream(None, Some(ErrorKind::BrokenPipe)), "x").is_ok());
+    assert_eq!(
+        emit(&mut stream(Some(ErrorKind::PermissionDenied), None), "x")
+            .expect_err("a refused write")
+            .kind(),
+        ErrorKind::PermissionDenied
+    );
+    assert_eq!(
+        emit(&mut stream(None, Some(ErrorKind::StorageFull)), "x")
+            .expect_err("a refused flush")
+            .kind(),
+        ErrorKind::StorageFull
+    );
     // A failed write is not followed by a flush.
     let mut failed: Stream = stream(Some(ErrorKind::PermissionDenied), None);
-    assert!(!emit(&mut failed, "x"));
+    assert!(emit(&mut failed, "x").is_err());
     assert_eq!(failed.flushes, 0);
+}
+
+/// Both streams accepting their text keeps the status the findings earned;
+///  a refusal exits 2 and is named,
+///  with the operating system's error,
+///  on the stream that still works.
+#[test]
+fn a_refused_write_is_named_on_the_surviving_stream() {
+    let written: RunOutput = output("finding\n", "note\n", 1);
+    let mut stdout: Stream = stream(None, None);
+    let mut stderr: Stream = stream(None, None);
+    assert_eq!(write_outputs(&mut stdout, &mut stderr, &written), 1);
+    assert_eq!(stdout.text(), "finding\n");
+    assert_eq!(stderr.text(), "note\n");
+    // Standard output refuses its text: the program's own standard-error text and then one line
+    // naming the refused stream and the error reach standard error.
+    let mut refused_stdout: Stream = stream(Some(ErrorKind::StorageFull), None);
+    let mut surviving_stderr: Stream = stream(None, None);
+    assert_eq!(
+        write_outputs(&mut refused_stdout, &mut surviving_stderr, &written),
+        2
+    );
+    assert_eq!(
+        surviving_stderr.text(),
+        format!(
+            "note\n{PROGRAM}: Cannot write standard output: {}.\n",
+            std::io::Error::from(ErrorKind::StorageFull)
+        )
+    );
+    // Standard error refuses its text: the findings and then the explanation reach standard output.
+    let mut surviving_stdout: Stream = stream(None, None);
+    let mut refused_stderr: Stream = stream(None, Some(ErrorKind::StorageFull));
+    assert_eq!(
+        write_outputs(&mut surviving_stdout, &mut refused_stderr, &written),
+        2
+    );
+    assert_eq!(
+        surviving_stdout.text(),
+        format!(
+            "finding\n{PROGRAM}: Cannot write standard error: {}.\n",
+            std::io::Error::from(ErrorKind::StorageFull)
+        )
+    );
+    // Both streams refuse: no stream is left to carry the explanation, so the status is all there is.
+    let mut refused_both_stdout: Stream = stream(Some(ErrorKind::StorageFull), None);
+    let mut refused_both_stderr: Stream = stream(Some(ErrorKind::StorageFull), None);
+    assert_eq!(
+        write_outputs(&mut refused_both_stdout, &mut refused_both_stderr, &written),
+        2
+    );
+    assert_eq!(refused_both_stdout.text(), "");
+    assert_eq!(refused_both_stderr.text(), "");
+    // A closed pipe on either stream is an ordinary end of output, not a refusal.
+    let mut closed_stdout: Stream = stream(None, Some(ErrorKind::BrokenPipe));
+    let mut open_stderr: Stream = stream(None, None);
+    assert_eq!(
+        write_outputs(&mut closed_stdout, &mut open_stderr, &written),
+        1
+    );
+    assert_eq!(open_stderr.text(), "note\n");
+    let mut open_stdout: Stream = stream(None, None);
+    let mut closed_stderr: Stream = stream(Some(ErrorKind::BrokenPipe), None);
+    assert_eq!(
+        write_outputs(&mut open_stdout, &mut closed_stderr, &written),
+        1
+    );
+    assert_eq!(open_stdout.text(), "finding\n");
 }
 
 /// Panics are silenced on every run except a `--debug` run,
