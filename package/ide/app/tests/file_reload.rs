@@ -128,8 +128,10 @@ fn an_undecodable_source_fails_with_the_one_shared_diagnosis() {
         .err()
         .expect("invalid UTF-8 is not source");
     assert!(
-        format!("{error:#}")
-            .contains(&format!("Cannot read source file {} as UTF-8", path.display())),
+        format!("{error:#}").contains(&format!(
+            "Cannot read source file {} as UTF-8",
+            path.display()
+        )),
         "{error:#}"
     );
 }
