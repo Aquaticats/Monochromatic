@@ -9,8 +9,8 @@
  
  This suite reads the module as text because neither ladder is part of the public surface a
  built import could reach. It fails when either statement disappears, when a ladder stops
- calling the shared prologue, or when the two ladders stop dispatching the same arities and
- step labels.
+ calling the shared prologue or repeats it, when one ladder drops an arity branch or step label
+ the other keeps, or when only one side awaits its applications.
  */
 import { readFileSync, } from 'node:fs';
 
@@ -33,7 +33,7 @@ const runModulePath = new URL('run.ts', import.meta.url,);
 const syncDeclaration = 'export function runPipe(';
 
 /**
- Declaration that opens the asynchronous ladder.
+ Declaration that opens the asynchronous ladder, which follows the synchronous one.
  */
 const asyncDeclaration = 'export async function runPipeAsync(';
 
@@ -48,11 +48,6 @@ const handWrittenMarker = 'hand-written';
 const sharedPrologue = 'prepareRun';
 
 /**
- How many times the shared prologue's call appears, once per ladder.
- */
-const laddersSharingPrologue = 2;
-
-/**
  Prologue helpers a ladder must not repeat inline once the shared call exists.
  */
 const prologueHelpers = [
@@ -62,7 +57,7 @@ const prologueHelpers = [
 ] as const;
 
 /**
- Every arity an `fnN` guard dispatches, `fn2` through `fn9`.
+ Every arity an `fnN` guard dispatches, `fn2` through the nine-step cap.
  */
 const guardedArities = [
   2,
@@ -76,46 +71,54 @@ const guardedArities = [
 ] as const;
 
 /**
- Every step count a ladder logs: one per guard's branch, plus the nine-step fall-through.
+ Step count of the highest branch, which a ladder applies without a guard.
+ */
+const fallThroughStepCount = guardedArities.length + 1;
+
+/**
+ Every step count a ladder logs: one per guarded branch, then the fall-through.
  */
 const loggedStepCounts = [
   ...guardedArities.map(function branchStepCount(arity,) {
     return arity - 1;
   },),
-  guardedArities.length,
+  fallThroughStepCount,
 ];
 
 /**
  Source text of the execution module.
  
- @returns module text the documentation assertions scan
+ @returns module text the assertions scan
  */
 function runModuleSource(): string {
   return readFileSync(runModulePath, 'utf8',);
 }
 
 /**
- Source text of the execution module without comment lines.
+ Code of each ladder, split at the documentation the asynchronous declaration carries.
  
- Code assertions scan this text, so a statement in prose never counts as a declaration and a
- name mentioned in prose never reads as a call.
+ Starting the asynchronous stretch at its declaration keeps the synchronous stretch free of the
+ asynchronous prose, so an `await` in that documentation never reads as a synchronous await.
  
- @returns module lines that carry code
+ @param source - module text as written
+ 
+ @returns the synchronous ladder's text and the asynchronous ladder's
  */
-function runModuleCode(): string {
-  return runModuleSource()
-    .split('\n',)
-    .filter(function isCodeLine(line,) {
-      const trimmed = line.trim();
-      return !(trimmed.startsWith('*',)
-        || trimmed.startsWith('//',)
-        || trimmed.startsWith('/*',));
-    },)
-    .join('\n',);
+function ladderCodes(source: string,): {
+  readonly sync: string;
+  readonly async: string;
+} {
+  return {
+    sync: source.slice(
+      declarationIndex(source, syncDeclaration,),
+      documentationStart(source, asyncDeclaration,),
+    ),
+    async: source.slice(declarationIndex(source, asyncDeclaration,),),
+  };
 }
 
 /**
- How often one text occurs in the module.
+ How often one text occurs in one stretch of the module.
  
  @param source - module text under inspection
  @param needle - literal text to count
@@ -141,6 +144,22 @@ function declarationIndex(source: string, declaration: string,): number {
 }
 
 /**
+ Index where the documentation above one declaration opens.
+ 
+ @param source - module text as written
+ @param declaration - text opening the documented declaration
+ 
+ @returns offset of the documentation's opening marker
+ */
+function documentationStart(source: string, declaration: string,): number {
+  const closeIndex = source.lastIndexOf('*/', declarationIndex(source, declaration,),);
+  expect(closeIndex,).toBeGreaterThanOrEqual(0,);
+  const openIndex = source.lastIndexOf('/**', closeIndex,);
+  expect(openIndex,).toBeGreaterThanOrEqual(0,);
+  return openIndex;
+}
+
+/**
  TSDoc block immediately above one declaration.
  
  @param source - module text as written
@@ -149,11 +168,8 @@ function declarationIndex(source: string, declaration: string,): number {
  @returns documentation text between its opening and closing markers
  */
 function declarationDocumentation(source: string, declaration: string,): string {
-  const closeIndex = source.lastIndexOf('*/', declarationIndex(source, declaration,),);
-  expect(closeIndex,).toBeGreaterThanOrEqual(0,);
-  const openIndex = source.lastIndexOf('/**', closeIndex,);
-  expect(openIndex,).toBeGreaterThanOrEqual(0,);
-  return source.slice(openIndex, closeIndex,);
+  const openIndex = documentationStart(source, declaration,);
+  return source.slice(openIndex, source.indexOf('*/', openIndex,),);
 }
 
 /**
@@ -205,31 +221,53 @@ await describe({
         },),
 
         it({
-          name: 'calls the shared prologue once per ladder instead of repeating it',
+          name: 'calls the shared prologue exactly once in each ladder instead of repeating it',
           fn: async () => {
-            const source = runModuleCode();
+            const ladders = ladderCodes(runModuleSource(),);
 
-            expect(occurrences(source, `${sharedPrologue}(`,),).toBe(
-              laddersSharingPrologue,
-            );
-            for (const helper of prologueHelpers)
-              expect(occurrences(source, helper,),).toBe(0,);
+            for (const ladder of [
+              ladders.sync,
+              ladders.async,
+            ]) {
+              expect(occurrences(ladder, `${sharedPrologue}(`,),).toBe(1,);
+              for (const helper of prologueHelpers)
+                expect(occurrences(ladder, helper,),).toBe(0,);
+            }
           },
         },),
 
         it({
-          name: 'dispatches the same arity guards and step labels on both ladders',
+          name: 'dispatches every arity guard and step label on both ladders',
           fn: async () => {
-            const source = runModuleCode();
+            const ladders = ladderCodes(runModuleSource(),);
 
-            for (const arity of guardedArities)
-              expect(occurrences(source, `if (fn${String(arity,)} === undefined)`,),).toBe(
-                laddersSharingPrologue,
-              );
-            for (const count of loggedStepCounts)
-              expect(occurrences(source, stepLabel(count,),),).toBe(
-                laddersSharingPrologue,
-              );
+            for (const ladder of [
+              ladders.sync,
+              ladders.async,
+            ]) {
+              for (const arity of guardedArities)
+                expect(occurrences(ladder, `if (fn${String(arity,)} === undefined)`,),).toBe(
+                  1,
+                );
+              for (const count of loggedStepCounts)
+                expect(occurrences(ladder, stepLabel(count,),),).toBe(1,);
+            }
+          },
+        },),
+
+        it({
+          name: 'awaits every application on the asynchronous ladder and none on the synchronous one',
+          fn: async () => {
+            const ladders = ladderCodes(runModuleSource(),);
+
+            expect(ladders.sync,).not.toContain('await',);
+            for (const arity of [
+              1,
+              ...guardedArities,
+            ]) {
+              expect(ladders.sync,).toContain(`fn${String(arity,)}(`,);
+              expect(ladders.async,).toContain(`await fn${String(arity,)}(`,);
+            }
           },
         },),
       ],
