@@ -318,6 +318,26 @@ function lookupDiagnosticLines(stderr: string,): readonly string[] {
 }
 
 /**
+ Collects the stderr lines reporting the relay script's cache fallback.
+ 
+ @param stderr - Captured standard error text of one run.
+ 
+ @returns One entry per logged fallback, in emission order.
+ 
+ @example
+ ```ts
+ fallbackDiagnosticLines('[warn] [t] [fetch_tor_relays] [fn] live fetch failed, attempting cache fallback: x\n');
+ ```
+ */
+function fallbackDiagnosticLines(stderr: string,): readonly string[] {
+  return stderr
+    .split('\n',)
+    .filter(function isFallbackLine(line,): boolean {
+      return line.includes('attempting cache fallback',);
+    },);
+}
+
+/**
  Asserts one stderr line is a level-warn record carrying the module tag and the
  emitting function's tag, as the tagged logger writes it.
  
@@ -523,11 +543,7 @@ await describe({
         /**
          Warn lines explaining the failed fetch.
          */
-        const diagnostics = run.stderr
-          .split('\n',)
-          .filter(function isFallbackLine(line,): boolean {
-            return line.includes('attempting cache fallback',);
-          },);
+        const diagnostics = fallbackDiagnosticLines(run.stderr,);
         expect(diagnostics,).toHaveLength(1,);
         for (const line of diagnostics) {
           expectTaggedWarning({
@@ -555,6 +571,20 @@ await describe({
         expect(run.exitCode,).toBe(1,);
         expect(run.stdout,).toBe('',);
         expect(run.stderr,).toContain('fetch failed and no cached fallback available',);
+
+        /**
+         Warn lines explaining the failed fetch. The thrown message alone would
+         satisfy the assertion above even when the record never reaches stderr.
+         */
+        const diagnostics = fallbackDiagnosticLines(run.stderr,);
+        expect(diagnostics,).toHaveLength(1,);
+        for (const line of diagnostics) {
+          expectTaggedWarning({
+            functionTag: 'fetchCidrsWithCacheFallback',
+            line,
+            moduleTag: 'fetch_tor_relays',
+          },);
+        }
       },
     },),
     //endregion Cache and fetch branches
