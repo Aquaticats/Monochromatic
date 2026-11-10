@@ -13,6 +13,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor, endSession } from './nested-compositor.ts';
 import { containerBounds } from './container-bounds.ts';
 import { withoutSgrSequences } from './sgr-sequences.ts';
+import { safetySweepDeclaration } from './refresh-policy-sweep.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -59,9 +60,9 @@ console.log('IDLE_COST_ARTIFACT=' + artifact + ' profile=' + profile);
 // Build the shipped interval first, then the comparison interval from the same copy.
 const policyPath = join(source, 'src/refresh_policy.rs');
 const policy = readFileSync(policyPath, 'utf8');
-const shipped = policy.match(/pub const SAFETY_SWEEP: Duration = Duration::from_secs\((\d+)\);/);
+const shipped = safetySweepDeclaration(policy);
 if (!shipped) throw new Error('Cannot find the SAFETY_SWEEP constant in ' + policyPath);
-if (seconds < 3 * Math.max(Number(shipped[1]), compare)) throw new Error('seconds must cover at least three safety sweeps of the slower build');
+if (seconds < 3 * Math.max(shipped.seconds, compare)) throw new Error('seconds must cover at least three safety sweeps of the slower build');
 const build = (label: string): string => {
   const result = spawnSync('podman', [
     'run', '--rm', '--network=none', ...containerLimits.limitArguments,
@@ -79,11 +80,11 @@ const build = (label: string): string => {
 };
 // One build of the IDE with the sweep interval it was compiled with.
 interface Variant { sweep: number; binary: string }
-const shippedText = shipped[1] ?? '';
-const shippedVariant: Variant = { sweep: Number(shippedText), binary: build(shippedText + 's') };
+const shippedText = String(shipped.seconds);
+const shippedVariant: Variant = { sweep: shipped.seconds, binary: build(shippedText + 's') };
 const variants: Variant[] = [shippedVariant];
 if (compare !== shippedVariant.sweep) {
-  writeFileSync(policyPath, policy.replace(shipped[0], 'pub const SAFETY_SWEEP: Duration = Duration::from_secs(' + compare + ');'));
+  writeFileSync(policyPath, policy.replace(shipped.text, 'pub const SAFETY_SWEEP: Duration = Duration::from_secs(' + compare + ');'));
   variants.push({ sweep: compare, binary: build(compare + 's') });
   writeFileSync(policyPath, policy);
 }
