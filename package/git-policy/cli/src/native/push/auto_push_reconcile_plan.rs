@@ -78,7 +78,8 @@ pub struct Reconcile<'a> {
 /// ```
 pub enum Integrated {
     /// The remote did not diverge,
-    /// or the run could not tell;
+    /// the run could not tell,
+    /// or the run could not run its merge push at all;
     /// the rejected attempt stands as it was.
     NotDivergent(PushAttempt),
     /// The run published the merge,
