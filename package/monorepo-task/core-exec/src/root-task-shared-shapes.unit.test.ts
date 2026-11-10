@@ -93,7 +93,7 @@ function varsSection(text: string,): string {
   const start = text.indexOf(`${varsHeader}\n`,);
   if (start === (-1)) return '';
   const rest = text.slice(start + varsHeader.length,);
-  const end = rest.search(/\n\[/,);
+  const end = rest.indexOf('\n[',);
   return end === (-1) ? rest : rest.slice(0, end,);
 }
 
