@@ -23,10 +23,20 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Provenance bound
+// How many characters of a drained expression survive into a provenance
+// string.
+
 /**
  Characters of a drained expression kept in a provenance string.
  */
 const DRAIN_PROVENANCE_LIMIT = 60;
+
+//endregion Provenance bound
+
+//region Charging a drained value
+// Charging every parameter a drained value can hold, when draining may run user
+// code.
 
 /**
  Charges every parameter a drained value can hold, when draining may run user code.
@@ -85,6 +95,11 @@ export function chargeDrainedIterator({
       spelling: 'iterated',
     },);
 }
+
+//endregion Charging a drained value
+
+//region One drained expression
+// The origins of a single drained expression, charged on top of the drain.
 
 /**
  Charges one drained expression's origins.
@@ -145,6 +160,12 @@ function chargeDrained({
       },);
     },);
 }
+
+//endregion One drained expression
+
+//region Iteration retention
+// What one iteration statement retains, and for the awaiting form what it
+// mutates.
 
 /**
  Records what one iteration statement retains and, for the awaiting form, what it mutates.
@@ -219,3 +240,5 @@ export function recordIterationEffects({
     },),
   },);
 }
+
+//endregion Iteration retention

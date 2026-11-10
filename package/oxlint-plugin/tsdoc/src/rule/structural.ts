@@ -25,6 +25,10 @@ import {
   stripCommentLineMarker,
 } from './tsdoc-visitors.ts';
 
+//region Autofix input shapes
+// The two inputs the autofix renderers take: a source offset to read the
+// line's indentation from, and the parts of a single-line block to rewrite.
+
 /**
  Inputs for extracting source indentation before a byte offset.
  */
@@ -54,6 +58,12 @@ type MultilineTsdocReplacementParams = {
    */
   readonly comment: ReadonlyDeep<Comment>;
 };
+
+//endregion Autofix input shapes
+
+//region Reading source and comment text
+// The source text before an offset, and the content lines of a TSDoc block
+// body with its opener, closer, and line markers already removed.
 
 /**
  Extracts whitespace before offset on its source line.
@@ -120,6 +130,12 @@ function tsdocContentLines(comment: ReadonlyDeep<Comment>,): readonly string[] {
     },);
 }
 
+//endregion Reading source and comment text
+
+//region Rendering the multiline block
+// Combining that indentation and those content lines into the canonical
+// multiline text the autofix writes back.
+
 /**
  Renders a single-line TSDoc block as canonical multiline text, combining
  indentation from {@link linePrefixBeforeOffset} with body lines from
@@ -180,6 +196,12 @@ function multilineTsdocReplacement(
 
   return `/**\n${body}\n${indent} */`;
 }
+
+//endregion Rendering the multiline block
+
+//region The rules
+// The two exported rules: asterisk alignment, and the multiline block style
+// that rejects a single-line `/** comment *\/`.
 
 /**
  Enforces consistent alignment of asterisks in TSDoc block comments.
@@ -372,6 +394,12 @@ export const multilineBlocks: CreateOnceRule = {
   },
 };
 
+//endregion The rules
+
+//region Re-exports
+// Rules that live in sibling modules, kept reachable from this module's public
+// surface.
+
 export { noMultiAsterisks, } from './asterisk-validation.ts';
 
 export {
@@ -379,3 +407,5 @@ export {
   escapeInlineTags,
   tagLines,
 } from './structural-tags.ts';
+
+//endregion Re-exports

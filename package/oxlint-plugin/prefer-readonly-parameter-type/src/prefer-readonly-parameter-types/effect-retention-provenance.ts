@@ -15,6 +15,10 @@
  @module
  */
 
+//region Provenance prefixes
+// The three prefixes that mark a provenance fact as a store, another handoff,
+// or a callable handed back.
+
 /**
  Prefix marking a provenance fact as a store rather than an unresolved call.
  */
@@ -41,6 +45,11 @@ const HANDOFF_PROVENANCE_PREFIX = 'handed outward by ';
  */
 const RETURNED_CALLABLE_PROVENANCE_PREFIX = 'handed back as a callable capturing it at ';
 
+//endregion Provenance prefixes
+
+//region Building a fact
+// One provenance fact for a value handed to a binding the callable does not own.
+
 /**
  Builds one provenance fact for a value the callable handed to a binding it does not own.
  
@@ -64,6 +73,12 @@ export function retentionProvenance({
 },): string {
   return `${RETENTION_PROVENANCE_PREFIX}${target} [${location}]`;
 }
+
+//endregion Building a fact
+
+//region Reading the facts back
+// Whether a fact came from the retention channel, and the one pass that
+// separates facts a call caused from facts a store caused.
 
 /**
  Tests whether one provenance fact was written by the retention channel.
@@ -131,6 +146,11 @@ export function splitRetentionBoundaries({
   };
 }
 
+//endregion Reading the facts back
+
+//region Reportable opacity
+// Whether the opacity these facts describe has a cause a report can name.
+
 /**
  Tests whether opacity described by these facts has a cause a report can ask about.
  
@@ -164,6 +184,12 @@ export function boundariesAreReportable({
   return (callBoundaries.length > 0)
     || (retentionBoundaries.length === 0);
 }
+
+//endregion Reportable opacity
+
+//region Handoff and return facts
+// The fact for a callable handed back to the caller, and the fact for caller
+// state handed to something outliving the call.
 
 /**
  Builds one provenance fact for a callable the callable handed back to its caller.
@@ -208,3 +234,4 @@ export function handoffProvenance({
 },): string {
   return `${HANDOFF_PROVENANCE_PREFIX}${handoff} [${location}]`;
 }
+//endregion Handoff and return facts

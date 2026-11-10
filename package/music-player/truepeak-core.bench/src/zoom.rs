@@ -24,10 +24,13 @@
 use crate::corpus::Track;
 /// Imports the bench's one dBTP conversion.
 use crate::levels::peak_dbtp_or_silence;
-/// Imports the max-heap driving the frontier expansion.
-use std::collections::BinaryHeap;
+/// Imports the bridge to the production probe selection.
+use crate::probe_bins::select_over_bin_peaks;
 /// Imports the safe-provenance path set for split-margin reporting.
 use std::collections::HashSet;
+/// Imports the production selection's grid,
+///  so this probe spends the shipped one.
+use truepeak_core::ProbeGrid;
 
 /// One probed long track:
 ///  its true level,
@@ -43,89 +46,33 @@ pub struct ZoomRow {
     pub safe: bool,
 }
 
-/// Evenly spaced single-bin sample indices at `coverage` over `n` bins.
-///
-/// What:
-///  the pass-one placement,
-///  one bin every `1 / coverage` bins,
-///  endpoints included.
-/// Why:
-///  mirrors the shipped even placement shape so pass one slights no region.
-fn even_indices(n: usize, coverage: f64) -> Vec<usize> {
-    // The count is proportional to coverage; a single sample sits mid-track.
-    let count = ((coverage * n as f64).round() as usize).max(1);
-    let span = n - 1;
-    return (0..count)
-        .map(|index| {
-            if count <= 1 {
-                return span / 2
-            } else {
-                return ((index as f64 / (count - 1) as f64) * span as f64).round() as usize
-            }
-        })
-        .collect()
-}
-
 /// The zoom probe over one track:
-///  even pass one,
-///  then loudest-neighbor expansion.
+///  the production selection,
+///  measured by a lookup into the precomputed bins.
 ///
 /// What:
-///  decodes `pass1_coverage` of the bins evenly,
-///  then pops the loudest decoded bin
-/// and decodes its undecoded neighbors,
-///  repeating until `total_coverage` of the bins is
-/// spent;
-///  returns the loudest decoded bin (linear) and the decoded seconds.
+///  scores the track's bins with `total_coverage` as the budget share and
+/// `pass1_coverage` as the even pass share;
+///  returns the loudest measured bin (linear) and the decoded seconds.
 /// Why:
 ///  local hills lead to crests;
 ///  spending the budget climbing them shrinks the
-/// under-read far more than spreading it evenly.
+/// under-read far more than spreading it evenly,
+///  and the climb is the shipped one,
+///  so these rows
+/// describe what playback runs.
 fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, f64) {
     let bins = &track.bin_peaks;
-    let n = bins.len();
-    let budget_bins = ((total_coverage * n as f64).floor() as usize).max(1);
-    let mut decoded = vec![false; n];
-    // Peaks are non-negative, so the f32 bit pattern orders exactly like the value;
-    // the heap holds (bits, index) and pops the loudest decoded bin first.
-    let mut heap: BinaryHeap<(u32, usize)> = BinaryHeap::new();
-    let mut used = 0usize;
-    let mut peak = 0.0f32;
-    // Decode a bin: mark, count, track the max, and enqueue it for expansion.
-    // The closure parameters keep names of their own so none shadows the outer
-    // frontier state it is handed by mutable reference.
-    let decode = |index: usize,
-                      decoded_flags: &mut Vec<bool>,
-                      loud_heap: &mut BinaryHeap<(u32, usize)>,
-                      used_count: &mut usize,
-                      peak_value: &mut f32| {
-        decoded_flags[index] = true;
-        *used_count += 1;
-        if bins[index] > *peak_value {
-            *peak_value = bins[index];
-        }
-        loud_heap.push((bins[index].to_bits(), index));
-    };
-    for index in even_indices(n, pass1_coverage) {
-        if used >= budget_bins {
-            break;
-        }
-        if !decoded[index] {
-            decode(index, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-    }
-    while used < budget_bins {
-        let Some((_, index)) = heap.pop() else {
-            break;
-        };
-        if index > 0 && !decoded[index - 1] && used < budget_bins {
-            decode(index - 1, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-        if index + 1 < n && !decoded[index + 1] && used < budget_bins {
-            decode(index + 1, &mut decoded, &mut heap, &mut used, &mut peak);
-        }
-    }
-    return (f64::from(peak), used as f64 * track.bin_seconds)
+    let selection = select_over_bin_peaks(
+        ProbeGrid {
+            bin_count: bins.len(),
+            coverage_fraction: total_coverage,
+            even_coverage_fraction: pass1_coverage,
+            bones_hot_bins: None,
+        },
+        bins,
+    );
+    return (f64::from(selection.peak), selection.used_bins as f64 * track.bin_seconds)
 }
 
 /// Evaluate the zoom policy over the corpus at the full decoded-seconds budget.

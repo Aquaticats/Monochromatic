@@ -6,6 +6,10 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Default suffixes
+// The suffix allowlist the rule falls back to: `Error` for the global error
+// hierarchy and `Element` for the DOM and web-component base classes.
+
 /**
  Default suffix allowlist. A class passes the rule when either its direct
  superclass identifier or its own class name ends with one of these
@@ -21,6 +25,12 @@ const DEFAULT_SUFFIXES: readonly string[] = [
   'Error',
   'Element',
 ];
+
+//endregion Default suffixes
+
+//region Options shape
+// The narrowed runtime shape of the first options element, and the predicate
+// that keeps unvalidated option JSON out of the rule body.
 
 /**
  Narrowed runtime shape of the first options-array element. `suffixes` is
@@ -48,6 +58,12 @@ function isFirstOption(value: unknown,): value is FirstOption {
     return false;
   return true;
 }
+
+//endregion Options shape
+
+//region Reading the suffix list
+// The configured suffixes, with the default list standing in whenever the
+// option object is absent or carries no usable `suffixes` array.
 
 /**
  Extracts the configured suffix list from rule options, falling back to
@@ -83,6 +99,12 @@ function readSuffixes(
     return (typeof value) === 'string';
   },);
 }
+
+//endregion Reading the suffix list
+
+//region The rule
+// The exported rule, which bans a `class` whose direct superclass identifier
+// and own name both miss the allowlist.
 
 /**
  Bans `class` declarations unless the direct superclass identifier or the
@@ -271,3 +293,5 @@ export const noClass: CreateOnceRule = {
     };
   },
 };
+
+//endregion The rule

@@ -1,8 +1,8 @@
 # Bench sidecar for truepeak-core: corpus-scale evaluation and the corrected-target
 # parameter search. It reads a per-track measurement file (full true peak plus
 # per-second bin peaks) and simulates any window policy WITHOUT re-decoding, scoring it
-# with the SHARED truepeak-core gain, window-placement, and policy math so the evidence
-# cannot diverge from production behavior. See README.md and
+# with the SHARED truepeak-core gain, window-placement, policy math, and probe bin
+# selection so the evidence cannot diverge from production behavior. See README.md and
 # ../../../doc/planning/music-player-shared-truepeak-core.md.
 [package]
 name = "truepeak-core-bench"

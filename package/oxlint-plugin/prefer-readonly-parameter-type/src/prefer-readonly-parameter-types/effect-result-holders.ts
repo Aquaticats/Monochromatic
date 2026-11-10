@@ -51,6 +51,9 @@ import {
 import { collectAstNodes, } from './effect-summary-model.ts';
 import { expressionCanCarryMutableState, } from './effect-primitive-origin.ts';
 
+//region Transfer sites
+// One place a value moves from an expression into a binding.
+
 /**
  One place a value moves from an expression into a binding.
  */
@@ -64,6 +67,12 @@ type TransferSite = {
    */
   readonly target: Node;
 };
+
+//endregion Transfer sites
+
+//region Descending to sub-expressions
+// The mirror of `passesValueOutward`: which sub-expressions a value can descend
+// into, and which projections still carry tracked result state.
 
 /**
  Descends one expression to the sub-expressions its own value can be.
@@ -178,6 +187,12 @@ function sourceCarriesResult({
   }
   return false;
 }
+
+//endregion Descending to sub-expressions
+
+//region Recording holders
+// Recording one binding name as a holder when its type can carry mutable state,
+// and every leaf of one transfer target.
 
 /**
  Records one binding name as a holder when its type can carry mutable state.
@@ -299,6 +314,12 @@ function recordTargetLeaves({
   }
   return growth.any;
 }
+
+//endregion Recording holders
+
+//region Collecting holders in one body
+// The initialized declarations and direct local assignments of a body, then the
+// least fixed point over them that answers which locals hold a call's result.
 
 /**
  Collects the initialized declarations and direct local assignments in one body.
@@ -432,3 +453,4 @@ export function resultReachableSymbolIds({
   }
   return holders;
 }
+//endregion Collecting holders in one body

@@ -347,6 +347,14 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// The storage steps of one drain of work,
+/// each a job of the blocking pool awaited by a task.
+pub mod service_work_storage_awaited;
+
+/// The drains of one directory and of a common directory,
+/// awaited by a task of the runtime.
+pub mod service_work_drains_awaiting;
+
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;
 

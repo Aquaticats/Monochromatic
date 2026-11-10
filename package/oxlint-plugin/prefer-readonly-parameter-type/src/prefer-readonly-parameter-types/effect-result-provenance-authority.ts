@@ -11,6 +11,10 @@
  @module
  */
 
+//region Result relations
+// The four verified relations a member's result can have to its receiver's
+// state, the sentinel for an unprobed one, and the union they form.
+
 /**
  Result is identically a value the receiver held, not a copy of one.
  
@@ -107,6 +111,11 @@ export type MemberResultRelation =
     | typeof RESULT_RELATION_RECEIVER_ELEMENTS_PAIRED
     | typeof RESULT_RELATION_OBSERVER_RETURN;
 
+//endregion Result relations
+
+//region One verified relation
+// A verified result relation with the receiver position its result comes from.
+
 /**
  One verified result relation, with the receiver position its result comes from.
  
@@ -155,6 +164,13 @@ export type MemberResultProvenance =
      */
       readonly pairedElementIndex: number;
     };
+
+//endregion One verified relation
+
+//region The provenance table
+// Verified result provenance by declaring interface, the lookup index built
+// from it, the pinned entry count, and the fresh-container members still absent
+// with the reason each is absent.
 
 /**
  Members whose result provenance is verified, by declaring interface.
@@ -415,6 +431,12 @@ export const FRESH_CONTAINER_MEMBER_NAMES: ReadonlySet<string> = new Set([
   'flat',
 ],);
 
+//endregion The provenance table
+
+//region Resolving a member's relation
+// The exported lookup answering which relation a collection member's result is
+// verified to satisfy.
+
 /**
  Resolves which result relation a collection member is verified to satisfy.
  
@@ -440,3 +462,4 @@ export function memberResultProvenance({
     ?.get(memberName,)
     ?? RESULT_RELATION_UNPROVEN;
 }
+//endregion Resolving a member's relation
