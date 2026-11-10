@@ -118,3 +118,43 @@ fn the_ceiling_of_a_query_that_could_not_be_ended_says_it_was_left_running() {
         "a query the kernel would not let end was reported as one that was ended: {failure}"
     );
 }
+
+/// What:
+///  A wait that only backs up a watch whose pin proves the process fires after that watch's own ceiling,
+/// and a wait that ends the step itself fires at the ceiling.
+/// Why:
+///   Both deadlines were the step's ceiling,
+/// so a watch that was scheduled a moment late lost to its own backstop:
+/// the
+///  wait then ended the step,
+/// said its watch could not end it,
+/// and answered with an error that was not the ceiling's
+///  (`push/child_watch_tests.rs`,
+/// `a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling`,
+/// which shows it).
+/// The watch
+///  that can end the step needs its ending before the wait takes it,
+/// and that is the only watch whose backstop moves:
+/// one that
+///  can signal nothing and one that never started both leave the whole ending to this wait.
+#[test]
+fn only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling() {
+    let ceiling: Duration = Duration::from_secs(7);
+    let proven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndProven).expect("a step with a ceiling is carried");
+    let unproven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndUnproven).expect("a step with a ceiling is carried");
+    let unwatched: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::NotWatched).expect("a step with a ceiling is carried");
+    assert!(proven.backstop > proven.ceiling, "the wait then reaches its own watch's ceiling at {:?}", proven.backstop);
+    assert_eq!(proven.backstop, ceiling.saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING));
+    assert_eq!(proven.why, None, "a watch that can end the step is what ends it");
+    assert_eq!(
+        (unproven.backstop, unproven.why),
+        (ceiling, Some(CeilingWhy::TheWatchCouldNotEndIt)),
+        "a watch that can signal nothing leaves the ending to the wait, at the ceiling itself"
+    );
+    assert_eq!(
+        (unwatched.backstop, unwatched.why),
+        (ceiling, Some(CeilingWhy::NoWatcher)),
+        "no watch leaves the ending to the wait, at the ceiling itself"
+    );
+    assert!(carried_for(None, TheWatchOfAStep::WatchedAndProven).is_none(), "a step with no ceiling carries none");
+}

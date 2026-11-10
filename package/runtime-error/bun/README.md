@@ -18,7 +18,7 @@ how the Bun runtime surfaces different failure modes.
 - `null-deref.ts`:
    property access on null (TypeError)
 - `oom.ts`:
-   out-of-memory allocation (heap exhaustion)
+   out-of-memory allocation (memory exhaustion)
 - `stack-overflow.ts`:
    unbounded recursion (RangeError)
 - `uncaught-throw.ts`:
@@ -31,3 +31,14 @@ how the Bun runtime surfaces different failure modes.
 ```sh
 bun package/runtime-error/bun/src/abort.ts
 ```
+
+## Testing
+
+```sh
+mise run //package/runtime-error/bun:test:unit
+```
+
+`src/documented-outcome.unit.test.ts` runs every fixture under Bun
+and asserts the exit code,
+terminating signal,
+and error marker its TSDoc promises.

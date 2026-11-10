@@ -8,6 +8,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/jsonc-edit-core-ts": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "jsonc-eslint-parser": "catalog:",
     "jsonc-parser": "catalog:",

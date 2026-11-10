@@ -507,6 +507,37 @@ fn special_entries_under_an_excluded_root_are_not_selected() {
 }
 
 /// What:
+///  A private stage container of another command is never walked for special entries.
+/// Why:
+///   The container belongs to the one add or copy that is filling it and holds another worktree's ignored state,
+///  so no walk of this source may enter it (`doc/decision/cli-git-policies-platform.md`,
+/// "Linked-worktree ignored state":
+///  "Exclude nested registered worktree roots and cli-git's reserved private stages from recursive source traversal").
+///  The container here lies at the repository root,
+/// as it does when the destination's own parent is not ignored,
+///  so Git's
+/// listing does not name it and only the walk can leave it out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roots = await readIgnoredRoots({ source, excluded: [] }); expect(roots).toEqual(['pipe']);
+/// ```
+#[cfg(unix)]
+#[test]
+fn special_entries_inside_a_private_stage_container_are_not_selected() {
+    let root: PathBuf = fixture("selection-stage-container-pipe");
+    let source: PathBuf = ignoring(root.as_path(), "source", "pipe\n");
+    make_fifo(source.join("pipe").as_path());
+    let container: PathBuf = source.join(".cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    std::fs::create_dir_all(container.join("payload")).expect("the other command's stage payload");
+    make_fifo(container.join("payload/pipe").as_path());
+    let roots: Vec<Vec<u8>> =
+        read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
+    assert_eq!(roots, vec![b"pipe".to_vec()], "only the source's own pipe is selected");
+    remove(root.as_path());
+}
+
+/// What:
 ///  The `check-ignore` start that decides whether a special entry (a FIFO,
 /// a socket) is ignored.
 /// Why:

@@ -116,7 +116,7 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// reportLanding(invocation, ready, nativeInputs, commit, firstParent, fixedMessage, embeddedInUse, native, unlanded)
+/// reportLanding(invocation, ready, nativeInputs, commit, firstParent, fixedMessage, embeddedInUse, amendedAsNew, unlanded)
 /// ```
 pub(crate) fn report_landing(
     invocation: &CommitInvocation<'_>,
@@ -126,7 +126,6 @@ pub(crate) fn report_landing(
     first_parent: &str,
     fixed_message: Option<&PathBuf>,
     embedded_in_use: Option<&Embedded>,
-    native: bool,
     amended_as_new: Option<&AmendedCommit>,
     unlanded: &[String],
 ) -> Result<(), TransactionStop> {
@@ -149,8 +148,9 @@ pub(crate) fn report_landing(
         );
         print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
     }
-    // An amend whose branch moved became a new commit: its own summary line (unless `--quiet`), and the words that say what
-    //  it became and that the commit it named was left as it is.
+    // A commit the wrapper wrote itself, from the fields of the commit the person's line prepared: its own summary line
+    //  (unless `--quiet`), and, for an amend, the words that say what it became and that the commit it named was left as it is.
+    //  A `--fixup=reword:` commit names no amendment, so it says nothing more than its summary.
     if let Some(amended) = amended_as_new {
         let name: String = short_name(
             invocation.context,
@@ -162,10 +162,14 @@ pub(crate) fn report_landing(
         if !amended.quiet() {
             print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), amended.subject().as_str()).as_str());
         }
-        print_note(amend_lands_as_new_note(ready.reference.trim_start_matches("refs/heads/"), name.as_str()).as_str());
+        if invocation.region.amend {
+            print_note(amend_lands_as_new_note(ready.reference.trim_start_matches("refs/heads/"), name.as_str()).as_str());
+        }
     }
-    // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that did.
-    if native && !unlanded.is_empty() {
+    // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that
+    //  did, whichever of the two the wrapper then wrote the landed commit from. A commit the wrapper wrote from the fields of
+    //  such a build (`--fixup=reword:` on a moved branch) names its own build that way too.
+    if !unlanded.is_empty() {
         let mut lost: Vec<String> = Vec::new();
         for full in unlanded {
             lost.push(abbreviated_name(invocation, native_inputs, full.as_str()));

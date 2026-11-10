@@ -7,7 +7,8 @@
 //! and the carry exists because the person's bytes must survive a
 //!  `SIGKILL` at any instant (`SPEC.md`,
 //! "Merges and commits never fail").
-//! The steps are: the capture and its record,
+//! The steps are:
+//! the capture and its record,
 //! the
 //!  clear that hands the paths to Git,
 //! the branch move,

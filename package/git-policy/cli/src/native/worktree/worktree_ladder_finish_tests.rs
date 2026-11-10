@@ -83,6 +83,7 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
     assert_eq!(result.git, GitStatus { code: Some(0) });
     assert_eq!(result.carried, Some(root.join("topic")));
+    assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     // The swap put the snapshot where Git's directory stood, so the destination is the object the rung made and not the one that was reserved before Git ran.
     assert_eq!(result.placed, crate::worktree_add_binding::path_identity(root.join("topic").as_path()), "the destination is the snapshot the rung swapped in");
     assert_eq!(result.trash, None);
@@ -100,16 +101,15 @@ fn flushed_with(infix: &str) -> Vec<String> {
     return take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).filter(|name: &String| { return name.contains(infix); }).collect();
 }
 
-/// A snapshot swapped into place marks the add complete without flushing the marker:
+/// A snapshot swapped into place hands its record to the lifecycle without a flush:
 /// the swap of a subvolume makes every flush
 ///  after it in the same btrfs transaction a commit of the whole filesystem,
 /// which waits for every other writer's data;
-/// the
-///  marker is published whole by a rename,
-/// and a lost marker costs a notice,
-/// never the worktree.
+/// the record travels to the copy,
+/// which settles it without a flush and writes no completion marker,
+/// so the record of the add never disappears between the swap and the copy.
 #[test]
-fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
+fn btrfs_a_served_snapshot_hands_its_record_over_without_a_flush() {
     let Some(root) = btrfs_fixture("finish-lazy-marker") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     take_file_syncs();
@@ -118,14 +118,18 @@ fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
     let flushed: Vec<String> = take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).collect();
     assert!(flushed.iter().any(|name: &String| { return name.contains(".add."); }), "the binding record before the swap is still flushed (the control that the recorder sees this add): {flushed:?}");
     assert_eq!(flushed.iter().filter(|name: &&String| { return name.contains(".done."); }).count(), 0, "{flushed:?}");
-    assert!(std::fs::read_dir(journal_root(repo.join(".git").as_path())).map(|listing| { return listing.count(); }).unwrap_or(0) == 0, "the claim and its records were released");
+    assert!(result.claim.is_some(), "the record travels on to the lifecycle");
+    assert!(crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stands until its owner settles it");
+    result.claim.expect("the record").settle_unsynced().expect("settled without a flush");
+    assert!(std::fs::read_dir(journal_root(repo.join(".git").as_path())).map(|listing| { return listing.count(); }).unwrap_or(0) == 0, "settling the handed record leaves nothing");
     remove(root.as_path());
 }
 
-/// An add that Git's own checkout completed after the snapshot was refused has no swap behind it,
-/// so its marker is still flushed.
+/// An add that Git's own checkout completed after the snapshot was refused hands its record over as well:
+/// no completion marker is written,
+/// so a command killed before the copy's journal still leaves the record naming the worktree.
 #[test]
-fn btrfs_a_checkout_completed_by_git_still_flushes_its_marker() {
+fn btrfs_a_checkout_completed_by_git_hands_its_record_over() {
     let Some(root) = btrfs_fixture("finish-flushed-marker") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     take_file_syncs();
@@ -133,7 +137,8 @@ fn btrfs_a_checkout_completed_by_git_still_flushes_its_marker() {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
     assert_eq!(result.carried, None, "Git's checkout served the add");
-    assert_eq!(flushed_with(".done.").len(), 1);
+    assert_eq!(flushed_with(".done.").len(), 0, "no completion marker is written before the copy");
+    assert!(result.claim.is_some(), "the record travels on to the copy");
     remove(root.as_path());
 }
 
@@ -160,7 +165,11 @@ fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git()
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, placed: None, trash: None });
+    assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None, "Git's own checkout left the directory that was reserved");
+    assert_eq!(result.trash, None);
+    assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     assert_eq!(printed, "", "Git's own reset prints the line, not the ladder");
     assert_eq!(steps.len(), 1, "{steps:?}");
     assert_eq!(&steps[0][2..], ["reset", "--hard", "--no-recurse-submodules"], "{steps:?}");
@@ -182,7 +191,11 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &["--quiet"], true, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None });
+    assert_eq!(result.git, GitStatus { code: Some(1) });
+    assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None, "Git's own checkout left the directory that was reserved");
+    assert_eq!(result.trash, None);
+    assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     assert!(root.join("topic/.git").exists() && root.join("topic/stray").exists(), "nothing was deleted");
     assert!(repo.join(".git/worktrees/topic").exists(), "nothing was unregistered");
     remove(root.as_path());
@@ -233,7 +246,8 @@ fn btrfs_a_failing_checkout_after_a_refused_clone_rung_leaves_the_worktree_and_i
     assert_eq!(result.git, GitStatus { code: Some(1) });
     assert_eq!(std::fs::read(root.join("topic/notes")).expect("kept"), b"x");
     assert!(repo.join(".git/worktrees/topic").exists(), "the registration stays");
-    assert!(!crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "reported once, then released");
+    assert!(result.claim.is_some(), "the record of this add is handed to the lifecycle, which settles it");
+    assert!(crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stands until its owner settles it");
     remove(root.as_path());
 }
 
@@ -303,17 +317,17 @@ fn btrfs_a_main_source_changed_under_the_copy_is_restored_instead_of_copied_in_f
     remove(root.as_path());
 }
 
-/// A writer that reports whether the completion marker was on disk when the line for the person was written.
-struct MarkerProbe {
+/// A writer that reports what the add's records held when the line for the person was written.
+struct RecordProbe {
     /// The directory of the claims.
     claims: PathBuf,
-    /// Whether a marker existed at the first write.
+    /// Whether a completion marker existed at the first write.
     marker_seen: Option<bool>,
     /// Whether the add's record named the directories Git made at the first write.
     bound_seen: Option<bool>,
 }
 
-impl Write for MarkerProbe {
+impl Write for RecordProbe {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let marker: bool = std::fs::read_dir(self.claims.as_path()).is_ok_and(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".done"); }); });
         self.marker_seen.get_or_insert(marker);
@@ -329,10 +343,12 @@ impl Write for MarkerProbe {
     }
 }
 
-/// Both rungs write the completion marker before the person is told,
-/// and release the add's records after.
+/// Both rungs hand the add's record to the lifecycle instead of releasing it,
+/// and write no completion marker:
+/// the record of an add that owes a copy must outlive the checkout,
+/// or a command killed before the copy's journal would leave a worktree with no ignored state and nothing naming it.
 #[test]
-fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_records_after() {
+fn btrfs_each_rung_hands_the_adds_record_over_before_it_prints_and_marks_nothing() {
     for (name, ordinary) in [("finish-marker-clone", true), ("finish-marker-snapshot", false)] {
         let Some(root) = btrfs_fixture(name) else { return };
         let repo: PathBuf = if ordinary { ordinary_repository(root.as_path()) } else { subvolume_repository(root.as_path()) };
@@ -342,17 +358,18 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         let records: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
         assert!(records.iter().any(|record: &String| { return record.ends_with(".add"); }), "{name}: the add is recorded before Git runs: {records:?}");
         git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-        let mut probe: MarkerProbe = MarkerProbe { claims: claims.clone(), marker_seen: None, bound_seen: None };
+        let mut probe: RecordProbe = RecordProbe { claims: claims.clone(), marker_seen: None, bound_seen: None };
         let steps: Steps = RefCell::new(Vec::new());
         let result: LadderResult = {
             let mut runner = recording_runner(&steps, false);
             ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe, &mut std::io::sink())
         };
         assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
-        assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
+        assert_eq!(probe.marker_seen, Some(false), "{name}: no completion marker is written while a copy is still owed");
         assert_eq!(probe.bound_seen, Some(true), "{name}: the record names the directories Git made when the line is printed");
+        assert!(result.claim.is_some(), "{name}: the record is handed to the lifecycle");
         let left: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-        assert_eq!(left, Vec::<String>::new(), "{name}: the records are released");
+        assert!(left.iter().any(|entry: &String| { return entry.ends_with(".add"); }), "{name}: the record stands until the copy owns it: {left:?}");
         remove(root.as_path());
     }
 }
