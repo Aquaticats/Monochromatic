@@ -1,14 +1,18 @@
 /**
- Equivalence tests for `splitOnWhitespace`.
- 
- Capture the pre-refactor behavior of the whitespace splitter so the
- linear single-pass rewrite stays behavior-identical: empty input, all
- whitespace, a single token, leading and trailing separators dropped,
- consecutive separators collapsed, every whitespace kind treated as a
- break, the realistic `/proc/net/unix` field-extraction case, and long
- repeated runs that the prior recursive O(n) stack and O(n^2) array-spread
- walker could not handle.
- 
+ Lock tests: the whitespace splitter and the takeover signal.
+
+ `splitOnWhitespace` cases capture the pre-refactor behavior of the splitter so
+ the linear single-pass rewrite stays behavior-identical: empty input, all
+ whitespace, a single token, leading and trailing separators dropped, consecutive
+ separators collapsed, every whitespace kind treated as a break, the realistic
+ `/proc/net/unix` field-extraction case, and long repeated runs that the prior
+ recursive O(n) stack and O(n^2) array-spread walker could not handle.
+
+ `signalProcess` cases cover the other end of the takeover: it signals a PID it
+ looked up earlier, so the owner may already have exited by the time the signal
+ is sent, and the already-gone case must be reported rather than thrown so the
+ takeover falls through to the lock retry loop.
+
  @module
  */
 
@@ -18,7 +22,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { splitOnWhitespace, } from './lock.ts';
+import {
+  signalProcess,
+  splitOnWhitespace,
+} from '../../dist/final/node/testing.mjs';
+import { recordingLogger, } from './test-fixtures.ts';
 
 /** Run length for the long-input cases; large enough to overflow the prior recursion, fast to compare. */
 const LONG_RUN = 100_000;
@@ -26,9 +34,58 @@ const LONG_RUN = 100_000;
 /** Field index the production caller reads from a split `/proc/net/unix` row. */
 const INODE_FIELD_INDEX = 6;
 
+/**
+ PID no process can hold, because Linux caps every PID at `pid_max`, far below
+ the largest value `kill(2)` accepts. Signalling it is the deterministic
+ already-exited case.
+ */
+const UNREACHABLE_PID = (2 ** 31) - 1;
+
 await describe({
   name: '',
   children: [
+    describe({
+      name: signalProcess.name,
+      children: [
+        it({
+          name: 'delivers a signal to a live process and reports nothing',
+          fn: async () => {
+            /**
+             Recording logger; a delivered signal must report nothing through it.
+             */
+            const { logger, records, } = recordingLogger();
+
+            expect(signalProcess({
+              logger,
+              pid: process.pid,
+              signal: 0,
+            },),).toBe(true,);
+            expect(records,).toEqual([],);
+          },
+        },),
+
+        it({
+          name: 'reports an owner that already exited instead of throwing',
+          fn: async () => {
+            /**
+             Recording logger; the already-gone case must file one record through it.
+             */
+            const { logger, records, } = recordingLogger();
+
+            expect(signalProcess({
+              logger,
+              pid: UNREACHABLE_PID,
+              signal: 'SIGTERM',
+            },),).toBe(false,);
+            expect(records.length,).toBe(1,);
+            expect(records[0]?.level,).toBe('debug',);
+            expect(records[0]?.message,).toContain('ESRCH',);
+            expect(records[0]?.message,).toContain(String(UNREACHABLE_PID,),);
+          },
+        },),
+      ],
+    },),
+
     describe({
       name: splitOnWhitespace.name,
       children: [

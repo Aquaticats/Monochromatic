@@ -36,6 +36,8 @@ import {
   type ExpectedObservedState,
 } from './wayland-state.js';
 
+//region Boundary-test vocabulary
+
 /**
  One expected state checkpoint, optionally preceded by compositor commands.
  
@@ -71,6 +73,10 @@ export type WaylandElectronBoundaryTestOptions = {
   readonly steps: readonly WaylandBoundaryStep[];
 };
 
+//endregion Boundary-test vocabulary
+
+//region Host precondition
+
 /**
  Asserts that this host can run the pure-Wayland boundary test.
  
@@ -93,6 +99,10 @@ function assertLinuxWaylandHost(): void {
     === undefined)
     throw new Error('Pure Wayland boundary test requires XDG_RUNTIME_DIR.',);
 }
+
+//endregion Host precondition
+
+//region Step execution and screenshots
 
 /**
  Runs compositor commands before waiting for expected observed state.
@@ -170,6 +180,10 @@ async function captureBoundaryScreenshot(
     )}`,
   },);
 }
+
+//endregion Step execution and screenshots
+
+//region Boundary-test driver
 
 /**
  Runs a staged Electron app through this repo's pure-Wayland boundary harness.
@@ -284,3 +298,5 @@ export async function runWaylandElectronBoundaryTest(
 
   await waitForSuccessfulExit({ child, },);
 }
+
+//endregion Boundary-test driver

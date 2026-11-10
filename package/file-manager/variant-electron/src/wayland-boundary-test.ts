@@ -31,6 +31,8 @@ import {
   STATE_PATH_ENVIRONMENT_VARIABLE,
 } from './constants.js';
 
+//region Fixture tree
+
 /**
  Fixture directory tree of known contents the app browses during the test.
  
@@ -142,6 +144,10 @@ async function createFixtureTree(): Promise<FixtureTree> {
   };
 }
 
+//endregion Fixture tree
+
+//region Boundary-test steps
+
 /**
  Runs the complete pure-Wayland interaction test.
  
@@ -227,3 +233,5 @@ async function runFileManagerWaylandBoundaryTest(): Promise<void> {
 }
 
 await runFileManagerWaylandBoundaryTest();
+
+//endregion Boundary-test steps

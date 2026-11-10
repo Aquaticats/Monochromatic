@@ -32,7 +32,7 @@ import {
   store,
   type CaptureBuffer,
   type CaptureSet,
-} from './memory.ts';
+} from '../../dist/final/node/testing.mjs';
 
 /**
  An arbitrary fixed clock reading.

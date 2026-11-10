@@ -377,7 +377,7 @@ Closest hits
 
 #### Six constraints
 
-1.   **Upstream's fault:**
+1.  **Upstream's fault:**
       yes.
       This is behavior,
        not wording:
@@ -388,16 +388,16 @@ Closest hits
        says a setting that changes what gets installed "has to be ported here".
       The environment variable for the same key works,
        so no architectural restriction is involved.
-2.   **Upstream can fix it:**
+2.  **Upstream can fix it:**
       yes;
       "Prototype fix" adds the key to the existing allow-list.
-3.   **Supported use case:**
+3.  **Supported use case:**
       yes.
       `dedupeDirectDeps` is documented (pnpm.io `docs/settings/other.md:291`),
        the Rust CLI has a `dedupe_direct_deps` integration suite (`pnpm/crates/cli/tests/suite/dedupe_direct_deps.rs`),
        and the `BARE_SETTING_FLAGS` doc comment (`pnpm/crates/cli/src/config_overrides/tokens.rs:151` on `main`)
        says pnpm makes every setting spellable on the command line.
-4.   **Contribution welcome:**
+4.  **Contribution welcome:**
       yes.
       `CONTRIBUTING.md` "AI-assisted contributions" (lines 318 to 338 on `main`) welcomes agent-made contributions,
        requires a checked duplicate search,
@@ -407,12 +407,12 @@ Closest hits
        and a footer naming the agent and model.
       No ban was found in `CONTRIBUTING.md` or `.github/ISSUE_TEMPLATE/`;
        the draft carries the footer.
-5.   **Likely to fix:**
+5.  **Likely to fix:**
       yes.
       Maintainers accepted and fixed the same class per key for `allow-unused-patches` (#14459,
        merged 2026-09-02) and `ignore-scripts` (#13993).
       No won't-fix or non-goal was found.
-6.   **Prototype:**
+6.  **Prototype:**
       yes;
       see "Prototype fix".
 
