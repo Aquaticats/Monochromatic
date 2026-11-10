@@ -52,8 +52,12 @@ The full derivation and the behavioral differences against the original are reco
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/file-manager/variant-electron:<task>`.
 
-The unit tests cover the model,
-band-geometry and sort behavior against the built artifacts.
+The unit tests run against the built artifacts:
+the pane model,
+band-geometry and sort order from `dist/app`,
+the strip keyboard dispatch,
+the DOM reconciliation and the stylesheet minima,
+and the main-process listing confinement from `dist/main`.
 
 ## Pure Wayland verification
 
