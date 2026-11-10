@@ -1754,9 +1754,10 @@ CPN:
 
 XSG:
  Tracked files:
- commit with `git commit -- <paths>` alone;
+ commit with `git commit --message <text> -- <paths>` alone,
+ options before `--`;
  a separate `git add` stays staged if the commit fails,
- and another session's commit in the shared checkout then takes it.
+ and another session's commit then takes it.
 
 XCM:
  External messages report results,

@@ -28,6 +28,20 @@ jams the wrapper causes under load,
 the tokio steps,
 and then the layout and TypeScript-port steps they unblock.
 
+Within the wrapper, jams come first.
+The owner wrote on 2026-11-10:
+"Prioritize fixing the jams and release jam fixes asap."
+and "And you have 62 slots."
+(Neuralwatt 20, Neuralwatt flex 22, opencode-go 20;
+`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room, in that order).
+So a release that carries a jam fix goes out on its own as soon as its gate passes,
+other wrapper branches wait for the release after it,
+and free slots take jam work first.
+On the word-level merge pass the owner wrote the same day:
+"there are still ways you haven't tried to make this happen less often, for example, using a better algorithm or something."
+The pass stays (`package/git-policy/cli/SPEC.md`, the owner's 2026-11-03 decision),
+and an agent is measuring better algorithms against this repository's past merges.
+
 > References below this note that no longer resolve in the tree.
 > Each entry gives the value that identifier has now:
 > `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`

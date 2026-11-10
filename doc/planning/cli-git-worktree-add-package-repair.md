@@ -275,6 +275,14 @@ which runs the job's own code against a real Cargo workspace:
 the copy is published under the worktree's build directory name,
 the worktree's own crate is cleaned out of it,
 and the source checkout's build directory is untouched.
+That control checks both incremental settings,
+because the container gate's image sets `CARGO_INCREMENTAL=0`
+(`package/git-policy/cli/bin/native-test-containerfile.ts:110`)
+and a developer's host has it on,
+and a crate's state lives in different places under the two:
+the first release of the control read `debug/incremental` alone,
+passed on a host,
+and failed the release gate on `main` at `cd9b8132f8`.
 
 The records and counts of the six runs are in `${HOME}/temp/agent/prewarm-fixture/measure`.
 
