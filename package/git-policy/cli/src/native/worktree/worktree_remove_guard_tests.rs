@@ -105,7 +105,12 @@ fn clean_worktree(repo: &Path, directory: &Path, branch: &str) -> PathBuf {
 
 /// A plan that names `target` by `operand`.
 fn plan_named(target: &Path, operand: &str) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand) };
+    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: false };
+}
+
+/// The same, with the force the person passes as `-f`/`--force`.
+fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
+    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: true };
 }
 
 /// Run the removal of `plan` in the repository `repo` on the stand-in.
@@ -117,6 +122,56 @@ fn run(stand: &Stand, repo: &Path, plan: &RemovePlan) -> RemoveOutcome {
 /// The administrative directory of the worktree registered at `worktree` in `repo`.
 fn admin_of(repo: &Path, name: &str) -> PathBuf {
     return std::fs::canonicalize(repo.join(".git/worktrees").join(name)).expect("administrative directory");
+}
+
+/// What:
+///  A worktree that holds a change is destroyed when the person forced the removal,
+///  and left to Git when they did not.
+/// Why:
+///   Git deletes a worktree that holds changes only with `-f`/`--force` (`remove_worktree` in
+/// `builtin/worktree.c`
+///  calls `check_clean_worktree` only when `force` is zero),
+///  so before this the forced removal,
+/// which the wrapper's own
+///  reports tell a person to run,
+/// was the one removal that always unlinked every entry of the tree.
+#[test]
+fn a_forced_removal_of_a_changed_worktree_is_served_and_an_unforced_one_is_not() {
+    let root: PathBuf = fixture("remove-guard-forced");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    std::fs::write(worktree.join("tracked.txt"), b"unsaved work\n").expect("a change");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    // Without the force the proof refuses the change, and Git words that refusal itself.
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
+    assert_eq!(std::fs::read(worktree.join("tracked.txt")).expect("the change is still there"), b"unsaved work\n");
+    // With it the removal answers for the worktree, as Git's own `--force` does.
+    assert_eq!(run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert!(!worktree.exists(), "the forced removal destroyed it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A forced removal of a locked worktree is still Git's,
+///  and nothing is destroyed.
+/// Why:
+///   Git requires the force twice for a locked worktree (`if (force < 2) reason = worktree_lock_reason(wt)`),
+/// and the
+///  wrapper reads one force only,
+/// so an entry left in the registration, or a lock taken meanwhile,
+/// has to stop the destroy.
+#[test]
+fn a_forced_removal_of_a_locked_worktree_is_left_to_git() {
+    let root: PathBuf = fixture("remove-guard-forced-locked");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    std::fs::write(admin.join("locked"), b"keep this one\n").expect("lock");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    assert_eq!(run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
+    assert!(worktree.join("tracked.txt").is_file(), "the locked worktree is untouched");
+    assert!(admin.join("locked").is_file(), "and so is its lock");
+    remove(root.as_path());
 }
 
 /// A worktree that another repository registered is not this repository's to remove:

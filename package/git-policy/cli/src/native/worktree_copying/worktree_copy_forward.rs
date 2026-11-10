@@ -371,8 +371,12 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
-            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
-            let _closed = writeln!(std::io::stderr(), "{}", crate::worktree_remove::DESTROY_NOTICE);
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
+            let notice: &str = match plan.force {
+                true => crate::worktree_remove::DESTROY_FORCED_NOTICE,
+                false => crate::worktree_remove::DESTROY_NOTICE,
+            };
+            let _closed = writeln!(std::io::stderr(), "{notice}");
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {

@@ -12,7 +12,7 @@ use crate::test_support::{age, git, git_context, remove, repository};
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string() };
+    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
 }
 
 /// Whether the wrapper served the plan:

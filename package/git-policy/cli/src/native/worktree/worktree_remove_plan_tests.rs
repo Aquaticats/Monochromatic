@@ -5,8 +5,8 @@ use super::*;
 use crate::command_test_support::os_arguments;
 use crate::test_support::{fixture, remove};
 
-/// The accepted forms name exactly one existing directory;
-/// every option and every other count is declined.
+/// The accepted forms name exactly one existing directory and at most one `-f`/`--force`;
+/// every other option and every other count is declined.
 #[test]
 fn the_plan_names_one_directory_and_no_option() {
     let root: PathBuf = fixture("remove-plan");
@@ -14,12 +14,10 @@ fn the_plan_names_one_directory_and_no_option() {
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     for values in [vec!["worktree", "remove", "wt"], vec!["worktree", "remove", "--", "wt"], vec!["worktree", "remove", "./wt/"]] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path());
-        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]) }), "{values:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]), force: false }), "{values:?}");
     }
     for values in [
         vec!["worktree", "remove"],
-        vec!["worktree", "remove", "--force", "wt"],
-        vec!["worktree", "remove", "-f", "wt"],
         vec!["worktree", "remove", "wt", "extra"],
         vec!["worktree", "remove", "absent"],
         vec!["worktree", "add", "wt"],
@@ -43,9 +41,15 @@ fn the_plan_names_one_directory_and_no_option() {
 fn a_forced_removal_names_the_directory_and_the_force() {
     let root: PathBuf = fixture("remove-plan-forced");
     std::fs::create_dir(root.join("wt")).expect("directory");
-    for values in [vec!["worktree", "remove", "-f", "wt"], vec!["worktree", "remove", "--force", "wt"], vec!["worktree", "remove", "--force", "--", "wt"]] {
+    let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
+    for values in [vec!["worktree", "remove", "-f", "wt"], vec!["worktree", "remove", "--force", "wt"], vec!["worktree", "remove", "--force", "--", "wt"], vec!["worktree", "remove", "-f", "--", "wt"]] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path());
-        assert!(plan.is_some(), "the wrapper serves {values:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force: true }), "{values:?}");
+    }
+    // A second force is Git's: it is what removes a locked worktree, and a spelling the wrapper does not read is not one
+    // force.
+    for values in [vec!["worktree", "remove", "-f", "-f", "wt"], vec!["worktree", "remove", "-ff", "wt"], vec!["worktree", "remove", "--forc", "wt"], vec!["worktree", "remove", "-fq", "wt"], vec!["worktree", "remove", "-f"]] {
+        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path()), None, "{values:?}");
     }
     remove(root.as_path());
 }

@@ -30,7 +30,7 @@ fn fixture_with_units(name: &str) -> Fixture {
 
 impl Fixture {
     fn plan(&self) -> RemovePlan {
-        return RemovePlan { target: self.worktree.clone(), operand: self.worktree.clone().into_os_string() };
+        return RemovePlan { target: self.worktree.clone(), operand: self.worktree.clone().into_os_string(), force: false };
     }
 
     fn folders(&self) -> UnitFolders<'_> {
@@ -54,7 +54,7 @@ fn the_instance_is_read_from_the_registration_before_the_removal() {
 fn a_directory_that_is_no_registration_names_no_instance() {
     let fixture: Fixture = fixture_with_units("removal-units-unregistered");
     let stranger: PathBuf = fixture.root.join("main");
-    let plan: RemovePlan = RemovePlan { target: stranger.clone(), operand: stranger.into_os_string() };
+    let plan: RemovePlan = RemovePlan { target: stranger.clone(), operand: stranger.into_os_string(), force: false };
     assert_eq!(before_removal(fixture.common.as_path(), &plan), None);
     remove(fixture.root.as_path());
 }
