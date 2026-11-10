@@ -205,6 +205,78 @@ impl MergePusher for PushMergeThroughGit<'_> {
 }
 
 /// What:
+///  The words a reconcile run prints and the message of its merge commit,
+/// from the plan alone.
+/// Why:
+///   The synchronous loop and the awaited one publish the same merge,
+/// so the prefixes,
+/// the names and the commit message are written once here.
+///  The branch the merge is into is named the way Git's own message names it:
+/// the branch whose tip is the merge's first parent,
+/// and the tracked ref's short name for a detached HEAD,
+/// which has no branch to name.
+/// A branch whose upstream has another name (`branch.feature.merge = refs/heads/main`) is merged into by the same rule,
+/// so naming the tracked ref would name a branch nobody merged into.
+///  The merge is published to the ref the rejected push updated,
+/// which the branch's name does not always spell.
+/// That ref is not always the branch's upstream
+/// (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
+/// so the line says where the merge went and nothing about what the branch tracks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { linePrefix, failedPrefix, short, mergedInto, message } = wordingOf(plan);
+/// ```
+pub(crate) struct Wording {
+    /// What every line the run adds begins with.
+    pub(crate) line_prefix: String,
+    /// What a line saying nothing was published begins with.
+    pub(crate) failed_prefix: String,
+    /// The merge's destination ref without `refs/heads/`.
+    pub(crate) short: String,
+    /// The branch the merge is into.
+    pub(crate) merged_into: String,
+    /// The message of the merge commit.
+    pub(crate) message: String,
+}
+
+/// What:
+///  The words of one run.
+/// Why:
+///   Both loops read them here,
+/// so the two cannot word a merge differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function wordingOf(plan: Reconcile): Wording;
+/// ```
+pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
+    let label: &str = plan.label;
+    let line_prefix: String = format!("monochromatic-git-policy-cli: {label}: ");
+    let failed_prefix: String = format!("{line_prefix}not published: ");
+    let short: String = plan
+        .destination
+        .merge_ref
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&plan.destination.merge_ref)
+        .to_owned();
+    let merged_into: String = match plan.branch_ref {
+        Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference).to_owned(),
+        None => short.clone(),
+    };
+    let published: String = if merged_into == short {
+        String::new()
+    } else {
+        format!("\nPublished to {remote}/{short}.", remote = plan.destination.remote)
+    };
+    let message: String = format!(
+        "Merge {remote}/{short} into {merged_into}\n\nCreated by monochromatic-git-policy-cli {label} because {remote}/{short} advanced after the commit landed.{published}",
+        remote = plan.destination.remote
+    );
+    return Wording { line_prefix, failed_prefix, short, merged_into, message };
+}
+
+/// What:
 ///  Merge the remote tip into the pushed commit and publish the result,
 /// a bounded number of times.
 /// Why:
@@ -230,33 +302,12 @@ pub fn integrate_and_push(
     let destination = plan.destination.clone();
     let local = plan.local.clone();
     let label = plan.label;
-    let line_prefix = format!("monochromatic-git-policy-cli: {label}: ");
-    let failed_prefix = format!("{line_prefix}not published: ");
-    let short = destination
-        .merge_ref
-        .strip_prefix("refs/heads/")
-        .unwrap_or(&destination.merge_ref)
-        .to_owned();
-    // The branch the merge is into, named the way Git's own message names it: the branch whose tip is the merge's
-    // first parent, and the tracked ref's short name for a detached HEAD, which has no branch to name. A branch whose
-    // upstream has another name (`branch.feature.merge = refs/heads/main`) is merged into by the same rule, so naming
-    // the tracked ref would name a branch nobody merged into.
-    let merged_into: &str = match plan.branch_ref {
-        Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
-        None => short.as_str(),
-    };
-    // The merge is published to the ref the rejected push updated, which the branch's name does not always spell. That
-    // ref is not always the branch's upstream (an explicit `feature:main` push sends a branch that tracks
-    // `origin/feature`), so the line says where the merge went and nothing about what the branch tracks.
-    let published: String = if merged_into == short {
-        String::new()
-    } else {
-        format!("\nPublished to {remote}/{short}.", remote = destination.remote)
-    };
-    let message = format!(
-        "Merge {}/{short} into {merged_into}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.{published}",
-        destination.remote, destination.remote
-    );
+    let wording: Wording = wording_of(plan);
+    let line_prefix: &str = wording.line_prefix.as_str();
+    let failed_prefix: &str = wording.failed_prefix.as_str();
+    let short: &str = wording.short.as_str();
+    let merged_into: &str = wording.merged_into.as_str();
+    let message: &str = wording.message.as_str();
     let mut previous = rejected.output.clone();
     // The remote tip a merge was pushed against, with the refusal it got: a remote that still shows that tip did not
     // move, so the refusal was a rule and not a race.
@@ -273,7 +324,7 @@ pub fn integrate_and_push(
                     return Ok(Integrated::NotDivergent(rejected));
                 }
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &format!("{previous}\n{}", failed.output),
                     failed.exit_code,
                     &format!(
@@ -325,18 +376,18 @@ pub fn integrate_and_push(
                     return Ok(Integrated::NotDivergent(rejected));
                 }
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &previous,
                     rejected.exit_code,
                     "Git could not relate the branch to the remote tip; nothing was pushed and the worktree was not touched.",
                 )));
             }
         }
-        let committed = match commit_merge(git, &local, &remote_tip, &message)? {
+        let committed = match commit_merge(git, &local, &remote_tip, message)? {
             Ok(found) => found,
             Err(paths) => {
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &previous,
                     rejected.exit_code,
                     &format!(
@@ -381,7 +432,7 @@ pub fn integrate_and_push(
                 }
             };
             let mut merged_parts: String = String::new();
-            for line in announce(&line_prefix, (journal_identifier(plan.explicit), label), &committed.merged) {
+            for line in announce(line_prefix, (journal_identifier(plan.explicit), label), &committed.merged) {
                 merged_parts.push_str(format!("{line}\n").as_str());
             }
             return Ok(Integrated::Finished(PushAttempt {
@@ -402,7 +453,7 @@ pub fn integrate_and_push(
         refused_against = Some((remote_tip, pushed));
     }
     return Ok(Integrated::Finished(unpublished(
-        &failed_prefix,
+        failed_prefix,
         &previous,
         rejected.exit_code,
         &format!(

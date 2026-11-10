@@ -7875,6 +7875,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

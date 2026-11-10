@@ -1425,3 +1425,79 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
     assert!(!notice.contains("not trying this push again"), "the notice does not deny the plan it kept: {notice}");
     remove(root.as_path());
 }
+
+/// A repository of the handler controls:
+/// a bare remote,
+/// a clone that pushed its first commit,
+/// and a second commit the push handler delivers.
+fn repository_with_a_landed_commit(root: &Path, name: &str) -> (PathBuf, PathBuf, String) {
+    let repo: PathBuf = repository(root, name);
+    let remote: PathBuf = root.join(format!("{name}.git"));
+    git(root, &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    return (repo, remote, landed);
+}
+
+/// The branch tip a bare remote holds,
+/// read from its own ref file.
+fn tip_of(remote: &Path) -> String {
+    return std::fs::read_to_string(remote.join("refs").join("heads").join("main")).map(|text| { return text.trim().to_owned(); }).unwrap_or_default();
+}
+
+/// The work item of a landed commit of `repo`.
+fn push_item(repo: &Path, landed: &str) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.to_path_buf(),
+        git_dir: repo.join(".git"),
+        branch_ref: String::from("refs/heads/main"),
+        oid: landed.to_owned(),
+        parent: String::new(),
+        created: String::from("2026-11-09T00:00:00.000Z"),
+        tries: 0,
+    };
+}
+
+/// The handlers' push answers the same verdict whether a task or a plain thread asks it,
+/// and both deliver the commit.
+#[test]
+fn the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    let root: PathBuf = fixture("handlers-awaiting-push");
+    std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
+    let (thread_repo, thread_remote, thread_landed) = repository_with_a_landed_commit(root.as_path(), "thread");
+    let (task_repo, task_remote, task_landed) = repository_with_a_landed_commit(root.as_path(), "task");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let from_a_thread: Verdict = handlers.push(std::slice::from_ref(&push_item(thread_repo.as_path(), thread_landed.as_str())));
+    let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
+        handlers.push_awaiting(std::slice::from_ref(&push_item(task_repo.as_path(), task_landed.as_str()))),
+    );
+    assert_eq!(from_a_task, from_a_thread, "the two faces answer one push the same way");
+    assert_eq!(from_a_task, Verdict::Done, "the push landed");
+    assert_eq!(tip_of(thread_remote.as_path()), thread_landed, "the commit reached the remote");
+    assert_eq!(tip_of(task_remote.as_path()), task_landed, "the task's push reached its remote");
+    remove(root.as_path());
+}
+
+/// The handlers' upkeep answers the same verdict whether a task or a plain thread asks it.
+#[test]
+fn the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    let root: PathBuf = fixture("handlers-awaiting-maintenance");
+    std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
+    let (thread_repo, _thread_remote, thread_landed) = repository_with_a_landed_commit(root.as_path(), "thread");
+    let (task_repo, _task_remote, task_landed) = repository_with_a_landed_commit(root.as_path(), "task");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let from_a_thread: Verdict = handlers.maintenance(&push_item(thread_repo.as_path(), thread_landed.as_str()));
+    let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
+        handlers.maintenance_awaiting(&push_item(task_repo.as_path(), task_landed.as_str())),
+    );
+    assert_eq!(from_a_task, from_a_thread, "the two faces answer one upkeep the same way");
+    assert_eq!(from_a_task, Verdict::Done, "the upkeep ran");
+    remove(root.as_path());
+}

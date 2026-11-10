@@ -353,23 +353,32 @@ fn merge_forward(repo: &Path, after: &[&str], real_git: &Path) -> CoordinatedFor
     };
 }
 
-/// A merge the wrapper refuses in isolation reports its own status and changes nothing:
-/// another session staged a change to a path the merge brings in,
-/// so the wrapper answers with its finding's status instead of running Git,
-/// whose own refusal reads differently.
+/// What:
+///  A merge over another session's staged work is completed by the wrapper itself:
+/// the merge is made,
+/// native Git is
+///  never started for it,
+/// and the staged work is carried,
+/// so no status of a refusal is reported at all.
+/// Why:
+///   Native Git refuses this merge (`Your local changes ... would be overwritten`),
+/// and the owner's answer is "Carry
+///  edits forward (Recommended)"
+/// (`SPEC.md`,
+/// "Merges and commits never fail").
 #[test]
-fn a_merge_refused_in_isolation_reports_its_own_status() {
-    let (root, repo): (PathBuf, PathBuf) = diverged_with_staged_work("forward-merge-refused");
+fn a_merge_over_staged_work_is_completed_and_carries_it() {
+    let (root, repo): (PathBuf, PathBuf) = diverged_with_staged_work("forward-merge-carried");
     std::fs::write(repo.join("f.txt"), b"f.txt staged by another session\n").expect("file");
     git(repo.as_path(), &["add", "--", "f.txt"]);
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let log: PathBuf = root.join("git-starts.log");
     let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"], recording_git(&root, log.as_path()).as_path());
     let ended: CoordinatedRun = run_coordinated_forward(&forward);
-    assert_eq!(ended, CoordinatedRun::Ran(2), "the finding's status");
-    assert!(!forwarded_a_merge(log.as_path(), &forward), "the refused merge is not started again as native Git");
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
-    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "0");
+    assert_eq!(ended, CoordinatedRun::Ran(0), "the merge is completed");
+    assert!(!forwarded_a_merge(log.as_path(), &forward), "native Git is not started for it");
+    assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch moved to the merge");
+    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1");
     for staged in ["f.txt", "u.txt"] {
         assert_eq!(
             git_text(repo.as_path(), &["diff", "--cached", "--name-only", "--", staged]),
@@ -377,6 +386,9 @@ fn a_merge_refused_in_isolation_reports_its_own_status() {
             "{staged} stays staged"
         );
     }
+    // The person's bytes are in the file beside the merge's, between markers this time: both changed the whole line.
+    let carried: String = std::fs::read_to_string(repo.join("f.txt")).expect("the file");
+    assert!(carried.contains("f.txt staged by another session") && carried.contains("<<<<<<<"), "{carried}");
     remove(root.as_path());
 }
 
