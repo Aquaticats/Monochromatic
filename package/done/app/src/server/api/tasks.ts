@@ -6,6 +6,7 @@
    PUT    /api/tasks/:id   -> handleUpdateTask
    DELETE /api/tasks/:id   -> handleDeleteTask
  */
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CREATED,
@@ -13,6 +14,10 @@ import {
   HTTP_NOT_FOUND,
   HTTP_OK,
 } from '@monochromatic-dev/const-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 
 import {
   createTask,
@@ -32,6 +37,19 @@ import {
   parseEnumValue,
   parseStringArray,
 } from './tasks-parse.ts';
+
+//region Logging
+
+/**
+ Logger for this module: a create or update that fails after validation reports
+ the caught value here, since the client only receives its message.
+ */
+const l = tagged({
+  tag: 'done-task-api',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Wraps a payload in a JSON `Response` with the correct content type.
@@ -162,6 +180,7 @@ export async function handleCreateTask(req: Request,): Promise<Response> {
     },);
   }
   catch (error) {
+    l.error(`task create failed, so the client receives a 500 instead: ${caughtValueText(error,)}`,);
     return jsonResponse({
       payload: { error: String(error,), },
       status: HTTP_INTERNAL_SERVER_ERROR,
@@ -225,6 +244,7 @@ export async function handleUpdateTask({
     return jsonResponse({ payload: task, },);
   }
   catch (error) {
+    l.error(`task update failed for ${id}, so the client receives a 500 instead: ${caughtValueText(error,)}`,);
     return jsonResponse({
       payload: { error: String(error,), },
       status: HTTP_INTERNAL_SERVER_ERROR,
