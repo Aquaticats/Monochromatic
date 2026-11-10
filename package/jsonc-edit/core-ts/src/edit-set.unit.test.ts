@@ -42,6 +42,16 @@ const dup = (): ReturnType<typeof parseJsoncEdit> =>
  */
 const HALF_INDEX = 1 / 2;
 
+/**
+ Negative segment used to verify no array element sits before the first one.
+ */
+const NEGATIVE_INDEX = -1;
+
+/**
+ Index one past the last element of the two-element list {@link base} builds.
+ */
+const PAST_LAST_ELEMENT = 2;
+
 await describe({
   name: 'edit-set branches',
   children: [
@@ -258,6 +268,22 @@ await describe({
           },
         },),
         it({
+          name: 'throws on a negative final array index instead of leaving the array alone',
+          fn: async () => {
+            expect(() => {
+              jsoncDelete({ state: base(), path: ['list', NEGATIVE_INDEX,], },);
+            },).toThrow('no JSONC node at path',);
+          },
+        },),
+        it({
+          name: 'leaves the array unchanged when a final index is past the length',
+          fn: async () => {
+            const state = base();
+            const next = jsoncDelete({ state, path: ['list', PAST_LAST_ELEMENT,], },);
+            expect(jsoncGetValue({ state: next, path: ['list',], },),).toEqual([10, 20,],);
+          },
+        },),
+        it({
           name: 'throws when an intermediate key is missing',
           fn: async () => {
             expect(() => {
@@ -290,6 +316,27 @@ await describe({
           name: 'a string segment into an array does not resolve',
           fn: async () => {
             expect(jsoncHas({ state: base(), path: ['list', 'x',], },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'a negative array segment does not resolve',
+          fn: async () => {
+            const state = base();
+            expect(jsoncHas({ state, path: ['list', NEGATIVE_INDEX,], },),).toBe(false,);
+            expect(jsoncHas({ state: matrix(), path: ['m', NEGATIVE_INDEX, 0,], },),).toBe(false,);
+            expect(() => {
+              jsoncGetValue({ state, path: ['list', NEGATIVE_INDEX,], },);
+            },).toThrow('no JSONC node at path',);
+          },
+        },),
+        it({
+          name: 'a fractional array segment does not resolve',
+          fn: async () => {
+            const state = base();
+            expect(jsoncHas({ state, path: ['list', HALF_INDEX,], },),).toBe(false,);
+            expect(() => {
+              jsoncGetValue({ state, path: ['list', HALF_INDEX,], },);
+            },).toThrow('no JSONC node at path',);
           },
         },),
         it({

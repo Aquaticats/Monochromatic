@@ -12,7 +12,7 @@
 //! index,
 //! objects,
 //! conclusion state,
-//! lock files) stay the shadow's own.
+//! lock files) and the repository scratch root stay the shadow's own.
 //!  On Windows the TypeScript wrapper (deleted on 2026-10-13 in `642b6d72cb`) used junctions and
 //!  copies;
 //!  this port uses directory symbolic links and copies,
@@ -27,6 +27,9 @@
 use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
 /// The name prefix of every private copy of an index the wrapper makes beside the real one.
 use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
+/// The names of the repository scratch root,
+/// which holds the shadow itself.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -66,6 +69,10 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 ///  a common directory collects one for every command that died before it removed its own,
 ///  so the number of names to link grows with no limit the person chose,
 /// and no hook resolves one.
+///  The repository scratch root is private because it holds the shadow itself:
+/// a link to it points the shadow at its own directory,
+///  and every name inside it that a shadow links costs one directory-entry creation
+///  on a volume where those calls wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,6 +80,8 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 /// ```
 pub fn is_private_shadow_entry(name: &str) -> bool {
     return PRIVATE_SHADOW_ENTRIES.contains(&name)
+        || name == REPOSITORY_SCRATCH.current
+        || name == REPOSITORY_SCRATCH.earlier
         || CONCLUSION_STATE_FILES.contains(&name)
         || name == SEQUENCER_DIRECTORY
         || name.starts_with(PRIVATE_INDEX_PREFIX)
