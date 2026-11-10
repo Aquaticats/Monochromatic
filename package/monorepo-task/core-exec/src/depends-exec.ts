@@ -2,8 +2,9 @@
  Command execution with output collapsing for task-depends.
  
  Captures stdout/stderr during execution. On success, output is discarded
- (collapsed). On failure, captured output is dumped to the parent process
- before propagating the error.
+ (collapsed). On failure, captured output is dumped to the parent process and
+ the child's status becomes this process's exit status, unless the call allows
+ failure.
  
  @example
  ```ts
@@ -17,12 +18,11 @@
  ```
  */
 
-import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
-
 import {
   spawnBounded,
   timeoutNote,
 } from './depends-bounded-wait.ts';
+import { isCapturedSubprocessFailure, } from './tool-failure.ts';
 
 //region Types
 
@@ -71,8 +71,8 @@ export type ExecuteOptions = {
  Executes a command, capturing its output. Shows output only on failure.
  
  On success, stdout/stderr are discarded. On failure, captured output is
- written to the parent's stdout/stderr by {@link dumpAndHandleError} before
- the error is propagated (or swallowed when `allowFailure` is true).
+ written to the parent's stdout/stderr by {@link dumpAndHandleError}, which
+ then sets the process exit status unless `allowFailure` is true.
  
  @param command - Executable to run
  
@@ -147,7 +147,8 @@ export async function executeWithCollapsedOutput({
  */
 type DumpAndHandleErrorOptions = {
   /**
-   Error thrown by nano-spawn (typically SubprocessError)
+   Captured failure thrown by {@link spawnBounded}: nano-spawn's SubprocessError,
+   or the bound's own error carrying it in `cause`
    */
   readonly error: unknown;
   /**
@@ -160,72 +161,64 @@ type DumpAndHandleErrorOptions = {
  Dumps captured output from a failed subprocess and handles the error.
  
  Writes any captured stdout/stderr to the parent process streams so the
- user can see what went wrong. Then either sets a non-zero exit code or
- swallows the error based on the `allowFailure` flag.
+ user can see what went wrong. Then, unless `allowFailure` is set, makes the
+ child's status this process's exit status.
  
- @param error - Error thrown by nano-spawn (typically SubprocessError)
+ Two failures carry no captured status of their own and so have nothing to
+ dump: a command that never started, and the bound ending the command, whose
+ subprocess error stays in `cause`. Both still end this process as failed.
+ 
+ @param error - Captured failure thrown by {@link spawnBounded}
  
  @param allowFailure - Whether to suppress the failure
  
  @example
  ```ts
- try { await spawn('cmd'); } catch (e) { dumpAndHandleError({ error: e, allowFailure: false }); }
+ try {
+   await spawnBounded({ file: 'cmd', args: [], options: {}, timeoutMs: 60_000 },);
+ }
+ catch (error) {
+   dumpAndHandleError({ error, allowFailure: false },);
+ }
  ```
  */
 function dumpAndHandleError({
   error,
   allowFailure,
 }: DumpAndHandleErrorOptions,): void {
-  // SubprocessError from nano-spawn includes captured stdout/stderr
-  if ((error !== null) && ((typeof error) === 'object')) {
-    /**
-     Re-typed thrown error so its captured subprocess fields can be dumped to the parent streams.
-     */
-    const subprocessError = error as {
-      readonly stdout?: string;
-      readonly stderr?: string;
-      readonly exitCode?: number;
-      readonly signalName?: string;
-      readonly message?: string;
-    };
-
+  if (isCapturedSubprocessFailure(error,)) {
     // Dump captured output so the user can see what happened
-    if ((subprocessError.stdout
-      !== undefined) && (subprocessError.stdout
+    if ((error.stdout
+      !== undefined) && (error.stdout
         !== ''))
       process.stdout
-        .write(`${subprocessError.stdout}\n`,);
-    if ((subprocessError.stderr
-      !== undefined) && (subprocessError.stderr
+        .write(`${error.stdout}\n`,);
+    if ((error.stderr
+      !== undefined) && (error.stderr
         !== ''))
       process.stderr
-        .write(`${subprocessError.stderr}\n`,);
+        .write(`${error.stderr}\n`,);
 
-    if ((subprocessError.signalName
+    if ((error.signalName
       !== undefined)
-      && (subprocessError.signalName
+      && (error.signalName
         !== ''))
       {
       console.error(
-        `[task-depends] command terminated by signal: ${subprocessError.signalName}`,
+        `[task-depends] command terminated by signal: ${error.signalName}`,
       );
     }
 
     if (!allowFailure)
-      process.exitCode = subprocessError.exitCode
+      process.exitCode = error.exitCode
         ?? 1;
     return;
   }
 
-  // Non-subprocess error (e.g. command not found)
-  console.error(
-    `[task-depends] failed to execute command: ${
-      caughtValueText(error,)
-    }`,
-  );
-
+  // A failed start reports no status, and the bound's own error keeps the subprocess error in `cause`,
+  // so neither has captured output to dump; the command failed all the same.
   if (!allowFailure)
-    throw error;
+    process.exitCode = 1;
 }
 
 //endregion Execution
