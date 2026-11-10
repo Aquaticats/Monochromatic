@@ -138,7 +138,12 @@ function buildTables(tree: MemoryTree,): Tables {
    File text by normalized path.
    */
   const files = new Map(Object.entries(tree.files ?? {},)
-    .map(function normalizeFile([path, text,],): readonly [
+    .map(function normalizeFile(
+      [path, text,]: readonly [
+        string,
+        string,
+      ],
+    ): readonly [
       string,
       string,
     ] {
@@ -151,7 +156,12 @@ function buildTables(tree: MemoryTree,): Tables {
    Link target text by normalized path.
    */
   const links = new Map(Object.entries(tree.links ?? {},)
-    .map(function normalizeLink([path, target,],): readonly [
+    .map(function normalizeLink(
+      [path, target,]: readonly [
+        string,
+        string,
+      ],
+    ): readonly [
       string,
       string,
     ] {

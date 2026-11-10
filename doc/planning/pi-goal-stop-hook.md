@@ -6,6 +6,13 @@ Status:
  `doc/planning/pi-goal-tool-free-completion.md` after the 2026-08-26 session diagnosis.
  This file remains the design record for unaffected lifecycle and reviewer behavior.
 
+Note 2026-11-09T20:41:24-05:00:
+ the package this record names `@monochromatic-dev/pi-goal` is renamed
+ `@monochromatic-dev/pi-plugin-goal` so its name equals its path below `package/`
+ (rule SGD,
+ issue #1674).
+ This record keeps the name of its time.
+
 Tracking issue:
  [#360](https://github.com/Aquaticat/Monochromatic/issues/360).
 

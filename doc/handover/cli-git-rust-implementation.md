@@ -59,6 +59,37 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
+
+`0.6.1-alpha.6` is not published,
+so the installed wrapper still stops a signed scratch commit at 3006 ms.
+The release gate on `cfce0bc84e` failed 2 of 6,909 tests
+(`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-cfce0bc84e-20261109T215524-0500.log`).
+
+`push::child_watch::tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling` failed with
+"Its watch could not end it:
+nothing proved which process to stop",
+in a test that refuses the watch nothing.
+`push/child_watch.rs:585` gives the watch the step's ceiling,
+and `push/child_watch.rs:595` gives the wait for the output the same ceiling,
+so the reading to test is that a watch thread scheduled late loses to its own backstop,
+which makes the sentence untrue and `is_ceiling` false.
+That reading rests on the source and this one failure.
+Branch `fix/git-policy-cli-step-ceiling-watch-and-output-wait-race` owns reproducing and fixing it.
+
+`fault_trace::a_worktree_copy_killed_at_each_unlink_leaves_a_recoverable_repository` failed at kill positions 2 and 3 with
+"the worktree has no ignored rules file,
+no stage is left,
+and no recovery pass named it".
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` makes an add whose copy cannot finish stay named on every command.
+Whether it removes this failure is being measured by alternating that sweep between main and the branch.
+
+No release run is in flight,
+so the finished wrapper branches land first,
+and then one gate runs on main for the alpha.
+From that gate's start,
+nothing touching a path the release depends on lands until the bump commit is on main.
+
 ### Where the work stands (2026-11-09T00:11:22-05:00)
 
 Merged since the last record here:
@@ -1550,6 +1581,72 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 
 Each item names what remains,
 where it lives and its evidence.
+
+### The wrapper landings of 2026-11-09 evening and the alpha they go into (2026-11-09T20:44:34-05:00)
+
+Landed on main,
+each tested on main before it landed:
+
+- `39801a1d28`,
+  the gate failures.
+- `85fa333a3d`,
+  read commands over a saved merge.
+- `3a1368a777`,
+  a merge carries unsaved and staged edits forward:
+  337 unit and 139 end-to-end tests.
+- `44928fdb53`,
+  the service's push chain awaited up to the work handlers:
+  1230 unit and 111 end-to-end tests.
+- `de4f941a05`,
+  a directory or pattern pathspec commits nothing unstaged,
+  the reflog message matches native Git,
+  and a service stopped by a signal removes its marker:
+  321 unit and 45 end-to-end tests.
+- `6bfecdf39a`,
+  a snapshot worktree add no longer reports a missing copy of ignored files:
+  573 unit and 36 end-to-end tests.
+- `7a7b494dcc`,
+  a first commit,
+  a `--patch` selection and a reused message land on a branch that moved:
+  31 end-to-end tests.
+  Of its 341 selected unit tests 338 passed and three timed out at the bound;
+  those three passed alone,
+  22 of 22 in their module.
+
+The release gate runs on `7a7b494dcc`:
+`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-7a7b494dcc-20261109T204405-0500.log`.
+The next alpha is the first release with the owner's "About 16 seconds" ceiling.
+The worktree copy install branch,
+the wrapper lint branch,
+the commit build phase branch and the tokio recovery seam are not in this gate,
+and they go into the alpha after it.
+
+Measured from the main checkout's commit timing records over about four hours with about twenty agents committing,
+600 records,
+on the installed `0.6.1-alpha.5`:
+the total is 3,054 ms at the median,
+42,148 ms at p95 and 154,225 ms at most,
+and 45 records ended `stopped/1`.
+The four of those over 30 s each show `git commit` at about 3,025 ms,
+the old 3,006 ms ceiling.
+In the slowest records `buildMs` holds 24 to 63 s that no recorded step accounts for,
+and three commits on different branches finished that phase together after 30 s,
+so something they share holds them.
+The agent `commit-build-phase-unattributed-time` owns finding it and naming it in the record.
+
+Seen only inside a larger run,
+passing alone,
+and open under `AGENTS.md` `SUF`:
+
+- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
+  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
+  timed out at 300 s in a run of 341 tests that took 932 s.
+- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
+  it passed alone in 2 s and in a rerun of its set.
+- `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
+  failed on main and in two landing runs.
+  The agent `oxlint-findings-left-on-main` owns it,
+  and the `conf` branch `fix/module-conf-fork-ready-bugs` lands after it.
 
 ### The shared locks, claims and transactions, after the audit's four fixes (2026-11-09T02:38:55-05:00)
 
@@ -10053,6 +10150,17 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   So merge gated work as it passes and dispatch again with everything combined.
   A release builds from origin's main:
   check `main...origin/main` and that fetch works before trusting a release's contents.
+  Land nothing that touches a path the release depends on until the bump commit is on main:
+  the workflow pushes its bump against the commit it checked out,
+  and it refuses when such a path moved after that checkout,
+  with "PUSH REFUSED:
+  Paths the release depends on changed on main since".
+  Run `42745449815` ended that way after a wrapper branch landed during the run,
+  and nothing was published.
+  Other packages' landings do not trigger the refusal.
+  `native:release:wait` takes `<run> <version>`.
+  A dry run publishes nothing,
+  so read its result with `gh run view`.
 - Gates:
   `node ~/temp/agent/gate/launch-gate.ts <worktree name or path> <label of lowercase letters, digits and hyphens>`
   starts the container gate as its own systemd unit `gpc-gate-<label>-<timestamp>`;

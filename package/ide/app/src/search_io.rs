@@ -10,6 +10,21 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
 /// Bound diagnostic storage while continuing to drain the pipe so a child cannot block behind stderr.
 const MAX_DIAGNOSTIC_BYTES: usize = 64 * 1024;
 
+/// What:
+///  The line that tells the reader their diagnostic text was cut,
+///  naming the bound `retained` bytes were kept from.
+/// Why:
+///  The marker states the retention bound in force,
+///  so a changed bound changes the message with it instead of leaving a stale number behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const truncationMarker = (retained: number): string => `\nRipgrep diagnostic output was truncated after ${retained} bytes.`;
+/// ```
+fn truncation_marker(retained: usize) -> String {
+    return format!("\nRipgrep diagnostic output was truncated after {retained} bytes.");
+}
+
 /// Read one NUL-delimited filename or newline-delimited JSON record with a hard allocation bound.
 pub(crate) async fn record<R: AsyncBufRead + Unpin>(
     reader: &mut R,
@@ -64,7 +79,7 @@ pub(crate) async fn diagnostic<R: AsyncRead + Unpin>(mut reader: R) -> Result<St
     // Invalid diagnostic bytes are display text only, never file identities or source positions.
     let mut text = String::from_utf8_lossy(&retained).into_owned();
     if truncated {
-        text.push_str("\nRipgrep diagnostic output was truncated after 65536 bytes.");
+        text.push_str(&truncation_marker(MAX_DIAGNOSTIC_BYTES));
     }
     return Ok(text);
 }

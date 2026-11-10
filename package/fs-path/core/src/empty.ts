@@ -16,6 +16,8 @@ import { posix, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { stripQuerySuffix, } from './query-suffix.ts';
+
 /**
  Module-scoped tagged logger.
  */
@@ -40,18 +42,9 @@ const l = tagged({ tag: 'path/empty', },);
  */
 export async function emptyPath(path: string,): Promise<string> {
   /**
-   Position of the query separator so the bundler-style `?raw` suffix can be stripped before `posix.parse`.
+   Path the filesystem operations use: only this form reaches `posix.parse`, so the query suffix cannot be read as an extension.
    */
-  const queryIndex = path.indexOf('?',);
-  /**
-   Path with any query suffix removed; only this form is fed to `posix.parse` so extension detection is not fooled by the query.
-   */
-  const cleanPath = queryIndex !== (-1)
-    ? path.slice(
-      0,
-      queryIndex,
-    )
-    : path;
+  const cleanPath = stripQuerySuffix(path,);
   /**
    Parsed segments used solely to read `ext`, which decides file-vs-directory dispatch.
    */
@@ -62,16 +55,17 @@ export async function emptyPath(path: string,): Promise<string> {
     return emptyFile(path,);
   }
 
-  return emptyDir(cleanPath,);
+  return emptyDir(path,);
 }
 /* oxlint-enable eslint/require-await */
 
 /**
  Removes all entries inside a directory without removing the directory itself.
+ Query parameters in paths (e.g. `?raw`) are stripped.
  
  @param path - Directory path to empty
  
- @returns Resolved path string
+ @returns Original path string (including any query suffix)
  
  @example
  ```ts
@@ -80,14 +74,18 @@ export async function emptyPath(path: string,): Promise<string> {
  */
 export async function emptyDir(path: string,): Promise<string> {
   /**
+   Path the filesystem operations use: everything from its first `?` on names no entry.
+   */
+  const cleanPath = stripQuerySuffix(path,);
+  /**
    Snapshot of directory contents taken once so removals don't race with a live iterator.
    */
-  const entries = await readdir(path,);
+  const entries = await readdir(cleanPath,);
 
   await Promise.all(entries.map(function removeEntry(entry,): Promise<void> {
     return rm(
       posix.join(
-        path,
+        cleanPath,
         entry,
       ),
       {
@@ -115,18 +113,9 @@ export async function emptyDir(path: string,): Promise<string> {
  */
 export async function emptyFile(path: string,): Promise<string> {
   /**
-   Position of the query separator so the bundler-style `?raw` suffix can be stripped before the write.
+   Path the write targets: everything from its first `?` on names no entry.
    */
-  const queryIndex = path.indexOf('?',);
-  /**
-   Path with any query suffix removed so `writeFile` targets the actual on-disk file.
-   */
-  const cleanPath = queryIndex !== (-1)
-    ? path.slice(
-      0,
-      queryIndex,
-    )
-    : path;
+  const cleanPath = stripQuerySuffix(path,);
 
   await writeFile(
     cleanPath,
@@ -138,10 +127,11 @@ export async function emptyFile(path: string,): Promise<string> {
 /**
  Removes all empty files (zero bytes after trimming) from a directory.
  Non-file entries and files with content are left untouched.
+ Query parameters in paths (e.g. `?raw`) are stripped.
  
  @param path - Directory path to scan
  
- @returns Resolved path string
+ @returns Original path string (including any query suffix)
  
  @example
  ```ts
@@ -150,9 +140,13 @@ export async function emptyFile(path: string,): Promise<string> {
  */
 export async function removeEmptyFilesInDir(path: string,): Promise<string> {
   /**
+   Path the scan reads: everything from its first `?` on names no entry.
+   */
+  const cleanPath = stripQuerySuffix(path,);
+  /**
    Snapshot of directory contents taken once so the removal pass doesn't race with a live iterator.
    */
-  const entries = await readdir(path,);
+  const entries = await readdir(cleanPath,);
 
   await Promise.all(
     entries.map(async function checkAndRemoveIfEmpty(entry,): Promise<void> {
@@ -160,7 +154,7 @@ export async function removeEmptyFilesInDir(path: string,): Promise<string> {
        Absolute path to the entry so `stat`, `readFile`, and `rm` all target the same node regardless of `cwd`.
        */
       const fullPath = posix.join(
-        path,
+        cleanPath,
         entry,
       );
       /**

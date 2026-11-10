@@ -1,9 +1,18 @@
 /**
  Semver parsing and comparison utilities for catalog-tighten.
- 
- Handles `>=` range extraction and semver comparison
- for determining when catalog entries can be tightened.
+
+ Handles `>=` range extraction and semver precedence, which decides when a
+ catalog floor can be raised. Precedence comes from the shared
+ `@monochromatic-dev/dependency-catalog-core-rust` helpers rather than a local
+ copy: an npm catalog and a Cargo catalog order the same versions, and one
+ comparison serves both.
  */
+
+import {
+  compareVersions,
+  isVersion,
+  parseVersion,
+} from '@monochromatic-dev/dependency-catalog-core-rust/ts';
 
 //region Types
 
@@ -87,66 +96,22 @@ export function parseRange(value: string,): ParsedRange | typeof NOT_A_RANGE {
 }
 
 /**
- Splits a semver string into `[major, minor, patch, prerelease]`.
- Prerelease is everything after the first `-`, or empty string.
- 
- @param version - semver string, e.g. `"1.2.3"` or `"7.0.0-dev.20250311"`
- 
- @returns tuple of `[major, minor, patch, prerelease]`
- 
- @example
- ```ts
- splitSemver("1.2.3") // [1, 2, 3, ""]
- splitSemver("7.0.0-dev.20250311") // [7, 0, 0, "dev.20250311"]
- ```
+ Result of comparing two versions; positive means the left version wins.
  */
-function splitSemver(version: string,): [
-  number,
-  number,
-  number,
-  string,
-] {
-  /**
-   Position of the prerelease separator `-`, or `-1` when the version is a plain release.
-   */
-  const dashIndex = version.indexOf('-',);
-  /**
-   Sentinel value returned by `String.indexOf` when the search target is absent.
-   */
-  const NOT_FOUND = -1;
-  /**
-   Whether the version carries a prerelease suffix; precomputed so the slice expressions read as a plain ternary.
-   */
-  const hasPrerelease = dashIndex !== NOT_FOUND;
-  /**
-   Prerelease tag (substring after `-`) or empty string for a plain release.
-   */
-  const prerelease = hasPrerelease ? version.slice(dashIndex + 1,) : '';
-  /**
-   Dotted-numeric core of the version (`major.minor.patch`), stripped of any prerelease suffix.
-   */
-  const coreStr = hasPrerelease
-    ? version.slice(
-      0,
-      dashIndex,
-    )
-    : version;
-  /**
-   Three string segments parsed out of `coreStr`; cast to numbers below.
-   */
-  const parts = coreStr.split('.',);
-  return [
-    Number(parts[0],),
-    Number(parts[1],),
-    Number(parts[2],),
-    prerelease,
-  ];
-}
+const EQUAL_PRECEDENCE = 0;
 
 /**
  Determines whether `installed` is strictly greater than `cataloged`.
- Follows semver ordering: major \> minor \> patch \> prerelease (lexicographic).
- A release version (no prerelease) is greater than any prerelease of the same triple.
+ 
+ Follows semver precedence (clause 11): major, then minor, then patch, then
+ dot-separated prerelease identifiers compared one by one, with numeric
+ identifiers compared by value and ranked below alphanumeric ones. A release
+ outranks any prerelease of the same core, build metadata never takes part,
+ and an absent core segment counts as zero, so a `4.0` floor means `4.0.0`.
+ 
+ Text that is not a version on either side answers `false`: precedence cannot
+ be established, so the floor stays as written rather than being raised on a
+ guess.
  
  @param cataloged - version from the catalog range
  
@@ -159,6 +124,7 @@ function splitSemver(version: string,): [
  isStrictlyGreater({ cataloged: "1.2.0", installed: "1.3.0" }) // true
  isStrictlyGreater({ cataloged: "1.2.0", installed: "1.2.0" }) // false
  isStrictlyGreater({ cataloged: "7.0.0-dev.1", installed: "7.0.0-dev.2" }) // true
+ isStrictlyGreater({ cataloged: "2.0.1-rc.29", installed: "2.0.1-rc.9" }) // false
  ```
  */
 export function isStrictlyGreater(
@@ -170,32 +136,17 @@ export function isStrictlyGreater(
     readonly installed: string;
   },
 ): boolean {
-  /**
-   Catalog version split into `[major, minor, patch, prerelease]` for component-wise comparison.
-   */
-  const [cMaj, cMin, cPat, cPre,] = splitSemver(cataloged,);
-  /**
-   Installed version split into `[major, minor, patch, prerelease]` to test against the catalog tuple.
-   */
-  const [iMaj, iMin, iPat, iPre,] = splitSemver(installed,);
-
-  if (iMaj !== cMaj)
-    return iMaj > cMaj;
-  if (iMin !== cMin)
-    return iMin > cMin;
-  if (iPat !== cPat)
-    return iPat > cPat;
-
-  // Same major.minor.patch: compare prerelease
-  // No prerelease > any prerelease (release is "greater" than prerelease of same triple)
-  if ((cPre !== '') && (iPre === ''))
-    return true;
-  if ((cPre === '') && (iPre !== '')) {
-    // Installed is a prerelease of the same triple; not greater
+  if ((!isVersion(cataloged,)) || (!isVersion(installed,)))
     return false;
-  }
-  // Both have prerelease or both have none
-  return iPre > cPre;
+  /**
+   Precedence of the installed version against the catalog floor; only a
+   positive result, meaning the install is strictly newer, raises the floor.
+   */
+  const installedPrecedence = compareVersions({
+    left: parseVersion(installed,),
+    right: parseVersion(cataloged,),
+  },);
+  return installedPrecedence > EQUAL_PRECEDENCE;
 }
 
 //endregion Semver parsing

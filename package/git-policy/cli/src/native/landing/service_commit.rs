@@ -54,7 +54,7 @@ use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
 use crate::service_client::{ClientConfig, Submitted};
 use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
-use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
+use crate::service_commit_args::{opens_editor, parse_service_commit};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
 /// Provisioning the service before the first submission.
@@ -75,10 +75,12 @@ use crate::service_commit_request_of::{RequestOf, the_request_of};
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
+/// The base a preparation read,
+/// which says whether the branch existed at all.
+use crate::transaction_journal::Base;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
-
 /// What the service path returns:
 /// the transaction result for the lifecycle,
 /// and the handoff when the commit landed.
@@ -122,6 +124,9 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
+    // Whether this line asks for the one fixup whose commit Git makes from the branch and not from the index: such a commit
+    //  is empty by design, and the commit a moved branch makes of it is written from the fields Git stored.
+    let rewords: bool = crate::service_commit_line_reissued::rewords_a_commit(invocation.arguments, invocation.subcommand_index);
     let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
     // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
     //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
@@ -132,6 +137,8 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut decided: bool = false;
     // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
     let mut fixed_message: Option<PathBuf> = None;
+    // The command line that rebuild reads, made once from what the preparation captured; nothing while no rebuild is due.
+    let mut reissued_line: Option<Vec<OsString>> = None;
     // The message of the command as the last preparation settled it, kept for the person when the commit cannot be made.
     let mut last_message: Option<String> = None;
     // What the previous preparation captured when the service sent the commit back because the branch moved: the next
@@ -142,9 +149,11 @@ pub fn service_commit<F: RepositoryFacts>(
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
-    // The fields of the commit an amend prepared, kept from the attempt that prepared it: an amend whose branch moved lands
-    //  them as a new commit on the branch as it is now (`service_amend_replayed.rs`), because `git commit --amend` would
-    //  replace the commit that moved the branch.
+    // The fields of the commit the wrapper writes itself instead of building the line again, kept from the attempt that
+    //  prepared it. An amend whose branch moved lands them as a new commit on the branch as it is now
+    //  (`service_amend_replayed.rs`), because `git commit --amend` would replace the commit that moved the branch; a
+    //  `--fixup=reword:` commit lands them on the branch's own tree, because Git takes the index out of that command's commit
+    //  and running the line again would ask the person for the message a second time.
     let mut amended: Option<AmendedCommit> = None;
     // The first build's start: the ceiling on rebuilding is counted from it.
     let first_build_began: Instant = Instant::now();
@@ -157,7 +166,9 @@ pub fn service_commit<F: RepositoryFacts>(
         let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}-{attempt}");
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
-            allow_empty: invocation.region.allow_empty,
+            // A `--fixup=reword:` commit carries the branch's own tree, so the preparation of the attempt that lands it on the
+            //  branch as it is now holds no change at all, and an empty commit is exactly what the person asked for.
+            allow_empty: invocation.region.allow_empty || rewords,
             standard_input: standard_input.as_deref(),
             first: attempt == 0,
             replay,
@@ -242,7 +253,9 @@ pub fn service_commit<F: RepositoryFacts>(
             ready: &ready,
             invocation,
             native_inputs,
-            fixed_message: fixed_message.as_deref(),
+            // A commit Git built before, whose editor has run and whose branch moved, is built again from the line that rebuild
+            //  was made with; every other attempt builds from the person's own line.
+            reissued: reissued_line.as_ref(),
             id: id.as_str(),
         })?;
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
@@ -289,7 +302,6 @@ pub fn service_commit<F: RepositoryFacts>(
                     first_parent,
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
-                    native,
                     amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
                     request_id: id.as_str(),
@@ -301,12 +313,13 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Ok(outcome);
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
-                // The service did not land this attempt, so it left the tree to this command, and the change this attempt captured
-                //  is read from that tree's private index by the call below: the tree is released beside the command only after that
-                //  read, never before it, or the write-tree that makes the retry would race the removal.
-                let after_the_answer: AfterAPrepareAgain = after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began);
-                ready.scratch.release_beside_the_command();
-                match after_the_answer {
+                // The service did not land this attempt, so it left the tree to this command, which reads the change it
+                //  captured from the tree's private index here (`retry_of`) and releases the tree once the arm ends.
+                //  Starting the removal before that read took the private index from under it: `git write-tree` then failed
+                //  with a directory that was not there, or wrote the empty tree and made the commit a deletion of every file.
+                let _released: HandedBackTree = HandedBackTree(ready.scratch.0.clone());
+                ready.scratch.held_by_the_service(true);
+                match after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began) {
                     AfterAPrepareAgain::Stopped(stop) => return Err(stop),
                     AfterAPrepareAgain::Retry(next) => retry = Some(next),
                 }
@@ -319,13 +332,33 @@ pub fn service_commit<F: RepositoryFacts>(
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                 // An amend whose branch moved is not made as an amend again: its changes become a new commit on the branch as
                 //  it is now, leaving the commit that moved it as it is (the owner's choice, 2026-11-09).
+                //  The branch can move again while that new commit is being made, and then the same rule applies again:
+                //  anything else would refuse the person's commit for another session's commit
+                //  ("Agents should never wait on each other on commits or merges").
                 //  No one waits, and no command is refused for another's commit.
-                if sent.amend && amended.is_some() {
+                if amended.is_some() {
                     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }
                     // The replay merges the amended tree onto the new tip by the same rule an ordinary commit's replay uses.
                     retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                    continue;
+                }
+                // A `--fixup=reword:<commit>` commit is made from the branch and not from the index: Git carries the branch's
+                //  own tree and takes the index out of the commit, so the person asked for an empty commit whose message says
+                //  which commit it rewrites. The commit the moved branch makes of it keeps that tree and that message, and the
+                //  staged change stays where it is; nothing the person chose is lost, and no command is refused for another
+                //  session's commit (the owner's "Commits should never fail.").
+                if amended.is_none() && rewords {
+                    let Some(commit) = sent.commit.as_deref() else { return Err(branch_moved(&ready)) };
+                    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+                    }
+                    // The change this commit stands for is the tree Git wrote into it, not the private index Git ignored.
+                    let captured: String = crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
+                    amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
+                    retry = Some(crate::service_replay::retry_of_a_prepared_tree(&ready, Vec::new(), captured));
+                    unlanded.extend(sent.commit.clone());
                     continue;
                 }
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
@@ -334,7 +367,11 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  the tip: its parents come from `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD`, so the same rebuild makes
                 //  it on the branch as it is now, and the preparation refuses when that state is no longer the same.
                 let conclusion_may_move: bool = ready.cleanup.is_some();
-                if native && !sent.amend && !editor_possible && !ready.interactive && (!ready.fixed_parents || conclusion_may_move) {
+                // A branch that did not exist when this commit was prepared names no parent to keep: the change it captured is
+                //  a whole root tree, which the replay puts on the branch as another session created it
+                //  (`service_replay.rs`, `Captured::unborn`).
+                let parents_are_fixed: bool = ready.fixed_parents && !matches!(native_inputs.capture.base, Base::Unborn);
+                if native && !sent.amend && !editor_possible && !ready.interactive && (!parents_are_fixed || conclusion_may_move) {
                     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }
@@ -344,27 +381,39 @@ pub fn service_commit<F: RepositoryFacts>(
                     continue;
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
-                    // The person typed this message: keep it where they can reuse it.
+                    // The person typed this message, and everything else the line took from somewhere other than itself is
+                    //  settled too: while the bound allows, Git builds the commit again on the new tip from the arguments
+                    //  `reissued_arguments` makes of what the preparation captured, with no editor and no person.
                     let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
-                    match std::fs::write(&file, text) {
-                        Ok(()) => {
-                            // After the editor the message is fixed: while the bound allows, Git builds the commit again on the new
-                            //  tip from `-F <file>`, with no editor and no person, unless the line borrows its author or its parents.
-                            let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-                            let repeatable: bool = !sent.amend
-                                && !ready.interactive
-                                && (!ready.fixed_parents || conclusion_may_move)
-                                && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
-                            if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-                                fixed_message = Some(file);
-                                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
-                                unlanded.extend(sent.commit.clone());
-                                continue;
+                    let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
+                    let reissued: Option<Vec<OsString>> = crate::service_commit_line_reissued::reissued_arguments(
+                        invocation.context,
+                        invocation.cwd,
+                        native_inputs.arguments.as_slice(),
+                        prefix,
+                        file.as_path(),
+                        sent.commit.as_deref(),
+                        ready.interactive,
+                    )?;
+                    // A line a rebuild cannot read back (an abbreviated borrowing option the wrapper does not guess at) keeps no
+                    //  message file: the same command makes that message again, and saving it here would suggest a commit of
+                    //  another kind.
+                    if let Some(line) = reissued {
+                        match std::fs::write(&file, text) {
+                            Ok(()) => {
+                                let repeatable: bool = !sent.amend && (!parents_are_fixed || conclusion_may_move);
+                                if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                                    fixed_message = Some(file);
+                                    reissued_line = Some(line);
+                                    retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                                    unlanded.extend(sent.commit.clone());
+                                    continue;
+                                }
+                                let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
+                                return Err(TransactionStop::Message(render(&failure)));
                             }
-                            let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
-                            return Err(TransactionStop::Message(render(&failure)));
+                            Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
                         }
-                        Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
                     }
                 }
                 return Err(branch_moved(&ready));
@@ -397,8 +446,7 @@ pub fn service_commit<F: RepositoryFacts>(
                         first_parent,
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
-                        native,
-                        amended_as_new: if lands_as_new { amended.as_ref() } else { None },
+                            amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
                         request_id: id.as_str(),
                         journal: journal.as_deref(),

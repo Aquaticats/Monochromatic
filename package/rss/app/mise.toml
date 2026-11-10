@@ -7,6 +7,9 @@ extends = "build:js"
 [tasks."build:js:client"]
 extends = "build:js:client"
 
+[tasks."build:js:node"]
+extends = "build:js:node"
+
 [tasks."watch:build"]
 extends = "watch:build"
 
@@ -15,6 +18,9 @@ extends = "watch:build:js"
 
 [tasks."watch:build:js:client"]
 extends = "watch:build:js:client"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
 
 [tasks.dev]
 description = "Start RSS reader in watch mode"
@@ -31,3 +37,8 @@ extends = "format:oxlint"
 
 [tasks."lint:types"]
 extends = "lint:types"
+depends = ["build:js:node"]
+
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["build"]

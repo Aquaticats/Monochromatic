@@ -21,7 +21,7 @@ The diagnostic names a stale `/goal` call,
 but the handler applies to every Pi tool call.
 A `read` call and an unrelated custom tool receive the same block result.
 
-This repository replaces that package with `@monochromatic-dev/pi-goal`.
+This repository replaces that package with `@monochromatic-dev/pi-plugin-goal`.
 The repository-owned extension never registers a goal-state `tool_call` handler.
 
 The observed global configuration already omits `npm:@narumitw/pi-goal`.

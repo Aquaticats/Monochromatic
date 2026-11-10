@@ -97,6 +97,10 @@ function assertLinuxWaylandHost(): void {
 /**
  Runs compositor commands before waiting for expected observed state.
  
+ Exported so built-artifact tests reach the command-ordering contract.
+ 
+ @internal
+ 
  @param socketPath - Nested compositor control socket path.
  
  @param statePath - State file written by Electron main process.
@@ -110,7 +114,7 @@ function assertLinuxWaylandHost(): void {
  await runBoundaryStep({ socketPath: '/tmp/nws.sock', statePath: '/tmp/state.json', step: { expected: { count: 0 } } });
  ```
  */
-async function runBoundaryStep(
+export async function runBoundaryStep(
   {
     socketPath,
     statePath,
@@ -121,12 +125,12 @@ async function runBoundaryStep(
     readonly step: WaylandBoundaryStep;
   },
 ): Promise<void> {
-  await Promise.all((step.commands ?? []).map(function sendStepCommand(command,): Promise<void> {
-    return expectOkControlCommand({
+  for (const command of step.commands ?? [])
+    // oxlint-disable-next-line eslint/no-await-in-loop -- input events are order-dependent, so each command must be answered before the next is sent.
+    await expectOkControlCommand({
       command,
       socketPath,
     },);
-  },),);
   await waitForObservedState({
     expected: step.expected,
     statePath,
