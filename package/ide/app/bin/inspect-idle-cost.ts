@@ -12,6 +12,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor, endSession } from './nested-compositor.ts';
 import { containerBounds } from './container-bounds.ts';
+import { withoutSgrSequences } from './sgr-sequences.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -109,7 +110,6 @@ const runtime = [join(origin, 'target/debug/runtime'), join(cache, 'debug/runtim
 const environment: NodeJS.ProcessEnv = { ...process.env, SLINT_BACKEND: 'winit', FONTCONFIG_FILE: fontConfig, XDG_CONFIG_HOME: join(artifact, 'config'), XDG_CACHE_HOME: join(artifact, 'cache'), XDG_DATA_HOME: join(artifact, 'data'), RUST_LOG: 'nested_wayland_session=info,ide_app=debug,monochromatic_ide=debug' };
 if (runtime) environment.HELIX_RUNTIME = runtime;
 
-const plain = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, '');
 const cpuTicks = (pid: string): number => {
   const stat = readFileSync('/proc/' + pid + '/stat', 'utf8');
   const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
@@ -152,7 +152,7 @@ const expandAll = async ({ socketPath, logPath, count }: { socketPath: string; l
     if (!response.startsWith('ok')) throw new Error('Key ' + name + ' was refused: ' + response);
     await wait(8);
   };
-  const watching = () => plain(readFileSync(logPath, 'utf8')).split('\n').filter(line => line.includes('watching directory')).length;
+  const watching = () => withoutSgrSequences(readFileSync(logPath, 'utf8')).split('\n').filter(line => line.includes('watching directory')).length;
   for (let attempt = 0; attempt < 6 && watching() < count + 1; attempt++) {
     // Tab until the tree has focus; while the source has it, these keys only move its caret.
     await key('tab');
@@ -201,7 +201,7 @@ const session = async <Value>({ variant, count, tag, measure }: {
             return false;
           }
         });
-      const watching = plain(readFileSync(livePath, 'utf8')).split('\n').filter(line => line.includes('watching directory')).length;
+      const watching = withoutSgrSequences(readFileSync(livePath, 'utf8')).split('\n').filter(line => line.includes('watching directory')).length;
       if (pid && watching >= 1) break;
       await wait(200);
     }
@@ -217,7 +217,7 @@ const session = async <Value>({ variant, count, tag, measure }: {
     copyFileSync(livePath, logPath);
     rmSync(livePath);
   }
-  return { value, forced_close: plain(readFileSync(logPath, 'utf8')).includes('ignored close request') };
+  return { value, forced_close: withoutSgrSequences(readFileSync(logPath, 'utf8')).includes('ignored close request') };
 };
 
 // One sample of the idle IDE over the interval. `rejected` names why the interval cannot be used:
@@ -245,7 +245,7 @@ const sample = (sweep: number) => async (pid: string, logPath: string): Promise<
   await wait(seconds * 1000);
   const elapsed = (performance.now() - before.at) / 1000;
   const after = { ticks: cpuTicks(pid), io: io(pid), wall: Date.now(), pressure: pressure() };
-  const appended = plain(readFileSync(logPath, 'utf8').slice(before.log));
+  const appended = withoutSgrSequences(readFileSync(logPath, 'utf8').slice(before.log));
   const lines = appended.split('\n').filter(Boolean);
   const own = lines.filter(line => line.includes('ide_app::') || line.includes('monochromatic_ide::'));
   const stamps = [before.wall, ...own.map(stampOf).filter(Number.isFinite), after.wall];
