@@ -64,9 +64,15 @@ the value was not read into this record.
 
 ### Nested worktrees still point at the main common directory
 
-Each of the 220 `.git` files under `.claude/worktrees` names
+Of the 220 entries under `.claude/worktrees`,
+214 hold a `.git` file naming this repository's common directory,
+188 of them spelling it
+`/var/mnt/encrypted/repository/Monochromatic/.git/worktrees/<name>`
+and 26 spelling it
 `/var/home/user/Monochromatic/.git/worktrees/<name>`,
-so a copied tree keeps writing to the source repository's administration.
+which is the same directory reached through a symlink.
+The remaining 6 entries hold no `.git` file.
+A copied tree therefore keeps writing to the source repository's administration.
 
 ## Claims that have moved or no longer hold
 
