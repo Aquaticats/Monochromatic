@@ -216,7 +216,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // A killed step is reaped here, and this wait ends when the kernel releases it:
     // a step in an uninterruptible call cannot act on `SIGKILL` until that call returns,
     // and the owner chose that this commit waits the kernel's time and says so
-    // (2026-11-10, "Keep waiting and say so"), the one exception to his rule that nothing waits for ever.
+    // (2026-11-10, "Keep waiting and say so"), an exception to his rule that nothing waits for ever.
     // The notice prints, once and while this wait runs, that the stop was sent and the kernel has not released the step
     // (`commit/scratch_step_held_by_the_kernel.rs`).
     let reaped: Option<std::process::ExitStatus> = match owned.wait().await {

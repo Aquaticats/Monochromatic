@@ -4196,10 +4196,10 @@ says the stop was sent and the kernel has not released it,
 says what state the kernel reports for it,
 and says that nothing was committed and that the person's index and files are as they were
 (owner,
-2026-11-09,
+2026-11-10,
 "Keep waiting and say so",
 chosen over leaving after a bound and failing the commit;
-the wait is the one exception to his rule that nothing waits for ever,
+the wait is an exception to his rule that nothing waits for ever,
 and `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` holds the kernel behaviour behind it and the options he did not choose);
 the line names only a step that two looks,
 one look interval apart after the signal,
@@ -4244,7 +4244,7 @@ so the stop says what it could not end instead of reporting a walk that ended ev
 and the child is reaped there,
 and a child the kernel holds in an uninterruptible call is waited for with no bound,
 so the kernel's release of it is what ends the command
-(the owner's answer of 2026-11-09,
+(the owner's answer of 2026-11-10,
 "Keep waiting and say so",
 and the notice's own line says so once while that wait runs),
 and the status that reap collects decides what ended the step:
@@ -4680,7 +4680,7 @@ quoted by the options chosen:
   the command returns with a line saying the push is
   queued.").
 
-The one wait with no bound is the scratch `git commit` a commit builds,
+A wait with no bound of the wrapper's own is the scratch `git commit` a commit builds,
 once the kernel has taken it:
 a process in uninterruptible sleep cannot act on the ceiling's `SIGKILL` until the call it is inside returns,
 so that wait ends when the kernel releases the step and never before.

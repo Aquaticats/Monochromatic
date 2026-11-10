@@ -170,7 +170,7 @@ and the third was rejected.
       The record gains nothing it does not already count.
     - This is the smallest honest change and breaks nothing,
       and it does not satisfy "nothing should ever wait forever";
-      the owner made it the one exception to that rule.
+      the owner made it an exception to that rule.
     - No control on this host can produce a process in uninterruptible sleep
       (it takes a stalled disk,
       a dead network file system or a stopped file-system server,

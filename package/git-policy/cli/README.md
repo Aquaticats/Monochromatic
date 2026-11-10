@@ -2794,7 +2794,7 @@ Nothing the wrapper waits for waits for ever (owner,
 "nothing should ever wait forever or indefinitely"),
 and the
 wrapper never waits without saying so.
-The one exception is a scratch `git commit` the kernel has taken:
+A wait with no bound of the wrapper's own is a scratch `git commit` the kernel has taken:
 once the ceiling's `SIGKILL` reaches a process in uninterruptible sleep it cannot act on it,
 and the commit waits until the kernel releases the step,
 saying so in one line
@@ -3196,22 +3196,6 @@ Each line names what the command waits for,
    nothing is committed,
    the person's index and files are as they were,
    and the same command can be run again.
-   A step the kernel does not release is the one wait this command keeps with no bound:
-   a process in uninterruptible sleep (state `D`,
-  a stalled disk or a file system that stopped answering)
-   cannot act on the `SIGKILL` until the call it is inside returns,
-   so one line names that `git commit` (its process),
-   says the stop was sent and the kernel has not released it,
-   says that nothing was committed and that the person's index and files are as they were,
-   and says the terminal stays there until the kernel lets go.
-   The owner chose that wait,
-  over leaving after a bound and failing the commit
-   (2026-11-09,
-   "Keep waiting and say so"),
-   as the one exception to "nothing should ever wait forever or indefinitely";
-   the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
-   The line is said only of a step that still reports that state one look interval after the signal,
-   so a step that acts on its stop in that interval is never said to be held.
    The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
    those builds were a retry index without stat data,
    which is fixed.
@@ -3219,6 +3203,22 @@ Each line names what the command waits for,
    whose steps ran 26,256,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
+   A step the kernel does not release is waited for with no bound:
+   a process in uninterruptible sleep (state `D`,
+   a stalled disk or a file system that stopped answering)
+   cannot act on the `SIGKILL` until the call it is inside returns,
+   so one line names that `git commit` (its process),
+   says the stop was sent and the kernel has not released it,
+   says that nothing was committed and that the person's index and files are as they were,
+   and says the terminal stays there until the kernel lets go.
+   The owner chose that wait,
+   over leaving after a bound and failing the commit
+   (2026-11-10,
+   "Keep waiting and say so"),
+   as an exception to "nothing should ever wait forever or indefinitely";
+   the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
+   The line is said only of a step that still reports that state one look interval after the signal,
+   so a step that acts on its stop in that interval is never said to be held.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;
