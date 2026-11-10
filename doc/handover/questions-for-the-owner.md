@@ -1767,6 +1767,34 @@ nothing here needs an answer.
   (about 153 KiB of test code in `forbidden-strings` and 165 KiB in `forbidden-regex`,
   before compression).
 
+### The wrapper's own Git and fsmonitor (asked 2026-11-10)
+
+Two commit steps of about 60 seconds each were Git waiting for its file-watching daemon
+(`core.fsmonitor`, whose start timeout defaults to 60 seconds),
+as agent `unexplained-items-from-the-handover` found and recorded.
+On this machine fsmonitor is off globally and in the main checkout,
+so it cannot happen here today.
+`package/git-policy/cli/SPEC.md` recorded the owner's decision of 2026-11-03 that the wrapper passes no `core.fsmonitor` setting.
+Asked in the question tool whether the wrapper should switch fsmonitor off for its own internal Git commands only,
+the owner chose:
+"B: off for internal Git (Recommended)".
+That amends the 2026-11-03 decision:
+the wrapper adds `-c core.fsmonitor=false` to the Git commands it starts itself and never to a command the person typed.
+A new agent builds it and amends `SPEC.md` with this answer.
+
+### A landing waiting for the flush of a marker made ahead (coordinator's pick, veto open)
+
+Agent `commit-waiting-path-with-dozens-of-agents` measured landings waiting 9 to 13 seconds
+for the index lock's marker made ahead to finish its flush (`lock_stage_kind=pre`),
+and asked whether that marker may be published without its flush.
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+"never discard user data" and "commits vs native git should not take 5s longer",
+the coordinator picked neither side of that trade:
+the flush stays, it starts as early as the code allows,
+and a landing that finds the marker still flushing takes the lock the ordinary way and never waits for that flush.
+The same agent builds it.
+Say "undo" to publish without the flush instead.
+
 ## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
 
 ### The btrfs host run before a release
