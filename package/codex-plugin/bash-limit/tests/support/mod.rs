@@ -14,7 +14,7 @@
 /// import * as fs from 'node:fs';
 /// import { spawnSync } from 'node:child_process';
 /// ```
-use std::{fs, io, io::Write, path::{Path, PathBuf}, process::{Command, Output, Stdio}};
+use std::{ffi::OsStr, fs, io, io::Write, path::{Path, PathBuf}, process::{Command, Output, Stdio}};
 /// Import the trait that adds `from_mode` to `Permissions`.
 use std::os::unix::fs::PermissionsExt;
 
@@ -129,6 +129,18 @@ pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
 /// `[T; N]` fixes its length and `Vec<T>` owns it.
 /// Borrowing avoids copying caller-owned command arguments.
 pub fn invoke(arguments: &[&str], input: &str) -> io::Result<Output> {
+    // What: `map` borrows each `&str` as an `&OsStr` without allocating the text.
+    // Why: One launch path serves both callers, so plain-text and raw-byte arguments cannot drift apart.
+    let os_arguments: Vec<&OsStr> = arguments.iter().map(|argument| { return OsStr::new(argument); }).collect();
+    return invoke_os(&os_arguments, input);
+}
+
+/// Borrow an argument list of raw operating-system strings and stdin text,
+/// returning the actual binary's captured output.
+/// Why:
+/// An argument that is not UTF-8 has no `&str` spelling,
+/// so refusing one needs its own entry point into the same launch.
+pub fn invoke_os(arguments: &[&OsStr], input: &str) -> io::Result<Output> {
     // What: `env!` embeds Cargo's executable path at compile time; `mut` permits writing stdin.
     // Why: Tests exercise this crate's executable, including entry-point validation and exit codes.
     //

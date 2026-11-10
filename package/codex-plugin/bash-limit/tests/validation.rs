@@ -16,6 +16,11 @@ mod support;
 /// errors,
 /// and captured subprocess output.
 use std::{fs, io, process::Output};
+/// Import the operating-system string type that can hold bytes that are not UTF-8.
+use std::ffi::OsStr;
+/// Import `from_bytes`,
+/// which builds such a string from raw argument bytes.
+use std::os::unix::ffi::OsStrExt;
 
 /// What:
 /// `fn` declares a function;
@@ -86,6 +91,40 @@ fn rejects_invalid_invocation() -> io::Result<()> {
     // ```ts
     // return;
     // ```
+    return Ok(());
+}
+
+/// What:
+/// `#[test]` registers a nextest case for the argument boundary;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// An argument whose bytes are not UTF-8 must still block the call with the documented status 2;
+/// `std::env::args` panics instead,
+/// and a panic exits 101,
+/// which Codex reports as a failed hook run and then executes the tool anyway.
+#[test]
+fn refuses_arguments_that_are_not_utf8() -> io::Result<()> {
+    // Build raw argument bytes, keeping the invalid sequence intact.
+    let not_utf8_parent = OsStr::from_bytes(b"/no-such-fixture/\xff-worker");
+    let not_utf8_mode = OsStr::from_bytes(b"--hook\xff");
+    let not_utf8_extra = OsStr::from_bytes(b"\xff");
+    // What: A borrowed list of borrowed lists covers each argument position independently.
+    // Why: The mode, the parent path, and an extra argument are decoded in separate branches.
+    let cases: &[&[&OsStr]] = &[
+        &[OsStr::new("--hook"), not_utf8_parent],
+        &[not_utf8_mode, OsStr::new("/")],
+        &[OsStr::new("--hook"), OsStr::new("/"), not_utf8_extra],
+    ];
+    for arguments in cases {
+        // Lend the raw argument list and a JSON event body to the native binary.
+        let output = support::invoke_os(arguments, "{}")?;
+        // The shared denial check proves the blocking exit and the empty success stream.
+        denied(&output);
+        // Decode the diagnostic, replacing invalid bytes only in the test's own reading.
+        let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(diagnostic.starts_with("Codex worker limits: "), "{diagnostic}");
+        assert!(diagnostic.contains("UTF-8"), "{diagnostic}");
+    }
     return Ok(());
 }
 
