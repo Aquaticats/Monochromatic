@@ -18,7 +18,11 @@ mod protocol;
 /// Why:
 /// Report failures without an additional error-handling dependency.
 /// TypeScript equivalent:
-/// `import { Error } from 'node:io';`
+/// Node has no `node:io` module,
+/// so each item this module reaches through `io::` maps onto a different builtin:
+/// `io::read_to_string(io::stdin())` reads standard input,
+/// `io::stdout()` and `io::stderr()` are `process.stdout` and `process.stderr` from `node:process`,
+/// and `io::Error` is the builtin `Error` class.
 use std::io;
 /// Import the trait that adds byte-writing methods to stdout and stderr.
 use std::io::Write;
