@@ -51,6 +51,10 @@ function printLines({
  Before that, origin's default branch is fetched and the dispatch is refused unless it holds every commit of the local
  branch of the same name, or when that could not be checked.
 
+ Then the crate's own release gate runs, when its registry entry names one: the command holds the checks that only this
+ machine can make, so it is the last thing between the person and a run nothing can take back. A `--dry-run` skips it,
+ because a dry run runs nothing that the gate's evidence would cover.
+
  Nothing else happens on this machine: the workflow does the bump, the check, the dry run, the commit, the push and the
  publish start. A refusal by `gh` is shown as `gh` wrote it, with the call that made it, so the person sees the cause.
 
@@ -61,7 +65,7 @@ function printLines({
  @param print - prints one line
 
  @returns zero when the workflow was started, the failure status when origin lacks local commits, the check could not
- finish, or `gh` refused
+ finish, the crate's release gate did not pass, or `gh` refused
 
  @example
  ```ts
@@ -91,6 +95,32 @@ export async function dispatchRelease({
     for (const line of refusalLines(containment))
       print(line);
     return failureExitCode;
+  }
+  // The crate's own gate is the last refusal before the dispatch: it is the expensive one, so every check that costs
+  // nothing has already run, and nothing can be taken back once `gh` has started the workflow.
+  if (options.dispatchGate !== undefined) {
+    // A dry run starts the workflow's own dry run, so the gate's evidence would cover nothing it does.
+    if (options.dryRun)
+      print(`RELEASE DRY RUN: not running ${formatCommandLine(options.dispatchGate)}, the gate this crate names for a real release, so this dry run proves nothing about it.`);
+    else {
+      print(`Waiting for ${formatCommandLine(options.dispatchGate)}`);
+      /**
+       How the crate's gate ended.
+       */
+      const gate = await run(options.dispatchGate);
+      printLines({
+        text: gate.stdout,
+        print
+      });
+      printLines({
+        text: gate.stderr,
+        print
+      });
+      if (gate.status !== 0) {
+        print(`REFUSED ${releaseWorkflow} was not started (${formatCommandLine(options.dispatchGate)} exited ${String(gate.status)})`);
+        return failureExitCode;
+      }
+    }
   }
   /**
    The call that starts the workflow.

@@ -35,6 +35,11 @@ export type CrateEntry = {
    Repository-relative directories whose lockfile records the changed version of a workspace member.
    */
   readonly lockDirectories: readonly string[];
+  /**
+   The command a real release of this crate waits for before the workflow is started at all: its program, then its
+   arguments, run from the crate's own directory. Absent when the crate has no such gate.
+   */
+  readonly dispatchGate?: readonly [string, ...string[]];
 };
 
 /**
@@ -48,6 +53,7 @@ export type CrateRegistry = ReadonlyMap<string, CrateEntry>;
 const entryKeys: readonly string[] = [
   'crateDir',
   'scope',
+  'dispatchGate',
   'pinFiles',
   'checkBins',
   'lockDirs',
@@ -174,6 +180,63 @@ function textList({
 }
 
 /**
+ Read the optional dispatch gate of an entry: the command a real release waits for before the workflow is started.
+
+ The gate is the crate's own knowledge, so this package reads it as a command and never as one of its own checks: a
+ crate that names none keeps the releases it had.
+
+ @param entry - the entry's fields
+
+ @param label - where the entry sits, for the message
+
+ @returns the command as its program and its arguments, or nothing when the entry names none
+
+ @throws CrateReleaseError when the field is present and is not a non-empty list of non-empty words
+
+ @example
+ ```ts
+ dispatchGateOf({ entry, label: 'crate "a"' });
+ ```
+ */
+function dispatchGateOf({
+  entry,
+  label,
+}: {
+  readonly entry: Readonly<Record<string, unknown>>;
+  readonly label: string;
+}): readonly [string, ...string[]] | undefined {
+  /**
+   The field as written.
+   */
+  const written = entry['dispatchGate'];
+  if (written === undefined)
+    return undefined;
+  /**
+   The command the field names, one word per element.
+   */
+  const words = textList({
+    entry,
+    label,
+    key: 'dispatchGate'
+  });
+  const [program, ...args] = words;
+  if ((program === undefined) || (program.trim() === ''))
+    throw new CrateReleaseError(`${registryFileName}: ${label} needs "dispatchGate" as the command a release waits for, and got ${words.length === 0 ? 'an empty list' : 'an empty program'}.`);
+  /**
+   Position of the first argument that is empty, one past the program, or -1 when every word has text.
+   */
+  const emptyArgument = args.findIndex(function isBlank(word) {
+    return word.trim() === '';
+  });
+  if (emptyArgument !== -1)
+    throw new CrateReleaseError(`${registryFileName}: ${label} has an empty word at position ${String(emptyArgument + 2)} of "dispatchGate", so the command a release waits for names nothing there.`);
+  return [
+    program,
+    ...args,
+  ];
+}
+
+/**
  Validate one entry of the registry file.
 
  @param name - the crate's name, already checked
@@ -215,6 +278,13 @@ function parseCrateEntry({
         JSON.stringify(entryKeys)
       }.`,
     );
+  /**
+   The command a real release of this crate waits for, when the entry names one.
+   */
+  const dispatchGate = dispatchGateOf({
+    entry,
+    label
+  });
   return {
     crateDirectory: parseRepositoryPath({
       option: `${registryFileName} ${label} "crateDir"`,
@@ -265,6 +335,7 @@ function parseCrateEntry({
           value
         });
       }),
+    ...(dispatchGate === undefined ? {} : { dispatchGate }),
   };
 }
 
