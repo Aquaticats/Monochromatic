@@ -190,7 +190,7 @@ the owner's call.
   exits,
   which is the event that has not happened.
   (The pidfd is still the
-  right tool for *which* process is signalled,
+  right tool for **which** process is signalled,
   which is a different
   problem:
   `process/process_tree.rs`,

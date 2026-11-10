@@ -104,7 +104,7 @@ When the `EncodeColon` flag is set,
 (`r + fullOffset`,
  `fullOffset = 0xFEE0`),
  and to keep that reversible it quotes a
-*literal* fullwidth `：` by prefixing the quote rune:
+**literal** fullwidth `：` by prefixing the quote rune:
 
 ```go
 // lib/encoder/encoder.go:537-545

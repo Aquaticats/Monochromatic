@@ -35,7 +35,7 @@ and a second run of the same probe for 71 minutes;
 the connection was aborted from outside in both cases.
 
 The same hazard reaches a program that never touches the stalled mount:
-a scan that identifies a *lock* by the device
+a scan that identifies a **lock** by the device
 and inode it has,
 and resolves every descriptor whose record names that inode number,
 asks each descriptor's file
@@ -103,7 +103,7 @@ and NFS ([fs/nfs/inode.c:986](https://github.com/torvalds/linux/blob/7475ea8b586
 ```
 
 with `generic_fillattr` at [fs/nfs/inode.c:1052](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/nfs/inode.c#L1052-L1058) and FUSE's equivalent on the same `sync = false` path.
-That is why a *descriptor* read answers and a *path* read does not:
+That is why a **descriptor** read answers and a **path** read does not:
 the path reaches the same `getattr` only after the
 walk has already asked the server to revalidate the entry.
 
@@ -312,7 +312,7 @@ Measured on this host:
 `/proc/1/mountinfo` and `/proc/<pid>/mountinfo` are readable as an unprivileged user,
 and a file
 in a btrfs subvolume reports an anonymous device (`0:108`),
-while a file in a *nested* subvolume reports another
+while a file in a **nested** subvolume reports another
 (`5243089`),
 so the device and inode pair still separates two subvolumes' files whose mount numbers and inode numbers
 agree.

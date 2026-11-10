@@ -4,7 +4,7 @@ Turso is a Rust rewrite of SQLite,
  not a build of SQLite with extensions.
 Its `@tursodatabase/database` 0.6.1 npm prebuilt contains **no** FTS5 module,
 so any `CREATE VIRTUAL TABLE ... USING fts5(...)` fails at parse time.
-Full-text search is instead offered as an experimental *index method*
+Full-text search is instead offered as an experimental **index method**
 (`CREATE INDEX ... USING fts`) queried with `fts_match` / `fts_score` / `fts_highlight`.
 
 ## Symptom

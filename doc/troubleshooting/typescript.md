@@ -1633,7 +1633,7 @@ Catalog of semantics that differ:
    native `An error was suppressed during disposal`,
    helper
   `An error was suppressed during disposal.`
-  The spec creates "a newly created *SuppressedError* object" without passing a message,
+  The spec creates "a newly created **SuppressedError** object" without passing a message,
    so this string is
   implementation-defined and the difference is cosmetic.
 

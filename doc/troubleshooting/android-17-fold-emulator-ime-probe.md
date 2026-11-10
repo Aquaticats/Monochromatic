@@ -87,7 +87,7 @@ return config.keyboard == Configuration.KEYBOARD_NOKEYS
         || config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_YES;
 ```
 
-This is the framework's *default* decision,
+This is the framework's **default** decision,
 not a source trace of Gboard.
 At `InputMethodService.java:2347-2357`,
 the framework shows or hides the

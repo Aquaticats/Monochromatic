@@ -510,7 +510,7 @@ duplicate;
 distinct:
  harfbuzz PR #5623 (merged,
  first in 12.2.0) stops
-*collecting* STAT name IDs when STAT is dropped,
+**collecting** STAT name IDs when STAT is dropped,
  the inverse concern.
 
 ### Candidate 1: hb-subset-wasm (primary owner)

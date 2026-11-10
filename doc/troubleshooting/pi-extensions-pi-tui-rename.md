@@ -225,7 +225,7 @@ Publication timeline (UTC,
 - This investigation:
    2026-05-20 (today)
 
-`@ifi/pi-shared-qna@0.5.1` shipped 10 days *before* the rename,
+`@ifi/pi-shared-qna@0.5.1` shipped 10 days **before** the rename,
 pinning the then-canonical name.
  No subsequent
 `@ifi/pi-shared-qna` release has been published;
@@ -304,7 +304,7 @@ package/spec/extension/index.ts:       import { Text } from "@mariozechner/pi-tu
 A complete upstream fix is therefore not one-line;
  it is a
 coordinated migration.
- The minimal patch that resolves *this*
+ The minimal patch that resolves **this**
 specific crash (the plan-mode banner render in `@ifi/pi-plan`) is
 just the loader,
  since `@ifi/pi-plan` is the only currently-loaded

@@ -96,7 +96,7 @@ install path consumers would have to depend on.
   cannot be invoked through corepack.
 - Configuring pnpm to skip postinstall scripts for dprint:
    the slow
-  part is the Node wrapper at *invocation* time,
+  part is the Node wrapper at **invocation** time,
    not at install time.
   Postinstall behaviour is irrelevant.
 

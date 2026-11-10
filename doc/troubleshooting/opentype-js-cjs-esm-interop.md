@@ -131,7 +131,7 @@ properties (the spread evaluates the getters `__toCommonJS` defined).
  But
 Node's CJS-to-ESM interop does not evaluate the module to find this out;
  it
-uses `cjs-module-lexer` to *statically* scan the source text for assignment
+uses `cjs-module-lexer` to **statically** scan the source text for assignment
 patterns it recognizes (`exports.x = ...`,
  `module.exports = { a, b, c }`
 object literals,
@@ -203,7 +203,7 @@ def.Path: [class Path]
 ```
 
 This is the mechanism the suggested fix in Monochromatic issue #267 relies on,
-and it is why a real *named* import (`import { Path } from 'opentype.js'`)
+and it is why a real **named** import (`import { Path } from 'opentype.js'`)
 fails harder (a load-time `SyntaxError`,
  shown in Symptom) than a namespace
 import:
@@ -217,7 +217,7 @@ Once the fix switches to `import opentype from 'opentype.js';`,
 `import/no-named-as-default-member` (`crates/oxc_linter/src/rules/import/no_named_as_default_member.rs:77-104`
 in `oxc-project/oxc`) flags every `opentype.Path`/`opentype.Glyph`/`opentype.Font`
 access.
- The rule resolves the imported module's *declared* named exports
+ The rule resolves the imported module's **declared** named exports
 (`module_record.get_loaded_module(specifier)` -> `exported_bindings`) and
 warns whenever a default-imported binding's property access matches one of
 those names,

@@ -16,7 +16,7 @@ no longer reflects the execution sequence:
 Discovered while verifying that `mise run //pkg:build` completed before
 `bun test` started in the `buildAndTest` task.
  Build-completion lines
-appeared *after* the test results in the captured output,
+appeared **after** the test results in the captured output,
  suggesting
 concurrent execution;
  in reality the commands ran sequentially and the

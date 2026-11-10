@@ -320,7 +320,7 @@ We evaluated dropping `typesafe-i18n` entirely.
 - The bug is latent and unreported.
    No public CVE exists.
   Anyone introducing a new translation with three or more
-  levels of nested `{}` *and* substantial non-brace text
+  levels of nested `{}` **and** substantial non-brace text
   between braces (long English prose plus an embedded JSON
   schema,
    e.g. an LLM-prompt translation) reproduces the V8

@@ -44,7 +44,7 @@ so the person's deliberately staged contents were left out of the commit.
 
 ## Root cause
 
-Git adds four *global* pathspec magics from the environment and from global options,
+Git adds four **global** pathspec magics from the environment and from global options,
 and a global magic lands on every pathspec element the program passes.
 
 `pathspec.c:296-320` at tag `v2.56.0`:
@@ -98,7 +98,7 @@ own:
 		magic |= get_global_magic(element_magic);
 ```
 
-`:(literal)` overrides the *glob* global (`pathspec.c:307`) and never touches `PATHSPEC_ICASE`,
+`:(literal)` overrides the **glob** global (`pathspec.c:307`) and never touches `PATHSPEC_ICASE`,
 which is why the reset and the prune above match case-insensitively.
 
 The refusal is a separate step of the same function pair:
