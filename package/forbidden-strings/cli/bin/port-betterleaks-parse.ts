@@ -287,17 +287,14 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
         continue;
       }
       /**
-       Match for `path = '''` opening a triple-quoted path scope.
+       Body the `path = '''` line opens, with its marker removed.
        */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key, `\s*`, `=` and three quotes; the scan is linear and cannot backtrack.
-      const pathOpen = /^path\s*=\s*'''/u.exec(rl,);
-      if (pathOpen !== null) {
-        /**
-         Remainder of the opening line after `path = '''`, passed to the body reader.
-         */
-        const initial = rl.slice(nonNullishOrThrow(pathOpen[0],)
-          .length,);
-        fields.pathScope = readTripleQuoted({ initial, },);
+      const pathBody = tripleQuotedBodyAfterAssignment({
+        line: rl,
+        key: 'path',
+      },);
+      if ((typeof pathBody) === 'string') {
+        fields.pathScope = readTripleQuoted({ initial: pathBody, },);
         continue;
       }
       /**
