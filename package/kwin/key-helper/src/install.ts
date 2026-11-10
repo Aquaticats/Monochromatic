@@ -16,14 +16,23 @@
  */
 
 import {
+  lstat,
   mkdir,
+  readlink,
+  rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { shellQuote, } from '@monochromatic-dev/shell-argument-core/ts';
+
+import { InstallError, } from './errors.ts';
 
 //region Logging
 
@@ -48,6 +57,26 @@ const AUTOSTART_FILE_NAME = 'key-helper-service.desktop';
 const AUTOSTART_DIRECTORY = '.config/autostart';
 
 /**
+ Directory, relative to the home directory, KWin finds script packages in.
+ */
+const KWIN_SCRIPTS_DIRECTORY = '.local/share/kwin/scripts';
+
+/**
+ Name of the symlink the KWin script package is installed as.
+ */
+const KWIN_SCRIPT_LINK_NAME = 'key-helper-kwin';
+
+/**
+ Source directory of the KWin script package, relative to the package.
+ */
+const KWIN_SCRIPT_SOURCE_DIRECTORY = 'kwin-script';
+
+/**
+ Filename of the built daemon binary, relative to the package.
+ */
+const DAEMON_BINARY_NAME = 'key-helper-service';
+
+/**
  `systemd-cat` tag the daemon's log lines carry in the journal.
  */
 const SYSTEMD_CAT_TAG = 'key-helper';
@@ -57,9 +86,36 @@ const SYSTEMD_CAT_TAG = 'key-helper';
  */
 const SYSTEMD_CAT_PRIORITY = 'debug';
 
+/**
+ File error code naming an entry that does not exist.
+ */
+const MISSING_FILE_CODE = 'ENOENT';
+
 //endregion Constants
 
 //region Quoting
+
+/**
+ Whether a failed read or stat means the entry does not exist.
+
+ Only `ENOENT` counts as absent: a permission failure, a path component that is
+ not a directory, or a symlink loop are all faults the operator has to see,
+ because the install cannot fix them by recreating the entry.
+
+ @param error - Value a `node:fs/promises` call rejected with
+ 
+ @returns True only for a missing entry
+ 
+ @example
+ ```ts
+ isMissingEntry(Object.assign(new Error('absent'), { code: 'ENOENT' }));
+ ```
+ */
+function isMissingEntry(error: unknown): boolean {
+  return Error.isError(error)
+    && ('code' in error)
+    && (error.code === MISSING_FILE_CODE);
+}
 
 /**
  Encode one value as a desktop-entry `Exec` argument.
@@ -197,3 +253,133 @@ export async function writeAutostartEntry({
 }
 
 //endregion Autostart entry
+
+//region KWin script link
+
+/**
+ Point the KWin script package's symlink at this checkout, replacing whatever
+ was there.
+
+ The link is the install's idempotent step: an entry that is already the right
+ symlink is left alone, anything else at that path is replaced, and a missing
+ entry is simply created. A failure to inspect the path for any reason other
+ than absence is reported with the caught value, because recreating the entry
+ over a permission problem or a broken path would hide the cause.
+ 
+ @param linkPath - Path the symlink must occupy
+ 
+ @param kwinTarget - Absolute path of the KWin script package in this checkout
+ 
+ @throws {@link InstallError} when the path cannot be inspected for a reason
+ 
+ @example
+ ```ts
+ await reconcileKwinScriptLink({ linkPath, kwinTarget });
+ ```
+ */
+export async function reconcileKwinScriptLink({
+  linkPath,
+  kwinTarget,
+}: {
+  readonly linkPath: string;
+  readonly kwinTarget: string;
+}): Promise<void> {
+  try {
+    /**
+     Entry already at the link path.
+     */
+    const existing = await lstat(linkPath);
+    if (existing.isSymbolicLink() && ((await readlink(linkPath)) === kwinTarget)) {
+      tagged({
+        tag: reconcileKwinScriptLink.name,
+        l: installLogger,
+      },)
+        .info(`link already correct: ${linkPath}`,);
+      return;
+    }
+    await rm(
+      linkPath,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+  } catch (error) {
+    if (!isMissingEntry(error)) {
+      throw new InstallError(`cannot inspect ${linkPath}: ${caughtValueText(error,)}`,);
+    }
+  }
+  await symlink(
+    kwinTarget,
+    linkPath,
+  );
+  tagged({
+    tag: reconcileKwinScriptLink.name,
+    l: installLogger,
+  },)
+    .info(`linked ${linkPath} -> ${kwinTarget}`,);
+}
+
+//endregion KWin script link
+
+/**
+ Install everything the daemon needs to start at login: the KWin script
+ symlink, the autostart entry, and the KWin script's enablement.
+
+ @param homeDirectory - Home directory the link and entry are installed into
+ 
+ @param packageDirectory - This package's directory, whose built binary and
+ script package are linked
+ 
+ @param enableKwinScript - Enables the script in the desktop environment's
+ configuration, which the task does with `kwriteconfig6`
+ 
+ @example
+ ```ts
+ await installKeyHelper({ homeDirectory, packageDirectory, enableKwinScript });
+ ```
+ */
+export async function installKeyHelper({
+  homeDirectory,
+  packageDirectory,
+  enableKwinScript,
+}: {
+  readonly homeDirectory: string;
+  readonly packageDirectory: string;
+  readonly enableKwinScript: () => void;
+}): Promise<void> {
+  /**
+   Folder KWin finds script packages in.
+   */
+  const scriptsDirectory = join(
+    homeDirectory,
+    KWIN_SCRIPTS_DIRECTORY,
+  );
+  await mkdir(
+    scriptsDirectory,
+    { recursive: true, },
+  );
+  await reconcileKwinScriptLink({
+    linkPath: join(
+      scriptsDirectory,
+      KWIN_SCRIPT_LINK_NAME,
+    ),
+    kwinTarget: resolve(
+      packageDirectory,
+      KWIN_SCRIPT_SOURCE_DIRECTORY,
+    ),
+  });
+  await writeAutostartEntry({
+    homeDirectory,
+    binPath: resolve(
+      packageDirectory,
+      DAEMON_BINARY_NAME,
+    ),
+  });
+  enableKwinScript();
+  tagged({
+    tag: installKeyHelper.name,
+    l: installLogger,
+  },)
+    .info('enabled the KWin script in kwinrc',);
+}

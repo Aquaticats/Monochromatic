@@ -123,3 +123,22 @@ export class NoRuntimeDirectoryError extends KeyHelperError {
     this.name = 'NoRuntimeDirectoryError';
   }
 }
+
+/**
+ Thrown when an install step cannot proceed, with the caught value in the
+ message so the operator sees the fault the step refused to paper over.
+ 
+ @example
+ ```ts
+ throw new InstallError(`cannot inspect ${linkPath}: ${caughtValueText(error)}`);
+ ```
+ */
+export class InstallError extends KeyHelperError {
+  /**
+   @param message - What the install was doing and the caught failure
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = 'InstallError';
+  }
+}

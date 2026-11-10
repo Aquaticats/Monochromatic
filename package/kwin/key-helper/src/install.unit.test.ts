@@ -15,6 +15,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readlink,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -29,6 +30,10 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 
 import {
   buildAutostartDesktopEntry,
+  flushLogs,
+  installKeyHelper,
+  InstallError,
+  reconcileKwinScriptLink,
   runCommand,
   writeAutostartEntry,
 } from '../dist/final/node/testing.mjs';
@@ -49,6 +54,11 @@ const AWKWARD_CHECKOUT_DIRECTORY = "c heck'out";
 const DAEMON_BINARY_NAME = 'key-helper-service';
 
 /**
+ Directory name of the KWin script package inside the checkout.
+ */
+const KWIN_SCRIPT_DIRECTORY = 'kwin-script';
+
+/**
  Filename of the autostart entry the install writes.
  */
 const AUTOSTART_FILE_NAME = 'key-helper-service.desktop';
@@ -57,6 +67,16 @@ const AUTOSTART_FILE_NAME = 'key-helper-service.desktop';
  Path of the autostart directory, relative to the home directory.
  */
 const AUTOSTART_RELATIVE_DIRECTORY = '.config/autostart';
+
+/**
+ Path of the KWin scripts directory, relative to the home directory.
+ */
+const KWIN_SCRIPTS_RELATIVE_DIRECTORY = '.local/share/kwin/scripts';
+
+/**
+ Name of the symlink the KWin script is installed as.
+ */
+const KWIN_SCRIPT_LINK_NAME = 'key-helper-kwin';
 
 /**
  Prefix of the entry's `Exec` key.
@@ -437,6 +457,216 @@ await describe({
               ),
               'utf8',
             )).toBe(buildAutostartDesktopEntry({ binPath: '/opt/key-helper-service', }));
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: reconcileKwinScriptLink.name,
+      children: [
+        it({
+          name: 'creates the link when nothing is there',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Target the link must point at.
+             */
+            const kwinTarget = join(
+              folder.path,
+              'checkout',
+              KWIN_SCRIPT_DIRECTORY,
+            );
+            /**
+             Path the link must occupy.
+             */
+            const linkPath = join(
+              folder.path,
+              KWIN_SCRIPT_LINK_NAME,
+            );
+            await reconcileKwinScriptLink({ linkPath, kwinTarget, });
+            expect(await readlink(linkPath)).toBe(kwinTarget);
+          },
+        }),
+        it({
+          name: 'replaces a link that points somewhere else',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Target the link must end up pointing at.
+             */
+            const kwinTarget = join(
+              folder.path,
+              'checkout',
+              KWIN_SCRIPT_DIRECTORY,
+            );
+            /**
+             Path the link must occupy.
+             */
+            const linkPath = join(
+              folder.path,
+              KWIN_SCRIPT_LINK_NAME,
+            );
+            await mkdir(join(
+              folder.path,
+              'stale',
+              KWIN_SCRIPT_DIRECTORY,
+            ), { recursive: true, },);
+            await reconcileKwinScriptLink({
+              linkPath,
+              kwinTarget: join(
+                folder.path,
+                'stale',
+                KWIN_SCRIPT_DIRECTORY,
+              ),
+            });
+            await reconcileKwinScriptLink({ linkPath, kwinTarget, });
+            expect(await readlink(linkPath)).toBe(kwinTarget);
+          },
+        }),
+        it({
+          name: 'leaves an already correct link alone',
+          fn: async ctx => {
+            await using folder = await makeFolder();
+            /**
+             Target the link points at.
+             */
+            const kwinTarget = join(
+              folder.path,
+              'checkout',
+              KWIN_SCRIPT_DIRECTORY,
+            );
+            /**
+             Path the link occupies.
+             */
+            const linkPath = join(
+              folder.path,
+              KWIN_SCRIPT_LINK_NAME,
+            );
+            await reconcileKwinScriptLink({ linkPath, kwinTarget, });
+            /** Recorder over the destination info records are written to. */
+            const standardOutput = ctx.sinon.spy(process.stdout, 'write');
+            /** Recorder over the destination debug and error records use. */
+            const standardError = ctx.sinon.spy(process.stderr, 'write');
+            await reconcileKwinScriptLink({ linkPath, kwinTarget, });
+            await flushLogs();
+            /**
+             Log lines saying the link was already correct.
+             */
+            const unchanged = [
+              ...standardOutput.args,
+              ...standardError.args,
+            ]
+              .map(function lineText(call: readonly unknown[]): string {
+                return String(call[0]);
+              })
+              .filter(function namesCorrectLink(line: string): boolean {
+                return line.includes('link already correct');
+              });
+            expect(unchanged).toHaveLength(1);
+            expect(await readlink(linkPath)).toBe(kwinTarget);
+          },
+        }),
+        it({
+          name: 'reports a path it cannot inspect instead of recreating it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Regular file standing where the link's parent directory should be,
+             so the entry inside it cannot be inspected (ENOTDIR).
+             */
+            const blockedParent = join(
+              folder.path,
+              'blocked',
+            );
+            await writeFile(
+              blockedParent,
+              '',
+              'utf8',
+            );
+            let caught: unknown;
+            try {
+              await reconcileKwinScriptLink({
+                linkPath: join(
+                  blockedParent,
+                  KWIN_SCRIPT_LINK_NAME,
+                ),
+                kwinTarget: join(
+                  folder.path,
+                  KWIN_SCRIPT_DIRECTORY,
+                ),
+              });
+            } catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(InstallError);
+            expect((caught as Error).message).toContain('ENOTDIR');
+            expect((caught as Error).message).toContain(blockedParent);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: installKeyHelper.name,
+      children: [
+        it({
+          name: 'links the script, writes the entry and enables the script',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Stand-in checkout holding the script package and the binary.
+             */
+            const checkout = join(
+              folder.path,
+              AWKWARD_CHECKOUT_DIRECTORY,
+            );
+            await mkdir(
+              join(
+                checkout,
+                KWIN_SCRIPT_DIRECTORY,
+              ),
+              { recursive: true, },
+            );
+            /**
+             Home directory the install writes into.
+             */
+            const homeDirectory = join(
+              folder.path,
+              'home',
+            );
+            await mkdir(homeDirectory);
+            /** Enablement calls the install made. */
+            const enabled: number[] = [];
+            await installKeyHelper({
+              homeDirectory,
+              packageDirectory: checkout,
+              enableKwinScript: function enableKwinScript(): void {
+                enabled.push(enabled.length);
+              },
+            });
+            expect(
+              await readlink(join(
+                homeDirectory,
+                KWIN_SCRIPTS_RELATIVE_DIRECTORY,
+                KWIN_SCRIPT_LINK_NAME,
+              )),
+            ).toBe(join(
+              checkout,
+              KWIN_SCRIPT_DIRECTORY,
+            ));
+            expect(await readFile(
+              join(
+                homeDirectory,
+                AUTOSTART_RELATIVE_DIRECTORY,
+                AUTOSTART_FILE_NAME,
+              ),
+              'utf8',
+            )).toBe(buildAutostartDesktopEntry({
+              binPath: join(
+                checkout,
+                DAEMON_BINARY_NAME,
+              ),
+            },));
+            expect(enabled).toHaveLength(1);
           },
         }),
       ],

@@ -44,6 +44,7 @@ export {
  */
 export {
   CommandFailedError,
+  InstallError,
   KeyHelperError,
   NoAppIdentityError,
   NoNvimSocketError,
@@ -52,13 +53,15 @@ export {
 } from './errors.ts';
 
 /**
- The autostart entry the install writes.
+ The install steps: the KWin script link and the autostart entry.
 
  @internal
  */
 export {
   buildAutostartDesktopEntry,
   desktopEntryQuote,
+  installKeyHelper,
+  reconcileKwinScriptLink,
   writeAutostartEntry,
 } from './install.ts';
 
