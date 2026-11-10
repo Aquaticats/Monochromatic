@@ -653,7 +653,7 @@ content-addressing cannot work for `get` (no value to hash),
 the floor when no behavior change is wanted,
  acceptable only because memoize never passes empty keys.
 
-#### Resolution, 2026-11-10T11:21:15-05:00: empty keys are rejected
+#### Empty keys are rejected (2026-11-10T11:21:15-05:00)
 
 The owner chose the first-ranked option: "Reject empty keys (Recommended)".
 
@@ -665,9 +665,9 @@ Both variants now refuse an empty key in `set`,
 `src/assert-non-empty-key.ts`).
  `delete` joins the two calls the option named because one
 rule for every key-accepting call is cheaper to hold than a rule covering writes and
-reads but not removals;
- no consumer writes empty keys, so nothing readable is lost by
-refusing it.
+reads but not removals.
+ No consumer in the repository passes an empty key, so the
+stricter rule breaks nothing shipped.
 
 The async store's content-addressing feature went with the rejection: `set` hashes
 nothing,
@@ -684,7 +684,6 @@ backend called directly still receives any string,
  so it keeps hashing keys (the
 empty string maps to one well-defined filename) instead of relying on the store's
 guard.
-
 
 ### Hazard 9: a flat per-key directory degrades at large keyspaces
 
