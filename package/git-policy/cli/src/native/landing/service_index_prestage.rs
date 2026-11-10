@@ -358,7 +358,6 @@ pub fn is_made() -> bool {
 /// Why:
 ///  This is the service's end and the idle time between landings, where nothing of a commit waits for the disk;
 /// a landing stands aside from a flush still running rather than calling this.
-
 pub fn discard() {
     if let Some(slot) = take_slot() {
         remove_unused(slot);

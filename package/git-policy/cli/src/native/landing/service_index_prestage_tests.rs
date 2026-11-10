@@ -118,8 +118,12 @@ static FLUSH_MAY_FINISH: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 ///  A control that expects a landing to wait for the flush lets it go only after the lock is taken,
 /// and a landing that waits
 ///  would hold the flush's gate forever;
-/// the ceiling ends such a run instead of hanging it.
-const HOLD_CEILING: Duration = Duration::from_secs(5);
+/// the ceiling ends such a run instead of hanging it,
+/// and it is far past the
+///  cold staging a landing does on this disk (a flush of its own marker, which waits on the whole filesystem's dirty data),
+/// so
+///  a control that reads the held marker's file as still being written is reading a fact and not a race.
+const HOLD_CEILING: Duration = Duration::from_secs(120);
 
 /// What:
 ///  Waits for the commit,
