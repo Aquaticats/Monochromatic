@@ -116,12 +116,20 @@ pub fn land_batch_timed(
     announce: &dyn Announcer,
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
+    // The batch names the worktree it belongs to, and every Git of the landing reads and writes that repository: a Git
+    //  directory beside its work tree, or one an environment variable sent elsewhere, is found in this process only when the
+    //  landing names it (`repository_selection::of_paths`).
+    let named: LandContext = match requests.first() {
+        Some(first) => context.for_the_repository(first.git_dir.as_path(), first.repository.as_path()),
+        None => context.clone(),
+    };
+    let landing: &LandContext = &named;
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
     //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
     //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
     let config_began: Instant = Instant::now();
     let snapshot: Option<ConfigSnapshot> = match requests.first() {
-        Some(first) => read_config_snapshot(&context.git, first.repository.as_path()),
+        Some(first) => read_config_snapshot(&landing.git, first.repository.as_path()),
         None => None,
     };
     let hardens_index: bool = snapshot.as_ref().and_then(ConfigSnapshot::hardens_index).unwrap_or(true);
@@ -133,23 +141,23 @@ pub fn land_batch_timed(
     //  change it (a shallow or graft file elsewhere, another replacement namespace, replacements switched off) are read here from
     //  the environment and configuration the landing's Git children run under, and a configuration that cannot be read counts as one.
     let plain_history: bool = match requests.first() {
-        Some(first) => history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()),
+        Some(first) => history_is_plain(first.common_dir.as_path(), &landing.git, snapshot.as_ref()),
         None => false,
     };
     timing.reads_split.config = config_began.elapsed();
     let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
-    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(landing, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
     if result == Err(FailureCode::StepTooSlow) {
-        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(context, announce, requests, seq);
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(landing, announce, requests, seq);
     }
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
     //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.
     // The record that names this batch's worktree (`service_scratch_ref_marker_of_a_batch.rs`) goes when the reference it names
     //  does, and stays beside a reference a failed landing had to leave where it is.
-    end_scratch_ref_record(context, requests, seq, result.as_ref().err());
+    end_scratch_ref_record(landing, requests, seq, result.as_ref().err());
     let published: bool = match result.as_ref() {
         Ok(outcomes) => any_landed(outcomes.as_slice()),
         Err(_failure) => false,

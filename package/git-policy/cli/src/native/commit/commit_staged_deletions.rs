@@ -58,7 +58,7 @@ pub fn staged_deletions_present_on_disk(
         .map(OsString::from)
         .collect();
     arguments.extend(pathspecs.iter().cloned());
-    let output: GitOutput = run_git_checked(context, &indexed_request(cwd, &arguments, Some(real_index), None))?;
+    let output: GitOutput = run_git_checked(context, &indexed_request(context, cwd, &arguments, Some(real_index), None))?;
     let mut remaining: Vec<Vec<u8>> = Vec::new();
     for path in output.stdout.split(is_nul_byte) {
         if path.is_empty() {

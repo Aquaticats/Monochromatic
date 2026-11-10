@@ -317,7 +317,7 @@ pub fn prepare<F: RepositoryFacts>(
     if !unmerged_files.is_empty() {
         run_git_checked(
             context,
-            &unmerged_staging_request(cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()),
+            &unmerged_staging_request(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()),
         )?;
     }
     part.next("changedPaths");
@@ -364,7 +364,7 @@ pub fn prepare<F: RepositoryFacts>(
     part.next("treeCheck");
     if eligible && !unborn {
         let intended: String = write_private_tree(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path())?;
-        let mut tree_request = indexed_request(cwd, &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()], None, None);
+        let mut tree_request = indexed_request(context, cwd, &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()], None, None);
         tree_request.without_prefix = true;
         let base_tree: String = String::from_utf8_lossy(run_git_checked(context, &tree_request)?.stdout.as_slice()).trim().to_string();
         if base_tree == intended {

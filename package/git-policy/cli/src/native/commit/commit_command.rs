@@ -36,6 +36,7 @@ use crate::policy_trigger::Trigger;
 use crate::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, run_post_commit_gate};
 use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
+use crate::global_arguments::without_directory_changes;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
@@ -198,8 +199,15 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(_) => PathBuf::from("."),
     };
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    // Every Git of this commit runs in `cwd`, the directory the caller's `-C` chain already reached, so the options it forwards
+    //  keep everything the caller wrote but that `-C`: forwarding it moved Git a second time and read the repository beside the
+    //  one the command was in.
+    let context: GitContext = GitContext {
+        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
+        ..command.context.clone()
+    };
     let invocation: CommitInvocation<'_> = CommitInvocation {
-        context: command.context,
+        context: &context,
         environment: command.environment,
         cwd: cwd.as_path(),
         arguments: command.arguments,

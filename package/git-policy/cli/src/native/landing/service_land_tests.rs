@@ -269,7 +269,7 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
     let repo: PathBuf = world.repo.clone();
     let moves: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let counter: Arc<AtomicUsize> = moves.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         if counter.fetch_add(1, Ordering::SeqCst) == 0 {
             move_branch(repo.as_path(), "moved by someone");
         }
@@ -298,7 +298,7 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
     let repo: PathBuf = world.repo.clone();
     let moves: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let counter: Arc<AtomicUsize> = moves.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
         move_branch(repo.as_path(), "moved again");
     }));
@@ -393,7 +393,7 @@ fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     let mut world: World = world("service-land-amend-race");
     let amend: CommitRequest = amend_request(&world, "racing", "racing.txt", "racing\n");
     let repo: PathBuf = world.repo.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         move_branch(repo.as_path(), "moved by someone");
     }));
     assert_eq!(land_batch(&world.context, 1, &[amend]).expect("answered"), vec![Outcome::BranchMoved]);
@@ -536,7 +536,7 @@ fn the_index_lock_is_not_held_while_the_objects_are_made() {
     let seen_held: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let seen_free: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let (held, free, watched) = (seen_held.clone(), seen_free.clone(), lock.clone());
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         let counter: &Arc<AtomicUsize> = if watched.exists() { &held } else { &free };
         counter.fetch_add(1, Ordering::SeqCst);
     }));
@@ -560,7 +560,7 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
     let watched: PathBuf = lock.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         std::fs::remove_file(&watched).expect("the holder lets go while the objects are made");
     }));
     let waited: std::cell::Cell<bool> = std::cell::Cell::new(false);

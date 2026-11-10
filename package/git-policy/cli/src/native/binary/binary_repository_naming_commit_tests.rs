@@ -13,7 +13,8 @@
 //! each case runs the same command line in an identical fixture and compares what landed.
 //!  `require-root` still refuses a commit whose effective directory is not the repository's root,
 //! which is the documented policy
-//! (`doc/decision/cli-git-policies-platform.md`), not a reading of the command line.
+//! (`doc/decision/cli-git-policies-platform.md`),
+//! not a reading of the command line.
 //!  Every fixture repository sits inside a repository of the fixture's own,
 //! so a wrapper that reads the wrong repository reads that one,
 //! never the checkout the fixture lives in.
@@ -37,7 +38,8 @@ struct Named {
     work_tree: PathBuf,
 }
 
-/// The two global options that name `named`, in the order Git reads them.
+/// The two global options that name `named`,
+/// in the order Git reads them.
 fn options_of(named: &Named) -> Vec<String> {
     return vec![
         format!("--git-dir={}", named.git_dir.display()),
@@ -52,7 +54,8 @@ fn options_of(named: &Named) -> Vec<String> {
 ///  The pair names a Git directory outside any work tree,
 /// which is exactly the layout a wrapper that reads the wrong repository mistakes for the one of the directory it
 ///  runs in:
-/// nesting it in a known repository makes that mistake land in the fixture, not in the checkout the fixture sits in.
+/// nesting it in a known repository makes that mistake land in the fixture,
+/// not in the checkout the fixture sits in.
 fn dotfiles(fixture: &Fixture, name: &str) -> Named {
     let holder: PathBuf = repository(fixture, OsStr::new(name));
     let named: Named = Named { git_dir: holder.join("cfg.git"), work_tree: holder.join("wt") };
@@ -132,7 +135,9 @@ fn stores_of(fixture: &Fixture, repo: &Path) -> (String, Vec<String>) {
     return (counted, entries);
 }
 
-/// Whether the fixture's own holder repository, which encloses `directory`, still has its one commit.
+/// Whether the fixture's own holder repository,
+/// which encloses `directory`,
+/// still has its one commit.
 fn holder_unchanged(fixture: &Fixture, directory: &Path) -> bool {
     return git_text(fixture, directory, &["rev-list", "--count", "HEAD"]).trim_end() == "1";
 }
@@ -243,7 +248,9 @@ fn a_commit_named_by_the_git_directory_and_work_tree_variables_lands() {
 /// so `git -C .. commit` from a subdirectory read the repository one level above the one the command was in.
 ///  The control keeps the in-process layout reader off,
 ///  which is the answer Git gives for a repository the reader cannot prove it reads anyway
-///  (a configuration value it cannot type, a link, a Git directory an environment variable names),
+///  (a configuration value it cannot type,
+///  a link,
+///  a Git directory an environment variable names),
 ///  so every Git of the command really starts and the prefix each one receives is measured.
 #[test]
 fn a_commit_moved_by_a_relative_directory_change_lands() {

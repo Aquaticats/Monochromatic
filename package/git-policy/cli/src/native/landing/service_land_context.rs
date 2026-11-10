@@ -14,9 +14,13 @@
 //! ```
 
 use crate::transaction_git::GitContext;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// What the service needs to land:
 /// how to run Git and where the journal lives.
+///
+/// Cloned for one batch or one open record,
+///  which names the repository its Git must read.
+#[derive(Clone)]
 pub struct LandContext {
     /// How to run the real Git,
     /// with the bounds of `child_class.rs`.
@@ -25,7 +29,37 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam:
     /// called after the batch's objects exist and before the branch moves.
-    pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
+    /// Shared rather than moved,
+    /// so a clone of this context keeps the one seam.
+    pub on_objects_written: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
     /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
     pub lock_ceiling: std::time::Duration,
+}
+
+/// Methods over the context one landing round works in.
+impl LandContext {
+    /// What:
+    ///  This service context with every Git of one worktree naming that repository.
+    /// Why:
+    ///   A request and a journal record name the worktree's own Git directory and its work tree,
+    ///  and a service inherits none of the caller's options:
+    ///  a Git directory beside its work tree,
+    ///  or one an environment variable sent elsewhere,
+    ///  is read and written only when the landing names it
+    ///  (`repository_selection::of_paths`).
+    ///  A plain layout is named by nothing,
+    ///  so its in-process reads keep answering.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// context.forTheRepository({ gitDir, workTree });
+    /// ```
+    pub fn for_the_repository(&self, git_dir: &Path, work_tree: &Path) -> LandContext {
+        return LandContext {
+            git: GitContext { global_prefix: crate::repository_selection::of_paths(git_dir, work_tree), ..self.git.clone() },
+            journal: self.journal.clone(),
+            on_objects_written: self.on_objects_written.clone(),
+            lock_ceiling: self.lock_ceiling,
+        };
+    }
 }

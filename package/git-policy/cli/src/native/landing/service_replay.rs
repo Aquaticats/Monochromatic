@@ -289,7 +289,7 @@ pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, obje
             commit_index.display()
         )));
     }
-    let written = run_git_checked(context, &indexed_request(cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
+    let written = run_git_checked(context, &indexed_request(context, cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
     return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
 }
 
