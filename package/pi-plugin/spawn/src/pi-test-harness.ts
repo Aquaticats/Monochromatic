@@ -309,6 +309,7 @@ function fakePiApi(): FakePiApiHarness {
         stderr: '',
         code: 0,
         killed: false,
+        truncated: false,
       },);
     },
     getActiveTools() {

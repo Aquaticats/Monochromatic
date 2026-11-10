@@ -24,10 +24,19 @@ fuzz_target!(|data: &[u8]| {
         let _ = regex.to_bytes();
     }
 
-    // What:  compile the bytes as a whole ruleset, one rule per line, leniently.
+    // What:  compile the bytes as a whole ruleset, one rule per line, leniently, and
+    //        compare the set's two faces on the same bytes.
     // Why:   the real scanner builds a RegexSet from a multi-rule file, dropping rules
-    //        this dialect cannot express; that lenient path must also never panic.
+    //        this dialect cannot express; that lenient path must never panic, and its
+    //        boolean face must report exactly what its attribution face attributes, since
+    //        a disagreement would make the scanner deny a hit it names.
     let lines: Vec<&str> = text.lines().collect();
     let (set, _kept) = forbidden_regex::RegexSet::compile_lenient(&lines);
-    let _ = set.is_match(data);
+    let boolean = set.is_match(data);
+    let attributed = set.matches(data).next().is_some();
+    if boolean != attributed {
+        panic!(
+            "leniently compiled RegexSet disagreed between its faces: is_match={boolean} matches().next().is_some()={attributed}\nline = {data:?}"
+        );
+    }
 });

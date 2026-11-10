@@ -177,6 +177,19 @@ await pipedAsync({
    No array indexing,
    no recursion.
 
+- Hand-written sync and async ladders,
+   on purpose.
+   `runPipe` and `runPipeAsync`
+  dispatch the same arities with the same step labels and must move together;
+   the
+  asynchronous side differs only by awaiting each application.
+   The front half both sides
+  need (logger tagging,
+   argument widening,
+   gap and overflow validation) lives in
+  `prepare-run.ts`,
+   so a fix there lands once.
+
 - Async awaits sequentially and accepts `T | Promise<T>`.
    Steps never run in parallel;
    each result
@@ -205,7 +218,8 @@ await pipedAsync({
 The package ships built output for its `.` entry.
  Source modules are reachable through the `./ts`
 and `./ts/*` exports for exceptional source-level imports.
- The internal core (`run.ts`),
+ The internal core (`run.ts`,
+ `prepare-run.ts`),
  shared
 types (`types.ts`),
  and the error classes (`errors.ts`) are not part of the public surface.

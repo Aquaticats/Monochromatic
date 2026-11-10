@@ -176,3 +176,87 @@ fn existing_destination_file_is_not_replaced() {
     );
     remove(root.as_path());
 }
+
+/// The link path publishes the staged object itself,
+/// so the staged file takes the entry's mode before anything is linked:
+/// a destination never shows a wider mode than its source,
+/// not even in the instant its name first exists.
+#[cfg(unix)]
+#[test]
+fn a_linked_file_never_shows_a_wider_mode_than_its_source() {
+    let root: PathBuf = fixture("install-entry-link-mode");
+    let stage: PathBuf = root.join("stage");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir_all(stage.as_path()).expect("stage");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(stage.join("key.pem"), b"KEY=credential\n").expect("staged");
+    // The staged copy was made with the process's umask, as a copy of a file is, and holds a credential.
+    std::fs::set_permissions(stage.join("key.pem"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("umask mode");
+    create_selected_entry(
+        stage.as_path(),
+        destination.as_path(),
+        &entry(EntryKind::File, 0o600, b"key.pem"),
+    )
+    .expect("installed");
+    let staged: std::fs::Metadata = std::fs::symlink_metadata(stage.join("key.pem")).expect("staged");
+    let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
+    assert_eq!(staged.ino(), installed.ino(), "this control takes the link path");
+    assert_eq!(
+        installed.permissions().mode() & 0o777,
+        0o600,
+        "the destination's first instant is its source's mode"
+    );
+    remove(root.as_path());
+}
+
+/// A destination on another device than the stage,
+/// as a btrfs subvolume beside the stage is:
+/// the link is refused,
+/// and the copy carries the entry's mode at the destination name's first look.
+/// Where no second device is available,
+/// the control states that and checks nothing.
+#[cfg(unix)]
+#[test]
+fn a_copied_file_on_another_device_keeps_its_mode() {
+    let shared_memory: &Path = Path::new("/dev/shm");
+    let stage: PathBuf = fixture("install-entry-other-device-stage");
+    let on_other_device: bool = match (std::fs::metadata(shared_memory), std::fs::metadata(stage.as_path())) {
+        (Ok(inside), Ok(outside)) => {
+            use std::os::unix::fs::MetadataExt as _;
+            inside.dev() != outside.dev()
+        }
+        _ => false,
+    };
+    if !on_other_device {
+        eprintln!("DEVICE CONTROL NOT RUN: /dev/shm is not a separate device here, so the copy fallback of the install had no destination on another device");
+        remove(stage.as_path());
+        return;
+    }
+    let destination: PathBuf = shared_memory.join(format!("monochromatic-install-entry-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(destination.as_path());
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(stage.join("key.pem"), b"KEY=credential\n").expect("staged");
+    std::fs::set_permissions(stage.join("key.pem"), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("stage mode");
+    create_selected_entry(
+        stage.as_path(),
+        destination.as_path(),
+        &entry(EntryKind::File, 0o600, b"key.pem"),
+    )
+    .expect("copied");
+    let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
+    assert_eq!(
+        installed.permissions().mode() & 0o777,
+        0o600,
+        "a copied credential carries its source's mode"
+    );
+    assert_eq!(std::fs::read(destination.join("key.pem")).expect("bytes"), b"KEY=credential\n");
+    let left: Vec<String> = std::fs::read_dir(destination.as_path())
+        .expect("destination")
+        .flatten()
+        .map(|listed| return listed.file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.starts_with(".monochromatic-git-policy-cli-partial-"))
+        .collect();
+    assert_eq!(left, Vec::<String>::new(), "no private name of the copy stays beside the entry");
+    remove(stage.as_path());
+    let _ = std::fs::remove_dir_all(destination.as_path());
+}

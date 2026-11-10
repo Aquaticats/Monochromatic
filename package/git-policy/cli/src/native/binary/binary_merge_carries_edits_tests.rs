@@ -2,12 +2,14 @@
 //!  A `git merge` through the built executable over a checkout that holds the person's own unsaved or staged work
 //!  in the paths the merge changes.
 //! Why:
-//!  The owner's rules (`SPEC.md`, "Merges and commits never fail"):
+//!  The owner's rules (`SPEC.md`,
+//! "Merges and commits never fail"):
 //! "Manual merge should never fail too.",
 //!  "Auto merging should never fail.",
 //! "never discard user data".
 //! Native Git refuses such a merge
-//!  (`error: Your local changes to the following files would be overwritten by merge`, exit 2),
+//!  (`error: Your local changes to the following files would be overwritten by merge`,
+//! exit 2),
 //! and so did the
 //!  wrapper,
 //! which is the answer "Carry edits forward (Recommended)"

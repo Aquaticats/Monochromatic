@@ -138,15 +138,14 @@ export function eraseStrokesAt({
      */
     let prevStrokePy = 0;
 
-    for (let loopIndex = 0; loopIndex
-      < stroke
-        .points
-        .length; loopIndex++) {
+    for (const [loopIndex, strokePoint,] of stroke
+      .points
+      .entries()) {
       /**
-       Skipped when undefined so sparse arrays do not break segment math.
+       Skipped when undefined so sparse arrays do not break segment math;
+       `entries()` reports a hole's missing element as `undefined` too.
        */
-      const p = stroke.points[loopIndex];
-      if (p === undefined)
+      if (strokePoint === undefined)
         continue;
       /**
        Stroke point in pixel space
@@ -155,7 +154,7 @@ export function eraseStrokesAt({
         px,
         py,
       } = denormalizePoint({
-        point: p,
+        point: strokePoint,
         cw,
         ch,
       },);
@@ -205,7 +204,7 @@ export function eraseStrokesAt({
         currentSegment = [];
       }
       else {
-        currentSegment.push(p,);
+        currentSegment.push(strokePoint,);
       }
 
       prevStrokePx = px;

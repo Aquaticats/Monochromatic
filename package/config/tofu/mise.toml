@@ -15,8 +15,11 @@ run = [{ tasks = ["lint:tofu", "lint:oxlint", "lint:types"] }]
 
 [tasks.test]
 run = [
-  { tasks = ["test:storagebox-resolver", "test:hosts-resolver", "test:asn-cache", "test:external-caches"] },
+  { tasks = ["test:unit", "test:storagebox-resolver", "test:hosts-resolver", "test:asn-cache", "test:external-caches"] },
 ]
+
+[tasks."test:unit"]
+extends = "test:unit"
 
 [tasks."test:storagebox-resolver"]
 description = "Smoke-test Storage Box hostname resolver without network access"

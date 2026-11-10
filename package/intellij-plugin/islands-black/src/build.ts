@@ -9,6 +9,7 @@ import {
   type ArchiveEntry,
   listArchiveEntries,
 } from './archive-entries.ts';
+import { ARCHIVE_MODIFIED_AT, } from './archive-timestamp.ts';
 
 //region Archive constants: output path and the directories an install needs
 
@@ -71,8 +72,11 @@ const archiveEntries = (await Promise.all(
 
 /**
  ZIP writer used to create installable JetBrains plugin JAR.
+
+ Every member carries the archive's fixed instant, so two builds of the same
+ inputs produce the same bytes and a rebuild never dirties the committed JAR.
  */
-const zipWriter = new ZipWriter();
+const zipWriter = new ZipWriter({ modifiedAt: ARCHIVE_MODIFIED_AT, },);
 
 /**
  File contents read concurrently before insertion-order-preserving archive writes.
