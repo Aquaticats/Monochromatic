@@ -59,6 +59,15 @@ type V8Coverage = {
  */
 type CoverageCounts = Readonly<Record<string, number>>;
 
+/**
+ One map entry as `Map.entries()` yields it: a package-relative file path and
+ its covered-function count, read-only because the gate only reads it.
+ */
+type CountEntry = readonly [
+  file: string,
+  count: number
+];
+
 //endregion V8 shapes
 
 //region Projection
@@ -230,8 +239,8 @@ async function aggregate(coverageDir: string,): Promise<CoverageCounts> {
     }
   return Object.fromEntries(
     [...counts.entries(),].toSorted(function byKey(
-      left,
-      right,
+      left: CountEntry,
+      right: CountEntry,
     ): number {
       return left[0]
         .localeCompare(right[0],);
@@ -268,7 +277,7 @@ function checkBaseline({
    Human-readable regression lines.
    */
   const regressions = [...baseline.entries(),]
-    .flatMap(function compare([file, expected],): readonly string[] {
+    .flatMap(function compare([file, expected,]: CountEntry,): readonly string[] {
     /**
      Covered functions for this file in the current run.
      */
@@ -287,13 +296,24 @@ function checkBaseline({
 //region Entry
 
 /**
+ Command line both guards quote, naming the two accepted modes.
+ */
+const USAGE = 'usage: node coverage-report.ts <check|write> <coverageDir> <baselinePath>';
+
+/**
  Run mode, coverage directory, and baseline path from the command line.
  */
 const [mode, coverageDir, baselinePath] = process.argv
   .slice(2,);
 if ((mode === undefined) || (coverageDir === undefined)
   || (baselinePath === undefined))
-  throw new Error('usage: node coverage-report.ts <check|write> <coverageDir> <baselinePath>',);
+  throw new Error(USAGE,);
+/**
+ Reject any other spelling before the coverage is read, so a mistyped `write`
+ or `check` reports the usage error instead of running the check gate.
+ */
+if ((mode !== 'check') && (mode !== 'write'))
+  throw new Error(`unknown mode ${mode}; ${USAGE}`,);
 
 /**
  Covered-function counts from this run.
