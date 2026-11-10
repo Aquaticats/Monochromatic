@@ -42,7 +42,7 @@ use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPa
 use crate::merge_isolation_carry_reads::{file_form_awaiting, index_entry_awaiting, raw_bytes_awaiting};
 /// The write plan of one path,
 /// and the one step that lands it.
-use crate::merge_isolation_carry_writes::{CARRY_MARKS, CLEAR_MARKS, FileWrite, IndexWrite, Step, StepResult, write_steps_awaiting};
+use crate::merge_isolation_carry_writes::{Batch, FileWrite, IndexWrite, Step, StepResult, write_steps_awaiting};
 /// The line that says a path written after the capture was left as it is.
 use crate::merge_isolation_carry_notice::note_left_alone;
 /// What stood at a path when it was judged,
@@ -270,7 +270,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
         };
         steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity) });
     }
-    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Some(&CLEAR_MARKS), out).await?;
+    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Batch::Clear, out).await?;
     // A path the write step found newer than its judgement stops the clear: the merge must not run over a checkout this step
     //  only half cleared, and the round is made again on the bytes the person has now.
     return match written.changed.first() {
@@ -384,7 +384,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         };
         steps.push(written);
     }
-    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Some(&CARRY_MARKS), out).await?;
+    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Batch::Carry, out).await?;
     // A path another program wrote while this carry ran keeps its bytes, and the line says so rather than claiming the file
     //  changed under a step that had in fact written it.
     for path in written.changed {
@@ -486,7 +486,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
         };
         steps.push(put_back);
     }
-    let _written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, None, out).await?;
+    let _written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, Batch::Restore, out).await?;
     return Ok(());
 }
 

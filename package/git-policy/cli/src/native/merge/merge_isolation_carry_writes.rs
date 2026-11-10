@@ -163,10 +163,35 @@ pub(crate) struct StepMarks {
 }
 
 /// The markers of the clear's writes.
-pub(crate) const CLEAR_MARKS: StepMarks = StepMarks { index: Phase::MergeClearIndex, file: Phase::MergeClearFile };
+const CLEAR_MARKS: StepMarks = StepMarks { index: Phase::MergeClearIndex, file: Phase::MergeClearFile };
 
 /// The markers of the carry back's writes.
-pub(crate) const CARRY_MARKS: StepMarks = StepMarks { index: Phase::MergeCarryIndex, file: Phase::MergeCarryFile };
+const CARRY_MARKS: StepMarks = StepMarks { index: Phase::MergeCarryIndex, file: Phase::MergeCarryFile };
+
+/// What:
+///  Which step of a carry these writes are,
+///  and what that step does when a path moved after it was judged.
+/// Why:
+///   The clear hands the paths to Git's own two-way update,
+/// so a path that moved after the judgement must stop it with
+///  nothing written and the round made again;
+/// the carry back and a putting back write each path on its own,
+///  so one that moved keeps its bytes and the others still go.
+///  The test-only markers follow the same three steps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Batch = 'clear' | 'carry' | 'restore';
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum Batch {
+    /// The clear before the branch moves.
+    Clear,
+    /// The merge of each layer with the merge.
+    Carry,
+    /// The putting back of a merge that did not land.
+    Restore,
+}
 
 /// What:
 ///  Reach one test marker,
@@ -179,6 +204,24 @@ fn reach_mark(phase: Phase, occurrence: Option<u64>) -> Result<(), CarryFailure>
         Ok(()) => Ok(()),
         Err(error) => Err(CarryFailure::Failed(format!("{error}"))),
     };
+}
+
+impl Batch {
+    /// The markers this batch reaches,
+    /// when a control watches them.
+    fn marks(self) -> Option<&'static StepMarks> {
+        return match self {
+            Batch::Clear => Some(&CLEAR_MARKS),
+            Batch::Carry => Some(&CARRY_MARKS),
+            Batch::Restore => None,
+        };
+    }
+
+    /// Whether a path that moved after the judgement stops the whole batch,
+    /// rather than keeping its own bytes while the rest go on.
+    fn stops_when_a_path_moved(self) -> bool {
+        return self == Batch::Clear;
+    }
 }
 
 /// What:
@@ -230,14 +273,14 @@ fn failure_detail(failure: &CarryFailure) -> String {
 ///  that outlasts it leaves everything as it was.
 ///  Both Git starts are awaited,
 ///  because a start enters the runtime and is refused from inside it.
-///  Every worktree path is checked before the index records go,
-/// and each one is taken aside under a private name
+///  A clear checks every worktree path before its index records go,
+/// and every batch takes each path aside under a private name
 ///  before its own bytes are replaced,
 /// so a file saved in either window is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function writeStepsAwaiting({ context, root, gitDir, steps, out }): Promise<StepResult>;
+/// async function writeStepsAwaiting({ context, root, gitDir, steps, batch, out }): Promise<StepResult>;
 /// ```
 pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
@@ -245,7 +288,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     steps: &[Step],
     wait: LockWait,
-    marks: Option<&StepMarks>,
+    batch: Batch,
     out: &mut W,
 ) -> Result<StepResult, CarryFailure> {
     let waited = match wait {
@@ -258,7 +301,9 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     ) {
         return Err(CarryFailure::IndexHeld(git_dir.join("index.lock").display().to_string()));
     }
-    every_path_is_the_one_judged(root, steps)?;
+    if batch.stops_when_a_path_moved() {
+        every_path_is_the_one_judged(root, steps)?;
+    }
     let width: usize = steps.iter().find_map(entry_width).unwrap_or(40);
     let records: Vec<u8> = index_records(steps, width);
     if !records.is_empty() {
@@ -272,7 +317,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             return Err(CarryFailure::Failed(detail));
         }
     }
-    if let Some(marks) = marks {
+    if let Some(marks) = batch.marks() {
         reach_mark(marks.index, None)?;
     }
     let mut wrote_a_file: bool = false;
@@ -316,7 +361,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         }
         if !matches!(step.worktree, FileWrite::Leave) {
             written += 1;
-            if let Some(marks) = marks {
+            if let Some(marks) = batch.marks() {
                 reach_mark(marks.file, Some(written))?;
             }
         }
