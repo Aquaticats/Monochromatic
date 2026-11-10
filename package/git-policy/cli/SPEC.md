@@ -3603,7 +3603,9 @@ and for a hook on the server that declined the push
 "Offline is retried,
 but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit,
-and the failure record says in plain words which one it was.
+and the failure record says in plain words which one it was,
+and for a decline that a push by hand may succeed if the cause has cleared,
+since a decline says what the server answered then and nothing about a later try.
 The service never asks anyone for a login (owner decision,
 2026-11-07:
 "Never prompt (Recommended)"):

@@ -3025,8 +3025,7 @@ fractional or non-numeric value is ignored.
   Being offline,
   a stall,
   an HTTP 5xx answer of the LFS server and a held lock can pass.
-  Three failures stop the retry until the person's next commit,
-  because trying again would get the same answer
+  Three failures stop the retry until the person's next commit
    (owner decision,
   2026-11-03:
   "Offline is retried,
@@ -3041,7 +3040,10 @@ fractional or non-numeric value is ignored.
   The failure record then starts with plain words that say which one it was,
   above Git's own words
    (for a decline,
-  the message the server's hook printed).
+  the message the server's hook printed),
+  and for a decline it also says that a push by hand may succeed once the cause has cleared:
+  a decline is the server's answer at that moment,
+  never a promise about a later try.
   A rejection by the server whose reason is none of these is tried again,
   and the journal names its line.
   The service never asks anyone for a login.
