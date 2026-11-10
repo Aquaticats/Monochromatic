@@ -193,6 +193,34 @@ fn starts() -> std::io::Result<()> {
     return Ok(());
 }
 
+/// What:
+///  One sentence saying that no thread could be started to `what`,
+/// which limit refused it,
+/// and what frees one.
+/// Why:
+///  A refusal reaches a person as the system's own error (`Resource temporarily unavailable`),
+/// which names
+///  neither what was refused nor anything they can change;
+/// a thread is refused by the process limit,
+/// the
+///  address-space limit or the control group's process limit,
+/// and those are the three things to free.
+/// Every site that
+///  answers a refused start says this one sentence,
+/// so no site is left naming only the system's error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refusedThreadSentence('wait for the step a write started', error); // 'no thread could be started to wait for ... Hint: check `ulimit -u` ...'
+/// ```
+pub fn refused_thread_sentence(what: &str, error: &std::io::Error) -> String {
+    return format!(
+        "no thread could be started to {what}: the system refused the thread ({error}). Hint: check the process limit \
+         (`ulimit -u`), the address-space limit (`ulimit -v`) and the control group's `pids.max`, free some, and run the \
+         command again"
+    );
+}
+
 /// Scoped start controls stay out of the release executable.
 #[cfg(test)]
 #[path = "scoped_start_tests.rs"]

@@ -27,6 +27,8 @@ use crate::service_prepare::{NativeInputs, Ready};
 /// The commit the service built from the request,
 /// when it did.
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
+/// The commit an amend makes when the branch moved under it.
+use crate::service_amend_replayed::AmendedCommit;
 /// The landing report.
 use crate::service_commit_requests_and_landing_report::report_landing;
 /// The result and the after-commit work.
@@ -73,6 +75,9 @@ pub(crate) struct LandedAftermath<'landed> {
     pub(crate) embedded_in_use: Option<&'landed Embedded>,
     /// Whether Git built the commit.
     pub(crate) native: bool,
+    /// The amend this commit was,
+    /// when the branch moved and its changes became a new commit on top of it.
+    pub(crate) amended_as_new: Option<&'landed AmendedCommit>,
     /// Commits earlier attempts prepared and left behind.
     pub(crate) unlanded: &'landed [String],
     /// The identity the request was sent with,
@@ -111,6 +116,7 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
             input.fixed_message,
             input.embedded_in_use,
             input.native,
+            input.amended_as_new,
             input.unlanded,
         ),
     );

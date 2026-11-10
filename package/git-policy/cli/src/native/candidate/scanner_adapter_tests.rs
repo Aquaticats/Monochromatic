@@ -342,7 +342,8 @@ fn listed_rules_files_load_as_one_scanner() {
     );
 }
 
-/// The compiled artifacts of the isolated cache, by path.
+/// The compiled artifacts of the isolated cache,
+/// by path.
 fn artifacts() -> Vec<PathBuf> {
     let cache: PathBuf = PathBuf::from(
         std::env::var_os("FORBIDDEN_STRINGS_CACHE_DIR").expect("isolated cache directory"),
@@ -372,7 +373,8 @@ fn planted_rules(directory: &Path) -> RulesSource {
     };
 }
 
-/// Load `rules` under `access`, naming no control but the fixture.
+/// Load `rules` under `access`,
+/// naming no control but the fixture.
 fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
     match CandidateScanner::load_writing_cache(rules, false, access) {
         Ok(scanner) => return scanner,
@@ -455,7 +457,8 @@ fn a_partial_artifact_is_never_used_body(directory: &Path) {
     );
 }
 
-/// A torn artifact is refused, so the scan uses the rules file.
+/// A torn artifact is refused,
+/// so the scan uses the rules file.
 #[test]
 fn a_partial_artifact_is_never_used() {
     run_isolated(

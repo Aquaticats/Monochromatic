@@ -86,12 +86,7 @@ pub fn name_length(format: ObjectFormat) -> usize {
 
 /// The lower-case hexadecimal spelling of an object name.
 pub fn to_hex(name: &[u8]) -> String {
-    let mut text: String = String::with_capacity(name.len() * 2);
-    for byte in name {
-        text.push(char::from(b"0123456789abcdef"[usize::from(byte >> 4)]));
-        text.push(char::from(b"0123456789abcdef"[usize::from(byte & 15)]));
-    }
-    return text;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(name);
 }
 
 /// The raw object name a hexadecimal spelling of the right length stands for.

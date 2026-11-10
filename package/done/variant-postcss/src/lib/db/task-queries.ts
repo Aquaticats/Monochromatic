@@ -23,6 +23,23 @@ import {
   SQL_SELECT_TASK_BY_ID,
   type TaskRow,
 } from './task-sql.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: search explains why it fell back from the full-text index.
+ */
+const l = tagged({
+  tag: 'done-variant-task-queries',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Fetches a single task row by primary key without mapping.
@@ -230,10 +247,7 @@ export async function searchTasks(searchQuery: string,): Promise<SearchTask[]> {
     },);
   }
   catch (error) {
-    console.error(
-      'Full-text task search failed, using LIKE fallback:',
-      error,
-    );
+    l.warn(`FTS query failed, so the search falls back to LIKE matching: ${caughtValueText(error,)}`,);
     /* oxlint-disable typescript/no-unsafe-type-assertion -- database LIKE query */
     /**
      Fallback LIKE-match rows used when Turso FTS rejects the query syntax or

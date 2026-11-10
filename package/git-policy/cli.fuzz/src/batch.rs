@@ -352,7 +352,7 @@ pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
 /// (`git-policy/cli/src/native/foundation/hexadecimal_of_bytes.rs`):
 ///  `git-policy/cli.fuzz` is a workspace of its own,
 ///  and these digits are not a byte spelled as hexadecimal but a digit chosen by a byte's position
-///  (issue 1672 records the owner's answer that the copy stays closed here).
+///  (the first comment on issue 1672 gives that reason for keeping this copy).
 const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 /// What:

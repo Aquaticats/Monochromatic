@@ -75,7 +75,8 @@ pub struct RecoveryPlace {
 ///  so filling the common field with the worktree's directory would point every reader of it
 ///  at a directory that goes away with the worktree.
 ///  The context carries the invocation's common directory;
-///  one built without it still knows the worktree's Git directory, whose `commondir` names the rest.
+///  one built without it still knows the worktree's Git directory,
+/// whose `commondir` names the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

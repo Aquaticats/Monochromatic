@@ -13,8 +13,19 @@
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { UnknownKeyError } from './errors.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const keysLogger = tagged({ tag: 'kwin-key-helper-keys', },);
+
+//endregion Logging
 
 /**
  Lowercased key token to Linux evdev key code.
@@ -158,6 +169,10 @@ export async function sendKeys(keys: string): Promise<void> {
      Best-effort message extracted from a thrown value of unknown type.
      */
     const message = caughtValueText(error,);
-    console.error(`[key-helper] ydotool/key error: ${message}`);
+    tagged({
+      tag: sendKeys.name,
+      l: keysLogger,
+    },)
+      .error(`ydotool/key error: ${message}`,);
   }
 }

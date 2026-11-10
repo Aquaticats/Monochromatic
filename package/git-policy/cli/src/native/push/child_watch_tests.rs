@@ -1396,3 +1396,55 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
     assert!(failure.to_string().contains("no thread could be started to wait for it"), "the refusal is what this control armed: {failure}");
     assert!(collected, "the step that was left running stayed a zombie after it ended: nothing collected it");
 }
+
+/// What:
+///  A step left running whose waiter thread is refused ends the wait with a sentence that names the limit.
+/// Why:
+///  The step has already started,
+/// so the refusal costs the command the answer and nothing else:
+///  the step runs on and a reaper collects it.
+///  A person who meets this has to be told which limit refused the thread,
+/// because nothing in the command can be changed to work around it.
+/// The refusal is armed rather than made of a real limit,
+/// and it has to be:
+///  the step is a process of this very process,
+/// which `RLIMIT_NPROC` refuses as well,
+/// and the waiter's start comes a moment after the child starts,
+///  so a limit lowered once the child exists
+/// (measured:
+/// the step's number is visible 30 ms after it starts)
+///  never arrives before the start it has to refuse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // arm the refusal, then: expect(watched(...)).rejects.toContain('ulimit -u');
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
+    let directory: PathBuf = crate::test_support::fixture("child-watch-refused-waiter-names-the-limit");
+    let pid_file: PathBuf = directory.join("pid");
+    let release: PathBuf = directory.join("release");
+    let script: PathBuf = directory.join("step.sh");
+    std::fs::write(
+        &script,
+        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+    )
+    .expect("the step");
+    crate::child_watch::refuse_the_next_left_running_waiter(1);
+    let mut command: Command = Command::new("sh");
+    command.arg(script.as_path());
+    let sink: SharedSink = SharedSink::default();
+    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
+    let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
+        .expect_err("no thread could be started to wait for the step");
+    let waited_for_the_number: Instant = Instant::now();
+    while waited_for_the_number.elapsed() < Duration::from_secs(5) && !pid_file.exists() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::fs::write(&release, b"").expect("let the step end");
+    crate::test_support::remove(directory.as_path());
+    let said: String = failure.to_string();
+    assert!(said.contains("no thread could be started to wait for it"), "the refusal is what this control made: {said}");
+    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+}
