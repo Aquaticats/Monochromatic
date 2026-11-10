@@ -262,10 +262,11 @@ Not on `main`.
  fixed on the same branch,
  whose `unreachable_git_dir_proven_gone.rs` ends the plans of a deleted repository.
 The day's evidence for it:
- a service retried two throwaway repositories under
- `${HOME}/temp/agent/lfs-login/proof-scratch-*` at try 60 and climbing,
- every 600 s,
- from `16:24` to `17:41`.
+ two services retried throwaway repositories that no longer exist,
+ `.../lfs-login/proof-scratch-a/.git` and `.../proof-scratch-b/.git`,
+ with `next_try=60 in_seconds=600` at `2026-11-10T17:25:08-05:00`
+ and `next_try=64 in_seconds=600` at `2026-11-10T17:41:34-05:00`,
+ so each try costs 600 s and the plans never end.
 - A round that holds the pushes of its own landing:
  not fixed on `main` and not on either branch.
 `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`
