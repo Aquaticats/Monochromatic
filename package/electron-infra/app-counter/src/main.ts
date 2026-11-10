@@ -27,6 +27,8 @@ import {
   UNPARSEABLE_DOCUMENT_TITLE,
 } from './counter.js';
 
+//region Window and state configuration
+
 /**
  Width of the demo window in density-independent pixels.
  
@@ -80,6 +82,10 @@ const rendererHtmlPath = join(
   'index.html',
 );
 
+//endregion Window and state configuration
+
+//region Wayland compositor switches
+
 /**
  Adds Chromium switches required for pure Wayland operation on Linux.
  
@@ -108,6 +114,10 @@ function configureLinuxWayland(): void {
     .XDG_SESSION_TYPE = 'wayland';
   mainLogger.info('Forced Chromium Ozone platform to Wayland for Linux.',);
 }
+
+//endregion Wayland compositor switches
+
+//region Boundary-test state observation
 
 /**
  Writes test-observable renderer state when the boundary-test state path is set.
@@ -184,6 +194,10 @@ function observeCounterTitleFromEvent({ title, }: { readonly title: string; },):
   })();
 }
 
+//endregion Boundary-test state observation
+
+//region Main window creation
+
 /**
  Creates the main BrowserWindow and loads the renderer HTML entry.
  
@@ -236,6 +250,10 @@ async function createMainWindow(): Promise<BrowserWindow> {
   mainLogger.info('Renderer loaded.',);
   return mainWindow;
 }
+
+//endregion Main window creation
+
+//region App lifecycle
 
 /**
  Logs a failure from an app activation path that Electron does not await.
@@ -349,3 +367,5 @@ configureLinuxWayland();
 app.enableSandbox();
 installAppLifecycleHandlers();
 startElectronCounterApp();
+
+//endregion App lifecycle
