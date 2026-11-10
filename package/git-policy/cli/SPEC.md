@@ -854,6 +854,10 @@ and symbolic links.
 Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
+The traversal that finds those entries never enters a directory whose name begins `.cli-git-worktree-copy-`,
+because that directory is another command's stage container:
+its payload is another worktree's ignored state,
+and a container its owner removes while a walk runs would otherwise end this command with a filesystem error.
 A selection that names repository paths asks about each one as `:(top,literal)<path>`,
 and that listing runs real Git with `--no-literal-pathspecs`,
 so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
@@ -865,8 +869,12 @@ because a live checkout removes and rewrites its
  ignored files while the copy runs:
 a source entry that is gone when its turn comes has nothing left to copy and
  leaves the manifest,
+whether the walk that lists the entries or the copy that fills them finds it gone,
+and a directory the source removed takes the staged entries below it with it,
 an entry that changed under the copy is copied again,
 twice at most,
+and a directory whose permission bits changed has those bits applied instead,
+because its content belongs to the entries below it,
 and an entry that is
  still changing after that is left where it is,
 untouched,

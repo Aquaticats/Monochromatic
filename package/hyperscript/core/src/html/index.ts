@@ -184,6 +184,17 @@ function camelToKebab(property: string,): string {
 }
 
 /**
+ One inline style property and its declared value, as a read-only pair.
+
+ The declaration serializer only reads the pair, so the type states that at the boundary
+ the callback receives it, which the mutable tuple `Object.entries` returns cannot.
+ */
+type StyleEntry = readonly [
+  property: string,
+  value: string,
+];
+
+/**
  Builds an HTML element string from declarative options. Text, attribute
  values, and serialized styles all pass through {@link escapeHtml}; `style`
  property names convert via {@link camelToKebab}.
@@ -234,10 +245,13 @@ function camelToKebab(property: string,): string {
 
   if (style !== undefined) {
     /**
+     Property and value pairs of the inline style, as a read-only view the serializer below only reads.
+     */
+    const styleEntries: readonly StyleEntry[] = Object.entries(style,);
+    /**
      Holds the serialized inline style value so it can be HTML-escaped as a single attribute before insertion.
      */
-    const declarations = Object
-      .entries(style,)
+    const declarations = styleEntries
       .map(function toDecl([property, value,],) {
         return `${camelToKebab(property,)}:${value}`;
       },)

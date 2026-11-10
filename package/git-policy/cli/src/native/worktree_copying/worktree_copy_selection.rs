@@ -18,7 +18,8 @@
 
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
-use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_prune::{Prune, names_a_private_stage};
+use crate::worktree_copy_vanished_entry::went_away;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use std::path::{Path, PathBuf};
 
@@ -199,8 +200,13 @@ fn special_entries(
         } else {
             filesystem_path(source_root, current.as_slice())?
         };
-        let listing = std::fs::read_dir(directory_path.as_path())
-            .map_err(raw_failure_of)?;
+        // A directory the source removed while this walk ran holds nothing to select, and that is no failure: this walk
+        //  visits every directory of the source, so the churn of a live checkout reaches it.
+        let listing = match std::fs::read_dir(directory_path.as_path()) {
+            Ok(listing) => listing,
+            Err(error) if went_away(&error) => continue,
+            Err(error) => return Err(raw_failure(&error)),
+        };
         for listed in listing {
             let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
             let name: Vec<u8> = path_bytes_of(Path::new(entry.file_name().as_os_str())).to_vec();
@@ -209,7 +215,7 @@ fn special_entries(
             } else {
                 join_repository_path(current.as_slice(), name.as_slice())
             };
-            if repository_path == b".git" {
+            if repository_path == b".git" || names_a_private_stage(repository_path.as_slice()) {
                 continue;
             }
             let source_path: PathBuf = filesystem_path(source_root, repository_path.as_slice())?;
@@ -220,9 +226,12 @@ fn special_entries(
             if selected_ancestor {
                 continue;
             }
-            let file_type: std::fs::FileType = entry
-                .file_type()
-                .map_err(raw_failure_of)?;
+            let file_type: std::fs::FileType = match entry.file_type() {
+                Ok(file_type) => file_type,
+                // The entry went away between the listing and this question, so there is nothing of it to select.
+                Err(error) if went_away(&error) => continue,
+                Err(error) => return Err(raw_failure(&error)),
+            };
             // A directory is walked; a file or symbolic link is already selected by Git's listing;
             // anything else is a special entry that needs Git's own ignore answer.
             if file_type.is_dir() {
