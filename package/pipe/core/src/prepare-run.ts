@@ -81,39 +81,30 @@ export function prepareRun({
   /* oxlint-enable typescript/no-unsafe-type-assertion */
 
   /**
-   Value and step slots read exactly once, so a step supplied through a getter runs once.
+   Prepared arguments, spread once so a step supplied through a getter is read only once.
    */
-  const {
-    value,
-    fn1,
-    fn2,
-    fn3,
-    fn4,
-    fn5,
-    fn6,
-    fn7,
-    fn8,
-    fn9,
-    fn10,
-  } = callableArgs;
+  const prepared: PreparedRun = {
+    ...callableArgs,
+    l,
+  };
 
   /**
    Ordered step slots used only for runtime contiguity validation.
    */
   const steps = [
-    fn1,
-    fn2,
-    fn3,
-    fn4,
-    fn5,
-    fn6,
-    fn7,
-    fn8,
-    fn9,
+    prepared.fn1,
+    prepared.fn2,
+    prepared.fn3,
+    prepared.fn4,
+    prepared.fn5,
+    prepared.fn6,
+    prepared.fn7,
+    prepared.fn8,
+    prepared.fn9,
   ] as const;
 
   try {
-    assertNoOverflowStep(fn10,);
+    assertNoOverflowStep(prepared.fn10,);
     assertContiguousSteps(steps,);
   }
   catch (error) {
@@ -121,17 +112,5 @@ export function prepareRun({
     throw error;
   }
 
-  return {
-    value,
-    fn1,
-    fn2,
-    fn3,
-    fn4,
-    fn5,
-    fn6,
-    fn7,
-    fn8,
-    fn9,
-    l,
-  };
+  return prepared;
 }
