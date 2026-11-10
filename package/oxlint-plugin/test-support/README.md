@@ -30,6 +30,11 @@ It is private because the helpers support this monorepo's tests rather than a pu
   de-duplicated rule codes of a diagnostic list.
 - `OxlintOutputParseError`:
   the error `runOxlintFixture` throws when oxlint prints text instead of JSON.
+- `outputFromSpawnError`:
+  the command line and both streams of a failed oxlint spawn,
+  exported so its tests can hand it the failure values a real process never rejects with.
+- `OxlintProcessOutput`:
+  what `outputFromSpawnError` returns.
 
 ## `runOxlintFixture`
 
@@ -120,6 +125,8 @@ The JSON parse failure is its `cause`.
 
 When the failure thrown by the process exposes no standard output as a string,
 the run throws an `Error` whose `cause` is that original failure.
+`outputFromSpawnError` builds that error,
+and it is exported so its tests can drive the failure values a real process never rejects with.
 
 ## Probe plugins
 
