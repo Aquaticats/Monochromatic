@@ -6516,6 +6516,57 @@ which that run did not reach.
   a cheaper fixture,
   or its own bound).
 
+### The worktree-copy install and its notices, after the lifecycle audit (2026-11-09T19:10:00-05:00)
+
+The audit is the worktree-lifecycle run
+(`${HOME}/temp/agent/sonnet-audits/worktree-lifecycle/`),
+reproduced against `7da0abce05`.
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` fixes its findings 1,
+2 and 3,
+each control failing before its fix:
+an install whose destination cannot hard-link the stage now fills a file with no name
+(`O_TMPFILE`,
+or a private name the same copy computes again on a filesystem without one),
+gives it the entry's mode before it can be read,
+and links it into place whole,
+so a credential never stands at a wider mode than its source and a killed copy leaves nothing at a final name
+(`9c160a9f1b`,
+`539ec29235`);
+a copy that truly cannot finish leaves `<identifier>.unfilled` beside its journal,
+which every command names until the worktree is removed or replaced,
+so a half-filled worktree is never forgotten (`84de1c4bcf`);
+a snapshot add whose own swap carried the ignored state no longer prints
+"received no ignored-state copy ... the record of this add stays",
+and a refused add whose destination carries another command's proof no longer promises a record it does not keep
+(`c348d68e25`);
+and a conversion adopts and abandons the empty stage it made and did not record,
+instead of blocking the worktree with a directory only a hand could remove (`36ec6c6aab`).
+The linter's findings on the branch's own files are fixed in `6d59893631`.
+Measured on this host with the built binary and disposable `HOME` and `XDG_RUNTIME_DIR`:
+`s11` sees `.env` at 0600 at the paused look,
+after the `SIGKILL` in that window and after the next command;
+`10` of `10` `SIGKILL`s inside the install (six,
+then four on the merged tree) were resumed whole,
+with no zero-length file,
+no missing entry and an empty journal root;
+`s5` prints no "received no ignored-state copy" line for a snapshot add that carried the state;
+`worktree_copy` ran `352` of `352` and `worktree_add` `27` of `27` on the merged tree,
+Clippy is clean,
+and the binary tests compile.
+`s9` killed `convert-worktree-to-subvolume` in `8` of `8` trials and every rerun finished with exit 0,
+nothing lost or changed,
+nothing left beside the worktree and no temporary in its administrative directory;
+the audit's `5` of `12` exits that left `<wt>.cli-git-converting` behind do not come back here,
+and the window itself is covered by the control that kills the run at the `stage-unrecorded` point.
+Audit findings 3 (a live checkout's ignored churn fails the copy) and 4 (a non-UTF-8 ignored name fails it)
+no longer reproduce here:
+`32942a6940` and the bytes work fixed them on `main`,
+`S2_FILES=1500` two-mutation runs ended `exit=0` with no leftover,
+and a `\xff\xfe.b` name is copied by its bytes.
+Still open:
+the pre-existing `monochromatic-lint` errors in files no commit of this branch changed,
+and the reference-lock judgement above.
+
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
 The target tree is drafted and cross-vendor reviewed in
