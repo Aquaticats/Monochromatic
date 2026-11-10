@@ -41,7 +41,7 @@ use crate::service_work::{Verdict, work_directory};
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_manifest::TrashManifest;
+use crate::worktree_trash_manifest::{TrashManifest, is_trash_name};
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries_awaiting};
 use crate::worktree_path_failure_message::path_failure;
@@ -224,12 +224,18 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 /// Say what sits in the trash parent of `worktree` that nothing will empty.
 /// A directory nothing recorded cannot be proven to be one the leave-out moved,
 /// so it is only named.
+/// Only a directory named the way the wrapper names a trash is a trash:
+/// the parent is kept out of every
+///  commit,
+/// so a person may keep their own directories there,
+/// and a line that called one of those a trash nothing
+///  will empty would send them to delete their own files.
 fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     let Ok(listing) = std::fs::read_dir(&parent) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if accounted.contains(&name) {
+        if accounted.contains(&name) || !is_trash_name(name.as_str()) {
             continue;
         }
         let _told = writeln!(

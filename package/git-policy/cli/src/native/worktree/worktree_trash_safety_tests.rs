@@ -855,7 +855,7 @@ fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
     name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
-    assert!(!said.contains("personal"), "the person's own directory is not called a trash: {said}");
+    assert!(!said.contains(format!("{TRASH_PARENT}/personal").as_str()), "the person's own directory is not called a trash: {said}");
     assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
     remove(root.as_path());
 }
