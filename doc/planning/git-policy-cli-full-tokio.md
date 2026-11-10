@@ -8117,10 +8117,12 @@ The wording of a refusal:
     `service_work` and `landing`,
     1216 of 1216 passed in 33.4 s
     (`CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`).
-    It was run twice,
-    once before the handlers' file was split and once after,
-    with the same result,
-    and `auto_push_reconcile` alone is 84 of 84.
+    It was run three times:
+    once before the handlers' file was split,
+    once after it,
+    and once at the tip of this run,
+    where the refused-settle control joined the selection and 1217 of 1217 passed in 33.1 s.
+    `auto_push_reconcile` alone is 83 of 83.
   - `native:clippy` clean on every target
     (`cargo clippy --locked --offline --all-targets -- -D warnings`).
   - `native:test:binary:host --no-run` builds the binary test target.
