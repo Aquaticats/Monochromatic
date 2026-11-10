@@ -15,6 +15,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { once, } from 'node:events';
 
 import {
   runStructuredJsonRetries,
@@ -31,6 +32,16 @@ const MAX_TOKENS = 16_384;
 
 /** Test timeout that does not govern transport behavior. */
 const TEST_TIMEOUT_MS = 10_000;
+
+/**
+ Attempt timeout that elapses inside one test and leaves the caller signal alone.
+ */
+const ELAPSED_TIMEOUT_MS = 25;
+
+/**
+ Longest wait this suite allows for an abort it expects promptly.
+ */
+const ABORT_WAIT_LIMIT_MS = 1_000;
 
 /** Fixture model consumed only by scripted transport. */
 const MODEL = {
@@ -338,6 +349,34 @@ await describe({
   ],
 },);
 
+/**
+ Wait for one signal to abort, failing the test instead of hanging.
+ 
+ `AbortSignal` timers are unref'd, so the wait holds a ref'd timer: without it
+ an empty event loop ends the run before the deadline can fire.
+ 
+ @param signal - signal expected to abort
+ 
+ @returns nothing once the signal aborts
+ 
+ @example
+ ```ts
+ await waitForAbort(structuredReviewSignal({ timeoutMs: 25 }));
+ ```
+ */
+async function waitForAbort(signal: AbortSignal,): Promise<void> {
+  using keepAlive = {
+    [Symbol.dispose](): void {
+      clearTimeout(timer,);
+    },
+  };
+  /** Ref'd timer that keeps the event loop alive for the unref'd abort timer. */
+  const timer = setTimeout(function holdEventLoop(): void {
+    // The wait itself is the work; this callback only keeps the loop alive.
+  }, ABORT_WAIT_LIMIT_MS,);
+  await once(signal, 'abort', { signal: AbortSignal.timeout(ABORT_WAIT_LIMIT_MS,), },);
+}
+
 await describe({
   name: structuredReviewSignal.name,
   children: [
@@ -354,6 +393,34 @@ await describe({
         },);
         expect(signal.aborted,).toBe(true,);
         expect((signal.reason as Error).message,).toBe('caller cancelled review',);
+      },
+    },),
+    it({
+      name: 'aborts when the attempt timeout elapses without a caller signal',
+      fn: async () => {
+        /** Timeout-only cancellation signal. */
+        const signal = structuredReviewSignal({ timeoutMs: ELAPSED_TIMEOUT_MS, },);
+        await waitForAbort(signal,);
+        expect(signal.aborted,).toBe(true,);
+        /** Reason recorded by the elapsed attempt deadline. */
+        const { name, } = signal.reason as { readonly name?: string; };
+        expect(name,).toBe('TimeoutError',);
+      },
+    },),
+    it({
+      name: 'aborts when the attempt timeout elapses beside a caller signal that never fires',
+      fn: async () => {
+        /** Caller controller that never cancels. */
+        const controller = new AbortController();
+        /** Composite cancellation signal. */
+        const signal = structuredReviewSignal({
+          signal: controller.signal,
+          timeoutMs: ELAPSED_TIMEOUT_MS,
+        },);
+        expect(signal.aborted,).toBe(false,);
+        await waitForAbort(signal,);
+        expect(signal.aborted,).toBe(true,);
+        expect(controller.signal.aborted,).toBe(false,);
       },
     },),
   ],
