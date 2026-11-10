@@ -152,10 +152,11 @@ The decision is made twice and a unit test compares the two over one list of ver
   `goesToCratesIo` and `cratesIoRoute`),
   which the release command,
   the dispatch command and the wait commands use;
-- in shell by the composite action `.github/actions/decide-whether-a-version-goes-to-crates-io`,
-  which every `detect` job of `cargo-publish.yml` runs on its own crate's `Cargo.toml`
+- in JavaScript by the composite action `.github/actions/decide-whether-a-version-goes-to-crates-io`,
+  which each entry of the `publish-crate` matrix of `cargo-publish.yml` runs on the `Cargo.toml` it publishes,
+  and each `create-release` job on the `Cargo.toml` of the version it releases
   (a runner has no Node installation step in those jobs,
-  and an action keeps the shell in one place).
+  and an action keeps the decision in one place).
 
 What a version that does not go to crates.io skips:
 
@@ -165,9 +166,9 @@ What a version that does not go to crates.io skips:
   the provenance attestation of the `.crate`,
   the Trusted Publishing login,
   both `cargo publish` steps,
-  the wait for a `forbidden-strings` version in the index (`gpc-publish-crate`),
-  and the index check of a push of `forbidden-strings`.
-  Each reads `needs.<crate>-detect.outputs.goes_to_crates_io` of its own crate.
+  the wait for the sibling releases the same run publishes,
+  and the index check the `detect` job makes for a pushed version.
+  Each step of the publish matrix reads `steps.label.outputs.goes_to_crates_io` of its own entry.
   The `publish-crate` job itself still runs,
   because each `create-release` job needs it,
   and a skipped job would skip the GitHub release that an alpha exists for.
@@ -692,8 +693,13 @@ the hash is never placed in a `gh --jq` program.
 - `crates-io-version-label.ts` gives a version its label and says whether it goes to crates.io,
   `crates-io-dependency-check.ts` refuses a crates.io release whose dependencies do not,
   and `crates-io-label-gate-workflow.unit.test.ts` checks the decision action,
-  that each of the sixteen crates of `cargo-publish.yml` decides and gates its crates.io steps,
-  and runs the real `detect` script of every crate for alpha,
+  that the crate list of `cargo-publish.yml` names the registry's crates and that its one detect job declares what the
+  jobs read,
+  and runs the workflow's own `detect` and sibling-wait scripts,
+  for a dispatch,
+  a push,
+  a version the index already lists,
+  and alpha,
   beta,
   rc and plain versions
   (`workflow-text.ts` holds the readers of workflow files that the workflow tests share).
