@@ -122,10 +122,10 @@ await describe({
                 ],
               },
             }));
-            expect(registry.get('gated')?.dispatchGate).toEqual([
-              'node',
-              'bin/host-controls.ts',
-            ]);
+            expect(registry.get('gated')?.dispatchGate).toEqual({
+              program: 'node',
+              args: ['bin/host-controls.ts'],
+            });
           },
         }),
         it({

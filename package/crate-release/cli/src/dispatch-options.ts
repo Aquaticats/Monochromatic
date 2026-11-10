@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { buildCommitMessage } from './commit-message.ts';
 import {
   type CrateRegistry,
+  type DispatchGateCommand,
   findCrate,
 } from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
@@ -68,6 +69,43 @@ const dispatchOptionDefinitions = {
   'repo': { type: 'string' },
   'dry-run': { type: 'boolean' },
 } as const;
+
+/**
+ Resolve the crate's dispatch gate into the program call the dispatch runs.
+
+ The gate runs from the crate's own directory, so the paths it names are the crate's, and never the repository root.
+
+ @param gate - the command the crate's registry entry names
+
+ @param root - absolute repository root
+
+ @param crateDirectory - repository-relative directory of the crate
+
+ @returns the program call, ready to run
+
+ @example
+ ```ts
+ gateCall({ gate: { program: 'node', args: ['bin/gate.ts'] }, root: '/repo', crateDirectory: 'package/a/cli' });
+ ```
+ */
+function gateCall({
+  gate,
+  root,
+  crateDirectory,
+}: {
+  readonly gate: DispatchGateCommand;
+  readonly root: string;
+  readonly crateDirectory: string;
+}): ProgramCall {
+  return {
+    program: gate.program,
+    args: gate.args,
+    cwd: resolve(
+      root,
+      crateDirectory
+    ),
+  };
+}
 
 /**
  Read and validate the command line of the dispatch command.
@@ -183,14 +221,11 @@ export function parseDispatchArguments({
       })
     } : {}),
     ...(entry.dispatchGate === undefined ? {} : {
-      dispatchGate: {
-        program: entry.dispatchGate[0],
-        args: entry.dispatchGate.slice(1),
-        cwd: resolve(
-          rootPath,
-          entry.crateDirectory
-        ),
-      }
+      dispatchGate: gateCall({
+        gate: entry.dispatchGate,
+        root: rootPath,
+        crateDirectory: entry.crateDirectory
+      })
     }),
   };
 }
