@@ -123,6 +123,10 @@ three were the fixture service running out of threads under the suite's own para
 and one was the commit path's "inside a write of the commit service" note on standard error in
 `service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes`,
 which `without_wait_notices` does not filter and which fails alone under load.
+One more test timed out at its 300 second bound in that run:
+`fault_trace::the_worktree_copy_kill_list_names_only_calls_the_flow_makes`,
+of the worktree copy,
+whose own suite this branch does not touch.
 
 Limits and unknowns:
 the take's check is the file's identity and then its bytes,
