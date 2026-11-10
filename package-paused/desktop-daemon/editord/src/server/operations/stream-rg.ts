@@ -12,6 +12,19 @@ import { spawn, } from 'node:child_process';
 import type { SearchResult, } from '../../protocol.ts';
 
 /**
+Exit code `rg` reports when it ran correctly and found no match; a search with
+no hits is not a failure.
+*/
+const RG_EXIT_NO_MATCH = 1;
+
+/**
+Characters of `rg` stderr kept for a failure report. Enough for the parse
+error `rg` prints first, bounded so an unreadable tree's per-file complaints
+cannot grow the buffer without limit.
+*/
+const MAX_STDERR_CHARS = 4_096;
+
+/**
  * Spawns `rg` and processes stdout line-by-line via a callback.
  * Kills the child process once `maxResults` results are collected,
  * or when the `signal` is aborted.
@@ -26,7 +39,8 @@ import type { SearchResult, } from '../../protocol.ts';
  *
  * @returns collected search results
  *
- * @throws when `rg` cannot be spawned
+ * @throws Error when `rg` cannot be spawned, or exits with a code above
+ *         {@link RG_EXIT_NO_MATCH}; the message quotes `rg`'s stderr
  *
  * @example
  * ```ts
@@ -72,6 +86,9 @@ export function streamRg({
      * Closure-shared state for the data/close/error handlers below.
      *
      * - `buffer`: partial last line carried between data events.
+     * - `serialised`: the child event handlers mutate these fields from inside one
+     *   closure rather than a function-root `let`.
+     * - `stderr`: diagnostic text `rg` wrote, quoted when it fails.
      * - `resolved`: idempotency guard so close/data races resolve the promise only once.
      *
      * Held in an object so the inner handlers can mutate the same fields without
@@ -79,6 +96,7 @@ export function streamRg({
      */
     const state = {
       buffer: '',
+      stderr: '',
       resolved: false,
     };
 
@@ -94,6 +112,22 @@ export function streamRg({
       proc.kill();
       resolve(results,);
     }
+
+    proc.stderr
+      .on(
+      'data',
+      function handleStderr(chunk: Buffer,) {
+        /**
+         * stderr so far plus this chunk, capped below so per-file complaints
+         * against unreadable paths cannot grow the diagnostic without limit.
+         */
+        const accumulated = state.stderr + chunk.toString('utf8',);
+        state.stderr = accumulated.slice(
+          0,
+          MAX_STDERR_CHARS,
+        );
+      },
+      );
 
     if (signal !== undefined) {
       signal.addEventListener(
@@ -141,7 +175,7 @@ export function streamRg({
 
     proc.on(
       'close',
-      function handleClose() {
+      function handleClose(code,) {
         if (state.buffer
           !== '') {
           /**
@@ -150,6 +184,22 @@ export function streamRg({
           const result = processLine(state.buffer,);
           if (result !== null)
             results.push(result,);
+        }
+
+        if (state.resolved)
+          return;
+
+        if ((code !== null) && (code > RG_EXIT_NO_MATCH)) {
+          state.resolved = true;
+          /**
+           * Diagnostic `rg` wrote, trimmed so the reply carries no padding.
+           */
+          const diagnostic = state.stderr
+            .trim();
+          reject(new Error(
+            `search failed: rg exited with code ${String(code,)}: ${diagnostic}`,
+          ),);
+          return;
         }
 
         finish();
