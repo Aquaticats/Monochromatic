@@ -44,6 +44,26 @@ export class UnknownKeyError extends KeyHelperError {
 }
 
 /**
+ Thrown when a command the daemon ran did not exit successfully: it exited
+ nonzero, a signal ended it, or it could not be started. The message names the
+ command, how it ended, and whatever it wrote to stderr.
+ 
+ @example
+ ```ts
+ throw new CommandFailedError("'ydotool key' exited with code 7");
+ ```
+ */
+export class CommandFailedError extends KeyHelperError {
+  /**
+   @param message - The invocation, how it ended, and its stderr
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = 'CommandFailedError';
+  }
+}
+
+/**
  Thrown when no Neovim listen socket exists, so there is nothing to send input
  to. Callers treat this as "Neovim not running" rather than a hard failure.
  
@@ -78,5 +98,26 @@ export class NoAppIdentityError extends KeyHelperError {
   constructor() {
     super('no app identity provided');
     this.name = 'NoAppIdentityError';
+  }
+}
+
+/**
+ Thrown when neither `$XDG_RUNTIME_DIR` nor the process UID is available, so
+ there is no way to name the directory Neovim writes its listen sockets into.
+ Scanning a guessed path would look in another user's directory, so discovery
+ fails instead.
+ 
+ @example
+ ```ts
+ throw new NoRuntimeDirectoryError();
+ ```
+ */
+export class NoRuntimeDirectoryError extends KeyHelperError {
+  /**
+   Construct with a fixed, descriptive message.
+   */
+  constructor() {
+    super('no runtime directory: neither XDG_RUNTIME_DIR nor a process UID is available');
+    this.name = 'NoRuntimeDirectoryError';
   }
 }
