@@ -17,6 +17,7 @@ import { resolveTerminal, } from './resolve.ts';
 import { NO_TERMINAL, } from './validate.ts';
 
 export { buildCommand, } from './build-command.ts';
+export { parseConfigFiles, } from './config.ts';
 export { expandEscapes, } from './desktop-entry-types.ts';
 export { stripTrailingSlashes, } from './xdg-paths.ts';
 
