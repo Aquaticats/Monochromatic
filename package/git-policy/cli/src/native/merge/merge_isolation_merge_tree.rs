@@ -61,7 +61,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function mergeTree({ session, shape, ends, places, stagedWork }): Promise<{ tree: string; merged: Merged[] }>;
+/// async function mergeTree({ session, shape, ends, places, stagedWork, carrying }): Promise<{ tree: string; merged: Merged[] }>;
 /// ```
 pub fn merge_tree(
     session: &Session,
@@ -69,8 +69,9 @@ pub fn merge_tree(
     ends: (&str, &str, &str),
     places: (&Path, &Path, &[(OsString, OsString)]),
     staged_work: bool,
+    carrying: bool,
 ) -> Result<(String, Vec<Merged>), Bail> {
-    return match crate::lazy_runtime::run_on_runtime(merge_tree_awaiting(session, shape, ends, places, staged_work)) {
+    return match crate::lazy_runtime::run_on_runtime(merge_tree_awaiting(session, shape, ends, places, staged_work, carrying)) {
         Ok(found) => found,
         Err(refusal) => Err(Bail::from(format!("{refusal}"))),
     };
@@ -98,6 +99,7 @@ pub async fn merge_tree_awaiting(
     ends: (&str, &str, &str),
     places: (&Path, &Path, &[(OsString, OsString)]),
     staged_work: bool,
+    carrying: bool,
 ) -> Result<(String, Vec<Merged>), Bail> {
     let (head, target, reference): (&str, &str, &str) = ends;
     let (common_dir, root, environment): (&Path, &Path, &[(OsString, OsString)]) = places;
@@ -122,9 +124,11 @@ pub async fn merge_tree_awaiting(
     match merged.code {
         Some(0) if !tree.is_empty() => return Ok((tree, Vec::new())),
         Some(0) => return Err(Bail::from(String::from("merge-tree printed no tree"))),
-        // A conflict with a clean index is left to native Git, which writes the markers for the person to resolve; the
-        //  second pass then runs on the stopped merge in the worktree.
-        Some(1) if !staged_work => return Err(Bail::Forward(None)),
+        // A conflict with a clean index and nothing to carry is left to native Git, which writes the markers for the person to
+        //  resolve; the second pass then runs on the stopped merge in the worktree. A checkout that holds the person's own work
+        //  in the paths this merge changes cannot be handed to native Git, whose merge refuses such a path outright, so the pass
+        //  runs here and a conflict no resolution settles is refused with the paths named and nothing changed.
+        Some(1) if !staged_work && !carrying => return Err(Bail::Forward(None)),
         Some(1) => {
             // The second pass runs from the top of the worktree with the person's configuration options only.
             let top_context: GitContext = GitContext { global_prefix: config_options(&session.context.global_prefix), ..session.context.clone() };

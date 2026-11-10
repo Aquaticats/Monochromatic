@@ -3424,6 +3424,46 @@ the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
 and the whole is preceded by a bounded wait for `index.lock`.
+
+A merge whose paths hold the person's own work carries it forward
+(owner's answer "Carry edits forward (Recommended)",
+"Merges and commits never fail";
+rules "Manual merge should never fail too."
+and "never discard user data"):
+
+- The bytes of every path the merge changes that differs from `HEAD` in the worktree or the index,
+  untracked files the merge adds included,
+  are written as objects with `git hash-object -w`,
+  the clean-filtered form beside the exact bytes,
+  and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
+  written with an all-zero old value;
+  the merge's record names the commit and every path with its two layers.
+  The objects are written and the ref exists before the first byte of the checkout changes.
+- Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
+  so `git merge --ff-only` takes them as it always did,
+  and a path that changed after the capture stops the step with nothing written.
+- After the branch moved, each layer is merged with the merge's own:
+  the worktree's file form and the index's blob separately,
+  so a staged edit stays staged and an unsaved one stays unsaved.
+  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  a text both sides changed goes through `merge_second_pass`,
+  the pass this package already runs,
+  and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
+  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  person's side whole and are named on standard error with what to do;
+  a path written after the capture is left alone and named.
+  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+- A kill after the clear and before the branch move restores the captured layers,
+  because the record says so and the merge did not land;
+  a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
+  The carry is a function of the captured blobs and the merge commit,
+  so recovery converges on the same bytes from any step.
+
+A path whose worktree entry is a directory,
+and an index that holds unmerged entries,
+are not one edit anybody can merge:
+the command is native Git's whole,
+which refuses such a checkout itself.
 The move the auto-push makes after a published reconcile merge names its branch instead,
 because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
 an ancestry question,
@@ -11509,18 +11549,24 @@ A merge that settling finishes says so on standard error,
 naming the ref it landed on and the merge commit,
 because the command may have been run only to look at the worktree;
 the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
-Settling writes the index only after waiting,
+Settling writes the index only after deciding what another program's `index.lock` allows,
+so a program that holds the index does not end every command in that worktree.
+A merge that already installed part of its checkout waits for the lock,
 bounded and naming the holder,
-for any program's `index.lock`,
-so a program that holds the index does not end every command in that worktree;
-a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
-leaves the record and the checkout as they were,
-and the next command finishes the same merge.
-That leaving alone is for a merge that installed nothing:
-when the merge's index entries or files are already installed and the index stays held,
+and a lock that outlasts `MERGE_LOCK_CEILING` writes nothing:
+the record and the checkout stay as they were,
 the command is stopped and told the lock,
 the record and what is installed,
 because a command that went on would read the half-installed merge as another session's staged work.
+A merge that installed nothing is settled from one look at the lock instead
+(`merge_isolation_recovery_index_lock.rs`):
+nothing of it is in the checkout,
+so a command says where the merge is saved and goes on at once,
+and the next command finishes the merge once the lock is free,
+because the owner's rule is "nothing should ever wait forever or indefinitely".
+A lock whose Git lock PID file names a process that no longer runs is cleared on the commit service's proof of disuse,
+exactly as the merge's own path clears it,
+and the merge goes on rather than every command exiting 2 until the person deletes the file.
 A staged entry for a path the merge changes is judged before the take and written after it,
 so another command that stages one of those paths inside that window replaces a version this command never read:
 the standings are read once,

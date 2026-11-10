@@ -26,6 +26,96 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### OpenAI flagged the review of the merge carry: how should it continue?, asked 2026-11-09T20:03:17-05:00
+
+The merge carry landed on main as `3a1368a777`:
+a `git merge` over a person's unsaved or staged edits now keeps them and finishes,
+as you decided ("Carry edits forward (Recommended)").
+It is not released yet.
+
+To check it,
+the session started one narrow `codex` review asking whether a kill,
+or a write the person saves while the merge runs,
+can lose those edits.
+The provider ended that run with the message the earlier audit got:
+"This content was flagged for possible cybersecurity risk."
+The session did not restart it,
+reword it,
+or hand it to another model.
+
+The run left one script behind,
+`~/temp/agent/codex-runs/review-merge-carry-round-1/reproductions/carry-interruption.ts`.
+The script stops the merge under a debugger at `merge_isolation_carry_apply.rs:555` and asserts these outcomes:
+
+- `write-after-check`:
+  a file the person saves after the carry's check is overwritten.
+- A kill during the carry:
+  the unsaved edit is not put back,
+  while the capture's ref and record are removed all the same.
+
+Nothing shows whether either one happens.
+The run was flagged before it reported a result,
+and the session has not run the script.
+The merge carry's own controls cover a path written after the capture and a merge that did not land,
+each shown failing with its guard removed;
+that is the evidence there is today.
+
+Your standing word is that reviews never block publishing,
+so this does not hold the next alpha unless you say it should.
+
+#### A: the session runs that script here
+
+It reads the script whole,
+runs it on disposable repositories with no model involved,
+and a Pi agent fixes whatever reproduces.
+
+- Pro:
+  answers the exact scenarios,
+  and nothing goes to a provider's filter.
+- Con:
+  the script came from the flagged run,
+  so this carries that run's work forward,
+  which is why the session asks first.
+- Con:
+  covers only these scenarios.
+
+#### B: a Claude Sonnet audit of the same question
+
+This is the `AGENTS.md` `LHZ` route for long reviews.
+
+- Pro:
+  wider than these scenarios.
+- Con:
+  it hands the flagged work to another model,
+  which the session will not do without your word.
+- Con:
+  costs a long run.
+
+#### C: request the access the message names
+
+The message points at "Daybreak access" in the organization's OpenAI settings.
+
+- Pro:
+  would also let the earlier stopped audit continue.
+- Con:
+  only you can do it,
+  and how long it takes is unknown.
+
+#### D: leave it as tested
+
+- Pro:
+  no further work.
+- Con:
+  these scenarios stay unknown on the code that touches unsaved work.
+
+Ranking:
+A > B > C > D,
+because A settles the named scenarios soonest and B then costs far more to cover them;
+B needs no one to wait on a third party,
+which C does;
+and C at least gets an answer,
+which D does not.
+
 ### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
 
 Issue 1540:

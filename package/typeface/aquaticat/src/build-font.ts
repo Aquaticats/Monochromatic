@@ -10,10 +10,7 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import {
-  dirname,
-  resolve,
-} from 'node:path';
+import { resolve, } from 'node:path';
 
 import opentype, { type Glyph, } from 'opentype.js';
 
@@ -39,9 +36,14 @@ import {
 //region Main build
 
 /**
- Directory containing this build script.
+ Directory containing this build script, in filesystem spelling.
+ 
+ `import.meta.dirname` decodes the module URL itself: a URL path
+ (`new URL(import.meta.url).pathname`) percent-encodes spaces and non-ASCII
+ characters, so a checkout under such a directory named a `%20` path that does
+ not exist.
  */
-const scriptDir = dirname(new URL(import.meta.url,).pathname,);
+const scriptDir = import.meta.dirname;
 
 /**
  Absolute path to the master glyph strip SVG.

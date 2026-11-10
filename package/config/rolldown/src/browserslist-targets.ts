@@ -45,14 +45,14 @@ export type BrowserslistImport = BrowserslistResolver | {
 };
 
 /**
- Target runtime family selected by a tsdown preset.
+ Target runtime family selected by a rolldown build flavor.
  
  @example
  ```ts
- const runtime: TsdownTargetRuntime = 'browser';
+ const runtime: TargetRuntime = 'browser';
  ```
  */
-export type TsdownTargetRuntime = 'browser' | 'node';
+export type TargetRuntime = 'browser' | 'node';
 
 /**
  Predicate used before importing generated JSON.
@@ -112,7 +112,7 @@ export type BrowserslistTargetsOptions = {
   /**
    Runtime family whose targets should be returned.
    */
-  readonly runtime?: TsdownTargetRuntime;
+  readonly runtime?: TargetRuntime;
 };
 
 /**
@@ -255,9 +255,9 @@ type LowerTargetArgs = {
  */
 type RuntimeTargetArgs = {
   /**
-   Runtime family requested by tsdown preset.
+   Runtime family requested by the rolldown build flavor.
    */
-  readonly runtime: TsdownTargetRuntime;
+  readonly runtime: TargetRuntime;
   /**
    Target pieces being checked against runtime family.
    */
@@ -274,9 +274,9 @@ type RuntimeTargetArgs = {
  */
 type NormalizeTargetsArgs = {
   /**
-   Runtime family requested by tsdown preset.
+   Runtime family requested by the rolldown build flavor.
    */
-  readonly runtime: TsdownTargetRuntime;
+  readonly runtime: TargetRuntime;
   /**
    Raw target strings returned by Browserslist.
    */
@@ -569,7 +569,7 @@ function rolldownBrowserName(parts: BrowserslistTargetParts,): string {
     return ROLLDOWN_BROWSER_NAMES[parts.browser];
 
   throw new TypeError(
-    `Browserslist target is unsupported by tsdown target mapping: ${parts.original}`,
+    `Browserslist target is unsupported by rolldown target mapping: ${parts.original}`,
   );
 }
 
@@ -672,7 +672,7 @@ function lowerTarget({
  
  @param target - Browserslist target string to convert.
  
- @returns Rolldown target pieces accepted by tsdown.
+ @returns Rolldown target pieces accepted by rolldown's `transform.target`.
  
  @example
  ```ts
@@ -697,11 +697,11 @@ function normalizeBrowserslistTarget(target: string,): RolldownTargetParts {
 }
 
 /**
- Formats Rolldown target pieces as tsdown target string.
+ Formats Rolldown target pieces as a rolldown target string.
  
  @param target - Rolldown target pieces to format.
  
- @returns Target string accepted by tsdown.
+ @returns Target string accepted by rolldown's `transform.target`.
  
  @example
  ```ts
@@ -755,7 +755,7 @@ function lowestTargetsByBrowser(
 /**
  Checks whether normalized target belongs to requested runtime family.
  
- @param runtime - Runtime family requested by tsdown preset.
+ @param runtime - Runtime family requested by the rolldown build flavor.
  
  @param target - Target pieces being checked.
  
@@ -779,7 +779,7 @@ function targetMatchesRuntime({
 /**
  Throws when runtime filtering removes every target.
  
- @param runtime - Runtime family requested by tsdown preset.
+ @param runtime - Runtime family requested by the rolldown build flavor.
  
  @param targets - Runtime-filtered target pieces.
  
@@ -796,13 +796,13 @@ function assertRuntimeTargets({
   runtime,
   targets,
 }: {
-  readonly runtime: TsdownTargetRuntime;
+  readonly runtime: TargetRuntime;
   readonly targets: readonly RolldownTargetParts[];
 },): readonly RolldownTargetParts[] {
   if (targets.length > 0)
     return targets;
 
-  throw new TypeError(`Browserslist config produced no ${runtime} targets for tsdown.`,);
+  throw new TypeError(`Browserslist config produced no ${runtime} targets for rolldown.`,);
 }
 
 /**
@@ -812,9 +812,9 @@ function assertRuntimeTargets({
  
  @param targets - Raw target strings returned by Browserslist.
  
- @param runtime - Runtime family requested by tsdown preset.
+ @param runtime - Runtime family requested by the rolldown build flavor.
  
- @returns Unique tsdown target strings.
+ @returns Unique rolldown target strings.
  
  @example
  ```ts
@@ -881,7 +881,7 @@ function browserslistResolver(imported: BrowserslistImport,): BrowserslistResolv
 //region Public API: target resolution
 
 /**
- Resolves tsdown target strings from generated JSON, falling back to
+ Resolves rolldown target strings from generated JSON, falling back to
  Browserslist, normalizing either source via
  {@link normalizeBrowserslistTargets}.
  
@@ -895,7 +895,7 @@ function browserslistResolver(imported: BrowserslistImport,): BrowserslistResolv
  
  @param runtime - Runtime family whose targets should be returned.
  
- @returns Resolved Browserslist target strings for tsdown.
+ @returns Resolved Browserslist target strings for rolldown.
  
  @example
  ```ts
