@@ -163,7 +163,7 @@ fn the_filling_publishes_a_clean_copy_and_leaves_the_source_alone() {
     assert_eq!(verdict, Verdict::Done, "the filling published the copy");
     let own_of = |build: &Path| -> Vec<String> {
         return std::fs::read_dir(build.join("debug/incremental"))
-            .map(|listing| listing.flatten().filter_map(|each| return each.file_name().into_string().ok()).filter(|name| return name.starts_with("own-")).collect())
+            .map(|listing| return listing.flatten().filter_map(|each| return each.file_name().into_string().ok()).filter(|name| return name.starts_with("own-")).collect())
             .unwrap_or_default();
     };
     assert!(!own_of(source_build.as_path()).is_empty(), "the source checkout's own crate is still built there");

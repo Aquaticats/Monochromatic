@@ -178,3 +178,67 @@ What stays on the add's waiting path is the plan:
 `cargo metadata` for each workspace and its source counterpart,
 which is the 70 metadata runs of the trace,
 and the clean of a workspace whose build state the worktree already has.
+
+## Measured before and after, on one fixture
+
+The fixture is `${HOME}/temp/agent/prewarm-fixture/repo`:
+one Git repository,
+three Cargo workspaces (`package/alpha`, `package/beta`, `package/gamma`,
+each a `[workspace]` with itself as its only member and depending on `serde` and `serde_json`),
+and one pnpm project with a lockfile and a `node_modules`.
+All three workspaces were built in the source checkout first,
+so the repair had three external build directories to fill:
+`d9/f195893300fe47`, `9f/009d21f7be5cf2`, `95/00340344269ece`.
+Each arm is one `git worktree add --detach <dest> HEAD` through a binary built from this repository
+with `cargo build --locked --offline --bin monochromatic-git-policy-cli` (debug profile),
+run under `strace -f -c` with a fresh destination.
+The before binary is the parent commit's tree, extracted with `git archive` and built the same way.
+The fixture is not a btrfs subvolume, so every add took Git's checkout route and copied 27 ignored
+entries, in both arms.
+
+The Cargo repair's own steps, from the add's timing record
+(`<git-common-dir>/monochromatic-git-policy-cli-worktree-add-timing.jsonl`):
+
+- Before, three runs:
+  `cargoCloneTree` 12,758 ms, 12,780 ms and 3,932 ms over three clones,
+  `cargoClean` 6,513 ms, 5,233 ms and 2,665 ms over three workspaces,
+  `repairCargo` 7,641 ms, 6,923 ms and 2,662 ms.
+- After, three runs:
+  no clone and no clean at all,
+  `cargoPrewarmHandOver` 102 ms, 106 ms and 72 ms,
+  `repairCargo` 875 ms, 633 ms and 760 ms.
+
+The system calls of the same six adds, from `strace -f -c`:
+
+- Before: 110,621 calls in 20.18 s of system-call time,
+  84,401 in 9.80 s,
+  and 59,008 in 11.37 s.
+- After: 18,458 calls in 2.69 s,
+  18,450 in 2.27 s,
+  and 18,938 in 4.10 s.
+
+So the add no longer makes the clone's and the clean's 40,000 to 92,000 system calls,
+and the Cargo repair's own time falls from 2.7 to 7.6 s to 0.6 to 0.9 s.
+
+Wall time cannot be attributed to this change on this host, and this document claims no wall-time
+saving from it:
+the six adds took 48.18 s, 54.14 s and 13.28 s before and 4.33 s, 2.52 s and 38.62 s after,
+and the spread comes from steps this change does not touch.
+Two after runs show it:
+`copyIgnored` was 1,225 ms in one and 22,757 ms in the other,
+and the second add's 38.62 s carries a 760 ms Cargo repair.
+Host load, not the repair, decides those seconds,
+and one pair of runs says nothing about them (`NQH`, `QNB`).
+
+What this fixture cannot show is the filling itself:
+no commit service can be started for a repository on this account
+(the hand-over reports that, and the record stays),
+so no staging directory was made in either arm.
+The filling is proven instead by
+`repair::package_repair_prewarm_job::tests::the_filling_publishes_a_clean_copy_and_leaves_the_source_alone`
+which runs the job's own code against a real Cargo workspace:
+the copy is published under the worktree's build directory name,
+the worktree's own crate is cleaned out of it,
+and the source checkout's build directory is untouched.
+
+The records and counts of the six runs are in `${HOME}/temp/agent/prewarm-fixture/measure`.

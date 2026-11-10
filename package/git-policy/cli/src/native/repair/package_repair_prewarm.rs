@@ -124,22 +124,15 @@ fn text_field(entry: &serde_json::Value, name: &str) -> Option<PathBuf> {
 pub fn encode(entries: &[PrewarmEntry]) -> Result<String, String> {
     let mut written: Vec<serde_json::Value> = Vec::with_capacity(entries.len());
     for entry in entries {
-        let text: [(&str, Option<String>); 3] = [
-            ("root", entry.root.to_str().map(String::from)),
-            ("from", entry.from.to_str().map(String::from)),
-            ("to", entry.to.to_str().map(String::from)),
-        ];
-        for (_, value) in &text {
-            if value.is_none() {
-                return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
-            }
+        let (Some(root), Some(from), Some(to)) = (entry.root.to_str(), entry.from.to_str(), entry.to.to_str()) else {
+            return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
+        };
+        let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        for (name, value) in [("root", root), ("from", from), ("to", to)] {
+            fields.insert(String::from(name), serde_json::Value::from(value));
         }
-        written.push(serde_json::json!({
-            "root": text[0].1,
-            "from": text[1].1,
-            "to": text[2].1,
-            "members": entry.members,
-        }));
+        fields.insert(String::from("members"), serde_json::Value::from(entry.members.clone()));
+        written.push(serde_json::Value::Object(fields));
     }
     return Ok(serde_json::Value::Array(written).to_string());
 }
