@@ -63,6 +63,14 @@ task.disable_spec_from_run_scripts = true
 [vars]
 # Monorepo root for task templates that need to reference root-level config files.
 monorepo_root = "{{config_root}}"
+# `mise tasks --all --hidden --json` is intentionally large in this monorepo, so every read of the task list raises
+# execFileSync's default 1 MiB stdout cap; without the raise the read fails as the task graph grows. One declaration
+# keeps the reason and the value together. Interpolated into every task or var that reads the task list. It comes
+# first in this table because mise renders a var with only the vars already defined above it, and the fanout vars
+# below interpolate it.
+mise_tasks_json_max_buffer = """
+const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+"""
 # node -e fanout script: discovers direct child tasks (one `:` level deeper) and
 # runs each as a plain `mise run <child>` subprocess, all in parallel, then fails
 # if any child failed. No `:::` separator or other mise-specific inline sugar:
@@ -76,10 +84,7 @@ const { execFileSync, spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const prefix = `${process.env.MISE_TASK_NAME}:`
 const depth = prefix.split(':').length
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so package fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const children = tasks.map((task) => task.name).filter((name) => name.startsWith(prefix) && name.split(':').length === depth)
 if (children.length === 0) { throw new Error(`no child tasks for ${process.env.MISE_TASK_NAME}`) }
@@ -108,10 +113,7 @@ const { once } = await import('node:events')
 const { availableParallelism } = await import('node:os')
 const taskName = process.env.MISE_TASK_NAME ?? ''
 const suffix = process.env.FANOUT_TASK ?? (taskName.startsWith('//:') ? taskName.slice(3) : taskName)
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so package fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const targets = tasks.map((task) => task.name).filter((name) => name.startsWith('//package/') && name.slice(name.indexOf(':') + 1) === suffix)
 if (targets.length === 0) { throw new Error(`no package tasks matched ${suffix}`) }
@@ -232,6 +234,13 @@ const parseUsageArgs = (raw) => {
   if (current !== null) { argv.push(current) }
   return argv
 }
+"""
+# The deprecated-and-paused tree policy, declared once for every task body that walks the test tree. A second copy
+# let the exclusion of `package-deprecated/` and `package-paused/` drift from this one with nothing to notice.
+# Interpolated into the tasks that walk `**/*.unit.test.ts`; each of them sets
+# `shell = "node --input-type=module-typescript -e"`.
+is_inactive_test = """
+const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
 """
 # Runs test files from their nearest package task root as `node [nodeArgs] <file>`
 # subprocesses, bounded to availableParallelism(), and lists non-zero exits.
@@ -455,7 +464,7 @@ const { join } = await import('node:path')
 const args = parseUsageArgs(process.env.usage_args ?? '')
 const all = (process.env.usage_all ?? '').trim() === 'true'
 if (all && args.length > 0) { throw new Error('--all cannot be combined with file paths') }
-const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
+{{vars.is_inactive_test}}
 let files
 if (args.length === 0) {
   files = []
@@ -769,7 +778,7 @@ const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { glob } = await import('node:fs/promises')
 const args = parseUsageArgs(process.env.usage_args ?? '')
-const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
+{{vars.is_inactive_test}}
 let files
 if (args.length === 0) {
   files = []
@@ -809,10 +818,7 @@ try {
     const parts = first.split('/')
     if (parts.length >= 3 && parts[0] === 'package') {
       const buildTask = `//${parts.slice(0, 3).join('/')}:build`
-      // `mise tasks --all --json` is intentionally large in this monorepo;
-      // raise execFileSync's default 1 MiB stdout cap so package lookup keeps working
-      // as the task graph grows.
-      const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+      {{vars.mise_tasks_json_max_buffer}}
       const allTasks = JSON.parse(execFileSync('mise', ['tasks', 'ls', '--all', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
       if (allTasks.some((task) => task.name === buildTask)) {
         execFileSync('mise', ['run', buildTask], { stdio: 'inherit' })
@@ -1102,10 +1108,7 @@ execFileSync('mise', ['run', 'prepare:pnpm'], { stdio: 'inherit' })
 const prefix = `${process.env.MISE_TASK_NAME}:`
 const depth = prefix.split(':').length
 const pnpmTask = `${prefix}pnpm`
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so prepare fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const children = tasks.map((task) => task.name).filter((name) => name.startsWith(prefix) && name.split(':').length === depth && name !== pnpmTask)
 const processes = children.map((name) => spawn('mise', ['run', name], { stdio: 'inherit' }))
