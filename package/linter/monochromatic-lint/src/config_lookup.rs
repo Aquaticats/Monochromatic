@@ -208,6 +208,133 @@ fn rejected(path: &Path, error: ConfigError) -> ConfigError {
 }
 
 /// What:
+///  How the nearest-configuration walk gets each directory's answer.
+/// Why:
+///  The walk is one algorithm with one owner;
+///  discovery reads a file per directory,
+///  and the executable's store answers from its memo before it reads,
+/// so each contributes only what one directory says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface NearestSource { at(directory: Path): unknown | undefined }
+/// ```
+pub(crate) trait NearestSource {
+    /// The value a directory contributes when it holds a configuration.
+    type Found;
+
+    /// What:
+    ///  Answer for one directory,
+    ///  or absence to continue toward the filesystem root.
+    /// Why:
+    ///  Absence is the only answer that lets the walk continue;
+    ///  a read or parse failure must stop it.
+    fn at(&self, directory: &Path) -> Result<Option<Self::Found>, ConfigError>;
+}
+
+/// What:
+///  The nearest answer up the tree and every directory consulted to reach it.
+/// Why:
+///  A caller that memoizes needs the directories the walk passed through;
+///  a caller that does not memoize ignores them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NearestAnswer<TFound> = { found: TFound | undefined; consulted: Path[] };
+/// ```
+pub(crate) struct NearestAnswer<TFound> {
+    /// The answer of the nearest directory that had one.
+    pub found: Option<TFound>,
+    /// Directories consulted,
+    ///  nearest first,
+    ///  ending with the one that answered.
+    pub consulted: Vec<PathBuf>,
+}
+
+/// What:
+///  Walk a directory's ancestors and return the first answer,
+///  with the directories consulted on the way.
+/// Why:
+///  Nearest-file lookup is one policy:
+///  start at the file's own directory,
+///  take the first configuration found,
+///  and never merge across directories.
+///  One function owns that walk,
+/// so a change to its boundary,
+///  error handling or symlink policy cannot reach one caller and miss another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nearestAbove(directory: Path, source: NearestSource): NearestAnswer<unknown>;
+/// ```
+pub(crate) fn nearest_above<TSource: NearestSource>(
+    directory: &Path,
+    source: &TSource,
+) -> Result<NearestAnswer<TSource::Found>, ConfigError> {
+    let mut consulted: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for ancestor in directory.ancestors() {
+        consulted.push(ancestor.to_path_buf());
+        if let Some(found) = source.at(ancestor)? {
+            return Ok(NearestAnswer {
+                found: Some(found),
+                consulted,
+            });
+        }
+    }
+    return Ok(NearestAnswer {
+        found: None,
+        consulted,
+    });
+}
+
+/// What:
+///  What one directory contributes to discovery:
+///  the configuration file it holds,
+///  read through the injected filesystem.
+/// Why:
+///  The walk decides which directories to ask;
+///  this adapter decides what one directory says,
+/// so the memory-backed tests keep their control over every read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class DirectoryConfiguration { constructor(filesystem: ConfigFilesystem) {} }
+/// ```
+struct DirectoryConfiguration<'filesystem, TFilesystem: ConfigFilesystem> {
+    /// Filesystem the candidate file is read from.
+    filesystem: &'filesystem TFilesystem,
+}
+
+/// What:
+///  Read and parse the configuration file of one directory.
+/// Why:
+///  A malformed nearest configuration must not fall through to an ancestor,
+///  so a parse failure leaves this as an error rather than as absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(directory: Path): ConfigurationSource | undefined;
+/// ```
+impl<TFilesystem: ConfigFilesystem> NearestSource for DirectoryConfiguration<'_, TFilesystem> {
+    /// The parsed configuration of this one directory.
+    type Found = ConfigurationSource;
+
+    /// Read the candidate file and parse it,
+    ///  or report absence when the directory has none.
+    fn at(&self, directory: &Path) -> Result<Option<ConfigurationSource>, ConfigError> {
+        let candidate: PathBuf = directory.join(CONFIG_NAME);
+        let Some(source): Option<String> = self.filesystem.read(&candidate)? else {
+            return Ok(None);
+        };
+        return Ok(Some(selected(
+            candidate,
+            directory.to_path_buf(),
+            source.as_str(),
+        )?));
+    }
+}
+
+/// What:
 ///  Discover one configuration through a supplied filesystem adapter.
 /// Why:
 ///  Explicit config and nearest-ancestor lookup share error handling but not base-directory rules.
@@ -250,16 +377,13 @@ pub(crate) fn discover_with_filesystem(
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // for (const directory of ancestors(dirname(file))) { ... }
+    // const answer = nearestAbove(dirname(path), new DirectoryConfiguration(filesystem));
+    // return answer.found;
     // ```
     if let Some(parent) = path.parent() {
-        for directory in parent.ancestors() {
-            let candidate = directory.join(CONFIG_NAME);
-            if let Some(source) = filesystem.read(&candidate)? {
-                let result = selected(candidate, directory.to_path_buf(), source.as_str())?;
-                return Ok(Some(result));
-            }
-        }
+        let answer: NearestAnswer<ConfigurationSource> =
+            nearest_above(parent, &DirectoryConfiguration { filesystem })?;
+        return Ok(answer.found);
     }
     return Ok(None);
 }
@@ -304,13 +428,10 @@ pub fn load_configuration_at(directory: &Path) -> Result<Option<ConfigurationSou
             "Configuration lookup requires an absolute directory.",
         ));
     }
-    let candidate: PathBuf = directory.join(CONFIG_NAME);
-    let Some(source): Option<String> = NativeConfigFilesystem.read(&candidate)? else {
-        return Ok(None);
-    };
-    let result: ConfigurationSource =
-        selected(candidate, directory.to_path_buf(), source.as_str())?;
-    return Ok(Some(result));
+    return DirectoryConfiguration {
+        filesystem: &NativeConfigFilesystem,
+    }
+    .at(directory);
 }
 
 /// What:
