@@ -1202,3 +1202,60 @@ Why:
   and the commit transaction,
   the direct fix and the ripple rules are the three modules the `#1907` notes name.
  The proposal is the two blocks in the `#1907` entry.
+
+- `#5933`:
+  the same line as `#1911`,
+ `doc/decision/monorepo-manager-per-user-config.md:35`,
+  and the same proposal.
+  The question the issue adds,
+  which module owns that trust model now,
+  has two answers:
+  the allowlist the line names is `default_allowed_worktree_dirs` at
+ `package/git-policy/cli/src/native/invocation/effective_target.rs:218`,
+  read by `classify_effective_target` in the same file and by
+ `package/git-policy/cli/src/native/policy/policy_linked_worktree.rs:126`,
+  and the `trust`,
+ `untrust` and `status` commands are retired commands in
+ `package/git-policy/cli/src/native/invocation/management.rs`,
+  whose explanation says the wrapper reads its settings file as data and runs no repository-supplied code.
+ No trust registry survives under `package/git-policy`:
+ `package/git-policy/cli/src/trust/` was the last of it,
+  and `642b6d72cb` deleted the folder with the TypeScript wrapper.
+
+### What the check ran
+
+- `gh issue view <number> --repo Aquaticats/Monochromatic --json number,title,state,body,comments` for all eight,
+  each of which reports its state as `OPEN`.
+- `rg` for the identifiers and paths the issues quote:
+ `allowed-worktree-dirs`,
+ `apply-policy-patches`,
+ `bump-dependents`,
+ `ensureRegistryRoot`,
+ `ensurePrivateRegistryDirectory`,
+ `TrustStorageError` and
+ `AreAccessRulesProtected`.
+- `git ls-files` and `git log --follow` for the three deleted paths,
+  and `git log -S` for each of the three names and the two task names.
+- every backticked `package/`,
+ `doc/` and root-file path in the four troubleshooting records,
+  tested for existence,
+  with each absence read in its own sentence to see whether it is framed as moved or removed.
+- `git show --name-status --format='' 642b6d72cb -- package/git-policy/cli/src/trust/`:
+ 112 deleted files.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md`:
+  no finding on that file alone,
+  run after every entry added to it.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md doc/troubleshooting/git-policy-auto-push-reconciliation.md`:
+ no finding.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md doc/troubleshooting/git-policy-shadow-lfs.md`:
+ no finding.
+
+### What this section does not do
+
+- It edits no decision record:
+ `doc/decision/private-npm-registry.md` and `doc/decision/monorepo-manager-per-user-config.md` are unchanged,
+  and the four notes wait for the owner.
+- It closes,
+  comments on and edits no issue.
+- It does not reshape `doc/troubleshooting/git-policy-wrapper-launcher-path.md`;
+  the heading change `#4134` still needs is proposed in that entry.
