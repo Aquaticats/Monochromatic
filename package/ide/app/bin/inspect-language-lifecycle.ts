@@ -15,6 +15,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { isProcessNumberName } from './process-number-name.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
 const store = resolve('../../../node_modules/.pnpm');
@@ -88,7 +89,7 @@ const surviving = (recorded: ProcessInfo[]): ProcessInfo[] => {
   return recorded.filter(item => now.some(current => current.pid === item.pid && current.start === item.start));
 };
 // Processes carrying the session marker in their environment, or working inside the fixture.
-const marked = (marker: string): string[] => readdirSync('/proc').filter(name => /^\d+$/.test(name)).flatMap(pid => {
+const marked = (marker: string): string[] => readdirSync('/proc').filter(name => isProcessNumberName(name)).flatMap(pid => {
   let found = false;
   try { found = readFileSync(join('/proc', pid, 'environ'), 'latin1').includes('IDE_LANGUAGE_SESSION=' + marker); } catch { /* another user's process, or it ended */ }
   try { found ||= readlinkSync(join('/proc', pid, 'cwd')).startsWith(base); } catch { /* as above */ }
