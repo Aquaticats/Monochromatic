@@ -14,7 +14,8 @@ mise tools;
    `compile`,
   `compile_lenient`,
    and matching must reject cleanly,
-   never panic or hang.
+   never panic or hang,
+   and the leniently built set's two faces must agree on the same bytes.
 - `fuzz_from_bytes`:
    arbitrary bytes through `Regex::from_bytes` / `RegexSet::from_bytes`.
   The security boundary:
