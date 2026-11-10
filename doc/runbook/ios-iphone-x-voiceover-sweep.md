@@ -122,65 +122,65 @@ test),
  Avalonia and Uno are optional (see What this proves).
 Repeat steps 2 to 8 for each framework in the checklist under What to check.
 
-1. Open the framework's gate app (tap its icon).
-    Expected outcome:
-    the gate's render screen appears (for
-   example **Compose Multiplatform on iOS**,
-    or **WKWebView OK**).
-2. Turn VoiceOver on:
-    **triple-click the side button**.
-    Expected outcome:
-    you hear "VoiceOver on",
-    a focus
-   rectangle appears around the first element,
-    and that element is spoken.
-3. Read the whole screen top to bottom:
-    **two-finger swipe up**.
-    Expected outcome:
-    VoiceOver speaks every visible
-   text item and control in order,
-    then stops.
-    Listen for any item that is silent or spoken as a bare type with
-   no name (for example "button" with no label).
-4. Walk each element one at a time:
-    **swipe right** repeatedly from the top.
-    Expected outcome:
-    each swipe moves
-   the focus rectangle to the next element and speaks it;
-    you can reach the last element and then the status bar
-   without the focus getting stuck (no trap).
-5. For each interactive control,
-    confirm its role and value are spoken.
-    On a control,
-    VoiceOver should append the
-   trait,
-    for example "Increment,
-    button" or a title spoken as a "heading".
-    Expected outcome:
-    the trait word is
-   spoken,
-    not just the label.
-6. Activate an interactive control:
-    with it selected,
-    **double-tap** anywhere.
-    Expected outcome:
-    the action
-   fires and VoiceOver announces the new state.
-    On the Flutter gate,
-    double-tapping **Increment** twice makes the
-   counter speak "1" then "2".
-7. Judge the focus order:
-    was the swipe-right order a sensible reading order (top-to-bottom,
-    leading-to-trailing),
-   with nothing skipped and nothing unreachable.
-    Expected outcome:
-    a clear yes,
-    or a noted specific defect.
-8. Turn VoiceOver off:
-    **triple-click the side button** (you hear "VoiceOver off"),
-    then tell the agent to load
-   the next framework's gate.
-    Record the result for this framework in the checklist below.
+1.  Open the framework's gate app (tap its icon).
+     Expected outcome:
+     the gate's render screen appears (for
+    example **Compose Multiplatform on iOS**,
+     or **WKWebView OK**).
+2.  Turn VoiceOver on:
+     **triple-click the side button**.
+     Expected outcome:
+     you hear "VoiceOver on",
+     a focus
+    rectangle appears around the first element,
+     and that element is spoken.
+3.  Read the whole screen top to bottom:
+     **two-finger swipe up**.
+     Expected outcome:
+     VoiceOver speaks every visible
+    text item and control in order,
+     then stops.
+     Listen for any item that is silent or spoken as a bare type with
+    no name (for example "button" with no label).
+4.  Walk each element one at a time:
+     **swipe right** repeatedly from the top.
+     Expected outcome:
+     each swipe moves
+    the focus rectangle to the next element and speaks it;
+     you can reach the last element and then the status bar
+    without the focus getting stuck (no trap).
+5.  For each interactive control,
+     confirm its role and value are spoken.
+     On a control,
+     VoiceOver should append the
+    trait,
+     for example "Increment,
+     button" or a title spoken as a "heading".
+     Expected outcome:
+     the trait word is
+    spoken,
+     not just the label.
+6.  Activate an interactive control:
+     with it selected,
+     **double-tap** anywhere.
+     Expected outcome:
+     the action
+    fires and VoiceOver announces the new state.
+     On the Flutter gate,
+     double-tapping **Increment** twice makes the
+    counter speak "1" then "2".
+7.  Judge the focus order:
+     was the swipe-right order a sensible reading order (top-to-bottom,
+     leading-to-trailing),
+    with nothing skipped and nothing unreachable.
+     Expected outcome:
+     a clear yes,
+     or a noted specific defect.
+8.  Turn VoiceOver off:
+     **triple-click the side button** (you hear "VoiceOver off"),
+     then tell the agent to load
+    the next framework's gate.
+     Record the result for this framework in the checklist below.
 
 ## What to check
 

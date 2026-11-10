@@ -301,31 +301,31 @@ No soft score can offset a hard-gate failure.
 
 ## Assessment sequence
 
-1. Inventory every parser entry point,
-   caller,
-   behavior branch,
-   test,
-   and public diagnostic contract in `package/git-policy/cli/`.
-2. Freeze hard constraints and equal-weight soft criteria from measured repository evidence.
-3. Freeze and run the CAC-only discovery query schedule.
-4. Screen CAC through license,
-   provenance,
-   security,
-   platform,
-   source,
-   maintenance,
-   and auditability gates.
-   Use the incumbent only for replacement parity.
-5. Clone serious external candidates under private `~/temp/agent/` paths and inspect the consumed source paths.
-6. Validate finalists equally,
-   then exercise relevant cli-git boundaries in secret-free disposable fixtures.
-7. Score validated finalists,
-   run sensitivity checks,
-   and publish pros,
-   cons,
-   a complete ranking,
-   and either a recommendation or an explicit no-recommendation result.
-8. Synchronize this handover after each material evidence phase and complete the CAC-only vet report before concluding.
+1.  Inventory every parser entry point,
+    caller,
+    behavior branch,
+    test,
+    and public diagnostic contract in `package/git-policy/cli/`.
+2.  Freeze hard constraints and equal-weight soft criteria from measured repository evidence.
+3.  Freeze and run the CAC-only discovery query schedule.
+4.  Screen CAC through license,
+    provenance,
+    security,
+    platform,
+    source,
+    maintenance,
+    and auditability gates.
+    Use the incumbent only for replacement parity.
+5.  Clone serious external candidates under private `~/temp/agent/` paths and inspect the consumed source paths.
+6.  Validate finalists equally,
+    then exercise relevant cli-git boundaries in secret-free disposable fixtures.
+7.  Score validated finalists,
+    run sensitivity checks,
+    and publish pros,
+    cons,
+    a complete ranking,
+    and either a recommendation or an explicit no-recommendation result.
+8.  Synchronize this handover after each material evidence phase and complete the CAC-only vet report before concluding.
 
 ## Evidence log
 

@@ -1213,37 +1213,37 @@ candidate.
 Every route that gives candidates to the planner,
 traced in the code:
 
-1. Direct check or fix.
-   `management.rs:445` builds `CandidateRequest::Direct(scope)`.
-   `prepare_candidates` (`candidate_prediction.rs:480`) builds one store whose prefix is the global arguments
-   plus `--no-literal-pathspecs` (`:481-483`).
-   `projected_scope` (`candidate_prediction.rs:385`) stages the selection with that same prefix (`:486-491`),
-   and `scope_candidates` (`candidate_stage.rs:482`) turns the entries of `ls-files --stage -- <pathspecs>`
-   (`candidate_prediction.rs:405`,
-   `candidate_store.rs:407-420`) into records that are `Added` or `Modified`.
-   The listing reads `ls-files --stage -- :/` from the same store,
-   prefix and private index.
-   The staging is the only index write,
-   and it finishes before either read.
-   An entry matched by the pathspecs is an entry of `:/`,
-   so every candidate is listed.
-   A non-zero stage is refused on both sides (`candidate_stage.rs` `UnmergedPath`,
-   `dependent_version_lifecycle.rs:172`).
-   Direct fix passes reuse the same prepared store (`policy_content.rs:308`),
-   so they follow this route.
-2. Forwarded `git add`.
-   `wrapped_command.rs:297` builds `CandidateRequest::Add`,
-   and the forwarded stage runs with
-   `Trigger::PreForward` (`wrapped_command.rs:352`).
-   `check_dependent_version` returns clean for that trigger before it reads any candidate
-   (`policy_dependent_version.rs:228-230`).
-   Add records can contain `Deleted` from `delta_candidates` (`candidate_stage.rs:416`),
-   but they never reach the
-   filter.
-3. Forwarded `git commit`.
-   Only the `add` branch sets candidates (`wrapped_command.rs:296-299`),
-   and the trigger is `PreForward`,
-   so the planner returns clean.
+1.  Direct check or fix.
+    `management.rs:445` builds `CandidateRequest::Direct(scope)`.
+    `prepare_candidates` (`candidate_prediction.rs:480`) builds one store whose prefix is the global arguments
+    plus `--no-literal-pathspecs` (`:481-483`).
+    `projected_scope` (`candidate_prediction.rs:385`) stages the selection with that same prefix (`:486-491`),
+    and `scope_candidates` (`candidate_stage.rs:482`) turns the entries of `ls-files --stage -- <pathspecs>`
+    (`candidate_prediction.rs:405`,
+    `candidate_store.rs:407-420`) into records that are `Added` or `Modified`.
+    The listing reads `ls-files --stage -- :/` from the same store,
+    prefix and private index.
+    The staging is the only index write,
+    and it finishes before either read.
+    An entry matched by the pathspecs is an entry of `:/`,
+    so every candidate is listed.
+    A non-zero stage is refused on both sides (`candidate_stage.rs` `UnmergedPath`,
+    `dependent_version_lifecycle.rs:172`).
+    Direct fix passes reuse the same prepared store (`policy_content.rs:308`),
+    so they follow this route.
+2.  Forwarded `git add`.
+    `wrapped_command.rs:297` builds `CandidateRequest::Add`,
+    and the forwarded stage runs with
+    `Trigger::PreForward` (`wrapped_command.rs:352`).
+    `check_dependent_version` returns clean for that trigger before it reads any candidate
+    (`policy_dependent_version.rs:228-230`).
+    Add records can contain `Deleted` from `delta_candidates` (`candidate_stage.rs:416`),
+    but they never reach the
+    filter.
+3.  Forwarded `git commit`.
+    Only the `add` branch sets candidates (`wrapped_command.rs:296-299`),
+    and the trigger is `PreForward`,
+    so the planner returns clean.
 
 On route 1 every candidate is listed by construction,
 and on routes 2 and 3 the filter is never reached.

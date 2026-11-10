@@ -1,35 +1,43 @@
 //! What:
-//!  The disposal of the trash a snapshot's leave-out made:
-//! hand it to the commit service as a work item,
-//! or empty it here when
-//!  the service cannot be reached,
-//! and the service's handler.
-//! Both delete only the directory the leave-out recorded and only
-//!  the entries it recorded,
-//! found by walking down from the worktree's handle without following a link.
+//!  The emptying of the trash a snapshot's leave-out made:
+//! what a trash is,
+//! how the commit service's handler deletes it,
+//! and how every later command
+//!  names a trash nothing will empty.
+//! The deletion takes only the directory the leave-out recorded and only the
+//!  entries it recorded,
+//! found by walking down from the worktree's handle without following a link,
+//! and at the lowest I/O
+//!  priority Linux offers.
 //! Why:
 //!  A name of forty hexadecimal digits proves nothing about who made a directory,
 //! and a path string is resolved again by every
 //!  call that takes it.
 //! The manifest says which objects the leave-out made and moved;
-//! the disposal opens each directory on the
+//! the deletion opens each directory on the
 //!  way by one plain name below the handle of the one above,
 //! compares identities,
 //! and leaves anything else alone with a
 //!  reason.
 //! A record stays until the trash is gone or the service has taken it,
 //! so a failure is never a silent success.
+//! The add never waits for any of this (`worktree_trash_hand_over.rs` hands the trash over):
+//! the
+//!  service empties one trash at a time for a repository,
+//! at the idle I/O class,
+//! so concurrent adds do not delete at
+//!  once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await disposePendingTrash({ context, destination, gitDir, trash, notices }); // throws the reason the trash stays
+//! emptyTrash(item); // the service's handler, and the reason a trash stays
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
+use crate::idle_io_priority::with_idle_io_priority;
 use crate::service_work::{Verdict, work_directory};
-use crate::transaction_git::GitContext;
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
@@ -39,9 +47,8 @@ use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
-use std::os::unix::ffi::OsStrExt as _;
-use std::sync::Arc;
 use std::io::Write;
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -61,97 +68,71 @@ const POINTER_LIMIT: u64 = 64 * 1024;
 
 /// What:
 ///  A trash the emptying left where it is,
-/// and whether a removal that names it would delete only what the snapshot made.
+/// with the reason it gives for every step it would not take.
 /// Why:
-///   The line the person reads must never hand them a command that deletes what the emptying
-///  deliberately kept:
-/// a directory under the recorded name that the snapshot did not make,
-/// an entry that
-///  is no longer the object the leave-out moved there,
+///   A directory under the recorded name that the snapshot did not make,
+/// an entry that is no longer the object
+///  the leave-out moved there,
 /// and a file somebody put in the trash all stay,
-///  so the line may give no removal command for them.
-/// A step that could not finish leaves what it did
-///  not examine where it is,
-/// so a trash whose contents were not shown to be the snapshot's own is
-///  never called the snapshot's either.
-/// The one case that keeps the command is the trash directory the
-///  snapshot made,
-/// empty,
-/// which only its parent's permissions kept from being removed;
-/// `rm --recursive
-///  --force` on it deletes exactly what the snapshot made.
+/// so the reason names what is there and the
+///  service reports what it did not delete.
+/// A step that could not finish leaves what it did not examine where it is,
+///  and the reason says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TrashLeft = { reason: string; onlyTheSnapshots: boolean };
+/// type TrashLeft = { reason: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrashLeft {
     /// Why the trash stays,
     /// naming what is in it.
     pub reason: String,
-    /// Whether everything the trash holds is what the snapshot made,
-    /// so a recursive removal of its path deletes nothing else.
-    pub only_the_snapshots: bool,
 }
 
 impl TrashLeft {
     /// What:
-    ///  A refusal with the reason it gives,
-    /// for a trash nothing showed to hold only the snapshot's own directories.
+    ///  A refusal with the reason it gives.
     /// Why:
-    ///   A step that could not finish leaves what it did not examine where it is,
-    /// and an unexamined
-    ///  directory is never called the snapshot's.
+    ///   Every reason the emptying answers with is the same shape,
+    /// so the service's line and the records cannot disagree
+    ///  about one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const kept = (reason) => ({ reason, onlyTheSnapshots: false });
+    /// const kept = (reason) => ({ reason });
     /// ```
     fn kept(reason: String) -> TrashLeft {
-        return TrashLeft { reason, only_the_snapshots: false };
-    }
-
-    /// What:
-    ///  A refusal of the empty trash directory the snapshot made,
-    /// which a refusal of its parent's permissions kept.
-    /// Why:
-    ///   Everything the trash held is gone,
-    /// so nothing below it is anybody else's and the
-    ///  removal command names only what the snapshot made.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const keptEmptyTrash = (reason) => ({ reason, onlyTheSnapshots: true });
-    /// ```
-    fn kept_empty_trash(reason: String) -> TrashLeft {
-        return TrashLeft { reason, only_the_snapshots: true };
+        return TrashLeft { reason };
     }
 }
 
 /// What:
-///  A snapshot's trash waiting for the disposal:
+///  A snapshot's trash waiting for the commit service:
 /// the worktree that holds it,
-/// its administrative directory,
-/// what the
-///  leave-out moved,
+/// the repository's common
+///  directory that its record is written under,
+/// what the leave-out moved,
 /// and whether the person asked for silence.
 /// Why:
-///   The add hands it to the lifecycle,
-/// which empties it beside the package repair instead of before it,
-/// so the
-///  person waits for the slower of the two and not for both.
+///   The add hands it over and returns;
+/// the record is the common directory's,
+/// because one repository's
+///  service drains one work directory after another and so empties one trash at a time,
+/// whichever
+///  worktree holds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PendingTrash = { destination: string; gitDir: string; manifest: TrashManifest; quiet: boolean };
+/// type PendingTrash = { destination: string; commonDir: string; manifest: TrashManifest; quiet: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingTrash {
     /// The new worktree that holds the trash.
     pub destination: PathBuf,
-    /// That worktree's administrative directory.
-    pub git_dir: PathBuf,
+    /// The repository's common Git directory,
+    /// whose work directory holds the record and whose service empties it.
+    pub common_dir: PathBuf,
     /// What the leave-out made and moved.
     pub manifest: TrashManifest,
     /// Whether the person's `--quiet` silences the notices of the hand-over.
@@ -159,77 +140,30 @@ pub struct PendingTrash {
 }
 
 /// What:
-///  Empty the trash a snapshot made in the new worktree `destination`,
-/// when it made one,
-///  before the command that made it returns.
+///  Name every trash in this worktree that nothing will empty,
+/// read from the records of the repository's common directory.
 /// Why:
-///   The trash holds the directories the leave-out set aside,
-/// another command's stage container with its
-///  credentials among them,
-/// and it sits inside the new worktree.
-/// While it stands there,
-/// a target commit that no longer
-///  ignores its path makes it untracked,
-/// so `git add --all` in the new worktree stages another command's state.
-///  Handing it to the commit service kept it alive until that service ran,
-/// which is exactly that window,
-/// so the
-///  emptying happens here:
-/// the add waits for it,
-/// beside the package repair (`worktree_copy_after_lock.rs`),
-/// and a trash
-///  that cannot be emptied is reported with its path and the reason and never outlives the command
-/// silently.
-/// A work item of an earlier release that still names a trash is emptied by the same handler
-/// (`empty_trash`),
-/// so a repository that ran one keeps its promise.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await disposePendingTrash({ destination, gitDir, trash, notices }); // throws the reason the trash stays
-/// ```
-pub fn dispose_pending_trash(_context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
-    let Some(manifest) = trash else { return Ok(()) };
-    return empty_before_returning(destination, git_dir, manifest, notices);
-}
-
-/// What:
-///  `dispose_pending_trash` on the process's runtime:
-/// the emptying is the awaited removal,
-/// so a caller that is itself a task of the runtime holds no storage wait.
-/// Why:
-///   The add empties a snapshot's trash beside the package repair,
-/// and both are waits of one task of the runtime
-/// (`worktree_copy_after_lock.rs`);
-/// a lookup or a removal on that task would hold the repair's own waits.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await disposePendingTrash({ destination, gitDir, trash, notices }); // throws the reason the trash stays
-/// ```
-pub async fn dispose_pending_trash_awaiting(_context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
-    let Some(manifest) = trash else { return Ok(()) };
-    return empty_before_returning_awaiting(destination, git_dir, manifest, notices).await;
-}
-
-/// What:
-///  Name every trash in this worktree that nothing will empty.
-/// Why:
-///   A command empties the trash of its own snapshot before it returns (`empty_before_returning`),
-/// so a trash that could not be emptied stays in the worktree,
-/// and nothing else would ever mention it again.
+///   The add hands its trash to the commit service (`worktree_trash_hand_over.rs`),
+/// which empties it after the command returns,
+/// so a trash still there is one whose service could not empty it,
+/// and nothing else mentions it again.
 /// The trash is a full copy of the directories the snapshot left out,
 /// so one that stays is disk a person cannot find without being told.
 /// A record an earlier release wrote accounts for its trash while the service still works on it,
 /// because its own handler empties that one (`empty_trash`);
 /// the service settles a trash it cannot empty as failed and never tries it again,
 /// so a failed record accounts for nothing here.
+/// A record that is still pending after one claim lease accounts for nothing either:
+/// a service woken for the repository claims a record within the wake that asked it to,
+/// so a pending record older than
+///  `CLAIM_LEASE` is one no service ever looked at,
+/// and naming it is the only way the person learns of it.
 /// This scan deletes nothing:
 /// a directory nothing recorded cannot be proven to be one the leave-out moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// nameUnaccountedTrash(gitDir, worktree, notices);
+/// nameUnaccountedTrash(commonDir, worktree, notices);
 /// ```
 pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
     // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
@@ -252,15 +186,39 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
                 continue;
             }
             // A record the service still works on accounts for its trash: its own handler empties that one, and naming
-            // it here would send the person to look at work that is not theirs. A failed record is settled for good,
-            // so the trash it names is left to the scan below, which names it and deletes nothing.
-            if state == FAILED {
+            // it here would send the person to look at work that is not theirs. A failed record is settled for good, so
+            // it accounts for nothing. A pending record is only the service's work until one claim lease has passed
+            // without anything claiming it, which means no service ever looked at it.
+            let the_service_owns_it: bool = state == CLAIMED || state == RECOVERING || (state == PENDING && !waited_longer_than_a_claim(record.as_path()));
+            if !the_service_owns_it {
                 continue;
             }
             accounted.push(item.oid.clone());
         }
     }
     name_trash_nothing_will_empty(worktree, &accounted, notices);
+}
+
+/// What:
+///  Whether this record has been pending for longer than one claim lease without being claimed.
+/// Why:
+///   The lease is the one the drain already keeps (`CLAIM_LEASE`),
+/// so no new number decides when a record is stale:
+/// the service renews a claim every third of it,
+/// and a record a woken service would have claimed within the wake that
+/// woke it stays pending only when no service ever read it.
+/// A record whose age cannot be read is left alone,
+/// because a reason to name it
+///  that cannot be shown is none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitedLongerThanAClaim = (record) => Date.now() - mtimeMs(record) > CLAIM_LEASE_MS;
+/// ```
+fn waited_longer_than_a_claim(record: &Path) -> bool {
+    let Ok(found) = std::fs::metadata(record) else { return false };
+    let Ok(written) = found.modified() else { return false };
+    return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
 }
 
 /// Say what sits in the trash parent of `worktree` that nothing will empty.
@@ -282,93 +240,6 @@ fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices:
     }
 }
 
-/// What:
-///  Empty one trash here and now,
-/// telling the person what is being done once.
-/// Why:
-///   The person waits for this,
-/// so they are told why the command takes longer,
-/// and a failure says what
-///  stays without failing the add,
-/// because the worktree is whole either way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// writeln(notices, `emptying the directories left out of ${destination} now`); return deleteTrash({ destination, gitDir, manifest });
-/// ```
-fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write) -> Result<(), String> {
-    let _told = writeln!(notices, "{}", emptying_words(destination));
-    return match delete_trash(destination, git_dir, manifest) {
-        Ok(()) => Ok(()),
-        // Both sides, one line: a later command in this worktree names the trash and deletes nothing from it, and a
-        //  removal command is given only when that command removes exactly what the snapshot made.
-        Err(left) => Err(trash_stays_words(destination, manifest, &left)),
-    };
-}
-
-/// What:
-///  `empty_before_returning` on the process's runtime:
-/// the line the person reads is said here and the removal is awaited.
-/// Why:
-///   The two faces say the same line and report the same reason,
-/// so a caller on the runtime cannot tell which of them ran.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function emptyBeforeReturning({ destination, gitDir, manifest, notices }): Promise<void>;
-/// ```
-async fn empty_before_returning_awaiting(destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write) -> Result<(), String> {
-    let _told = writeln!(notices, "{}", emptying_words(destination));
-    return match delete_trash_awaiting(destination, git_dir, manifest).await {
-        Ok(()) => Ok(()),
-        Err(left) => Err(trash_stays_words(destination, manifest, &left)),
-    };
-}
-
-/// What:
-///  The line that tells the person why the command takes longer.
-/// Why:
-///   Both faces of the emptying say the same words,
-/// so the two cannot report the same work differently.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const emptyingWords = (destination: string) => `monochromatic-git-policy-cli: emptying the directories left out of the new worktree ${destination} now, ...`;
-/// ```
-fn emptying_words(destination: &Path) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, so nothing another command was filling stays in it; this can take a while.",
-        destination.display()
-    );
-}
-
-/// What:
-///  What stays when the emptying could not finish,
-///  named with the reason and the directory.
-/// Why:
-///   The trash outlives a command that could not empty it,
-/// so the person is told which directory to look at,
-/// and the same words are the failure the two faces report.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const trashStaysWords = (destination, manifest, reason) => `the directories left out of the new worktree ${destination} were not emptied (${reason}); the trash ${manifest.name} stays there, ...`;
-/// ```
-fn trash_stays_words(destination: &Path, manifest: &TrashManifest, left: &TrashLeft) -> String {
-    let trash: PathBuf = destination.join(TRASH_PARENT).join(&manifest.name);
-    let shown: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
-    let removing: String = match left.only_the_snapshots {
-        true => format!(": `rm --recursive --force -- {shown}`"),
-        // The command could delete what the emptying kept, so the line names what is there and gives none.
-        false => String::from(". No removal command is given here: nothing showed that everything below that path is what this snapshot made, and a recursive removal would delete whatever the emptying left alone; remove by name only what you want gone"),
-    };
-    return format!(
-        "the directories left out of the new worktree {} were not emptied ({}); the trash {shown} stays inside the worktree, no work item names it, a later command in this worktree names it and deletes nothing, and only you will remove it{removing}",
-        destination.display(),
-        left.reason
-    );
-}
-
 /// Whether an error says a directory is not empty.
 fn is_not_empty(error: &std::io::Error) -> bool {
     return matches!(error.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST));
@@ -381,6 +252,43 @@ fn same_after_resolving(left: &Path, right: &Path) -> bool {
         (Ok(resolved_left), Ok(resolved_right)) => resolved_left == resolved_right,
         _ => false,
     };
+}
+
+/// What:
+///  Whether the administrative directory a worktree's `.git` file names belongs to the directory the record was read
+///  from:
+/// that directory itself,
+/// or one of the per-worktree directories below it.
+/// Why:
+///   A trash's record is written under the repository's common directory,
+/// because one repository's service
+///  empties its trashes one at a time and a record is drained where it was read;
+/// the worktree that holds the
+///  trash is a linked one,
+/// so its pointer names `<common>/worktrees/<name>` and never the common directory
+///  itself.
+/// The proof is still a proof:
+/// the pointer names a directory the record's Git directory contains,
+/// and the
+///  emptying then opens every step below the worktree without following a link and compares the trash's identity.
+/// A path
+///  that resolves to the same place is accepted as well,
+/// so a repository whose paths are reached through a link is not
+///  refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pointsInto = (gitDir, pointed) => pointed === gitDir || pointed.parent() === join(gitDir, 'worktrees') || sameAfterResolving(pointed, gitDir) || sameAfterResolving(pointed.parent(), join(gitDir, 'worktrees'));
+/// ```
+fn points_into(git_dir: &Path, pointed: &Path) -> bool {
+    if pointed == git_dir || same_after_resolving(pointed, git_dir) {
+        return true;
+    }
+    // Every per-worktree directory of a repository sits below `worktrees` in its common directory; a record and a pointer
+    //  that reach it through different names are the same place when their parents resolve to one.
+    let below: PathBuf = git_dir.join("worktrees");
+    let Some(parent) = pointed.parent() else { return false };
+    return parent == below || same_after_resolving(parent, below.as_path());
 }
 
 /// Check that the worktree at `repository` is the one whose administrative directory is `git_dir`:
@@ -409,9 +317,8 @@ fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<
     };
     let recorded: &str = after_prefix.trim();
     let pointed: PathBuf = if Path::new(recorded).is_absolute() { PathBuf::from(recorded) } else { repository.join(recorded) };
-    let same: bool = pointed == git_dir || same_after_resolving(pointed.as_path(), git_dir);
-    if !same {
-        return Err(format!("{}/.git points at {} and not at {}, so its trash is left alone", repository.display(), pointed.display(), git_dir.display()));
+    if !points_into(git_dir, pointed.as_path()) {
+        return Err(format!("{}/.git points at {} and not into {}, so its trash is left alone", repository.display(), pointed.display(), git_dir.display()));
     }
     return Ok(());
 }
@@ -479,13 +386,21 @@ struct ATrashToOpen {
 /// and they come before the first removal:
 /// a trash that is gone is done,
 ///  and a directory that is not the recorded object is left alone.
+/// A worktree that is gone is done too:
+/// a removal of that worktree took
+///  the trash with it,
+/// so a record that outlived it names nothing on this disk and needs no report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function prepareTrashRemoval({ repository, gitDir, manifest }): HeldTrash | undefined;
 /// ```
 fn prepare_trash_removal(ATrashToOpen { repository, git_dir, manifest }: ATrashToOpen) -> Result<Option<HeldTrash>, String> {
-    let root: File = path_failure(open_root(repository.as_path()), repository.as_path(), "cannot be opened as the worktree")?;
+    let root: File = match open_root(repository.as_path()) {
+        Ok(opened) => opened,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("{} cannot be opened as the worktree ({error})", repository.display())),
+    };
     verify_association(&root, repository.as_path(), git_dir.as_path())?;
     let device: u64 = path_failure(device_of(&root), repository.as_path(), "cannot be examined")?;
     let names = match plain_components(Path::new(TRASH_PARENT)) {
@@ -588,8 +503,8 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     drop(trash);
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
-    //  exactly what the snapshot made, and the line the person reads may say so.
-    path_failure(remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept_empty_trash)?;
+    //  exactly what the snapshot made.
+    path_failure(with_idle_io_priority(|| return remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()
@@ -614,19 +529,20 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
 /// each entry in it is removed
 ///  only when it is the object that was moved there,
 /// and anything else in the trash stays with a reason.
-/// The callers of this face run on a thread with no runtime of its own (a command that hands the trash
-/// over,
-/// and the synchronous handler face),
-///  so it does the lookups here and the entries through the one removal face that enters the runtime.
-/// A caller that is itself a task of the runtime awaits `delete_trash_awaiting` instead:
-/// the drain of a
-///  round asks `empty_trash_awaiting`
-/// (`worktree_trash_dispose_awaiting.rs`),
-/// because the synchronous face is refused from inside the runtime.
+/// The callers of this face run on a thread with no runtime of its own,
+/// and the synchronous handler face is one of
+///  them;
+/// it does the lookups here and the entries through the one removal face that enters the runtime.
+/// A caller that is
+///  itself a task of the runtime awaits `delete_trash_awaiting` instead:
+/// the drain of a round asks
+///  `empty_trash_awaiting` (`worktree_trash_dispose_awaiting.rs`),
+/// because the synchronous face is refused from inside the
+///  runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await deleteTrash({ repository, gitDir, manifest }); // rejects with the reason something stays, and whether its removal is the snapshot's own
+/// await deleteTrash({ repository, gitDir, manifest }); // rejects with the reason something stays
 /// ```
 pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
@@ -656,7 +572,7 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function deleteTrashAwaiting({ repository, gitDir, manifest }): Promise<void>; // rejects with the reason and whether its removal is the snapshot's own
+/// async function deleteTrashAwaiting({ repository, gitDir, manifest }): Promise<void>; // rejects with the reason
 /// ```
 pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
@@ -677,7 +593,7 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     return match run_a_job_or_in_turn(held, settle_trash_removal).await {
         Ok(outcome) => outcome,
         // The entries are gone and the directory above them stays, which the words say.
-        Err(refused) => Err(TrashLeft::kept_empty_trash(format!("the trash directory {} stays ({refused})", manifest.name))),
+        Err(refused) => Err(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
 }
 
@@ -689,7 +605,7 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
 ///   The record is a file in the Git directory;
 /// the handler trusts nothing in it beyond what it can verify:
 /// the worktree's
-///  `.git` file points at the record's Git directory,
+///  `.git` file points into the record's Git directory,
 /// every directory down to the trash is a real one,
 /// the trash has the
 ///  recorded identity,

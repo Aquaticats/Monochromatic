@@ -87,19 +87,19 @@ kept as the record of that session:
 ## Steps for the round three grading and the probe shadow-mode ruling
 
 WHEN FIFTEEN SETTLE:
-1.    `mise run //package/module/translation-repair:draw-sample -- --final` (moved on 2026-10-18 to
-      `//package/translation-repair/probe:draw-sample`).
+1.  `mise run //package/module/translation-repair:draw-sample -- --final` (moved on 2026-10-18 to
+    `//package/translation-repair/probe:draw-sample`).
     It now writes THREE files:
       both sheets and `sample-manifest-<seed>.json`.
     The manifest is not optional and cannot be regenerated later;
     see "The draw recorded nothing about what it drew".
-2.    Hand the user `doc/runbook/translation-repair-round-three-grading.md`.
+2.  Hand the user `doc/runbook/translation-repair-round-three-grading.md`.
     Detection sheet FIRST and alone,
       then the repair sheet.
-3.    `score-agreement` for the precision gate (bar 0.9;
+3.  `score-agreement` for the precision gate (bar 0.9;
     round one 0.560/0.636/0.680,
       round two 0.740/0.787/0.800).
-4.    `score-probe --repair-sheet PATH --manifest PATH` for the probe.
+4.  `score-probe --repair-sheet PATH --manifest PATH` for the probe.
 
 SUPERSEDED 2026-08-07:
 TASK 53 IS ANSWERED,

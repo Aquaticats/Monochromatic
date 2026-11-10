@@ -24,6 +24,17 @@ Its last commit is `f4fc1fa213ece65672e4314983a75266837892f9`,
 this file;
  they remain readable at that commit.
 
+The wrapper is the only route this product offers:
+there is no switch that forces a command or a repository through the native one,
+and the owner answered a request for such a switch (2026-11-10) with
+"No switch,
+/usr/bin/git is it (Recommended)".
+A person who needs one command to skip the wrapper's policies runs `/usr/bin/git` itself,
+the bypass the install steps already name (`README.md`,
+"Install").
+A Git a person starts as `/usr/bin/git` is outside every policy,
+every audit line and every wait of this file.
+
 ## Module seams
 
 The executable has these external seams:
@@ -1269,8 +1280,8 @@ without following a link,
 so a link at
 `.claude` or at the trash parent in the stage is no way out of the stage.
 When the trash cannot be made that way,
-or Git does not ignore the place (one `git check-ignore --no-index` in the
-source,
+or Git does not ignore the place after the repository's own exclude line was added (one `git check-ignore
+--no-index` in the source,
 asked of every kind of source),
 the directories are removed in the foreground,
 in place,
@@ -1286,11 +1297,11 @@ before the
 and never renamed into the trash:
 a container holds another worktree's ignored state,
 credentials included,
- the trash stands inside the new worktree from the install until the emptying runs,
-so a command that runs
- `git add --all` in that window stages what the container holds,
-and emptying the trash afterwards does not take those
- blobs out of the index.
+and removing it first
+ means those bytes never reach a worktree at all,
+not even the ignored trash of one,
+so no ignore rule and no failure of the service can leave them anywhere a
+ later command could read them.
 A directory that is set aside whole,
 a registered nested worktree or another checkout,
 is swept for the same
@@ -1315,32 +1326,74 @@ the leave-out refuses and names it,
 so nothing is set aside on a guess.
 Everything else the leave-out sets aside,
 the caches,
-the other checkouts and the run
- records,
-still waits for the emptying,
-so an add pays only the container's own removal:
-measured on this host,
- a container of 20,000 one-kilobyte files takes 460 ms to remove,
+the other checkouts and the run records,
+goes into the trash by rename only,
+and the command that made it never empties it.
+Measured on this host,
+a container of 20,000 one-kilobyte files takes 460 ms to remove,
 against 0.1 ms to rename into the trash.
-The trash is emptied before the command that made it returns,
-and never handed to the commit service:
-a trash that outlived the command sat inside the new worktree,
-where a target commit that stops
- ignoring its path makes it untracked,
-so `git add --all` would stage another command's stage container and its
- credentials.
-The emptying runs beside the package repair (`finish_trash_and_repair`,
-as a wait of one task of the process's runtime when the repair
- has work to do,
-and here on the command's own thread when it has none),
-one plain line on standard error first names the worktree and says that the directories left out
- are being emptied now,
-and the person waits for the slower of the two.
+
+Handing the trash over:
+the add writes one work item for the trash and wakes the commit service,
+then returns.
+A trash emptied inside the add made ten concurrent adds spend more than ten minutes each on this host on
+2026-11-10,
+with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
+(`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`,
+"Measured on 2026-11-11").
+The record sits in the repository's common work directory,
+`<common>/monochromatic-git-policy-cli/work/pending/trash-<the trash's name>`,
+and not in the new worktree's:
+a round drains one lane per repository and the drain of one work directory empties its trashes in sequence,
+so concurrent adds never delete beside each other,
+and the claim that drain takes is the lease every other kind of work already uses,
+so no lock is added for this.
+The item names the new worktree,
+the common directory the record is read from,
+the reference `refs/cli-git/trash`,
+the trash's forty hexadecimal digits as its object,
+and the manifest as its parent.
+The add prints one line on standard error unless `--quiet` was given:
+it names the worktree,
+says how many directories were set aside,
+and says that the commit service empties them after the command returns,
+one trash at a time for the repository and at the lowest I/O priority.
+A wake that fails is reported as a warning that names the worktree,
+the trash,
+and the record,
+which still empties the trash when the repository's service next runs,
+and never fails the add,
+because the worktree is whole either way.
+A path that is not valid UTF-8 cannot be named by a work item,
+so the hand-over writes none,
+says so,
+and only the person removes that trash.
+
+A standing trash cannot be staged,
+whatever the target commit ignores:
+before the leave-out asks Git whether the trash place is ignored,
+the wrapper adds `/.claude/cli-git-trash/` to the repository's common `info/exclude`,
+which no commit writes.
+Measured with Git 2.56.0 on 2026-11-11:
+a linked worktree reads the common directory's `info/exclude` and never its own worktree's,
+`git check-ignore` names that file,
+`git add --all` stages nothing of a trash standing there,
+and neither a target commit that ignores nothing under `.claude/` nor one that tries to re-include the trash parent
+changes that.
+The line is added once and never removed,
+the person's own patterns are kept as they are,
+and a directory of that name outside the trash parent is no trash and is never touched.
+When that file cannot be read or written,
+the question is asked of the rules the repository already has,
+and a `false` answer removes the directories in the foreground,
+which is the shape an add had before the hand-over existed.
+
 The emptying happens only if all of these hold:
 the worktree's `.git` file,
 read without following a link,
-points at
-the administrative directory the record names;
+points into the Git directory the record names
+(that directory itself,
+or one of the per-worktree directories below its `worktrees` folder);
 every directory from the worktree down to the trash is a real directory on the
 worktree's device;
 the trash has the recorded identity (device,
@@ -1350,6 +1403,8 @@ and each
  entry removed is the recorded object (a replacement,
 a link or anything unrecorded is left alone and named in the
 failure).
+A worktree that is no longer there is done rather than failed:
+a removal of it took the trash with it.
 Nothing is found by scanning the trash parent for names,
 so a directory the main checkout carried there is never
  touched.
@@ -1365,49 +1420,36 @@ when it is the recorded object,
 a reason for one entry never stops the others,
 and the failure names the reasons in entry
 order.
-A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason;
-it
- does not fail the add,
-because the worktree is already in place and complete.
-Nothing else will ever empty it:
-this path writes no work item and keeps no durable record of the
- manifest,
-so the line says that the trash stays inside the worktree,
-that no work item names it,
-that only the
- person will remove it,
-and gives `rm --recursive --force -- '<path>'` with the path quoted for their shell
- when that command deletes exactly what the snapshot made.
-It gives no removal command when the emptying kept something:
- a directory under the
- recorded name that the snapshot did not make,
- an entry that is no longer the object the leave-out moved
- there,
- or a file somebody put in the trash.
-The line then names the path and says that what is in it
- is not the snapshot's and that only the person removes it,
- by name,
- because a recursive removal of that path
- would delete what the emptying deliberately left.
-A line that
- promised a later service would promise work nothing records.
-A work item of kind `trash` that an earlier release wrote is still emptied by the service's handler
-(`empty_trash`),
-with the same checks and the same identities,
-so a repository that ran one keeps its promise.
-The service settles a trash item it cannot empty as failed,
-so it never tries it again.
+Every step of that removal,
+each entry and the trash directory itself,
+runs at I/O priority class `idle`,
+the lowest Linux offers:
+the class is set on the thread that unlinks and put back after it,
+so the service's own push and review work keeps its priority,
+and a thread whose class cannot be read or set is left as it is.
+
+A trash that cannot be emptied is reported by the service as a line that names the trash and the reason,
+and its record settles as failed,
+which is where the promise of a later attempt stops.
 Every command later run in that worktree,
 unless its output is read by a program,
 therefore names every directory
-in the worktree's trash parent that nothing will empty,
+in the worktree's trash parent that no pending or claimed record accounts for,
 on standard error,
 with its path:
-a trash whose emptying failed has no record at all,
-and one a failed record names has no record that will be tried again,
-while a directory nothing recorded cannot be proven to be one the leave-out moved;
+a trash whose emptying failed has a failed record that is never tried again,
+a record still pending after one claim lease is one no service ever looked at,
+and a directory nothing recorded cannot be proven to be one the leave-out moved;
 nothing there is deleted,
 and a worktree with no trash parent costs the command one lookup.
+A work item of kind `trash` that an earlier release wrote is emptied by the same handler
+(`empty_trash`),
+with the same checks and the same identities,
+so a repository that ran one keeps its promise,
+and a trash an earlier add left in the source is still moved into this add's trash and covered by its record,
+whichever add made it.
+A copy of the ignored state leaves the trash parent out of the source as well,
+so no copied worktree carries another command's trash either.
 The race with other processes is a risk the person accepts by using the command:
 a directory of the new worktree that another
 process replaces,
@@ -2850,6 +2892,11 @@ Every command that runs the recovery names a worktree whose record's owner is de
 object,
 with the `git worktree remove --force` and same `git worktree add` commands that settle it,
 and removes the record once the worktree is gone or a different object stands at that path.
+No command fills an existing worktree,
+and none is planned:
+the owner answered a request for one (2026-11-10) with "No,
+remove and add again",
+so removing the worktree and adding it again stays the only remedy.
 An add whose own Git was refused at a destination that carries another command's registration proof settles its own
 record and says so,
 instead of promising a later command's report of a record nothing keeps.
@@ -2904,8 +2951,11 @@ A bytes field that is present and does not decode is damage,
 never absence.
 An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
-alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
-20 minutes),
+alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `MERGE_LOCK_CEILING`,
+two minutes;
+the owner,
+2026-11-10,
+"Two minutes (Recommended)"),
 and past it,
 or as soon as the item's own time cannot be measured against this host's clock,
 the command that finds the item stops with an
@@ -4766,30 +4816,6 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   The commit timing log holds no settle at all (the settling is the management command
   `service settle-earlier-batches`),
   so the journal stays its only sample.
-- `LOCK_CEILING` 10 minutes,
-  measured on 2026-11-08 from the commit timing log (1,608 records,
-  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z)
-  and the service journal (4,386 answers,
-  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
-  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
-  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
-  644,710 to 1,200,776 ms,
-  every one stopped).
-  Of the journal's 4,386 landings,
-  609 waited on the index at all (95th percentile 6 ms,
-  99th percentile 158 ms),
-  71 waited at a holder's place,
-  and the longest whole lock acquisition was 11,490 ms counted with the wrapper's own staging
-  (8,000 ms at the place).
-  No wait a holder released reached the ten minutes,
-  and the longest of those four is 776 ms past the
-  client's twenty-minute `ANSWER_CEILING`,
-  which bounds the whole wait rather than one step of it.
-  No wait takes it:
-  it stays as the basis of `FOREIGN_OWNER_PATIENCE`
-  (`src/native/process/pid_namespace.rs`,
-  twice this),
-  which another change owns and whose stated basis (twice the longest a merge waits) no longer holds.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,
@@ -4874,18 +4900,31 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   while the commit landed seconds later.
   The look waits only while an open batch of the journal names the request,
   so a request nothing is landing costs one look and no wait.
-- `FOREIGN_OWNER_PATIENCE` 20 minutes:
-  twice `LOCK_CEILING`,
+- `FOREIGN_OWNER_PATIENCE` two minutes:
+  twice `MERGE_LOCK_CEILING`,
   derived in code (`src/native/process/pid_namespace.rs`),
-  1.6 times the
-  longest commit measured (751 s) and 2.2 times the longest worktree add (540 s).
-  It was an hour,
-  twice the 30 minute live lock
-  wait of a file that no longer exists.
+  the longest a merge waits for a foreign `index.lock` plus the work around it.
+  The owner chose the value (2026-11-10,
+  "Two minutes (Recommended)");
+  it was 20 minutes,
+  twice a ten minute lock ceiling that no wait took and that this release deleted.
+  Measured:
+  the longest hold of a lock the service journal records is the `lock_hold_ms` of 119,721 ms (4,386 answers,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+  which the patience clears by 239 ms,
+  and it is the closest proxy there is,
+  since no log keeps the age of a record of another namespace;
+  the longer figures of the same logs (a 751 s commit,
+  a 540 s worktree add,
+  a 1,228,797 ms command) time whole commands of this host's own PID namespace and not a record of another one.
   It is the age after which a record of an owner in another PID namespace is refused,
   not
   reclaimed:
   see "Foreign-owner expiry".
+  A hold that does run past it is refused and named,
+  never taken over,
+  so nothing it holds is lost,
+  and a worktree add of another namespace whose item path stands still that long meets that refusal.
   A record whose own time cannot be measured against this host's clock is refused at once,
   whatever its age,
   and never counted as a live owner's.
@@ -9095,6 +9134,14 @@ which is the 90th percentile of the peaks of 28 services rounded up to a power o
 "Measurement record").
 The retry list is reported in the order the directories were named,
 whichever drain finishes first.
+The directories of one repository share a lane,
+so a main checkout and its linked worktrees are drained one after another there,
+and the drain of one work directory empties its trashes in sequence
+(`src/native/landing/service_work_drain_pending_claims.rs`).
+A trash is therefore emptied one at a time for a repository,
+whichever worktree holds it,
+which is what keeps concurrent adds from deleting beside each other
+(`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
 after another,
 because they share a work directory and its upkeep.
@@ -12003,6 +12050,13 @@ The boot ID alone cannot say the holder is dead,
 because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
 have unrelated ones:
 each would otherwise take the other's live claims at once.
+The wrapper supports one host per repository,
+and the owner answered a request to support a repository two hosts share (2026-11-10) with
+"Not supported (Recommended)":
+a checkout used from two machines is not protected.
+These readings tell a restarted host from a running one and close no race between two,
+and a command of another host is an owner of another PID namespace,
+which the patience of `FOREIGN_OWNER_PATIENCE` judges by age (`src/native/process/pid_namespace.rs`).
 
 Why the lease and its renewal stay:
 a service that is killed leaves its claims in `claimed`,
@@ -12119,11 +12173,11 @@ then `applyDifference`
 or `restoreDirty`,
 `exchange`,
 `settleDisplaced`,
-`disposeTrash`,
 `markComplete` with `markCompleteFile` and
 `markCompleteDirectory`,
 `releaseClaim`),
-`copyIgnored` and `repair`.
+`copyIgnored`,
+`handOverTrash` and `repair`.
 `work` sums time spent on worker threads by name over all threads (`cargoRepairWorkspace`,
 `cargoCloneTree`,
 `cargoClean`,

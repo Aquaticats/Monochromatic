@@ -38,22 +38,22 @@
 
 ## Task (user instructions, verbatim intent)
 
-1. Look through every cluster in `.slopo.local.dir/` and open GitHub issues per suggested action.
-2. Do not fan out one agent per cluster:
-   some clusters must be considered together.
-3. Do not stop until enough issues exist to cover all clusters.
-4. Issue count is explicitly the agent's call ("I don't care about how many issues you eventually open").
-5. Adding exclusion patterns is not an acceptable answer for `package/music-player/design/**`;
-   `.gitignore` already exempts enough patterns.
-   Find the real remediation instead.
-6. When more than one action is equally valid after thorough investigation,
-   name the uncertainty and
-   list every competing action with full detail in the issue body so a stronger model or a human can decide.
-7. Auto-compact is on:
-   write and keep updating this handover.
-8. Look into **every cluster in detail**;
-   the handover plus auto-compact make a long grind acceptable.
-9. Do not edit `AGENTS.md` for now.
+1.  Look through every cluster in `.slopo.local.dir/` and open GitHub issues per suggested action.
+2.  Do not fan out one agent per cluster:
+    some clusters must be considered together.
+3.  Do not stop until enough issues exist to cover all clusters.
+4.  Issue count is explicitly the agent's call ("I don't care about how many issues you eventually open").
+5.  Adding exclusion patterns is not an acceptable answer for `package/music-player/design/**`;
+    `.gitignore` already exempts enough patterns.
+    Find the real remediation instead.
+6.  When more than one action is equally valid after thorough investigation,
+    name the uncertainty and
+    list every competing action with full detail in the issue body so a stronger model or a human can decide.
+7.  Auto-compact is on:
+    write and keep updating this handover.
+8.  Look into **every cluster in detail**;
+    the handover plus auto-compact make a long grind acceptable.
+9.  Do not edit `AGENTS.md` for now.
 
 ## Facts measured (re-verify before trusting)
 
@@ -181,30 +181,30 @@ Every one of the 1008 clusters gets an individual recorded verdict,
 in theme order so related
 clusters are judged together:
 
-1. Generate a condensed digest per cluster (paths,
-   line ranges,
-   signature or context line,
-   first
-   ~200 characters of each distinct body).
-2. Read the digest,
-   inspect the real files in the repo where the verdict depends on facts
-   (generated headers,
-   tracked status,
-   consumers,
-   package ownership).
-3. Where a mechanical invariant makes the verdict certain (for example both units are the same line
-   range in two byte-identical files),
-   verify the invariant programmatically per cluster and record
-   `pattern-verified` plus the check that passed.
-   Otherwise record `digest-read` or `file-inspected`.
-4. Append one ledger row per cluster:
-   cluster number,
-   hash,
-   theme,
-   verdict category,
-   evidence,
-   review mode,
-   issue number (filled when the issue is opened).
+1.  Generate a condensed digest per cluster (paths,
+    line ranges,
+    signature or context line,
+    first
+    ~200 characters of each distinct body).
+2.  Read the digest,
+    inspect the real files in the repo where the verdict depends on facts
+    (generated headers,
+    tracked status,
+    consumers,
+    package ownership).
+3.  Where a mechanical invariant makes the verdict certain (for example both units are the same line
+    range in two byte-identical files),
+    verify the invariant programmatically per cluster and record
+    `pattern-verified` plus the check that passed.
+    Otherwise record `digest-read` or `file-inspected`.
+4.  Append one ledger row per cluster:
+    cluster number,
+    hash,
+    theme,
+    verdict category,
+    evidence,
+    review mode,
+    issue number (filled when the issue is opened).
 
 Verdict categories:
 
@@ -1162,56 +1162,56 @@ filed inside the issue that owns the surrounding duplication:
 None required for this task.
 Follow-ups a maintainer may want:
 
-1. Answer the decision questions the issues ask.
-   The 2026-10-20 backlog triage
-   (`doc/handover/issue-triage-2026-10-20.md`) routed all nine:
-   #611,
-   #616,
-   #622,
-   #623 and #660 are
-   `ready-for-human` with their competing actions restated in the triage comments,
-   #613,
-   #614 and #630
-   are `ready-for-agent` on the standing default their acceptance criteria pin,
-   and #612 was closed
-   not planned on 2026-10-19 (its mirror code left the tree with the retired TypeScript wrapper in
-   `642b6d72cb`).
-2. The four dismissal issues (#656,
-   #657,
-   #658,
-   #659) are settled:
-   the maintainer's 2026-10-09 accepted
-   batches were applied to `slopo.ignore.txt` in commit `02cacf2ba4` (the file header records the 67
-   accepted entries and the report count dropped from 1008 clusters to 941),
-   and the 2026-10-20 triage
-   closed all four as `wontfix` with that evidence.
-   The held patterns live in #664 to #673.
-   The
-   dead-key cleanup they depend on is recorded in `doc/troubleshooting/slopo-threshold-tuning.md` under
-   "Open cleanup decision for the 55 dead keys".
-3. If the report is regenerated,
-   re-run the review scripts.
-   They are deterministic and validate
-   themselves:
-   `parse_clusters.py` checks every cluster against `index.md`,
-   `control_support.py` proves
-   the duplicate-artifact check can fail,
-   and `verify_mirror.py` proves the mirror relationship
-   byte-for-byte.
-4. Read `doc/planning/slopo-dismissed-cluster-actionability.md` before accepting any dismissal batch.
-   It measures what this review never did:
-   the size of the family behind each pair.
-   The error-class
-   constructor idiom alone spans 212 indexed units across 147 files,
-   all above the hand-tuned
-   `body_node_count_threshold: 13`,
-   and this review saw it only as 17 clusters split across four
-   issues and four verdicts,
-   12 of them dismissed as trivial.
-   The unit of judgement here was the
-   cluster;
-   duplication lives in families,
-   and similarity clustering cannot size one.
+1.  Answer the decision questions the issues ask.
+    The 2026-10-20 backlog triage
+    (`doc/handover/issue-triage-2026-10-20.md`) routed all nine:
+    #611,
+    #616,
+    #622,
+    #623 and #660 are
+    `ready-for-human` with their competing actions restated in the triage comments,
+    #613,
+    #614 and #630
+    are `ready-for-agent` on the standing default their acceptance criteria pin,
+    and #612 was closed
+    not planned on 2026-10-19 (its mirror code left the tree with the retired TypeScript wrapper in
+    `642b6d72cb`).
+2.  The four dismissal issues (#656,
+    #657,
+    #658,
+    #659) are settled:
+    the maintainer's 2026-10-09 accepted
+    batches were applied to `slopo.ignore.txt` in commit `02cacf2ba4` (the file header records the 67
+    accepted entries and the report count dropped from 1008 clusters to 941),
+    and the 2026-10-20 triage
+    closed all four as `wontfix` with that evidence.
+    The held patterns live in #664 to #673.
+    The
+    dead-key cleanup they depend on is recorded in `doc/troubleshooting/slopo-threshold-tuning.md` under
+    "Open cleanup decision for the 55 dead keys".
+3.  If the report is regenerated,
+    re-run the review scripts.
+    They are deterministic and validate
+    themselves:
+    `parse_clusters.py` checks every cluster against `index.md`,
+    `control_support.py` proves
+    the duplicate-artifact check can fail,
+    and `verify_mirror.py` proves the mirror relationship
+    byte-for-byte.
+4.  Read `doc/planning/slopo-dismissed-cluster-actionability.md` before accepting any dismissal batch.
+    It measures what this review never did:
+    the size of the family behind each pair.
+    The error-class
+    constructor idiom alone spans 212 indexed units across 147 files,
+    all above the hand-tuned
+    `body_node_count_threshold: 13`,
+    and this review saw it only as 17 clusters split across four
+    issues and four verdicts,
+    12 of them dismissed as trivial.
+    The unit of judgement here was the
+    cluster;
+    duplication lives in families,
+    and similarity clustering cannot size one.
 
 ## Corrections applied on 2026-10-09
 
