@@ -33,12 +33,8 @@ export const NO_USER_PROMPT: unique symbol = Symbol('advisor/no-user-prompt',);
 export function latestUserPromptExcerpt(
   branch: readonly ForeignBorrowed<AdvisorSessionEntry>[],
 ): string | typeof NO_USER_PROMPT {
-  for (let index = branch.length - 1; index >= 0; index -= 1) {
-    /**
-     Branch entry at current reverse cursor.
-     */
-    const entry = branch[index];
-    if ((entry === undefined) || (!isUserMessageEntry(entry,)))
+  for (const entry of branch.toReversed()) {
+    if (!isUserMessageEntry(entry))
       continue;
 
     /**
