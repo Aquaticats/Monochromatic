@@ -16,12 +16,14 @@
 //!  while the layers themselves are the host's local disk.
 //!  Refusing that mount leaves an abandoned `index.lock` that no scan can prove unheld,
 //!  so every commit behind it fails at its ceiling forever.
-//!  So the file is read by a child, and the answer is waited for only until the ceiling:
+//!  So the file is read by a child,
+//! and the answer is waited for only until the ceiling:
 //!  a child that has not answered by then is ended,
 //!  and one the kernel does not let go is handed to a reaper that collects it whenever it does,
 //!  the same bargain `stuck_children_reaped_when_the_kernel_lets_go.rs` makes for a command's child.
 //!  The reader's ceiling is `Unread::File` to its caller,
-//!  which a removal treats as a holder that may be alive, never as one that is not.
+//!  which a removal treats as a holder that may be alive,
+//! never as one that is not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,8 +40,11 @@ use std::time::Duration;
 
 /// How long a child's answer is waited for.
 ///
-/// Measured on 2026-11-09 on this host: one `fork`, one descriptor read and one pipe answer took a mean of
-/// 0.5 ms over two hundred runs, and the slowest of those two hundred took 2.1 ms.
+/// Measured on 2026-11-09 on this host:
+/// one `fork`,
+/// one descriptor read and one pipe answer took a mean of
+/// 0.5 ms over two hundred runs,
+/// and the slowest of those two hundred took 2.1 ms.
 /// The ceiling is a hundred and forty times the slowest of them,
 /// so a loaded host still answers,
 /// and a server that has stopped is abandoned rather than waited on.
@@ -57,7 +62,8 @@ static WAITING_FOR_A_REAPER: std::sync::Mutex<Vec<libc::pid_t>> = std::sync::Mut
 
 /// What:
 ///  The device and inode of the file the descriptor `fd` of the process whose table directory is `process`
-///  holds open, read in a child and waited for until `CHILD_READ_CEILING`.
+///  holds open,
+/// read in a child and waited for until `CHILD_READ_CEILING`.
 /// Why:
 ///   The one read a mount this process cannot classify gets,
 ///  so that neither a stopped server nor an unreadable mount type keeps a commit from its answer.
@@ -68,6 +74,17 @@ static WAITING_FOR_A_REAPER: std::sync::Mutex<Vec<libc::pid_t>> = std::sync::Mut
 /// ```
 pub fn opened_file_of_in_a_child(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile> {
     return read_in_a_child_with(process, fd, CHILD_READ_CEILING, attributes_through_the_link);
+}
+
+/// What:
+///  The number a refused descriptor read carries,
+///  in the shape the answer's own field holds it.
+/// Why:
+///   The child writes the refusal as one field of its answer,
+///  and a read that failed without a kernel number has none,
+///  which the field spells as zero.
+fn refusal_number(number: i32) -> Option<u64> {
+    return u64::try_from(number).ok();
 }
 
 /// What:
@@ -107,7 +124,7 @@ pub fn read_in_a_child_with(process: &Path, fd: &OsStr, ceiling: Duration, ask: 
         match ask(name.as_c_str()) {
             Ok(opened) => answer = [0, opened.device, opened.inode, 0],
             Err(error) => {
-                answer[3] = error.raw_os_error().and_then(|number| { return u64::try_from(number).ok(); }).unwrap_or(0);
+                answer[3] = error.raw_os_error().and_then(refusal_number).unwrap_or(0);
             }
         }
         write_whole(write_end, &answer);
@@ -168,6 +185,17 @@ fn attributes_through_the_link(name: &CStr) -> std::io::Result<OpenedFile> {
 }
 
 /// What:
+///  The refusal a descriptor path that holds a zero byte is answered with.
+/// Why:
+///   The path crosses into C as a C string,
+///  whose only zero byte is the terminator,
+///  so an interior one names no descriptor,
+///  and both the guard and the conversion below answer with these words.
+fn a_path_with_a_zero_byte() -> std::io::Error {
+    return std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte");
+}
+
+/// What:
 ///  The path of the descriptor's link as a name a system call takes.
 /// Why:
 ///   It is built before the fork,
@@ -183,15 +211,17 @@ fn link_name(process: &Path, fd: &OsStr) -> std::io::Result<CString> {
     name.extend_from_slice(b"/fd/");
     name.extend_from_slice(fd.as_bytes());
     if name.contains(&0) {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte"));
+        return Err(a_path_with_a_zero_byte());
     }
-    return CString::new(name).map_err(|_zero| {
-        return std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte");
-    });
+    return match CString::new(name) {
+        Ok(path) => Ok(path),
+        Err(_zero) => Err(a_path_with_a_zero_byte()),
+    };
 }
 
 /// What:
-///  What the child wrote, or nothing when it did not write within the ceiling.
+///  What the child wrote,
+/// or nothing when it did not write within the ceiling.
 /// Why:
 ///   A pipe says when the child has answered,
 ///  so the wait is bounded by the clock even for a child the kernel will not let end.
@@ -258,7 +288,8 @@ fn write_whole(write_end: libc::c_int, answer: &[u64; 4]) {
 }
 
 /// What:
-///  One descriptor closed, and a refusal ignored.
+///  One descriptor closed,
+/// and a refusal ignored.
 /// Why:
 ///   The descriptors of the pipe belong to this call,
 ///  and a close that fails has nothing left to give back.
@@ -332,7 +363,8 @@ fn reap_soon(pid: libc::pid_t) {
 }
 
 /// What:
-///  One child collected, waiting however long the kernel takes.
+///  One child collected,
+/// waiting however long the kernel takes.
 /// Why:
 ///   It is the reaper's whole work,
 ///  and it runs on a thread that has nothing else to do.
@@ -364,7 +396,8 @@ fn keep(pid: libc::pid_t) {
 }
 
 /// What:
-///  Every child a refused start left behind, collected by the reaper that is running now.
+///  Every child a refused start left behind,
+/// collected by the reaper that is running now.
 /// Why:
 ///   The list covers one push and one take,
 ///  which is the smallest unit a lock may cover.

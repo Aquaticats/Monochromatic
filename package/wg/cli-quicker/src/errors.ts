@@ -379,3 +379,25 @@ export function isResolverTimeout({ error, }: { readonly error: unknown; },): bo
     && ('resolverTimeout' in error)
     && (error.resolverTimeout === true);
 }
+
+/**
+ Narrows a caught value to a Node error carrying an errno code.
+
+ Node's filesystem and process functions throw real `Error` instances whose
+ `code` names the condition, so the code is read only from an error: a bare
+ object shaped like an errno comes from some other thrower, and reading its
+ `code` as a missing file would swallow it.
+
+ @param error - Caught value.
+
+ @returns Whether value is an error carrying a code.
+
+ @example
+ ```ts
+ isErrnoException(Object.assign(new Error('missing'), { code: 'ENOENT' })); // true
+ ```
+ */
+export function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
+  return Error.isError(error,)
+    && ('code' in error);
+}

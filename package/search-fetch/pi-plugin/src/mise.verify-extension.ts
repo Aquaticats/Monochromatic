@@ -221,6 +221,7 @@ function fakePiApi(): {
         stderr: '',
         code: 0,
         killed: false,
+        truncated: false,
       },);
     },
     getActiveTools() {

@@ -1,9 +1,9 @@
+import { hHtml as $, } from '@monochromatic-dev/hyperscript-core';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { $, } from './index.ts';
 
 await describe({
   name: 'camelToKebab via $ style serialization',

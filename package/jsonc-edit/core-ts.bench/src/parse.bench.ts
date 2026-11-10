@@ -57,11 +57,14 @@ function buildCleanInput({
   readonly count: number;
 },): string {
   /**
-   Accumulated entry lines.
+   Entry lines, one per record.
    */
-  const lines: string[] = [];
-  for (let index = 0; index < count; index += 1)
-    lines.push(`  "key${index}": { "id": ${index}, "name": "item-${index}", "tags": [1, 2, 3] }`,);
+  const lines = Array.from(
+    { length: count, },
+    function entryLineAt(_unused, index,) {
+      return `  "key${index}": { "id": ${index}, "name": "item-${index}", "tags": [1, 2, 3] }`;
+    },
+  );
   return `{\n${lines.join(',\n',)}\n}`;
 }
 
@@ -83,11 +86,14 @@ function buildCommentedInput({
   readonly count: number;
 },): string {
   /**
-   Accumulated entry lines, each carrying a trailing comment.
+   Entry lines, one per record, each carrying a trailing comment.
    */
-  const lines: string[] = [];
-  for (let index = 0; index < count; index += 1)
-    lines.push(`  "key${index}": { "id": ${index}, "name": "item-${index}" }, // entry ${index}`,);
+  const lines = Array.from(
+    { length: count, },
+    function entryLineAt(_unused, index,) {
+      return `  "key${index}": { "id": ${index}, "name": "item-${index}" }, // entry ${index}`;
+    },
+  );
   return `{\n${lines.join('\n',)}\n}`;
 }
 

@@ -8,9 +8,12 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/wg-core-allowedips": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:"
   }
 }

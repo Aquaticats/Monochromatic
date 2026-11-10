@@ -19,6 +19,15 @@ run = "cargo clippy --release --all-targets -- -D warnings"
 description = "cargo check for the shared generator library and artifact decoder helper"
 run = "cargo check --lib --bin decode_artifact"
 
+[tasks.test]
+description = "cargo nextest run --lib (unit tests for the generator and the RegexSet agreement invariant)"
+# Scoped to `--lib`: the library target hosts the unit tests (src/is_match_matches_tests.rs).
+# The fuzz_targets/* bins are libFuzzer harnesses that only link under cargo-fuzz's
+# injected sanitizer-coverage RUSTFLAGS, so a plain `cargo nextest run` over all targets
+# would fail to build them. nextest is inherited from the repo-root [tools]; the nightly
+# toolchain declared there applies, which nextest runs under without issue.
+run = "cargo nextest run --lib --release"
+
 [tasks.build]
 description = "Build all fuzz targets (AddressSanitizer instrumented)"
 # `--target x86_64-unknown-linux-gnu` is load-bearing: cargo-fuzz defaults to

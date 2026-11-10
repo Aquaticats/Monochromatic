@@ -340,6 +340,8 @@ for (const key of Object.keys(Stream,)) {
   },);
 }
 module.exports.Stream = Stream;
+// Then one static `module.exports.<name> = Stream.<name>;` line per key in `Object.keys(Stream)`,
+// because that is the only write form Node's CJS-to-ESM named-export detection reads.
 ```
 
 The pattern uses `Object.defineProperty` per key instead of the more idiomatic `Object.assign(module.exports, Stream)`
@@ -350,14 +352,22 @@ because `Stream.Readable` inherits a getter-only `promises` accessor via its fun
 `Object.defineProperty` creates a new own data property that shadows the inherited accessor,
  sidestepping the failure.
 
-The shim also ships five 3-line files under `lib/_stream_*.js` (`_stream_readable.js`,
- `_stream_writable.js`,
- `_stream_transform.js`,
- `_stream_duplex.js`,
- `_stream_passthrough.js`),
+The shim also ships five 3-line files under `lib/_stream_*.cjs` (`_stream_readable.cjs`,
+ `_stream_writable.cjs`,
+ `_stream_transform.cjs`,
+ `_stream_duplex.cjs`,
+ `_stream_passthrough.cjs`),
  each re-exporting the matching `node:stream` class.
-`winston-transport@4.9.0/modern.js:4` deep-imports `require('readable-stream/lib/_stream_writable.js')`;
- the corresponding `exports` entry in `package.json` routes that subpath to the shim's file.
+Its `exports` map keeps upstream's `.js` subpaths as keys and points them at those files,
+ so `winston-transport@4.9.0/modern.js:4`'s `require('readable-stream/lib/_stream_writable.js')` resolves to
+ `lib/_stream_writable.cjs`.
+The package declares `"type": "module"` so its unit test loads as ESM,
+ and every file a consumer loads stays CommonJS by its extension.
+
+The static repeat after the loop matters for ESM consumers:
+ Node builds a CommonJS module's ESM named exports from those static writes alone,
+ so without them `import { Readable } from 'readable-stream'` fails at link time while
+ `require('readable-stream').Readable` answers.
 
 A single override entry covers both upstream versions because `link:` is a path resolver,
  not a semver resolver:
