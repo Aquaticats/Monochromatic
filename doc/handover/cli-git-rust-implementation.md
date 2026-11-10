@@ -88,7 +88,8 @@ Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
 (`fad5c77b9e` the first finding,
 `d2ff899df4` the second,
 `a3e78adc32` the third,
-and `264c33f683` the controls' own naming),
+`264c33f683` the controls' own naming,
+and `d1ec4631e7` the change time),
 ahead of `main` at `6ad29d302d`.
 Kimi K3.1 Pro's review of the landed carry (`e7e3e64285`) is
 `~/temp/agent/kimi-reviews/merge-carry-round-2/review.md`,
@@ -106,9 +107,14 @@ and none does after the fixes.
   and the merge names it.
 - A newer save whose bytes accept the whole merge was replaced with the older captured layer,
   because ownership was decided from the bytes alone.
-  The apply step reads the identity of every path Git's own update wrote,
+  The apply step reads the entry every path Git's own update wrote,
+  its identity and its change time,
   before the marker a control pauses at,
-  and the carry writes only while the file standing there is still that one.
+  and the carry writes only while the file standing there is still that one
+  (`merge_isolation_carry_landed.rs`).
+  The change time is read because a write that keeps the length and puts the modification time back still
+  changes it,
+  and it is not part of the identity because a rename changes it.
 - A private name a settled merge left beside a newer save was put back by a later merge when the person had deleted
   the path,
   so a deletion came back and its bytes were carried forward.

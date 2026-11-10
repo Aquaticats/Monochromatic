@@ -348,8 +348,8 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         for aside in &held {
             let _ = out.write_all(
                 format!(
-                    "monochromatic-git-policy-cli: {path} was replaced while a program still had the file it held open, so the file that was \
-                     set aside is kept at {}; nothing of the person's was removed.\n",
+                    "monochromatic-git-policy-cli: {path} was replaced while a program could still write the file it held before, so \
+                     that file is kept at {}; nothing of the person's was removed.\n",
                     aside.display()
                 )
                 .as_bytes(),
