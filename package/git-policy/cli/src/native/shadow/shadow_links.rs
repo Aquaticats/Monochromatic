@@ -30,6 +30,9 @@ use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 /// The names of the repository scratch root,
 /// which holds the shadow itself.
 use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
+/// The infix of the file one of the wrapper's commands stages a lock in before it becomes the lock,
+/// so the lock's name is worked out from the name Git's lock would have.
+use crate::service_index_staging::STAGED_INFIX;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -73,6 +76,10 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 /// a link to it points the shadow at its own directory,
 ///  and every name inside it that a shadow links costs one directory-entry creation
 ///  on a volume where those calls wait.
+///  A file a command stages a lock in is private for the same reason a lock is:
+/// it is named after the lock (`index.lock.cli-git-marker-<pid>.<namespace>-<batch>-<token>`),
+/// it belongs to one command,
+/// and every command of a repository leaves a new one while it runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,6 +92,7 @@ pub fn is_private_shadow_entry(name: &str) -> bool {
         || CONCLUSION_STATE_FILES.contains(&name)
         || name == SEQUENCER_DIRECTORY
         || name.starts_with(PRIVATE_INDEX_PREFIX)
+        || name.contains(STAGED_INFIX)
         || name.ends_with(".lock");
 }
 
