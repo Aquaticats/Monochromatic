@@ -96,6 +96,11 @@ const properties = readFileSync(join(packageRoot, 'gradle.properties'), 'utf8')
 const versionLine = properties.split('\n').find((line) => line.startsWith('version='))
 if (versionLine === undefined) { throw new Error('gradle.properties has no version entry') }
 const version = versionLine.slice('version='.length).trim()
+// The CLI version is owned by gradle.properties beside the version the rules build against,
+// so verifying the published rules cannot run a detekt the rule set was never tested on.
+const detektVersionLine = properties.split('\n').find((line) => line.startsWith('detektVersion='))
+if (detektVersionLine === undefined) { throw new Error('gradle.properties has no detektVersion entry') }
+const detektVersion = detektVersionLine.slice('detektVersion='.length).trim()
 const consumerRoot = join(packageRoot, 'build', 'central-consumer')
 rmSync(consumerRoot, { force: true, recursive: true })
 mkdirSync(consumerRoot, { recursive: true })
@@ -111,7 +116,7 @@ configurations {
     }
 }
 dependencies {
-    detektCli 'dev.detekt:detekt-cli:2.0.0-alpha.5'
+    detektCli 'dev.detekt:detekt-cli:${detektVersion}'
     detektRules 'cat.aquati.monochromatic:detekt-rules:${version}'
 }
 def detektOutput = new ByteArrayOutputStream()
