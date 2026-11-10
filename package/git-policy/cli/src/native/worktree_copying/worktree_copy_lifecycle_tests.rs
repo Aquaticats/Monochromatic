@@ -854,8 +854,8 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
 
 /// A refused add leaves no unfinished record for the worktree another command completed in its place,
 /// so a later add from that worktree copies its ignored state instead of being told it is only partly there.
-/// The durability writes of its three settlements stay in the page cache, because this control checks nothing about
-/// what a crash leaves.
+/// The durability writes of its three settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
 #[cfg(unix)]
 #[test]
 fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
@@ -987,6 +987,7 @@ fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache
     )
     .expect("settled");
     let synced_directories: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
+    let synced_files: Vec<PathBuf> = crate::private_storage::take_file_syncs();
     assert_eq!(exit_code(&settlement), 0, "{}", String::from_utf8_lossy(stderr.as_slice()));
     assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
     assert_eq!(
@@ -998,6 +999,10 @@ fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache
     assert!(
         synced_directories.iter().any(|path| return path.ends_with("v1")),
         "the settlement's own directory syncs are still recorded: {synced_directories:?}"
+    );
+    assert!(
+        synced_files.iter().any(|path| return path.ends_with("install-log.jsonl")),
+        "the install log's own file sync is still recorded: {synced_files:?}"
     );
     remove(root.as_path());
 }
@@ -1538,8 +1543,8 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
 
 /// A journal whose owner is dead is recovered before the creation runs Git,
 /// and reported.
-/// The durability writes of its two settlements stay in the page cache, because this control checks nothing about what
-/// a crash leaves.
+/// The durability writes of its two settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
 #[cfg(unix)]
 #[test]
 fn a_creation_recovers_a_dead_journal_first() {
