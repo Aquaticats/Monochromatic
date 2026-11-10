@@ -488,7 +488,7 @@ checks['old-cache-folders-removed'] = async () => {
   demand({ condition: isFile(join(runtimeCache, '0000000000000001', 'grammars', 'sql.so')), message: 'the folder used a day ago was removed: ' + JSON.stringify(left) });
   const own = left.filter(name => name !== '0000000000000001');
   const ownFolder = own[0];
-  if (own.length !== 1 || ownFolder === undefined || !/^[0-9a-f]{16}$/.test(ownFolder)) throw new Error('expected this build\'s key folder besides the kept one: ' + JSON.stringify(left));
+  if (own.length !== 1 || ownFolder === undefined || !isRuntimeCacheKeyFolderName(ownFolder)) throw new Error('expected this build\'s key folder besides the kept one: ' + JSON.stringify(left));
   const renewed = lstatSync(join(runtimeCache, ownFolder, 'last-used')).mtimeMs;
   demand({ condition: renewed >= now - 1000, message: 'this build\'s marker was not renewed at start' });
   return { left, status: started.status, tidyElapsedUs: elapsed({ output, phrase: 'runtime cache tidied' }) };
