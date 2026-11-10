@@ -44,7 +44,8 @@ in disposable containers with networking disabled,
 2 CPUs,
 2 GiB of memory,
 and the lowest disk weight (`--blkio-weight` and `--cgroup-conf io.weight=`,
-both from the `lowest_disk_weight` variable of `mise.toml`, which a test checks against the shared
+both from the `lowest_disk_weight` variable of `mise.toml`,
+which a test checks against the shared
 `@monochromatic-dev/container-limit-core` constant;
 these rootful containers sit outside the task's unit,
 so the launcher's `IOWeight` never reaches them).
@@ -72,7 +73,10 @@ The script runs four steps in sequence:
     `bootc-image-builder` converts the image to
    `output/qcow2/disk.qcow2` (rootful `sudo podman`,
     privileged,
-    at the lowest disk weight, with 12 GiB, 8 CPUs and 2048 processes, from `src/container-arguments.ts`)
+    at the lowest disk weight,
+   with 12 GiB,
+   8 CPUs and 2048 processes,
+   from `src/container-arguments.ts`)
 3. **Fix ownership**:
     restores `output/` from root:
    root to current user
