@@ -397,20 +397,20 @@ Primary sources:
 
 For each unresolved invoked package callable:
 
-1. Resolve exact declaration and package identity from the active TypeScript project.
-2. Resolve the package export's runtime file and shipped source map or declaration map.
-3. Map the declaration owner and member to one implementation callable.
-4. Analyze only that implementation and transitively reached callables.
-5. Reuse the existing origin,
-   callback,
-   closure,
-   mutation,
-   and uncertainty summaries.
-6. Treat dynamic exports,
-   unresolved aliases,
-   native binaries,
-   generated code without source mapping,
-   and ambiguous declaration-to-runtime mappings as uncertain.
+1.  Resolve exact declaration and package identity from the active TypeScript project.
+2.  Resolve the package export's runtime file and shipped source map or declaration map.
+3.  Map the declaration owner and member to one implementation callable.
+4.  Analyze only that implementation and transitively reached callables.
+5.  Reuse the existing origin,
+    callback,
+    closure,
+    mutation,
+    and uncertainty summaries.
+6.  Treat dynamic exports,
+    unresolved aliases,
+    native binaries,
+    generated code without source mapping,
+    and ambiguous declaration-to-runtime mappings as uncertain.
 
 Uninvoked package exports are not enumerated or analyzed.
 The lockfile bounds accepted package identities and cache invalidation;

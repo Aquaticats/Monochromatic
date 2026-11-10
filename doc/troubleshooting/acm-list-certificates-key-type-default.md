@@ -1,8 +1,8 @@
 # AWS CLI 2.37.0 `acm list-certificates` returns an empty list for every ECDSA certificate because the documented default key-type filter is RSA only
 
-**Date**:
+Date:
  2026-10-09.
-**Subject**:
+Subject:
  `aws acm list-certificates` in `us-east-1` returns
 `{"CertificateSummaryList": []}` with HTTP 200 and no error,
 in an account that holds two issued certificates,

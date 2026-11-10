@@ -32,61 +32,61 @@ The reviewed upstream checkout is `timothee-haudebourg/json-number` at
  This finding applies to that exact release,
  not merely a branch sharing its version string.
 
-1. `src/lib.rs:110-120` defines the unsized wrapper without any representation attribute:
+1.  `src/lib.rs:110-120` defines the unsized wrapper without any representation attribute:
 
-   ```rust
-   // src/lib.rs:110-120
-   #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
-   pub struct Number {
-       data: [u8],
-   }
-   ```
+    ```rust
+    // src/lib.rs:110-120
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Number {
+        data: [u8],
+    }
+    ```
 
-   Its derived equality compares the raw bytes,
-   so `1` and `1.0` remain unequal without a separate mathematical-identity layer.
+    Its derived equality compares the raw bytes,
+    so `1` and `1.0` remain unequal without a separate mathematical-identity layer.
 
-2. `Number::new` scans JSON number bytes,
-   then calls the unchecked constructor even on the checked public path
-   (`src/lib.rs:121-203`):
+2.  `Number::new` scans JSON number bytes,
+    then calls the unchecked constructor even on the checked public path
+    (`src/lib.rs:121-203`):
 
-   ```rust
-   // src/lib.rs:188-197
-   if matches!(
-       state,
-       State::Zero | State::NonZero | State::FractionalRest | State::ExponentRest
-   ) {
-       Ok(unsafe { Self::new_unchecked(s) })
-   } else {
-       Err(InvalidNumber(data))
-   }
-   ```
+    ```rust
+    // src/lib.rs:188-197
+    if matches!(
+        state,
+        State::Zero | State::NonZero | State::FractionalRest | State::ExponentRest
+    ) {
+        Ok(unsafe { Self::new_unchecked(s) })
+    } else {
+        Err(InvalidNumber(data))
+    }
+    ```
 
-3. `new_unchecked` transmutes a byte-slice reference into a `Number` reference
-   (`src/lib.rs:199-207`).
-   The owned `NumberBuf::new` entry calls `Number::new`,
-   and its `as_number` also calls `new_unchecked`
-   (`src/lib.rs:524-537,579-584`).
-   An external wrapper using the checked owned constructor cannot avoid this path:
+3.  `new_unchecked` transmutes a byte-slice reference into a `Number` reference
+    (`src/lib.rs:199-207`).
+    The owned `NumberBuf::new` entry calls `Number::new`,
+    and its `as_number` also calls `new_unchecked`
+    (`src/lib.rs:524-537,579-584`).
+    An external wrapper using the checked owned constructor cannot avoid this path:
 
-   ```rust
-   // src/lib.rs:199-207
-   pub unsafe fn new_unchecked<B: AsRef<[u8]> + ?Sized>(data: &B) -> &Number {
-       std::mem::transmute(data.as_ref())
-   }
-   ```
+    ```rust
+    // src/lib.rs:199-207
+    pub unsafe fn new_unchecked<B: AsRef<[u8]> + ?Sized>(data: &B) -> &Number {
+        std::mem::transmute(data.as_ref())
+    }
+    ```
 
-4. The [Rust Reference][layout-rust] says default `repr(Rust)` makes only field-alignment,
-   type-alignment and non-overlap guarantees,
-   with no other data-layout guarantees.
-   The [transparent representation][layout-transparent] explicitly guarantees
-   the same layout and ABI as its only nonzero field.
-   [DST metadata rules][dst] say a struct with an unsized tail shares the tail's metadata;
-   matching metadata does **not** independently prove that its field starts at offset zero.
-   [`transmute` documentation][transmute] additionally requires the resulting reference
-   to be valid for its destination type,
-   not merely the same size as its source.
-   Grammar validation ensures ASCII bytes for `as_str`;
-   it cannot establish the missing struct-layout condition.
+4.  The [Rust Reference][layout-rust] says default `repr(Rust)` makes only field-alignment,
+    type-alignment and non-overlap guarantees,
+    with no other data-layout guarantees.
+    The [transparent representation][layout-transparent] explicitly guarantees
+    the same layout and ABI as its only nonzero field.
+    [DST metadata rules][dst] say a struct with an unsized tail shares the tail's metadata;
+    matching metadata does **not** independently prove that its field starts at offset zero.
+    [`transmute` documentation][transmute] additionally requires the resulting reference
+    to be valid for its destination type,
+    not merely the same size as its source.
+    Grammar validation ensures ASCII bytes for `as_str`;
+    it cannot establish the missing struct-layout condition.
 
 ## Verification
 
@@ -166,33 +166,33 @@ No matching entry exists in this repository's `.out-of-scope/` list.
  its maintainer states that issue was fixed in version 0.4.9.
  No report or patch was sent.
 
-1. **Upstream fault**:
-   unresolved.
-   The public docs do not establish the needed layout guarantee,
-   but this audit has not proved a concrete invalid result
-   or checked a formal compiler guarantee outside the cited Reference.
-   Do not equate an unproved safety case with demonstrated undefined behavior.
-2. **Fixability**:
-   yes in principle.
-   A separately reviewed transparent representation
-   and justified pointer conversion could supply a documented layout boundary.
-3. **Supported use case**:
-   yes for checked raw JSON-number token storage (`src/lib.rs:110-128`).
-   Mathematical equality is explicitly **not** claimed by upstream.
-4. **Contribution welcome**:
-   `README.md:43-48` specifies dual licensing for submitted contributions.
-   The checkout has no `CONTRIBUTING.md` or `.github/` policy;
-   no ban on outside or AI-assisted reports was found in the inspected files.
-5. **Maintainer disposition**:
-   neither searched tracker results nor the README state a refusal.
-   This is not a prediction of acceptance.
-6. **Prototype**:
-   not attempted.
-   Constraint 1 remains unresolved,
-   so the auto-prototype rule for constraints 1 through 5 holding does not apply.
-   A separate fork would need representation,
-   metadata,
-   UTF-8 invariant and consumer tests before reconsideration.
+1.  **Upstream fault**:
+    unresolved.
+    The public docs do not establish the needed layout guarantee,
+    but this audit has not proved a concrete invalid result
+    or checked a formal compiler guarantee outside the cited Reference.
+    Do not equate an unproved safety case with demonstrated undefined behavior.
+2.  **Fixability**:
+    yes in principle.
+    A separately reviewed transparent representation
+    and justified pointer conversion could supply a documented layout boundary.
+3.  **Supported use case**:
+    yes for checked raw JSON-number token storage (`src/lib.rs:110-128`).
+    Mathematical equality is explicitly **not** claimed by upstream.
+4.  **Contribution welcome**:
+    `README.md:43-48` specifies dual licensing for submitted contributions.
+    The checkout has no `CONTRIBUTING.md` or `.github/` policy;
+    no ban on outside or AI-assisted reports was found in the inspected files.
+5.  **Maintainer disposition**:
+    neither searched tracker results nor the README state a refusal.
+    This is not a prediction of acceptance.
+6.  **Prototype**:
+    not attempted.
+    Constraint 1 remains unresolved,
+    so the auto-prototype rule for constraints 1 through 5 holding does not apply.
+    A separate fork would need representation,
+    metadata,
+    UTF-8 invariant and consumer tests before reconsideration.
 
 The draft is **do not file as-is**:
  it asks for clarification rather than asserting a proven incident,

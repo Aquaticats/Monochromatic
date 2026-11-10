@@ -282,32 +282,32 @@ GitHub issue and pull request searches across open and closed `aliou/pi-processe
 
 The filing constraints do not pass:
 
-1. **Is it really upstream's fault?**
-    No.
-   Pi-processes already supplies start snapshots,
-   list snapshots,
-   live status names,
-   and terminal lifecycle messages.
-   The repository-owned goal extension ignored those surfaces.
-2. **Can upstream fix it?**
-    Upstream could add another event-bus API,
-   but that would not change the goal's continuation policy by itself.
-   The complete fix belongs at the goal consumer boundary.
-3. **Are they supporting this use case?**
-    Partly.
-   `README.md` and `CONTRIBUTING.md` support agent-managed background processes and configurable alerts,
-   but they do not promise coordination with arbitrary third-party stop hooks.
-4. **Would the repository welcome our contribution?**
-    No blocking policy was found.
-   `CONTRIBUTING.md` documents normal lint and type-check workflows and contains no AI-assistance ban.
-   This does not overcome the failed fault and ownership constraints.
-5. **Will they likely fix it?**
-    Not applicable as a goal-package bug.
-   Tracker searches found no maintainer position on this separate consumer policy.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    A minimal consumer fix is
-   implemented and tested in this repository.
-   No upstream patch is appropriate because changing pi-processes is unnecessary.
+1.  **Is it really upstream's fault?**
+     No.
+    Pi-processes already supplies start snapshots,
+    list snapshots,
+    live status names,
+    and terminal lifecycle messages.
+    The repository-owned goal extension ignored those surfaces.
+2.  **Can upstream fix it?**
+     Upstream could add another event-bus API,
+    but that would not change the goal's continuation policy by itself.
+    The complete fix belongs at the goal consumer boundary.
+3.  **Are they supporting this use case?**
+     Partly.
+    `README.md` and `CONTRIBUTING.md` support agent-managed background processes and configurable alerts,
+    but they do not promise coordination with arbitrary third-party stop hooks.
+4.  **Would the repository welcome our contribution?**
+     No blocking policy was found.
+    `CONTRIBUTING.md` documents normal lint and type-check workflows and contains no AI-assistance ban.
+    This does not overcome the failed fault and ownership constraints.
+5.  **Will they likely fix it?**
+     Not applicable as a goal-package bug.
+    Tracker searches found no maintainer position on this separate consumer policy.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     A minimal consumer fix is
+    implemented and tested in this repository.
+    No upstream patch is appropriate because changing pi-processes is unnecessary.
 
 Nothing should be filed upstream.
 There is no additive issue or comment for `aliou/pi-processes` because the source audit confirms its existing

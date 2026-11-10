@@ -160,6 +160,7 @@ No unsupported terminology assertion or new glossary entry has been implemented.
 
 A focused advisor call about prioritization timed out without feedback.
 It supplies no endorsement or objection.
+
 ## Completed name-form measurement
 
 `proc_b0ce` completed `translation-repair-name-form-probe-20260910` on frozen `b5da9866b` in 139 seconds.
@@ -280,6 +281,7 @@ consolidation,
 criticism and lane selection,
 plus the actual translation criteria.
 The group-name policy and temporal-context measurements remain separate pending work.
+
 ## Integration and group-name measurement
 
 `514db9b1f` integrates the measured quoted-form scope in initial translation,
@@ -357,6 +359,7 @@ The post-probe daily helper ran.
 
 The name-policy work is verified locally and at the bounded live stage.
 The remaining material follow-ups are archive apparatus/copy-edit treatment and temporal source context.
+
 ## Cache-only archive replay corrects the remaining diagnosis
 
 `recover-Mio12-archive-context-20260910.mjs` reconstructs the actual two-picture support using twelve completed

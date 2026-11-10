@@ -191,32 +191,32 @@ Nothing to file;
 the audit stops at the first constraint,
 and the rest are walked for the record.
 
-1. Is it really upstream's fault?
-   No.
-   The trust page (<https://mise.jdx.dev/cli/trust.html>,
-   fetched 2026-10-14) says "Trust lets mise load the parts of a
-   config file that can run code or change your environment",
-   and exempts only plain-version `[tools]` entries.
-   The behaviors above (refusal without trust,
-   every command loading a trusted file) match that page;
-   the evaluation of `[env]` templates by `config ls` and `bin-paths` was observed,
-   not found stated on the pages read
-   (<https://mise.jdx.dev/configuration.html> does not mention `exec()`).
-   The failure the IDE had was its own:
-   it accepted a shim and ran no resolution at all.
-2. Can upstream fix it?
-   Not applicable,
-   nothing to fix upstream.
-3. Are they supporting this use case?
-   Not determined;
-   the pages read do not address a sandboxed caller.
-4. Would the repo welcome our contribution?
-   Not checked;
-   no issue is drafted.
-5. Will they likely fix it?
-   Not applicable.
-6. Prototyped a minimal fix?
-   Not applicable.
+1.  Is it really upstream's fault?
+    No.
+    The trust page (<https://mise.jdx.dev/cli/trust.html>,
+    fetched 2026-10-14) says "Trust lets mise load the parts of a
+    config file that can run code or change your environment",
+    and exempts only plain-version `[tools]` entries.
+    The behaviors above (refusal without trust,
+    every command loading a trusted file) match that page;
+    the evaluation of `[env]` templates by `config ls` and `bin-paths` was observed,
+    not found stated on the pages read
+    (<https://mise.jdx.dev/configuration.html> does not mention `exec()`).
+    The failure the IDE had was its own:
+    it accepted a shim and ran no resolution at all.
+2.  Can upstream fix it?
+    Not applicable,
+    nothing to fix upstream.
+3.  Are they supporting this use case?
+    Not determined;
+    the pages read do not address a sandboxed caller.
+4.  Would the repo welcome our contribution?
+    Not checked;
+    no issue is drafted.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Prototyped a minimal fix?
+    Not applicable.
 
 `.out-of-scope/` was not searched for mise,
 and no tracker search was made,

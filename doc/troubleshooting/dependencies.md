@@ -335,23 +335,23 @@ Trigger package:
 
 Catalogues:
 
-- **Works**:
+- Works:
    `npm install`,
    `pnpm install`,
    `yarn install` against the
   same trigger package.
    All three strip `+<build>` from the version
   string before constructing the registry URL.
-- **Works**:
+- Works:
    registry URL `GET /@optique/core/1.0.0-dev.1692` (without
   build metadata) returns 200 OK.
-- **Fails**:
+- Fails:
    `vlt install` with the trigger package.
    URL
   `GET /@optique/core/1.0.0-dev.1692+5c265bd4` returns 404,
    and the
   percent-encoded variant `%2B5c265bd4` also returns 404.
-- **Fails (no recovery)**:
+- Fails (no recovery):
    `vlt install` with `vlt.json` graph
   modifiers (`"#@optique/core": ">=1.0.0-dev.0"`,
   `"#@optique/run": ">=1.0.0-dev.0"`).
@@ -360,11 +360,11 @@ Catalogues:
   (`src/graph/src/reify/extract-node.ts:57`),
    which is downstream of
   modifier application (`src/graph/src/ideal/append-nodes.ts:269-288`).
-- **Fails (no recovery)**:
+- Fails (no recovery):
    lockfile restoration.
    vlt re-resolves
   specs during install.
-- **Fails (no recovery)**:
+- Fails (no recovery):
    cache clearing
   (`rm -rf ~/.cache/vlt/{package-info,registry-client}`).
    Build
@@ -419,114 +419,114 @@ This aligns with SemVer 2.0.0 items 10-11,
 
 Walked against the 5-constraint upstream-filing check.
 
-1. **Upstream's fault?
-   ** Yes.
-    SemVer 2.0.0 items 10-11 state build
-   metadata MUST be ignored when determining version precedence;
-    vlt's
-   single-version fast path violates this by treating `+<build>` as
-   part of the addressable version.
-    The npm registry follows the spec
-   by stripping `+` from version keys at publish time
-   (npm/npm#6379,
-    2014);
-    vlt's URL construction does not.
-2. **Can upstream fix it?
-   ** Yes;
-    one-line fix in
-   `src/package-info/src/index.ts:476-478` (rc.
-   29) to strip `+.*$` before URL
-   construction,
-    or a broader fix in `src/spec/src/browser.ts:644` so
-   all downstream consumers see clean versions.
-    Both are tractable
-   given the cited code.
-3. **Supporting this use case?
-   ** vlt is positioned as a general-purpose
-   npm-compatible package manager;
-    SemVer-compliant version handling
-   is in scope.
-4. **Will they fix it?
-   ** Plausible.
-    vlt is actively developed;
-    the
-   change is small.
-    The issue tracker has no existing report for this
-   pattern (issues #260,
-    #1263,
-    #1534 are all different "failed to
-   fetch manifest" causes).
-    Acceptance is likely but not guaranteed.
-5. **Minimal-fix prototype?
-   ** Yes.
-    Cloned `vltpkg/vltpkg` at commit
-   `8ece488d` (tag `v1.0.0-rc.29-1`) into a fresh `mktemp -d`
-   workspace,
-    ran `vlt install` (via the bootstrap published rc.
-   29) to
-   resolve the workspace,
-    then exercised the source-tree
-   `scripts/bins/vlt` against a one-line `package.json` declaring
-   `"@optique/run": "1.0.0-dev.1692"`.
+1.  **Upstream's fault?
+    ** Yes.
+     SemVer 2.0.0 items 10-11 state build
+    metadata MUST be ignored when determining version precedence;
+     vlt's
+    single-version fast path violates this by treating `+<build>` as
+    part of the addressable version.
+     The npm registry follows the spec
+    by stripping `+` from version keys at publish time
+    (npm/npm#6379,
+     2014);
+     vlt's URL construction does not.
+2.  **Can upstream fix it?
+    ** Yes;
+     one-line fix in
+    `src/package-info/src/index.ts:476-478` (rc.
+    29) to strip `+.*$` before URL
+    construction,
+     or a broader fix in `src/spec/src/browser.ts:644` so
+    all downstream consumers see clean versions.
+     Both are tractable
+    given the cited code.
+3.  **Supporting this use case?
+    ** vlt is positioned as a general-purpose
+    npm-compatible package manager;
+     SemVer-compliant version handling
+    is in scope.
+4.  **Will they fix it?
+    ** Plausible.
+     vlt is actively developed;
+     the
+    change is small.
+     The issue tracker has no existing report for this
+    pattern (issues #260,
+     #1263,
+     #1534 are all different "failed to
+    fetch manifest" causes).
+     Acceptance is likely but not guaranteed.
+5.  **Minimal-fix prototype?
+    ** Yes.
+     Cloned `vltpkg/vltpkg` at commit
+    `8ece488d` (tag `v1.0.0-rc.29-1`) into a fresh `mktemp -d`
+    workspace,
+     ran `vlt install` (via the bootstrap published rc.
+    29) to
+    resolve the workspace,
+     then exercised the source-tree
+    `scripts/bins/vlt` against a one-line `package.json` declaring
+    `"@optique/run": "1.0.0-dev.1692"`.
 
-   Pre-patch (verbatim):
+    Pre-patch (verbatim):
 
-   ```text
-   Resolve Error: failed to fetch manifest
-     While fetching: https://registry.npmjs.org/@optique/core/1.0.0-dev.1692+5c265bd4
-     Response: { statusCode: 404, … }
-   ```
+    ```text
+    Resolve Error: failed to fetch manifest
+      While fetching: https://registry.npmjs.org/@optique/core/1.0.0-dev.1692+5c265bd4
+      Response: { statusCode: 404, … }
+    ```
 
-   Applied the single-hunk patch:
+    Applied the single-hunk patch:
 
-   ```diff
-   diff --git a/src/package-info/src/index.ts b/src/package-info/src/index.ts
-   --- a/src/package-info/src/index.ts
-   +++ b/src/package-info/src/index.ts
-   @@ -475,7 +475,8 @@ export class PackageInfoClient {
-        )
-        const version =
-          hasLeadingRange ? registrySpec.slice(1) : registrySpec
-   -    const pakuURL = new URL(`${name}/${version}`, registry)
-   +    const versionClean = version.replace(/\+.*$/, '')
-   +    const pakuURL = new URL(`${name}/${versionClean}`, registry)
-        const response = await this.registryClient.request(pakuURL, {
-          headers: {
-            accept: 'application/json',
-   ```
+    ```diff
+    diff --git a/src/package-info/src/index.ts b/src/package-info/src/index.ts
+    --- a/src/package-info/src/index.ts
+    +++ b/src/package-info/src/index.ts
+    @@ -475,7 +475,8 @@ export class PackageInfoClient {
+         )
+         const version =
+           hasLeadingRange ? registrySpec.slice(1) : registrySpec
+    -    const pakuURL = new URL(`${name}/${version}`, registry)
+    +    const versionClean = version.replace(/\+.*$/, '')
+    +    const pakuURL = new URL(`${name}/${versionClean}`, registry)
+         const response = await this.registryClient.request(pakuURL, {
+           headers: {
+             accept: 'application/json',
+    ```
 
-   Post-patch `vlt install` succeeded with exit 0,
-    adding both
-   `@optique/run@1.0.0-dev.1692` and `@optique/core@1.0.0-dev.1692`
-   (the build-metadata suffix is stripped only from the URL;
-    the
-   fetched tarball's `package.json` still records
-   `"version": "1.0.0-dev.1692+5c265bd4"`,
-    which the registry tolerates).
-   The fix did not require touching `conventionalRegistryTarball`:
-    the
-   manifest fetch returns the registry-stripped `dist.tarball`,
-    so the
-   guessed-URL fallback is not exercised on the success path.
+    Post-patch `vlt install` succeeded with exit 0,
+     adding both
+    `@optique/run@1.0.0-dev.1692` and `@optique/core@1.0.0-dev.1692`
+    (the build-metadata suffix is stripped only from the URL;
+     the
+    fetched tarball's `package.json` still records
+    `"version": "1.0.0-dev.1692+5c265bd4"`,
+     which the registry tolerates).
+    The fix did not require touching `conventionalRegistryTarball`:
+     the
+    manifest fetch returns the registry-stripped `dist.tarball`,
+     so the
+    guessed-URL fallback is not exercised on the success path.
 
-   `src/package-info` test suite under Node v26.1.0:
-    141 of 148 pass
-   post-patch.
-    The 7 failures (`cache hit - manifest returned from
-   cache` and 6 sibling subtests) are pre-existing at HEAD and
-   identical pre- and post-patch;
-    they fail with
-   `The property 'options.recursive' is no longer supported. Received true`,
-   which is the Node v26 removal of the `recursive` option from
-   `fs.cp` / `fs.cpSync`,
-    unrelated to manifest URL construction.
-   The existing leading-prefix-strip test
-   (`src/package-info/test/index.ts:661`,
-    "manifest strips leading
-   semver characters") exercises the same URL-construction block this
-   patch extends and remains green;
-    the new `+`-strip slots in
-   immediately after the existing `=/^/~/v` strip.
+    `src/package-info` test suite under Node v26.1.0:
+     141 of 148 pass
+    post-patch.
+     The 7 failures (`cache hit - manifest returned from
+    cache` and 6 sibling subtests) are pre-existing at HEAD and
+    identical pre- and post-patch;
+     they fail with
+    `The property 'options.recursive' is no longer supported. Received true`,
+    which is the Node v26 removal of the `recursive` option from
+    `fs.cp` / `fs.cpSync`,
+     unrelated to manifest URL construction.
+    The existing leading-prefix-strip test
+    (`src/package-info/test/index.ts:661`,
+     "manifest strips leading
+    semver characters") exercises the same URL-construction block this
+    patch extends and remains green;
+     the new `+`-strip slots in
+    immediately after the existing `=/^/~/v` strip.
 
 **Decision:
  file upstream.
@@ -1085,7 +1085,7 @@ supply the CLI.
 
 The remediation was tested with pnpm 11.21.0 on 2026-08-12.
 
-**Vulnerable catalog before the override:**
+Vulnerable catalog before the override:
 
 - `pnpm why image-size --recursive` reported the single chain through
   `texture-compressor@1.0.2`.
@@ -1093,7 +1093,7 @@ The remediation was tested with pnpm 11.21.0 on 2026-08-12.
   `texture-compressor@1.0.2` and `image-size@0.7.5`.
 - GitHub reported alerts #77 and #78 as open against `pnpm-lock.yaml`.
 
-**Clean catalog after the override:**
+Clean catalog after the override:
 
 - `mise run prepare:pnpm:install` completed successfully and removed both packages.
 - `pnpm why image-size --recursive` and
@@ -1177,36 +1177,36 @@ resolved and does not restore the vulnerable dependency for ordinary consumers.
 
 The filing constraints resolve as follows:
 
-1. **Upstream's fault?**
-   Yes.
-   Version 4.4.4 installs a deprecated CLI for every textures consumer even though
-   source code only launches it for one experimental writer.
-2. **Can upstream fix it?**
-   Yes.
-   PR #3553 removed the manifest edge while preserving the application-supplied
-   CLI path.
-3. **Does upstream support the use case?**
-   Yes.
-   `@loaders.gl/textures` documents `CompressedTextureWriter`,
-   and package installation without an unused vulnerable tool is part of that
-   published surface.
-4. **Would upstream welcome the contribution?**
-   Yes.
-   `CONTRIBUTING.md:1-13` welcomes contributions,
-   `.github/ISSUE_TEMPLATE/bug-report.yml:13-28` requests actionable,
-   deduplicated reports,
-   no contribution policy or tracker result bans AI-assisted work,
-   and maintainers merged PR #3553.
-5. **Will upstream fix it?**
-   Yes,
-   already fixed on `master` by merge commit `ce8b32a`.
-6. **Was a minimal compatible fix prototyped?**
-   Yes.
-   The candidate fix was absent from installed 4.4.4 and present on current
-   `master`.
-   The workspace applied the same dependency removal at its consumer boundary,
-   regenerated the lockfile,
-   and verified the clean graph and zero-advisory audit.
+1.  **Upstream's fault?**
+    Yes.
+    Version 4.4.4 installs a deprecated CLI for every textures consumer even though
+    source code only launches it for one experimental writer.
+2.  **Can upstream fix it?**
+    Yes.
+    PR #3553 removed the manifest edge while preserving the application-supplied
+    CLI path.
+3.  **Does upstream support the use case?**
+    Yes.
+    `@loaders.gl/textures` documents `CompressedTextureWriter`,
+    and package installation without an unused vulnerable tool is part of that
+    published surface.
+4.  **Would upstream welcome the contribution?**
+    Yes.
+    `CONTRIBUTING.md:1-13` welcomes contributions,
+    `.github/ISSUE_TEMPLATE/bug-report.yml:13-28` requests actionable,
+    deduplicated reports,
+    no contribution policy or tracker result bans AI-assisted work,
+    and maintainers merged PR #3553.
+5.  **Will upstream fix it?**
+    Yes,
+    already fixed on `master` by merge commit `ce8b32a`.
+6.  **Was a minimal compatible fix prototyped?**
+    Yes.
+    The candidate fix was absent from installed 4.4.4 and present on current
+    `master`.
+    The workspace applied the same dependency removal at its consumer boundary,
+    regenerated the lockfile,
+    and verified the clean graph and zero-advisory audit.
 
 **Decision:
 post nothing upstream.**
@@ -2098,43 +2098,43 @@ the same across all of them;
  doing the audit once at the category
 level is correct since the constraints do not differ per-entry.
 
-1. **Upstream's fault?
-   ** No. Each upstream package functions as
-   documented;
-    the substitution / removal / ban is a workspace policy
-   decision about runtime profile (Node 22+ / Bun),
-    maintenance
-   posture (3+ years abandoned),
-    API surface (single-method
-   utilities replaced by platform primitives),
-    or licensing /
-   provenance posture.
-    The packages are not defective;
-    they are
-   unsuitable for this workspace's policy.
-2. **Can upstream fix it?
-   ** Not applicable.
-    Upstream would have to
-   un-abandon,
-    re-license,
-    or merge with a platform primitive.
-    The
-   policy decision is upstream-independent.
-3. **Supporting this use case?
-   ** Not applicable.
-    The use case
-   ("don't pull this package into this workspace") is workspace-local.
-4. **Will they fix it?
-   ** Not applicable.
-    Several packages are
-   abandoned (no commits in 3+ years);
-    some are deprecated by their
-   maintainer's own README ("Use your platform's native DOMException
-   instead").
-    The policy already takes upstream signals into account
-   when making the decision.
-5. **Minimal-fix prototype?
-   ** Not applicable.
+1.  **Upstream's fault?
+    ** No. Each upstream package functions as
+    documented;
+     the substitution / removal / ban is a workspace policy
+    decision about runtime profile (Node 22+ / Bun),
+     maintenance
+    posture (3+ years abandoned),
+     API surface (single-method
+    utilities replaced by platform primitives),
+     or licensing /
+    provenance posture.
+     The packages are not defective;
+     they are
+    unsuitable for this workspace's policy.
+2.  **Can upstream fix it?
+    ** Not applicable.
+     Upstream would have to
+    un-abandon,
+     re-license,
+     or merge with a platform primitive.
+     The
+    policy decision is upstream-independent.
+3.  **Supporting this use case?
+    ** Not applicable.
+     The use case
+    ("don't pull this package into this workspace") is workspace-local.
+4.  **Will they fix it?
+    ** Not applicable.
+     Several packages are
+    abandoned (no commits in 3+ years);
+     some are deprecated by their
+    maintainer's own README ("Use your platform's native DOMException
+    instead").
+     The policy already takes upstream signals into account
+    when making the decision.
+5.  **Minimal-fix prototype?
+    ** Not applicable.
 
 **Decision:
  no upstream report for any policy entry.

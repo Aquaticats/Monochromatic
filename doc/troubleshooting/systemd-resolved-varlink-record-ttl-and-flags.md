@@ -153,28 +153,28 @@ The method sets it.
 
 Nothing to file.
 
-1. Is it really upstream's fault?
-   No.
-   The flag list is deliberate,
-   and the method sets the flag itself.
-   The header comment says "Input" for a flag that is only set internally,
-   which is wording and not behavior.
-2. Can upstream fix it?
-   Yes,
-   by rewording one comment;
-   there is nothing to fix in behavior.
-3. Do they support this use case?
-   Yes,
-   `ResolveRecord` exists for per-link record queries.
-4. Would the repository welcome a contribution?
-   Not searched:
-   contribution and AI-assistance policy files were not read.
-5. Will they likely fix it?
-   Not applicable;
-   there is no behavior defect.
-6. Prototype:
-   none,
-   because there is no defect.
+1.  Is it really upstream's fault?
+    No.
+    The flag list is deliberate,
+    and the method sets the flag itself.
+    The header comment says "Input" for a flag that is only set internally,
+    which is wording and not behavior.
+2.  Can upstream fix it?
+    Yes,
+    by rewording one comment;
+    there is nothing to fix in behavior.
+3.  Do they support this use case?
+    Yes,
+    `ResolveRecord` exists for per-link record queries.
+4.  Would the repository welcome a contribution?
+    Not searched:
+    contribution and AI-assistance policy files were not read.
+5.  Will they likely fix it?
+    Not applicable;
+    there is no behavior defect.
+6.  Prototype:
+    none,
+    because there is no defect.
 
 Filing a one-comment wording issue would carry the poster's account in front of strangers for no benefit.
 Whether to file anything is the poster's decision.

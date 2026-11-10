@@ -86,22 +86,22 @@ openvscode-server).
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. The branding gate is a
-   licensing requirement.
-2. **Can upstream fix it?
-   ** They could relax the licensing,
-    but
-   doing so would undermine the commercial model around the
-   Marketplace and proprietary extensions.
-3. **Are they supporting this use case?
-   ** No;
-    non-MS clients are
-   explicitly out of scope.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. The branding gate is a
+    licensing requirement.
+2.  **Can upstream fix it?
+    ** They could relax the licensing,
+     but
+    doing so would undermine the commercial model around the
+    Marketplace and proprietary extensions.
+3.  **Are they supporting this use case?
+    ** No;
+     non-MS clients are
+    explicitly out of scope.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -218,24 +218,24 @@ minutes on first build.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. The PPA system is by design
-   Ubuntu-specific.
-2. **Can upstream fix it?
-   ** Helix could publish Debian packages,
-    but
-   that is a packaging request,
-    not a bug.
-3. **Are they supporting this use case?
-   ** The published install docs
-   already list Homebrew and binary releases as alternatives.
-4. **Will they likely fix it?
-   ** A Debian repository would be a
-   sizeable maintenance commitment;
-    unlikely without a packager
-   volunteering.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. The PPA system is by design
+    Ubuntu-specific.
+2.  **Can upstream fix it?
+    ** Helix could publish Debian packages,
+     but
+    that is a packaging request,
+     not a bug.
+3.  **Are they supporting this use case?
+    ** The published install docs
+    already list Homebrew and binary releases as alternatives.
+4.  **Will they likely fix it?
+    ** A Debian repository would be a
+    sizeable maintenance commitment;
+     unlikely without a packager
+    volunteering.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -324,21 +324,21 @@ Append (`PATH=$PATH:...`) only when system binaries should win.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. PATH is a shell variable;
-   the bug is a user-side `export` mistake.
-2. **Can upstream fix it?
-   ** Homebrew's install script already prints
-   the correct form.
-    The wrong form comes from outdated guides,
-    not
-   Homebrew.
-3. **Are they supporting this use case?
-   ** Yes.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. PATH is a shell variable;
+    the bug is a user-side `export` mistake.
+2.  **Can upstream fix it?
+    ** Homebrew's install script already prints
+    the correct form.
+     The wrong form comes from outdated guides,
+     not
+    Homebrew.
+3.  **Are they supporting this use case?
+    ** Yes.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -423,22 +423,22 @@ container image trying to minimise size.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. Homebrew is correctly
-   compiling against the available toolchain.
-2. **Can upstream fix it?
-   ** They could prompt for system-gcc
-   installation,
-    but the current "warn-and-proceed" behaviour is
-   reasonable.
-3. **Are they supporting this use case?
-   ** Yes;
-    Homebrew-on-Linux is
-   supported.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. Homebrew is correctly
+    compiling against the available toolchain.
+2.  **Can upstream fix it?
+    ** They could prompt for system-gcc
+    installation,
+     but the current "warn-and-proceed" behaviour is
+    reasonable.
+3.  **Are they supporting this use case?
+    ** Yes;
+     Homebrew-on-Linux is
+    supported.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.

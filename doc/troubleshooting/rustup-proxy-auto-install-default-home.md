@@ -246,18 +246,18 @@ Nothing to file,
  and nothing was filed or commented.
 Walking the 6-constraint check stops at the first constraint:
 
-1. **Is it really upstream's fault?
-   ** No.
-    Auto-installing a `+toolchain` is
-   rustup's documented convenience,
-    it is switchable with `RUSTUP_AUTO_INSTALL=0`,
-   and it writes to exactly the `RUSTUP_HOME` it was given.
-    The environment
-   prefix binding to one command is POSIX shell.
-    Neither piece is a defect,
-    and
-   the combination is a caller mistake.
-    Constraints 2 through 6 are not reached.
+1.  **Is it really upstream's fault?
+    ** No.
+     Auto-installing a `+toolchain` is
+    rustup's documented convenience,
+     it is switchable with `RUSTUP_AUTO_INSTALL=0`,
+    and it writes to exactly the `RUSTUP_HOME` it was given.
+     The environment
+    prefix binding to one command is POSIX shell.
+     Neither piece is a defect,
+     and
+    the combination is a caller mistake.
+     Constraints 2 through 6 are not reached.
 
 The one thing that would have helped is a louder notice,
  and rustup already emits

@@ -316,17 +316,17 @@ and the problem is the multiplier.
 
 No issue is drafted.
 
-1. The cause is local:
-   both ceilings were local configuration,
-   and the load came from parallel local jobs.
-2. The only upstream-adjacent item is the wording of a read timeout as `os error 11`,
-   which the README documents.
-3. `agent-browser` supports multiple sessions (`README.md:722`) and documents idle shutdown.
-4. to 6.
-   were not assessed because constraint 1 fails:
-   documented behavior is not a defect,
-   and no fix was prototyped.
-   No `.out-of-scope/` check was needed for a filing that is not made.
+1.  The cause is local:
+    both ceilings were local configuration,
+    and the load came from parallel local jobs.
+2.  The only upstream-adjacent item is the wording of a read timeout as `os error 11`,
+    which the README documents.
+3.  `agent-browser` supports multiple sessions (`README.md:722`) and documents idle shutdown.
+4.  to 6.
+    were not assessed because constraint 1 fails:
+    documented behavior is not a defect,
+    and no fix was prototyped.
+    No `.out-of-scope/` check was needed for a filing that is not made.
 
 Related reading:
 [cli-git-tag-push-eagain.md](cli-git-tag-push-eagain.md) for the same

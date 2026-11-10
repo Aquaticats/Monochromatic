@@ -278,24 +278,24 @@ A working-model calibration still needs measured complete responses with explici
 No upstream issue search is warranted because the provider behavior is documented;
 the fault is consumer admission.
 
-1. Upstream fault:
-   **no**.
-   Hyper documents `max_tokens` as output limit,
-   and Anthropic documents `stop_reason: max_tokens` as truncation.
-2. Upstream can fix:
-   **not applicable** to this incident;
-   consumer must honor the supplied stop reason.
-3. Supported use case:
-   **yes**.
-   Hyper advertises Anthropic Messages compatibility and standard parameters.
-4. Contribution welcome:
-   **unknown for Hyper service source**;
-   no public source or contribution policy was found.
-5. Likely fix:
-   **no upstream fix is needed**.
-6. Minimal compatible prototype:
-   **not upstream**.
-   The minimal fix belongs in `chat-json-outcome.ts` with a unit test.
+1.  Upstream fault:
+    **no**.
+    Hyper documents `max_tokens` as output limit,
+    and Anthropic documents `stop_reason: max_tokens` as truncation.
+2.  Upstream can fix:
+    **not applicable** to this incident;
+    consumer must honor the supplied stop reason.
+3.  Supported use case:
+    **yes**.
+    Hyper advertises Anthropic Messages compatibility and standard parameters.
+4.  Contribution welcome:
+    **unknown for Hyper service source**;
+    no public source or contribution policy was found.
+5.  Likely fix:
+    **no upstream fix is needed**.
+6.  Minimal compatible prototype:
+    **not upstream**.
+    The minimal fix belongs in `chat-json-outcome.ts` with a unit test.
 
 ### Upstream filing artifact
 

@@ -47,6 +47,8 @@ import {
  */
 const l = tagged({ tag: 'mutation-test-container', },);
 
+//region Work-tree constants
+
 /**
  Node dependency directory name.
  */
@@ -69,6 +71,10 @@ export const RSYNC_EXCLUDES: readonly string[] = [
   '**/output',
   '**/corpus',
 ];
+
+//endregion Work-tree constants
+
+//region Source copy
 
 /**
  Builds the rsync argument list that copies the host-listed source files
@@ -156,6 +162,10 @@ async function pathExists(path: string,): Promise<boolean> {
     return false;
   }
 }
+
+//endregion Source copy
+
+//region Dependency farms
 
 /**
  Recreates root node_modules from the baked layer, sharing the pnpm
@@ -314,6 +324,10 @@ async function symlinkWorkspacePackageNodeModules(): Promise<void> {
     },),);
 }
 
+//endregion Dependency farms
+
+//region Git marker
+
 /**
  Regular files of the smallest `.git` directory fs-path's git marker
  validator accepts, relative path to content: a symbolic HEAD is the only
@@ -382,6 +396,10 @@ export async function materialiseGitMarker({
   l.debug(`materialised git marker under ${dir}`,);
 }
 
+//endregion Git marker
+
+//region Preparation
+
 /**
  Prepares the full work tree: listed-source rsync plus dependency farms, then the
  `.git` marker from {@link materialiseGitMarker}.
@@ -397,3 +415,5 @@ export async function prepareWorkTree(): Promise<void> {
   await symlinkWorkspacePackageNodeModules();
   await materialiseGitMarker({ dir: WORK_MOUNT, },);
 }
+
+//endregion Preparation
