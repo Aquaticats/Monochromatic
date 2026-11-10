@@ -17,8 +17,12 @@
 //!  awaited face and each step that reads or renames a file is awaited on the pool
 //! (`service_work_storage_awaited.rs`),
 //! which keeps a worker free while storage or Git waits.
-//! The claims are settled by the same task that took them,
-//! and the renewal is stopped by a wait of the runtime,
+//! The claims are settled by the same task that took them:
+//! the set has one owner at a time and travels into each storage job and back,
+//! so nothing locks it,
+//! and a
+//!  job the system refuses a thread for ends the round rather than the set.
+//! The renewal is stopped by a wait of the runtime,
 //! so nothing this file starts is left running behind it.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,7 +42,6 @@ use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// What:
@@ -65,12 +68,14 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
 ) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (the_claims, renewer) = held_claims(work_dir.as_path());
-    let held: Arc<HeldClaims> = Arc::new(the_claims);
+    let mut held: HeldClaims = the_claims;
     let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
     };
-    loop {
+    // A round that cannot hand its claims back is over: the set went with a job the system refused a thread for, so nothing here
+    //  can settle what it claimed, and every record keeps its lease for the next round.
+    'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
         let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path()).await {
@@ -88,7 +93,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         }
         // Claims that are no longer acceptable are failed; the others are sorted by kind, in the order they were claimed.
         let (acceptable, refused): (Vec<Claimed>, Vec<Claimed>) = acceptable_awaiting(git_dir, claimed).await;
-        settle_all_awaiting(&held, work_dir.as_path(), &refused, FAILED).await;
+        match settle_all_awaiting(held, work_dir.as_path(), refused, FAILED).await {
+            Some(back) => held = back,
+            None => break 'round,
+        }
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
@@ -117,7 +125,13 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
         }
         for (_, claimed_members) in groups {
-            let members: Vec<Claimed> = still_held_awaiting(&held, work_dir.as_path(), claimed_members).await;
+            let members: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), claimed_members).await {
+                Some((back, mine)) => {
+                    held = back;
+                    mine
+                }
+                None => break 'round,
+            };
             if members.is_empty() {
                 continue;
             }
@@ -156,10 +170,20 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                     &fields,
                 );
             }
-            settle_after_the_push(&held, work_dir.as_path(), git_dir, &members, verdict, pushing_since, replanning).await;
+            match settle_after_the_push(held, work_dir.as_path(), git_dir, &members, verdict, pushing_since, replanning).await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
         }
         let mut upkept: Vec<PathBuf> = Vec::new();
-        for item in still_held_awaiting(&held, work_dir.as_path(), upkeep).await {
+        let still_here: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), upkeep).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in still_here {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
@@ -168,22 +192,45 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                     Verdict::Done | Verdict::Skipped(_) => crate::service_log!("automatic maintenance ran maintenance_ms={}", upkeep_began.elapsed().as_millis()),
                 };
             }
-            settle_all_awaiting(&held, work_dir.as_path(), std::slice::from_ref(&item), DONE).await;
+            match settle_all_awaiting(held, work_dir.as_path(), vec![item], DONE).await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.
-        for item in still_held_awaiting(&held, work_dir.as_path(), trashes).await {
+        let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in trashed {
             let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
-            settle_with_the_words(&held, work_dir.as_path(), &item, verdict, "trash").await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
-        for item in still_held_awaiting(&held, work_dir.as_path(), reviews).await {
+        let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in reviewed {
             let review_began: Instant = Instant::now();
             let verdict: Verdict = handlers.review_awaiting(&item.item).await;
             if matches!(verdict, Verdict::Done) {
                 crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
             }
-            settle_with_the_words(&held, work_dir.as_path(), &item, verdict, "review").await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
         }
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
@@ -206,15 +253,16 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
 /// await settleAfterThePush(held, workDir, gitDir, members, verdict, pushingSince, replanning)
 /// ```
 async fn settle_after_the_push(
-    held: &Arc<HeldClaims>,
+    held: HeldClaims,
     work_dir: &Path,
     git_dir: &Path,
     members: &[Claimed],
     verdict: Verdict,
     pushing_since: std::time::SystemTime,
     replanning: &mut Replanning,
-) {
+) -> Option<HeldClaims> {
     let newest: Option<&Claimed> = members.last();
+    let settling: Vec<Claimed> = members.to_vec();
     match verdict {
         Verdict::Done => {
             // A push of the branch went through, so an earlier failure to push it is no longer true.
@@ -222,7 +270,7 @@ async fn settle_after_the_push(
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
                 replanning.forget(git_dir, latest.item.branch_ref.as_str());
             }
-            settle_all_awaiting(held, work_dir, members, DONE).await;
+            return settle_all_awaiting(held, work_dir, settling, DONE).await;
         }
         Verdict::Retry(text) => {
             // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
@@ -243,7 +291,7 @@ async fn settle_after_the_push(
             {
                 crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
             }
-            settle_all_awaiting(held, work_dir, members, FAILED).await;
+            return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Failed(text) => {
             // A failure the service gives up on is no longer waiting for a new try.
@@ -263,7 +311,7 @@ async fn settle_after_the_push(
             {
                 crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
             }
-            settle_all_awaiting(held, work_dir, members, FAILED).await;
+            return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Skipped(text) => {
             // Nothing was pushed, so an earlier failure of the branch is still true and stays. A skip with words leaves
@@ -281,7 +329,7 @@ async fn settle_after_the_push(
                 }
                 _ => true,
             };
-            settle_all_awaiting(held, work_dir, members, if recorded { DONE } else { FAILED }).await;
+            return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
         }
     }
 }
@@ -299,24 +347,24 @@ async fn settle_after_the_push(
 /// ```ts
 /// await settleWithTheWords(held, workDir, item, verdict, kind)
 /// ```
-async fn settle_with_the_words(held: &Arc<HeldClaims>, work_dir: &Path, item: &Claimed, verdict: Verdict, kind: &str) {
+async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
     match verdict {
         Verdict::Done => {
-            settle_all_awaiting(held, work_dir, std::slice::from_ref(item), DONE).await;
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
         Verdict::Failed(reason) | Verdict::Retry(reason) => {
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
                 _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
             }
-            settle_all_awaiting(held, work_dir, std::slice::from_ref(item), FAILED).await;
+            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
         }
         Verdict::Skipped(reason) => {
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
-            settle_all_awaiting(held, work_dir, std::slice::from_ref(item), DONE).await;
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
     }
 }

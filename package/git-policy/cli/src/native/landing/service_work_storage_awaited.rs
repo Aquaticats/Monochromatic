@@ -16,14 +16,19 @@
 //!  thread the runtime needs,
 //! so each step goes to the pool and the worker awaits it.
 //! The held claims go with it:
-//!  they are shared by the task and whichever pool thread runs a step
+//!  they have one owner at a time
 //! (`service_claim_renewal.rs`,
 //! `HeldClaims`),
-//! so each step takes the same set and hands it back unchanged.
-//! A step the system refuses a thread for does nothing,
-//!  says so,
-//! and leaves its records to the lease of their holder,
-//! which the next round of the work loop finds again.
+//! so a step that reads or renames a claim takes the
+//!  whole set,
+//! and hands it back with its answer;
+//! nothing locks it.
+//! A step the system refuses a thread for does nothing and says so;
+//! the step that carried the claims cannot hand them
+//!  back,
+//! so it ends the round there,
+//! and every record the round had claimed keeps its lease for the next one
+//!  to find.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +46,6 @@ use crate::service_work_handlers_replanning_and_acceptance::{
 use crate::work_item::{Claimed, claim_all_of};
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 
 /// What:
@@ -118,66 +122,76 @@ pub(crate) async fn acceptable_awaiting(git_dir: &Path, claimed: Vec<Claimed>) -
 }
 
 /// What:
-///  Move the claims of `claimed` to `state` and stop renewing them.
+///  Move the claims of `claimed` to `state` and stop renewing them,
+/// and hand the claim set back to its owner.
 /// Why:
 ///   A settlement renames a file and finds it by its generation,
-/// so it is storage;
-/// a claim another instance took over is said and left to it,
-///  as the synchronous step does.
+/// so it is storage,
+/// and the set it reads is the owner's,
+///  which the job takes and gives back.
+/// A claim another instance took over is said and left to it,
+/// as the synchronous step does.
+/// A job the system refuses a thread for does not run,
+/// so the set goes with it and nothing is answered:
+/// the caller ends the round rather than holding a set it cannot settle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await settleAllAwaiting(held, workDir, claimed, state)
+/// const back = await settleAllAwaiting(held, workDir, claimed, state); // null when the job could not run
 /// ```
-pub(crate) async fn settle_all_awaiting(held: &Arc<HeldClaims>, work_dir: &Path, claimed: &[Claimed], state: &'static str) {
+pub(crate) async fn settle_all_awaiting(held: HeldClaims, work_dir: &Path, claimed: Vec<Claimed>, state: &'static str) -> Option<HeldClaims> {
     if claimed.is_empty() {
-        return;
+        return Some(held);
     }
     let directory: PathBuf = work_dir.to_path_buf();
-    let claims: Arc<HeldClaims> = Arc::clone(held);
-    let settling: Vec<Claimed> = claimed.to_vec();
-    match run_blocking_job_within_the_budget(move || {
-        settle_all(directory.as_path(), claims.as_ref(), settling.as_slice(), state);
+    let settling: Vec<Claimed> = claimed;
+    return match run_blocking_job_within_the_budget(move || {
+        settle_all(directory.as_path(), &held, settling.as_slice(), state);
+        return held;
     })
     .await
     {
-        Ok(()) => {}
+        Ok(back) => Some(back),
         Err(reason) => {
             refused("the settling of the records this round ran", &reason);
+            None
         }
-    }
+    };
 }
 
 /// What:
 ///  The claims of `claimed` that this instance still holds,
-/// before their work starts.
+/// before their work starts,
+/// with the claim set handed back to its owner.
 /// Why:
 ///   A claim whose file is gone under its generation was taken over,
 /// so its work is another instance's now;
 /// the look at the
 ///  directory is storage,
-/// and a job that did not run reports nothing held,
-/// so no work runs on a claim the service could not confirm.
+/// and the set is the owner's,
+/// which the job takes and gives back.
+/// A job that did not run answers nothing,
+///  so no work starts on a claim the service could not confirm.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mine = await stillHeldAwaiting(held, workDir, claimed)
+/// const [back, mine] = await stillHeldAwaiting(held, workDir, claimed) ?? [null, []]
 /// ```
-pub(crate) async fn still_held_awaiting(held: &Arc<HeldClaims>, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
+pub(crate) async fn still_held_awaiting(held: HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Option<(HeldClaims, Vec<Claimed>)> {
     if claimed.is_empty() {
-        return Vec::new();
+        return Some((held, Vec::new()));
     }
     let directory: PathBuf = work_dir.to_path_buf();
-    let claims: Arc<HeldClaims> = Arc::clone(held);
     return match run_blocking_job_within_the_budget(move || {
-        return still_held(claims.as_ref(), directory.as_path(), claimed);
+        let mine: Vec<Claimed> = still_held(&held, directory.as_path(), claimed);
+        return (held, mine);
     })
     .await
     {
-        Ok(mine) => mine,
+        Ok(answered) => Some(answered),
         Err(reason) => {
             refused("the look that finds a claim taken over", &reason);
-            Vec::new()
+            None
         }
     };
 }

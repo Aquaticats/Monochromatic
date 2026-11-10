@@ -71,6 +71,11 @@ struct Handlers {
     /// in the order the pushes began,
     /// shared with the control that reads them after the round took the handlers.
     began: Arc<Mutex<Vec<PathBuf>>>,
+    /// The point the awaited push waits at,
+    /// when the control measures the lanes rather than the pool.
+    /// Nothing means the waiting is a job of the blocking pool,
+    /// as a handler that knows nothing of the runtime waits.
+    gate: Option<Arc<tokio::sync::Barrier>>,
 }
 
 impl WorkHandlers for Handlers {
@@ -83,24 +88,36 @@ impl WorkHandlers for Handlers {
 
     /// What:
     ///  The same push,
-    /// its work on the blocking pool.
+    /// its wait on the runtime when the control gave it a point there,
+    /// else on the blocking pool.
     /// Why:
-    ///   A control's push waits on a point several pushes must reach together,
-    /// and a worker that waited there would hold the lane task the
-    ///  other repositories need,
-    /// so the round would show the shape of a host with fewer workers than
-    /// repositories rather than the round's.
-    /// The shipped handlers await their Git the same way a pool job awaits its work:
-    /// nothing waits on a worker.
+    ///   A control's push may wait on a point several pushes must reach
+    /// together,
+    /// and where that wait sits decides what the control proves:
+    /// a point on the
+    ///  blocking pool is passed only as far as the process's room for blocking
+    /// jobs reaches (two jobs in the gate's container,
+    /// whatever the CPUs a
+    /// control states for its own budget),
+    /// while a point on the runtime is passed by every lane task,
+    /// because an await frees the worker it waited on.
+    /// The shipped handlers await their Git on the runtime,
+    /// so a lane control measures the round with a point there,
+    /// and a control of the pool's own bound keeps the pool.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// async pushAwaiting(items) { began.push(dir); await offTheWorkers(() => onPush(dir)); return DONE; }
+    /// async pushAwaiting(items) { began.push(dir); if (gate) await gate.wait(); else await offTheWorkers(() => onPush(dir)); return DONE; }
     /// ```
     fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let directory: PathBuf = items.last().map(|item: &WorkItem| { return item.git_dir.clone(); }).unwrap_or_default();
             self.began.lock().expect("the order of the pushes").push(directory.clone());
+            if let Some(gate) = self.gate.as_ref() {
+                // Every lane must arrive for the round to go on, so a round that runs its lanes in turn never finishes.
+                gate.wait().await;
+                return Verdict::Done;
+            }
             let on_push: Arc<dyn Fn(&Path) + Sync + Send + 'static> = Arc::clone(&self.on_push);
             crate::blocking_job::run_blocking_job(move || {
                 (on_push)(directory.as_path());
@@ -131,26 +148,49 @@ fn settled(repository: &Repository) -> usize {
     return std::fs::read_dir(state_directory(work_directory(repository.common.as_path()).as_path(), DONE)).map_or(0, |listing| { return listing.flatten().count(); });
 }
 
-/// The pushes of all the repositories start before any has finished:
-/// a point that needs all of them at once is passed only by
-///  parallel work,
-/// and a serial round waits there until its patience ends.
+/// What:
+///  The pushes of all the repositories are under way at the same time,
+/// so no repository waits for another,
+/// and every item is settled.
+/// Why:
+///   The round hands each repository to a lane of tasks and takes the answers
+/// back in order,
+/// so a lane that waited for another would
+///  lose the person's backup behind a slow push of another repository.
+/// The point is on the runtime,
+/// where the shipped
+///  handlers wait for their Git:
+/// a point on the blocking pool is passed only as far as the process's room
+/// for blocking jobs
+///  reaches,
+/// which is two jobs in the gate's container whatever the CPUs a control states
+/// for its own budget,
+/// and a control that
+///  measured that would prove the pool's bound rather than the round's.
+/// A round that ran its lanes in turn never brings all of them to the point,
+/// so it never finishes,
+/// and the control fails by name
+///  instead of passing on a patience.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ran = finishedWithin(PATIENCE, () => drainDirectories({ directories, handlers, now, host })); // every lane reached the barrier
+/// ```
 #[test]
 fn repositories_are_drained_side_by_side() {
     let (root, made) = repositories("round-overlap", REPOSITORIES);
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(REPOSITORIES));
-    let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (arriving, counted) = (Arc::clone(&point), Arc::clone(&met));
-    let handlers: Handlers = Handlers {
-        on_push: Arc::new(move |_directory: &Path| {
-            if arriving.arrive() {
-                counted.fetch_add(1, Ordering::SeqCst);
-            }
-        }) as Arc<dyn Fn(&Path) + Sync + Send>,
+    let shared: Arc<Handlers> = Arc::new(Handlers {
+        on_push: Arc::new(|_directory: &Path| {}) as Arc<dyn Fn(&Path) + Sync + Send>,
         began: Arc::new(Mutex::new(Vec::new())),
-    };
-    round(made.as_slice(), &LARGE_HOST, Arc::new(handlers));
-    assert_eq!(met.load(Ordering::SeqCst), REPOSITORIES, "every push met the others while it ran");
+        gate: Some(Arc::new(tokio::sync::Barrier::new(REPOSITORIES))),
+    });
+    // The directories the round drains, so the control can still read what it settled after the closure took them.
+    let directories: Vec<PathBuf> = made.iter().map(|repository: &Repository| { return repository.common.clone(); }).collect();
+    let ran = crate::test_support::finished_within_at(PATIENCE, move || {
+        let assignments: Vec<Assignment> = directories.iter().map(|directory: &PathBuf| { return Assignment::plain(directory.clone()); }).collect();
+        return drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: shared, now: &ClaimTime::read(), host: &LARGE_HOST });
+    });
+    assert!(ran.is_some(), "the round brought every repository to the point within {PATIENCE:?}, so its lanes ran side by side");
     assert!(made.iter().all(|repository: &Repository| { return settled(repository) == 1; }), "every item was settled as done");
     remove(root.as_path());
 }
@@ -176,6 +216,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
             counting.fetch_sub(1, Ordering::SeqCst);
         }) as Arc<dyn Fn(&Path) + Sync + Send>,
         began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
     round(made.as_slice(), &host, Arc::new(handlers));
     assert_eq!(busiest.load(Ordering::SeqCst), allowed);
@@ -217,6 +258,7 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
             }
         }) as Arc<dyn Fn(&Path) + Sync + Send>,
         began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
     let retries = round(made.as_slice(), &LARGE_HOST, Arc::new(handlers));
     let named: Vec<&PathBuf> = retries.iter().map(|(directory, _wait)| { return directory; }).collect();
@@ -263,6 +305,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
             counting.fetch_sub(1, Ordering::SeqCst);
         }) as Arc<dyn Fn(&Path) + Sync + Send>,
         began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
     let directories: Vec<Assignment> = vec![Assignment::plain(made[0].common.clone()), Assignment::plain(linked.clone())];
     let began: Arc<Mutex<Vec<PathBuf>>> = Arc::clone(&handlers.began);

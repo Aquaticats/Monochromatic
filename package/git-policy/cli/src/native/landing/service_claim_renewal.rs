@@ -25,8 +25,11 @@
 //! the lease stays because a killed holder's claims are recognised as abandoned only by their reading (no process
 //!  identity or lock file is involved),
 //! and because the linked worktrees of a bare repository drain one common directory.
-//!  A short lock over the list of held claims,
-//! and none anywhere else.
+//!  No lock in the process:
+//! the held claims have one owner at a time,
+//! and the owner hands the whole set to the step that uses it and takes it back
+//! (`service_work_storage_awaited.rs`),
+//! so the list travels by value rather than being shared behind a lock.
 //! The renewal task is the one owner of the claims' current names (the drain never
 //!  renames a claim except to settle it);
 //! the drain tells the task of a claim it takes over a channel,
@@ -39,11 +42,12 @@
 //! so neither side ever waits for the other.
 //! The drain itself is a task of the runtime whose storage steps are jobs of the blocking pool
 //!  (`service_work_storage_awaited.rs`),
-//! so its list of held claims is touched by whichever pool thread runs the step
-//!  rather than by one thread;
-//! the lock covers that list and the one directory listing the round shares,
-//! and no file
-//!  operation is made inside it.
+//! so the list of held claims would be touched by whichever pool thread runs a step;
+//! it is
+//!  therefore never shared:
+//! the task moves the set into the job and the job hands it back,
+//! and a job the system refuses a
+//!  thread for ends the round rather than the set.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -54,7 +58,7 @@ use crate::claim_time::ClaimTime;
 use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, parse_claim_name, renew_claim, settle_named};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::cell::RefCell;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use std::sync::Arc;
 use std::time::Duration;
@@ -128,10 +132,10 @@ type Taken = (Arc<Claim>, String);
 /// and settle a claim under the name it has now.
 /// The list is
 ///  the drain's own,
-/// and the drain's storage steps run as jobs of the blocking pool,
-/// so the list is shared by threads and a
-///  short lock covers it;
-/// no file operation is made while it is held.
+/// and the drain's storage steps run as jobs of the blocking pool:
+/// the set is moved into the job
+///  that reads or renames it and comes back with the answer,
+/// so one owner holds it at a time and nothing locks it.
 /// What the renewal task learns of a claim reaches the drain as the claim's
 ///  flags,
 /// and what the drain learns of a new claim reaches the renewal as a command.
@@ -144,11 +148,11 @@ type Taken = (Arc<Claim>, String);
 pub struct HeldClaims {
     /// The claims held,
     /// in the order they were taken.
-    claims: Mutex<Vec<Arc<Claim>>>,
+    claims: RefCell<Vec<Arc<Claim>>>,
     /// The listing of `claimed` the last look took,
     /// shared by every claim of the round,
     /// and nothing before the first look.
-    listed: Mutex<Option<ClaimNames>>,
+    listed: RefCell<Option<ClaimNames>>,
     /// The way to tell the renewal of a claim just taken.
     holds: UnboundedSender<Taken>,
 }
@@ -247,7 +251,7 @@ pub struct Renewer {
 pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
     let (holds, taken) = unbounded_channel::<Taken>();
     return (
-        HeldClaims { claims: Mutex::new(Vec::new()), listed: Mutex::new(None), holds },
+        HeldClaims { claims: RefCell::new(Vec::new()), listed: RefCell::new(None), holds },
         Renewer { work_dir: work_dir.to_path_buf(), holds: taken, names: Vec::new() },
     );
 }
@@ -291,7 +295,7 @@ impl HeldClaims {
             None => String::new(),
         };
         let claim: Arc<Claim> = Arc::new(Claim { id: claimed.id.clone(), token, lost: AtomicBool::new(false), settled: AtomicBool::new(false) });
-        self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(Arc::clone(&claim));
+        self.claims.borrow_mut().push(Arc::clone(&claim));
         // A renewal thread that is gone (no thread could be made, or it ended) renews nothing: the claim then expires with its lease.
         let _sent = self.holds.send((claim, claimed.name.clone()));
     }
@@ -300,7 +304,7 @@ impl HeldClaims {
     /// so it is no longer renewed.
     pub fn release(&self, id: &str) {
         // The claims of other ids are kept in order; the ones of this id are marked settled and dropped.
-        let mut claims = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut claims = self.claims.borrow_mut();
         let mut kept: Vec<Arc<Claim>> = Vec::with_capacity(claims.len());
         for claim in claims.drain(..) {
             if claim.id == id {
@@ -316,7 +320,7 @@ impl HeldClaims {
     /// including claims found taken over.
     pub fn snapshot(&self) -> Vec<String> {
         let mut ids: Vec<String> = Vec::new();
-        for claim in self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter() {
+        for claim in self.claims.borrow().iter() {
             ids.push(claim.id.clone());
         }
         return ids;
@@ -324,7 +328,7 @@ impl HeldClaims {
 
     /// Whether the claim of `id` is held and was not found taken over.
     pub fn is_held(&self, id: &str) -> bool {
-        for claim in self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter() {
+        for claim in self.claims.borrow().iter() {
             if claim.id == id && !claim.lost.load(Ordering::SeqCst) {
                 return true;
             }
@@ -350,22 +354,17 @@ impl HeldClaims {
     /// ```
     fn current_name(&self, work_dir: &Path, claim: &Claim) -> Option<String> {
         for _ in 0..LOOKS {
-            let found: Option<String> = {
-                let listed = self.listed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                let named: Option<String> = match listed.as_ref() {
-                    Some(names) => names.name_of(claim).map(str::to_owned),
-                    None => None,
-                };
-                named
+            let found: Option<String> = match self.listed.borrow().as_ref() {
+                Some(names) => names.name_of(claim).map(str::to_owned),
+                None => None,
             };
             if let Some(name) = found {
                 return Some(name);
             }
             // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again;
-            //  a directory that cannot be listed holds nothing, and the next look tries again. The listing is made outside the lock,
-            //  so a read of the directory never holds it.
+            //  a directory that cannot be listed holds nothing, and the next look tries again.
             let fresh: ClaimNames = ClaimNames::listed(work_dir);
-            *self.listed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(fresh);
+            *self.listed.borrow_mut() = Some(fresh);
         }
         return None;
     }
@@ -390,7 +389,7 @@ impl HeldClaims {
     pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
         // The claim is cloned out of the list, so the look at the directory happens with no lock held.
         let found: Option<Arc<Claim>> = {
-            let claims = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let claims = self.claims.borrow();
             let mut found: Option<Arc<Claim>> = None;
             for candidate in claims.iter() {
                 if candidate.id == id {
@@ -427,7 +426,7 @@ impl HeldClaims {
     /// and the look is made again.
     pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
         let claim: Arc<Claim> = {
-            let mut claims = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut claims = self.claims.borrow_mut();
             let mut found_at: Option<usize> = None;
             for (at, candidate) in claims.iter().enumerate() {
                 if candidate.id == id {
@@ -452,7 +451,7 @@ impl HeldClaims {
                 Err(reason) => {
                     last = reason;
                     // A renewal renamed the file between the look and the rename: the listing the name came from is old.
-                    *self.listed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                    *self.listed.borrow_mut() = None;
                 }
             }
         }
