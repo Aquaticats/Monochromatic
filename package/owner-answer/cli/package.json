@@ -1,0 +1,38 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/owner-answer-cli",
+  "description": "Record the owner's answers in the questions file, quoting their own words, and take the answered questions out of its open list.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "bin": {
+    "owner-answer": "dist/final/node/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
+    "directory": "package/owner-answer/cli"
+  },
+  "sideEffects": true
+}
