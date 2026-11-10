@@ -20,6 +20,7 @@ import { CLEARNET_HOSTS, } from '../dist/final/node/bypass-host-refresh.mjs';
 import {
   CLEARNET_HOSTS_DATA_SCHEMA_VERSION,
   allowedDataOwnerUids,
+  allowedOwnerUidsForThisRun,
   clearnetHostsFromData,
   createInstalledClearnetHostsReader,
   defaultClearnetHostsDataPath,
@@ -500,6 +501,36 @@ await describe({
           },
         },),
       ],
+    },),
+  ],
+},);
+
+await describe({
+  name: allowedOwnerUidsForThisRun.name,
+  children: [
+    it({
+      name: 'reads the caller identity sudo recorded, and only root when there is none',
+      fn: async () => {
+        /**
+         Caller identity this test process started with.
+         */
+        const original = process.env.SUDO_UID;
+        /**
+         Puts the recorded caller identity back when this test ends.
+         */
+        await using _callerIdentity = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            if (original === undefined)
+              delete process.env.SUDO_UID;
+            else
+              process.env.SUDO_UID = original;
+          },
+        };
+        process.env.SUDO_UID = '1000';
+        expect(allowedOwnerUidsForThisRun(),).toEqual([0, 1_000,],);
+        delete process.env.SUDO_UID;
+        expect(allowedOwnerUidsForThisRun(),).toEqual([0,],);
+      },
     },),
   ],
 },);

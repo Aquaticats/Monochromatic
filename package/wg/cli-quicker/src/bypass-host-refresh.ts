@@ -480,6 +480,42 @@ export function hostListReadFailureText(
 }
 
 /**
+ Builds the loud report of a start whose own data file cannot be read.
+
+ The start installs the hosts compiled into this build,
+ because the file the running build carries is the list that build is,
+ and a start that installed nothing would leave every update and provider request in the tunnel.
+
+ @param failure - What is wrong with the data file,
+ as the reader names it.
+
+ @param hostCount - Hosts this build compiles in.
+
+ @returns Report naming the policy,
+ the failure and what is installed instead.
+
+ @example
+ ```ts
+ hostListStartFallbackText({ failure: 'x is not JSON', hostCount: 27 });
+ ```
+ */
+export function hostListStartFallbackText(
+  {
+    failure,
+    hostCount,
+  }: {
+    readonly failure: string;
+    readonly hostCount: number;
+  },
+): string {
+  return policyNotInForce({
+    policy: POLICY_CLEARNET_HOSTS,
+    detail: `the host list installed beside this build cannot be read: ${failure}; `
+      + `this start installs the ${String(hostCount,)} hosts compiled into the build instead`,
+  },);
+}
+
+/**
  Reads the clearnet host list for a start of the tunnel.
 
  A start installs the list compiled into its own build when the data file cannot be read,
@@ -510,10 +546,9 @@ export async function readClearnetHostsForStart(
   /**
    Loud report of a build whose data file cannot be read.
    */
-  const loud = policyNotInForce({
-    policy: POLICY_CLEARNET_HOSTS,
-    detail: `the host list installed beside this build cannot be read: ${result.failure}; `
-      + `this start installs the ${String(CLEARNET_HOSTS.length,)} hosts compiled into the build instead`,
+  const loud = hostListStartFallbackText({
+    failure: result.failure,
+    hostCount: CLEARNET_HOSTS.length,
   },);
   l.error(loud,);
   return CLEARNET_HOSTS;

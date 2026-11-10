@@ -7,6 +7,8 @@ import {
 import {
   CLEARNET_HOSTS,
   FAILED_REFRESH_RETRY_SECONDS,
+  hostListStartFallbackText,
+  readClearnetHostsForStart,
   runHostRefreshLoop,
 } from '../dist/final/node/bypass-host-refresh.mjs';
 import type { HostListRead, } from '../dist/final/node/installed-clearnet-hosts.mjs';
@@ -184,6 +186,53 @@ await describe({
         },);
         expect(run.reconciled,).toEqual([],);
         expect(run.waits,).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: hostListStartFallbackText.name,
+  children: [
+    it({
+      name: 'names the policy, the failure and the compiled list a start installs instead',
+      fn: async () => {
+        /**
+         Report of a start whose data file cannot be read.
+         */
+        const loud = hostListStartFallbackText({
+          failure: 'the data file is not there',
+          hostCount: CLEARNET_HOSTS.length,
+        },);
+        expect(loud,).toContain('POLICY NOT IN FORCE',);
+        expect(loud,).toContain('the data file is not there',);
+        expect(loud,).toContain(`${String(CLEARNET_HOSTS.length,)} hosts compiled into the build`,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: readClearnetHostsForStart.name,
+  children: [
+    it({
+      name: 'installs the hosts of the data file beside this build',
+      fn: async () => {
+        expect(await readClearnetHostsForStart({
+          read: () => Promise.resolve({ kind: 'read', hosts: ['crates.io',], },),
+        },),).toEqual(['crates.io',],);
+      },
+    },),
+    it({
+      name: 'installs the hosts compiled into this build when its data file cannot be read',
+      fn: async () => {
+        expect(await readClearnetHostsForStart({
+          read: () => Promise.resolve({
+            kind: 'failed',
+            failure: 'the data file is not there',
+            path: '/run/wg-quicker/clearnet-hosts.data.json',
+          },),
+        },),).toEqual(CLEARNET_HOSTS,);
       },
     },),
   ],
