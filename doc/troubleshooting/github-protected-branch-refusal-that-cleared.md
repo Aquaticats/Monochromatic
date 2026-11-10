@@ -58,7 +58,18 @@ one refusal at a second-precise time,
 and one plain push of the same commit that landed minutes later.
 There is no harness that makes GitHub refuse a protected-branch update on demand,
 so neither catalog the reporting rules ask for can be built,
-and the reading rests on the two recorded events rather than on a reproduction.
+and the reading rests on the recorded events rather than on a reproduction.
+
+It happened again at `2026-11-10T02:24:59-05:00`,
+on the push of commit `1535eab9bf`,
+with the same code and the same empty reason.
+This time the signature candidate was checked directly:
+`git log origin/main..main --format='%G?'` printed `G` for all 14 unpushed commits.
+A plain `git push origin main`,
+with nothing changed,
+then moved `origin/main` from `a5851271a0` to `1535eab9bf`.
+So a good signature on every commit does not prevent this refusal,
+and the cause is still not known.
 
 The wrapper's side is verifiable and is verified by a test:
 `the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome`
