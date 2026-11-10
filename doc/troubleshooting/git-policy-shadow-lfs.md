@@ -57,9 +57,9 @@ in `ff55ced353` (refactor(pi-plugin-auto-mode):
 retire unapproved native Pi build);
 no file in the working tree carries them now.
 
-Anyone meets the same failure in any repository whose `.git/lfs` cannot create a temporary directory:
-a pathspec-scoped or whole-tree commit exits 128 while Git runs the clean filter,
-whether or not the asset in the message is in the commit's paths.
+Anyone meets the same failure in a repository whose `.git/lfs` cannot create a temporary directory:
+a pathspec-scoped commit exits 128 while Git runs the clean filter for an asset that need not be in the
+commit's paths.
 
 ## Root cause
 
