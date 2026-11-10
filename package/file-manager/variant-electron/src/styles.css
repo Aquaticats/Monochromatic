@@ -24,6 +24,7 @@
   --color-text-faint: #888;
   --color-selection-background: #26436b;
   --color-directory: #8ab4f8;
+  --color-focus: #4a90d9;
 
   /* Debug tint: the rail and per-column overlays the GTK original draws to
    * make the sticky containing blocks visible in screenshots. */
@@ -154,10 +155,20 @@ body {
   cursor: pointer;
 
   font-size: 16px;
+
+  min-block-size: 3rem;
+
+  min-inline-size: 3rem;
 }
 
 .pane-close:hover {
   color: var(--color-text-strong);
+}
+
+.pane-close:focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: 2px;
 }
 
 .pane-list {
@@ -177,6 +188,10 @@ body {
 
   cursor: pointer;
 
+  min-block-size: 3rem;
+
+  min-inline-size: 3rem;
+
   overflow: hidden;
 
   padding: 4px 8px;
@@ -184,6 +199,12 @@ body {
   text-overflow: ellipsis;
 
   white-space: nowrap;
+}
+
+.entry:focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: 2px;
 }
 
 .entry[data-kind='directory'] {

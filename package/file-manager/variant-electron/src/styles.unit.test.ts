@@ -52,6 +52,22 @@ const CUSTOM_PROPERTY_NAME = /--color-[a-z0-9-]+/gu;
 const NOT_FOUND = -1;
 
 /**
+ Minimum touch target, expressed in `rem` as the CSS-quality minimum asks
+ (48px at the default root font size).
+ */
+const MINIMUM_TOUCH_TARGET = '3rem';
+
+/**
+ Focus ring every interactive element carries.
+ */
+const FOCUS_RING = 'outline: 2px solid var(--color-focus);';
+
+/**
+ Gap between the focus ring and the element edge.
+ */
+const FOCUS_RING_OFFSET = 'outline-offset: 2px;';
+
+/**
  Stylesheet text under test.
  */
 const stylesheet = await readFile(STYLESHEET_URL, 'utf8',);
@@ -160,6 +176,30 @@ await describe({
               .filter(function hasFallback(line,): boolean {
                 return CUSTOM_PROPERTY_WITH_FALLBACK.test(line,);
               },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'rings the pane close control and gives it a touch target',
+          fn: async (): Promise<void> => {
+            const body = ruleBodyOf({ selector: '.pane-close', },);
+            const focusBody = ruleBodyOf({ selector: '.pane-close:focus-visible', },);
+
+            expect(body,).toContain(`min-inline-size: ${MINIMUM_TOUCH_TARGET};`,);
+            expect(body,).toContain(`min-block-size: ${MINIMUM_TOUCH_TARGET};`,);
+            expect(focusBody,).toContain(FOCUS_RING,);
+            expect(focusBody,).toContain(FOCUS_RING_OFFSET,);
+          },
+        },),
+        it({
+          name: 'rings a listing entry and gives it a touch target',
+          fn: async (): Promise<void> => {
+            const body = ruleBodyOf({ selector: '.entry', },);
+            const focusBody = ruleBodyOf({ selector: '.entry:focus-visible', },);
+
+            expect(body,).toContain(`min-inline-size: ${MINIMUM_TOUCH_TARGET};`,);
+            expect(body,).toContain(`min-block-size: ${MINIMUM_TOUCH_TARGET};`,);
+            expect(focusBody,).toContain(FOCUS_RING,);
+            expect(focusBody,).toContain(FOCUS_RING_OFFSET,);
           },
         },),
       ],
