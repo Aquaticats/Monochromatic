@@ -123,6 +123,20 @@ await describe({
           },
         },),
         it({
+          name: 'reads a joined line and an ANSI-C quote in a command that fails to parse',
+          fn: async function testBunTestInJoinedAndAnsiCWord() {
+            expect(invokesBunTest('bun te\\\nst "unterminated',),).toBe(true,);
+            expect(invokesBunTest("bun $'test' \"unterminated",),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'reads bun test written below a quote the command never closes',
+          fn: async function testBunTestBelowUnclosedQuote() {
+            expect(invokesBunTest("cat <<'EOF'\ndon't\nEOF\nbun test \"unterminated",),).toBe(true,);
+            expect(invokesBunTest('echo don\'t && bun test "unterminated',),).toBe(true,);
+          },
+        },),
+        it({
           name: 'allows prose containing bun test in a command that fails to parse',
           fn: async function testUnparsableProseAllowed() {
             expect(invokesBunTest('echo "bun test',),).toBe(false,);

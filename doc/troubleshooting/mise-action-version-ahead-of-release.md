@@ -364,7 +364,7 @@ Patterns that work:
 
 ## Verified workarounds
 
-1.   Set `minimum_release_age: 1d` on every `jdx/mise-action` step and pin the action to `v4.3.0`
+1.  Set `minimum_release_age: 1d` on every `jdx/mise-action` step and pin the action to `v4.3.0`
      (commit `c2a87611a18de5b3828c5652fe268e992400cb5c`).
      Applied to all thirteen steps in the eight workflows on 2026-09-08 (commit `02fe85b3d`).
      One day mirrors `minimumReleaseAge: 1440` in `pnpm-workspace.yaml`,
@@ -376,14 +376,14 @@ Patterns that work:
      so the two must not be combined.
      The cache key includes the resolved version on this path (`src/index.ts:530` at `v4.3.0`),
      so a new release also means one cold cache per workflow.
-2.   Rerun the failed run once the release exists:
+2.  Rerun the failed run once the release exists:
      `gh run rerun --failed <run id>`.
      Verified for run 34228368589 as recorded in `doc/planning/module-fs-path-deepening.md`.
      Tradeoff:
      manual,
      and the window length is upstream's;
      a run that must happen now cannot.
-3.   Pin `version:` to a release known to exist.
+3.  Pin `version:` to a release known to exist.
      The action builds the GitHub URL from the pinned value and never reads the version file
      and never calls the releases API (see "The release-age lookup can fail with 403").
      Applied on 2026-10-15 to the two `jdx/mise-action` steps of `.github/workflows/music-player-release.yml`
@@ -447,28 +447,28 @@ Existing reports of this behaviour,
 
 Walking the six constraints for the window itself:
 
-1.   Is it really upstream's fault?
+1.  Is it really upstream's fault?
      Yes,
      and it is split:
      `jdx/mise` publishes the version file before un-drafting the release,
      and `jdx/mise-action` trusts the version file without consulting the release.
-2.   Can upstream fix it?
+2.  Can upstream fix it?
      Yes.
      `jdx/mise` could run `publish-release.sh` from the `publish-release` job after the un-draft,
      or `jdx/mise-action` could fall back to the releases API on a 404.
-3.   Are they supporting this use case?
+3.  Are they supporting this use case?
      Yes:
      no `version` is the documented default,
      and 4.3.0 ships `minimum_release_age` precisely to pick published releases.
-4.   Would the repo welcome our contribution?
+4.  Would the repo welcome our contribution?
      `jdx/mise-action` at `v4.0.1` has no `CONTRIBUTING.md`,
      no `AGENTS.md`,
      and no issue template;
      no ban on outside or AI-assisted reports was found in `README.md`.
-5.   Will they likely fix it?
+5.  Will they likely fix it?
      Leaning no on the action side (the maintainer's #616 reply);
      no signal on the `jdx/mise` side.
-6.   Have we prototyped a minimal fix compatible with their architecture?
+6.  Have we prototyped a minimal fix compatible with their architecture?
      No,
      and none is needed for this repository:
      the shipped `minimum_release_age` input is the fix,
@@ -524,7 +524,7 @@ So no existing report covers it.
 
 Walking the six constraints:
 
-1.   Is it really upstream's fault?
+1.  Is it really upstream's fault?
      Not established.
      The cause of the 403 is unknown:
       the job logs carry no response headers and no message body.
@@ -535,21 +535,21 @@ Walking the six constraints:
      condition into a failure;
       if it was a token or permission problem,
       the action behaved correctly.
-2.   Can upstream fix it?
+2.  Can upstream fix it?
      Yes:
       retry a 403 that carries rate-limit headers,
       or fall back to the version file.
-3.   Are they supporting this use case?
+3.  Are they supporting this use case?
      Yes:
       `minimum_release_age` is a shipped input and its lookup is the documented path.
-4.   Would the repo welcome our contribution?
+4.  Would the repo welcome our contribution?
      `jdx/mise-action` has a `CLAUDE.md` for agent work and no `CONTRIBUTING.md` and no issue template in
      its root or `.github` (checked by listing both);
       no ban on outside or AI-assisted reports was found.
-5.   Will they likely fix it?
+5.  Will they likely fix it?
      No signal.
      On #616 the maintainer defended the version file over the releases API for rate-limit reasons.
-6.   Have we prototyped a minimal fix?
+6.  Have we prototyped a minimal fix?
      No,
       and none is possible without knowing what the 403 was.
 
