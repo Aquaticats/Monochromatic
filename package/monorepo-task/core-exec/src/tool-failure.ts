@@ -2,8 +2,12 @@
  Failures of the `task-*` wrappers that run one external tool.
 
  Each wrapper forwards the tool's own output and keeps its own exit status.
- These classes cover the two cases where the tool never produces a status of
- its own, so a throw, not an assignment, decides what the wrapper exits with.
+ Two classes cover the cases where the tool never produces a status of its own,
+ so a throw, not an assignment, decides what the wrapper exits with. The third
+ covers a tool that does report a status which its own children made untrue: a
+ crashed analysis process leaves the tool counting the diagnostics that survived,
+ so the run reports a clean or failing lint while an analyzer's findings are
+ missing.
 
  @module
  */
@@ -124,5 +128,43 @@ export class ToolKilledBySignalError extends Error {
   }: ToolFailureFacts,) {
     super(`[${task}] ${tool} terminated by signal: ${detail}`,);
     this.name = 'ToolKilledBySignalError';
+  }
+}
+
+/**
+ Thrown when one of the wrapped command's own child processes crashed during the
+ run, so the diagnostics it reported are those of the analyzers that survived.
+
+ The wrapped tool has an exit status of its own in this case, and that status is
+ the reason this class exists: a crashed analyzer contributes no diagnostics, so
+ the tool counts what is left and reports a clean run whenever the rest of the
+ tree is clean. Treating that status as evidence reads the crash as a clean tree.
+
+ @example
+ ```ts
+ throw new AnalysisCrashError({
+   task: 'task-oxlint',
+   tool: 'oxlint',
+   detail: 'panic: runtime error: invalid memory address or nil pointer dereference',
+ },);
+ ```
+ */
+export class AnalysisCrashError extends Error {
+  /**
+   @param task - task that owns the wrapper, which prefixes the message
+   
+   @param tool - command whose child crashed
+   
+   @param detail - first line of the crash report the child printed
+   */
+  constructor({
+    task,
+    tool,
+    detail,
+  }: ToolFailureFacts,) {
+    super(
+      `[${task}] ${tool} reported a crash in one of its analysis processes, so this run's findings are incomplete: ${detail}. Find or report that crash; a run whose analyzer died cannot say the code is clean.`,
+    );
+    this.name = 'AnalysisCrashError';
   }
 }

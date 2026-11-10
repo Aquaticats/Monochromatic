@@ -15,7 +15,18 @@ import {
 } from 'node:zlib';
 
 import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { FigmaFileType, } from './types.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const canvasLogger = tagged({ tag: 'figma-kiwi-canvas', },);
+
+//endregion Logging
 
 /**
  Eight-byte ASCII prelude at the start of canvas.fig for each Figma file type.
@@ -364,7 +375,11 @@ async function inflateSchema({ compressedSchema, }: { readonly compressedSchema:
     return new Uint8Array(inflatedSchema,);
   }
   catch (error) {
-    console.warn(`[figma-kiwi] schema inflate failed: ${caughtErrorMessage(error,)}`,);
+    tagged({
+      tag: inflateSchema.name,
+      l: canvasLogger,
+    },)
+      .warn(`schema inflate failed: ${caughtErrorMessage(error,)}`,);
     throw error;
   }
 }

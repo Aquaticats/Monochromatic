@@ -303,7 +303,29 @@ This is built into Claude Code itself and cannot be configured from the script s
 ## Runtime
 
 The package builds a Node CLI at `dist/final/node/statusline.mjs`.
-Runtime code uses Node standard-library APIs only and has no Bun dependency.
+Runtime code uses Node standard-library APIs and workspace packages only,
+ and has no Bun dependency.
+
+## Diagnostics
+
+Claude Code renders this command's stdout as the status line,
+ so a diagnostic never goes there:
+ a read that leaves the display incomplete is reported on stderr through the
+ tagged logger in `src/diagnostic-logger.ts`.
+
+Those reports are `debug` records,
+ which the logger emits only when `MONOCHROMATIC_VERBOSE=true` is set for the
+ command,
+ so an ordinary render writes nothing to stderr.
+ A degraded render reports the path it could not read and the caught value,
+ which distinguishes a missing settings file from an unparsable one and names
+ why an activity word is missing.
+
+The logger uses the console sink alone.
+ A render is a fresh process,
+ so the default file sink would create one log file per render for a cause that
+ repeats on every render,
+ such as a home directory without a settings file.
 
 ## Installation
 

@@ -236,6 +236,10 @@ export function buildReadResourceResult(
  Stamps the protocol envelope onto the payload a tool handler produced.
  Handlers stay unaware of envelope fields, so a handler cannot omit or misstate them.
  
+ The envelope fields are applied after the payload rather than before it, so a payload
+ that carries one of them anyway, which a JavaScript consumer, a cast, or a spread build
+ can produce, cannot replace the value stamped here.
+ 
  @param result - Payload returned by a tool handler.
  
  @param serverInfo - Identity stamped into result metadata.
@@ -260,8 +264,8 @@ export function buildToolCallResult(
   },
 ): ToolCallResult & McpResult {
   return {
-    resultType: RESULT_TYPE_COMPLETE,
     ...result,
+    resultType: RESULT_TYPE_COMPLETE,
     _meta: serverInfoMeta({ serverInfo, },),
   };
 }
