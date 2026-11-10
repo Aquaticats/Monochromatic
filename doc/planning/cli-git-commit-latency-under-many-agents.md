@@ -882,6 +882,7 @@ What this could not determine:
   the installed release writes no `prepareParts`,
   so the 866 commits of this record cannot be split retroactively,
   and the next reading of the live log can.
+
 ## The shadow's creation, measured and made cheaper
 
 The creation that the flush's change left unsized is the stretch between the end
@@ -1672,7 +1673,8 @@ The measurement:
   `CPUQuota=600%`,
   `MemoryMax=24G`,
   `TasksMax=900` and `IOWeight=10`.
-- Each arm ran twice, so the spread of one binary on unchanged input stands beside each figure.
+- Each arm ran twice,
+  so the spread of one binary on unchanged input stands beside each figure.
 
 The policy's own step,
 per sample,
@@ -1720,10 +1722,12 @@ in whole milliseconds:
 
 What the traces say,
 with `--trace-directory` and `strace --trace=fsync,fdatasync,rename,renameat,renameat2,openat,unlink,unlinkat`,
-five samples per arm (tracing inflates the spans, so these figures size the calls and not the step):
+five samples per arm (tracing inflates the spans,
+so these figures size the calls and not the step):
 
 - Before the change,
-  the commit's own trace held, per sample,
+  the commit's own trace held,
+  per sample,
   an `fsync` of the temporary artifact at 14.3,
   2164.4,
   17.7,
@@ -1750,7 +1754,9 @@ five samples per arm (tracing inflates the spans, so these figures size the call
   The same run's trace of the service holds five renames of
   `.rules.bin.<pid>.<n>.tmp` over `rules.bin` (0.0 to 0.6 ms each) from the service's blocking-pool threads,
   and no `fsync` on any cache path:
-  the publication happened, in the service, and nothing waited for the device.
+  the publication happened,
+  in the service,
+  and nothing waited for the device.
 
 Where the write went,
 by the same harness with `--samples 5` and no `--change-rules`:
