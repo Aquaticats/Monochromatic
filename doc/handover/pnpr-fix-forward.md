@@ -60,41 +60,41 @@ Containerfile pin and the `/npm` URL moves must land together.
 
 Files and edits held in the worktree:
 
-1. `package/config/pnpr/Containerfile`:
-   comment names the alpha.16 base and the `pnpr upgrade-storage`
-   gate;
-   `FROM` pinned to
-   `ghcr.io/aquaticat/pnpr:0.1.0-alpha.16-oidc-workload-discovery.01dc1384276b@sha256:09a9818eaebba777848f3d01382c97143e232d95085ea4950408ad436505109c`
-   (image workflow run `39646035147`).
-2. `package/config/pnpr/src/publish-steps.ts` (`registry` constant):
-   publish target becomes
-   `new URL(\`${origin}/npm/~${target.registryName}/\`)` because the alpha.16 base nests npm at `/npm`.
-3. `package/config/pnpr/src/registry-read.ts`:
-   the tarball URL template becomes
-   `\`${origin}/npm/${name.replace('/',
-   '%2f')}\``.
-4. `package/config/pnpr/src/publish-plan.ts`:
-   comment updated to the `/npm/~<name>/` form and the
-   `0.1.0-alpha.11` root-form history.
-5. `package/config/pnpr/src/publish-retry.unit.test.ts`:
-   `FORBIDDEN_OUTPUT` keeps the verbatim
-   root-form URL from run `34922532212` (historical quote) plus a moved-identifier note of the
-   post-move URL (WR6).
-6. `doc/decision/private-npm-registry.md`:
-   moved-identifier note after the root-form `.npmrc` record.
-7. `doc/planning/private-npm-registry.md`:
-   moved-identifier note after the root-form `.npmrc` record.
-8. `package/config/pnpr/README.md`:
-   `.npmrc` block flipped to
-   `@monochromatic-dev:registry=https://pnpr.c.aquati.cat/npm/~monochromatic-dev/` with a
-   moved-identifier note (moved 2026-10-21 from `.../~monochromatic-dev/`,
-   the `0.1.0-alpha.11` root
-   surface).
-9. Landed already,
-   not held:
-   the publish-401 trust fix as commit `fd2890ba0d`
-   (`file-enforcer.config.ts` and the regenerated `package/config/pnpr/config.yaml`),
-   verified green in run `39690652845`.
+1.  `package/config/pnpr/Containerfile`:
+    comment names the alpha.16 base and the `pnpr upgrade-storage`
+    gate;
+    `FROM` pinned to
+    `ghcr.io/aquaticat/pnpr:0.1.0-alpha.16-oidc-workload-discovery.01dc1384276b@sha256:09a9818eaebba777848f3d01382c97143e232d95085ea4950408ad436505109c`
+    (image workflow run `39646035147`).
+2.  `package/config/pnpr/src/publish-steps.ts` (`registry` constant):
+    publish target becomes
+    `new URL(\`${origin}/npm/~${target.registryName}/\`)` because the alpha.16 base nests npm at `/npm`.
+3.  `package/config/pnpr/src/registry-read.ts`:
+    the tarball URL template becomes
+    `\`${origin}/npm/${name.replace('/',
+    '%2f')}\``.
+4.  `package/config/pnpr/src/publish-plan.ts`:
+    comment updated to the `/npm/~<name>/` form and the
+    `0.1.0-alpha.11` root-form history.
+5.  `package/config/pnpr/src/publish-retry.unit.test.ts`:
+    `FORBIDDEN_OUTPUT` keeps the verbatim
+    root-form URL from run `34922532212` (historical quote) plus a moved-identifier note of the
+    post-move URL (WR6).
+6.  `doc/decision/private-npm-registry.md`:
+    moved-identifier note after the root-form `.npmrc` record.
+7.  `doc/planning/private-npm-registry.md`:
+    moved-identifier note after the root-form `.npmrc` record.
+8.  `package/config/pnpr/README.md`:
+    `.npmrc` block flipped to
+    `@monochromatic-dev:registry=https://pnpr.c.aquati.cat/npm/~monochromatic-dev/` with a
+    moved-identifier note (moved 2026-10-21 from `.../~monochromatic-dev/`,
+    the `0.1.0-alpha.11` root
+    surface).
+9.  Landed already,
+    not held:
+    the publish-401 trust fix as commit `fd2890ba0d`
+    (`file-enforcer.config.ts` and the regenerated `package/config/pnpr/config.yaml`),
+    verified green in run `39690652845`.
 
 If the worktree loses these edits,
 redo them from this list;
@@ -252,23 +252,23 @@ the anonymous PUT is
 and run `39693597489` reports
 `0 of 163 package versions are missing from https://pnpr.c.aquati.cat`.
 
-1. Consumer side (their `.npmrc` files):
-   `@monochromatic-dev:registry=https://pnpr.c.aquati.cat/npm/~monochromatic-dev/`,
-   and consumer lockfiles re-resolve their tarball URLs
-   (documented in `package/config/pnpr/README.md`).
-   Tracked as `Aquaticat/labwc-config#2`
-   (opened 2026-10-21 at the person's request;
-    they handle it in another session).
-2. Final report to the person:
-   the deploy outage and recovery,
-   the `/npm` surface move,
-   the publish-401 root cause
-   and fix,
-   the no-backup decision honored,
-   recovery-by-republish unblocked,
-   the policy variance
-   (a teammate used `git switch --no-enforce-worktree-branch`),
-   and container cleanup.
+1.  Consumer side (their `.npmrc` files):
+    `@monochromatic-dev:registry=https://pnpr.c.aquati.cat/npm/~monochromatic-dev/`,
+    and consumer lockfiles re-resolve their tarball URLs
+    (documented in `package/config/pnpr/README.md`).
+    Tracked as `Aquaticat/labwc-config#2`
+    (opened 2026-10-21 at the person's request;
+     they handle it in another session).
+2.  Final report to the person:
+    the deploy outage and recovery,
+    the `/npm` surface move,
+    the publish-401 root cause
+    and fix,
+    the no-backup decision honored,
+    recovery-by-republish unblocked,
+    the policy variance
+    (a teammate used `git switch --no-enforce-worktree-branch`),
+    and container cleanup.
 
 Unknowns (DCK):
 the date `use_immutable_subject` turned on is not exposed by the API;

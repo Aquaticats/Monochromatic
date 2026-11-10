@@ -543,7 +543,11 @@ settled from the worktree's own record of it, and the file may be removed once t
         if !selected {
             continue;
         }
-        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
+        // The selection follows whatever this service already ran its Git with, so an absolute path it names wins over a
+        //  relative one an earlier option wrote.
+        let mut prefix: Vec<std::ffi::OsString> = context.git.global_prefix.clone();
+        prefix.extend(crate::repository_selection::of_paths(intent.git_dir.as_path(), intent.repository.as_path()));
+        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), global_prefix: prefix, ..context.git.clone() };
         // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the settlement tries it first,
         //  and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
         if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(&git, context.journal.as_path(), &intent) {

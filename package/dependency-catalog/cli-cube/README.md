@@ -165,3 +165,26 @@ Packages without a parseable GitHub `repository.url` (gitlab-hosted,
 11. Copy URL;
      reload;
      confirm view restored.
+
+## Catalog-sized range calculations
+
+Report controls, initial state, dropdown changes, and scene bounds share the
+linear reducer in `src/script/range-extent.ts`.
+It skips unknown dimension readings without spreading the catalog into function arguments
+or allocating an intermediate values array.
+Slider ranges retain their `[0, 0]` empty default;
+scene bounds retain `[0, 1]`.
+
+`src/range-extent.unit.test.ts` exercises these boundaries with 262,144 probes,
+including event dispatch through the dropdown listener and its subsequent scene update.
+It also checks empty, unknown, singleton, unordered, and special numeric readings.
+The range suite imports the built `range-verification.mjs` entry, which keeps its browser helpers
+separate from the normal Node entry.
+Run the package build before the unit suite because these tests and tooltip tests consume built exports:
+
+```sh
+# From the repository root
+mise run //package/dependency-catalog/cli-cube:build:js:node
+mise run //package/dependency-catalog/cli-cube:test:unit
+mise run //package/dependency-catalog/cli-cube:lint:types
+```

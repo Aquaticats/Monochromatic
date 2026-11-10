@@ -51,7 +51,7 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
     let arguments: Vec<String> = ["diff-index", "--cached", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", base].map(String::from).to_vec();
     let output = run_git_checked(
         context,
-        &indexed_request(cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
+        &indexed_request(context, cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
     )?;
     // The listing is read as the bytes Git wrote: the header is text, and the name after it is a name and not text.
     let mut fields = output.stdout.split(ends_a_field).filter(is_not_empty_field);

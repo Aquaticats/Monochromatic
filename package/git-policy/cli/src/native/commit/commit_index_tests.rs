@@ -377,7 +377,9 @@ fn unmerged_paths_are_listed_once() {
     let (repo, indexes, _base) = committed_repository(root.as_path());
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
     let info: String = format!("100644 {blob} 1\ta.txt\n100644 {blob} 2\ta.txt\n100644 {blob} 3\ta.txt\n");
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "--index-info"],
         Some(indexes.commit_index.as_path()),
@@ -403,7 +405,9 @@ fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
     std::fs::write(repo.join("sub/f"), b"conflict\n").expect("write sub/f");
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "sub/f"]);
     let info: String = format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "--index-info"],
         Some(indexes.commit_index.as_path()),
@@ -633,7 +637,9 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
     initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
     assert_eq!(changed(&repo, &indexes, &base), vec![b"caf\xe9.txt".to_vec()]);
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "-z", "--index-info"],
         Some(indexes.commit_index.as_path()),

@@ -70,6 +70,9 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
         vec!["mv", "--force", "tracked.txt", "moved.txt"],
         vec!["checkout-index", "-f", "-a"],
         vec!["read-tree", "--reset", "HEAD"],
+        vec!["read-tree", "-m", "-u", "HEAD"],
+        vec!["read-tree", "HEAD"],
+        vec!["read-tree", "--empty"],
         vec!["merge", "--abort"],
         vec!["rebase", "--abort"],
         vec!["cherry-pick", "--abort"],
@@ -113,7 +116,10 @@ fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
         GuardedCommand::Remove => vec![vec!["rm", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "--quiet", "tracked.txt"]],
         GuardedCommand::Move => vec![vec!["mv", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "missing.txt", "other.txt"]],
         GuardedCommand::CheckoutIndex => vec![vec!["checkout-index", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-a"]],
-        GuardedCommand::ReadTree => vec![vec!["read-tree", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--reset", "HEAD"]],
+        GuardedCommand::ReadTree => vec![
+            vec!["read-tree", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--reset", "HEAD"],
+            vec!["read-tree", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-m", "-u", "HEAD"],
+        ],
         GuardedCommand::AbortMerge => vec![vec!["merge", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortPick => vec![vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"], vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
@@ -230,6 +236,7 @@ fn reading_forms_are_never_rejected() {
         vec!["reset", "--soft", "HEAD"],
         vec!["checkout"],
         vec!["clean", "-n"],
+        vec!["read-tree", "-n", "-m", "-u", "HEAD"],
     ] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert!(

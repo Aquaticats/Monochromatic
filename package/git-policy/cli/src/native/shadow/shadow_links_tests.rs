@@ -287,3 +287,44 @@ fn a_shared_info_that_is_not_a_directory_is_an_error() {
     assert!(link_shadow_entries(shadow.as_path(), common.as_path(), git_dir.as_path()).is_err());
     remove(root.as_path());
 }
+
+/// What:
+///  A file one command stages a lock in never reaches a shadow,
+///  under any name the lock it belongs to has.
+/// Why:
+///   Every command of a repository leaves one of these while it runs,
+///  so a shadow that linked one held an entry a creation made a moment ago and no other creation would make,
+///  which is exactly what the pool refuses a member for.
+///  The name is `<lock>.cli-git-marker-<pid>.<namespace>-<batch>-<token>`,
+///  and the lock can be a ref's,
+/// not only the index's.
+#[test]
+fn a_staged_lock_marker_never_reaches_the_shadow() {
+    let root: PathBuf = fixture("shadow-links-lock-marker");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    for name in [
+        "index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d-d336-4336-b19e-d9e64c8c9d9e",
+        "refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef",
+        "HEAD.lock",
+    ] {
+        std::fs::write(common.join(name), b"marker").expect("marker");
+    }
+    assert!(
+        is_private_shadow_entry("index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d"),
+        "the index's staged marker is private"
+    );
+    assert!(
+        is_private_shadow_entry("refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef"),
+        "a ref's staged marker is private"
+    );
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    for entry in std::fs::read_dir(shadow.as_path()).expect("shadow entries").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        assert!(!name.contains("cli-git-marker"), "a staged marker reached the shadow as {name}");
+        assert!(!name.ends_with(".lock"), "a lock reached the shadow as {name}");
+    }
+    remove(root.as_path());
+}

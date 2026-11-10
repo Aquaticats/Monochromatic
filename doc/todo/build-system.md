@@ -21,12 +21,12 @@
 
 The current setup process fails for fresh clones due to build order issues:
 
-1. **Critical Build Order Problem**:
-    The `js` tasks run before `bun install` completes
-   - Root cause:
-      The `js_default` task calls `tsdown` directly without ensuring dependencies are installed
-   - This causes "command not found" errors for tools that come from node_modules
-   - Mise allows tasks to start before their implicit dependencies are ready
+1.  **Critical Build Order Problem**:
+     The `js` tasks run before `bun install` completes
+    - Root cause:
+       The `js_default` task calls `tsdown` directly without ensuring dependencies are installed
+    - This causes "command not found" errors for tools that come from node_modules
+    - Mise allows tasks to start before their implicit dependencies are ready
 
 #### Recommended Fix
 
@@ -49,13 +49,13 @@ mise run build
 
 ### TypeScript Configuration Issues
 
-1. **TypeScript baseUrl Warnings**:
-    Fixed by adding `baseUrl: "./"` to all tsconfig files
-2. **TypeScript Compilation Errors**:
-    Fresh clones have TypeScript errors that block the build:
-   - Missing type declarations for `postcss-mixins`
-   - Cannot find module 'astro:
-     content' (Astro's virtual module)
+1.  **TypeScript baseUrl Warnings**:
+     Fixed by adding `baseUrl: "./"` to all tsconfig files
+2.  **TypeScript Compilation Errors**:
+     Fresh clones have TypeScript errors that block the build:
+    - Missing type declarations for `postcss-mixins`
+    - Cannot find module 'astro:
+      content' (Astro's virtual module)
 
 ### Missing Export Issues (New - High Priority)
 

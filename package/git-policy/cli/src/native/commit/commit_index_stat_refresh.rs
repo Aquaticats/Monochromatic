@@ -125,7 +125,7 @@ fn keeps_the_refresh(code: i32) -> bool {
 /// ```
 pub fn refresh_stat_data(context: &GitContext, cwd: &Path, index: &Path) -> bool {
     let arguments: [&str; 2] = ["update-index", "--refresh"];
-    let request = indexed_request(cwd, arguments.as_slice(), Some(index), None);
+    let request = indexed_request(context, cwd, arguments.as_slice(), Some(index), None);
     let output: GitOutput = match run_git(context, &request) {
         Ok(finished) => finished,
         Err(error) => return without_the_refresh(index, error.to_string().as_str()),

@@ -138,18 +138,21 @@ fn decoded_trimmed(output: &GitOutput) -> Result<String, GitFailure> {
 }
 
 /// What:
-///  A Git request in `cwd` that ignores the invocation's global options,
-///  as the incumbent's transaction Git does.
+///  A Git request in `cwd` that keeps none of the invocation's global options,
+///  and still names the repository the caller named.
 /// Why:
-///   The incumbent runs these queries in the effective directory without the global options.
+///   The incumbent runs these queries in the effective directory without the global options;
+///  a repository whose Git directory is beside its work tree is found only when it is named,
+///  so the selection travels with the request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runTransactionGit({ gitPath, cwd, args })
+/// runTransactionGit({ gitPath, cwd, args, repository: selection({ cwd, globalPrefix }) })
 /// ```
-fn transaction_request(cwd: &Path, arguments: &[&str]) -> GitRequest {
+fn transaction_request(context: &GitContext, cwd: &Path, arguments: &[&str]) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, arguments);
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     return request;
 }
 
@@ -165,7 +168,7 @@ fn transaction_request(cwd: &Path, arguments: &[&str]) -> GitRequest {
 /// await runTransactionGit({ gitPath, cwd, args, allowFailure: true })
 /// ```
 fn probe(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutput, GitFailure> {
-    return match run_git(context, &transaction_request(cwd, arguments)) {
+    return match run_git(context, &transaction_request(context, cwd, arguments)) {
         Ok(output) => Ok(output),
         Err(error) => Err(GitFailure(format!(
             "git {} could not start: {error}",
@@ -184,7 +187,7 @@ fn probe(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutp
 /// await runTransactionGit({ gitPath, cwd, args })
 /// ```
 fn required(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutput, GitFailure> {
-    return run_git_checked(context, &transaction_request(cwd, arguments));
+    return run_git_checked(context, &transaction_request(context, cwd, arguments));
 }
 
 /// What:
@@ -411,8 +414,16 @@ pub fn capture_invocation_layout(
     // Taken before any Git runs, as the incumbent does.
     let invoked_at: String = now_iso();
     let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
+    // The readers answer for the directory they are given and cannot honour a repository the caller named, so a command line
+    //  that names one asks Git.
+    let named: bool = !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty();
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
-    let text: String = match read_layout_in(cwd, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(invocation_report) {
+    let read_in_process: Option<String> = if named {
+        None
+    } else {
+        read_layout_in(cwd, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(invocation_report)
+    };
+    let text: String = match read_in_process {
         Some(read) => read,
         None => {
             let report: GitOutput = required(

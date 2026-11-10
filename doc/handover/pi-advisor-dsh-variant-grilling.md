@@ -589,19 +589,19 @@ First recovery commit landed 18:02:14 as `093f32832a`
 Cause candidates (open,
 undetermined):
 
-1. The landing machinery rewrites the index itself
-   (`git reset --quiet <landed_tree> --`,
-   `package/git-policy/cli/src/native/landing_index.rs:304`),
-   and two subagent commits landed at 17:52:18 and 17:53:06,
-   the exact claimed loss window;
-   its e2e invariants `index-no-revert` and `worktree-preserved`
-   name this failure mode.
-2. `git checkout` and `git restore` are not guarded
-   (see the `GuardedCommand` union),
-   so any session or stray agent can discard uncommitted state
-   without a wrapper rejection
-   (another session's handover at 18:05:52 warns of stray agent loops).
-3. The fork's own action is not excluded.
+1.  The landing machinery rewrites the index itself
+    (`git reset --quiet <landed_tree> --`,
+    `package/git-policy/cli/src/native/landing_index.rs:304`),
+    and two subagent commits landed at 17:52:18 and 17:53:06,
+    the exact claimed loss window;
+    its e2e invariants `index-no-revert` and `worktree-preserved`
+    name this failure mode.
+2.  `git checkout` and `git restore` are not guarded
+    (see the `GuardedCommand` union),
+    so any session or stray agent can discard uncommitted state
+    without a wrapper rejection
+    (another session's handover at 18:05:52 warns of stray agent loops).
+3.  The fork's own action is not excluded.
 
 The candidates were filed as GitHub issue `#1791`
 for Claude,
@@ -744,205 +744,205 @@ Implementation,
 fix pre-existing failures too;
  use subagents aggressively):
 
-1. DONE,
-   commit `b710410e81`:
-   move `package/pi-shared/model-selection` to
-   `package/agent-harness-shared/model-selection`
-   (dir plus name plus consumers).
-2. DONE:
-   fix the measured pre-existing failures
-   (`3b9bb3ad6b`,
-   `fce8efd40e`,
-   `ad7a5a67b4`,
-   `22f130ed5b`,
-   `ea2812babc`,
-   `c8d9af87d5`)
-   and sweep every package `lint:types`
-   (213 packages,
-   170 pass,
-   43 red triaged as above).
-3. DONE 2026-10-20 (subagents,
-   disjoint write scopes):
-   shared core extraction and pi rewiring (`40eef920`,
-   commits in the delegation list),
-   the dependency API drift record (`94e9414e`,
-   `601c69399e`),
-   and the 38 build-class reds (`bd3dc9b4`).
-4. DONE 2026-10-20:
-   `git merge --ff-only origin/main` ran on a clean worktree and adopted
-   `1dde8c5cd6`
-   (the concurrent translation-repair NeuralWatt batch;
-   the queued auto-push merges are absorbed).
-   DONE 2026-10-20 (subagent `572a1354`):
-   fold-ins and the DSH plugin landed
-   (`16a22cd7de` `defaultReviewerModel` initial-reviewer behavior,
-   `39d452035a` default-ranking seam in
-   `src/default-ranking.ts`,
-   `effcff526e` `package/dsh-plugin/advisor`,
-   `3583eec279` install outputs,
-   `ff2de2b5a3` synced `main`).
-   Lead-verified:
-   shared advisor and `dsh-plugin/advisor` `lint:types` and
-   `test:unit` green
-   (31 dsh test groups;
-   shared suites cover the Q12 order,
-   the ranking seam permutation guards,
-   and the `defaultReviewerModel` config merge).
-   Capability-gap deviations recorded in the dsh README
-   (runtime pi imports kept external as peer deps,
-   fabricated zero usage on derived history,
-   unknown window 128_000,
-   empty Schemastery `Config` row,
-   no `verify:extension` analogue).
-   ACTIVE (lead):
-   fixture-profile verification,
-   then the Q10 live install
-   (`plugin_manager install_bundle`).
-   Fixture 1 `advisor-fixture-minimal` created from the headless
-   template and the bundle linked via `dsh plugin --profile ... add`;
-   `--dump-config` composes `id: advisor`,
-   `config: {}`.
-   Measured fixture-surface gaps (diagnosed 2026-10-20):
-   headless sessions mount no inspect tools,
-   needing inserted rows `cordis-host-runner`,
-   `cordis-inspect-providers`,
-   and `tool-cordis`;
-   fixtures do not share the live profile credential store;
-   the `MISSING_CREDENTIAL` diagnostic sanctions exporting keys
-   in the launching environment,
-   and tool shells lack the keys the harness PID env carries.
-   Workaround:
-   disposable overlay `~/temp/agent/advisor-fixture-llm.patch.yml`
-   (`llmgateway-devpass`/`mimo-v2.6-pro`,
-   exported `LLMGATEWAY_DEVPASS_API_KEY`,
-   inserted inspect rows).
-   DONE 2026-10-20:
-   troubleshooting docs
-   `doc/troubleshooting/dsh-fixture-profile-plugin-verification.md`
-   (`0a56240d1a`)
-   and `doc/troubleshooting/dsh-cordis-inspect-query-input-coerced-to-string.md`
-   (`c94dc5ed69`),
-   both indexed in `doc/troubleshooting/README.md`.
-   Measured defect (fixture 1,
-   2026-10-20):
-   every `advisor` tool call failed with
-   `prompt variable "{{model}}" has no value for this assembly`
-   (section `deployment:persona-prefix`).
-   Root cause:
-   `buildDshAdvisorProjectContext` called `systemPrompt.assemble()`
-   without the agent assembly context that the agent-loop's
-   `model` and `provider` prompt variables read
-   (`context.agent.options`).
-   Fixed (`85434d0c40`):
-   `DshAdvisorAgentSurface.assembleContext` forwards
-   `assembleContextFor(agent, signal)` from `@deepseek-ai/dsh-agent`,
-   matching the agent-loop's own assembly call shape.
-   Measured defect 2 (fixture 1,
-   2026-10-20):
-   after the first fix,
-   calls failed with
-   `advisor: no scoped models with configured auth`.
-   Root cause:
-   `createDshAdvisorRunContext` exposed no `getScopedModels` seam,
-   so scope resolution fell into pi-only argv and settings branches
-   and resolved zero entries in DSH.
-   Fixed (`07ad8133c5`):
-   the run context exposes `getScopedModels` backed by the catalog
-   `getAvailable()` routes,
-   the DSH equivalent of pi's live scope.
-   Boundary re-probe (2026-10-20):
-   the unknown-slug parity error now fires exactly
-   (`advisor: model slug "no-such-model-slug" was not found in scoped
-   models`) listing the ten scoped slugs,
-   the eight `llmgateway-devpass` overlay models plus
-   `deepseek-official/deepseek-flash` and `deepseek-official/deepseek-v4-pro`.
-   Measured (fixture 1):
-   agent sessions expose no command-invocation surface
-   (no command tool or commands service),
-   so `/advisor` parity moves to the user boundary after Q10,
-   the plan's known gap.
-   Fixture 2 PASS (2026-10-20,
-   disposable home and project configs):
-   default call served `llmgateway-devpass/deepseek-v4.1-flash-1017`
-   (project `defaultReviewerModel: opencode-go/kimi-k3` unresolvable,
-   falling through to the ranking pick,
-   not global `claude-haiku-5-5`),
-   and the reported deadline (`222222` minus elapsed) proves the project
-   scalar `timeoutMs` won the merge;
-   explicit `llmgateway-devpass/claude-haiku-5-5` served exactly.
-   The result line `deadline remaining <timeoutMs - elapsed>ms`
-   is the merged-config observable at the tool boundary.
-   Fixture 1b PASS (2026-10-20,
-   empty disposable home,
-   non-project cwd):
-   default call reported `deadline remaining 594995ms` after `5005ms`
-   elapsed (`600000` equals `DEFAULT_TIMEOUT_MS`:
-   config paths absent)
-   and served the ranking pick `llmgateway-devpass/deepseek-v4.1-flash-1017`;
-   `llmgateway-devpass/claude` raised the exact not-found parity error
-   (slug matching is exact,
-   so the ambiguous branch needs duplicate match keys and stays unit-covered);
-   `model: ""` served the default by design:
-   shared `normalizeModelArgument` drops blank model values
-   (`agent-harness-shared/advisor/src/tool-params.ts`),
-   so `model slug must not be empty` is a command-form error only.
-   Q10 live install:
-   DONE 2026-10-20
-   (`plugin_manager install_bundle`:
-   `application: applied`,
-   `warnings: []`;
-   `--dump-config` shows `id: advisor`,
-   `config: {}`;
-   the web app has no CLI task mode,
-   so the live tool catalog is confirmed in a fresh GUI chat).
-   QUEUED at the user boundary (tracked in issue `#1792`):
-   new GUI chat `/advisor status` (expect the transcribed config lines),
-   `/advisor off` (tool masked) and `/advisor on` (restored).
-   Measured (2026-10-20):
-   a leading-slash task line (`/advisor status`) reaches headless
-   agents as an ordinary user message with no command dispatch,
-   closing the dispatch probe.
-   Parallel (subagent `5b28eefd`):
-   DONE
-   (see the monochromatic-lint incident section).
-5. Tests,
-   lint,
-   and `mise` tasks for every new and moved package;
-   behavior picks recorded per Q5 and Q6
-   plus the 2026-10-20 reviewer-fallback decision
-   (initial reviewer,
-   serial fallback kept,
-   explicit is exact).
-6. DONE 2026-10-20:
-   fixture-profile verification (fixtures 1,
-   2,
-   and the empty-home 1b;
-   fixture 3 toggle parity deferred to the user boundary)
-   and the Q10 live install (`application: applied`,
-   `warnings: []`).
-7. DONE 2026-10-20:
-   READMEs (dsh capability gaps now record the scope mapping
-   and the command-parity boundary),
-   planning doc (fixture findings,
-   Q10 deviation,
-   completion status),
-   GitHub issue `#1792` (`needs-triage`),
-   and this handover's completion record.
-8. DONE 2026-10-20:
-   the git-wrapper defects and UX problems are filed as
-   GitHub issue `#1791`
-   (`cli-git: uncommitted work can vanish with no guard and no log`),
-   `needs-triage`,
-   for Claude,
-   who owns the git wrapper.
-   No wrapper fixes in this series.
-   Filed findings:
-   unguarded `checkout`/`restore` can discard uncommitted state,
-   the landing `reset --quiet` index rewrite can revert staged work,
-   read-only `git stash` subcommands are over-blocked,
-   no audit trail exists for state-discarding operations,
-   and the auto-push ff-only sync advice cannot be followed
-   in dirty agent worktrees.
+1.  DONE,
+    commit `b710410e81`:
+    move `package/pi-shared/model-selection` to
+    `package/agent-harness-shared/model-selection`
+    (dir plus name plus consumers).
+2.  DONE:
+    fix the measured pre-existing failures
+    (`3b9bb3ad6b`,
+    `fce8efd40e`,
+    `ad7a5a67b4`,
+    `22f130ed5b`,
+    `ea2812babc`,
+    `c8d9af87d5`)
+    and sweep every package `lint:types`
+    (213 packages,
+    170 pass,
+    43 red triaged as above).
+3.  DONE 2026-10-20 (subagents,
+    disjoint write scopes):
+    shared core extraction and pi rewiring (`40eef920`,
+    commits in the delegation list),
+    the dependency API drift record (`94e9414e`,
+    `601c69399e`),
+    and the 38 build-class reds (`bd3dc9b4`).
+4.  DONE 2026-10-20:
+    `git merge --ff-only origin/main` ran on a clean worktree and adopted
+    `1dde8c5cd6`
+    (the concurrent translation-repair NeuralWatt batch;
+    the queued auto-push merges are absorbed).
+    DONE 2026-10-20 (subagent `572a1354`):
+    fold-ins and the DSH plugin landed
+    (`16a22cd7de` `defaultReviewerModel` initial-reviewer behavior,
+    `39d452035a` default-ranking seam in
+    `src/default-ranking.ts`,
+    `effcff526e` `package/dsh-plugin/advisor`,
+    `3583eec279` install outputs,
+    `ff2de2b5a3` synced `main`).
+    Lead-verified:
+    shared advisor and `dsh-plugin/advisor` `lint:types` and
+    `test:unit` green
+    (31 dsh test groups;
+    shared suites cover the Q12 order,
+    the ranking seam permutation guards,
+    and the `defaultReviewerModel` config merge).
+    Capability-gap deviations recorded in the dsh README
+    (runtime pi imports kept external as peer deps,
+    fabricated zero usage on derived history,
+    unknown window 128_000,
+    empty Schemastery `Config` row,
+    no `verify:extension` analogue).
+    ACTIVE (lead):
+    fixture-profile verification,
+    then the Q10 live install
+    (`plugin_manager install_bundle`).
+    Fixture 1 `advisor-fixture-minimal` created from the headless
+    template and the bundle linked via `dsh plugin --profile ... add`;
+    `--dump-config` composes `id: advisor`,
+    `config: {}`.
+    Measured fixture-surface gaps (diagnosed 2026-10-20):
+    headless sessions mount no inspect tools,
+    needing inserted rows `cordis-host-runner`,
+    `cordis-inspect-providers`,
+    and `tool-cordis`;
+    fixtures do not share the live profile credential store;
+    the `MISSING_CREDENTIAL` diagnostic sanctions exporting keys
+    in the launching environment,
+    and tool shells lack the keys the harness PID env carries.
+    Workaround:
+    disposable overlay `~/temp/agent/advisor-fixture-llm.patch.yml`
+    (`llmgateway-devpass`/`mimo-v2.6-pro`,
+    exported `LLMGATEWAY_DEVPASS_API_KEY`,
+    inserted inspect rows).
+    DONE 2026-10-20:
+    troubleshooting docs
+    `doc/troubleshooting/dsh-fixture-profile-plugin-verification.md`
+    (`0a56240d1a`)
+    and `doc/troubleshooting/dsh-cordis-inspect-query-input-coerced-to-string.md`
+    (`c94dc5ed69`),
+    both indexed in `doc/troubleshooting/README.md`.
+    Measured defect (fixture 1,
+    2026-10-20):
+    every `advisor` tool call failed with
+    `prompt variable "{{model}}" has no value for this assembly`
+    (section `deployment:persona-prefix`).
+    Root cause:
+    `buildDshAdvisorProjectContext` called `systemPrompt.assemble()`
+    without the agent assembly context that the agent-loop's
+    `model` and `provider` prompt variables read
+    (`context.agent.options`).
+    Fixed (`85434d0c40`):
+    `DshAdvisorAgentSurface.assembleContext` forwards
+    `assembleContextFor(agent, signal)` from `@deepseek-ai/dsh-agent`,
+    matching the agent-loop's own assembly call shape.
+    Measured defect 2 (fixture 1,
+    2026-10-20):
+    after the first fix,
+    calls failed with
+    `advisor: no scoped models with configured auth`.
+    Root cause:
+    `createDshAdvisorRunContext` exposed no `getScopedModels` seam,
+    so scope resolution fell into pi-only argv and settings branches
+    and resolved zero entries in DSH.
+    Fixed (`07ad8133c5`):
+    the run context exposes `getScopedModels` backed by the catalog
+    `getAvailable()` routes,
+    the DSH equivalent of pi's live scope.
+    Boundary re-probe (2026-10-20):
+    the unknown-slug parity error now fires exactly
+    (`advisor: model slug "no-such-model-slug" was not found in scoped
+    models`) listing the ten scoped slugs,
+    the eight `llmgateway-devpass` overlay models plus
+    `deepseek-official/deepseek-flash` and `deepseek-official/deepseek-v4-pro`.
+    Measured (fixture 1):
+    agent sessions expose no command-invocation surface
+    (no command tool or commands service),
+    so `/advisor` parity moves to the user boundary after Q10,
+    the plan's known gap.
+    Fixture 2 PASS (2026-10-20,
+    disposable home and project configs):
+    default call served `llmgateway-devpass/deepseek-v4.1-flash-1017`
+    (project `defaultReviewerModel: opencode-go/kimi-k3` unresolvable,
+    falling through to the ranking pick,
+    not global `claude-haiku-5-5`),
+    and the reported deadline (`222222` minus elapsed) proves the project
+    scalar `timeoutMs` won the merge;
+    explicit `llmgateway-devpass/claude-haiku-5-5` served exactly.
+    The result line `deadline remaining <timeoutMs - elapsed>ms`
+    is the merged-config observable at the tool boundary.
+    Fixture 1b PASS (2026-10-20,
+    empty disposable home,
+    non-project cwd):
+    default call reported `deadline remaining 594995ms` after `5005ms`
+    elapsed (`600000` equals `DEFAULT_TIMEOUT_MS`:
+    config paths absent)
+    and served the ranking pick `llmgateway-devpass/deepseek-v4.1-flash-1017`;
+    `llmgateway-devpass/claude` raised the exact not-found parity error
+    (slug matching is exact,
+    so the ambiguous branch needs duplicate match keys and stays unit-covered);
+    `model: ""` served the default by design:
+    shared `normalizeModelArgument` drops blank model values
+    (`agent-harness-shared/advisor/src/tool-params.ts`),
+    so `model slug must not be empty` is a command-form error only.
+    Q10 live install:
+    DONE 2026-10-20
+    (`plugin_manager install_bundle`:
+    `application: applied`,
+    `warnings: []`;
+    `--dump-config` shows `id: advisor`,
+    `config: {}`;
+    the web app has no CLI task mode,
+    so the live tool catalog is confirmed in a fresh GUI chat).
+    QUEUED at the user boundary (tracked in issue `#1792`):
+    new GUI chat `/advisor status` (expect the transcribed config lines),
+    `/advisor off` (tool masked) and `/advisor on` (restored).
+    Measured (2026-10-20):
+    a leading-slash task line (`/advisor status`) reaches headless
+    agents as an ordinary user message with no command dispatch,
+    closing the dispatch probe.
+    Parallel (subagent `5b28eefd`):
+    DONE
+    (see the monochromatic-lint incident section).
+5.  Tests,
+    lint,
+    and `mise` tasks for every new and moved package;
+    behavior picks recorded per Q5 and Q6
+    plus the 2026-10-20 reviewer-fallback decision
+    (initial reviewer,
+    serial fallback kept,
+    explicit is exact).
+6.  DONE 2026-10-20:
+    fixture-profile verification (fixtures 1,
+    2,
+    and the empty-home 1b;
+    fixture 3 toggle parity deferred to the user boundary)
+    and the Q10 live install (`application: applied`,
+    `warnings: []`).
+7.  DONE 2026-10-20:
+    READMEs (dsh capability gaps now record the scope mapping
+    and the command-parity boundary),
+    planning doc (fixture findings,
+    Q10 deviation,
+    completion status),
+    GitHub issue `#1792` (`needs-triage`),
+    and this handover's completion record.
+8.  DONE 2026-10-20:
+    the git-wrapper defects and UX problems are filed as
+    GitHub issue `#1791`
+    (`cli-git: uncommitted work can vanish with no guard and no log`),
+    `needs-triage`,
+    for Claude,
+    who owns the git wrapper.
+    No wrapper fixes in this series.
+    Filed findings:
+    unguarded `checkout`/`restore` can discard uncommitted state,
+    the landing `reset --quiet` index rewrite can revert staged work,
+    read-only `git stash` subcommands are over-blocked,
+    no audit trail exists for state-discarding operations,
+    and the auto-push ff-only sync advice cannot be followed
+    in dirty agent worktrees.
 
 ## Completion record (2026-10-20)
 

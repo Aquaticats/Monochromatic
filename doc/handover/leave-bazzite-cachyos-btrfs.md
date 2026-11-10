@@ -239,13 +239,13 @@ is the rollback point.
 
 ## Next action
 
-1. The user creates the offline primary key and signing subkey
-   (labwc-config `doc/planning/pacman-repository.md`,
-   section on the key ceremony),
-   then sets the `PACMAN_SIGNING_SUBKEY` secret and `PACMAN_SIGNING_KEY_ID` variable.
-2. The user clears the desktop's Secure Boot keys in the firmware menu,
-   keeping Secure Boot enabled,
-   boots the live ISO,
-   and follows labwc-config `doc/runbook/install-desktop.md`.
-3. Measure the launcher and panel hot paths on the desktop against the 20 ms budget.
-4. Run the ZFS trigger test on the desktop.
+1.  The user creates the offline primary key and signing subkey
+    (labwc-config `doc/planning/pacman-repository.md`,
+    section on the key ceremony),
+    then sets the `PACMAN_SIGNING_SUBKEY` secret and `PACMAN_SIGNING_KEY_ID` variable.
+2.  The user clears the desktop's Secure Boot keys in the firmware menu,
+    keeping Secure Boot enabled,
+    boots the live ISO,
+    and follows labwc-config `doc/runbook/install-desktop.md`.
+3.  Measure the launcher and panel hot paths on the desktop against the 20 ms budget.
+4.  Run the ZFS trigger test on the desktop.

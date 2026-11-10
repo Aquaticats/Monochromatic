@@ -88,13 +88,37 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
     }
     for path in &report.changed {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: {} changed again while the merge ran, so nothing was written to it and what \
-             is in it is yours. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
+            "monochromatic-git-policy-cli: git merge {reference}: {} was written again while the merge ran, so this merge wrote nothing to \
+             it and the file holds what was written then. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the \
+             difference.",
             text(path),
             text(path)
         ));
     }
     return lines;
+}
+
+/// What:
+///  Say that a path the captured work does not explain was left as it is.
+/// Why:
+///   A merge that does not land puts the person's own layers back,
+/// and a path written after the capture
+///  holds bytes newer than those,
+/// so nothing is written there and the person is told which file was left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// say(`${path} was saved while this merge ran, so it holds your bytes and was left as it is`);
+/// ```
+pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(out: &mut W, path: &[u8]) {
+    let named: String = text(path);
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: {named} was written after this merge captured it, so it holds your bytes and was left as \
+             it is; the merge did not change it.\n"
+        )
+        .as_bytes(),
+    );
 }
 
 /// The text of one path for a line the person reads.

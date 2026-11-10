@@ -35,7 +35,7 @@ use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_ob
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
-use crate::transaction_git::{GitOutput, GitRequest};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -271,13 +271,13 @@ pub struct TakeFailure {
 /// ```ts
 /// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
 /// ```
-async fn raw_bytes_of_awaiting(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
+async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -> Option<String> {
     if std::fs::symlink_metadata(location).ok()?.file_type().is_symlink() {
-        return the_objects_a_link_hashes_to_awaiting(&place.git, root, location).await.ok();
+        return the_objects_a_link_hashes_to_awaiting(git, root, location).await.ok();
     }
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
     request.arguments.push(location.as_os_str().to_os_string());
-    let output: GitOutput = run_git_awaiting(&place.git, &request).await.ok()?;
+    let output: GitOutput = run_git_awaiting(git, &request).await.ok()?;
     if !output.succeeded() {
         return None;
     }
@@ -285,7 +285,7 @@ async fn raw_bytes_of_awaiting(place: &RecoveryPlace, root: &Path, location: &Pa
 }
 
 /// What:
-///  The object the branch's own file form hashes to:
+///  The object one stored object's file form hashes to:
 ///  the path's filters applied to the object,
 ///  then the raw bytes of that
 ///  hashed with no filter.
@@ -293,42 +293,46 @@ async fn raw_bytes_of_awaiting(place: &RecoveryPlace, root: &Path, location: &Pa
 ///   That is what the worktree would hold had nobody touched the file,
 /// so a file whose raw bytes hash to something else carries bytes of the
 ///  person's that the filter hides.
+///  The second pass compares one of the branch's objects this way,
+///  and the carry compares a captured or merged object the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// theBranchsFileForm(place, root, path, expected): string | undefined; // cat-file --filters --path=<path> <expected> | hash-object --no-filters --stdin
+/// theFileFormOf(place, root, path, expected): string | undefined; // cat-file --filters --path=<path> <expected> | hash-object --no-filters --stdin
 /// ```
-async fn the_branchs_file_form_awaiting(place: &RecoveryPlace, root: &Path, path: &[u8], expected: &str) -> Option<String> {
+async fn the_file_form_of_awaiting(git: &GitContext, root: &Path, path: &[u8], expected: &str) -> Option<String> {
     let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
     named.push(worktree_path(Path::new(""), path).into_os_string());
     let mut cat: GitRequest = GitRequest::new(root, &["cat-file", "--filters"]);
     cat.arguments.push(named);
     cat.arguments.push(std::ffi::OsString::from(expected));
-    let filtered: GitOutput = run_git_awaiting(&place.git, &cat).await.ok()?;
+    let filtered: GitOutput = run_git_awaiting(git, &cat).await.ok()?;
     if !filtered.succeeded() {
         return None;
     }
     let mut hash: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
     hash.input = Some(filtered.stdout);
-    let output: GitOutput = run_git_checked_awaiting(&place.git, &hash).await.ok()?;
+    let output: GitOutput = run_git_checked_awaiting(git, &hash).await.ok()?;
     return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
 }
 
 /// What:
-///  Whether the bytes at `location` are the branch's own file form for `expected`,
+///  Whether the bytes at `location` are the file form of `expected`,
 ///  or nothing when either read fails.
 /// Why:
 ///   One comparison serves the take and the removal,
-/// so a file either side accepts is the same file.
+/// so a file either side accepts is the same file,
+///  and the carry
+///  compares the file it takes with the object its own judgement recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// areTheBranchsBytes(place, root, path, location, expected): boolean | undefined;
+/// areTheFileFormOf(git, root, path, location, expected): boolean | undefined;
 /// ```
-async fn are_the_branchs_bytes_awaiting(place: &RecoveryPlace, root: &Path, path: &[u8], location: &Path, expected: &str) -> Option<bool> {
-    let taken: String = raw_bytes_of_awaiting(place, root, location).await?;
-    let branch: String = the_branchs_file_form_awaiting(place, root, path, expected).await?;
-    return Some(taken == branch);
+pub(crate) async fn are_the_file_form_of_awaiting(git: &GitContext, root: &Path, path: &[u8], location: &Path, expected: &str) -> Option<bool> {
+    let taken: String = raw_bytes_of_awaiting(git, root, location).await?;
+    let held: String = the_file_form_of_awaiting(git, root, path, expected).await?;
+    return Some(taken == held);
 }
 
 /// What a take of one worktree path found.
@@ -408,7 +412,7 @@ pub async fn take_aside_awaiting(
     if judged.identity.is_none() || taken != judged.identity {
         return put_back_and_report(location, aside);
     }
-    match are_the_branchs_bytes_awaiting(place, root, path, aside.as_path(), expected).await {
+    match are_the_file_form_of_awaiting(&place.git, root, path, aside.as_path(), expected).await {
         Some(true) => {}
         Some(false) => return put_back_and_report(location, aside),
         // A read that fails cannot prove the bytes, so the file goes back rather than be replaced.
@@ -636,7 +640,7 @@ async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOn
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    return are_the_branchs_bytes_awaiting(place, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()).await == Some(true);
+    return are_the_file_form_of_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()).await == Some(true);
 }
 
 /// What:

@@ -30,6 +30,9 @@ use crate::policy_content::LifecycleContent;
 use crate::policy_registry::PolicyId;
 use crate::landed_summary::short_name;
 use crate::held_push_commit_on_the_remote::GitRemoteRecord;
+/// The questions about a branch's history that decide whether a verdict holds it back,
+/// and the lines a command prints from the answers.
+use crate::blocked_commit_questions::{ContextHistory, held_back_lines};
 use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
@@ -147,13 +150,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
-    // The trash of the worktree this command runs in is named here when no record accounts for it: the add that made it
-    // empties it before it returns, so a trash still there is one that could not be emptied, and nothing else mentions it.
+    // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
+    // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
+    // is one no service will empty, and nothing else mentions it.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(git_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
     }
     // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
     let cwd: PathBuf = match std::env::current_dir() {
@@ -167,6 +171,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     let context: GitContext = checks.facts.transaction_context();
     let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
     for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
+    // A branch whose commit a post-commit policy kept local is named here, and the line stands while the commit is on the branch's
+    //  way out: the automatic push sends nothing past it, so the person must know which commit holds the branch back and why. Once
+    //  the commit is off the way out, or Git already holds it in the branch's remote, the line goes and the push runs whole again.
+    let history: ContextHistory<'_> = ContextHistory { context: &context, cwd: cwd.as_path() };
+    for line in held_back_lines(git_dir.as_path(), &history) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }

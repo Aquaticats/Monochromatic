@@ -15,114 +15,114 @@ and the stop condition in the index applies.
 
 ## Milestone one reference run, per-call deadlines and pack-scaled concurrency
 
-1. MILESTONE ONE NUMBER IS IN (2026-07-17,
-   93-minute reference run,
-   pre-budget code):
-   `ensembleRecall` 0.981 (53 of 54 seeds) over 18
-   entries spanning 714 to 5_826 chars,
-   all seven models,
-   one stream per
-   model.
-   Every one of the 126 calls ended `ok` (schemaOkRate 1.0 for
-   every model,
-   zero refusals);
-   the retry layer recovered all four
-   deadline forfeits (GLM-5.2,
-   Flash,
-   Qwen,
-   MiniMax each once).
-   Per-model seeded recall:
-   GLM-5.2 0.889,
-   Qwen 0.889,
-   Kimi 0.815,
-   gpt-oss 0.741,
-   Nemotron 0.722,
-   Flash 0.426,
-   MiniMax 0.407;
-   the ensemble union is the design working as intended.
-   The single ensemble miss,
-   analyzed at repair-phase kickoff
-   (2026-07-17):
-   wangzihao980 `seed/omission-1`,
-   found by nobody.
-   Sharper than first recorded:
-   on that entry six models found ONLY
-   `omission-2` and gpt-oss-120b found ONLY `omission-0` (its sole hit).
-   Structural facts (no content):
-   the missed needle is a 73-char
-   interior sentence deleted from MID-paragraph (64 chars into its
-   line);
-   both found seeds were list items whose deletion left a
-   countable zh/en structure asymmetry.
-   Two consequences adopted:
-   interior-sentence omissions are the critic's weak class (future
-   prompt polish),
-   and a real defect can arrive with exactly ONE
-   proposer,
-   so adjudication judges claims on evidence and never gates
-   on corroboration count (confirms the settled panel design).
-   Unresolved-reason distribution across the run (233 rejected claims):
-   quote-outside-blocks source 90,
-   quote-not-found source 39 / target
-   33,
-   ambiguous-quote 39,
-   empty-quote 27,
-   two model category typos;
-   source-side anchoring is future critic polish,
-   not a repair blocker.
-   Quota after the whole run:
-   2747.5/2750
-   (regeneration outpaced consumption).
-   MiniMax quirk:
-   on 7 of 18 entries it returned near-empty reports
-   (5-6 completion tokens,
-   zero claims) yet valid JSON;
-   on others it
-   produced 10-19 resolved claims.
-   Ensemble absorbs it;
-   noted for
-   scheduler weighting later.
-   Future runs are 25-minute-budget runs via the updated
-   `broadened-benchmark.ts` (shuffled samples,
-   coverage-reporting
-   scorecard).
-2. Per-call deadlines are DONE (commit `18a8e95ca`):
-   `armCallDeadline` in
-   `benchmark.ts` arms a plain-timer-driven `AbortController` per call and
-   forwards caller aborts through a listener;
-   disposal (`using`) clears both.
-   Never compose `AbortSignal.any` with an `AbortSignal.timeout` source on
-   Node 26.5.0:
-   the dependent signal never aborts (isolated repro confirmed;
-   single-source `AbortSignal.any([signal,],)` works fine,
-   verified by probe).
-3. Pack-scaled concurrency is DONE:
-   `createSyntheticClient` takes
-   `perModelConcurrency` (default 1;
-   provider grants one concurrent request
-   per model per subscribed pack),
-   and benchmark entries run in parallel.
-   The user bought 4 more packs (joining a 1.5-pack-equivalent founder's
-   pack);
-   live quota ceiling is 2750 (5.5 pack-equivalents),
-   the driver floors to `perModelConcurrency: 5`.
-4. Driver env:
-   the API key resolves only through mise sops,
-   so run the
-   scratchpad driver as
-   `cd <worktree> && mise exec -- node <scratchpad>/run-benchmark.ts`;
-   a bare `node` invocation dies on the missing env var.
-5. The `prefer-readonly-parameter-types` idiom learned for opaque DOM calls:
-   the `@mutates` contract must sit on the function DIRECTLY containing the
-   calls,
-   name every flagged boundary verbatim on an unbroken line
-   (`signal.addEventListener`,
-   `signal.removeEventListener`,
-   `DOM commit 5796f716 AbortController abort steps retain reason`),
-   and the parameter must be `ForeignBorrowed`-marked (the
-   `fetchTransport`/`chatJson` pattern);
-   callers inherit the documented
-   uncertainty without re-documenting.
+1.  MILESTONE ONE NUMBER IS IN (2026-07-17,
+    93-minute reference run,
+    pre-budget code):
+    `ensembleRecall` 0.981 (53 of 54 seeds) over 18
+    entries spanning 714 to 5_826 chars,
+    all seven models,
+    one stream per
+    model.
+    Every one of the 126 calls ended `ok` (schemaOkRate 1.0 for
+    every model,
+    zero refusals);
+    the retry layer recovered all four
+    deadline forfeits (GLM-5.2,
+    Flash,
+    Qwen,
+    MiniMax each once).
+    Per-model seeded recall:
+    GLM-5.2 0.889,
+    Qwen 0.889,
+    Kimi 0.815,
+    gpt-oss 0.741,
+    Nemotron 0.722,
+    Flash 0.426,
+    MiniMax 0.407;
+    the ensemble union is the design working as intended.
+    The single ensemble miss,
+    analyzed at repair-phase kickoff
+    (2026-07-17):
+    wangzihao980 `seed/omission-1`,
+    found by nobody.
+    Sharper than first recorded:
+    on that entry six models found ONLY
+    `omission-2` and gpt-oss-120b found ONLY `omission-0` (its sole hit).
+    Structural facts (no content):
+    the missed needle is a 73-char
+    interior sentence deleted from MID-paragraph (64 chars into its
+    line);
+    both found seeds were list items whose deletion left a
+    countable zh/en structure asymmetry.
+    Two consequences adopted:
+    interior-sentence omissions are the critic's weak class (future
+    prompt polish),
+    and a real defect can arrive with exactly ONE
+    proposer,
+    so adjudication judges claims on evidence and never gates
+    on corroboration count (confirms the settled panel design).
+    Unresolved-reason distribution across the run (233 rejected claims):
+    quote-outside-blocks source 90,
+    quote-not-found source 39 / target
+    33,
+    ambiguous-quote 39,
+    empty-quote 27,
+    two model category typos;
+    source-side anchoring is future critic polish,
+    not a repair blocker.
+    Quota after the whole run:
+    2747.5/2750
+    (regeneration outpaced consumption).
+    MiniMax quirk:
+    on 7 of 18 entries it returned near-empty reports
+    (5-6 completion tokens,
+    zero claims) yet valid JSON;
+    on others it
+    produced 10-19 resolved claims.
+    Ensemble absorbs it;
+    noted for
+    scheduler weighting later.
+    Future runs are 25-minute-budget runs via the updated
+    `broadened-benchmark.ts` (shuffled samples,
+    coverage-reporting
+    scorecard).
+2.  Per-call deadlines are DONE (commit `18a8e95ca`):
+    `armCallDeadline` in
+    `benchmark.ts` arms a plain-timer-driven `AbortController` per call and
+    forwards caller aborts through a listener;
+    disposal (`using`) clears both.
+    Never compose `AbortSignal.any` with an `AbortSignal.timeout` source on
+    Node 26.5.0:
+    the dependent signal never aborts (isolated repro confirmed;
+    single-source `AbortSignal.any([signal,],)` works fine,
+    verified by probe).
+3.  Pack-scaled concurrency is DONE:
+    `createSyntheticClient` takes
+    `perModelConcurrency` (default 1;
+    provider grants one concurrent request
+    per model per subscribed pack),
+    and benchmark entries run in parallel.
+    The user bought 4 more packs (joining a 1.5-pack-equivalent founder's
+    pack);
+    live quota ceiling is 2750 (5.5 pack-equivalents),
+    the driver floors to `perModelConcurrency: 5`.
+4.  Driver env:
+    the API key resolves only through mise sops,
+    so run the
+    scratchpad driver as
+    `cd <worktree> && mise exec -- node <scratchpad>/run-benchmark.ts`;
+    a bare `node` invocation dies on the missing env var.
+5.  The `prefer-readonly-parameter-types` idiom learned for opaque DOM calls:
+    the `@mutates` contract must sit on the function DIRECTLY containing the
+    calls,
+    name every flagged boundary verbatim on an unbroken line
+    (`signal.addEventListener`,
+    `signal.removeEventListener`,
+    `DOM commit 5796f716 AbortController abort steps retain reason`),
+    and the parameter must be `ForeignBorrowed`-marked (the
+    `fetchTransport`/`chatJson` pattern);
+    callers inherit the documented
+    uncertainty without re-documenting.
 
 ## Repair-phase stages built and checked live
 
