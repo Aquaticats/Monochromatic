@@ -22,6 +22,10 @@ pub mod worktree_copy_registry;
 /// and the validation every one passes.
 pub mod worktree_copy_repository_path;
 
+/// Whether an entry a walk of a live checkout listed is still there when the walk reaches it,
+/// and that its absence is no failure.
+pub mod worktree_copy_vanished_entry;
+
 /// The ignored source paths a linked-worktree copy selects,
 /// and the path validation every selection passes.
 pub mod worktree_copy_selection;
