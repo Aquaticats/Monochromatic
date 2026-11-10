@@ -620,6 +620,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/numeric-format-core':
+        specifier: workspace:*
+        version: link:../../numeric-format/core
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed

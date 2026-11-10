@@ -25,6 +25,7 @@
     "@monochromatic-dev/agent-harness-shared-model-selection": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/numeric-format-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "type-fest": "catalog:",
     "valibot": "catalog:"

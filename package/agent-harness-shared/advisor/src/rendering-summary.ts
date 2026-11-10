@@ -6,13 +6,9 @@
 
 import type { AdvisorTheme, } from './ports.ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { formatDuration, } from '@monochromatic-dev/numeric-format-core/ts';
 import { ADVISOR_TOOL_NAME, } from './constants.ts';
 import type { AdvisorDetails, } from './types.ts';
-
-/**
- Milliseconds in one second for duration formatting.
- */
-const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  Markdown heading marker character.
@@ -273,30 +269,6 @@ function formatHeader(
     `${formatDuration(details.durationMs,)} ${formatContext(details,)}`,
   );
   return `${title} ${model} ${metadata}`;
-}
-
-/**
- Cutoff below which a duration renders with one decimal place. Matches
- `@monochromatic-dev/numeric-format-core` (Q5 default-to-richer pick);
- above it, decimals add noise without adding signal.
- */
-const DECIMAL_BELOW_MS = 10;
-
-/**
- Format elapsed milliseconds.
- 
- @param durationMs - elapsed milliseconds
- 
- @returns human-readable duration with unit suffix
- */
-function formatDuration(
-  durationMs: number,
-): string {
-  if (durationMs < DECIMAL_BELOW_MS)
-    return `${durationMs.toFixed(1,)}ms`;
-  return durationMs < MILLISECONDS_PER_SECOND
-    ? `${durationMs.toFixed(0,)}ms`
-    : `${(durationMs / MILLISECONDS_PER_SECOND).toFixed(1,)}s`;
 }
 
 /**
