@@ -9,8 +9,8 @@ and how to know it is right.
 ## 0. How to read this file (2026-09-17)
 
 Section headings carry the status:
- **SETTLED** cites the decision that closed it,
-**DISSOLVED** means the question disappeared,
+ **Settled** cites the decision that closed it,
+**Dissolved** means the question disappeared,
  and an unmarked heading is still open.
  Settled
 sections are history for the next round,
@@ -18,10 +18,10 @@ sections are history for the next round,
  Rejected patterns live
 only in the NO lists of `decisions.md`;
  they never reappear here as candidates.
-**PROVISIONAL** marks a usable design baseline with a stated revisit point,
+**Provisional** marks a usable design baseline with a stated revisit point,
 not a final
 choice.
- **DEVELOPER-OWNED** marks work the user assigned to developers instead of design
+ **Developer-owned** marks work the user assigned to developers instead of design
 rounds (2026-09-17):
  feasibility and porting studies,
  and implementation of settled designs.
@@ -112,7 +112,7 @@ and authorizes no dependent implementation.
 All filename investigations exclude matcher choices,
 new IME work and native accessibility acceptance.
 
-- **PROVISIONAL,
+- **Provisional,
   revisit in another major version (D46,
   D104):
   folded-cover picker P4 with an upward caret while open.**
@@ -142,7 +142,7 @@ new IME work and native accessibility acceptance.
   with D41/D42 dark structure and D45
   light seams.
   Selection does not authorize production work.
-- **SETTLED (D104),
+- **Settled (D104),
   further improvement deferred to another major version:
   the folded-cover picker (D46).**
   The human approved P5 without its container:
@@ -162,7 +162,7 @@ new IME work and native accessibility acceptance.
   not banned from exploration.
   K1's discouraging back
   navigation and K3's non-local sheet remain rejected.
-- **SETTLED:
+- **Settled:
   Fold Search A with result heading and measured IME exceptions (D47 to D55).**
   D47 chooses a Search
   button opening a separate page;
@@ -399,7 +399,7 @@ new IME work and native accessibility acceptance.
   their activation was settled as D72 to D74 under review task 129,
   but native behavior remains unverified.
   See `evidence/search-result-overflow.md` for bounds and test limitations.
-- **CLOSED as a design item (D103):
+- **Closed as a design item (D103):
   remaining Search behavior after D51/D52.**
   What is left is native verification,
   which waits for an implementation.
@@ -502,8 +502,8 @@ new IME work and native accessibility acceptance.
   Cover-specific accessibility remains open;
   D39/D40 settled only the unfolded
   screen.
-- **SETTLED floor;
-  OPEN verification:
+- **Settled floor;
+  open verification:
   player information clearance across the crease (E2).**
   The user
   corrected the fixed 24dp unpainted gap:
@@ -593,7 +593,7 @@ new IME work and native accessibility acceptance.
   its wording and layout were approved as built (D101).
   Production source-status/recovery binding and native accessibility
   acceptance remain separate.
-- **DEVELOPER-OWNED:
+- **Developer-owned:
   desktop window default size (11c,
   D49).**
   Choose an
@@ -603,7 +603,7 @@ new IME work and native accessibility acceptance.
 - Custom display templating (11e) is settled:
   the editor (D89 to D96,
   D98) and the two lines that get a template (D99).
-- **DEVELOPER-OWNED:
+- **Developer-owned:
   MD3-on-Slint feasibility (A4).**
   The user assigned feasibility and
  porting studies to developers on 2026-09-17;
@@ -611,7 +611,7 @@ new IME work and native accessibility acceptance.
 
 ---
 
-## 1. The unfolded layout — SETTLED structurally (D16, D17, D18); unf-h is the assembly
+## 1. The unfolded layout: settled structurally (D16, D17, D18); unf-h is the assembly
 
 The assembly descriptions in this section are **historical fixtures**,
 not remaining implementation requests.
@@ -632,7 +632,7 @@ and the later native Fold cover/player studies supersede the old
  a 27-letter rail
 (48dp targets) filters to one letter;
  letters with >24 names split into 2-letter
-bucket chips (Ca / Ch–Co / Cr–Cy);
+bucket chips (Ca / Ch to Co / Cr to Cy);
  names appear as wrapped content-width 48dp chips.
 Deck stays right (deck side still unanswered).
 
@@ -642,18 +642,20 @@ Deck stays right (deck side still unanswered).
  unf-b/unf-c were not picked:
  the 9×3 boxed letter grid "looks
 like a keyboard."
- Deck side was not answered — unf-d/unf-e keep the deck right
+ Deck side was not answered,
+unf-d/unf-e keep the deck right
 (recommendation:
  deck-left starved the folder list to ~7 rows).
 
 The rejected `unf-d` fixture used
  single-column folders with letter headers and a 48dp-wide
 fast-scroll rail along the list edge (tap or drag;
- a 56dp bubble shows the letter —
+ a 56dp bubble shows the letter,
 the Android idiom from §8).
  unf-e:
  same list,
- A–Z as plain text under it — invisible
+ A to Z as plain text under it,
+invisible
 48dp targets,
  no boxes,
  only the current letter marked (4 rows at 418dp).
@@ -668,7 +670,7 @@ structurally wrong.
 
 **What was tried.**
  candidates/unf-a.dc.html:
- folders + A–Z jump strip in the left
+ folders + A to Z jump strip in the left
 half;
  folder chip,
  track list and the full deck (title,
@@ -684,16 +686,18 @@ interactive crossing it.
  The user:
  "You forgot the 1k
 subdirs rule again."
- The **structure was not criticised** — only the data scale.
+ The **structure was not criticised**:
+only the data scale.
 
 **What to build.**
  The same structure at ~1,000 folders,
  using candidates/artists.js:
-a scrolling folder list in the left half with a working 27-cell A–Z strip beneath it,
+a scrolling folder list in the left half with a working 27-cell A to Z strip beneath it,
 a visible folder count,
  and the deck in the right half.
  Consider what the left half
-shows when the list is that long — the strip has to be reachable without scrolling to
+shows when the list is that long,
+the strip has to be reachable without scrolling to
 it.
 
 **Acceptance.**
@@ -784,7 +788,7 @@ correctly at 411dp with flush outer edges;
 
 ---
 
-## 3. Descending into subfolders — DISSOLVED (decisions.md D5/D6)
+## 3. Descending into subfolders: dissolved (decisions.md D5/D6)
 
 Subfolders are headers in one flat list;
  tracks first,
@@ -808,7 +812,9 @@ order (D6).
  Show me."
 
 **What to build.**
- A demo — ideally an interactive one — of playback crossing from the
+ A demo,
+ideally an interactive one,
+of playback crossing from the
 parent’s tracks into a subfolder’s tracks,
  in these variants:
 - **The list follows.**
@@ -828,13 +834,13 @@ what the deck’s subtitle shows when the playing track is not in the visible fo
 
 ---
 
-## 3b. Scrollbars — SETTLED (D22): desktop bar always visible, letter rail has none
+## 3b. Scrollbars, settled (D22): desktop bar always visible, letter rail has none
 The per-surface table in candidate scroll-a stands otherwise.
  Amended by D125 (2026-10-14):
 the desktop folder names list has none either.
  Original note kept:
 
-### (history) SPEC PROPOSED, awaiting verdict (candidate scroll-a)
+### (history) Spec proposed, awaiting verdict (candidate scroll-a)
 
 The user:
  "We need to actually specify how scrollbars work/look.
@@ -855,22 +861,25 @@ Open:
  whether the desktop bar should fade too,
  and whether the letter rail gets one.
 
-## 3c. Reviewer feedback, 2026-09-03 — decided, now needing build
+## 3c. Reviewer feedback, 2026-09-03: decided, now needing build
 
-- **Volume icon + vertical popover** — historical D20 treatment,
+- **Volume icon + vertical popover**:
+  historical D20 treatment,
   superseded by D43.
    No in-app volume control remains;
   the ↑/↓ keyboard question remains open in section 6.
-- **Command bar** — historical D21 decision superseded by D47's Search button and
+- **Command bar**:
+  historical D21 decision superseded by D47's Search button and
   separate page.
   Do not carry the old global hotkey or Settings row onto Search
   without a new decision;
   see section 0b.
-- **Picker names not as a wall of chips** — settled by D31:
+- **Picker names not as a wall of chips**:
+  settled by D31:
   wrapped plain-text names,
   with the current folder marked by primary color and a bottom-edge indicator.
 
-## 4. Desktop toolkit — SETTLED: Slint, hand-porting accepted (D19 section, A4)
+## 4. Desktop toolkit, settled: Slint, hand-porting accepted (D19 section, A4)
 
 What is left is not a decision but work:
  the list of MD3 components that actually have
@@ -885,7 +894,7 @@ not a prerequisite design questionnaire or permission to replace Slint.
 
 ---
 
-## 5. Album art — SETTLED: never (D19)
+## 5. Album art, settled: never (D19)
 
 ---
 
@@ -896,7 +905,7 @@ Settled:
  Ctrl+O opens the picker.
  Left to do:
  **one pass
-aligning the whole map with IntelliJ IDEA conventions** (the user's instruction) —
+aligning the whole map with IntelliJ IDEA conventions** (the user's instruction),
 which will move more than the two bindings above,
  and should be brought back as a
 single revised map rather than binding-by-binding questions.
@@ -909,7 +918,7 @@ or nothing);
 Android media notification appearance is settled by D82:
 accept the platform presentation with no special design.
 **Status (2026-10-10):
-SETTLED (D102).**
+settled (D102).**
  The human accepted the whole-map proposal at
 `questions/keyboard-map.prototype.html` as built,
 including the playback-area scope for Space,
@@ -925,7 +934,7 @@ there is no production implementation authority.
 
 ---
 
-## 7. The scan indicator — SETTLED: scan-F (D26)
+## 7. The scan indicator, settled: scan-F (D26)
 
 ### (history) The scan indicator, final form
 
@@ -944,7 +953,7 @@ the settled version is genuinely unbuilt.
 
 ---
 
-## 8. Rendering fidelity — FIXED this round
+## 8. Rendering fidelity: fixed this round
 The file-options preview stretched 411×923 / 852×883 layouts to fill a large window,
 so the user judged a distorted render ("they don't look alright").
  Device candidates
@@ -955,20 +964,21 @@ desc-d).
  **Every new device candidate must use this frame.**
  Also:
  html-to-image
-screenshots do not show scroll position — verify scroll with a console probe.
+screenshots do not show scroll position,
+verify scroll with a console probe.
 
-## 8b. Consequences of "this is a product, not a personal tool" (2026-09-03) — NEW
+## 8b. Consequences of "this is a product, not a personal tool" (2026-09-03): NEW
 
 None of these are built or decided;
  all follow from the project-context note at the top
 of decisions.md.
 
 - **Non-Latin folder names.**
-   SETTLED:
+   settled:
    adaptive per-script rail (D28),
    built in pk-d.
 - **Light theme.**
-   SETTLED:
+   settled:
    follow the OS (B1 revised);
    the unfolded separation is
   D34,
@@ -978,14 +988,15 @@ of decisions.md.
    which is now the largest unbuilt area
   in the project.
 - **Small and huge libraries.**
-   SETTLED as "degrade gracefully,
+   settled as "degrade gracefully,
    undrawn" (D30).
 - **Accessibility pass.**
    Focus order,
    screen-reader labels for the transport and the
   rail,
    reduced-motion behaviour for the popover and the scan indicator.
-- **First-run analysis cost** — answered by D27 (auto-open the system library,
+- **First-run analysis cost**:
+  answered by D27 (auto-open the system library,
    ask
   before analysing,
    four answers).
@@ -1005,13 +1016,13 @@ of decisions.md.
 ## 9. Smaller loose ends
 
 - **Undo vs error bar collision.**
-   SETTLED:
+   settled:
    toast floats above the bar (D29).
 - **Folder count display.**
-   SETTLED:
+   settled:
    none (D23).
 - **Sort order.**
-   SETTLED:
+   settled:
    tag track number,
    filename fallback (D24).
 - **Command bar surface.**
@@ -1022,10 +1033,12 @@ of decisions.md.
 
 ## 10. Open after round 4 (2026-09-03)
 
-- **Light-theme pass — SETTLED for the unfolded separation (D34).**
+- **Light-theme pass:
+  settled for the unfolded separation (D34).**
    The undrawn light
   surfaces are listed in 11d.
-- **Picker presentation within a letter — SETTLED (D31,
+- **Picker presentation within a letter:
+  settled (D31,
    candidate pk-g).**
   Plain-text
   names at natural width,
@@ -1043,19 +1056,23 @@ of decisions.md.
    pk-e and pk-f are rejected rows-again patterns
   (review-notes 5d),
    not live candidates.
-- **Command bar surface** (D21) — superseded by D47;
+- **Command bar surface** (D21):
+  superseded by D47;
    the Search page is active in
    section 0b.
-- **Keyboard map / IntelliJ alignment pass** — SETTLED (D102):
+- **Keyboard map / IntelliJ alignment pass**:
+  settled (D102):
    see section 6.
-- **Accessibility pass — SETTLED for the unfolded screen (D39,
+- **Accessibility pass:
+  settled for the unfolded screen (D39,
   D40).**
    Other surfaces
   get their accessibility treatment inside their own rounds.
 - **Android media notification presentation** is settled by D82:
   accept the platform's standard presentation,
   without a custom design round.
-- **MD3-on-Slint feasibility (A4) — DEVELOPER-OWNED.**
+- **MD3-on-Slint feasibility (A4):
+  developer-owned.**
    Feasibility and porting studies are
   developer work per user instruction 2026-09-17;
    not a design round.
@@ -1065,7 +1082,7 @@ of decisions.md.
 
 ## 11. Theme work after session 4 (2026-09-04)
 
-### 11a. Light theme separation — SETTLED (D34)
+### 11a. Light theme separation: settled (D34)
 
 **Verdict.**
  The user chose `1c`,
@@ -1083,39 +1100,43 @@ Candidates `light-a` / `light-b` / `light-c` (and `light-abc`,
 Each prints its own pros,
  cons and my read in the caption bar.
 
-- **1a — tonal ramp,
+- **1a:
+  tonal ramp,
    no outlines**
-  - PROS · purest MD3;
+  - Pros · purest MD3;
      separation by tonal surface is the mechanism M3 specifies;
     calmest screen;
      nothing extra to maintain.
-  - CONS · the four steps run #FFF → #F7F2FA → #F3EDF7 → #ECE6F0,
+  - Cons · the four steps run #FFF → #F7F2FA → #F3EDF7 → #ECE6F0,
      within ~4% of each
     other;
      on a poor panel or at low brightness the panes may not read as separate.
-  - MY READ · third choice.
-- **1b — one flat surface + 1dp hairlines** (direct translation of the dark design)
-  - PROS · unambiguous at any brightness or panel quality;
+  - My read · third choice.
+- **1b:
+  one flat surface + 1dp hairlines** (direct translation of the dark design)
+  - Pros · unambiguous at any brightness or panel quality;
      one structural model shared
     with dark;
      rail seam and pane edges stay legible.
-  - CONS · many 1dp marks in an already high-contrast theme;
+  - Cons · many 1dp marks in an already high-contrast theme;
      row dividers on 72dp rows
     add noise;
      least MD3-idiomatic.
-  - MY READ · fallback — robust rather than elegant.
-- **1c — ramp on a dimmed window,
+  - My read · fallback:
+    robust rather than elegant.
+- **1c:
+  ramp on a dimmed window,
    hairline only at the rail seam**
-  - PROS · tonal as MD3 intends,
+  - Pros · tonal as MD3 intends,
      with a hairline exactly where tone alone fails;
      panes
     read as raised with no shadow;
      least ink for the separation achieved.
-  - CONS · two mechanisms instead of one;
+  - Cons · two mechanisms instead of one;
      the surface-dim desk is a heavier look.
-  - MY READ · my pick.
+  - My read · my pick.
 
-### 11b. Secondary text in light — SETTLED (D35)
+### 11b. Secondary text in light: settled (D35)
 
 **Verdict.**
  The user chose `3a`.
@@ -1125,30 +1146,33 @@ choose other content and emphasis.
 
 Candidates `dbtp-a` / `dbtp-b` / `dbtp-c` (and `dbtp-abc`).
 
-- **3a — same as dark,
+- **3a:
+  same as dark,
    on-surface-variant throughout**
-  - PROS · one rule for both themes;
+  - Pros · one rule for both themes;
      contrast is fine (#49454F on near-white ≈ 7:1);
     sub-line stays subordinate.
-  - CONS · duration and true peak share a tone,
+  - Cons · duration and true peak share a tone,
      so nothing is emphasised.
-  - MY READ · second choice.
-- **3b — split line:
+  - My read · second choice.
+- **3b:
+  split line:
    duration quiet,
    true peak at on-surface 500**
-  - PROS · the true-peak number is the app's reason to exist and becomes scannable
+  - Pros · the true-peak number is the app's reason to exist and becomes scannable
     down the column.
-  - CONS · two tones per sub-line;
+  - Cons · two tones per sub-line;
      12px at 500 can look heavy in light (400 is a
     one-value change).
-  - MY READ · my pick.
-- **3c — dB only on the playing row**
-  - PROS · least ink;
+  - My read · my pick.
+- **3c:
+  dB only on the playing row**
+  - Pros · least ink;
      removes ~90% of the numbers.
-  - CONS · peaks cannot be compared across a folder if only one row shows one.
-  - MY READ · reject.
+  - Cons · peaks cannot be compared across a folder if only one row shows one.
+  - My read · reject.
 
-### 11c. Order of the remaining work — recommendation, not a user decision
+### 11c. Order of the remaining work: recommendation, not a user decision
 The earlier recommendation was cover screen,
  accessibility pass,
  then command bar.
