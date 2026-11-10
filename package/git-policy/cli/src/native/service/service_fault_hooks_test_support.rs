@@ -94,7 +94,8 @@ pub(crate) struct HoldOnAnyThread {
     pub(crate) let_go: std::sync::mpsc::Receiver<()>,
 }
 
-/// The hold a control set, if any,
+/// The hold a control set,
+/// if any,
 /// taken by the thread that reaches it so a second reach passes.
 static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync::Mutex::new(None);
 

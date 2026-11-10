@@ -164,6 +164,10 @@ fn a_named_file_the_index_tracks_is_not_refused() {
 /// the selected worktree's prefix is empty,
 /// `check-ignore` reports the top-level file,
 /// and `add` refuses it as ignored.
+///  The other half is that the decline does not refuse a path the selected repository tracks:
+/// `check-ignore` consults the index,
+/// so the entry that holds `tracked.txt`
+///  keeps that name out of the answer as it keeps it out of `git add`'s refusal.
 #[test]
 fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
     let root: PathBuf = fixture("named-ignored-selected-repository");
@@ -172,13 +176,15 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
     let nested: PathBuf = first.join("nested");
     std::fs::create_dir(&nested).expect("nested");
     std::fs::write(nested.join("selected.js"), "first\n").expect("selected");
+    std::fs::write(nested.join("tracked.txt"), "first\n").expect("tracked");
     git(first.as_path(), &["add", ".gitignore"]);
     git(first.as_path(), &["commit", "--quiet", "--message=base"]);
     let second: PathBuf = repository(root.as_path(), "second");
-    std::fs::write(second.join(".gitignore"), "*.js\n").expect("ignore file");
+    std::fs::write(second.join(".gitignore"), "*.js\ntracked.txt\n").expect("ignore file");
     std::fs::create_dir(second.join("nested")).expect("nested");
     std::fs::write(second.join("nested").join("selected.js"), "tracked\n").expect("tracked");
-    git(second.as_path(), &["add", "--force", ".gitignore", "nested/selected.js"]);
+    std::fs::write(second.join("tracked.txt"), "tracked\n").expect("tracked text");
+    git(second.as_path(), &["add", "--force", ".gitignore", "nested/selected.js", "tracked.txt"]);
     git(second.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::write(second.join("selected.js"), "ignored\n").expect("ignored");
     let base: String = git_text(second.as_path(), &["rev-parse", "HEAD"]);
@@ -192,18 +198,20 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
     assert!(String::from_utf8_lossy(asked.stdout.as_slice()).ends_with("\tselected.js\n"), "{}", String::from_utf8_lossy(asked.stdout.as_slice()));
     let added: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--", "selected.js"]].concat().as_slice());
     assert_eq!(added.status.code(), Some(1), "real Git's add refuses the top-level file");
+    let held: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["check-ignore", "-v", "--", "tracked.txt"]].concat().as_slice());
+    assert_eq!(held.status.code(), Some(1), "real Git reports nothing for a path the selected index tracks: {}", String::from_utf8_lossy(held.stdout.as_slice()));
     let context: GitContext = GitContext {
         global_prefix: [OsString::from("--git-dir"), OsString::from(git_dir.as_str()), OsString::from("--work-tree"), OsString::from(work_tree.as_str())].to_vec(),
         ..git_context()
     };
-    let specs: Vec<OsString> = ["selected.js"].iter().map(OsString::from).collect();
+    let specs: Vec<OsString> = ["selected.js", "tracked.txt"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
     let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
         .collect();
-    assert_eq!(ignored, vec!["selected.js".to_owned()], "the file the selected repository's ignore rule matches is refused");
+    assert_eq!(ignored, vec!["selected.js".to_owned()], "the file the selected repository's ignore rule matches is refused, and the path it tracks is not");
     remove(root.as_path());
 }
 
