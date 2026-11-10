@@ -32,6 +32,7 @@ use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atom
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_selection::{STAGE_PREFIX, by_js_order};
 use crate::worktree_copy_stage::new_stage_container;
+use crate::worktree_copy_stage_made_object::remove_made;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -169,7 +170,8 @@ impl StageClaim {
     /// await claim.releaseUnsynced();
     /// ```
     pub fn release_unsynced(self) -> Result<(), WorktreeCopyError> {
-        // The same order as the durable release: the record before the marker, the marker before the claim.
+        // The same order as the durable release: the record of the object made, the record, the marker, then the claim.
+        remove_made(self.path.as_path())?;
         if let Some(record) = self.destination_record.as_deref() {
             remove_file_if_present(record)?;
         }
@@ -285,7 +287,10 @@ impl StageClaim {
     /// await claim.release();
     /// ```
     pub fn release(self) -> Result<(), WorktreeCopyError> {
-        // The record goes before the marker: a kill in between leaves a marker with no record, never a record with no marker.
+        // The record of the object the stage's creation made goes first, so a kill in between leaves a claim whose stage
+        // a later command reports rather than removes; then the destination record goes before the marker, and the marker
+        // before the claim.
+        remove_made(self.path.as_path())?;
         if let Some(record) = self.destination_record.as_deref() {
             remove_file_if_present(record)?;
         }

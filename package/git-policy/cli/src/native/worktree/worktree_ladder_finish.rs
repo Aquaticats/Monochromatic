@@ -167,6 +167,9 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         Err(error) => return Err(Ended::from(format!("the source's root is unreadable ({error})"))),
     };
     let mode: u32 = root_metadata.mode() & 0o7777;
+    // The wrapper's last write into the stage is done, so the record of the object it made now names the instant after
+    // which nothing of the wrapper's is in that folder: everything born later is somebody else's, and keeps it.
+    crate::worktree_snapshot::record_made_of_the_stage(source, stage, *made);
     let exchange_entered: bool = begin_step("exchange");
     let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
     end_step(exchange_entered);
