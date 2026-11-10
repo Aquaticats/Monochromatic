@@ -698,7 +698,7 @@ Two cautions before reading anything into those,
 The total exceeds the rule's 171 seconds of wall time because the sweep runs workers in
 parallel and each contributes its own spans,
  so these are worker-seconds and only their
-*proportions* are meaningful.
+**proportions** are meaningful.
 And only five sites report a phase,
  so 611.9 worker-seconds is the total of instrumented spans
 rather than of the rule's work;
@@ -711,7 +711,7 @@ Within what is instrumented,
 
 That is the phase to look at next,
  and the sharper question it raises is why it costs so much on
-a *warm* cache:
+a **warm** cache:
  the cache exists to avoid re-deriving summaries,
  and a source phase still
 dominating afterwards suggests either that it covers work the cache does not cover,
@@ -812,7 +812,7 @@ cost of running it.
 Withdrawn.
 
 The earlier search for a plugin version or hash found nothing and was read as weak evidence
-*against* the confound.
+**against** the confound.
 It was evidence of nothing:
  the mechanism is there under names that describe the project
 rather than the plugin,
@@ -856,7 +856,7 @@ Cache reuse on an unchanged repository is essentially complete.
 
 So the 171 seconds are not cache misses,
  and improving the hit rate is the wrong target.
-The time is spent on work that happens *despite* hits:
+The time is spent on work that happens **despite** hits:
  candidates are the cache read and
 validation path itself,
  which runs for every one of those 4000-odd entries,
@@ -946,7 +946,7 @@ Run B is the answer.
 Every single one of 4764 source loads hits,
  and the run still takes 2m49s.
 
-So the rule's warm cost is entirely work done *despite* a perfect hit rate.
+So the rule's warm cost is entirely work done **despite** a perfect hit rate.
 With deserialising the whole cache measured at 0.26s,
  it is not reading the entries either.
 Whatever `loadSource` does with a hit beyond reading it,
@@ -1044,7 +1044,7 @@ The visitor's body is a single `try` whose `catch` uses a logger bound above it,
  so splicing a
 timing `try` around the outside by text substitution detaches that binding and the file stops
 compiling with `Cannot find name 'rl'`.
-The edit needs to add accounting *inside* the existing `try` and a `finally`,
+The edit needs to add accounting **inside** the existing `try` and a `finally`,
  not wrap it.
 
 Run it with the two-run method like everything else here,
@@ -1147,7 +1147,7 @@ Run A,
 Two things follow.
 
 The index build is the target.
-It costs 104 warm seconds *with every summary a cache hit*,
+It costs 104 warm seconds **with every summary a cache hit**,
  down from 546 when they are not,
 so the cache already removes eighty-one per cent of it and fifty milliseconds per file remain
 regardless.
@@ -1194,7 +1194,7 @@ Measured warm,
 
 - final-index hits **64.4 per cent**,
  1340 of 2080
-- work performed *before* the cache check:
+- work performed **before** the cache check:
  **63.8 worker-seconds,
  30.7ms per call**
 
@@ -1241,7 +1241,7 @@ The obvious fix,
  and
 the reason is worth recording before anyone writes it.
 
-`fileNames` is the program's source file names *plus* `activeSourceFile.fileName`,
+`fileNames` is the program's source file names **plus** `activeSourceFile.fileName`,
  sorted.
 The digest is then taken over `indexedSourceFiles.keys()`,
  which is that list after
@@ -1264,7 +1264,7 @@ That is also why the final-index cache hits 64.4 per cent rather than never.
 A sound version therefore needs a condition,
  something like:
  reuse the memoised digest only
-when the active file was already among the program's names *and* the ownership filter's result
+when the active file was already among the program's names **and** the ownership filter's result
 does not depend on which file is active.
 The second half is the part to establish rather than assume,
  by reading `indexedSourceFileMap`.
@@ -1279,7 +1279,7 @@ where this session's errors have consistently lived.
 Read `indexedSourceFileMap` rather than assuming,
  since this was the blocking unknown.
 
-For every file *other* than the active one the result is independent of which file is active.
+For every file **other** than the active one the result is independent of which file is active.
 `activeSourceFile` appears twice and both uses concern that file alone:
  once to substitute the
 Oxlint overlay for its own entry,
@@ -1296,7 +1296,7 @@ So the key set is exactly:
 union the active file.
 
 That yields a sound design rather than a hopeful one.
-Memoise the *filtered map* per project key,
+Memoise the **filtered map** per project key,
  not the digest,
  because building the map is the
 expensive part:
@@ -1333,7 +1333,7 @@ wrongly is the same wrong-index bug by another route.
 The last stated risk was where to keep the memo without it outliving the project it describes.
 `effect-final-index-cache.ts` already answers that:
  `finalIndexesByProject` is a process-level
-`Map` keyed on the project *object*,
+`Map` keyed on the project **object**,
  then partitioned by `projectKey`.
 Project identity bounds the entry,
  since a new semantic snapshot is a new project and reaches
@@ -1851,7 +1851,7 @@ remains there is the derivation path the memo does not cover.
 Read it,
  and the answer differs from the earlier memos rather than repeating them.
 
-`effect-project-fingerprint.ts` digests every project file's *text*,
+`effect-project-fingerprint.ts` digests every project file's **text**,
  and for the active file it
 substitutes the Oxlint overlay:
 
@@ -1867,8 +1867,8 @@ unsaved text,
  which selects a stale index:
  wrong diagnostics rather than a slow run.
 
-The condition that makes it sound is the same *shape* as the inclusion-scope one and a different
-*test*.
+The condition that makes it sound is the same **shape** as the inclusion-scope one and a different
+**test**.
 Memoise the fingerprint computed from on-disk text,
  and use it only when the active file's
 overlay text matches what the project already holds for it.
@@ -2060,7 +2060,7 @@ The fingerprint is computed once per derivation,
 pair.
 So a per-project memo is consulted exactly as often as it is filled,
  with nothing left over:
-there is no *second* call for the same project in the same worker to hit it.
+there is no **second** call for the same project in the same worker to hit it.
 
 That makes the change correct,
  useless,
@@ -2075,7 +2075,7 @@ derived:
  the inclusion scope 2080 times against 710 derivations,
  the classification once per
 parameter against once per type.
-This one is consulted once per derivation *by construction*,
+This one is consulted once per derivation **by construction**,
  and no measurement of its cost
 could have revealed that,
  because the cost was real.
