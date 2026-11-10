@@ -58,8 +58,8 @@ function eventRevision(name: string,): string {
   const value = process.env[name] ?? '';
   if (value.length !== SHA_LENGTH)
     throw new ScopeError(`${name} must contain the merge-group's full lowercase commit SHA.`,);
-  for (let index = 0; index < value.length; index += 1) {
-    if (!SHA_DIGITS.includes(value.charAt(index,),))
+  for (const character of value) {
+    if (!SHA_DIGITS.includes(character,))
       throw new ScopeError(`${name} contains a non-hexadecimal commit character.`,);
   }
   return value;
