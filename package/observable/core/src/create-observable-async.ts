@@ -4,7 +4,7 @@
  @module
  */
 
-import { createValueStore, } from './value-store.ts';
+import { createObservableCore, } from './create-observable-core.ts';
 
 /**
  Observable value container with method-based access and an awaitable setter.
@@ -42,7 +42,7 @@ export type MaybePromise<T,> = T | Promise<T>;
  Creates an observable value container that awaits a handler when the value is set.
  
  Arrangement with `createObservable`: the two sides share one core. Each wraps
- {@link createValueStore}, which owns the value container and the order of its update; this side
+ {@link createObservableCore}, which owns the container and the order of its update; this side
  adds only the awaited handler discipline, and neither side is generated from the other.
  
  Construction is synchronous; the async wrapper lets callers `await` it in top-level module code.
@@ -79,22 +79,17 @@ export async function createObservableAsync<T,>(
     ) => MaybePromise<void>;
   },
 ): Promise<ObservableAsync<T>> {
-  /**
-   Store the container reads and writes; the sync variant wraps the same one.
-   */
-  const store = createValueStore(initialValue,);
-  return {
-    getValue: store.getValue,
-    setValue: async function setValue(newValue: T,): Promise<void> {
-      /**
-       Value being replaced; the store already holds the new one when it reports this.
-       */
-      const previous = store.replaceValue(newValue,);
+  return createObservableCore({
+    initialValue,
+    notify: async function notify(
+      newValue: T,
+      previous: T,
+    ): Promise<void> {
       await onChange(
         newValue,
         previous,
       );
     },
-  };
+  },);
 }
 /* oxlint-enable eslint/require-await, typescript/require-await */
