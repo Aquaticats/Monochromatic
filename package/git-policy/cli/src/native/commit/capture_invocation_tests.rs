@@ -5,6 +5,7 @@
 //! the ref backend and the base.
 
 use super::*;
+use crate::git_report_answers::{answers_of, required_answer};
 use crate::ref_files::tests::{Probe, probe};
 use crate::test_support::{fixture, git, git_context, git_text, repository, remove};
 #[cfg(unix)]
@@ -290,6 +291,44 @@ fn outside_a_repository_the_layout_fails() {
         capture_invocation_layout(&git_context(), root.as_path(), false).expect_err("no repo");
     assert!(error.0.contains("rev-parse"), "{}", error.0);
     remove(root.as_path());
+}
+
+/// The incomplete-layout guard refuses an empty answer,
+/// and a name that ends in a line feed keeps the one that belongs to it.
+#[test]
+fn an_empty_layout_answer_is_incomplete() {
+    let incomplete: Result<&[u8], GitFailure> = Err(GitFailure(String::from("Git returned incomplete repository layout.")));
+    assert_eq!(required_answer(b""), incomplete);
+    assert_eq!(required_answer(b"\n"), incomplete);
+    assert_eq!(required_answer(b"/repo\n"), Ok(b"/repo".as_slice()));
+    assert_eq!(required_answer(b"/repo\n\n"), Ok(b"/repo\n".as_slice()), "a name ending in a line feed keeps it");
+}
+
+/// What:
+///  A report whose pathname holds a line feed has more answers than the layout has pathnames,
+///  so none of them is taken for another.
+/// Why:
+///   The one report is split at every line feed it holds,
+///  and only a report with exactly one answer per pathname can be read by place.
+#[test]
+fn a_report_with_more_answers_than_pathnames_is_not_read_by_place() {
+    // One pathname holding a line feed gives the six pathnames and the format one answer too many.
+    let answers: [&[u8]; LAYOUT_ANSWERS + 1] = [
+        b"/r".as_slice(),
+        b"/r/a".as_slice(),
+        b"b/.git".as_slice(),
+        b"/r/a".as_slice(),
+        b"b/.git".as_slice(),
+        b"/r/a".as_slice(),
+        b"b/.git/index".as_slice(),
+        b"sha1".as_slice(),
+    ];
+    let mut stdout: Vec<u8> = Vec::new();
+    for answer in answers {
+        stdout.extend_from_slice(answer);
+        stdout.push(b'\n');
+    }
+    assert_eq!(answers_of(stdout.as_slice()).len(), LAYOUT_ANSWERS + 1, "the line feed inside the name added an answer");
 }
 
 /// A stand-in Git that logs each start and fails,
