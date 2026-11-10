@@ -18,7 +18,7 @@ how the Bun runtime surfaces different failure modes.
 - `null-deref.ts`:
    property access on null (TypeError)
 - `oom.ts`:
-   out-of-memory allocation (heap exhaustion)
+   out-of-memory allocation (memory exhaustion)
 - `stack-overflow.ts`:
    unbounded recursion (RangeError)
 - `uncaught-throw.ts`:

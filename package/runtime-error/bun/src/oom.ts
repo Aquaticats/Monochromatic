@@ -15,7 +15,7 @@ const CHUNK_SIZE_BYTES = CHUNK_SIZE_MIB * BYTES_PER_MIB;
 /**
  Intentionally triggers an out-of-memory crash by pushing 256 MiB `Buffer`
  chunks into an array without releasing them, until the process runs out of
- heap space.
+ memory.
  */
 const chunks: Buffer[] = [];
 
