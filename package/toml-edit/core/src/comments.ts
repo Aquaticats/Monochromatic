@@ -9,8 +9,6 @@
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
-
 import { isAttachedGap, } from './build-comments.ts';
 import type { TomlComment, } from './types.ts';
 
@@ -36,20 +34,6 @@ export function attachedCommentsAt(
   },
 ): readonly TomlComment[] {
   /**
-   Last comment ending before `at`; the backward walk starts here.
-   */
-  const initialIdx = comments.reduce(
-    function step(
-      acc,
-      c,
-      i,
-    ) {
-      return c.range[1]
-        < at ? i : acc;
-    },
-    -1,
-  );
-  /**
    Cursor retreating to each attached comment's start as the block grows.
    */
   let cursorPos = at;
@@ -57,11 +41,12 @@ export function attachedCommentsAt(
    Collected nearest-first; reversed to source order on return.
    */
   const collected: TomlComment[] = [];
-  for (let idx = initialIdx; idx >= 0; idx--) {
+  // The block ends at `at`, so comments further along the source are skipped by
+  // the cursor check below and the walk starts from the list's end.
+  for (const comment of comments.toReversed()) {
     /**
      Candidate comment whose gap to the cursor decides attachment.
      */
-    const comment = nonNullishOrThrow(comments[idx],);
     if (comment.range[1]
       >= cursorPos)
       continue;

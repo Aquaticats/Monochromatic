@@ -26,6 +26,9 @@ use std::{fs, io::{self, BufReader}, net::TcpListener, process::{Command, Stdio}
 /// Import owned JSON values for protocol fields,
 /// avoiding panic-generating macros.
 use serde_json::Value;
+/// Import the crate's library module,
+/// which owns the POSIX single-quote escaping this command line crosses.
+use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// Import the checked parser for fixed protocol templates.
 use rpc::parse;
 
@@ -69,8 +72,8 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
     // format! interpolates a numeric port into fixed TOML text; no user text crosses this boundary.
     let config = format!("model = 'fixture'\nmodel_provider = 'local-fixture'\napproval_policy = 'never'\nsandbox_mode = 'workspace-write'\n[model_providers.local-fixture]\nname = 'Local deterministic fixture'\nbase_url = 'http://127.0.0.1:{port}/v1'\nwire_api = 'responses'\n[features]\nhooks = true\n");
     fs::write(home.join("config.toml"), config)?;
-    // Shell-quote both filenames at the command boundary; the installed host reads command only.
-    let command = format!("'{}' --hook '{}'", env!("CARGO_BIN_EXE_codex-bash-limit").replace('\'', "'\\''"), path.replace('\'', "'\\''"));
+    // Quote both filenames with the hook's own escaper, so the fixture installs the bytes production emits.
+    let command = format!("{} --hook {}", shell_quote(env!("CARGO_BIN_EXE_codex-bash-limit")), shell_quote(path));
     // Decode fixed JSON syntax, then assign the command as data rather than JSON source.
     let mut hooks = parse(r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{
         "type":"command","command":""

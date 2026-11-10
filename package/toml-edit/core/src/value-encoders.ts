@@ -56,6 +56,12 @@ const INTEGER_MIN_BIGINT = -(1n << BigInt(INTEGER_MAGNITUDE_BITS,));
 const INTEGER_EXCLUSIVE_MAX_BIGINT = 1n << BigInt(INTEGER_MAGNITUDE_BITS,);
 
 /**
+ Negative zero's digits, which `String(-0)` cannot produce because it returns
+ `'0'`; TOML keeps the sign in `-0.0`.
+ */
+const NEGATIVE_ZERO_TEXT = '-0';
+
+/**
  Encode a tagged wrapper input ({@link tomlInteger}, {@link tomlFloat}, date kinds).
  
  The payload is validated against the kind it claims before any of it is
@@ -185,9 +191,15 @@ function encodeFloatPayload({ value, }: { readonly value: unknown; },): string {
     return value > 0 ? 'inf' : '-inf';
   }
   /**
-   String form so the float-marker check can scan once.
+   String form so the float-marker check can scan once; negative zero keeps its
+   sign here, because `String(-0)` drops the sign TOML expresses as `-0.0`.
    */
-  const text = String(value,);
+  const text = Object.is(
+    value,
+    -0,
+  )
+    ? NEGATIVE_ZERO_TEXT
+    : String(value,);
   return text.includes('.',)
     || text
       .includes('e',)
