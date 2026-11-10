@@ -45,18 +45,22 @@ Entry points (clone:
  `internal/backends/testing/lib.rs`):
 
 - `init_no_event_loop()` `lib.rs`:
-  36, platform,
+  36,
+  platform,
    no event loop,
    mock time.
 - `init_integration_test_with_mock_time()` `lib.rs`:
-  51, event loop + deterministic
+  51,
+  event loop + deterministic
   mock clock (the runComposeUiTest-style controllable clock).
    One `#[test]` per process.
 - `init_integration_test_with_system_time()` `lib.rs`:
-  64, event loop,
+  64,
+  event loop,
    real clock.
 - `mock_elapsed_time(Duration)` `lib.rs`:
-  73, advance the mock clock;
+  73,
+  advance the mock clock;
    drives animations
   and timers deterministically.
 

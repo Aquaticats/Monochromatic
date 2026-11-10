@@ -74,17 +74,22 @@ the list records the boundary as of 2026-06-12.
 
 ## Terminology
 
-- **General-purpose subagent**:
-   the catch-all in-process delegate Claude Code runs
-  when no specialized subagent type is named.
-- **Specialized subagent**:
-   a named in-process delegate (Explore,
-   Plan,
-   and peers) selected by type.
-- **Child Claude session**:
-   an independent Claude Code session launched in a visible terminal
-  via `spawn-claude`,
-   monitored manually for its results.
+### General-purpose subagent
+
+the catch-all in-process delegate Claude Code runs
+when no specialized subagent type is named.
+
+### Specialized subagent
+
+a named in-process delegate (Explore,
+Plan,
+and peers) selected by type.
+
+### Child Claude session
+
+an independent Claude Code session launched in a visible terminal
+via `spawn-claude`,
+monitored manually for its results.
 
 ## What changed
 

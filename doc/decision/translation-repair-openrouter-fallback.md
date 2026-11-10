@@ -120,34 +120,45 @@ Measurements and the build record are in `doc/planning/translation-repair-openro
     stream reader;
   the Anthropic readers also learned to skip the `[DONE]` sentinel OpenRouter appends,
     since the Messages endpoint stays available for measurement.
-- **Roster on this provider**:
-  all nine seats,
-  as third spellings of existing roster identities
-    (`openrouter-catalog.ts`);
-  no new roster name.
-    gemma's row reports no pictures until a transcription is measured,
-  so the reader roster stays four.
-- **Routing**:
-  `PROVIDER_ORDER` (Synthetic,
-  Hyper,
-  OpenRouter) walked by `routeProviderFor`;
-    a refusal re-routes at most once per provider;
-  the non-conformant re-ask goes to the next wet provider
-    serving the model;
-  the all-dry error is `EveryProviderDryError`.
-- **Seats**:
-  derived from where each model would be served (`providerServing`);
-    Kimi-K3 withheld everywhere OpenRouter would serve it,
-  gemma seated as the substitute checker there.
-- **Accounting**:
-  `METERS` carries `openrouter=` and `openrouterUsd=`;
-  `SPEND` lines carry `cost=` in
-    USD from the wire;
-  `spend-cost` keeps an OpenRouter USD bucket apart from hypercredits.
-- **Width**:
-  32 concurrent chat completions per model completed 32 of 32 on two models,
-  no refusal;
-    the client carries no per-model ceiling by default.
+
+### Roster on this provider
+
+all nine seats,
+as third spellings of existing roster identities
+  (`openrouter-catalog.ts`);
+no new roster name.
+  gemma's row reports no pictures until a transcription is measured,
+so the reader roster stays four.
+
+### Routing
+
+`PROVIDER_ORDER` (Synthetic,
+Hyper,
+OpenRouter) walked by `routeProviderFor`;
+  a refusal re-routes at most once per provider;
+the non-conformant re-ask goes to the next wet provider
+  serving the model;
+the all-dry error is `EveryProviderDryError`.
+
+### Seats
+
+derived from where each model would be served (`providerServing`);
+  Kimi-K3 withheld everywhere OpenRouter would serve it,
+gemma seated as the substitute checker there.
+
+### Accounting
+
+`METERS` carries `openrouter=` and `openrouterUsd=`;
+`SPEND` lines carry `cost=` in
+  USD from the wire;
+`spend-cost` keeps an OpenRouter USD bucket apart from hypercredits.
+
+### Width
+
+32 concurrent chat completions per model completed 32 of 32 on two models,
+no refusal;
+  the client carries no per-model ceiling by default.
+
 - **GPT-5.6 Luna**,
   named by the owner as Responses-only,
   is not viable under zero data retention as

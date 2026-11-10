@@ -81,7 +81,8 @@ Multi-module Gradle build.
 
 ### Engine / Jazzer integration boundary
 
-- `kotlinx.fuzz.engine/.../KFuzzEngine.kt:6-36`: clean engine SPI
+- `kotlinx.fuzz.engine/.../KFuzzEngine.kt:6-36`:
+  clean engine SPI
   (`initialise` / `runTarget` / `finishExecution`),
    Jazzer is one implementation.
 - `kotlinx.fuzz.jazzer/.../JazzerLauncher.kt` is the real integration.
@@ -97,7 +98,8 @@ Multi-module Gradle build.
      `-artifact_prefix`,
     `-max_total_time` derived from `maxFuzzTime`).
   - `:106-111` `FuzzTargetRunner.registerFatalFindingDeterminatorForJUnit { ... }` then
-    `FuzzTargetRunner.startLibFuzzer(libFuzzerArgs)`: libFuzzer-backed run.
+    `FuzzTargetRunner.startLibFuzzer(libFuzzerArgs)`:
+    libFuzzer-backed run.
   - `:150-164` `Opt.instrumentationIncludes.setIfDefault(...)`,
      custom-hook wiring,
     `AgentInstaller.install(...)`.
@@ -160,11 +162,13 @@ Multi-module Gradle build.
 ### Maturity markers
 
 - README:
-  18: "works only for JVM and requires JDK 8 ... built using Kotlin 2.0.21" (the
+  18:
+  "works only for JVM and requires JDK 8 ... built using Kotlin 2.0.21" (the
   code has since moved to 2.2.0;
    README is stale).
 - README:
-  149: "Design,
+  149:
+  "Design,
    implementation and default values of configuration properties are
   subject to change in the future releases.
   "
@@ -349,7 +353,8 @@ because the tool could not be assembled at all.
 
 ## Alternatives (named with concrete rejection reasons)
 
-The realistic fallback for coverage-guided JVM/Kotlin fuzzing is **Jazzer directly**: it
+The realistic fallback for coverage-guided JVM/Kotlin fuzzing is **Jazzer directly**:
+it
 is what kotlinx.
 fuzz wraps,
  and unlike kotlinx.
@@ -366,7 +371,8 @@ fuzz it is actually installable.
    fuzz itself relies
    on it.
    Rejection reason:
-    Java-first ergonomics: you consume `FuzzedDataProvider` instead of
+    Java-first ergonomics:
+   you consume `FuzzedDataProvider` instead of
    kotlinx.
    fuzz's typed `KFuzzer` API,
     there is no Gradle `fuzz`/`regression` task,
@@ -407,7 +413,8 @@ fuzz it is actually installable.
    Maven Central,
     actively maintained.
    Rejection reason:
-    same class limitation as jqwik: property-based generation with
+    same class limitation as jqwik:
+   property-based generation with
    shrinking,
     no coverage instrumentation or corpus feedback.
     Good for shallow invariant

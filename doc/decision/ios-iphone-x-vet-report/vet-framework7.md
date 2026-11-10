@@ -58,10 +58,12 @@ run,
    Its app code runs as JavaScript in the JIT-blessed,
    out-of-process WKWebView (a clean wall-2 pass,
    the inverse of the NativeScript in-process-V8 failure),
-   and the entire iOS decision: static-lib linking,
+   and the entire iOS decision:
+  static-lib linking,
    in-app HTTP server,
    background URLSession,
-   and the symphonia+cpal audio core, rests on the Capacitor substrate via its CAPPlugin bridge,
+   and the symphonia+cpal audio core,
+  rests on the Capacitor substrate via its CAPPlugin bridge,
    with the Rust audio core reusable through FFI rather than rewritten on AVAudioEngine.
 
 ## Wall 2: JIT / executable memory
@@ -215,7 +217,8 @@ Output:
  Web Audio API in the WebView is the JS-only alternative you do NOT need here because a Rust core already exists.
 
 Rust core reuse:
- REUSE via FFI, not a rewrite on AVAudioEngine.
+ REUSE via FFI,
+not a rewrite on AVAudioEngine.
  The Rust core (symphonia decode + true-peak normalization + on-disk peak cache + cpal CoreAudio output) compiles to a
  staticlib/xcframework and links into the Capacitor Xcode project exactly like the kopia lib (wall 1).
  cpal already has an iOS/CoreAudio backend,
@@ -432,7 +435,8 @@ PRECISION NUANCE (not a flip,
  that cites capacitorjs.
 com/docs/ios.
  That page only supports "Capacitor uses WKWebView,
- not the deprecated UIWebView": it does NOT state the multi-process or JIT-entitlement detail.
+ not the deprecated UIWebView":
+it does NOT state the multi-process or JIT-entitlement detail.
  However,
  the architectural fact itself is correct,
  not fabricated:

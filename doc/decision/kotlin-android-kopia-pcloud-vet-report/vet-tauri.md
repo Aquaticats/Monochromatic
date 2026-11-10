@@ -650,18 +650,21 @@ watch item (#14994),
  being fixed.
 
 Ecosystem fit:
- local-server + HTTPS-streaming PASS: a probe of axum 0.8.9 + reqwest 0.12.28 (rustls 0.23.40 +
+ local-server + HTTPS-streaming PASS:
+a probe of axum 0.8.9 + reqwest 0.12.28 (rustls 0.23.40 +
 ring,
  NO OpenSSL) + hyper 1.10.1 + h2 + tokio 1.52.3 cross-compiled for aarch64-linux-android in 26s;
  streaming
 bodies fit the no-duplicate-storage constraint.
- Binary-bundling CAVEAT: Tauri's sidecar is desktop-only;
+ Binary-bundling CAVEAT:
+Tauri's sidecar is desktop-only;
  the
 kopia binary must be hand-shipped as `jniLibs/arm64-v8a/libkopia.so` and exec'd from `nativeLibraryDir`
 (`std::process::Command`),
  an Android-wide constraint,
  not Tauri-unique.
- Background CAVEAT: Tauri provides only
+ Background CAVEAT:
+Tauri provides only
 a foreground Activity;
  a Kotlin foreground Service must be hand-added to keep the server/kopia alive backgrounded.
 

@@ -97,64 +97,79 @@ Picked:
 
 Rejected:
 
-- **Web (browser,
-   WebGPU)**.
-  User explicitly chose native over web.
-  Browsers have per-tab memory ceilings
-  (V8 heap caps,
-   WASM 4 GB linear memory cap,
-   GPU process memory limits)
-  that force compromises (eviction,
-   paging,
-   document chunking)
-  at 1M-node working sets.
-  WebGPU support across Chromium,
-   Firefox,
-   and Safari is uneven on Linux.
-- **Patch Chromium to remove the 2 GB tab limit and ship the patched browser**.
-  Violates the native pick.
-  Independent of the pick,
-   shipping a custom Chromium fork carries ongoing costs:
-  rebasing patches against upstream every release cycle,
-  carrying the security review burden of a browser engine,
-  asking users to install a custom browser (a hard sell for a design tool).
-- **Tauri (webview plus WebGPU)**.
-  Was an early default based on stack-match (the monorepo is TS/Bun heavy).
-  With native picked,
-   the webview wrapper adds nothing it does not also cost.
-  WebKitGTK (Tauri's Linux backend) has historically lagged Chromium on WebGPU;
-  pursuing the webview path would require verifying current support
-  before committing to Linux.
-- **Electron**.
-  Same problems as Tauri plus a heavier runtime
-  (Chromium plus Node,
-   hundreds of MB even before app code).
-- **Cloud rendering with thin client (Stadia-style)**.
-  Server runs the engine,
-   client streams pixels.
-  Breaks the native-offline expectation (a design tool that needs network is a different product).
-  Adds infrastructure burden inappropriate for a self-hostable OSS project.
-  Latency hurts interactive editing in ways that do not show up in non-interactive use.
-- **Hosted desktop (Citrix-style)**.
-  Run the application remotely,
-   view via remote desktop protocol.
-  Same drawbacks as cloud rendering plus higher input-to-pixel latency.
-  Does not deliver "native desktop.
-  "
-- **Mobile (iOS / Android)**.
-  Outside the desktop pick.
-  Touch-first UX differs enough from desktop design tools
-  that the engine could ship later but not as v1.
-- **VR / AR (Quest,
-   Vision Pro)**.
-  Research-grade for design tools.
-  Outside scope.
-- **Headless engine library (no UI)**.
-  Distribute the engine as a library;
-   consumer apps build their own UI.
-  Reasonable as a future packaging option but does not deliver
-  an OSS Figma alternative on its own.
-  Re-evaluate if the engine matures and external consumers ask for it.
+### Web (browser, WebGPU)
+
+User explicitly chose native over web.
+Browsers have per-tab memory ceilings
+(V8 heap caps,
+ WASM 4 GB linear memory cap,
+ GPU process memory limits)
+that force compromises (eviction,
+ paging,
+ document chunking)
+at 1M-node working sets.
+WebGPU support across Chromium,
+ Firefox,
+ and Safari is uneven on Linux.
+
+### Patch Chromium to remove the 2 GB tab limit and ship the patched browser
+
+Violates the native pick.
+Independent of the pick,
+ shipping a custom Chromium fork carries ongoing costs:
+rebasing patches against upstream every release cycle,
+carrying the security review burden of a browser engine,
+asking users to install a custom browser (a hard sell for a design tool).
+
+### Tauri (webview plus WebGPU)
+
+Was an early default based on stack-match (the monorepo is TS/Bun heavy).
+With native picked,
+ the webview wrapper adds nothing it does not also cost.
+WebKitGTK (Tauri's Linux backend) has historically lagged Chromium on WebGPU;
+pursuing the webview path would require verifying current support
+before committing to Linux.
+
+### Electron
+
+Same problems as Tauri plus a heavier runtime
+(Chromium plus Node,
+ hundreds of MB even before app code).
+
+### Cloud rendering with thin client (Stadia-style)
+
+Server runs the engine,
+ client streams pixels.
+Breaks the native-offline expectation (a design tool that needs network is a different product).
+Adds infrastructure burden inappropriate for a self-hostable OSS project.
+Latency hurts interactive editing in ways that do not show up in non-interactive use.
+
+### Hosted desktop (Citrix-style)
+
+Run the application remotely,
+ view via remote desktop protocol.
+Same drawbacks as cloud rendering plus higher input-to-pixel latency.
+Does not deliver "native desktop.
+"
+
+### Mobile (iOS / Android)
+
+Outside the desktop pick.
+Touch-first UX differs enough from desktop design tools
+that the engine could ship later but not as v1.
+
+### VR / AR (Quest, Vision Pro)
+
+Research-grade for design tools.
+Outside scope.
+
+### Headless engine library (no UI)
+
+Distribute the engine as a library;
+ consumer apps build their own UI.
+Reasonable as a future packaging option but does not deliver
+an OSS Figma alternative on its own.
+Re-evaluate if the engine matures and external consumers ask for it.
 
 ## D2. Implementation language: Rust
 
@@ -185,50 +200,59 @@ This cost does not overturn D2;
 
 Rejected:
 
-- **C and C++**.
-  Excluded categorically by user preference (above).
-  Performance is not the issue;
-   readability and writeability is.
-  Rust gives equivalent runtime performance,
-  a graphics ecosystem
-  (wgpu,
-   Bevy,
-   lyon,
-   swash,
-   glam are all first-class Rust libraries),
-  modern tooling (cargo,
-   clippy,
-   rust-analyzer),
-  and memory safety at compile time.
-- **Go**.
-  Stop-the-world GC at 1M nodes risks frame stutter that the p99 target rules out.
-  Graphics ecosystem (Ebiten,
-   raylib bindings) is far behind Rust's.
-- **Zig**.
-  Language and ecosystem still pre-1.0;
-  graphics library coverage is thin.
-  Worth revisiting in a few years;
-   not now.
+### C and C++
+
+Excluded categorically by user preference (above).
+Performance is not the issue;
+ readability and writeability is.
+Rust gives equivalent runtime performance,
+a graphics ecosystem
+(wgpu,
+ Bevy,
+ lyon,
+ swash,
+ glam are all first-class Rust libraries),
+modern tooling (cargo,
+ clippy,
+ rust-analyzer),
+and memory safety at compile time.
+
+### Go
+
+Stop-the-world GC at 1M nodes risks frame stutter that the p99 target rules out.
+Graphics ecosystem (Ebiten,
+ raylib bindings) is far behind Rust's.
+
+### Zig
+
+Language and ecosystem still pre-1.0;
+graphics library coverage is thin.
+Worth revisiting in a few years;
+ not now.
+
 - **C#** (via MonoGame,
    Stride,
    etc.).
   GC concerns same as Go.
   Outside the rest of the planned stack
   (no other C# in the monorepo or in adjacent tools).
-- **Java / Kotlin (JVM,
-   JavaFX,
-   LibGDX)**.
-  Mature graphics ecosystem.
-  Same GC concerns as Go and C# at p99.
-  AOT-compiled options (GraalVM native-image) reduce GC but lose JIT optimizations.
-  Outside the rest of the planned stack.
-- **Swift**.
-  First-class on Apple platforms;
-   Linux support exists but is second-class.
-  GPU story leans Metal,
-   which limits cross-platform options.
-  ARC has reference-cycle pitfalls similar to manual memory management.
-  Cross-platform parity with Rust is weaker.
+
+### Java / Kotlin (JVM, JavaFX, LibGDX)
+
+Mature graphics ecosystem.
+Same GC concerns as Go and C# at p99.
+AOT-compiled options (GraalVM native-image) reduce GC but lose JIT optimizations.
+Outside the rest of the planned stack.
+
+### Swift
+
+First-class on Apple platforms;
+ Linux support exists but is second-class.
+GPU story leans Metal,
+ which limits cross-platform options.
+ARC has reference-cycle pitfalls similar to manual memory management.
+Cross-platform parity with Rust is weaker.
+
 - **OCaml,
    F#,
    Haskell** (functional).
@@ -267,31 +291,35 @@ Cheap;
 
 Rejected:
 
-- **Direct Vulkan,
-   Metal,
-   and DX12 implementations**.
-  Three platform-specific renderers cost years of engineering
-  that wgpu eliminates.
-  Vulkan API in particular is famously verbose;
-  hand-rolling it for a 2D engine is wasted effort.
-- **OpenGL only**.
-  wgpu already has a GL backend for compatibility,
-  so picking GL outright forfeits modern features (compute shaders,
-   indirect draw,
-   bindless)
-  that the LOD architecture (D6) relies on,
-  in exchange for nothing.
-- **Skia / CanvasKit**.
-  Mature 2D library used in Chrome,
-   Flutter,
-   Android.
-  C++ source rules it out per D2's categorical exclusion;
-  any Skia bug or extension would require writing C++.
-  Rust bindings exist (skia-safe) but do not let us patch Skia itself.
-  Independent of D2:
-   Skia owns its own rendering loop and integrates poorly
-  with custom render-graph designs at our scale;
-  pulling Skia into a Bevy app means fighting both stacks at the same time.
+#### Direct Vulkan, Metal, and DX12 implementations
+
+Three platform-specific renderers cost years of engineering
+that wgpu eliminates.
+Vulkan API in particular is famously verbose;
+hand-rolling it for a 2D engine is wasted effort.
+
+#### OpenGL only
+
+wgpu already has a GL backend for compatibility,
+so picking GL outright forfeits modern features (compute shaders,
+ indirect draw,
+ bindless)
+that the LOD architecture (D6) relies on,
+in exchange for nothing.
+
+#### Skia / CanvasKit
+
+Mature 2D library used in Chrome,
+ Flutter,
+ Android.
+C++ source rules it out per D2's categorical exclusion;
+any Skia bug or extension would require writing C++.
+Rust bindings exist (skia-safe) but do not let us patch Skia itself.
+Independent of D2:
+ Skia owns its own rendering loop and integrates poorly
+with custom render-graph designs at our scale;
+pulling Skia into a Bevy app means fighting both stacks at the same time.
+
 - **bgfx,
    The Forge,
    Filament,
@@ -305,10 +333,12 @@ Rejected:
   with no native 2D vector path support.
   sokol is below wgpu's abstraction level
   and lacks compute-shader maturity for the LOD design.
-- **SDL3 GPU API**.
-  Newer API in SDL3,
-   viable but smaller Rust ecosystem than wgpu.
-  No upside over wgpu for a Rust project.
+
+#### SDL3 GPU API
+
+Newer API in SDL3,
+ viable but smaller Rust ecosystem than wgpu.
+No upside over wgpu for a Rust project.
 
 ## D4. Game engine: Bevy
 
@@ -320,38 +350,44 @@ which makes a real engine the right starting point rather than first-principles.
 
 Rejected:
 
-- **Unity**.
-  Closed-source engine.
-   Shipping a closed-source dependency in an OSS project
-  creates licensing exposure (per-seat fees,
-   royalty thresholds).
-  The 2023 install-fee policy reversal demonstrated the contract is not stable.
-  Workflow assumptions (project files,
-   asset import) are tuned for game development,
-  not design tools.
-- **Unreal Engine**.
-  Source-available under a custom EULA,
-   not OSS in the standard sense.
-  5 percent royalty above $1M revenue.
-  Architecture is 3D-first with 2D as an afterthought;
-  binary size starts in the hundreds of MB before any project code.
-  Contributing fixes upstream as an OSS project is awkward under the EULA.
-- **Godot**.
-  A legitimate OSS alternative
-  (MIT license,
-   mature 2D primitives:
-   CanvasItem,
-   Polygon2D,
-   Path2D).
-  Rejected in favor of Bevy because:
-  (a) Rust integration is via gdext,
-   less native than Bevy's first-class Rust support;
-  (b) Godot's 2D scene tree at 1M instances requires bypassing the standard Node2D system
-  in favor of MultiMeshInstance2D,
-  which removes the scene-tree integration that is the centerpiece of Godot's framework;
-  (c) ECS aligns with the per-frame access pattern of D5
-  better than Godot's scene-tree node model.
-  Re-evaluate if Bevy proves unworkable in phase 0.
+### Unity
+
+Closed-source engine.
+ Shipping a closed-source dependency in an OSS project
+creates licensing exposure (per-seat fees,
+ royalty thresholds).
+The 2023 install-fee policy reversal demonstrated the contract is not stable.
+Workflow assumptions (project files,
+ asset import) are tuned for game development,
+not design tools.
+
+### Unreal Engine
+
+Source-available under a custom EULA,
+ not OSS in the standard sense.
+5 percent royalty above $1M revenue.
+Architecture is 3D-first with 2D as an afterthought;
+binary size starts in the hundreds of MB before any project code.
+Contributing fixes upstream as an OSS project is awkward under the EULA.
+
+### Godot
+
+A legitimate OSS alternative
+(MIT license,
+ mature 2D primitives:
+ CanvasItem,
+ Polygon2D,
+ Path2D).
+Rejected in favor of Bevy because:
+(a) Rust integration is via gdext,
+ less native than Bevy's first-class Rust support;
+(b) Godot's 2D scene tree at 1M instances requires bypassing the standard Node2D system
+in favor of MultiMeshInstance2D,
+which removes the scene-tree integration that is the centerpiece of Godot's framework;
+(c) ECS aligns with the per-frame access pattern of D5
+better than Godot's scene-tree node model.
+Re-evaluate if Bevy proves unworkable in phase 0.
+
 - **Defold** (King's 2D-focused OSS engine,
    Apache 2.0).
   Production-proven 2D engine.
@@ -360,15 +396,18 @@ Rejected:
   even if we accepted Lua scripting,
   any renderer change for our 1M-node target lands in the C++ core,
   which we cannot touch per D2.
-- **Cocos2d / Cocos Creator**.
-  Mature 2D engine ecosystem with C++,
-   JavaScript,
-   Lua,
-   and Python bindings,
-  each flavor with subtly different APIs.
-  C++ core ruled out by D2;
-  there is no first-class Rust binding,
-  so any engine-level change would mean writing C++.
+
+### Cocos2d / Cocos Creator
+
+Mature 2D engine ecosystem with C++,
+ JavaScript,
+ Lua,
+ and Python bindings,
+each flavor with subtly different APIs.
+C++ core ruled out by D2;
+there is no first-class Rust binding,
+so any engine-level change would mean writing C++.
+
 - **O3DE / Lumberyard** (Amazon,
    Apache 2.0).
   AAA-grade OSS engine.
@@ -382,25 +421,30 @@ Rejected:
    OSS).
   Modern OSS engine with 3D and 2D support.
   C# (D2 ruled it out).
-- **Build our own game engine**.
-  Bevy itself is 5+ years of work and still pre-1.0.
-  Reimplementing window,
-   input,
-   scheduling,
-   plugin system,
-   asset loading,
-  and render graph would dwarf the project itself.
-  Build only what is missing on top of Bevy
-  (custom render plugins,
-   tile pyramid,
-   BVH).
-- **macroquad / miniquad / ggez (lighter Rust 2D frameworks)**.
-  Smaller than Bevy and easier to start with.
-  Rejected because the LOD architecture (D6) needs render-graph control,
-  asset system for the tile cache,
-   and ECS for entity management;
-  Bevy provides those,
-   and reaching for the simpler frameworks means rebuilding them.
+
+### Build our own game engine
+
+Bevy itself is 5+ years of work and still pre-1.0.
+Reimplementing window,
+ input,
+ scheduling,
+ plugin system,
+ asset loading,
+and render graph would dwarf the project itself.
+Build only what is missing on top of Bevy
+(custom render plugins,
+ tile pyramid,
+ BVH).
+
+### macroquad / miniquad / ggez (lighter Rust 2D frameworks)
+
+Smaller than Bevy and easier to start with.
+Rejected because the LOD architecture (D6) needs render-graph control,
+asset system for the tile cache,
+ and ECS for entity management;
+Bevy provides those,
+ and reaching for the simpler frameworks means rebuilding them.
+
 - **Fyrox** (Rust 3D engine).
   3D-first,
    smaller community than Bevy,
@@ -413,31 +457,36 @@ Rejected:
   No public 1M-entity demonstration;
   the architecture is shaped around editor primitives,
    not arbitrary 2D scenes.
-- **Bare wgpu plus winit,
-   no engine**.
-  Workable but loses Bevy's ECS,
-   scheduling,
-   plugin system,
-   and render graph.
-  Rejected because the user framed this as game development,
-  and the engine value-add (ECS plus render graph) is exactly what helps at 1M-entity scale.
-- **Blender plugin**.
-  Blender is OSS,
-   but its 2D-edit surface (Grease Pencil) is animation-oriented,
-  not design-tool oriented.
-  Plugin API is Python (outside the language pick at D2).
-  Distribution requires installing Blender first,
-   a hard ask for design-tool users.
-  User-experience expectations are Figma-like,
-   not Blender-like.
-- **RPG Maker / Stardew Valley engine (MonoGame)**.
-  RPG Maker proper is closed-source.
-  MonoGame is OSS but C# (D2).
-  Both are tile-based 2D game frameworks;
-  the tile assumption conflicts with vector-path content.
-  Stardew Valley shipped at small scene counts,
-   not 1M nodes;
-  no calibration data at the target scale.
+
+### Bare wgpu plus winit, no engine
+
+Workable but loses Bevy's ECS,
+ scheduling,
+ plugin system,
+ and render graph.
+Rejected because the user framed this as game development,
+and the engine value-add (ECS plus render graph) is exactly what helps at 1M-entity scale.
+
+### Blender plugin
+
+Blender is OSS,
+ but its 2D-edit surface (Grease Pencil) is animation-oriented,
+not design-tool oriented.
+Plugin API is Python (outside the language pick at D2).
+Distribution requires installing Blender first,
+ a hard ask for design-tool users.
+User-experience expectations are Figma-like,
+ not Blender-like.
+
+### RPG Maker / Stardew Valley engine (MonoGame)
+
+RPG Maker proper is closed-source.
+MonoGame is OSS but C# (D2).
+Both are tile-based 2D game frameworks;
+the tile assumption conflicts with vector-path content.
+Stardew Valley shipped at small scene counts,
+ not 1M nodes;
+no calibration data at the target scale.
 
 ## D5. Data layout: Bevy ECS for all 1M nodes (deferred pending phase 0)
 
@@ -494,15 +543,17 @@ the entire D5 framing changes.
 
 Rejected provisionally (pending phase 0 measurement):
 
-- **Hand-rolled SoA Vec arrays as a separate document model**.
-  Cleaner perf control on the inner loop and SIMD-friendly.
-  Cost:
-   reimplementing query,
-   change-detection,
-   parallelism,
-   and ID allocation.
-  Whether the perf win justifies the cost depends on the actual inner-loop size,
-  which phase 0 will measure.
+#### Hand-rolled SoA Vec arrays as a separate document model
+
+Cleaner perf control on the inner loop and SIMD-friendly.
+Cost:
+ reimplementing query,
+ change-detection,
+ parallelism,
+ and ID allocation.
+Whether the perf win justifies the cost depends on the actual inner-loop size,
+which phase 0 will measure.
+
 - **Bevy bypassed for storage** (just wgpu,
    no entities).
   Fights Bevy's render graph (which expects entities for cull/draw passes),
@@ -511,17 +562,15 @@ Rejected provisionally (pending phase 0 measurement):
   This rejection is independent of the bound discussion;
   bypassing Bevy for storage while still using Bevy for rendering
   fragments the model unprofitably.
-- **Other Rust ECS frameworks:
-   hecs,
-   specs,
-   legion,
-   flecs (Rust binding)**.
-  Once D4 picked Bevy,
-   the ECS is bevy_ecs.
-  Switching to a different ECS framework while staying in Bevy
-  fragments the entity model and breaks Bevy's plugin assumptions.
-  These frameworks are alternatives to Bevy plus its ECS together,
-  not alternatives to bevy_ecs while keeping Bevy.
+
+#### Other Rust ECS frameworks: hecs, specs, legion, flecs (Rust binding)
+
+Once D4 picked Bevy,
+ the ECS is bevy_ecs.
+Switching to a different ECS framework while staying in Bevy
+fragments the entity model and breaks Bevy's plugin assumptions.
+These frameworks are alternatives to Bevy plus its ECS together,
+not alternatives to bevy_ecs while keeping Bevy.
 
 ## D6. Zoom-out cheat: tile pyramid plus LOD threshold (deferred pending phase 0)
 
@@ -571,29 +620,35 @@ The earlier draft did not address tile build,
  or zoom transitions.
 The intended design:
 
-- **Build at load**:
-   lazy.
-   The viewport's current-zoom tiles render first
-  (one to ~30 tiles for a 4K viewport at the current zoom level).
-  Adjacent zoom levels (one in,
-   one out) build in the background after the
-  initial paint to absorb pinch-zoom transitions.
-  Deeper levels build on demand as the user zooms.
-- **Build worker**:
-   dedicated Rayon-pooled worker,
-   off the render thread.
-  Per-tile budget:
-   aim for 100 ms target,
-   hard cap 500 ms;
-  tiles that exceed the cap split or downgrade to a coarser-LOD substitute
-  rather than block the worker.
-- **Cache**:
-   in-memory LRU keyed by (document hash,
-   zoom level,
-   tile x,
-   y).
-  Disk overflow on top of the in-memory cache for working sets that exceed
-  the VRAM cap from the memory budget.
+#### Build at load
+
+lazy.
+The viewport's current-zoom tiles render first
+(one to ~30 tiles for a 4K viewport at the current zoom level).
+Adjacent zoom levels (one in,
+one out) build in the background after the
+initial paint to absorb pinch-zoom transitions.
+Deeper levels build on demand as the user zooms.
+
+#### Build worker
+
+dedicated Rayon-pooled worker,
+off the render thread.
+Per-tile budget:
+aim for 100 ms target,
+hard cap 500 ms;
+tiles that exceed the cap split or downgrade to a coarser-LOD substitute
+rather than block the worker.
+
+#### Cache
+
+in-memory LRU keyed by (document hash,
+zoom level,
+tile x,
+y).
+Disk overflow on top of the in-memory cache for working sets that exceed
+the VRAM cap from the memory budget.
+
 - **Invalidate on edit** (out of v1 scope per D8,
    but architectural shape matters):
   edited node's bounding box,
@@ -603,14 +658,16 @@ The intended design:
    then nearest,
    then
   prefetch ring around the viewport).
-- **Zoom transitions**:
-   when the user zooms across an LOD boundary,
-  the tile being shown is whatever is in cache;
-  if a higher-resolution tile is not yet ready,
-  the previous level's tile upscales (blurry-but-instant) until the new tile arrives.
-  This is the same approach map renderers use (Google Maps,
-   OpenStreetMap)
-  and it stays inside the p99 frame budget because the tile-render work is async.
+
+#### Zoom transitions
+
+when the user zooms across an LOD boundary,
+the tile being shown is whatever is in cache;
+if a higher-resolution tile is not yet ready,
+the previous level's tile upscales (blurry-but-instant) until the new tile arrives.
+This is the same approach map renderers use (Google Maps,
+OpenStreetMap)
+and it stays inside the p99 frame budget because the tile-render work is async.
 
 ### Why deferred
 
@@ -636,28 +693,28 @@ Validating D6 first lets the others stand on measurement,
 
 Rejected (these stand even if D6 itself stands or falls):
 
-- **Full real-time 1M render every frame,
-   no LOD**.
-  At 60 fps this gives 16 ns per node,
-   below GPU dispatch granularity for
-  per-instance work.
-  No shipped 2D vector editor handles this case;
-  no public benchmarks place Figma,
-   tldraw,
-   Penpot,
-   or Excalidraw
-  at 1M visible at 60 fps.
-- **Simpler virtualization:
-   render only viewport-intersecting nodes,
-   no LOD**.
-  Leaves the worst case (zoomed-out view,
-   all 1M visible) unsolved.
-  At a zoom where every node fits in the viewport,
-  the worst case is the rated case;
-  without LOD we still need to render 1M nodes per frame.
-  Phase 0a tests whether this case is actually reachable without LOD;
-  if it is,
-   this rejection collapses too.
+#### Full real-time 1M render every frame, no LOD
+
+At 60 fps this gives 16 ns per node,
+ below GPU dispatch granularity for
+per-instance work.
+No shipped 2D vector editor handles this case;
+no public benchmarks place Figma,
+ tldraw,
+ Penpot,
+ or Excalidraw
+at 1M visible at 60 fps.
+
+#### Simpler virtualization: render only viewport-intersecting nodes, no LOD
+
+Leaves the worst case (zoomed-out view,
+ all 1M visible) unsolved.
+At a zoom where every node fits in the viewport,
+the worst case is the rated case;
+without LOD we still need to render 1M nodes per frame.
+Phase 0a tests whether this case is actually reachable without LOD;
+if it is,
+ this rejection collapses too.
 
 ## D7. Document foundation: greenfield
 
@@ -667,12 +724,14 @@ under a new package category named in D9.
 
 Rejected:
 
-- **Fork Penpot**.
-  Penpot's renderer is web-stack (SVG plus Canvas2D and WebGL),
-  not directly portable to native Rust plus Bevy.
-  Replacing the renderer is most of the work being undertaken;
-  porting Penpot's data model costs more than building one fresh
-  given that we have figma/to-penpot to read Penpot files later if needed.
+### Fork Penpot
+
+Penpot's renderer is web-stack (SVG plus Canvas2D and WebGL),
+not directly portable to native Rust plus Bevy.
+Replacing the renderer is most of the work being undertaken;
+porting Penpot's data model costs more than building one fresh
+given that we have figma/to-penpot to read Penpot files later if needed.
+
 - **Spike Penpot first to calibrate the wall** (load 100k nodes,
    measure).
   Worth doing as a calibration exercise to learn where existing tools break,
@@ -815,29 +874,36 @@ Rejected for v1:
    undo/redo).
   Doubles the scope before the rendering thesis is validated.
   Worth doing in v2 once the engine is proven.
-- **Engine plus real-time collaboration**.
-  Triples the scope and introduces CRDT design pressure on the data model
-  before the data model is even validated against the renderer.
-- **Full Figma parity**.
-  Multi-year scope;
-   not the current ask.
-  Re-evaluate after v1 ships.
-- **Just-a-viewer (no selection,
-   read-only)**.
-  Smallest possible scope.
-  Rejected because the user explicitly asked for select-to-inspect;
-  pure viewer does not satisfy the requirement.
-- **Headless engine library (no UI at all,
-   embeddable into other apps)**.
-  Smaller scope but does not deliver a standalone OSS Figma alternative,
-  which is the project's stated purpose.
-  Future packaging option,
-   not v1.
-- **Lab-grade research only (paper plus benchmarks,
-   no usable tool)**.
-  Validates the rendering thesis but does not deliver a tool.
-  User wants a working app,
-   not a research artifact.
+
+### Engine plus real-time collaboration
+
+Triples the scope and introduces CRDT design pressure on the data model
+before the data model is even validated against the renderer.
+
+### Full Figma parity
+
+Multi-year scope;
+ not the current ask.
+Re-evaluate after v1 ships.
+
+### Just-a-viewer (no selection, read-only)
+
+Smallest possible scope.
+Rejected because the user explicitly asked for select-to-inspect;
+pure viewer does not satisfy the requirement.
+
+### Headless engine library (no UI at all, embeddable into other apps)
+
+Smaller scope but does not deliver a standalone OSS Figma alternative,
+which is the project's stated purpose.
+Future packaging option,
+ not v1.
+
+### Lab-grade research only (paper plus benchmarks, no usable tool)
+
+Validates the rendering thesis but does not deliver a tool.
+User wants a working app,
+ not a research artifact.
 
 ## D9. Package category name: `vector-design`
 
@@ -848,26 +914,33 @@ with `engine/` and `app/` as subpackages
 
 Rejected:
 
-- **`package/editor/`**.
-  Too generic;
-   a monorepo of this size will accumulate other "editors"
-  (rich-text,
-   code,
-   configuration) that have nothing to do with vector design.
-- **`package/desktop-app/`**.
-  Mirrors `desktop-daemon/` but is too generic for the same reason.
-  We may have multiple desktop apps over time.
-- **`package/figma-alt/`**.
-  Specific to the comparison;
-  ties the category name to a competitor whose design we may diverge from.
-- **`package/design-tool/`**.
-  Reasonable alternative.
-  Picked `vector-design` because it names the technology family (vector graphics)
-  not the use case;
-  the engine could host other vector-graphics work
-  (illustration,
-   diagram,
-   schematic) without category renaming.
+### `package/editor/`
+
+Too generic;
+ a monorepo of this size will accumulate other "editors"
+(rich-text,
+ code,
+ configuration) that have nothing to do with vector design.
+
+### `package/desktop-app/`
+
+Mirrors `desktop-daemon/` but is too generic for the same reason.
+We may have multiple desktop apps over time.
+
+### `package/figma-alt/`
+
+Specific to the comparison;
+ties the category name to a competitor whose design we may diverge from.
+
+### `package/design-tool/`
+
+Reasonable alternative.
+Picked `vector-design` because it names the technology family (vector graphics)
+not the use case;
+the engine could host other vector-graphics work
+(illustration,
+ diagram,
+ schematic) without category renaming.
 
 ## D10. Path and text rendering library inside Bevy: deferred to phase 0
 
@@ -1059,20 +1132,25 @@ Implications:
 
 Rejected:
 
-- **Render-coupled hit-test (color picking framebuffer for the whole scene)**.
-  Requires a second render pass at hit time;
-  costly when the document is large and the click is rare.
-  Vector accuracy is the only place a color-picker pass earns its keep,
-  and it is used only as a tail of the BVH-driven path.
-- **Storing entity IDs in tile metadata**.
-  Forces tiles to carry per-pixel entity attribution,
-  doubling tile storage and complicating tile invalidation.
-  No advantage over the BVH path.
-- **Linear scan over visible entities**.
-  O(N) per click;
-   fine for thousands,
-   fails for hundreds of thousands
-  in dense regions.
+### Render-coupled hit-test (color picking framebuffer for the whole scene)
+
+Requires a second render pass at hit time;
+costly when the document is large and the click is rare.
+Vector accuracy is the only place a color-picker pass earns its keep,
+and it is used only as a tail of the BVH-driven path.
+
+### Storing entity IDs in tile metadata
+
+Forces tiles to carry per-pixel entity attribution,
+doubling tile storage and complicating tile invalidation.
+No advantage over the BVH path.
+
+### Linear scan over visible entities
+
+O(N) per click;
+ fine for thousands,
+ fails for hundreds of thousands
+in dense regions.
 
 ## Phase 0 plan (hybrid: bare wgpu first, then port to Bevy)
 
@@ -1108,7 +1186,7 @@ Build:
 Decision gates:
 
 - If step 2 hits the budget,
-   **D6 collapses entirely**.
+  **D6 collapses entirely**.
   The architecture shrinks to viewport cull plus instanced rendering.
   Phase 0b ports this minimal architecture to Bevy.
 - If step 2 fails the budget,

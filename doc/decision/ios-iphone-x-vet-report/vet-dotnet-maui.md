@@ -57,7 +57,8 @@ run,
    the native Mono bootstrap calls mono_jit_set_aot_mode(MONO_AOT_MODE_FULL) on a real device (interpreter-only in
    Debug),
    JIT exists only in the simulator,
-   so wall 2 is cleanly passed, and the same runtime turns on a pinvoke_override that lets
+   so wall 2 is cleanly passed,
+  and the same runtime turns on a pinvoke_override that lets
    [DllImport(\"__Internal\")] call into a statically-linked Rust/Go .
   a (NativeReference/LinkerArgument),
    so wall 1 is satisfied by ordinary P/Invoke.
@@ -109,7 +110,8 @@ a).
  or <LinkerArgument Include=".../libCustom.a"/> (`build-items.md`:
 215-220,
  252-255).
- The extern "C" symbols are then called from C# with [DllImport("__Internal")]: '__Internal' is the documented
+ The extern "C" symbols are then called from C# with [DllImport("__Internal")]:
+'__Internal' is the documented
  library name for symbols statically linked into the app (`binding_types_reference_guide.md`:
 1392).
  Under device full-AOT this resolves through the runtime's pinvoke_override:
@@ -151,7 +153,8 @@ Use background URLSession + BGTaskScheduler,
  NSUrlSessionConfiguration.
 CreateBackgroundSessionConfiguration (src/Foundation/NSUrlSessionConfiguration.
 cs:
-55) gives OS-managed background uploads/downloads that survive app suspension, the only durable transfer channel on
+55) gives OS-managed background uploads/downloads that survive app suspension,
+the only durable transfer channel on
 iOS.
  BGTaskScheduler / BGProcessingTaskRequest are bound (src/backgroundtasks.
 cs:
@@ -185,7 +188,8 @@ Mechanism:
 Net.
 HttpListener ships in the .
 NET-for-iOS BCL (referenced from the macios build profile),
- so an in-process HTTP/S3 endpoint that kopia targets can run as pure managed code, no binary exec needed,
+ so an in-process HTTP/S3 endpoint that kopia targets can run as pure managed code,
+no binary exec needed,
  sidestepping wall 1 for the server itself.
  The macios docs even show HttpListener listening-and-responding inside an app.
  Full System.
@@ -246,7 +250,8 @@ cs:
 1110) if you ever drive audio from C# instead.
 
 Rust core reuse:
- REUSABLE via FFI, no AVAudioEngine rewrite required.
+ REUSABLE via FFI,
+no AVAudioEngine rewrite required.
  Because audio is owned by the linked Rust staticlib (wall 1),
  symphonia+cpal run entirely inside that lib and cpal's existing CoreAudio (AudioUnit) backend drives output;
  MAUI/.
@@ -432,7 +437,8 @@ and BGTaskScheduler/BGProcessingTaskRequest are bound for background transfer/ma
    line 349 pinvoke_override_enabled=true on device path;
    lines 236-243 handle_pinvoke_override;
    line 258 mono_ios_runtime_init;
-   line 351 register_aot_modules: all support the audit's claims);
+   line 351 register_aot_modules:
+  all support the audit's claims);
    /tmp/agent/dotnet-macios-audit-20260612/docs/website/`mtouch-errors.md`:
   966 (verbatim:
    'the JIT remains the only option available on the simulator,
@@ -447,7 +453,8 @@ and BGTaskScheduler/BGProcessingTaskRequest are bound for background transfer/ma
   252-255 (NativeReference definition);
    /tmp/agent/dotnet-macios-audit-20260612/docs/website/`binding_types_reference_guide.md`:
   1388-1392 ('If you're linking a static library,
-   use __Internal as the libraryName parameter': note context is the [Field] attribute libraryName,
+   use __Internal as the libraryName parameter':
+  note context is the [Field] attribute libraryName,
    not [DllImport],
    but the __Internal-for-static-libs principle is documented);
    /tmp/agent/dotnet-macios-audit-20260612/src/Foundation/NSObject2.
@@ -464,10 +471,12 @@ and BGTaskScheduler/BGProcessingTaskRequest are bound for background transfer/ma
    and MAUI isn't trimmer-safe,
    and thus ... MAUI projects don't typically work with NativeAOT');
    /tmp/agent/dotnet-macios-audit-20260612/docs/`managed-static-registrar.md`:
-  201-211 (Interpreter/JIT section, about UnmanagedCallersOnly lookup tables;
+  201-211 (Interpreter/JIT section,
+  about UnmanagedCallersOnly lookup tables;
    neither supports nor contradicts the entitlement claim);
    <https://learn.microsoft.com/en-us/dotnet/maui/macios/interpreter> (authoritative:
    Apple 'disallows the execution of dynamically generated code on a device';
-   'The Mono interpreter overcomes these restrictions while abiding by platform restrictions': confirms the
+   'The Mono interpreter overcomes these restrictions while abiding by platform restrictions':
+  confirms the
    interpreter needs no JIT/execmem entitlement on device,
    supporting the wall-2 no-jit-needed verdict for both Release full-AOT and Debug interpreter)

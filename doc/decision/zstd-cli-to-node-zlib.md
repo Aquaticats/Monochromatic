@@ -714,10 +714,12 @@ What this shows:
    still ~25x
   slower than `bun-par`.
    Process-per-file is simply the wrong model.
-- **`node-par` is slow and erratic**:
-   on `many` it ranges from 13 seconds (T16) to 60 seconds (T1).
-  Notably its **slowest** point is concurrency 1,
-   which rules out a "too much concurrency" explanation.
+
+#### `node-par` is slow and erratic
+
+on `many` it ranges from 13 seconds (T16) to 60 seconds (T1).
+Notably its **slowest** point is concurrency 1,
+which rules out a "too much concurrency" explanation.
 
 ### Experiment C: in-frame multithreading on the 32 MiB file
 

@@ -396,7 +396,8 @@ xcframework (or Go + gomobile for a Go c-archive).
    The audit states:
    "the podspec tag (line 155) lets the plugin pull a CocoaPods dependency.
   " But /tmp/agent/cordova-audit/lib/plugman/pluginHandlers.
-  js line 155 is actually `if (obj.type !== 'podspec')` inside the framework UNINSTALL handler, an uninstall-guard
+  js line 155 is actually `if (obj.type !== 'podspec')` inside the framework UNINSTALL handler,
+  an uninstall-guard
   negation,
    not a podspec-tag install handler.
    pluginHandlers.
@@ -430,7 +431,8 @@ xcframework (or Go + gomobile for a Go c-archive).
    adds plugin SPM deps at lines 36-39),
    and objc_msgSend dispatch (CDVCommandQueue.
   m:
-  188 verified exactly): all confirmed against source.
+  188 verified exactly):
+  all confirmed against source.
    No other claim was unsupported,
    fabricated,
    or contradicted.

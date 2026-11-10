@@ -482,12 +482,14 @@ xcframework.
   targets:
   4 (UseInterpreter Condition Optimize !
   = true;
-   comment 'Required for C# Hot Reload'): supports wall-2;
+   comment 'Required for C# Hot Reload'):
+  supports wall-2;
    /tmp/agent/uno-audit-20260612/src/targetframework-override.
   props:
   15-16 (net9.0-ios -> net9.0-ios18.0,
    net10.0-ios -> net10.0-ios26.0 Microsoft.
-  iOS TFMs): supports iosRuntimeModel;
+  iOS TFMs):
+  supports iosRuntimeModel;
    /tmp/agent/uno-audit-20260612/src/Uno.
   UI/UI/Xaml/Documents/UnicodeText.
   ICU.
@@ -497,7 +499,8 @@ xcframework.
   a static library';
    line 245 iOS path dispatches to IOSICUSymbols;
    19 [DllImport("__Internal")] entries,
-   first at line 448): supports wall-1;
+   first at line 448):
+  supports wall-1;
    /tmp/agent/uno-audit-20260612/src/Uno.
   UI.
   Runtime.
@@ -505,7 +508,8 @@ xcframework.
   AppleUIKit/UI/Xaml/Controls/TextBox/NativeTextSelection.
   cs:
   16 (DllImport objc_msgSendSuper,
-   NOT bare objc_msgSend as cited): corroborating wall-1,
+   NOT bare objc_msgSend as cited):
+  corroborating wall-1,
    naming discrepancy;
    /tmp/agent/uno-audit-20260612/src/Uno.
   UI.
@@ -516,21 +520,26 @@ xcframework.
   19,53 (class UnoSKMetalView :
    MTKView;
    GRContext.
-  CreateMetal): supports iosRuntimeModel Skia/Metal head;
+  CreateMetal):
+  supports iosRuntimeModel Skia/Metal head;
    /tmp/agent/dotnet-runtime-audit-20260612/docs/design/mono/web/`aot.md`:
   108 ('Some platforms like the iphone prohibit JITted code,
    using technical and/or legal means... full-aot or aot-only mode... at runtime,
-   no code needs to be generated'): verbatim match,
+   no code needs to be generated'):
+  verbatim match,
    supports wall-2;
    /tmp/agent/uno-audit-20260612/doc/articles/`api-differences.md`:
   31 ('iOS is AOT-only',
-   fundamental platform limitation): independent in-repo corroboration of wall-2;
+   fundamental platform limitation):
+  independent in-repo corroboration of wall-2;
    /tmp/agent/uno-audit-20260612/src/Directory.
   Build.
   targets:
   79,182 (UnoICUVersion 77.2.1,
    PackageReference Uno.
-  icu-ios): corroborates ICU static-link wiring for wall-1;
-   repo-wide rg 'UseInterpreter' across /tmp/agent/uno-audit-20260612: confirmed no iOS Release/device force-enable
+  icu-ios):
+  corroborates ICU static-link wiring for wall-1;
+   repo-wide rg 'UseInterpreter' across /tmp/agent/uno-audit-20260612:
+  confirmed no iOS Release/device force-enable
     of interpreter;
    only debug-gated SDK default plus sample-app/TestFlight-conditioned and test-script occurrences

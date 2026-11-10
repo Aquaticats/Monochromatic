@@ -559,7 +559,8 @@ The technologies work,
    This single wrong import was the last thing standing between "looks broken" and "green test".
 10. Every Android assemble prints `❌ KMP Dependencies Resolution Failure` diagnostics (non-fatal;
      APK
-    still builds), noisy and alarming.
+    still builds),
+    noisy and alarming.
 11. Edge-to-edge is default on targetSdk 36 / Android 16:
      the app drew "Count:
      0" at y=0,

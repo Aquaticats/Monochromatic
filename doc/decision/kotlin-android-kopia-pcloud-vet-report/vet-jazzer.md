@@ -110,9 +110,11 @@ Both artifacts resolve on repo1.
 maven.
 org:
 
-- `com.code-intelligence:jazzer`: versions up to 0.30.0,
+- `com.code-intelligence:jazzer`:
+  versions up to 0.30.0,
    metadata lastUpdated 2026-02-24.
-- `com.code-intelligence:jazzer-junit`: versions up to 0.30.0,
+- `com.code-intelligence:jazzer-junit`:
+  versions up to 0.30.0,
    lastUpdated 2026-02-24.
 - `jazzer-junit:0.30.0` POM transitive deps:
    `jazzer-api`,
@@ -157,7 +159,8 @@ org:
   2026-06-05 reflects pushes to open PR branches,
    not main.
 - Responsiveness:
-   strong through 2025: maintainers gave substantive answers and linked PRs on
+   strong through 2025:
+  maintainers gave substantive answers and linked PRs on
   #951,
    #971,
    #977,
@@ -282,7 +285,8 @@ build + run + integration boundary (JUnit failure + reproducer file) all exercis
 ## 5. Alternatives (with concrete rejection reasons)
 
 - kotlinx.
-  fuzz, already disqualified:
+  fuzz,
+  already disqualified:
    uninstallable (dead artifact host;
    does not resolve).
   Note:
@@ -293,7 +297,8 @@ build + run + integration boundary (JUnit failure + reproducer file) all exercis
 - jqwik (net.
   jqwik:
   jqwik,
-   Maven Central 200): property-based testing for JUnit5 via `@ForAll`
+   Maven Central 200):
+  property-based testing for JUnit5 via `@ForAll`
   generators with shrinking.
    Black-box:
    no bytecode instrumentation,
@@ -309,7 +314,8 @@ build + run + integration boundary (JUnit failure + reproducer file) all exercis
 - Kotest property (io.
   kotest:
   kotest-property,
-   Maven Central 200): `Arb`/`Gen`-based property
+   Maven Central 200):
+  `Arb`/`Gen`-based property
   testing with shrinking.
    Same gap as jqwik:
    black-box random generation,

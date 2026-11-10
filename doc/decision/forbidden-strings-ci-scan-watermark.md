@@ -56,35 +56,48 @@ A successful marker-era push run leaves its head tree fully validated:
 
 ## Rejected alternatives
 
-- **Full-tree scan on every push**.
-  Measured 29.9 s warm and 51.2 s cold on 2026-10-20 over 17,803 tracked files and 785 MB,
-  growing with the corpus;
-  rejected by the maintainer.
-  It stays only as the rare fallback above.
-- **Commit-status or movable-tag watermark**.
-  A stamp needs `statuses: write`,
-  which can forge required checks,
-  and a tag needs `contents: write`,
-  which can rewrite branches;
-  both escalate a secret-bearing workflow.
-  Listing runs is read-only (`actions: read`).
-- **Watermark without the version marker**.
-  Would trust pre-fix runs whose scans covered only their own push range,
-  recreating the issue `#993` hole at bootstrap.
-- **Fallback to changes since the newest old full-tree-era commit**.
-  That era ended at `6eae389841` (2026-07-30);
-  its delta is 14,800 files and 732 MB today,
-  the same cost as a full scan.
-- **Per-file scanned-blob manifest**.
-  Selects the same scan sets as the watermark at every step except files reverted to a
-  previously scanned blob,
-  and needs durable storage the run list does not offer.
-- **Cross-run cache of the compiled rule artifact**.
-  The artifact retains exact rule bytes (README security model),
-  so caching it across runs would leak the secret rule set to any later run.
-- **Dropping `cancel-in-progress`**.
-  A failed run leaves the same hole;
-  cancellation is one instance of "run did not complete successfully".
+### Full-tree scan on every push
+
+Measured 29.9 s warm and 51.2 s cold on 2026-10-20 over 17,803 tracked files and 785 MB,
+growing with the corpus;
+rejected by the maintainer.
+It stays only as the rare fallback above.
+
+### Commit-status or movable-tag watermark
+
+A stamp needs `statuses: write`,
+which can forge required checks,
+and a tag needs `contents: write`,
+which can rewrite branches;
+both escalate a secret-bearing workflow.
+Listing runs is read-only (`actions: read`).
+
+### Watermark without the version marker
+
+Would trust pre-fix runs whose scans covered only their own push range,
+recreating the issue `#993` hole at bootstrap.
+
+### Fallback to changes since the newest old full-tree-era commit
+
+That era ended at `6eae389841` (2026-07-30);
+its delta is 14,800 files and 732 MB today,
+the same cost as a full scan.
+
+### Per-file scanned-blob manifest
+
+Selects the same scan sets as the watermark at every step except files reverted to a
+previously scanned blob,
+and needs durable storage the run list does not offer.
+
+### Cross-run cache of the compiled rule artifact
+
+The artifact retains exact rule bytes (README security model),
+so caching it across runs would leak the secret rule set to any later run.
+
+### Dropping `cancel-in-progress`
+
+A failed run leaves the same hole;
+cancellation is one instance of "run did not complete successfully".
 
 ## Limits
 

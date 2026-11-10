@@ -148,26 +148,33 @@ because the stay-on-GitHub recommendation made it moot.
 If any is ever reconsidered,
  run the `choosing-technology` vetting layers first.
 
-- **OSS-Fuzz**:
-   acceptance requires "a significant user base and/or be critical
-  to the global IT infrastructure"
-  ([acceptance criteria](https://google.github.io/oss-fuzz/getting-started/accepting-new-projects/)),
-  which this repo does not clear today,
-   and it covers only fuzzing,
-   not CI.
-- **GitLab CI**:
-   the Free tier includes 400 compute minutes/month
-  ([GitLab pricing](https://about.gitlab.com/pricing/)),
-  far below the measured 4,500 minutes/month pace;
-  the 50,000 minutes/month open-source program is application-and-renewal gated;
-  migration would rewrite every workflow and lose `merge_group` and `gh`-based tooling.
-- **Woodpecker CI / Forgejo Actions**:
-   self-hosted platforms require bringing compute anyway,
-  so versus GitHub self-hosted runners they add a full workflow rewrite
-  and lose marketplace actions and GitHub-native integration,
-   for no compute gain.
-- **Buildkite**:
-   closed-source SaaS;
-   same bring-your-own-compute shape as above,
-  so it is strictly behind GitHub self-hosted runners for this repo
-  and fails the open-source-default rule with no offsetting capability.
+### OSS-Fuzz
+
+acceptance requires "a significant user base and/or be critical
+to the global IT infrastructure"
+([acceptance criteria](https://google.github.io/oss-fuzz/getting-started/accepting-new-projects/)),
+which this repo does not clear today,
+and it covers only fuzzing,
+not CI.
+
+### GitLab CI
+
+the Free tier includes 400 compute minutes/month
+([GitLab pricing](https://about.gitlab.com/pricing/)),
+far below the measured 4,500 minutes/month pace;
+the 50,000 minutes/month open-source program is application-and-renewal gated;
+migration would rewrite every workflow and lose `merge_group` and `gh`-based tooling.
+
+### Woodpecker CI / Forgejo Actions
+
+self-hosted platforms require bringing compute anyway,
+so versus GitHub self-hosted runners they add a full workflow rewrite
+and lose marketplace actions and GitHub-native integration,
+for no compute gain.
+
+### Buildkite
+
+closed-source SaaS;
+same bring-your-own-compute shape as above,
+so it is strictly behind GitHub self-hosted runners for this repo
+and fails the open-source-default rule with no offsetting capability.

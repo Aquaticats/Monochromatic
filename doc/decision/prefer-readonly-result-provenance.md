@@ -757,7 +757,7 @@ and `findLast` are observer-bearing and answered elsewhere by design;
  `splice` restructures.
 
 **The receiver side has no incorrect refusal left in this sample.**
- That matches the classification
+That matches the classification
 above from the other direction:
  1172 of the findings are argument-side,
  and the receiver-side groups
@@ -1552,6 +1552,7 @@ The fresh-object projection stays clean,
  which is the shape issue #414 reports,
  so the two are already
 separated by the returned set rather than by type shape.
+
 ## Consequences of the provenance replacement, measured
 
 Matched pair on identical source,

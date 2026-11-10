@@ -160,8 +160,10 @@ Surveyed at pinned commits in `doc/research/typescript-monorepo-cross-package-im
 
 ## Alternatives rejected
 
-- **Project references**:
-   `.out-of-scope/typescript-project-references.md`.
+### Project references
+
+`.out-of-scope/typescript-project-references.md`.
+
 - **Compiled boundary** (tsc and type-aware lint read sibling declarations;
    the Sentry,
    typescript-eslint,
@@ -177,8 +179,10 @@ Surveyed at pinned commits in `doc/research/typescript-monorepo-cross-package-im
    Vitest):
   does not shrink the per-package closure the rule analyses,
   and collides with oxlint's root-tsconfig discovery trap (`doc/troubleshooting/oxlint.md`).
-- **Repo-wide measurement of the compiled boundary**:
-   declined 2026-09-06 as not decision-relevant once isolation was accepted.
+
+### Repo-wide measurement of the compiled boundary
+
+declined 2026-09-06 as not decision-relevant once isolation was accepted.
 
 ## Revisit triggers
 

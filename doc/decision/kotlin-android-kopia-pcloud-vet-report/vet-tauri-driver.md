@@ -116,8 +116,7 @@ Open webdriver-scope backlog (via `gh`),
 - #6541 native `.click()`/`.setValue()` error -> **reproduced below**,
    open,
    needs-triage.
-- #15415 wdio 9+ rejected because BiDi caps (`webSocketUrl`) aren't stripped ->
-  **hit and worked around below**.
+- #15415 wdio 9+ rejected because BiDi caps (`webSocketUrl`) aren't stripped -> **hit and worked around below**.
 - #15156 tauri-driver accepts connections before it is ready (startup race).
 - #10670,
    #9203 broken/outdated WebdriverIO + Selenium doc examples.

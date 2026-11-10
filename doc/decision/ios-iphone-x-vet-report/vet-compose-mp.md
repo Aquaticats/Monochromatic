@@ -465,7 +465,8 @@ Toolchain:
   gradle.
   kts (iosArm64(),
    iosSimulatorArm64(),
-   framework { isStatic = true }: confirmed);
+   framework { isStatic = true }:
+  confirmed);
    /tmp/agent/compose-mp-audit/examples/imageviewer/shared/src/iosMain/kotlin/example/imageviewer/view/CameraView.
   ios.
   kt (kotlinx.
@@ -483,18 +484,22 @@ Toolchain:
    platform.
   darwin.
   NSObject,
-   @ObjCAction: confirmed);
+   @ObjCAction:
+  confirmed);
    /tmp/agent/compose-mp-audit/examples/interop/ios-uikit-in-compose/iosApp/iosApp/ContentView.
   swift + shared/src/iosMain/kotlin/main.
   ios.
   kt (Main_iosKt.
-  ComposeEntryPoint() returns UIViewController: confirmed);
+  ComposeEntryPoint() returns UIViewController:
+  confirmed);
    <https://kotlinlang.org/docs/native-overview.html> (LLVM-based backend;
    'native binaries that can run without a virtual machine';
    'virtual machines are not desirable or possible,
-   such as embedded devices or iOS': confirmed);
+   such as embedded devices or iOS':
+  confirmed);
    <https://kotlinlang.org/docs/native-definition-file.html> (staticLibraries,
    libraryPaths,
    linkerOpts;
    'includes the library binary in the klib';
-   'the library is linked automatically': confirmed)
+   'the library is linked automatically':
+  confirmed)

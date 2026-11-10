@@ -6,43 +6,57 @@
 
 Decision record for the agentic context-management plugin wired into this Pi harness.
 
-- **Context-fork answers**
-  - Workload:
-     personal or experimental.
-  - Data sensitivity:
-     conversation history may be processed by a third-party plugin;
-     no special compliance constraints.
-- **Decision**:
-   do not use `npm:pi-context`.
-   Removed from `~/.pi/agent/settings.json` on 2026-06-15.
-- **Interaction note**:
-   this repo also installs `/var/home/user/Monochromatic/package/pi-plugin/morph-compact`,
-   which replaces Pi's default compaction.
-   Any future context-management plugin must be checked against that package before installation.
+## Context-fork answers
+
+- Workload:
+   personal or experimental.
+- Data sensitivity:
+   conversation history may be processed by a third-party plugin;
+   no special compliance constraints.
+
+## Decision
+
+do not use `npm:pi-context`.
+Removed from `~/.pi/agent/settings.json` on 2026-06-15.
+
+## Interaction note
+
+this repo also installs `/var/home/user/Monochromatic/package/pi-plugin/morph-compact`,
+which replaces Pi's default compaction.
+Any future context-management plugin must be checked against that package before installation.
 
 Measurements and source reads in this file were taken on 2026-06-15
 from the live repo and the cloned candidate repositories under `/tmp/agent`.
 
 ## Candidates surveyed
 
-Candidate, Source audited, Validation run, Nature:
+Candidate,
+Source audited,
+Validation run,
+Nature:
 
 - `pi-context` (`ttttmr/pi-context`)
-  - Yes, `/tmp/agent/pi-context-20260615`
-  - `npm run typecheck` passes; manual Pi CLI test only
+  - Yes,
+    `/tmp/agent/pi-context-20260615`
+  - `npm run typecheck` passes;
+    manual Pi CLI test only
   - Third-party Pi package
 - `pi-context-tools` (`theduke/pi-context-tools`)
-  - Yes, `/tmp/agent/pi-context-tools-20260615`
-  - `npm run typecheck` and `npm run lint` pass; tests are `echo &quot;No tests yet&quot;`
+  - Yes,
+    `/tmp/agent/pi-context-tools-20260615`
+  - `npm run typecheck` and `npm run lint` pass;
+    tests are `echo &quot;No tests yet&quot;`
   - Third-party Pi package
 - `pi-boomerang` (`nicobailon/pi-boomerang`)
-  - Yes, `/tmp/agent/pi-boomerang-20260615`
+  - Yes,
+    `/tmp/agent/pi-boomerang-20260615`
   - `npm run test` passes (176 vitest tests)
   - Third-party Pi package
 - Pi built-in auto-compaction and `/tree`
   - N/A (core feature)
   - Daily use in this repo
-  - Pi core, no plugin needed
+  - Pi core,
+    no plugin needed
 
 ## Source-audit findings for `pi-context`
 
@@ -71,40 +85,53 @@ Source files read:
 
 ### Code-quality observations
 
-- **Module-level mutable state**:
-   `CommandCtx`,
-   `CompactParams` are single global variables in `src/index.ts:18-20`.
-   Concurrent compactions or rapid session events could race.
-   The code itself calls `ctx.abort()` on `turn_end` while a compact is pending,
-   which limits concurrency in practice.
-- **Deferred navigation via `setTimeout`**:
-   `src/index.ts:465-500` defers `navigateTree` and `sendMessage`
-   with a zero-timeout to work around `agent_end` firing
-   before the agent is fully idle.
-   This is fragile to Pi core timing changes.
-- **Regex use is bounded**:
-   `resolveTargetId` uses `/^[0-9a-f]{8,}$/i` only to decide whether a target looks like an ID;
-   it does not extract data.
-   Acceptable for this boundary.
-- **Iterative tree walks**:
-   the maintainer converted recursive DFS to iterative stack-based traversal
-   after issue #19 (stack overflow on deep trees);
-   the fix is in the current source.
-- **No automated tests**:
-   only `test/test.md`,
-   a manual Pi CLI smoke test.
-   No unit tests,
-   no CI.
-- **No license file**:
-   `package.json` says MIT,
-   but the repository contains no `LICENSE` file;
-   GitHub API returns `licenseInfo: null`.
-- **Version installed vs latest**:
-   this Pi profile has `pi-context@1.1.4`;
-   npm latest is `2.0.0-beta.0`.
-   The 2.
-  x line renames the tools from `context_tag`/`context_log`/`context_checkout`
-  to `context_checkpoint`/`context_timeline`/`context_compact`.
+#### Module-level mutable state
+
+`CommandCtx`,
+`CompactParams` are single global variables in `src/index.ts:18-20`.
+Concurrent compactions or rapid session events could race.
+The code itself calls `ctx.abort()` on `turn_end` while a compact is pending,
+which limits concurrency in practice.
+
+#### Deferred navigation via `setTimeout`
+
+`src/index.ts:465-500` defers `navigateTree` and `sendMessage`
+with a zero-timeout to work around `agent_end` firing
+before the agent is fully idle.
+This is fragile to Pi core timing changes.
+
+#### Regex use is bounded
+
+`resolveTargetId` uses `/^[0-9a-f]{8,}$/i` only to decide whether a target looks like an ID;
+it does not extract data.
+Acceptable for this boundary.
+
+#### Iterative tree walks
+
+the maintainer converted recursive DFS to iterative stack-based traversal
+after issue #19 (stack overflow on deep trees);
+the fix is in the current source.
+
+#### No automated tests
+
+only `test/test.md`,
+a manual Pi CLI smoke test.
+No unit tests,
+no CI.
+
+#### No license file
+
+`package.json` says MIT,
+but the repository contains no `LICENSE` file;
+GitHub API returns `licenseInfo: null`.
+
+#### Version installed vs latest
+
+this Pi profile has `pi-context@1.1.4`;
+npm latest is `2.0.0-beta.0`.
+The 2.
+x line renames the tools from `context_tag`/`context_log`/`context_checkout`
+to `context_checkpoint`/`context_timeline`/`context_compact`.
 
 ### Validation run
 

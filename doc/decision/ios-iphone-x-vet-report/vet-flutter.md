@@ -389,22 +389,26 @@ xcframework;
    /tmp/agent/flutter-audit-20260612/engine/src/flutter/runtime/BUILD.
   gn (lines 31-38:
    group("libdart") selects libdart_aotruntime for profile/release;
-   else/debug links libdart_jit + //flutter/lib/snapshot: confirmed verbatim);
+   else/debug links libdart_jit + //flutter/lib/snapshot:
+  confirmed verbatim);
    /tmp/agent/flutter-audit-20260612/engine/src/flutter/runtime/dart_vm.
   cc (lines 177-179:
    DartVM:
   :
-  IsRunningPrecompiledCode() returns Dart_IsPrecompiledRuntime(): confirmed verbatim);
+  IsRunningPrecompiledCode() returns Dart_IsPrecompiledRuntime():
+  confirmed verbatim);
    /tmp/agent/flutter-audit-20260612/engine/src/flutter/shell/platform/darwin/ios/framework/Source/FlutterDartProject.
   mm (line 103 guards App.
   framework executablePath on IsRunningPrecompiledCode() true;
    line 150 loads kernel snapshot only when !
   IsRunningPrecompiledCode(),
-   i.e. debug, confirmed verbatim);
+   i.e. debug,
+  confirmed verbatim);
    /tmp/agent/flutter-audit-20260612/engine/src/flutter/sky/packages/sky_engine/lib/`_embedder.yaml` (line 10:
    dart:
   ffi mapped to third_party/dart/sdk/lib/ffi/ffi.
-  dart: confirmed);
+  dart:
+  confirmed);
    /tmp/agent/flutter-audit-20260612/packages/flutter_tools/templates/plugin_ffi/ (ios.
   tmpl/projectName.
   podspec.
@@ -413,10 +417,12 @@ xcframework;
   source_files='Classes/**/*' with comment confirming native sources linked into app builds;
    `README.md`.
   tmpl:
-   ffigen binding generation + helper-isolate guidance for long-running calls: confirmed);
+   ffigen binding generation + helper-isolate guidance for long-running calls:
+  confirmed);
    <https://docs.flutter.dev/platform-integration/ios/c-interop> (static link resolves via DynamicLibrary.
   executable()/process() with no dlopen;
    dynamic libs via DynamicLibrary.
   process()/open() distributed as .
-  framework: confirmed via two independent fetches incl.
+  framework:
+  confirmed via two independent fetches incl.
    a neutral non-leading prompt)

@@ -91,7 +91,8 @@ printerdemo,
  usecases,
  slint-viewer).
  FINDING:
- CI is **compile-only**, no emulator / no
+ CI is **compile-only**,
+no emulator / no
 on-device instrumented run.
  That makes a real-device run (this vet) the decisive evidence.
 CHANGELOG shows sustained Android fixes across many releases (initial aa-05 support → aa-06 →
@@ -124,7 +125,8 @@ IME,
   `.bytes_stream()`.
    Direct precedent:
    Slint's own `energy-monitor` example depends on
-  `reqwest 0.12` (rustls-tls) + `tokio "full"` **with `backend-android-activity-06`**, i.e.
+  `reqwest 0.12` (rustls-tls) + `tokio "full"` **with `backend-android-activity-06`**,
+  i.e.
   reqwest+tokio already compile and run under Slint on Android in-tree.
    Fit:
    strong.
@@ -170,7 +172,8 @@ IME,
    Android backend
   touched 2026-06-06.
    crates.
-  io 1.16.1 (2026-04-23) lags master 1.17, hence the repo's git-rev
+  io 1.16.1 (2026-04-23) lags master 1.17,
+  hence the repo's git-rev
   pin.
    Health:
    excellent.
@@ -208,7 +211,8 @@ IME,
   2026 issues (e.g. #74 "doesn't support Android Platform 36.1",
    #84 UID error) sit without
   maintainer comments.
-   `cargo install cargo-apk` installs the 2023 binary, which still builds
+   `cargo install cargo-apk` installs the 2023 binary,
+  which still builds
   (Slint CI and this vet both use it) but is frozen.
 - xbuild (the documented alternative):
    665★ but pushed 2025-08;
@@ -270,7 +274,8 @@ bookworm + JDK 17 + clang + Android SDK platform-33/build-tools-33.0.2 + NDK
  Container run:
 `podman run --rm --memory=8g --cpus=4 -v counter-app:/work -v cargo-registry:/usr/local/cargo/registry -w /work localhost/slint-android-builder cargo apk build --target aarch64-linux-android --lib`.
 
-BUILD: three iterations,
+BUILD:
+three iterations,
  each a finding:
 
 1. `slint = { version = "1.16", default-features = false, features = ["compat-1-2",
@@ -299,7 +304,8 @@ BUILD: three iterations,
     Rebuild produced a clean,
     16 KB-aligned APK.
 
-RUN: on the shared Pixel 6 (oriole),
+RUN:
+on the shared Pixel 6 (oriole),
  all adb steps under `flock /tmp/agent/adb-phone.lock`.
 Device:
  `Pixel 6`,
@@ -368,7 +374,8 @@ flight and the user would be the first reporter.
 VERDICT ON THE RUN:
  the BUILD works (Rust → 16 KB-aligned APK via cargo-apk).
  The RUN **fails hard
-on the user's Pixel 6** (GrapheneOS): a reproducible startup crash with no UI.
+on the user's Pixel 6** (GrapheneOS):
+a reproducible startup crash with no UI.
  Per the brief's
 rule ("if the Android build/run is impractical,
  that is a DISQUALIFYING finding for the Android
@@ -390,7 +397,8 @@ not verified.
 weakens that app's hardening);
  (b) an upstream Slint change to load the helper from a classes.
 dex
-on the app classpath (needs the Gradle path AND a Slint patch), not available today.
+on the app classpath (needs the Gradle path AND a Slint patch),
+not available today.
 
 ## 6. Alternatives compared
 
@@ -452,7 +460,8 @@ Two rankings,
   of the box,
    which cargo-apk lacks.
 - Cons:
-   UI runs in Android System WebView, a second runtime whose behavior varies by device
+   UI runs in Android System WebView,
+  a second runtime whose behavior varies by device
   WebView version;
    adds a JS bundler island (Vite/npm/node_modules) on top of cargo,
    i.e. a
@@ -481,7 +490,8 @@ Two rankings,
    very
   actively maintained by JetBrains.
 - Cons:
-   a Kotlin/JVM + Gradle island, exactly the foreign build system the repo wants to avoid.
+   a Kotlin/JVM + Gradle island,
+  exactly the foreign build system the repo wants to avoid.
   The app's hard part is Rust-shaped (local server,
    streaming,
    exec),
@@ -500,7 +510,8 @@ Two rankings,
   accessibility,
    or rich system integration,
    Compose's native Android UI maturity would outrank
-  both, and its Gradle project makes the foreground-service + binary-bundling story the most
+  both,
+  and its Gradle project makes the foreground-service + binary-bundling story the most
   turnkey of the three.
    For a Rust-core background utility,
    that advantage does not dominate.
@@ -518,9 +529,11 @@ button + label) in a bounded podman container (cargo-apk 0.10.0,
  (1) released slint
 1.16.1 won't compile its own `android.rs:157` under `default-features=false` (missing no_std
 `Box`;
- fixed on master), enable `std`;
+ fixed on master),
+enable `std`;
  (2) cargo-apk + NDK r26 emit 4 KB-aligned LOAD segments
-Android 16 flags as not 16 KB-compatible, fixed with
+Android 16 flags as not 16 KB-compatible,
+fixed with
 `RUSTFLAGS=-Clink-arg=-Wl,-z,max-page-size=16384` (readelf confirmed `0x4000`);
  (3) signed 16 KB
 APK produced.
@@ -554,7 +567,8 @@ responsiveness.
  `javahelper.rs`:
 251-307),
  with no app-classpath
-fallback, which GrapheneOS's default exploit protection blocks.
+fallback,
+which GrapheneOS's default exploit protection blocks.
  This is the disqualifying run
 failure for the target device;
  it is unreported upstream (no fix in flight).
@@ -570,7 +584,8 @@ Rust ecosystem fit:
 reqwest+tokio already ship under Slint-on-Android in the energy-monitor example.
  Background needs
 a foreground service,
- which cargo-apk's single-Activity model cannot declare, use Gradle +
+ which cargo-apk's single-Activity model cannot declare,
+use Gradle +
 cargo-ndk.
  Binary exec:
  API 29+ allows exec only from `nativeLibraryDir`;

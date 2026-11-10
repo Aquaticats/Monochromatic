@@ -384,9 +384,11 @@ xcodeproj.
 - Corrections:
    Wall-1 SOURCE MIS-ATTRIBUTION (substance correct,
    URL wrong):
-   The load-bearing static-only quote: "everything is compiled statically and placed into the application bundle.
+   The load-bearing static-only quote:
+  "everything is compiled statically and placed into the application bundle.
    The applications are sandboxed inside their bundles and cannot make use
-    of shared object files" plus the statically-linked-plugins + QTPLUGIN claim, is cited
+    of shared object files" plus the statically-linked-plugins + QTPLUGIN claim,
+  is cited
     to <https://doc.qt.io/qt-6/ios-platform-notes.html>.
    That page does NOT contain this language (I fetched it twice;
    it has no occurrence of "static",
@@ -438,25 +440,31 @@ xcodeproj.
 - Sources checked:
    /tmp/agent/qt-audit-20260612/src/corelib/global/qsystemdetection.
   h (lines 50-79:
-   Q_OS_IOS defined via TARGET_OS_IPHONE block lines 60-71: VERIFIED accurate);
+   Q_OS_IOS defined via TARGET_OS_IPHONE block lines 60-71:
+  VERIFIED accurate);
    /tmp/agent/qt-audit-20260612/mkspecs/macx-ios-clang/qmake.
   conf (includes uikit/clang.
   conf + uikit/qmake.
-  conf: VERIFIED;
+  conf:
+  VERIFIED;
    word 'static' not literally in this file);
    /tmp/agent/qt-audit-20260612/src/plugins/platforms/ios/qiosintegration.
   mm (ObjC++ mixing C++ includes with #import <AudioToolbox/AudioServices.
-  h>: interop VERIFIED);
+  h>:
+  interop VERIFIED);
    /tmp/agent/qt-audit-20260612/src/plugins/platforms/ios/qiosclipboard.
   mm (exists,
-   ObjC++: VERIFIED present);
-   grep of qtbase clone for 'JIT is disabled'/'very slow'/'QV4_FORCE_INTERPRETER': ABSENT (expected:
+   ObjC++:
+  VERIFIED present);
+   grep of qtbase clone for 'JIT is disabled'/'very slow'/'QV4_FORCE_INTERPRETER':
+  ABSENT (expected:
    V4 engine lives in qtdeclarative,
    not in this qtbase-only clone);
    <https://wiki.qt.io/V4> (interpreter+JIT backends,
    iOS App Store forbids JIT,
    QV4_FORCE_INTERPRETER,
-   'Having JIT enabled is important to get fluid animations': ALL VERIFIED verbatim;
+   'Having JIT enabled is important to get fluid animations':
+  ALL VERIFIED verbatim;
    QV4_* vars documented:
    QV4_SHOW_IR,
    QV4_SHOW_ASM,
@@ -464,14 +472,18 @@ xcodeproj.
    page has NO mention of W^X/execmem/'very slow'/'JIT is disabled for QML' string);
    <https://doc.qt.io/qt-6/qtqml-qtquick-compiler-tech.html> ('Byte code for all functions and bindings',
    'C++ code for functions and bindings the compiler fully understands',
-   interpret-or-JIT fallback sentence: ALL VERIFIED verbatim;
+   interpret-or-JIT fallback sentence:
+  ALL VERIFIED verbatim;
    no iOS/per-platform JIT mention);
-   <https://doc.qt.io/qt-6/ios-platform-notes.html> (CITED for wall-1 static-only quote: DOES NOT CONTAIN it;
+   <https://doc.qt.io/qt-6/ios-platform-notes.html> (CITED for wall-1 static-only quote:
+  DOES NOT CONTAIN it;
    no 'static'/'shared object'/'sandbox');
    <https://doc.qt.io/qt-6.8/porting-to-ios.html> (ACTUAL source
-    of wall-1 static-only + statically-linked-plugins + QTPLUGIN quotes: VERIFIED verbatim);
+    of wall-1 static-only + statically-linked-plugins + QTPLUGIN quotes:
+  VERIFIED verbatim);
    WebSearch:
    runtime warning 'JIT is disabled for QML.
    Property bindings and animations will be very slow.
   ' confirmed real Qt-on-iOS warning across Qt forums/mailing-lists;
-   QML apps demonstrably ship+run on iOS (slow but viable): corroborates wall-2 viability conclusion
+   QML apps demonstrably ship+run on iOS (slow but viable):
+  corroborates wall-2 viability conclusion

@@ -135,8 +135,7 @@ a refiner or a translator,
 so that a writing bench could still reach its floor from it.
 The run-wide stop,
 the router's all-dry hold wait and the seat reader's written refusal all read that one predicate.
-**The predicate is open to the owner's veto**
-(the lead's ruling of 2026-10-22 on the review's M3,
+**The predicate is open to the owner's veto** (the lead's ruling of 2026-10-22 on the review's M3,
 made after the review found the first form of D4 hid a fleet that could write nothing).
 It is derived from the roster,
 not listed:
@@ -326,7 +325,7 @@ each bounded by what can cut it.
   and the bench error only when no refusal is among the failures;
   the map only hands the failure over,
   and the gate decides whether the pass parks.
-  **The park on the bench error is the lead's ruling of fix round 5 and open to the owner's veto.**
+  The park on the bench error is the lead's ruling of fix round 5 and open to the owner's veto.
 
 The park works at the seam between entries,
 because the wait must sit outside any exchange:

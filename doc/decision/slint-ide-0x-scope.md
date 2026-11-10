@@ -477,6 +477,7 @@ and unit tests alone do not establish completion.
 [handover]: ../handover/slint-ide-0x.md
 [scope]: ../planning/slint-ide-0x.md
 [implementation]: ../planning/slint-ide-implementation.md
+
 ### Interface decisions (UI batch 3b)
 
 Asked on 2026-10-06 with the page `package/ide/app/design/questions/2026-10-06-ui-batch-3b.html`

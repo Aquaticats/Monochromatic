@@ -37,7 +37,7 @@ The hand-written parser exists for reasons no surveyed library satisfies:
   `//` or `//region` lines merge into a single `mixed` comment.
 - A hybrid fast-path that runs native `JSON.parse` over clean (comment-free) regions and
   only custom-parses where JSONC features appear.
-  **Superseded:**
+  **Superseded**:
   the fast-path was removed on 2026-09-24;
   see the amendment section below.
 - Zero runtime dependencies and house-style ownership of a stable syntax module (no regex
