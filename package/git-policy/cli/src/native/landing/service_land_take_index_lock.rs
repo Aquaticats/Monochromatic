@@ -1,6 +1,7 @@
 //! What:
 //!  Takes the index lock for a batch that is ready to land,
 //! notes the wait in the timing and the log,
+//! starts making the markers of the two batches after it,
 //! and cleans up when the lock is refused.
 //! Why:
 //!  It is a self-contained step of a landing,
@@ -66,10 +67,11 @@ pub(crate) fn take_index_lock(
     }
     match taken {
         Ok(lock) => {
-            // The marker of the batch after this one begins flushing now, while this landing holds the lock and does its own work,
-            //  so the next commit finds the file on the disk. Started only after this landing ended, the flush was the next
-            //  commit's wait (`lock_stage_ms` with `lock_stage_kind=pre` in the service's answers).
+            // The markers of the two batches after this one begin flushing now, while this landing holds the lock and does its own
+            //  work, so the next commit finds its file on the disk and the one after it finds the spare. Started only after this
+            //  landing ended, the flush was the next commit's wait (`lock_stage_ms` with `lock_stage_kind=pre` in the answers).
             crate::service_index_prestage::start(first.index.as_path(), seq + 1);
+            crate::service_index_prestage::start(first.index.as_path(), seq + 2);
             return Ok(lock);
         }
         Err(failure) => {

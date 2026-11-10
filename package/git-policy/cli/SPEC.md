@@ -10220,21 +10220,22 @@ not by the age of the lock file:
 
 #### Removing the lock and what is made durable
 
-The marker of the next batch is made ahead.
-A batch that takes the index lock for batch `n` starts the marker of batch `n + 1`,
-which is numbered one more and lands on the same index:
-it creates the file,
+The markers of the next batches are made ahead.
+A batch that takes the index lock for batch `n` starts the markers of batches `n + 1` and `n + 2`,
+which land on the same index:
+it creates each file,
 writes the marker and flushes it to storage,
 on a thread of its own while that landing moves the branch and builds the index.
 Started there rather than after the landing ended,
-the flush overlaps the landing's own work instead of being the next commit's wait.
-The next commit then only places that file (a rename that does not replace),
+a flush overlaps a landing's own work instead of being the next commit's wait,
+and the second marker is the spare that leaves one finished while another is being made.
+The next commit then only places the file for its own batch (a rename that does not replace),
 so the flush is not on its path.
-The file is the service's one:
-it is kept for the service thread,
+Two files at most are the service's:
+they are kept for the service thread,
 named with this process and the batch number,
-and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
-It is removed when the service ends,
+and a marker is replaced or removed (waiting for a flush that is still running) when its batch is passed or the index is not the one it was made for.
+They are removed when the service ends,
 whichever way its loop ends,
 and what a killed service leaves is removed by the next acquisition,
 by these rules:

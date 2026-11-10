@@ -1,7 +1,8 @@
 //! Controls for taking the index lock of a landing:
 //! the lock names the batch that took it,
-//! and the marker of the batch after that one begins flushing while this landing holds the lock,
-//! so the next commit finds it on the disk instead of waiting for a flush this landing started after it ended.
+//! and the markers of the two batches after it begin flushing while this landing holds the lock,
+//! so the next commit finds its own on the disk and the one after it finds the spare,
+//! instead of waiting for a flush the previous landing started after it ended.
 
 use super::*;
 use crate::service_index_lock::{lock_path_of, marker_text};
@@ -60,24 +61,24 @@ fn context_of(git_dir: &Path) -> GitContext {
     return GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.to_path_buf()) };
 }
 
-/// The marker made ahead is written by a job of the blocking pool,
-/// so the file appears a moment after the landing asks for it:
-/// waits for that file while the landing still holds the lock.
-fn until_the_next_batchs_marker_is_being_made(index: &Path) -> Vec<String> {
+/// The markers made ahead are written by jobs of the blocking pool,
+/// so the files appear a moment after the landing asks for them:
+/// waits for both while the landing still holds the lock.
+fn until_the_next_batchs_markers_are_being_made(index: &Path) -> Vec<String> {
     let began: Instant = Instant::now();
     loop {
         let staged: Vec<String> = leftovers(index);
-        if !staged.is_empty() {
+        if staged.len() >= 2 {
             return staged;
         }
-        assert!(began.elapsed() < Duration::from_secs(60), "no marker of the batch after this one was started while the landing held the lock");
+        assert!(began.elapsed() < Duration::from_secs(60), "the markers of the two batches after this one were not started while the landing held the lock: {staged:?}");
         std::thread::sleep(Duration::from_millis(5));
     }
 }
 
-/// The marker of the batch after the one that took the lock begins flushing while this landing holds the lock:
-/// its file is there before the landing ends,
-/// and its text is that batch's.
+/// The markers of the two batches after the one that took the lock begin flushing while this landing holds the lock:
+/// their files are there before the landing ends,
+/// and their texts are those batches'.
 #[test]
 fn the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
@@ -96,9 +97,13 @@ fn the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock() {
         let held: IndexLock = take_index_lock(&context_of(git_dir.as_path()), journal.as_path(), Duration::from_secs(30), &first, 7, &|_| {}, &mut timing, "new", "scratch-ref").expect("the lock is taken");
         // The lock is the batch's own marker, and the next batch's marker is being made beside it while this one is held.
         assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock's text"), marker_text(7, &own_identity).expect("text"));
-        let staged: Vec<String> = until_the_next_batchs_marker_is_being_made(index.as_path());
-        assert_eq!(staged.len(), 1, "one file at most is made ahead: {staged:?}");
-        assert_eq!(std::fs::read_to_string(git_dir.join(&staged[0])).expect("the staged marker's text"), marker_text(8, &own_identity).expect("text"));
+        let staged: Vec<String> = until_the_next_batchs_markers_are_being_made(index.as_path());
+        assert_eq!(staged.len(), 2, "the next batch's marker and the spare after it are being made: {staged:?}");
+        let mut texts: Vec<String> = staged.iter().map(|name| { return std::fs::read_to_string(git_dir.join(name)).expect("the staged marker's text"); }).collect();
+        texts.sort();
+        let mut expected: Vec<String> = vec![marker_text(8, &own_identity).expect("text"), marker_text(9, &own_identity).expect("text")];
+        expected.sort();
+        assert_eq!(texts, expected);
         drop(held);
         service_index_prestage::discard();
         remove(root.as_path());

@@ -1,23 +1,24 @@
 //! What:
-//!  The marker of the next batch's index lock,
+//!  The markers of the next batches' index locks,
 //! created,
-//! written and flushed to storage while the service lands the batch before it,
-//! so that a commit's lock path only places it.
+//! written and flushed to storage while the service lands the batch before them,
+//! so that a commit's lock path only places one.
 //! Why:
 //!  The marker must be on storage before it can become `index.lock`,
 //! so that a power loss never leaves a lock with an
 //!  empty or partial marker.
 //! That flush is a few milliseconds on an idle disk and seconds on a loaded one,
 //! and it sat on every commit's path.
-//! The batch number of the next landing is known when a landing takes its lock (one more),
+//! The batch numbers of the next landings are known when a landing takes its lock (one more and two more),
 //! and so is the index,
-//! so the file is made there,
+//! so both files are made there,
 //! while that landing moves the branch and builds the index:
-//! the flush overlaps work the landing does anyway instead of waiting for it after the answer.
-//! One file at most exists for the service,
-//! it is kept in this thread's slot and not in a file other processes could take for their own,
-//! it is removed when the service ends or the next batch is not the one it was made for,
-//! and it names this process,
+//! a flush overlaps a landing instead of being the commit before it,
+//! and the second file is the spare that keeps one marker finished while another is being made.
+//! Two files at most exist for the service,
+//! they are kept in this thread's slots and not in a path other processes could take for their own,
+//! they are removed when the service ends or the batch a marker was made for is passed,
+//! and they name this process,
 //! so the next service removes what a crash left (`remove_dead_staging`).
 //! A commit that arrives while the flush is still running waits for it and does not start a second.
 //!
@@ -60,29 +61,34 @@ pub(crate) struct Slot {
 }
 
 /// What:
-///  The file the service has made ahead,
+///  The files the service has made ahead,
 /// named for the shutdown that ends the process from another thread:
-/// the pathname and the identity of the file written there.
+/// each pathname and the identity of the file written there.
 /// Why:
-///   The slot that holds the made-ahead marker belongs to the landing thread,
+///   The slots that hold the made-ahead markers belong to the landing thread,
 /// and a service stopped by a signal ends the process from its shutdown task,
 /// where no destructor of the landing thread runs.
-/// The identity keeps the removal from taking a pathname that now names another file,
-///  and the entry is cleared whenever the landing thread takes,
+/// The identity keeps a removal from taking a pathname that now names another file,
+///  and an entry is cleared whenever the landing thread takes,
 /// places or removes the file.
 /// Lock kept:
-///  the landing thread writes this record and the shutdown task takes it,
+///  the landing thread writes this list and the shutdown task takes it,
 /// so two threads reach it,
 /// and a pathname with an identity is not one word an atomic could hold.
-/// Under it only the value is replaced or taken:
+/// Under it only the list is changed:
 /// no Git process,
 /// no file and no other lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// let madeAhead: { path: string; dev: number; ino: number } | undefined;
+/// let madeAhead: { path: string; dev: number; ino: number }[] = [];
 /// ```
-static MADE_AHEAD: std::sync::Mutex<Option<MadeAhead>> = std::sync::Mutex::new(None);
+static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec::new());
+
+/// How many markers the service keeps made ahead:
+/// the one the next batch takes and the one after that,
+/// so every flush has a whole landing to finish in.
+const MARKERS_MADE_AHEAD: usize = 2;
 
 /// One file made ahead and where it was written.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,48 +107,54 @@ struct MadeAhead {
 fn publish(made: &Prestaged) {
     let Ok(held) = made.held.metadata() else { return };
     let Ok(mut kept) = MADE_AHEAD.lock() else { return };
-    *kept = Some(MadeAhead { path: made.staged.clone(), device: held.dev(), inode: held.ino() });
+    kept.push(MadeAhead { path: made.staged.clone(), device: held.dev(), inode: held.ino() });
 }
 
-/// Forgets the file the service made ahead,
+/// Forgets the file the service made ahead at `path`,
 /// because the landing thread took,
 /// placed or removed it.
-fn forget_made_ahead() {
-    if let Ok(mut kept) = MADE_AHEAD.lock() {
-        *kept = None;
+fn forget_made_ahead(path: &Path) {
+    let Ok(mut kept) = MADE_AHEAD.lock() else { return };
+    let mut remaining: Vec<MadeAhead> = Vec::new();
+    for made in std::mem::take(&mut *kept) {
+        if made.path != path {
+            remaining.push(made);
+        }
     }
+    *kept = remaining;
 }
 
-/// Takes the record of the file made ahead,
-/// so that the file calls of its removal run with nothing held.
-fn take_made_ahead() -> Option<MadeAhead> {
-    let Ok(mut kept) = MADE_AHEAD.lock() else { return None };
-    return kept.take();
+/// Takes the records of the files made ahead,
+/// so that the file calls of their removal run with nothing held.
+fn take_made_aheads() -> Vec<MadeAhead> {
+    let Ok(mut kept) = MADE_AHEAD.lock() else { return Vec::new() };
+    return std::mem::take(&mut kept);
 }
 
 /// What:
-///  Removes the file the service made ahead,
-/// when it is still the file the service wrote,
-/// and forgets it either way.
+///  Removes the files the service made ahead,
+/// when each is still the file the service wrote,
+/// and forgets them either way.
 /// Why:
 ///   The service ends by the signal the manager sent,
-/// and `SPEC.md` "Removing the lock and what is made durable" says the marker "is removed when the service ends,
+/// and `SPEC.md` "Removing the lock and what is made durable" says the markers "are removed when the service ends,
 ///  whichever way its loop ends";
 /// the shutdown task runs no landing-thread destructor,
-///  so it removes the file itself.
+///  so it removes the files itself.
 /// A pathname whose file was placed as the lock,
 ///  or replaced,
 /// is not the service's to remove here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = madeAhead; madeAhead = undefined; if (made && lstat(made.path).ino === made.ino && lstat(made.path).dev === made.dev) rm(made.path);
+/// for (const made of madeAhead) if (lstat(made.path).ino === made.ino && lstat(made.path).dev === made.dev) rm(made.path);
 /// ```
 pub fn remove_the_file_made_ahead() {
-    let Some(made) = take_made_ahead() else { return };
-    let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else { return };
-    if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode {
-        let _removed = std::fs::remove_file(made.path.as_path());
+    for made in take_made_aheads() {
+        let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else { continue };
+        if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode {
+            let _removed = std::fs::remove_file(made.path.as_path());
+        }
     }
 }
 
@@ -151,26 +163,26 @@ pub fn remove_the_file_made_ahead() {
 #[cfg(test)]
 pub static COMMIT_WAITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Takes the pre-staged marker out of the state it is kept in.
-fn take_the_slot(state: &LandingState, (): ()) -> Option<Slot> {
-    return state.prestaged_marker.take();
+/// Takes the pre-staged markers out of the state they are kept in.
+fn take_the_slots(state: &LandingState, (): ()) -> Vec<Slot> {
+    return state.prestaged_markers.take();
 }
 
-/// Keeps `slot` as the landing's pre-staged marker.
-fn keep_the_slot(state: &LandingState, slot: Option<Slot>) {
-    *state.prestaged_marker.borrow_mut() = slot;
+/// Keeps `slots` as the landing's pre-staged markers.
+fn keep_the_slots(state: &LandingState, slots: Vec<Slot>) {
+    *state.prestaged_markers.borrow_mut() = slots;
 }
 
-/// Takes the service's one pre-staged marker out of the landing's state:
-/// the state `prestaged_marker` of `landing_state_carried_by_its_task.rs` is per landing,
+/// Takes the service's pre-staged markers out of the landing's state:
+/// the state `prestaged_markers` of `landing_state_carried_by_its_task.rs` is per landing,
 /// because only the landing takes locks and lands batches.
-fn take_slot() -> Option<Slot> {
-    return on_the_landing_state((), take_the_slot);
+fn take_slots() -> Vec<Slot> {
+    return on_the_landing_state((), take_the_slots);
 }
 
-/// Puts the pre-staged marker back into the landing's state.
-fn put_slot(slot: Option<Slot>) {
-    on_the_landing_state(slot, keep_the_slot);
+/// Puts the pre-staged markers back into the landing's state.
+fn put_slots(slots: Vec<Slot>) {
+    on_the_landing_state(slots, keep_the_slots);
 }
 
 /// The error for an identity that could not be read.
@@ -198,14 +210,34 @@ pub fn start(index: &Path, seq: u64) {
 /// which a control makes slow.
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    // Look at the slot without changing it: take it out, compare, and put it back.
-    let looked_at: Option<Slot> = take_slot();
-    let same: bool = matches!(&looked_at, Some(slot) if slot.lock == lock && slot.seq == seq);
-    put_slot(looked_at);
+    // The markers that can still be used here: every one for this index, and the one this call asks for among them.
+    let mut kept: Vec<Slot> = Vec::new();
+    let mut same: bool = false;
+    for slot in take_slots() {
+        if slot.lock == lock {
+            same = same || slot.seq == seq;
+            kept.push(slot);
+        } else {
+            // A marker for another index is never used here: its file goes.
+            remove_unused(slot);
+        }
+    }
     if same {
+        put_slots(kept);
         return;
     }
-    discard();
+    // One marker for each batch and at most `MARKERS_MADE_AHEAD` in all: the oldest goes before another is made.
+    while kept.len() >= MARKERS_MADE_AHEAD {
+        let mut oldest: usize = 0;
+        let mut oldest_seq: u64 = u64::MAX;
+        for (at, slot) in kept.iter().enumerate() {
+            if slot.seq < oldest_seq {
+                oldest_seq = slot.seq;
+                oldest = at;
+            }
+        }
+        remove_unused(kept.remove(oldest));
+    }
     let work_lock: PathBuf = lock.clone();
     // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
@@ -216,7 +248,7 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
         let made: Prestaged = Prestaged { staged, held, marker };
         publish(&made);
         if let Err(error) = sync(&made.held) {
-            forget_made_ahead();
+            forget_made_ahead(made.staged.as_path());
             drop(made.held);
             let _removed = std::fs::remove_file(made.staged.as_path());
             return Err(error);
@@ -225,8 +257,9 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
     if let Some(work) = spawned {
-        put_slot(Some(Slot { lock, seq, work }));
+        kept.push(Slot { lock, seq, work });
     }
+    put_slots(kept);
 }
 
 /// What:
@@ -255,7 +288,7 @@ fn still_there(made: &Prestaged) -> bool {
 /// and leaves any other file at the pathname alone:
 /// the descriptor is dropped either way.
 fn remove_if_ours(made: Prestaged) {
-    forget_made_ahead();
+    forget_made_ahead(made.staged.as_path());
     if still_there(&made) {
         let _removed = std::fs::remove_file(&made.staged);
     }
@@ -286,7 +319,9 @@ fn remove_unused(slot: Slot) {
 ///  The marker made for batch `seq` of the index `index`,
 /// or nothing when none was made for exactly that.
 /// Why:
-///   A marker made for another batch or index is removed and the commit stages its own.
+///   A marker for another batch or index is removed and the commit stages its own.
+/// A marker of a later batch is kept:
+/// it is the spare the next landing takes.
 /// A marker still being flushed is waited for.
 /// A file that is no longer the file that was flushed (the Git directory was replaced,
 /// or the pathname now names another file)
@@ -300,32 +335,47 @@ fn remove_unused(slot: Slot) {
 /// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
 pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
-    let slot: Slot = take_slot()?;
+    let lock: PathBuf = lock_path_of(index);
+    let slots: Vec<Slot> = take_slots();
     #[cfg(test)]
     COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
-    if slot.lock != lock_path_of(index) || slot.seq != seq {
-        remove_unused(slot);
-        return None;
+    let mut kept: Vec<Slot> = Vec::new();
+    let mut mine: Option<Slot> = None;
+    for slot in slots {
+        if slot.lock == lock && slot.seq >= seq {
+            if slot.seq == seq && mine.is_none() {
+                mine = Some(slot);
+            } else {
+                kept.push(slot);
+            }
+        } else {
+            // A marker for another index, or for a batch this one has passed, is never used: its file goes.
+            remove_unused(slot);
+        }
     }
+    put_slots(kept);
+    let slot: Slot = mine?;
     let made: Prestaged = made_marker(slot.work)?;
-    forget_made_ahead();
+    forget_made_ahead(made.staged.as_path());
     if !still_there(&made) {
         return None;
     }
     return Some(made);
 }
 
-/// Whether the marker made ahead is finished,
+/// Whether any marker made ahead is finished,
 /// so that taking it waits for nothing.
 #[cfg(test)]
 pub fn is_made() -> bool {
-    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| { return state.prestaged_marker.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
+        return state.prestaged_markers.borrow().iter().any(|held| { return held.work.is_finished(); });
+    });
 }
 
-/// Removes the marker made ahead,
-/// waiting for it first if it is still being made.
+/// Removes every marker made ahead,
+/// waiting for a flush that is still running.
 pub fn discard() {
-    if let Some(slot) = take_slot() {
+    for slot in take_slots() {
         remove_unused(slot);
     }
 }
