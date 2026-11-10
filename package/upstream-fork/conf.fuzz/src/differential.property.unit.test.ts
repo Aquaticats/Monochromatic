@@ -21,17 +21,19 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   assert,
-  property,
+  asyncProperty,
 } from 'fast-check';
 
 import { fuzzRuns, } from './fuzz-budget.ts';
+import type {
+  OperationOutcome,
+  StoreObservation,
+} from './store-observe.ts';
 import {
   type StoreOperationSequence,
   sequenceArb,
 } from './store-operations.ts';
 import {
-  type OperationOutcome,
-  type StoreObservation,
   runOnFork,
   runOnUpstream,
 } from './store-adapters.ts';
@@ -123,12 +125,12 @@ await describe({
     it({
       name: 'store operation sequences produce identical observations in the vendored upstream snapshot and the fork',
       fn: async () => {
-        assert(
-          property(sequenceArb, (sequence: StoreOperationSequence,) => {
+        await assert(
+          asyncProperty(sequenceArb, async (sequence: StoreOperationSequence,) => {
             expect(
-              comparable(runOnFork(sequence,)),
+              comparable(await runOnFork(sequence,),),
             ).toEqual(
-              comparable(runOnUpstream(sequence,)),
+              comparable(await runOnUpstream(sequence,),),
             );
           },),
           {

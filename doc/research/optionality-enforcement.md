@@ -529,3 +529,45 @@ Explicitly not recommended:
  introducing an `Option`/`Maybe`/`Result` type.
  It contradicts `AGENTS.md:412`
 and would itself become the next escape hatch.
+
+## Accepted suppressions
+
+### The JSON value grammar in the conf-fork fuzz sidecar (2026-11-10)
+
+`package/upstream-fork/conf.fuzz/src/store-operations.ts` types the payloads its
+generators hand both store implementations as `JsonValue`,
+whose members include `null` (`store-operations.ts`,
+the `JsonValue` alias).
+A stored `null` is a value both implementations must round-trip,
+not an absent key,
+so a `unique symbol` sentinel would carry it wrongly,
+and an optional member would erase the difference between
+"stored `null`" and "never set".
+Both divergences would weaken the differential oracle this sidecar exists for.
+
+No configuration can exempt the member:
+
+- `package/config/oxlint/src/rule/restriction.ts:98` configures
+  `no-restricted-syntax/no-nullish-union` as a bare `'error'`,
+  with no options object.
+- `package/oxlint-plugin/no-restricted-syntax/src/rule/no-nullish-union.ts`
+  builds the rule through `simpleBanRule` with no schema,
+  so no setting can name an exempt type,
+  file,
+  or member.
+- The rule's own diagnostic names the escape this case takes:
+  branch (5),
+  a scoped disable for a genuine external-API mirror,
+  here the JSON grammar itself.
+
+The suppression is one `/* oxlint-disable */` block around the alias declaration,
+carrying the reason and this path,
+paired with an `oxlint-enable` on the line after the declaration,
+so it covers nothing else in the file.
+
+If the `no-disable-no-nullish-union` companion recommended above is ever added,
+it bans every disable spelling regardless of reason,
+so this suppression stops loading and the case must be reargued then:
+the alternatives are a branded `JsonNull` wrapper around a real `null` value,
+or dropping `null` from the generated vocabulary at the cost of the
+null round-trip the oracle currently compares.

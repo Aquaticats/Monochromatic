@@ -22,7 +22,7 @@ import {
   type Arbitrary,
   array,
   assert,
-  property,
+  asyncProperty,
   constantFrom,
   tuple,
 } from 'fast-check';
@@ -34,6 +34,10 @@ import {
 
 import { fuzzRuns, } from './fuzz-budget.ts';
 import {
+  createTempStoreDir,
+  jsonClone,
+} from './store-fixture.ts';
+import {
   type JsonRecord,
   type JsonValue,
   type StoreOperationSequence,
@@ -42,11 +46,7 @@ import {
   keyArb,
   sequenceArb,
 } from './store-operations.ts';
-import {
-  createTempStoreDir,
-  jsonClone,
-  runOnFork,
-} from './store-adapters.ts';
+import { runOnFork, } from './store-adapters.ts';
 
 //region Helpers
 
@@ -188,7 +188,7 @@ const roundTripRecordArb: Arbitrary<JsonRecord> = array(
  
  @example
  ```ts
- using dir = createTempStoreDir();
+ await using dir = await createTempStoreDir();
  const config = createForkStore(dir.path);
  ```
  */
@@ -207,12 +207,14 @@ await describe({
     it({
       name: 'store replacement round-trips through the config file',
       fn: async () => {
-        assert(
-          property(roundTripRecordArb, (value: JsonRecord,) => {
-            using dir = createTempStoreDir();
+        await assert(
+          asyncProperty(roundTripRecordArb, async (value: JsonRecord,) => {
+            /**
+             Disposable directory holding this store's config file.
+             */
+            await using dir = await createTempStoreDir();
             const config = createForkStore(dir.path,);
             config.store = value;
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the config file holds the JSON-object store written above
             const fileJson = JSON.parse(readFileSync(
               config.path,
               'utf8',
@@ -230,9 +232,9 @@ await describe({
     it({
       name: 'rereading the config file yields the user-visible store',
       fn: async () => {
-        assert(
-          property(sequenceArb, (sequence: StoreOperationSequence,) => {
-            const observation = runOnFork(sequence,);
+        await assert(
+          asyncProperty(sequenceArb, async (sequence: StoreOperationSequence,) => {
+            const observation = await runOnFork(sequence,);
             expect(withoutReservedKeys(observation.fileContents as JsonRecord,),).toEqual(observation.finalStore,);
           },),
           {
@@ -245,9 +247,9 @@ await describe({
     it({
       name: 'size equals the store key count after any operation sequence',
       fn: async () => {
-        assert(
-          property(sequenceArb, (sequence: StoreOperationSequence,) => {
-            const observation = runOnFork(sequence,);
+        await assert(
+          asyncProperty(sequenceArb, async (sequence: StoreOperationSequence,) => {
+            const observation = await runOnFork(sequence,);
             expect(observation.size,).toBe(Object.keys(observation.finalStore,)
               .length,);
           },),
@@ -261,9 +263,12 @@ await describe({
     it({
       name: 'reserved `__internal__` key never surfaces',
       fn: async () => {
-        assert(
-          property(jsonValueArb, (payload: JsonValue,) => {
-            using dir = createTempStoreDir();
+        await assert(
+          asyncProperty(jsonValueArb, async (payload: JsonValue,) => {
+            /**
+             Disposable directory holding this store's config file.
+             */
+            await using dir = await createTempStoreDir();
             const config = createForkStore(dir.path,);
             expect(captureThrown(function reservedSingleSet(): void {
               config.set({
@@ -352,9 +357,12 @@ await describe({
     it({
       name: 'defaults survive clear and reset',
       fn: async () => {
-        assert(
-          property(jsonValueArb, (fresh: JsonValue,) => {
-            using dir = createTempStoreDir();
+        await assert(
+          asyncProperty(jsonValueArb, async (fresh: JsonValue,) => {
+            /**
+             Disposable directory holding this store's config file.
+             */
+            await using dir = await createTempStoreDir();
             const config = createForkStore(dir.path,);
             /**
              Generated value without reserved key paths:
@@ -403,9 +411,12 @@ await describe({
     it({
       name: 'dot-notation writes read back',
       fn: async () => {
-        assert(
-          property(jsonValueArb, (value: JsonValue,) => {
-            using dir = createTempStoreDir();
+        await assert(
+          asyncProperty(jsonValueArb, async (value: JsonValue,) => {
+            /**
+             Disposable directory holding this store's config file.
+             */
+            await using dir = await createTempStoreDir();
             const config = createForkStore(dir.path,);
             config.set({
               key: 'nested.flag',
@@ -431,8 +442,8 @@ await describe({
     it({
       name: 'appendToArray preserves order',
       fn: async () => {
-        assert(
-          property(
+        await assert(
+          asyncProperty(
             array(
               jsonValueArb,
               {
@@ -440,8 +451,11 @@ await describe({
                 maxLength: 5,
               },
             ),
-            (values: readonly JsonValue[],) => {
-              using dir = createTempStoreDir();
+            async (values: readonly JsonValue[],) => {
+              /**
+               Disposable directory holding this store's config file.
+               */
+              await using dir = await createTempStoreDir();
               const config = createForkStore(dir.path,);
               for (const value of values)
                 config.appendToArray({
@@ -472,9 +486,12 @@ await describe({
     it({
       name: 'set-with-bad-value writes nothing and leaves the store file unchanged',
       fn: async () => {
-        assert(
-          property(keyArb, (key: string,) => {
-            using dir = createTempStoreDir();
+        await assert(
+          asyncProperty(keyArb, async (key: string,) => {
+            /**
+             Disposable directory holding this store's config file.
+             */
+            await using dir = await createTempStoreDir();
             const config = createForkStore(dir.path,);
             config.set({
               key: 'a',
@@ -512,14 +529,14 @@ await describe({
               config.set({
                 key,
                 value: function badValue(): void {
-                  return;
+                  return undefined;
                 },
               },);
             },),).toBeInstanceOf(TypeError,);
             expect(captureThrown(function symbolValue(): void {
               config.set({
                 key,
-                value: Symbol('bad',),
+                value: Symbol('store value of unsupported type',),
               },);
             },),).toBeInstanceOf(TypeError,);
             expect(captureThrown(function undefinedAppendValue(): void {

@@ -32,9 +32,18 @@ import {
 
 //region Values
 
+/* oxlint-disable no-restricted-syntax/no-nullish-union -- mirrors the JSON value grammar, where null is a value and not an absent key */
 /**
  JSON-safe value a store operation may carry:
  exactly the values `JSON` round-trips without loss.
+ 
+ The `null` member mirrors the format rather than encoding absence: a stored
+ `null` is a value both implementations must round-trip, distinct from a key
+ that was never set, so it cannot become optional `?:` or a sentinel.
+ `no-restricted-syntax/no-nullish-union` has no configuration surface and its
+ own diagnostic names a scoped disable for an external-API mirror, which is
+ this case; see `doc/research/optionality-enforcement.md`,
+ "Accepted suppressions".
  */
 export type JsonValue =
   | null
@@ -43,6 +52,7 @@ export type JsonValue =
     | string
     | readonly JsonValue[]
     | JsonRecord;
+/* oxlint-enable no-restricted-syntax/no-nullish-union */
 
 /**
  JSON-safe object with string keys.
