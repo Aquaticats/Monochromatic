@@ -5,13 +5,14 @@
 use super::*;
 use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_changes::{WorktreeState, file_identity, worktree_path, worktree_state};
-use crate::merge_isolation_journal::{intent_path, write_merge_intent};
+use crate::merge_isolation_journal::{intent_path, parse_merge_intent, write_merge_intent};
 use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::{install_entries, standing};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
 /// A repository where `main` and `feature` have diverged and the merge commit exists but is not applied.
@@ -2862,4 +2863,100 @@ fn a_mode_a_repository_ignores_does_not_stop_the_merge() {
     assert!(!record.exists(), "the record only goes once the merge landed");
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the merge's file"), b"f.txt feature\n", "the merge's content is in place");
     remove(world.parent.as_path());
+}
+
+/// What:
+///  The awaited settle decides what the synchronous one decides,
+/// and the synchronous one is refused from inside the runtime.
+/// Why:
+///   A task of the runtime is the caller the awaited face exists for,
+/// so the two faces must agree on the action,
+///  the notices,
+/// the checkout and the record,
+/// and the refusal of the synchronous face is the reason the awaited one is not optional.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = settleFailedMerge(place, record, intent); const after = await runOnRuntime(() => settleFailedMergeAwaiting(place, record, intent)); expect(after).toEqual(before);
+/// ```
+#[test]
+fn the_awaited_settle_answers_what_the_synchronous_one_answers() {
+    // One world per face, built the same way, with Git having written part of the merge.
+    let synchronous: World = world("merge-recovery-two-faces-synchronous");
+    std::fs::write(synchronous.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    std::fs::remove_file(synchronous.repo.join("gone.txt")).expect("the file Git removed");
+    let synchronous_record: PathBuf =
+        record_of(&synchronous, dead_owner("97979797-0000-4000-8000-000000000097"), Some("refs/heads/main"));
+    let synchronous_intent: MergeIntent = parse_merge_intent(
+        std::fs::read(synchronous_record.as_path()).expect("read").as_slice(),
+    )
+    .expect("intent");
+    let mut synchronous_said: Vec<u8> = Vec::new();
+    let synchronous_action: MergeRecoveryAction = settle_failed_merge(
+        &place(&synchronous),
+        synchronous_record.as_path(),
+        &synchronous_intent,
+        &mut synchronous_said,
+    )
+    .expect("settled");
+    let synchronous_head: String = git_text(synchronous.repo.as_path(), &["rev-parse", "main"]);
+    let synchronous_status: String = git_text(synchronous.repo.as_path(), &["status", "--porcelain=v1"]);
+
+    let awaited: World = world("merge-recovery-two-faces-awaited");
+    std::fs::write(awaited.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    std::fs::remove_file(awaited.repo.join("gone.txt")).expect("the file Git removed");
+    let awaited_record: PathBuf = record_of(&awaited, dead_owner("97979797-0000-4000-8000-000000000098"), Some("refs/heads/main"));
+    let awaited_intent: MergeIntent =
+        parse_merge_intent(std::fs::read(awaited_record.as_path()).expect("read").as_slice()).expect("intent");
+    let mut awaited_said: Vec<u8> = Vec::new();
+    let awaited_action: MergeRecoveryAction = crate::lazy_runtime::run_on_runtime(async {
+        return settle_failed_merge_awaiting(&place(&awaited), awaited_record.as_path(), &awaited_intent, &mut awaited_said).await;
+    })
+    .expect("the runtime runs the settle")
+    .expect("settled");
+
+    assert_eq!(awaited_action, synchronous_action, "the two faces decide the same");
+    assert_eq!(awaited_action, MergeRecoveryAction::Completed, "the merge the files show is completed");
+    assert_eq!(
+        String::from_utf8(awaited_said).expect("UTF-8"),
+        String::from_utf8(synchronous_said).expect("UTF-8"),
+        "the two faces say the same"
+    );
+    assert_eq!(
+        git_text(synchronous.repo.as_path(), &["rev-parse", "main"]),
+        synchronous_intent.new_oid,
+        "the synchronous face moves the branch to the merge"
+    );
+    assert_eq!(
+        git_text(awaited.repo.as_path(), &["rev-parse", "main"]),
+        awaited_intent.new_oid,
+        "the awaited face moves the branch to its own merge"
+    );
+    // Each fixture names its own merge, and the two need not be the same commit.
+    let _ = synchronous_head;
+    assert_eq!(git_text(awaited.repo.as_path(), &["status", "--porcelain=v1"]), synchronous_status, "the same checkout");
+    assert!(!awaited_record.exists(), "the record goes once the merge landed");
+    remove(synchronous.parent.as_path());
+    remove(awaited.parent.as_path());
+
+    // The positive control: the synchronous face registers its step's pipes by entering the runtime,
+    //  which a task cannot do, so a task that reached it would settle nothing.
+    let refused_world: World = world("merge-recovery-two-faces-refused");
+    let refused_record: PathBuf =
+        record_of(&refused_world, dead_owner("97979797-0000-4000-8000-000000000099"), Some("refs/heads/main"));
+    let refused_intent: MergeIntent =
+        parse_merge_intent(std::fs::read(refused_record.as_path()).expect("read").as_slice()).expect("intent");
+    let refused: MergeRefusal = crate::lazy_runtime::run_on_runtime(async {
+        let mut said: Vec<u8> = Vec::new();
+        return settle_failed_merge(&place(&refused_world), refused_record.as_path(), &refused_intent, &mut said);
+    })
+    .expect("the runtime runs the call")
+    .expect_err("a task cannot settle through the synchronous face");
+    assert!(
+        refused.error.0.contains("was asked for from inside itself"),
+        "the refusal names what it is: {}",
+        refused.error.0
+    );
+    assert!(refused_record.exists(), "nothing of the record was touched");
+    remove(refused_world.parent.as_path());
 }

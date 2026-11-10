@@ -182,7 +182,7 @@ fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_i
 /// and
 ///  a name taken before the drop would have compared the claim against a pass that was still allowed to happen.
 #[test]
-fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
+fn a_running_renewal_renews_the_held_claims_until_its_stop_is_awaited() {
     let (root, work_dir, claimed) = claimed_item("renewal-thread", &clock());
     let (held, renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
@@ -193,12 +193,14 @@ fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
         std::thread::sleep(Duration::from_millis(5));
     }
     assert_ne!(claimed_names(work_dir.as_path()), vec![claimed.name.clone()], "the thread renewed the held claim");
-    // The drop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
+    // The stop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
     //  asked whether anything can rename after this line.
     let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
-    let dropped = crate::service_timing::capture::entries_of(|| drop(renewal));
-    assert!(dropped.is_empty(), "the renewal's task ended with the drop, so nothing can rename after it: {dropped:?}");
-    assert_eq!(TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst), ended_before.saturating_add(1), "the task returned before the drop did");
+    let stopped = crate::service_timing::capture::entries_of(|| {
+        crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting()).expect("the runtime runs the stop");
+    });
+    assert!(stopped.is_empty(), "the renewal's task ended with the stop, so nothing can rename after it: {stopped:?}");
+    assert_eq!(TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst), ended_before.saturating_add(1), "the task returned before the stop did");
     // What the returned task left: one claim, under a renewal's name. A pass it made before it read the stop is its own work
     //  and not a rename after it, so no name is compared with one taken before the drop.
     let after: Vec<String> = claimed_names(work_dir.as_path());
@@ -377,7 +379,7 @@ const POOL_BUSY_FOR: Duration = Duration::from_secs(3);
 /// How long the control below lets dropping a renewal wait.
 const SHORT_STOP_CEILING: Duration = Duration::from_millis(300);
 
-/// Dropping a renewal whose task cannot end (every thread of the blocking pool is busy,
+/// Stopping a renewal whose task cannot end (every thread of the blocking pool is busy,
 /// so the renames wait for one) returns at the ceiling and not when the pool frees:
 /// the wait is bounded,
 /// and the claim is left to expire by its lease.
@@ -386,7 +388,7 @@ const SHORT_STOP_CEILING: Duration = Duration::from_millis(300);
 /// the one time in it is the ceiling itself,
 /// which is the behaviour under test.
 #[test]
-fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
+fn stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-stop-bounded", &started);
     let (held, renewer) = held_claims(work_dir.as_path());
@@ -416,11 +418,63 @@ fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
     std::thread::sleep(Duration::from_millis(100));
     let _asked = renewal.control.send(Control::Renew(clock(), None));
     let began: std::time::Instant = std::time::Instant::now();
-    drop(renewal);
+    crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting()).expect("the runtime runs the stop");
     let waited: Duration = began.elapsed();
     let done: usize = finished.load(std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(done, 0, "dropping waited for the pool to free instead of for the ceiling: {done} of {jobs} jobs had finished after {waited:?}");
-    assert!(waited >= SHORT_STOP_CEILING, "dropping did not wait for the task at all: {waited:?}");
+    assert_eq!(done, 0, "the stop waited for the pool to free instead of for the ceiling: {done} of {jobs} jobs had finished after {waited:?}");
+    assert!(waited >= SHORT_STOP_CEILING, "the stop did not wait for the task at all: {waited:?}");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// Dropping a renewal never waits for its task,
+/// so a caller that is itself a task of the runtime holds no worker while the task it stopped reads its stop:
+/// the drop returns in a moment,
+/// and the task is left to end on its own,
+/// with the claims expiring by their lease if it cannot.
+/// Why the pool is kept busy:
+/// it is what a waiting drop would wait for,
+/// so the control can tell a drop that waits from one that only tells the task to stop.
+#[test]
+fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("renewal-drop-does-not-wait", &started);
+    let (held, renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    let renewal: ClaimRenewal = ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
+    // Every thread the blocking pool may have is kept busy, then the task is asked to renew: its job waits for a thread.
+    let workers: usize = match crate::lazy_runtime::built_flavor() {
+        Some(crate::lazy_runtime::BuiltFlavor::MultiThread { workers }) => workers,
+        _ => 1,
+    };
+    let jobs: usize = workers * 2 + 2;
+    let busy = {
+        crate::lazy_runtime::spawn_on_runtime(async move {
+            for _ in 0..jobs {
+                drop(tokio::task::spawn_blocking(move || {
+                    std::thread::sleep(POOL_BUSY_FOR);
+                }));
+            }
+        })
+    };
+    assert!(busy.is_some(), "the runtime has workers");
+    std::thread::sleep(Duration::from_millis(100));
+    let _asked = renewal.control.send(Control::Renew(clock(), None));
+    let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
+    let began: std::time::Instant = std::time::Instant::now();
+    // The drop runs inside a task, which is where a drain that is a task would drop one.
+    crate::lazy_runtime::run_on_runtime(async move {
+        drop(renewal);
+    })
+    .expect("the runtime runs the drop");
+    let dropped: Duration = began.elapsed();
+    assert!(dropped < SHORT_STOP_CEILING, "the drop held the thread it ran on until the ceiling: {dropped:?}");
+    assert_eq!(
+        TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
+        ended_before,
+        "the drop waited for the task to end, which is what the two stop faces are for"
+    );
     drop(held);
     remove(root.as_path());
 }
