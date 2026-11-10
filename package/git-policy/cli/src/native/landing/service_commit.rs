@@ -46,7 +46,8 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
-/// The build phase's stretches, by name, for that record.
+/// The build phase's stretches by name
+/// for that record.
 use crate::commit_build_part_durations::BuildPartClock;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use crate::diagnostic_log::warn;

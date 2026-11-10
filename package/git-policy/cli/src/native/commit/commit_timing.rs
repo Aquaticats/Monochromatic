@@ -504,7 +504,8 @@ impl CommitTiming {
     /// What:
     ///  Ends the build phase and adds what it spent.
     /// Why:
-    ///   The normal seam: the phase is over when the commit is ready to be sent.
+    ///   The normal seam,
+    ///  the phase being over when the commit is ready to be sent.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -519,9 +520,9 @@ impl CommitTiming {
     ///  and forgets it.
     /// Why:
     ///   A stop inside the build leaves the phase before its figure was taken,
-    ///  and the record used to report that whole stretch as time no phase covers
-    ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-    ///  "What the build phase waits on, named").
+    ///  and the record used to report that whole stretch as time no phase covers.
+    ///  `doc/planning/cli-git-commit-latency-under-many-agents.md` holds the reading
+    ///  in its section on what the build phase waits on.
     ///  Closing it where the command stops keeps the stop's own printing and removal out of it.
     ///
     /// In TS you'd write (pseudocode):

@@ -412,13 +412,14 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
 /// so a build that spent its time before the
 ///  first step says where.
 /// Why:
-///  The records of 2026-11-09 held builds of 63 444 ms and 141 560 ms whose longest step was tens of milliseconds:
-/// the shadow
-///  repository's creation is in-process filesystem work, so no step named it and no field explained the build
-///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+///  The records of 2026-11-09 held builds of 63 444 ms and 141 560 ms whose longest step was tens of milliseconds.
+///  The shadow repository's creation is in-process filesystem work,
+/// so no step named it and no field explained the build.
+///  `doc/planning/cli-git-commit-latency-under-many-agents.md` holds the reading
+///  in its section on what the build phase waits on.
 ///  The creation's stretches are the ones a slow build must name,
-///  and they are only reached when Git builds the commit, which a configuration key the service
-///  does not embed asks for.
+///  and they are only reached when Git builds the commit.
+///  A configuration key the service does not embed asks for that.
 #[test]
 fn the_record_names_every_stretch_of_the_build_phase() {
     let fixture: Fixture = fixture("timing-build-parts");

@@ -9,9 +9,9 @@
 //!  and the records put 51.7 percent of a commit's whole time in it.
 //!  The record names the Git children of that phase in `steps`,
 //!  and it named nothing of the creation,
-//!  so a build of 63 444 ms whose longest step was 65 ms explained itself with no figure at all
-//!  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-//!  "What the build phase waits on, named").
+//!  so a build of 63 444 ms whose longest step was 65 ms explained itself with no figure at all.
+//!  `doc/planning/cli-git-commit-latency-under-many-agents.md` holds that reading
+//!  in its section on what the build phase waits on.
 //!  Each stretch is measured from one clock read at each seam to the next,
 //!  and the Git children that ran inside it are taken out,
 //!  because those are recorded apart and a stretch that holds one is not waiting.

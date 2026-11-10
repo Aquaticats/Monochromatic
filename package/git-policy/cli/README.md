@@ -5148,8 +5148,8 @@ all durations in whole milliseconds taken from the monotonic clock:
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
-  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-  "What the build phase waits on, named").
+  (`doc/planning/cli-git-commit-latency-under-many-agents.md`
+  holds that reading under what the build phase waits on).
   Its names are `branch`,
   `message` (the identity and the message),
   `amend tree`,
