@@ -169,6 +169,20 @@ function findFromSpecifier(text: string): string | null {
   return null;
 }
 
+// The specifier of a bare `^import\s*['"][^'"]+['"]` clause at the start of `text`,
+// or null. No whitespace is required, which is what separates it from the
+// side-effect test.
+function findBareImportSpecifier(text: string): string | null {
+  if (!text.startsWith(IMPORT_KEYWORD)) return null;
+  return quotedContentAt(
+    text,
+    skipWhitespace(
+      text,
+      IMPORT_KEYWORD.length
+    )
+  );
+}
+
 // Parse top-level import statements. Each statement starts with `import` (maybe
 // `import type`), may span multiple lines, ends at the line containing `from '...';`
 // or (side-effect import) `import '...';`. Returns {isType, specifier} per stmt.
@@ -198,8 +212,7 @@ function parseImports(text: string): ImportStmt[] {
         if ((j - i) > 50) break;
       }
       const isType = isTypeImport(stmt.trimStart());
-      const bareImport = /^import\s*['"]([^'"]+)['"]/.exec(stmt);
-      const specifier = findFromSpecifier(stmt) ?? ((bareImport === null) ? null : bareImport[1]);
+      const specifier = findFromSpecifier(stmt) ?? findBareImportSpecifier(stmt);
       if (specifier !== null) out.push({
         isType,
         specifier
