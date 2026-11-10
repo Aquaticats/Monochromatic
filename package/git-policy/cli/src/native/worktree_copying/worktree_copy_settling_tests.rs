@@ -26,6 +26,13 @@ const CHANGES_ONCE: usize = 2;
 /// so neither ever holds still between two comparisons.
 const KEEPS_CHANGING: usize = 3;
 
+/// A source directory goes away between its listing and its copy,
+/// which takes the file it held with it.
+const DIRECTORY_VANISHES: usize = 4;
+
+/// A source directory's permission bits change under the copy.
+const DIRECTORY_MODE_CHANGES: usize = 5;
+
 /// One control at a time,
 /// because the clone request a copy takes is a plain function and reads these.
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
@@ -106,6 +113,13 @@ fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
     match mode {
         VANISHES if copies == 0 => {
             std::fs::remove_file(&b).expect("b goes away");
+        }
+        DIRECTORY_VANISHES if copies == 0 => {
+            std::fs::remove_dir_all(root.join("cache/deep")).expect("the source's directory goes away");
+        }
+        DIRECTORY_MODE_CHANGES if copies == 0 => {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(root.join("cache/deep"), std::fs::Permissions::from_mode(0o750)).expect("the directory's mode changes");
         }
         CHANGES_ONCE if reading.is_some() && reading == identity_of(b.as_path()) && !CHANGED.swap(true, Ordering::SeqCst) => {
             std::fs::write(&a, b"rewritten once\n").expect("a is rewritten by the copy of its neighbour");
@@ -227,6 +241,103 @@ fn a_file_that_keeps_changing_is_left_in_its_source_and_named() {
     assert!(!stage.join("cache/a.txt").exists(), "it is not in the stage");
     assert!(source.join("cache/a.txt").is_file(), "its only copy stays in the source, untouched");
     assert_eq!(std::fs::read(stage.join("cache/b.txt")).expect("b staged"), std::fs::read(source.join("cache/b.txt")).expect("b in the source"), "the entry that settled is staged with the source's bytes");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A source with `cache/a.txt` and the directory `cache/deep` holding `cache/deep/file.txt`,
+/// a stage root beside it,
+/// and the manifest of those four entries,
+/// under the lock that keeps one control at a time.
+/// Why:
+///   The directory controls change what happens to an entry that is not a leaf,
+/// which is the shape the file controls never reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { source, stage, entries } = directorySource('settling-directory', VANISH);
+/// ```
+fn source_with_a_directory(
+    label: &str,
+    mode: usize,
+) -> (MutexGuard<'static, ()>, PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
+    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME.lock().expect("no other control holds the clone request");
+    let root: PathBuf = fixture(label);
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(source.join("cache/deep")).expect("the ignored cache");
+    std::fs::write(source.join("cache/a.txt"), b"the first one\n").expect("a");
+    std::fs::write(source.join("cache/deep/file.txt"), b"the deep one\n").expect("deep file");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(&stage).expect("the stage");
+    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable).expect("the manifest");
+    assert!(unreadable.is_empty(), "{unreadable:?}");
+    *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
+    MODE.store(mode, Ordering::SeqCst);
+    COPIES.store(0, Ordering::SeqCst);
+    CHANGED.store(false, Ordering::SeqCst);
+    return (held, root, source, stage, entries);
+}
+
+/// The permission bits of a staged or source entry.
+fn mode_of(path: &Path) -> u32 {
+    use std::os::unix::fs::MetadataExt;
+    return std::fs::symlink_metadata(path).expect("the entry").mode() & 0o7777;
+}
+
+/// What:
+///  A directory the source removed while the copy ran is left out with the entries below it,
+/// and the add goes
+///  on.
+/// Why:
+///   A build removes a whole stamp directory,
+/// not one file at a time,
+/// and the staged tree holds
+///  that directory's children,
+/// so dropping the directory has to take them with it instead of failing
+///  the copy with "Is a directory".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { entries } = await copyAndSettle(...DIRECTORY_VANISHES); expect(entries.map((e) => e.relativePath)).toEqual(['cache', 'cache/a.txt']); expect(existsSync(join(stage, 'cache/deep'))).toBe(false);
+/// ```
+#[test]
+fn a_directory_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure() {
+    let (held, root, source, stage, entries) = source_with_a_directory("settling-directory-vanished", DIRECTORY_VANISHES);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a vanished directory is no failure");
+    let staged: Vec<Vec<u8>> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
+    assert_eq!(staged, vec![b"cache".to_vec(), b"cache/a.txt".to_vec()], "the directory the source removed and its file are not in the stage");
+    assert!(!stage.join("cache/deep").exists(), "and nothing of them was staged");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory whose permission bits changed under the copy is staged with the new bits,
+/// and the add goes on.
+/// Why:
+///   A directory's only mutable property is its mode,
+/// and its content belongs to the entries below it,
+/// so a
+///  changed mode is applied instead of removing the staged tree and copying nothing into its place
+///  ("Is a directory").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { entries, unsettled } = await copyAndSettle(...DIRECTORY_MODE_CHANGES); expect(unsettled).toEqual([]); expect(modeOf(join(stage, 'cache/deep'))).toBe(0o750);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_directory_whose_mode_changed_under_the_copy_is_staged_with_the_new_mode() {
+    let (held, root, source, stage, entries) = source_with_a_directory("settling-directory-mode", DIRECTORY_MODE_CHANGES);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a changed directory mode is no failure");
+    assert!(settled.unsettled.is_empty(), "the entry settled at its second pass: {:?}", settled.unsettled);
+    assert_eq!(settled.entries.len(), 4, "every entry of the manifest is staged: {:?}", settled.entries);
+    assert_eq!(mode_of(stage.join("cache/deep").as_path()), mode_of(source.join("cache/deep").as_path()), "the stage holds the source's permission bits");
+    assert_eq!(mode_of(stage.join("cache/deep").as_path()), 0o750);
+    assert!(stage.join("cache/deep/file.txt").is_file(), "the directory's content is still staged");
     drop(held);
     remove(root.as_path());
 }
