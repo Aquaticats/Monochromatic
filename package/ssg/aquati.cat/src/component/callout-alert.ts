@@ -1,7 +1,8 @@
 /**
  Callout-alert component for MDX.
  
- Renders a `<blockquote>` with a `data-type` attribute for styling.
+ Renders a `<blockquote>` carrying the alert's `data-type`, so generated markup
+ names the alert kind the callout was authored as.
  
  @example
  ```mdx
@@ -10,7 +11,6 @@
  */
 import {
   cssRem,
-  cssVar,
   hCss as $,
 } from '@monochromatic-dev/hyperscript-core/ts';
 
@@ -144,31 +144,12 @@ export function CalloutAlert(props: CalloutAlertProps,): SafeHtml {
 //region CSS
 
 /**
- Border thickness for the alert's leading edge, in rem.
- */
-const ALERT_BORDER_REM = 0.25;
-
-/**
- Per-type accent color expression.
+ Structural styles for the alert component.
  
- Derives from existing link tokens via `color-mix()` so alerts flip with
- the site's dark-mode toggle without introducing new global tokens.
- 
- @param token - CSS custom property name supplying the source hue
- 
- @returns `color-mix()` CSS expression blending the token toward `color-fg`
- */
-function accent(token: string,): string {
-  return `color-mix(in oklch, ${cssVar(token,)} 65%, ${cssVar('color-fg',)})`;
-}
-
-/**
- Structural and per-type styles for the alert component.
- 
- Scopes all rules under `blockquote[data-type]` and the two custom wrappers
- (`alert-indicator`, `alert-content`) emitted by {@link CalloutAlert}. Uses the
- attribute selector so unrelated `<blockquote>` elements in MDX content are
- untouched.
+ Scopes its rule under the `<alert-indicator>` wrapper emitted by
+ {@link CalloutAlert}, so unrelated `<blockquote>` elements in MDX content are
+ untouched. Colour is left to the page's own text and link tokens; the callout's
+ kind is carried by the indicator icon and its localized label.
  
  @returns CSS string for the alert component
  

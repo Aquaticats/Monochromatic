@@ -56,6 +56,11 @@ const COLOUR_LITERALS = [
 const DERIVATION = 'color-mix(';
 
 /**
+ Token naming the theme's text colour, which a verdict colour is mixed toward.
+ */
+const FOREGROUND_TOKEN = '--color-fg';
+
+/**
  Question stylesheets paired with the component each one styles.
  */
 const QUESTION_STYLESHEETS = [
@@ -189,23 +194,34 @@ await describe({
       name: 'gives the light and dark theme different verdict colours',
       fn: async function differsPerTheme(): Promise<void> {
         for (const token of [OK_TOKEN, ERR_TOKEN,]) {
-          /**
-           Value the light theme declares for the token.
-           */
-          const light = declaredValuesIn(
-            tokenStyles(),
-            token,
-          )[0];
-          /**
-           Value the dark theme declares for the token.
-           */
-          const dark = declaredValuesIn(
-            darkModeTokenStyles(),
-            token,
-          )[0];
+          for (const theme of [tokenStyles(), darkModeTokenStyles(),]) {
+            /**
+             Declared value of the verdict token in this theme's block.
+             */
+            const [value,] = declaredValuesIn(
+              theme,
+              token,
+            );
+            /**
+             Declared value of the foreground the verdict is mixed toward.
+             */
+            const [foreground,] = declaredValuesIn(
+              theme,
+              FOREGROUND_TOKEN,
+            );
 
-          expect(light,).not.toBe(dark,);
+            expect(value,).toContain(`var(${FOREGROUND_TOKEN})`,);
+            expect(foreground,).not.toBe('',);
+          }
         }
+
+        expect(declaredValuesIn(
+          tokenStyles(),
+          FOREGROUND_TOKEN,
+        )[0],).not.toBe(declaredValuesIn(
+          darkModeTokenStyles(),
+          FOREGROUND_TOKEN,
+        )[0],);
       },
     },),
   ],

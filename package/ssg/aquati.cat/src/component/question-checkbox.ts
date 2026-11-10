@@ -344,8 +344,9 @@ const FULL_ROW = 100;
  
  Scoped entirely under `question-checkbox`. Uses `:has()` and adjacent-sibling
  selectors to show and color explanations based on checkbox `:checked` state
- without any JavaScript. Matches {@link QuestionRadio} visually so the two
- variants feel consistent in a mixed quiz.
+ without any JavaScript. Takes its correct and wrong hues from the same
+ `--color-ok` and `--color-err` tokens as {@link QuestionRadio}, so the two
+ variants agree on what an answer's verdict looks like in either theme.
  
  @returns CSS string for the multi-correct component
  
@@ -360,8 +361,6 @@ export function css(): string {
     decls: {
       display: 'block',
       'margin-block': cssRem(GAP,),
-      '--quiz-ok': `green`,
-      '--quiz-err': `red`,
     },
     children: [
       $({
@@ -408,14 +407,14 @@ export function css(): string {
       $({
         rule: 'input:checked[data-correct] + label',
         decls: {
-          color: cssVar('quiz-ok',),
+          color: cssVar('color-ok',),
           'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
         rule: 'input:checked:not([data-correct]) + label',
         decls: {
-          color: cssVar('quiz-err',),
+          color: cssVar('color-err',),
           'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),

@@ -6,6 +6,10 @@
  Every color value in the site references these tokens via `var(--token-name)`,
  except the two brand hexes exported here, which template code interpolates
  directly because a `theme-color` meta tag cannot read a custom property.
+ 
+ `--color-ok` and `--color-err` mix their hue toward the theme's foreground, so
+ a verdict marker stays legible on either surface from one hue instead of a
+ hand-tuned fill per theme.
  */
 import {
   cssCalc,
@@ -26,6 +30,38 @@ export const PRIMARY_LIGHT = '#bf97e3';
  `theme-color` meta, and the base every dark colour token derives from.
  */
 export const PRIMARY_DARK = '#4e318f';
+
+/**
+ Hue a right answer is marked with: a green dark enough to keep its contrast
+ when mixed toward the light theme's near-black foreground.
+ */
+const OK_HUE = '#15803d';
+
+/**
+ Hue a wrong answer is marked with: a red dark enough to keep its contrast when
+ mixed toward the light theme's near-black foreground.
+ */
+const ERR_HUE = '#b91c1c';
+
+/**
+ Share of the verdict hue in its mixed colour; the remainder is the theme's
+ foreground, so one hue reads on the light lavender surface and on the dark one.
+ */
+const VERDICT_HUE_SHARE = '65%';
+
+/**
+ Builds a verdict colour token value from its hue.
+ 
+ The mix leans on `--color-fg`, which flips with the theme, so the verdict's
+ lightness follows the surface it is read on without a second literal per theme.
+ 
+ @param hue - base colour the verdict leans toward
+ 
+ @returns `color-mix()` expression blending the hue toward the theme foreground
+ */
+function verdictColour(hue: string,): string {
+  return `color-mix(in oklch, ${hue} ${VERDICT_HUE_SHARE}, ${cssVar('color-fg',)})`;
+}
 
 /**
  Light mode token values (excluding theme-invariant primary colors).
@@ -59,6 +95,8 @@ function lightTokenDecls(): CssDeclarations {
     '--color-focus-ring': '#0066cc',
     /* Black at low alpha; a shadow has to darken the lavender surface below it. */
     '--color-shadow': 'rgb(0 0 0 / 10%)',
+    '--color-ok': verdictColour(OK_HUE,),
+    '--color-err': verdictColour(ERR_HUE,),
     '--hl-keyword': '#a626a4',
     '--hl-string': '#50a14f',
     '--hl-comment': '#a0a1a7',
@@ -107,6 +145,8 @@ function darkTokenDecls(): CssDeclarations {
     '--color-focus-ring': '#6db3f2',
     /* Darker than light mode, because the surface a shadow falls on is already near black. */
     '--color-shadow': 'rgb(0 0 0 / 45%)',
+    '--color-ok': verdictColour(OK_HUE,),
+    '--color-err': verdictColour(ERR_HUE,),
     '--hl-keyword': '#c678dd',
     '--hl-string': '#98c379',
     '--hl-comment': '#5c6370',

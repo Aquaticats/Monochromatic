@@ -327,11 +327,6 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
 //region CSS
 
 /**
- Mix ratio for deriving ok/err colors from existing link tokens (percentage toward fg).
- */
-const COLOR_MIX_RATIO = '65%';
-
-/**
  Slight font-size reduction for the per-option explanation text, in em.
  */
 const EXPLANATION_FONT_SIZE_EM = 0.95;
@@ -346,9 +341,9 @@ const FULL_ROW = 100;
  
  Scoped entirely under `question-radio`. Uses `:has()` and adjacent-sibling
  selectors to show and color explanations based on radio `:checked` state
- without any JavaScript. Correct/wrong hues derive via `color-mix()` from
- existing link tokens, so the quiz flips with the site's dark-mode toggle
- without adding new global tokens.
+ without any JavaScript. Correct and wrong hues come from the site's
+ `--color-ok` and `--color-err` tokens, whose mixes lean on the theme
+ foreground, so the verdict follows the site's dark-mode toggle.
  
  @returns CSS string for the quiz component
  
@@ -363,8 +358,6 @@ export function css(): string {
     decls: {
       display: 'block',
       'margin-block': cssRem(GAP,),
-      '--quiz-ok': `green`,
-      '--quiz-err': `red`,
     },
     children: [
       $({
@@ -411,14 +404,14 @@ export function css(): string {
       $({
         rule: 'input:checked[data-correct] + label',
         decls: {
-          color: cssVar('quiz-ok',),
+          color: cssVar('color-ok',),
           'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
         rule: 'input:checked:not([data-correct]) + label',
         decls: {
-          color: cssVar('quiz-err',),
+          color: cssVar('color-err',),
           'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
