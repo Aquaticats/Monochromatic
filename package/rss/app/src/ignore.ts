@@ -1,4 +1,5 @@
 import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { Dirent, } from 'node:fs';
 import {
   readdir,
@@ -60,7 +61,7 @@ async function readIgnoreDir(): Promise<Dirent[] | typeof IGNORE_DIR_ABSENT> {
       tag: readIgnoreDir.name,
       l,
     },);
-    innerL.debug(`ignore directory not readable: ${JSON.stringify(error,)}`,);
+    innerL.debug(`ignore directory not readable: ${caughtValueText(error,)}`,);
     return IGNORE_DIR_ABSENT;
   }
 }
@@ -181,7 +182,7 @@ export function parseIgnoredLinks(content: string,): Set<string> {
       }
     }
     catch (error) {
-      innerL.warn(`invalid JSON in ignore file: ${line} ${JSON.stringify(error,)}`,);
+      innerL.warn(`invalid JSON in ignore file: ${line} ${caughtValueText(error,)}`,);
     }
   }
   innerL.debug(`${String(links.size,)} ignored links`,);

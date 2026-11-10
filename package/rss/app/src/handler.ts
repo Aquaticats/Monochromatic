@@ -1,15 +1,23 @@
 import {
-  access,
   appendFile,
   mkdir,
   stat,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 
 import { indexHtmlStart, } from './asset.ts';
 import { INDEX_HTML_END, } from './html.ts';
+import {
+  type IgnoreRecord,
+  IgnoreRequestBodyError,
+  readIgnoreRecord,
+} from './ignore-request.ts';
 import { IGNORE_PATH, } from './path.ts';
 
 /**
@@ -29,6 +37,72 @@ const l = tagged({
   tag: 'handler',
   l: parentLogger,
 },);
+
+/**
+ File inside the ignore directory holding one JSON record per line.
+ */
+const RECORD_FILE = 'api.jsonl';
+
+/**
+ Byte size of a file, or zero when it does not exist yet.
+ 
+ @param filePath - path whose size is wanted
+ 
+ @returns byte size, zero for a missing file
+ 
+ @throws when the path exists but cannot be inspected
+ */
+async function sizeOrZero(filePath: string,): Promise<number> {
+  try {
+    /**
+     File stats whose size decides whether the next record needs a separator.
+     */
+    const stats = await stat(filePath,);
+    return stats.size;
+  }
+  catch (error) {
+    if (Error.isError(error,)
+      && ('code' in error)
+      && (error.code === 'ENOENT'))
+      return 0;
+    throw error;
+  }
+}
+
+/**
+ Reads the ignore record, or the response that rejects the body.
+ 
+ @param options - request whose body names one ignored item, and the logger
+ reporting a rejection
+ 
+ @returns validated record, or the 400 response naming the broken rule
+ 
+ @mutates options - Emits one warn line per rejected body.
+ */
+async function readRecordOrRejection(options: {
+  readonly request: Request;
+  readonly l: Logger;
+},): Promise<IgnoreRecord | Response> {
+  /**
+   Destructured inputs so the catch branch reads the logger directly.
+   */
+  const {
+    request,
+    l: innerL,
+  } = options;
+  try {
+    return await readIgnoreRecord(request,);
+  }
+  catch (error) {
+    if (!(error instanceof IgnoreRequestBodyError))
+      throw error;
+    innerL.warn(`rejected ignore request: ${caughtValueText(error,)}`,);
+    return Response.json(
+      { error: error.message, },
+      { status: 400, },
+    );
+  }
+}
 
 //region HTTP handlers: Serve rendered HTML and persist ignored items
 
@@ -74,22 +148,40 @@ export async function serveIndex(options: {
 }
 
 /**
- Records an ignored feed item to the JSONL ignore file under {@link IGNORE_PATH}.
- Creates the ignore directory and file if they do not exist.
+ Records an ignored feed item to the JSONL ignore file inside the ignore
+ directory ({@link IGNORE_PATH} unless a caller names its own). Creates the
+ directory and file if they do not exist, and rejects a body that breaks the
+ documented record shape or the size bound before anything reaches disk.
  
- @param request - Incoming request with JSON body containing a `link` property
+ @param options - Incoming request naming one ignored item, plus the optional
+ ignore directory to write into
  
- @returns Response with file stats after appending
+ @returns Response with file stats after appending, or a 400 naming the rule a
+ rejected body broke
+ 
+ @mutates options - Creates the named ignore directory and appends one record to the JSONL file inside it.
  
  @example
  ```ts
- const response = await ignore(new Request('http://localhost', {
-   method: 'POST',
-   body: '{"link":"https://example.com"}',
- }));
+ const response = await ignore({
+   request: new Request('http://localhost', {
+     method: 'POST',
+     body: '{"link":"https://example.com"}',
+   }),
+ });
  ```
  */
-export async function ignore(request: Request,): Promise<Response> {
+export async function ignore(options: {
+  readonly request: Request;
+  readonly directory?: string;
+},): Promise<Response> {
+  /**
+   Destructured inputs so the body reads without the options prefix.
+   */
+  const {
+    request,
+    directory = IGNORE_PATH,
+  } = options;
   /**
    Inner logger tagged with this function name for traceable log lines.
    */
@@ -98,25 +190,37 @@ export async function ignore(request: Request,): Promise<Response> {
     l,
   },);
   /**
-   Raw request body persisted verbatim so the ignore file matches the wire payload.
+   Validated record, or the response rejecting the body before anything touches
+   disk so a refused request leaves the ignore file unchanged.
    */
-  const body = await request.text();
-  innerL.debug(`ignore ${body}`,);
+  const readResult = await readRecordOrRejection({
+    request,
+    l: innerL,
+  },);
+  if (readResult instanceof Response)
+    return readResult;
+  /**
+   Validated record stored below.
+   */
+  const record = readResult;
+  innerL.debug(`ignore ${JSON.stringify(record,)}`,);
 
   /**
    Resolved path to the JSONL log so create-on-miss and append share one target.
    */
   const filePath = join(
-    IGNORE_PATH,
-    'api.jsonl',
+    directory,
+    RECORD_FILE,
   );
-  try {
-    await access(filePath,);
-  }
-  catch (error) {
-    innerL.debug(`creating api.jsonl: ${JSON.stringify(error,)}`,);
+  /**
+   Byte size already on disk, so the separator sits between records instead of
+   leaving an empty first line in a fresh file.
+   */
+  const existingBytes = await sizeOrZero(filePath,);
+  if (existingBytes === 0) {
+    innerL.debug(`creating ${RECORD_FILE}`,);
     await mkdir(
-      IGNORE_PATH,
+      directory,
       { recursive: true, },
     );
     await writeFile(
@@ -127,7 +231,7 @@ export async function ignore(request: Request,): Promise<Response> {
   }
   await appendFile(
     filePath,
-    `\n${body}`,
+    `${existingBytes === 0 ? '' : '\n'}${JSON.stringify(record,)}`,
   );
 
   /**
