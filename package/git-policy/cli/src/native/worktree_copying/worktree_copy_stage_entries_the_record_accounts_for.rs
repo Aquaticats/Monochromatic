@@ -52,6 +52,11 @@ const CLUSTER_DIRECTORY: &str = ".claude";
 /// so those entries are the
 ///  wrapper's own even though they are born later;
 /// everything else newborn is somebody else's.
+/// `.claude` is the wrapper's own as an entry,
+/// because the ladder makes it when the source
+///  has none,
+/// but what a person keeps inside it is still judged,
+/// so only the trash below it is left unexamined.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,7 +66,25 @@ fn is_the_wrappers_own(relative: &Path) -> bool {
     let git: &Path = Path::new(GIT_DIRECTORY);
     let cluster: &Path = Path::new(CLUSTER_DIRECTORY);
     let trash: &Path = Path::new(TRASH_PARENT);
-    return relative.starts_with(git) || relative == cluster || relative == trash || relative.starts_with(trash);
+    return relative.starts_with(git) || relative == cluster || relative.starts_with(trash);
+}
+
+/// What:
+///  Whether the entries below this relative path are not examined at all.
+/// Why:
+///   Git's own directory and the snapshot's trash hold the source's and the leave-out's entries by the
+///  thousand,
+/// and nothing of the wrapper's there is worth an entry-by-entry look;
+/// `.claude` is entered,
+/// so a
+///  person's file beside the trash is found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path === GIT_DIRECTORY || path.startsWith(`${GIT_DIRECTORY}/`) || path === TRASH_PARENT || path.startsWith(`${TRASH_PARENT}/`)
+/// ```
+fn is_left_unexamined(relative: &Path) -> bool {
+    return relative.starts_with(GIT_DIRECTORY) || relative.starts_with(TRASH_PARENT);
 }
 
 /// What:
@@ -159,7 +182,7 @@ pub fn unaccounted_entry(container: &Path, written: SystemTime) -> Option<String
                 continue;
             }
             let below: PathBuf = relative.join(name.as_os_str());
-            if is_the_wrappers_own(below.as_path()) {
+            if is_left_unexamined(below.as_path()) {
                 continue;
             }
             let metadata: std::fs::Metadata = match entry.metadata() {
@@ -167,10 +190,13 @@ pub fn unaccounted_entry(container: &Path, written: SystemTime) -> Option<String
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
             };
-            match metadata.created() {
-                Ok(born) if born <= written => {}
-                Ok(_) => return Some(words_for(below.as_path())),
-                Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
+            // The entries the wrapper makes after its record are its own; every other one born later is not.
+            if !is_the_wrappers_own(below.as_path()) {
+                match metadata.created() {
+                    Ok(born) if born <= written => {}
+                    Ok(_) => return Some(words_for(below.as_path())),
+                    Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
+                }
             }
             if metadata.is_dir() {
                 pending.push((entry.path(), below));

@@ -1586,6 +1586,25 @@ fn a_stage_holding_something_the_record_cannot_account_for_is_kept() {
     remove(root.as_path());
 }
 
+/// A person's file below the document folder of the source keeps the folder too:
+/// only the trash below it is the wrapper's.
+#[test]
+fn a_stage_holding_a_persons_file_below_the_document_folder_is_kept() {
+    let (root, common, container, _record) = killed_add_with_its_object_recorded("claim-add-person-below-claude");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let notes: PathBuf = container.join(".claude/notes");
+    crate::private_storage::create_private_directory_all(notes.as_path()).expect("a person's directory beside the trash");
+    std::fs::write(notes.join("mine.txt"), b"a person's only copy").expect("a person's file");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(notes.join("mine.txt").exists(), "nothing of the person's is removed");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains(".claude/notes"); }),
+        "the line names the entry: {notices:?}"
+    );
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
 /// The trash a snapshot sets its left-out directories aside in,
 /// and Git's own files,
 /// are the wrapper's own even though the wrapper makes them after the record is written.

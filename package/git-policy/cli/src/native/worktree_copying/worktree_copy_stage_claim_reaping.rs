@@ -29,11 +29,11 @@ use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_fail
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
-use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, remove_made};
 use crate::worktree_copy_owner::token_owner_is_dead;
-use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
+use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, remove_made};
+use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
