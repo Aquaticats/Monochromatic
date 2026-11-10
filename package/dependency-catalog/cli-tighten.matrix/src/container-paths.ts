@@ -1,14 +1,31 @@
 /**
- In-container path constants shared by the matrix entrypoint and its steps.
+ Paths shared by the matrix orchestrator and its in-container entrypoint.
  
- The monorepo is mounted read-only at {@link REPO_DIR}; the fixture is written
- and installed in the writable tmpfs at {@link WORK_DIR}; the corepack `pnpm`
- shim goes in {@link PNPM_BIN_DIR} because the rootfs is read-only.
+ The monorepo sits at {@link HOST_REPO_ROOT} on the host and is mounted
+ read-only at {@link REPO_DIR} inside each container, so every in-container
+ path is the host path with that prefix swapped. The fixture is written and
+ installed in the writable tmpfs at {@link WORK_DIR}; the corepack `pnpm` shim
+ goes in {@link PNPM_BIN_DIR} because the rootfs is read-only.
  */
 
 import {
   join,
 } from 'node:path';
+
+//region Host paths
+
+/**
+ Monorepo root on the host: this file lives at `<root>/<package>/src`.
+ */
+export const HOST_REPO_ROOT: string = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+);
+
+//endregion Host paths
 
 //region Container paths
 
@@ -33,6 +50,11 @@ export const TOOL_ENTRY: string = join(
   'src',
   'index.ts',
 );
+
+/**
+ This matrix's own in-container entrypoint, inside the mounted repo.
+ */
+export const IN_CONTAINER_ENTRY = '/repo/packages/dev-script/catalog-tighten.matrix/src/in-container.ts';
 
 /**
  Writable tmpfs directory the corepack `pnpm` shim is installed into.
