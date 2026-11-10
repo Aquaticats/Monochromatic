@@ -1,11 +1,11 @@
 {
- "catalogGeneratedAt": "2026-10-15T19:00:55.287Z",
+ "catalogGeneratedAt": "2026-11-02T10:43:28.346Z",
  "catalogSchemaVersion": 6,
- "entryCount": 1714,
- "retirementCount": 596,
+ "entryCount": 1712,
+ "retirementCount": 585,
  "abstentions": {
-  "keeperAmbiguity": 13,
-  "unorderedPair": 12,
+  "keeperAmbiguity": 16,
+  "unorderedPair": 15,
   "loserNewerThanKeeper": 0,
   "versionlessProtected": 7,
   "duplicateIdentity": 0
@@ -111,13 +111,19 @@
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "au.anthropic.claude-sonnet-4-5-20250929-v1:0",
-   "keeperId": "au.anthropic.claude-sonnet-5"
+   "keeperId": "au.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
    "retiredId": "au.anthropic.claude-sonnet-4-6",
-   "keeperId": "au.anthropic.claude-sonnet-5"
+   "keeperId": "au.anthropic.claude-sonnet-5-5"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "au.anthropic.claude-sonnet-5",
+   "keeperId": "au.anthropic.claude-sonnet-5-5"
   },
   {
    "provider": "amazon-bedrock",
@@ -272,6 +278,12 @@
   {
    "provider": "amazon-bedrock",
    "api": "bedrock-converse-stream",
+   "retiredId": "global.openai.gpt-5.6-terra",
+   "keeperId": "global.openai.gpt-6.1-terra"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
    "retiredId": "global.xai.grok-4.6",
    "keeperId": "global.xai.grok-4.7"
   },
@@ -352,6 +364,12 @@
    "api": "bedrock-converse-stream",
    "retiredId": "openai.gpt-6-sol",
    "keeperId": "openai.gpt-6.1-sol"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "openai.gpt-5.6-terra",
+   "keeperId": "openai.gpt-6.1-terra"
   },
   {
    "provider": "amazon-bedrock",
@@ -454,6 +472,12 @@
    "api": "bedrock-converse-stream",
    "retiredId": "us.openai.gpt-6-sol",
    "keeperId": "us.openai.gpt-6.1-sol"
+  },
+  {
+   "provider": "amazon-bedrock",
+   "api": "bedrock-converse-stream",
+   "retiredId": "us.openai.gpt-5.6-terra",
+   "keeperId": "us.openai.gpt-6.1-terra"
   },
   {
    "provider": "amazon-bedrock",
@@ -638,18 +662,6 @@
   {
    "provider": "azure",
    "api": "azure-openai-responses",
-   "retiredId": "gpt-5-chat-latest",
-   "keeperId": "gpt-5.3-chat-latest"
-  },
-  {
-   "provider": "azure",
-   "api": "azure-openai-responses",
-   "retiredId": "gpt-5.2-chat-latest",
-   "keeperId": "gpt-5.3-chat-latest"
-  },
-  {
-   "provider": "azure",
-   "api": "azure-openai-responses",
    "retiredId": "gpt-5-pro",
    "keeperId": "gpt-5.5-pro"
   },
@@ -686,6 +698,12 @@
   {
    "provider": "azure",
    "api": "azure-openai-responses",
+   "retiredId": "gpt-5.6-terra",
+   "keeperId": "gpt-6.1-terra"
+  },
+  {
+   "provider": "azure",
+   "api": "azure-openai-responses",
    "retiredId": "o1",
    "keeperId": "o3"
   },
@@ -704,38 +722,8 @@
   {
    "provider": "baseten",
    "api": "openai-completions",
-   "retiredId": "deepseek-ai/DeepSeek-V4-Pro-0813",
-   "keeperId": "deepseek-ai/DeepSeek-V4-Pro"
-  },
-  {
-   "provider": "baseten",
-   "api": "openai-completions",
-   "retiredId": "moonshotai/Kimi-K2.5",
-   "keeperId": "moonshotai/Kimi-K3"
-  },
-  {
-   "provider": "baseten",
-   "api": "openai-completions",
-   "retiredId": "moonshotai/Kimi-K2.6",
-   "keeperId": "moonshotai/Kimi-K3"
-  },
-  {
-   "provider": "baseten",
-   "api": "openai-completions",
-   "retiredId": "zai-org/GLM-4.7",
-   "keeperId": "zai-org/GLM-5.3"
-  },
-  {
-   "provider": "baseten",
-   "api": "openai-completions",
-   "retiredId": "zai-org/GLM-5",
-   "keeperId": "zai-org/GLM-5.3"
-  },
-  {
-   "provider": "baseten",
-   "api": "openai-completions",
-   "retiredId": "zai-org/GLM-5.1",
-   "keeperId": "zai-org/GLM-5.3"
+   "retiredId": "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast",
+   "keeperId": "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
   },
   {
    "provider": "baseten",
@@ -896,6 +884,12 @@
   {
    "provider": "cloudflare-ai-gateway",
    "api": "openai-responses",
+   "retiredId": "gpt-5.6-terra",
+   "keeperId": "gpt-6.1-terra"
+  },
+  {
+   "provider": "cloudflare-ai-gateway",
+   "api": "openai-responses",
    "retiredId": "o3-mini",
    "keeperId": "o4-mini"
   },
@@ -926,12 +920,6 @@
   {
    "provider": "github-copilot",
    "api": "anthropic-messages",
-   "retiredId": "claude-opus-4.7",
-   "keeperId": "claude-opus-5.5"
-  },
-  {
-   "provider": "github-copilot",
-   "api": "anthropic-messages",
    "retiredId": "claude-opus-4.8",
    "keeperId": "claude-opus-5.5"
   },
@@ -955,36 +943,6 @@
   },
   {
    "provider": "github-copilot",
-   "api": "openai-completions",
-   "retiredId": "gemini-3.5-flash",
-   "keeperId": "gemini-3.8-flash"
-  },
-  {
-   "provider": "github-copilot",
-   "api": "openai-completions",
-   "retiredId": "gemini-3.6-flash",
-   "keeperId": "gemini-3.8-flash"
-  },
-  {
-   "provider": "github-copilot",
-   "api": "openai-completions",
-   "retiredId": "gemini-3.7-flash",
-   "keeperId": "gemini-3.8-flash"
-  },
-  {
-   "provider": "github-copilot",
-   "api": "openai-responses",
-   "retiredId": "gpt-5-mini",
-   "keeperId": "gpt-5.4-mini"
-  },
-  {
-   "provider": "github-copilot",
-   "api": "openai-responses",
-   "retiredId": "gpt-5.4",
-   "keeperId": "gpt-5.5"
-  },
-  {
-   "provider": "github-copilot",
    "api": "openai-responses",
    "retiredId": "gpt-5.6-luna",
    "keeperId": "gpt-6-luna"
@@ -1000,6 +958,12 @@
    "api": "openai-responses",
    "retiredId": "gpt-6-sol",
    "keeperId": "gpt-6.1-sol"
+  },
+  {
+   "provider": "github-copilot",
+   "api": "openai-responses",
+   "retiredId": "gpt-5.6-terra",
+   "keeperId": "gpt-6.1-terra"
   },
   {
    "provider": "github-copilot",
@@ -1118,6 +1082,12 @@
   {
    "provider": "huggingface",
    "api": "openai-completions",
+   "retiredId": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+   "keeperId": "deepseek-ai/DeepSeek-V4.1-Flash"
+  },
+  {
+   "provider": "huggingface",
+   "api": "openai-completions",
    "retiredId": "deepseek-ai/DeepSeek-V4-Pro-0813",
    "keeperId": "deepseek-ai/DeepSeek-V4-Pro"
   },
@@ -1190,12 +1160,6 @@
   {
    "provider": "huggingface",
    "api": "openai-completions",
-   "retiredId": "zai-org/GLM-4.5",
-   "keeperId": "zai-org/GLM-5.3"
-  },
-  {
-   "provider": "huggingface",
-   "api": "openai-completions",
    "retiredId": "zai-org/GLM-4.6",
    "keeperId": "zai-org/GLM-5.3"
   },
@@ -1262,18 +1226,6 @@
   {
    "provider": "mistral",
    "api": "mistral-conversations",
-   "retiredId": "devstral-small-2505",
-   "keeperId": "devstral-small-2507"
-  },
-  {
-   "provider": "mistral",
-   "api": "mistral-conversations",
-   "retiredId": "mistral-large-2411",
-   "keeperId": "mistral-large-2512"
-  },
-  {
-   "provider": "mistral",
-   "api": "mistral-conversations",
    "retiredId": "mistral-medium-2505",
    "keeperId": "mistral-medium-2604"
   },
@@ -1324,6 +1276,12 @@
    "api": "openai-codex-responses",
    "retiredId": "gpt-6-sol",
    "keeperId": "gpt-6.1-sol"
+  },
+  {
+   "provider": "openai-codex",
+   "api": "openai-codex-responses",
+   "retiredId": "gpt-5.6-terra",
+   "keeperId": "gpt-6.1-terra"
   },
   {
    "provider": "openai",
@@ -1400,18 +1358,6 @@
   {
    "provider": "openai",
    "api": "openai-responses",
-   "retiredId": "gpt-5-chat-latest",
-   "keeperId": "gpt-5.3-chat-latest"
-  },
-  {
-   "provider": "openai",
-   "api": "openai-responses",
-   "retiredId": "gpt-5.2-chat-latest",
-   "keeperId": "gpt-5.3-chat-latest"
-  },
-  {
-   "provider": "openai",
-   "api": "openai-responses",
    "retiredId": "gpt-5-pro",
    "keeperId": "gpt-5.5-pro"
   },
@@ -1444,6 +1390,12 @@
    "api": "openai-responses",
    "retiredId": "gpt-6-sol",
    "keeperId": "gpt-6.1-sol"
+  },
+  {
+   "provider": "openai",
+   "api": "openai-responses",
+   "retiredId": "gpt-5.6-terra",
+   "keeperId": "gpt-6.1-terra"
   },
   {
    "provider": "openai",
@@ -1532,12 +1484,6 @@
   {
    "provider": "opencode",
    "api": "anthropic-messages",
-   "retiredId": "claude-sonnet-4",
-   "keeperId": "claude-sonnet-5-5"
-  },
-  {
-   "provider": "opencode",
-   "api": "anthropic-messages",
    "retiredId": "claude-sonnet-4-5",
    "keeperId": "claude-sonnet-5-5"
   },
@@ -1582,12 +1528,6 @@
    "api": "google-generative-ai",
    "retiredId": "gemini-3.7-flash",
    "keeperId": "gemini-3.8-flash"
-  },
-  {
-   "provider": "opencode",
-   "api": "openai-completions",
-   "retiredId": "deepseek-v4-flash",
-   "keeperId": "deepseek-v4.1-flash"
   },
   {
    "provider": "opencode",
@@ -1880,13 +1820,13 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "deepseek/deepseek-r1-0528",
-   "keeperId": "deepseek/deepseek-r1"
+   "retiredId": "deepseek/deepseek-v4-flash",
+   "keeperId": "deepseek/deepseek-v4.1-flash"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "deepseek/deepseek-v4-flash",
+   "retiredId": "deepseek/deepseek-v4.1-flash-1017",
    "keeperId": "deepseek/deepseek-v4.1-flash"
   },
   {
@@ -1934,20 +1874,14 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "google/gemini-2.5-flash-lite:batch",
-   "keeperId": "google/gemini-3.5-flash-lite:batch"
+   "retiredId": "google/gemini-2.5-pro-preview",
+   "keeperId": "google/gemini-3.1-pro-preview"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
    "retiredId": "google/gemini-3.1-flash-lite:batch",
    "keeperId": "google/gemini-3.5-flash-lite:batch"
-  },
-  {
-   "provider": "openrouter",
-   "api": "openai-completions",
-   "retiredId": "google/gemini-2.5-flash:batch",
-   "keeperId": "google/gemini-3.8-flash:batch"
   },
   {
    "provider": "openrouter",
@@ -1970,14 +1904,14 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "google/gemini-2.5-pro-preview",
-   "keeperId": "google/gemini-3.1-pro-preview"
+   "retiredId": "inception/mercury-2",
+   "keeperId": "inception/mercury-3"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "inception/mercury-2",
-   "keeperId": "inception/mercury-2.5"
+   "retiredId": "inception/mercury-2.5",
+   "keeperId": "inception/mercury-3"
   },
   {
    "provider": "openrouter",
@@ -2060,12 +1994,6 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "mistralai/mistral-medium-3.1:batch",
-   "keeperId": "mistralai/mistral-medium-3-5:batch"
-  },
-  {
-   "provider": "openrouter",
-   "api": "openai-completions",
    "retiredId": "mistralai/mistral-small-3.1-24b-instruct",
    "keeperId": "mistralai/mistral-small-3.2-24b-instruct"
   },
@@ -2092,24 +2020,6 @@
    "api": "openai-completions",
    "retiredId": "moonshotai/kimi-k2.6",
    "keeperId": "moonshotai/kimi-k3"
-  },
-  {
-   "provider": "openrouter",
-   "api": "openai-completions",
-   "retiredId": "openai/gpt-3.5-turbo",
-   "keeperId": "openai/gpt-4-turbo"
-  },
-  {
-   "provider": "openrouter",
-   "api": "openai-completions",
-   "retiredId": "openai/gpt-3.5-turbo-0613",
-   "keeperId": "openai/gpt-4-turbo"
-  },
-  {
-   "provider": "openrouter",
-   "api": "openai-completions",
-   "retiredId": "openai/gpt-3.5-turbo:batch",
-   "keeperId": "openai/gpt-4-turbo:batch"
   },
   {
    "provider": "openrouter",
@@ -2360,20 +2270,26 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "openai/o1",
-   "keeperId": "openai/o3"
+   "retiredId": "openai/gpt-5.6-terra",
+   "keeperId": "openai/gpt-6.1-terra"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "openai/o3-mini",
-   "keeperId": "openai/o4-mini"
+   "retiredId": "openai/gpt-5.6-terra-pro",
+   "keeperId": "openai/gpt-6.1-terra-pro"
   },
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "openai/o3-mini-high",
-   "keeperId": "openai/o4-mini-high"
+   "retiredId": "openai/gpt-5.6-terra-pro:batch",
+   "keeperId": "openai/gpt-6.1-terra-pro:batch"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openai-completions",
+   "retiredId": "openai/gpt-5.6-terra:batch",
+   "keeperId": "openai/gpt-6.1-terra:batch"
   },
   {
    "provider": "openrouter",
@@ -2456,8 +2372,8 @@
   {
    "provider": "openrouter",
    "api": "openai-completions",
-   "retiredId": "upstage/solar-pro-3",
-   "keeperId": "upstage/solar-pro4"
+   "retiredId": "unbiased/pareto-26.9",
+   "keeperId": "unbiased/pareto-26.10"
   },
   {
    "provider": "openrouter",
@@ -2570,6 +2486,12 @@
   {
    "provider": "openrouter",
    "api": "openrouter-images",
+   "retiredId": "qwen/qwen-image-2.1-pro",
+   "keeperId": "qwen/qwen-image-3-pro"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openrouter-images",
    "retiredId": "recraft/recraft-v3",
    "keeperId": "recraft/recraft-v4.1"
   },
@@ -2607,13 +2529,31 @@
    "provider": "openrouter",
    "api": "openrouter-images",
    "retiredId": "sourceful/riverflow-v2-pro",
-   "keeperId": "sourceful/riverflow-v2.5-pro"
+   "keeperId": "sourceful/riverflow-v2.6-pro"
+  },
+  {
+   "provider": "openrouter",
+   "api": "openrouter-images",
+   "retiredId": "sourceful/riverflow-v2.5-pro",
+   "keeperId": "sourceful/riverflow-v2.6-pro"
+  },
+  {
+   "provider": "openrouter",
+   "api": "typesafe-system-one",
+   "retiredId": "liquid/d1",
+   "keeperId": "liquid/d1.1"
   },
   {
    "provider": "openrouter",
    "api": "typesafe-system-one",
    "retiredId": "nace-ai/drex-v1.5",
    "keeperId": "nace-ai/drex-v2.0"
+  },
+  {
+   "provider": "openrouter",
+   "api": "typesafe-system-one",
+   "retiredId": "respan/span-01",
+   "keeperId": "respan/span-02"
   },
   {
    "provider": "openrouter",
@@ -2625,6 +2565,12 @@
    "provider": "qwen-token-plan-cn",
    "api": "openai-completions",
    "retiredId": "deepseek-v4-flash",
+   "keeperId": "deepseek-v4.1-flash"
+  },
+  {
+   "provider": "qwen-token-plan-cn",
+   "api": "openai-completions",
+   "retiredId": "deepseek-v4.1-flash-1017",
    "keeperId": "deepseek-v4.1-flash"
   },
   {
@@ -2697,6 +2643,12 @@
    "provider": "qwen-token-plan",
    "api": "openai-completions",
    "retiredId": "deepseek-v4-flash",
+   "keeperId": "deepseek-v4.1-flash"
+  },
+  {
+   "provider": "qwen-token-plan",
+   "api": "openai-completions",
+   "retiredId": "deepseek-v4.1-flash-1017",
    "keeperId": "deepseek-v4.1-flash"
   },
   {
@@ -2792,12 +2744,6 @@
   {
    "provider": "radius",
    "api": "pi-messages",
-   "retiredId": "gpt-5.4",
-   "keeperId": "gpt-5.5"
-  },
-  {
-   "provider": "radius",
-   "api": "pi-messages",
    "retiredId": "gpt-5.6-luna",
    "keeperId": "gpt-6-luna"
   },
@@ -2805,13 +2751,13 @@
    "provider": "radius",
    "api": "pi-messages",
    "retiredId": "gpt-5.6-sol",
-   "keeperId": "gpt-6-sol"
+   "keeperId": "gpt-6.1-sol"
   },
   {
-   "provider": "together",
-   "api": "openai-completions",
-   "retiredId": "MiniMaxAI/MiniMax-M2.7",
-   "keeperId": "MiniMaxAI/MiniMax-M3"
+   "provider": "radius",
+   "api": "pi-messages",
+   "retiredId": "gpt-6-sol",
+   "keeperId": "gpt-6.1-sol"
   },
   {
    "provider": "together",
@@ -2960,12 +2906,6 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "anthropic/claude-sonnet-4",
-   "keeperId": "anthropic/claude-sonnet-5.5"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
    "retiredId": "anthropic/claude-sonnet-4.5",
    "keeperId": "anthropic/claude-sonnet-5.5"
   },
@@ -3020,8 +2960,20 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
+   "retiredId": "deepseek/deepseek-v4.1-flash-1017",
+   "keeperId": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
    "retiredId": "deepseek/deepseek-v4-pro-0813",
    "keeperId": "deepseek/deepseek-v4-pro"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "deepseek/deepseek-v4.1-flash-1017-fast",
+   "keeperId": "deepseek/deepseek-v4.1-flash-fast"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3105,12 +3057,24 @@
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
    "retiredId": "inception/mercury-2",
-   "keeperId": "inception/mercury-2.5"
+   "keeperId": "inception/mercury-3"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "inception/mercury-2.5",
+   "keeperId": "inception/mercury-3"
   },
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
    "retiredId": "inclusionai/ling-3.0-flash",
+   "keeperId": "inclusionai/ling-3.1-flash"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "inclusionai/ling-3.1-flash-1019",
    "keeperId": "inclusionai/ling-3.1-flash"
   },
   {
@@ -3190,12 +3154,6 @@
    "api": "anthropic-messages",
    "retiredId": "moonshotai/kimi-k2.6",
    "keeperId": "moonshotai/kimi-k3"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "openai/gpt-3.5-turbo",
-   "keeperId": "openai/gpt-4-turbo"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3320,18 +3278,6 @@
   {
    "provider": "vercel-ai-gateway",
    "api": "anthropic-messages",
-   "retiredId": "openai/gpt-4.1-nano-batch",
-   "keeperId": "openai/gpt-5.4-nano-batch"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
-   "retiredId": "openai/gpt-5-nano-batch",
-   "keeperId": "openai/gpt-5.4-nano-batch"
-  },
-  {
-   "provider": "vercel-ai-gateway",
-   "api": "anthropic-messages",
    "retiredId": "openai/gpt-5-codex",
    "keeperId": "openai/gpt-5.3-codex"
   },
@@ -3346,6 +3292,12 @@
    "api": "anthropic-messages",
    "retiredId": "openai/gpt-5.2-codex",
    "keeperId": "openai/gpt-5.3-codex"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5-nano-batch",
+   "keeperId": "openai/gpt-5.4-nano-batch"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3424,6 +3376,18 @@
    "api": "anthropic-messages",
    "retiredId": "openai/gpt-6-sol-fast",
    "keeperId": "openai/gpt-6.1-sol-fast"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.6-terra",
+   "keeperId": "openai/gpt-6.1-terra"
+  },
+  {
+   "provider": "vercel-ai-gateway",
+   "api": "anthropic-messages",
+   "retiredId": "openai/gpt-5.6-terra-fast",
+   "keeperId": "openai/gpt-6.1-terra-fast"
   },
   {
    "provider": "vercel-ai-gateway",
@@ -3538,36 +3502,6 @@
    "api": "openai-responses",
    "retiredId": "grok-4.6",
    "keeperId": "grok-4.7"
-  },
-  {
-   "provider": "xiaomi-token-plan-ams",
-   "api": "openai-completions",
-   "retiredId": "mimo-v2.5-pro",
-   "keeperId": "mimo-v2.6-pro"
-  },
-  {
-   "provider": "xiaomi-token-plan-cn",
-   "api": "openai-completions",
-   "retiredId": "mimo-v2.5-pro",
-   "keeperId": "mimo-v2.6-pro"
-  },
-  {
-   "provider": "xiaomi-token-plan-sgp",
-   "api": "openai-completions",
-   "retiredId": "mimo-v2.5-pro",
-   "keeperId": "mimo-v2.6-pro"
-  },
-  {
-   "provider": "xiaomi",
-   "api": "openai-completions",
-   "retiredId": "mimo-v2.5-pro",
-   "keeperId": "mimo-v2.6-pro"
-  },
-  {
-   "provider": "xiaomi",
-   "api": "openai-completions",
-   "retiredId": "mimo-v2.5-pro-ultraspeed",
-   "keeperId": "mimo-v2.6-pro-ultraspeed"
   },
   {
    "provider": "zai",
