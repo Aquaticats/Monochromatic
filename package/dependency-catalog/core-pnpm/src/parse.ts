@@ -103,7 +103,15 @@ function warnRejectedEntry(
     readonly reason: string;
   },
 ): void {
-  logger.warn(
+  /**
+   Logger carrying this helper's own tag, so a skipped entry names the path that
+   skipped it rather than the module alone.
+   */
+  const rl = tagged({
+    tag: warnRejectedEntry.name,
+    l: logger,
+  },);
+  rl.warn(
     `Rejected ${blockName} entry ${JSON.stringify(key,)}: ${reason}; skipping.`,
   );
 }
@@ -119,7 +127,15 @@ function warnRejectedEntry(
  ```
  */
 function warnMalformedBlock(blockName: string,): void {
-  logger.warn(
+  /**
+   Logger carrying this helper's own tag, so an ignored block names the path that
+   ignored it rather than the module alone.
+   */
+  const rl = tagged({
+    tag: warnMalformedBlock.name,
+    l: logger,
+  },);
+  rl.warn(
     `Ignoring ${blockName}: expected a YAML mapping.`,
   );
 }
