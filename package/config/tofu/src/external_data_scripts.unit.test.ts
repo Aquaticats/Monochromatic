@@ -179,7 +179,7 @@ type ScriptRun = {
  @param scriptFileName - Script file name inside this package's `src` directory.
 
  @returns Throwaway directory standing in for the script's source directory,
-   plus the runner that stages no further state.
+   and a runner that executes the staged copy inside it.
  
  @example
  ```ts
