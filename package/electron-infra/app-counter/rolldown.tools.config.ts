@@ -3,6 +3,16 @@ import {
   type RolldownOptions,
 } from 'rolldown';
 
+import { runtimeExternals, } from './src/runtime-externals.ts';
+
+/**
+ Package names the Electron tools run against, which the host supplies.
+ */
+const EXTERNAL_TOOLING_PACKAGES = [
+  'electron',
+  '@electron/packager',
+] as const;
+
 /**
  Build config for package-local Node tools.
  
@@ -19,12 +29,7 @@ const toolConfig: RolldownOptions = defineConfig({
   ],
   platform: 'node',
   transform: { target: 'node22', },
-  external: [
-    // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored protocol prefix test for node builtins; input is one bare import specifier; no repetition, no backtracking.
-    /^node:/u,
-    // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored literal name test keeping the electron runtime and its packager external; input is one bare import specifier; no repetition, no backtracking.
-    /^(electron|@electron\/packager)(\/|$)/u,
-  ],
+  external: runtimeExternals({ packageNames: EXTERNAL_TOOLING_PACKAGES, }),
   output: {
     dir: 'dist/tools',
     format: 'es',
