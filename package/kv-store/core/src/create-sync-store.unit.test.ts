@@ -7,7 +7,7 @@ import {
 import {
   ABSENT,
   createSyncStore,
-} from './index.ts';
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: createSyncStore.name,
