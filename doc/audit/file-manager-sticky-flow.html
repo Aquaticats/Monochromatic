@@ -20,6 +20,8 @@
       --pane: #101418;
       --pane-border: #2a2f2c;
       --active: #4a90d9;
+      --canvas: #000;
+      --warn: #e0b050;
     }
 
     /* The dark set above is the page's own design; a light-scheme viewer gets the
@@ -35,6 +37,8 @@
         --pane: #eef1ef;
         --pane-border: #cdd3cf;
         --active: #1d63a8;
+        --canvas: #e2e6e3;
+        --warn: #8a5a00;
       }
     }
 
@@ -99,6 +103,43 @@
 
     svg .dimtext {
       fill: var(--dim);
+    }
+
+    svg .pane-box {
+      fill: var(--pane);
+    }
+
+    svg .edge-line {
+      stroke: var(--pane-border);
+    }
+
+    svg .active-line {
+      stroke: var(--active);
+    }
+
+    svg .band-box {
+      fill: var(--rail);
+      stroke: var(--accent);
+    }
+
+    svg .dim-line {
+      stroke: var(--dim);
+    }
+
+    svg .warn-line {
+      stroke: var(--warn);
+    }
+
+    svg .warn-text {
+      fill: var(--warn);
+    }
+
+    svg .accent-line {
+      stroke: var(--accent);
+    }
+
+    svg .accent-text {
+      fill: var(--accent);
     }
 
     /* The live demo: the real layout at miniature scale.
@@ -175,7 +216,7 @@
 
       height: 300px;
 
-      background: #000;
+      background: var(--canvas);
 
       border-radius: 6px;
 
@@ -275,7 +316,7 @@
       </div>
     </div>
     <p class='dim'>
-      Scroll the black area vertically. The root pane (blue border) pins to the top and
+      Scroll the pane strip vertically. The root pane (blue border) pins to the top and
       rides the scroll while any of its direct children is on screen, then releases at its
       rail's end; every pane with children does the same inside its own rail. The readout
       mirrors the two facts the real boundary tests assert: <code>rootPinned</code> and
@@ -333,14 +374,14 @@
       </text>
       <g
         fill='none'
-        stroke='#4a5a52'>
+        class='edge-line'>
         <rect
           x='300'
           y='26'
           width='90'
           height='56'
           rx='6'
-          fill='#101418'
+          class='pane-box'
         />
         <rect
           x='410'
@@ -348,7 +389,7 @@
           width='90'
           height='56'
           rx='6'
-          fill='#101418'
+          class='pane-box'
         />
         <rect
           x='520'
@@ -356,7 +397,7 @@
           width='90'
           height='56'
           rx='6'
-          fill='#101418'
+          class='pane-box'
         />
         <rect
           x='410'
@@ -364,7 +405,7 @@
           width='90'
           height='56'
           rx='6'
-          fill='#101418'
+          class='pane-box'
         />
         <rect
           x='410'
@@ -372,7 +413,7 @@
           width='90'
           height='56'
           rx='6'
-          fill='#101418'
+          class='pane-box'
         />
       </g>
       <text
@@ -437,8 +478,7 @@
         width='110'
         height='200'
         rx='10'
-        fill='rgba(40,255,120,0.10)'
-        stroke='#28ff78'
+        class='band-box'
         stroke-dasharray='6 4'
       />
       <rect
@@ -447,8 +487,7 @@
         width='90'
         height='56'
         rx='6'
-        fill='#101418'
-        stroke='#4a90d9'
+        class='pane-box active-line'
       />
       <text
         x='80'
@@ -473,8 +512,7 @@
         width='90'
         height='56'
         rx='6'
-        fill='#101418'
-        stroke='#4a5a52'
+        class='pane-box edge-line'
       />
       <rect
         x='220'
@@ -482,8 +520,7 @@
         width='90'
         height='56'
         rx='6'
-        fill='#101418'
-        stroke='#4a5a52'
+        class='pane-box edge-line'
       />
       <text
         x='230'
@@ -539,9 +576,9 @@
         y1='60'
         x2='600'
         y2='60'
-        stroke='#4a5a52'
+        class='edge-line'
       />
-      <g stroke='#9aa39e'>
+      <g class='dim-line'>
         <line
           x1='40'
           y1='52'
@@ -572,12 +609,12 @@
         y1='46'
         x2='440'
         y2='74'
-        stroke='#e0b050'
+        class='warn-line'
       />
       <text
         x='330'
         y='40'
-        fill='#e0b050'>
+        class='warn-text'>
         original releases: 1516
       </text>
       <line
@@ -585,12 +622,12 @@
         y1='46'
         x2='470'
         y2='74'
-        stroke='#28ff78'
+        class='accent-line'
       />
       <text
         x='474'
         y='110'
-        fill='#28ff78'>
+        class='accent-text'>
         sticky releases: 1596
       </text>
     </svg>
