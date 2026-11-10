@@ -3,6 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { existsSync, } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -14,6 +15,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { dirname, join, } from 'node:path';
 
 import { buildCss, } from '@monochromatic-dev/css-cli';
+
 
 //region Test helpers
 
@@ -100,28 +102,62 @@ async function buildInTempDir({
   },);
 }
 
+/**
+ Directory the package owns, holding its sources and its built `dist/`; no
+ test may leave a build output inside it.
+ */
+const packageDirectory = join(import.meta.dirname, '..',);
+
+/**
+ One disposable directory an integration build writes into, removed when the
+ `await using` scope it is bound to ends, throw included.
+ Each test gets its own directory because module-test runs the cases of a
+ suite concurrently, and no directory lives inside the package's `dist/`, so
+ a failing assertion cannot leave output for a later build to pick up.
+ */
+type DisposableBuildOutput = {
+  /**
+   Output path owned solely by the calling test.
+   */
+  readonly outputPath: string;
+  /**
+   Removes the directory and whatever the build wrote into it.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Creates the disposable directory one integration build writes into.
+ 
+ @returns Output path plus the disposal hook that removes its directory.
+ */
+async function disposableBuildOutput(): Promise<DisposableBuildOutput> {
+  /**
+   Directory owning this test's output file alone.
+   */
+  const outputDirectory = await mkdtemp(join(
+    scratchRoot(),
+    'build-css-output-',
+  ),);
+  return {
+    outputPath: join(outputDirectory, 'out.css',),
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(
+        outputDirectory,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+    },
+  };
+}
+
 //endregion Test helpers
 
 const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
   /** Path to the main CSS entry point for this fixture */
   const fixtureMainCss = join(dir, 'src', 'main.css',);
-
-  /**
-   Builds a distinct output path per (fixture, test). module-test runs the it-blocks within a
-   describe concurrently, so a path shared across tests lets one test's cleanup rm the file
-   another test is mid-read on (the ENOENT this guards against).
-   
-   @param testSlug - Short discriminator unique to the calling test
-   @returns Absolute output path under dist/ owned solely by that test
-   */
-  function outputFor(testSlug: string,): string {
-    return join(
-      import.meta.dirname,
-      '..',
-      'dist',
-      `test-output-${label.replaceAll(' ', '-',)}-${testSlug}.css`,
-    );
-  }
 
   return describe({
     name: `buildCss (${label})`,
@@ -129,10 +165,10 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
       it({
         name: 'builds fixture CSS with import resolution and mixin expansion',
         fn: async () => {
-          const output = outputFor('builds',);
+          await using output = await disposableBuildOutput();
           const result = await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
           // Imports should be resolved and inlined
@@ -147,32 +183,71 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
           // Mixin content should be inlined
           expect(result,).toContain('display: flex',);
           expect(result,).toContain('font-weight: bold',);
-          await rm(output, { force: true, },);
         },
       },),
 
       it({
         name: 'writes output file to disk',
         fn: async () => {
-          const output = outputFor('writes',);
+          await using output = await disposableBuildOutput();
           await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
-          const written = await readFile(output, 'utf8',);
+          const written = await readFile(output.outputPath, 'utf8',);
           expect(written,).toContain('--primary: rebeccapurple',);
-          await rm(output, { force: true, },);
+        },
+      },),
+
+      it({
+        name: 'writes integration build outputs outside the package directory',
+        fn: async () => {
+          await using output = await disposableBuildOutput();
+          expect(output.outputPath.startsWith(packageDirectory,),).toBe(false,);
+        },
+      },),
+
+      it({
+        name: 'removes its build output even when a later assertion fails',
+        fn: async () => {
+          /**
+           Failure the deliberate assertion raised inside the disposed scope.
+           */
+          let caught: unknown;
+          /**
+           Directory whose disposal the assertions after the scope check.
+           */
+          let outputDirectory = '';
+          {
+            await using output = await disposableBuildOutput();
+            outputDirectory = dirname(output.outputPath,);
+            try {
+              await buildCss({
+                input: fixtureMainCss,
+                output: output.outputPath,
+              },);
+              // The build just wrote this file, so the assertion fails exactly
+              // the way a real one would after the output reached disk.
+              expect(existsSync(output.outputPath,),).toBe(false,);
+            }
+            catch (error) {
+              caught = error;
+            }
+          }
+
+          expect(String(caught,),).toContain('to equal false',);
+          expect(existsSync(outputDirectory,),).toBe(false,);
         },
       },),
 
       it({
         name: 'expands nested mixin references in build output',
         fn: async () => {
-          const output = outputFor('nested',);
+          await using output = await disposableBuildOutput();
           const result = await buildCss({
             input: fixtureMainCss,
-            output,
+            output: output.outputPath,
           },);
 
           // --card uses @apply --flex-center, so .nested-card should have flex styles
@@ -180,7 +255,6 @@ const integrationChildren = integrationFixtures.map(({ label, dir, },) => {
           // The flex-center content should appear inside .nested-card
           const nestedCardMatch = result.slice(result.indexOf('.nested-card',),);
           expect(nestedCardMatch,).toContain('display: flex',);
-          await rm(output, { force: true, },);
         },
       },),
     ],
