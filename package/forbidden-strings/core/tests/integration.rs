@@ -625,7 +625,7 @@ fn seedless_rule_above_the_group_state_cap_still_matches() {
     //          exceeding its state cap may cost an extra pass but must never lose coverage: a
     //          dropped rule is a silent false negative in a deny-rule scanner.
     let pattern = "[0-9].{11}";
-    let line = b"id 123456789012 ok";
+    let line: &[u8] = b"id 123456789012 ok";
     let set = RegexSet::new(&[pattern]).expect("the rule builds its own engine");
     assert_eq!(
         set.is_match(line),
@@ -634,4 +634,23 @@ fn seedless_rule_above_the_group_state_cap_still_matches() {
     );
     assert!(set.is_match(line), "the boolean fast path must report the rule");
     assert_eq!(set.matches(line).collect::<Vec<usize>>(), vec![0]);
+    // What:    The batch boolean kernels read the same union engines, so they must report the
+    //          rule on the line that holds it and stay false on the line that does not;
+    //          `is_match_batch_concat` sweeps the joined buffer and resolves each line through
+    //          the batch `resolve_line` path.
+    // Why:     A verdict that disagrees between the per-line and batch APIs is the same
+    //          false-negative defect one call site over.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert.deepEqual(set.isMatchBatch(lines), [true, false]);
+    // assert.deepEqual(set.isMatchBatchConcat(lines), [true, false]);
+    // ```
+    let lines: [&[u8]; 2] = [line, b"no digit run here"];
+    assert_eq!(set.is_match_batch(&lines), vec![true, false], "batch kernels keep the rule");
+    assert_eq!(
+        set.is_match_batch_concat(&lines),
+        vec![true, false],
+        "the concatenated sweep keeps the rule",
+    );
 }
