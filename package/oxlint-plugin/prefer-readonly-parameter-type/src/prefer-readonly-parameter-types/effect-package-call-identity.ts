@@ -27,6 +27,10 @@ import type {
   Project,
 } from 'typescript/sync';
 
+//region Identity shapes
+// The sentinel for a call without exact package import identity, the identity
+// itself, and the import binding it is read from.
+
 /**
  Sentinel when call lacks exact package import identity.
  */
@@ -50,6 +54,12 @@ type ImportBinding = {
   readonly declaration: ImportDeclaration;
   readonly binding: ImportClause | ImportSpecifier | NamespaceImport;
 };
+
+//endregion Identity shapes
+
+//region Import bindings
+// The enclosing import declaration of one binding node, and the authored import
+// binding a local symbol resolves to.
 
 /**
  Finds enclosing import declaration for one binding node.
@@ -129,6 +139,11 @@ function importBinding({
   return PACKAGE_CALL_IDENTITY_UNAVAILABLE;
 }
 
+//endregion Import bindings
+
+//region Module specifier
+// The non-relative specifier an authored import declaration names.
+
 /**
  Extracts nonrelative string module specifier.
  
@@ -149,6 +164,12 @@ function packageModuleSpecifier(
     ? PACKAGE_CALL_IDENTITY_UNAVAILABLE
     : text;
 }
+
+//endregion Module specifier
+
+//region Resolving the call identity
+// The package module export a call invokes, for direct default and named
+// imports and for namespace member calls.
 
 /**
  Resolves exact package module export invoked by call.
@@ -271,3 +292,4 @@ export function packageCallIdentity({
   }
   return PACKAGE_CALL_IDENTITY_UNAVAILABLE;
 }
+//endregion Resolving the call identity

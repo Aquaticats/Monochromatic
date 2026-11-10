@@ -18,7 +18,10 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { runCommand, } from './child-process.ts';
+import {
+  runCommand,
+  startCommand,
+} from './child-process.ts';
 import { NoAppIdentityError } from './errors.ts';
 
 //region Logging
@@ -199,10 +202,16 @@ export function selectLaunchCommand({
  Launch a new instance of the app identified by the focused window, logging
  (never throwing) so a failed launch cannot crash the daemon.
  
- A launcher that exits nonzero, is killed, or cannot be started at all is
- reported by {@link runCommand}; the log line names the command, its exit
- status or signal, and its stderr, so a missing launcher or desktop file says
- so instead of failing silently.
+ The launcher is started and left running: an app that becomes the new instance
+ keeps running for the session, so the call returns once the program has
+ started instead of waiting for the window to close, and nothing the program
+ writes is buffered on the way.
+ 
+ A launcher that cannot be started at all is reported before the call returns;
+ one that starts and then exits nonzero, or is killed, is reported by
+ {@link startCommand} through the daemon's log. Either way the log line names
+ the command, its exit status or signal, and its stderr, so a missing launcher
+ or desktop file says so instead of failing silently.
  
  @param desktopFileName - Focused window's `desktopFileName`, may be empty
  
@@ -234,7 +243,7 @@ export async function launchNewInstance({
     },)
       .info(`launching new instance: ${chosen.cmd} ${chosen.args
         .join(' ')}`,);
-    await runCommand({
+    await startCommand({
       command: chosen.cmd,
       args: chosen.args,
     });

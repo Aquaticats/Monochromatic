@@ -28,6 +28,9 @@ import type {
   MutableEffectSummary,
 } from './effect-summary-model.ts';
 
+//region Inbound shape
+// One inbound owned call carrying caller state into a callee.
+
 /**
  One inbound owned call carrying caller state into callee.
  */
@@ -35,6 +38,12 @@ export type ForeignInbound = {
   readonly callerKey: string;
   readonly edge: CallEdge;
 };
+
+//endregion Inbound shape
+
+//region Candidate identities
+// The separator joining a callable identity to a parameter position, and the
+// joined identity of one candidate parameter.
 
 /**
  Separator joining a callable identity to a parameter position.
@@ -68,6 +77,12 @@ function candidateKey({
   return `${callableKeyValue}${CANDIDATE_KEY_SEPARATOR}${parameterIndex}`;
 }
 
+//endregion Candidate identities
+
+//region Direct proof
+// Whether one inbound proves its argument foreign without consulting any caller
+// candidate.
+
 /**
  Whether one inbound proves its argument foreign without consulting any caller candidate.
  
@@ -100,6 +115,12 @@ function inboundIsAnchored({
     .directForeignByFormal;
   return directByFormal[parameterIndex] === true;
 }
+
+//endregion Direct proof
+
+//region Reachability
+// The anchored candidates and support edges, then the removal of candidates no
+// marker derivation reaches.
 
 /**
  Collects the anchored candidates and the support edges between the rest.
@@ -281,3 +302,4 @@ export function groundForeignCandidates({
       ];
     },),);
 }
+//endregion Reachability

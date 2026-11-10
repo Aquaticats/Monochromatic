@@ -88,11 +88,15 @@ const plugin: Plugin = eslintCompatPlugin({
     name: 'stylistic',
   },
   rules: {
-    //region Indentation: enforce two-space indentation from each line's structural anchor
+    //region Indentation
+    // Two-space indentation, read from each line's structural anchor.
+
     indentation,
     //endregion Indentation
 
-    //region Per-line rules: enforce one item per line in multi-element constructs
+    //region Per-line rules
+    // One item per line in multi-element constructs.
+
     'param-per-line': paramPerLine,
     'argument-per-line': argumentPerLine,
     'array-element-per-line': arrayElementPerLine,
@@ -104,22 +108,30 @@ const plugin: Plugin = eslintCompatPlugin({
     'destructure-per-line': destructurePerLine,
     //endregion Per-line rules
 
-    //region Comment layout: enforce configured TSDoc body prefixes
+    //region Comment layout
+    // The configured TSDoc body prefix.
+
     'require-asterisk-prefix': requireAsteriskPrefix,
     //endregion Comment layout
 
-    //region Body boundaries: enforce readable newlines inside non-empty braces
+    //region Body boundaries
+    // Readable newlines inside non-empty braces.
+
     'block-body-newline': blockBodyNewline,
     //endregion Body boundaries
 
-    //region Statement boundaries: enforce one-statement-per-line and one-declarator-per-line
+    //region Statement boundaries
+    // One statement per line, and one declarator per line.
+
     'one-var-declaration-per-line': oneVarDeclarationPerLine,
     'max-statements-per-line': maxStatementsPerLine,
     semi,
     'comma-dangle': commaDangle,
     //endregion Statement boundaries
 
-    //region Expression structure: enforce explicit parens at operator boundaries and break chains across lines
+    //region Expression structure
+    // Explicit parens at operator boundaries, and chains broken across lines.
+
     'no-mixed-operators': noMixedOperators,
     'chain-per-line': chainPerLine,
     'invocation-depth-per-line': invocationDepthPerLine,

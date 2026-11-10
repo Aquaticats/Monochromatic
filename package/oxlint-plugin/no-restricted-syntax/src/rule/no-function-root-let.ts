@@ -6,6 +6,10 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Helper-function shape
+// Whether a body ends in `return <identifier>` whose identifier is a parameter,
+// which is when a root `let` survives every call and cannot be narrowed.
+
 /**
  Checks whether a function body matches the helper-function shape:
  ends with `return <identifier>` where the identifier is a binding
@@ -76,6 +80,12 @@ function isHelperShape(body: ForeignBorrowed<ESTree.FunctionBody>,): boolean {
   }
   return false;
 }
+
+//endregion Helper-function shape
+
+//region The rule
+// The exported rule, which bans a `let` declared as a direct statement of a
+// function body.
 
 /**
  Bans `let` declarations at the immediate root scope of a function body.
@@ -220,3 +230,5 @@ export const noFunctionRootLet: CreateOnceRule = {
     };
   },
 };
+
+//endregion The rule

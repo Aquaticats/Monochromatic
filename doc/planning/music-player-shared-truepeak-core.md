@@ -822,6 +822,21 @@ existing per-track corpus (full peak plus per-second bin peaks,
 That run changes the classifier approach above,
  so the steps stay but their conclusion moves.
 
+The bench's own copies of the probe selection,
+ the neighbour climb and the even pass,
+ differed from the production probe in two places:
+ a budget the copies left uncapped at the bin count,
+ which no run could notice because the climb stops when the heap empties with every bin
+ measured,
+ and a bones slot at or past the last bin,
+ where the bucket copy measured only that bin and playback measures its neighbour too.
+The figures below come from the bones-free zoom path,
+ whose coverage share never exceeds one,
+ so they measured the bins playback measures;
+ a bones-seeded bucket run could have differed on that last seed alone.
+Since issue 1461 both paths call `select_probe_bins` from `truepeak-core`,
+ so no run can differ.
+
 The corpus and target:
 
 ```text

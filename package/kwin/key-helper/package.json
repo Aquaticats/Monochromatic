@@ -9,6 +9,7 @@
     "@homebridge/dbus-native": "catalog:",
     "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/shell-argument-core": "workspace:*",

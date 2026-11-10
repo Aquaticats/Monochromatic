@@ -16,6 +16,10 @@ import type {
 } from './installed-package-identity.ts';
 import { implementationAnalysisEvidence, } from './package-source-map-resolution.ts';
 
+//region Implementation shapes
+// The sentinel for an export with no inspectable implementation, the
+// implementation itself, and the runtime conditions and suffixes accepted.
+
 /**
  Sentinel when package export has no inspectable implementation.
  */
@@ -65,6 +69,12 @@ const IMPLEMENTATION_SUFFIXES = [
 const IMPLEMENTATION_SUFFIX_SET: ReadonlySet<string> = new Set(
   IMPLEMENTATION_SUFFIXES,
 );
+
+//endregion Implementation shapes
+
+//region Manifest fields
+// Whether an unknown manifest field is a record, and the runtime target selected
+// from one export target.
 
 /**
  Tests whether unknown manifest field is property-bearing record.
@@ -118,6 +128,12 @@ function runtimeTarget(
   }
   return PACKAGE_IMPLEMENTATION_UNAVAILABLE;
 }
+
+//endregion Manifest fields
+
+//region Export targets
+// The declaration target of one export entry, the export key an exact specifier
+// names, and the runtime target from exports or the legacy root fields.
 
 /**
  Selects declaration target from package export conditions.
@@ -235,6 +251,12 @@ function manifestRuntimeTarget({
     : '.';
 }
 
+//endregion Export targets
+
+//region Files
+// The target file behind a suffix fallback, and whether a candidate path is a
+// readable file rather than a directory.
+
 /**
  Resolves target file with explicit supported suffix fallback.
  
@@ -318,6 +340,12 @@ function candidateIsFile(candidate: string,): boolean {
   return (metadata !== undefined)
     && metadata.isFile();
 }
+
+//endregion Files
+
+//region Resolving an export
+// The authored module specifier a declaration file stands for, and the shipped
+// implementation one module export resolves to.
 
 /**
  Resolves declaration file to authored package module specifier.
@@ -480,3 +508,4 @@ export function resolvePackageImplementation({
     implementationDigest: evidence.digest,
   };
 }
+//endregion Resolving an export

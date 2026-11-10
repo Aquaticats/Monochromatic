@@ -192,3 +192,45 @@ Its prior direct-headless success is a route workaround,
 not proof of a coordinate-transform or text-protocol root cause.
 The new retained geometry evidence belongs in an additive comment on that issue.
 No separate external upstream filing is needed for this repository-owned harness defect.
+
+## The production harness has no parent compositor, checked 2026-11-10
+
+The geometry defect above belongs to the trial harness,
+which wrapped the E2E compositor in a fixed-size parent display.
+The production runner never had that layer:
+`package/music-player/desktop-e2e/src/session-launch.ts`
+starts one compositor per session inside that session's own transient unit,
+passes the session's authored size with `--size`,
+and adds `--headless --gpu <device>` unless a person asked for a window with `--visible` or `E2E_VISIBLE=1`.
+`rg parent package/music-player/desktop-e2e/src` finds no parent display outside the doc comment
+that explains why a headless session gets no host display variables.
+
+So the nested-parent topology that #1007 records cannot be reproduced from the current harness,
+and its pointer and text boundary is not testable here:
+a nested parent needs a host display,
+and a run started by an agent may not open one.
+
+Two follow-ups changed the route the trial measured:
+
+- The folder the click-through checks need is no longer chosen by a pixel position.
+  `package/music-player/desktop-e2e/src/library-folders.ts` reads the scratch library,
+  picks the folder with the most tracks,
+  and `package/music-player/desktop-e2e/src/folder-choice.ts` opens it by name through the folder list's own keys.
+  That removes the layout-specific selection behind the `timed out waiting for the folder of thirty tracks`
+  abort in #1005.
+- A session that stops between two checks no longer hides the sessions after it:
+  `runChosenSessions` in `package/music-player/desktop-e2e/src/run.ts` records `session/<name>` and carries on,
+  and a safety stop still ends the run at once (#1006).
+
+Neither change was exercised on a device from this record:
+the desktop suite needs the release binary,
+a compositor and PipeWire,
+and a real run is the only proof of the rendered state.
+
+## What was not established
+
+- The coordinate transform or input-protocol cause of the nine pointer and text assertion failures under a
+  fixed-size parent,
+  which needs a host display to reproduce.
+- That the headless route passes with the folder chosen by name,
+  which needs a real run.

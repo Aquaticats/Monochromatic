@@ -16,6 +16,11 @@ import {
 
 import { contentDigest, } from './effect-summary-cache-identity.ts';
 
+//region Source-map vocabulary
+// The reference marker a generated file carries, the sentinel for an
+// implementation with no usable map, the suffixes trusted as inspectable
+// source, and the analysis evidence one implementation yields.
+
 /**
  Source-map reference marker in generated JavaScript.
  */
@@ -49,6 +54,12 @@ export type ImplementationAnalysisEvidence = {
   readonly analysisPath: string;
   readonly digest: string;
 };
+
+//endregion Source-map vocabulary
+
+//region Reading the reference
+// Whether parsed JSON is a single-source map, and the reference extracted from
+// the implementation text without rescanning it.
 
 /**
  Tests whether parsed source map has one source list.
@@ -124,6 +135,12 @@ function sourceMapReference(
     ? SOURCE_MAP_UNAVAILABLE
     : reference;
 }
+
+//endregion Reading the reference
+
+//region Resolving the source
+// The map path from the authored reference or the adjacent convention, and the
+// one existing package-local source it names.
 
 /**
  Resolves source-map path from authored reference or adjacent convention.
@@ -213,6 +230,11 @@ function mappedSourcePath({
     : SOURCE_MAP_UNAVAILABLE;
 }
 
+//endregion Resolving the source
+
+//region The evidence
+// The inspectable implementation source with its complete evidence digest.
+
 /**
  Resolves inspectable implementation source and complete evidence digest.
  
@@ -293,3 +315,4 @@ export function implementationAnalysisEvidence({
     digest: contentDigest(`${implementationText}\0${mapText}\0${sourceText}`,),
   };
 }
+//endregion The evidence

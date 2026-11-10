@@ -32,6 +32,8 @@ import {
   type UnknownRecord,
 } from './rate-limit-parse-helpers.ts';
 
+//region Logger and header names
+
 /**
  Logger root for Synthetic quota header parsing.
  
@@ -54,6 +56,10 @@ const SYNTHETIC_QUOTAS_HEADER = 'x-synthetic-quotas';
  normalized across seven days.
  */
 const SYNTHETIC_WEEKLY_PACE_SCALE = SECONDS_PER_DAY / SECONDS_PER_WEEK;
+
+//endregion Logger and header names
+
+//region Quota header parsing
 
 /**
  Parses Synthetic quotas header as an object.
@@ -102,6 +108,10 @@ function parseSyntheticQuotasHeader(
     return INVALID_VALUE;
   }
 }
+
+//endregion Quota header parsing
+
+//region Weekly block reading
 
 /**
  Weekly block key names Synthetic has delivered, in the order they were first seen.
@@ -243,6 +253,10 @@ function readSyntheticWeeklyReading(quotas: UnknownRecord,): SyntheticWeeklyRead
   return first;
 }
 
+//endregion Weekly block reading
+
+//region Weekly snapshot
+
 /**
  Parses Synthetic weekly credit quota into a projectable snapshot.
  
@@ -290,6 +304,10 @@ function parseSyntheticWeeklySnapshot({
     usedPercent,
   },);
 }
+
+//endregion Weekly snapshot
+
+//region Search snapshot
 
 /**
  Parses Synthetic hourly search quota into a projectable snapshot.
@@ -385,6 +403,10 @@ function parseSyntheticSearchSnapshot({
   },);
 }
 
+//endregion Search snapshot
+
+//region Tools snapshot
+
 /**
  Parses Synthetic daily free-tool quota into a projectable snapshot.
  
@@ -467,6 +489,10 @@ function parseSyntheticToolsSnapshot({
   },);
 }
 
+//endregion Tools snapshot
+
+//region Snapshot collection parsing
+
 /**
  Parses all projectable Synthetic quota windows from response headers.
  
@@ -517,6 +543,8 @@ function parseSyntheticRateLimitSnapshots({
     return isRateLimitSnapshot(snapshot,);
   },);
 }
+
+//endregion Snapshot collection parsing
 
 export {
   SYNTHETIC_QUOTAS_HEADER,

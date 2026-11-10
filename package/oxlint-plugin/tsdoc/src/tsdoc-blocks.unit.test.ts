@@ -7,7 +7,7 @@ import {
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
 
-import { splitDocComment, } from './tsdoc-blocks.ts';
+import { splitDocComment, } from '../dist/final/node/index.mjs';
 
 /** Builds a stub block comment whose `value` mimics a real TSDoc body. */
 function commentFromBody(bodyLines: readonly string[],): ReadonlyDeep<Comment> {

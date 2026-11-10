@@ -19,6 +19,10 @@ import type {
   Project,
 } from 'typescript/sync';
 
+//region Absent initializer
+// The sentinel for a name that stands for no local declaration carrying a
+// value.
+
 /**
  Sentinel when a name stands for no local declaration carrying a value.
  
@@ -28,6 +32,11 @@ import type {
 export const NO_BINDING_INITIALIZER: unique symbol = Symbol(
   'name declares no local initializer',
 );
+
+//endregion Absent initializer
+
+//region Resolving the declared value
+// The value a name was declared with, when it names one local declaration.
 
 /**
  Resolves the value a name was declared with, when it names one local declaration.
@@ -80,6 +89,12 @@ export function bindingDeclarationInitializer({
     return NO_BINDING_INITIALIZER;
   return declaration.initializer ?? NO_BINDING_INITIALIZER;
 }
+
+//endregion Resolving the declared value
+
+//region The local declaration hop
+// The single local variable declaration a name stands for, shared by the plain
+// hop and the `const`-only hop.
 
 /**
  Resolves the single local variable declaration a name stands for.
@@ -134,6 +149,12 @@ function declaredVariable({
     return NO_BINDING_INITIALIZER;
   return declaration;
 }
+
+//endregion The local declaration hop
+
+//region Reassignment guards
+// Whether a declaration can still be pointed elsewhere after it is written, and
+// whether a name stands for a local binding that can.
 
 /**
  Tests whether a declaration cannot be pointed somewhere else after it is written.
@@ -221,3 +242,5 @@ export function bindingIsReassignable({
     return false;
   return !declaredConst({ declaration, },);
 }
+
+//endregion Reassignment guards

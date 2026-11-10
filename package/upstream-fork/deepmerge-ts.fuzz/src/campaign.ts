@@ -197,6 +197,9 @@ export async function runCampaign(): Promise<never> {
     failureDir,
     { recursive: true, },
   );
+  // The round number is the loop's own subject: it names the failure record and
+  // the log line, and no collection holds the rounds, so a `for...of` would have
+  // to build the collection the counter is producing.
   for (let round = 1; round <= Number.MAX_SAFE_INTEGER; round += 1) {
     /**
      Seed shared by every file this round.

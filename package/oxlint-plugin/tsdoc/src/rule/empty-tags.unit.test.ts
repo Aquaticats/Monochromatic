@@ -7,7 +7,7 @@ import {
 import {
   parseTaggedLine,
   UNTAGGED_LINE,
-} from './empty-tags.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Length of the long repeated runs used to exercise scan boundaries on big inputs. */
 const LONG_RUN = 1_000;

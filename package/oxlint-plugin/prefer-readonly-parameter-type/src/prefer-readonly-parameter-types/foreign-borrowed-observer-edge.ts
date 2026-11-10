@@ -38,6 +38,10 @@ import {
 } from './effect-summary-model.ts';
 import { isForeignBorrowedType, } from './foreign-borrowed-identity.ts';
 
+//region Observer sentinels
+// The sentinel for a call that does not prove observer ownership positions, and
+// the one for a declaration that is no direct observer argument.
+
 /**
  Sentinel when collection call does not prove observer ownership positions.
  */
@@ -51,6 +55,13 @@ const FOREIGN_OBSERVER_EDGE_UNAVAILABLE: unique symbol = Symbol(
 export const FOREIGN_OBSERVER_CALL_UNAVAILABLE: unique symbol = Symbol(
   'foreign collection observer call unavailable',
 );
+
+//endregion Observer sentinels
+
+//region Observer position vocabulary
+// The interfaces whose callback positions are modeled, the members whose
+// callbacks receive an element and the receiver, the fold members, and the two
+// receiver positions.
 
 /**
  Default-library interfaces whose callback position contracts are modeled.
@@ -91,6 +102,12 @@ const ELEMENT_OBSERVER_RECEIVER_POSITION = 2;
  Fold observer position receiving whole array receiver.
  */
 const FOLD_OBSERVER_RECEIVER_POSITION = 3;
+
+//endregion Observer position vocabulary
+
+//region Resolving the member
+// The default-library observer method a call selected, and the formal positions
+// that receive receiver-owned state.
 
 /**
  Resolves selected default-library observer method name.
@@ -186,6 +203,12 @@ function receiverDerivedObserverPositions({
     ];
 }
 
+//endregion Resolving the member
+
+//region Locating the call
+// Whether the observer argument resolves to the demanded declaration, and the
+// collection call directly containing it.
+
 /**
  Tests whether observer argument resolves to exact demanded declaration.
  
@@ -254,6 +277,12 @@ export function foreignObserverCall({
     ? parent
     : FOREIGN_OBSERVER_CALL_UNAVAILABLE;
 }
+
+//endregion Locating the call
+
+//region The synthetic edge
+// Adding the exact synthetic inbound edge from the collection receiver to the
+// owned observer.
 
 /**
  Adds exact synthetic inbound edge from collection receiver to owned observer.
@@ -441,3 +470,4 @@ export function addForeignObserverInbound({
   },);
   return true;
 }
+//endregion The synthetic edge

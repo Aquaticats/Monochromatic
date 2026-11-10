@@ -27,7 +27,7 @@
 //! ```
 
 use crate::standards_review_input::{ChangedPath, LandedCommit, has_shadow_log};
-use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, LandedCommitReader, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
+use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, LandedCommitReader, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in, run_contained_in_awaiting};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -271,20 +271,95 @@ pub fn review_item_within(context: &GitContext, item: &WorkItem, options: Review
 /// await runner.contain(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
 /// ```
 pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    // The service serves many repositories, so its own context names none; the Git command that takes input needs the
-    // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(item.git_dir.clone()), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(
-        runner,
-        move || {
-            if !has_shadow_log(owned.repository.as_path()) {
-                return None;
-            }
-            return Some(run_review(&owned_context, &owned, &options, &wall_clock_millis));
-        },
-        ceiling,
-    );
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(runner, move || {
+        return run_the_review(owned_context, owned, options);
+    }, ceiling);
+    return verdict_of(outcome, item);
+}
+
+/// What:
+///  `review_item`,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The round of the service's work is tasks
+/// (`landing/service_round.rs`),
+/// and the wait for a review is the runtime's timer there:
+/// the job starts Git,
+/// so the synchronous wait cannot be made from a task at all,
+/// and a worker that blocked on it would hold the verifier it waits for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await reviewItemAwaiting(context, item, options)
+/// ```
+pub async fn review_item_awaiting(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
+    return review_item_within_awaiting(context, item, options, crate::wait_ceilings::REVIEW_CEILING).await;
+}
+
+/// `review_item_awaiting` where the whole review is waited for at most `ceiling`;
+/// a control shortens it.
+pub async fn review_item_within_awaiting(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
+    return review_item_in_awaiting(&crate::standards_review_run::RUNNER, context, item, options, ceiling).await;
+}
+
+/// What:
+///  `review_item_in` on a runner of the caller's own,
+/// its wait made on the runtime.
+/// Why:
+///   The job,
+/// the look for the shadow log and the runner's admission are the synchronous face's;
+/// only the wait for the job is the runtime's,
+///  so the two cannot answer differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runner.containAwaiting(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
+/// ```
+pub async fn review_item_in_awaiting(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
+    let owned_context: GitContext = GitContext { common_dir: Some(item.git_dir.clone()), ..context.clone() };
+    let owned: WorkItem = item.clone();
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in_awaiting(runner, move || {
+        return run_the_review(owned_context, owned, options);
+    }, ceiling)
+    .await;
+    return verdict_of(outcome, item);
+}
+
+/// What:
+///  The job one review runs in its contained thread:
+/// nothing when the repository keeps no shadow log,
+/// else the review itself.
+/// Why:
+///   Both faces run the same job,
+/// so a review cannot depend on which one asked for it.
+/// The Git directory the input file needs is the item's,
+/// because the service's own context names no repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const job = () => hasShadowLog(repository) ? reviewLanded(context, item, options, clock) : undefined
+/// ```
+fn run_the_review(context: GitContext, item: WorkItem, options: ReviewOptions) -> Option<ReviewOutcome> {
+    if !has_shadow_log(item.repository.as_path()) {
+        return None;
+    }
+    return Some(run_review(&context, &item, &options, &wall_clock_millis));
+}
+
+/// What:
+///  What a contained review came to,
+/// as the person's item is settled.
+/// Why:
+///   Both faces answer through this one function,
+/// so the verdict of a review cannot depend on which face asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const verdictOf = (outcome, item, ceiling) => ...
+/// ```
+fn verdict_of(outcome: Contained<Option<ReviewOutcome>>, item: &WorkItem) -> Verdict {
     return match outcome {
         Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
         Contained::NoThread(refused) => Verdict::Failed(format!("the review of {} was not started: {refused}", item.oid)),

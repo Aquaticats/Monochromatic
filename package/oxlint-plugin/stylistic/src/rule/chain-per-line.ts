@@ -21,6 +21,10 @@ import { chainBreaks, } from '../utility/chain-flatten.ts';
 import { renderCanonical, } from '../utility/chain-render.ts';
 import { baseIndentAt, } from '../utility/indent.ts';
 
+//region Source text cache
+// One full-text read per file, keyed by the file's `SourceCode` identity, because
+// `createOnce` reuses one visitor across every file and every chain member.
+
 /**
  Per-file cache of full source text, keyed by the file's `SourceCode` identity.
  */
@@ -61,6 +65,11 @@ function sourceTextOf(context: ForeignBorrowed<Context>,): string {
   );
   return text;
 }
+//endregion Source text cache
+
+//region Rule
+// The exported rule: its metadata, and the visitor that reports one chain
+// segment per line and rewrites the whole chain region in one fix.
 
 /**
  Enforces one chain segment per source line for binary, logical, member, and
@@ -243,3 +252,4 @@ export const chainPerLine: CreateOnceRule = {
     };
   },
 };
+//endregion Rule

@@ -30,6 +30,10 @@ import { expressionValueKind, } from '../spread-evidence/expression-kind.ts';
 import { isUndeclaredReference, } from '../spread-evidence/undeclared-reference.ts';
 import { copyCall, } from './receiver.ts';
 
+//region Spread text
+// Rendering an expression as a spread argument, parenthesized only where it
+// binds looser than spread.
+
 /**
  Spread text of an expression, parenthesized unless it binds tighter than spread.
 
@@ -60,6 +64,12 @@ function spreadText(
     .getText(expression,);
   return expression.type === 'SequenceExpression' ? `[...(${text})]` : `[...${text}]`;
 }
+
+//endregion Spread text
+
+//region Array.from
+// Reporting `Array.from(x)` where TypeScript proves `x` is already an array or
+// typed array, so `[...x]` builds the same plain array.
 
 /**
  Reports `Array.from(x)` when TypeScript proves `x` is an array or typed array,
@@ -137,6 +147,12 @@ function reportArrayFrom(
     },
   },);
 }
+
+//endregion Array.from
+
+//region Copy calls
+// Reporting the copy methods `x.slice()`, `x.slice(0)`, `x.toSpliced()`, and
+// `x.concat(...)` by the semantic kind of their receiver.
 
 /**
  Reports `x.slice()`, `x.slice(0)`, `x.toSpliced()`, and `x.concat(...)` by the
@@ -220,6 +236,12 @@ function reportCopyCall(
   },);
 }
 
+//endregion Copy calls
+
+//region The rule
+// The exported rule, which fixes proven array copies and asks untyped code to
+// state the conversion it means.
+
 /**
  Prefers `[...x]` for array copies and conversions where TypeScript proves the
  spread builds the same array, and asks untyped code to state which copy it means.
@@ -279,3 +301,5 @@ export const preferSpread: CreateOnceRule = {
     };
   },
 };
+
+//endregion The rule
