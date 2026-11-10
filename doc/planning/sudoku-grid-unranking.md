@@ -163,14 +163,14 @@ A many-to-one re-normalization with no recorded coordinate is forbidden.
 
 The offline compiler can derive the compact asset from the released T-Doku counts:
 
-1. Generate all normalized top-band members in deterministic order.
-2. Reproduce Ed Russell's 44-class coloring.
-3. Select one T-Doku horizontal configuration ID for each representative.
-4. Extract only those 44 horizontal rows from `grid.counts`.
-5. Store every member's class ID and canonical transformation witness.
-6. Generate block prefix totals and integrity hashes.
-7. Verify each representative row sum equals Ed Russell's published `C`.
-8. Verify class sizes and `sum(m * C)` against the reduced total.
+1.  Generate all normalized top-band members in deterministic order.
+2.  Reproduce Ed Russell's 44-class coloring.
+3.  Select one T-Doku horizontal configuration ID for each representative.
+4.  Extract only those 44 horizontal rows from `grid.counts`.
+5.  Store every member's class ID and canonical transformation witness.
+6.  Generate block prefix totals and integrity hashes.
+7.  Verify each representative row sum equals Ed Russell's published `C`.
+8.  Verify class sizes and `sum(m * C)` against the reduced total.
 
 The runtime asset does not need the original 2.5 GiB count table.
 

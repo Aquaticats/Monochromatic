@@ -1127,9 +1127,9 @@ Cons:
 
 Practical proximity ranking:
 
-1. `argue-cli`
-2. `type-flag`
-3. `jackspeak`
+1.  `argue-cli`
+2.  `type-flag`
+3.  `jackspeak`
 
 Ranking:
 `argue-cli` > `type-flag` > `jackspeak`.

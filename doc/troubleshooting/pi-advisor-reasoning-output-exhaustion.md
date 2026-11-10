@@ -386,28 +386,28 @@ local issue.
  but neither acceptance list covers
 a text-bearing `stopReason: "length"` response.
 
-1. **Is it really upstream's fault?**
-   No. Pi AI preserved the provider's usage and `length` finish reason.
-    The local Advisor extension chose the
-   16K cap,
-    high reasoning,
-    and misleading `full` rendering.
-2. **Can upstream fix it?**
-   Pi could add a model-cap clamp,
-    but the complete user-facing correction belongs in the local Advisor policy
-   and renderer.
-3. **Are they supporting this use case?**
-   Pi supports nested provider calls and custom tools.
-    Its contracts expose the data Advisor needs.
-4. **Would the repo welcome our contribution?**
-   The local repository owns Advisor.
-    No external Pi contribution is needed for the identified correction.
-5. **Will they likely fix it?**
-   Not applicable to external Pi because the deciding behavior is local.
-6. **Have we prototyped a minimal upstream fix?**
-   No upstream prototype is appropriate because constraint 1 fails.
-    The automatic prototype gate does not
-   trigger.
+1.  **Is it really upstream's fault?**
+    No. Pi AI preserved the provider's usage and `length` finish reason.
+     The local Advisor extension chose the
+    16K cap,
+     high reasoning,
+     and misleading `full` rendering.
+2.  **Can upstream fix it?**
+    Pi could add a model-cap clamp,
+     but the complete user-facing correction belongs in the local Advisor policy
+    and renderer.
+3.  **Are they supporting this use case?**
+    Pi supports nested provider calls and custom tools.
+     Its contracts expose the data Advisor needs.
+4.  **Would the repo welcome our contribution?**
+    The local repository owns Advisor.
+     No external Pi contribution is needed for the identified correction.
+5.  **Will they likely fix it?**
+    Not applicable to external Pi because the deciding behavior is local.
+6.  **Have we prototyped a minimal upstream fix?**
+    No upstream prototype is appropriate because constraint 1 fails.
+     The automatic prototype gate does not
+    trigger.
 
 There is nothing additive to file in the external Pi tracker and no upstream issue draft to retain.
 

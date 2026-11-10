@@ -294,27 +294,27 @@ Issue #1322 (a closed experiment that reported repeater changes to the window fo
 and say nothing about a change made inside the notifier.
 Nothing is added to them.
 
-1. **Is it really upstream's fault?**
-   Not as a defect.
-   `set_rendering_notifier` documents only that it "allows custom rendering on top or below of the scene"
-   (`i-slint-core` `api.rs`),
-   and the dependency model above follows from how the tracker is built.
-   The undocumented part is that models and properties must not change inside the callback.
-2. **Can upstream fix it?**
-   Yes.
-   The renderer could run `ensure_tree_instantiated` again after the notifier returned,
-   or the docs could state the rule.
-3. **Are they supporting this use case?**
-   The notifier exists for custom rendering,
-   and the femtovg wgpu renderer's notifier support was added in issue #10640.
-   Driving model changes from it is not shown in any documented example.
-4. **Would the repo welcome our contribution?**
-   Not checked in `CONTRIBUTING.md`,
-   because the audit stops at constraint 1.
-5. **Will they likely fix it?**
-   No signal either way.
-6. **Have we prototyped a minimal fix?**
-   No.
+1.  **Is it really upstream's fault?**
+    Not as a defect.
+    `set_rendering_notifier` documents only that it "allows custom rendering on top or below of the scene"
+    (`i-slint-core` `api.rs`),
+    and the dependency model above follows from how the tracker is built.
+    The undocumented part is that models and properties must not change inside the callback.
+2.  **Can upstream fix it?**
+    Yes.
+    The renderer could run `ensure_tree_instantiated` again after the notifier returned,
+    or the docs could state the rule.
+3.  **Are they supporting this use case?**
+    The notifier exists for custom rendering,
+    and the femtovg wgpu renderer's notifier support was added in issue #10640.
+    Driving model changes from it is not shown in any documented example.
+4.  **Would the repo welcome our contribution?**
+    Not checked in `CONTRIBUTING.md`,
+    because the audit stops at constraint 1.
+5.  **Will they likely fix it?**
+    No signal either way.
+6.  **Have we prototyped a minimal fix?**
+    No.
 
 Decision:
 do not file.

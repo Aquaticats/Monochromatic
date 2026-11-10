@@ -132,7 +132,7 @@ It does not recreate or inspect any possible pre-restart user draft.
   `<session>.version` sidecar in the socket directory.
   `cli/src/connection.rs:100-160` defines the socket directory priority and version filename.
   `ux-choice-session-preflight.mjs` applies this at the consumer boundary:
-  on mismatch it chooses a version-qualified *different* session instead of contacting the old daemon.
+  on mismatch it chooses a version-qualified **different** session instead of contacting the old daemon.
   `mise run test:ux-session-preflight` passed same-version,
   mismatched,
   missing,
@@ -154,7 +154,7 @@ It does not recreate or inspect any possible pre-restart user draft.
 
 - Reusing only the same `--session` name after a version change:
   the version check runs before the requested command and restarts its daemon.
-- Adding a no-reload rule *after* the CLI has already contacted a mismatched daemon:
+- Adding a no-reload rule **after** the CLI has already contacted a mismatched daemon:
   the shutdown path has already closed its browser backends.
 - Inferring a user's draft status from a later `about:blank` tab:
   no immediate pre-restart form snapshot was taken in this incident.

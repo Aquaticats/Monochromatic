@@ -18,22 +18,22 @@ A pattern search finds candidates,
 not violations,
 so the audit ran in three passes over each package.
 
-1. Search the test and sidecar files for the four violation shapes named in the issue:
-   expected values that repeat a production constant,
-   default,
-   limit,
-   timeout or count;
-   expected lists that repeat a production list;
-   sums or products of literals that mirror production arithmetic;
-   counts of a collection the code defines.
-2. Pair each candidate literal mechanically with the production constants in the same package
-   that carry the same value,
-   so a hit pointed at the constant it might copy.
-   The pairing is a reading aid,
-   not a verdict.
-3. Read every hit against the four classes and the issue's not-a-violation list,
-   fix the violations,
-   and record why each remaining candidate is not one.
+1.  Search the test and sidecar files for the four violation shapes named in the issue:
+    expected values that repeat a production constant,
+    default,
+    limit,
+    timeout or count;
+    expected lists that repeat a production list;
+    sums or products of literals that mirror production arithmetic;
+    counts of a collection the code defines.
+2.  Pair each candidate literal mechanically with the production constants in the same package
+    that carry the same value,
+    so a hit pointed at the constant it might copy.
+    The pairing is a reading aid,
+    not a verdict.
+3.  Read every hit against the four classes and the issue's not-a-violation list,
+    fix the violations,
+    and record why each remaining candidate is not one.
 
 Each fix was verified by changing the guarded production value or list,
 running the narrow test that covers the rewritten assertion,

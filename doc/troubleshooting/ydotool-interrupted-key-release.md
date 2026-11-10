@@ -72,15 +72,15 @@ The installed package is Fedora `ydotool-1.0.4-8.fc44`.
 Upstream tag `v1.0.4` is commit `57ba7d0`.
 Its source explains the cancellation window:
 
-1. `Client/tool_key.c:70` sets a 12 ms delay between key events.
-2. `Client/tool_key.c:124-146` walks arguments one at a time,
-   emits one event,
-   then sleeps.
-3. `Client/ydotool.c:95-109` writes the input event and `SYN_REPORT`
-   as separate datagrams to a Unix datagram socket.
-4. `Daemon/ydotoold.c:377-383` receives each datagram and writes it directly to `/dev/uinput`.
-5. The protocol has no client connection lifecycle from which the daemon can infer
-   that an absent key-up means cancellation rather than an intentional hold.
+1.  `Client/tool_key.c:70` sets a 12 ms delay between key events.
+2.  `Client/tool_key.c:124-146` walks arguments one at a time,
+    emits one event,
+    then sleeps.
+3.  `Client/ydotool.c:95-109` writes the input event and `SYN_REPORT`
+    as separate datagrams to a Unix datagram socket.
+4.  `Daemon/ydotoold.c:377-383` receives each datagram and writes it directly to `/dev/uinput`.
+5.  The protocol has no client connection lifecycle from which the daemon can infer
+    that an absent key-up means cancellation rather than an intentional hold.
 
 A syntactically balanced command is therefore not an atomic key gesture.
 If its key-down cancels or kills the caller during the inter-event delay,

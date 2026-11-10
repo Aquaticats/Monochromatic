@@ -426,33 +426,33 @@ their own code.
 
 Six-constraint check:
 
-1. Upstream's fault:
-   yes,
-    it is a Slint feature gap (no file-list in `DataTransfer`,
-    no native drag
-   path in 1.17.0).
-2. Can upstream fix it:
-   yes,
-    and they have scoped it in `#1967` (extend `WindowEvent` for inbound,
-    a
-   mimetype+filename payload for outbound).
-3. Supporting this use case:
-   not yet;
-   it is explicitly planned future work,
-    not shipped.
-4. Would the repo welcome our contribution:
-   not applicable;
-   there is nothing to contribute that is not already in `#1967`.
-5. Will they likely fix it:
-   plausibly;
-   `#1967` is open and maintainer-authored with no won't-fix signal.
-6. Prototyped a minimal fix:
-   not applicable;
-   a full file-list DnD implementation spans core plus every backend and is a
-   large feature the maintainers are designing in `#1967`,
-    and there is nothing
-   additive to file,
-    so no fix draft is warranted.
+1.  Upstream's fault:
+    yes,
+     it is a Slint feature gap (no file-list in `DataTransfer`,
+     no native drag
+    path in 1.17.0).
+2.  Can upstream fix it:
+    yes,
+     and they have scoped it in `#1967` (extend `WindowEvent` for inbound,
+     a
+    mimetype+filename payload for outbound).
+3.  Supporting this use case:
+    not yet;
+    it is explicitly planned future work,
+     not shipped.
+4.  Would the repo welcome our contribution:
+    not applicable;
+    there is nothing to contribute that is not already in `#1967`.
+5.  Will they likely fix it:
+    plausibly;
+    `#1967` is open and maintainer-authored with no won't-fix signal.
+6.  Prototyped a minimal fix:
+    not applicable;
+    a full file-list DnD implementation spans core plus every backend and is a
+    large feature the maintainers are designing in `#1967`,
+     and there is nothing
+    additive to file,
+     so no fix draft is warranted.
 
 Decision:
 do not open a new issue (`#1967` is the duplicate),

@@ -165,60 +165,60 @@ Prior related repository evidence (to be re-verified by the repository inventory
 
 Each constraint lists its measured source.
 
-1. Mise-run workflows keep working:
-   `tsc --build` type check,
-   bare-node TypeScript unit tests,
-   rolldown node/browser/client builds,
-   oxlint with tsgolint,
-   watch and dev servers.
-   Source:
-   [mise.toml](../../mise.toml) task templates and vars.
-2. Native addon,
-   napi,
-   WASM and platform-binary dependencies stay loadable and buildable.
-   Source:
-   catalog entries in [pnpm-workspace.yaml](../../pnpm-workspace.yaml)
-   (sharp,
-   electron,
-   Playwright,
-   libsql/turso,
-   ripgrep,
-   esbuild,
-   wasm font packages),
-   `allowBuilds` list,
-   napi incident record
-   [depot-git-host-failure evidence](depot-git-host-failure-mapping-2026-10-17.evidence.json)
-   and [napi-loader troubleshooting](../troubleshooting/napi-loader-bundled-out-of-package.md).
-3. Supply-chain policy keeps effect:
-   `.pnpmfile.mjs` substitution,
-   `overrides` including `link:` shims,
-   `allowBuilds` approvals,
-   strict `minimumReleaseAge`,
-   `trustPolicy: no-downgrade`.
-   Source:
-   [pnpm-workspace.yaml](../../pnpm-workspace.yaml),
-   [.pnpmfile.mjs](../../.pnpmfile.mjs).
-4. The committed lockfile stays portable across `supportedArchitectures` (darwin/linux,
-   x64/arm64,
-   glibc/musl) for mixed development and CI environments.
-   Source:
-   [pnpm-workspace.yaml](../../pnpm-workspace.yaml) lines 437 to 459.
-5. CI installs remain possible from the committed frozen lockfile with store caching.
-   Source:
-   `.github/workflows` (exact invocations recorded by the repository inventory).
-6. Electron packaging and Playwright-in-podman browser and e2e runs keep working.
-   Source:
-   `@electron/packager` catalog entry,
-   `run_playwright` var in [mise.toml](../../mise.toml).
-7. Node surfaces that must run stored code meet the loader Node floor (24.18+ or 26.2+).
-   Source:
-   [pnpm.io/store-loader][store-loader];
-   host Node is v26.12.0,
-   other surfaces pending inventory.
-8. No regression of the strict isolation guarantees behind `nodeLinker: isolated` with `hoist: false`.
-   Source:
-   [pnpm-workspace.yaml](../../pnpm-workspace.yaml) line 409 comment,
-   [napi-loader troubleshooting](../troubleshooting/napi-loader-bundled-out-of-package.md).
+1.  Mise-run workflows keep working:
+    `tsc --build` type check,
+    bare-node TypeScript unit tests,
+    rolldown node/browser/client builds,
+    oxlint with tsgolint,
+    watch and dev servers.
+    Source:
+    [mise.toml](../../mise.toml) task templates and vars.
+2.  Native addon,
+    napi,
+    WASM and platform-binary dependencies stay loadable and buildable.
+    Source:
+    catalog entries in [pnpm-workspace.yaml](../../pnpm-workspace.yaml)
+    (sharp,
+    electron,
+    Playwright,
+    libsql/turso,
+    ripgrep,
+    esbuild,
+    wasm font packages),
+    `allowBuilds` list,
+    napi incident record
+    [depot-git-host-failure evidence](depot-git-host-failure-mapping-2026-10-17.evidence.json)
+    and [napi-loader troubleshooting](../troubleshooting/napi-loader-bundled-out-of-package.md).
+3.  Supply-chain policy keeps effect:
+    `.pnpmfile.mjs` substitution,
+    `overrides` including `link:` shims,
+    `allowBuilds` approvals,
+    strict `minimumReleaseAge`,
+    `trustPolicy: no-downgrade`.
+    Source:
+    [pnpm-workspace.yaml](../../pnpm-workspace.yaml),
+    [.pnpmfile.mjs](../../.pnpmfile.mjs).
+4.  The committed lockfile stays portable across `supportedArchitectures` (darwin/linux,
+    x64/arm64,
+    glibc/musl) for mixed development and CI environments.
+    Source:
+    [pnpm-workspace.yaml](../../pnpm-workspace.yaml) lines 437 to 459.
+5.  CI installs remain possible from the committed frozen lockfile with store caching.
+    Source:
+    `.github/workflows` (exact invocations recorded by the repository inventory).
+6.  Electron packaging and Playwright-in-podman browser and e2e runs keep working.
+    Source:
+    `@electron/packager` catalog entry,
+    `run_playwright` var in [mise.toml](../../mise.toml).
+7.  Node surfaces that must run stored code meet the loader Node floor (24.18+ or 26.2+).
+    Source:
+    [pnpm.io/store-loader][store-loader];
+    host Node is v26.12.0,
+    other surfaces pending inventory.
+8.  No regression of the strict isolation guarantees behind `nodeLinker: isolated` with `hoist: false`.
+    Source:
+    [pnpm-workspace.yaml](../../pnpm-workspace.yaml) line 409 comment,
+    [napi-loader troubleshooting](../troubleshooting/napi-loader-bundled-out-of-package.md).
 
 ## Candidate ledger
 
@@ -348,61 +348,61 @@ not saturated.
 Source class 1,
 package registry (npm):
 
-1. `npm view @pnpm/esm-loader versions time --json`
-2. fetch `https://registry.npmjs.org/@pnpm/esm-loader`
-3. npm search `pnpm loader` (record count;
-   leads only,
-   not evidence)
+1.  `npm view @pnpm/esm-loader versions time --json`
+2.  fetch `https://registry.npmjs.org/@pnpm/esm-loader`
+3.  npm search `pnpm loader` (record count;
+    leads only,
+    not evidence)
 
 Source class 2,
 repository host (GitHub,
 `gh`):
 
-1. `gh release list --repo pnpm/pnpm --limit 30`
-2. release notes of every 12.x release for `loaded`,
-   `store loader`,
-   `store-loader`,
-   `CAS`,
-   `global virtual store`,
-   `GVS`,
-   `esm-loader`
-3. `gh search issues --repo pnpm/pnpm "loaded linker"` (open and closed)
-4. `gh search issues --repo pnpm/pnpm "store loader"` (open and closed)
-5. `gh search issues --repo pnpm/pnpm "store-manifest"` (open and closed)
-6. `gh search issues --repo pnpm/pnpm "esm-loader"` (open and closed)
-7. `gh search issues --repo pnpm/pnpm "nodeLinker loaded"` (open and closed)
-8. `gh search prs --repo pnpm/pnpm "loaded linker"` (open and closed)
-9. `gh repo clone pnpm/pnpm` at depth 1 (record revision),
-   source read of the loader,
-   manifest
-   generation,
-   `excluded` materialization,
-   preload injection,
-   Node floor gate,
-   and interactions with
-   pnpmfile hooks,
-   overrides,
-   `link:` deps,
-   workspace packages,
-   build approvals,
-   `supportedArchitectures`
-   and frozen-lockfile installs
+1.  `gh release list --repo pnpm/pnpm --limit 30`
+2.  release notes of every 12.x release for `loaded`,
+    `store loader`,
+    `store-loader`,
+    `CAS`,
+    `global virtual store`,
+    `GVS`,
+    `esm-loader`
+3.  `gh search issues --repo pnpm/pnpm "loaded linker"` (open and closed)
+4.  `gh search issues --repo pnpm/pnpm "store loader"` (open and closed)
+5.  `gh search issues --repo pnpm/pnpm "store-manifest"` (open and closed)
+6.  `gh search issues --repo pnpm/pnpm "esm-loader"` (open and closed)
+7.  `gh search issues --repo pnpm/pnpm "nodeLinker loaded"` (open and closed)
+8.  `gh search prs --repo pnpm/pnpm "loaded linker"` (open and closed)
+9.  `gh repo clone pnpm/pnpm` at depth 1 (record revision),
+    source read of the loader,
+    manifest
+    generation,
+    `excluded` materialization,
+    preload injection,
+    Node floor gate,
+    and interactions with
+    pnpmfile hooks,
+    overrides,
+    `link:` deps,
+    workspace packages,
+    build approvals,
+    `supportedArchitectures`
+    and frozen-lockfile installs
 
 Source class 3,
 broader web:
 
-1. `pnpm store loader`
-2. `pnpm loaded linker`
-3. `pnpm node_modules-free install`
-4. `https://pnpm.io/store-loader` (all version tabs:
-   12.x,
-   11.x,
-   10.x)
-5. `https://pnpm.io/settings` (`nodeLinker`,
-   `nodePackageMap`,
-   `frozenStore`,
-   GVS sections)
-6. `https://pnpm.io/pnpr` (relation to the loaded mode)
+1.  `pnpm store loader`
+2.  `pnpm loaded linker`
+3.  `pnpm node_modules-free install`
+4.  `https://pnpm.io/store-loader` (all version tabs:
+    12.x,
+    11.x,
+    10.x)
+5.  `https://pnpm.io/settings` (`nodeLinker`,
+    `nodePackageMap`,
+    `frozenStore`,
+    GVS sections)
+6.  `https://pnpm.io/pnpr` (relation to the loaded mode)
 
 Expansion round (de-duplicated,
 from taxonomy already observed on the docs page;
@@ -421,18 +421,18 @@ this repository (incumbent,
 parallel systems,
 prior reports):
 
-1. `rg "nodeLinker|node-linker"` across the repo (consumers,
-   configs,
-   docs)
-2. `rg "node_modules"` across `package/`,
-   `.github/`,
-   container files,
-   editor and linter configs
-3. prior vet reports:
-   `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`,
-   `doc/audit/tech-mpm-and-pnpm-as-a-mise-replacement-vet-2026-09-12.md`
-4. troubleshooting and handover records listed in the context section
-5. `rg "TODO|FIXME|HACK|workaround"` filtered to pnpm/linker/symlink/node_modules mentions
+1.  `rg "nodeLinker|node-linker"` across the repo (consumers,
+    configs,
+    docs)
+2.  `rg "node_modules"` across `package/`,
+    `.github/`,
+    container files,
+    editor and linter configs
+3.  prior vet reports:
+    `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`,
+    `doc/audit/tech-mpm-and-pnpm-as-a-mise-replacement-vet-2026-09-12.md`
+4.  troubleshooting and handover records listed in the context section
+5.  `rg "TODO|FIXME|HACK|workaround"` filtered to pnpm/linker/symlink/node_modules mentions
 
 Query execution completed 2026-10-18 through the delegated upstream audit and repository inventory.
 Literal queries,
@@ -469,33 +469,33 @@ so every criterion carries weight 1 and scoring only runs if at least
 two finalists survive hard gates.
 Criteria apply to every finalist at equal depth:
 
-1. Workflow continuity:
-   current mise,
-   CI,
-   editor and packaging workflows keep functioning
-   without per-tool reengineering.
-2. Migration effort:
-   size and risk of the change set required to adopt.
-3. Dependency-graph compatibility:
-   coverage of this graph's native,
-   napi,
-   WASM,
-   TypeScript-source and
-   bundler-consumed surfaces.
-4. Upstream maturity:
-   experimental versus stable status,
-   release history,
-   maintainer trajectory,
-   open defect surface.
-5. Resource benefit:
-   disk usage,
-   node_modules file count,
-   install and branch-switch time
-   (motivation class recorded by prior modules-cache work).
-6. Supply-chain posture:
-   preservation of substitution,
-   build-approval,
-   release-age and trust policies.
+1.  Workflow continuity:
+    current mise,
+    CI,
+    editor and packaging workflows keep functioning
+    without per-tool reengineering.
+2.  Migration effort:
+    size and risk of the change set required to adopt.
+3.  Dependency-graph compatibility:
+    coverage of this graph's native,
+    napi,
+    WASM,
+    TypeScript-source and
+    bundler-consumed surfaces.
+4.  Upstream maturity:
+    experimental versus stable status,
+    release history,
+    maintainer trajectory,
+    open defect surface.
+5.  Resource benefit:
+    disk usage,
+    node_modules file count,
+    install and branch-switch time
+    (motivation class recorded by prior modules-cache work).
+6.  Supply-chain posture:
+    preservation of substitution,
+    build-approval,
+    release-age and trust policies.
 
 Ratings use the 0 to 4 scale with evidence and confidence per the governing skill;
 sensitivity reruns
@@ -1402,57 +1402,57 @@ re-evaluation triggered below.
 
 Complete ledger order with the reason for each adjacent ordering:
 
-1. **Candidate A,
-   keep `nodeLinker: isolated` (recommended)**:
-   the only candidate passing every
-   frozen hard constraint;
-   measured costs are bounded (about 1 GB / about 40,000 project-local
-   dependency files,
-   mostly Btrfs reflinks;
-   warm installs already sub-second).
-2. Candidate E (standalone `@pnpm/esm-loader`) ranks below A because it changes nothing for this
-   decision:
-   packages stay materialized,
-   so no layout or file-count benefit exists;
-   it exited at
-   screening on scope mismatch.
-   A beats E because A is the working status quo and E is the same
-   status quo plus a manually maintained preload.
-3. Candidate D (pnp) ranks below E because it fails the decision scope twice:
-   pnpm's pnp keeps
-   per-importer `node_modules` symlinks (not node_modules-free),
-   and with `symlink: false` the
-   repository's own troubleshooting record and 21-scenario matrix show the fs-resolver blindness
-   class that also sank candidate B,
-   with no compensating benefit.
-   E beats D because E at least
-   preserves the layout guarantees while D trades them away for a resolver model this toolchain
-   does not speak.
-4. Candidate C (hoisted) ranks below D because it additionally fails constraint 8 by design:
-   phantom dependencies become resolvable,
-   the exact guarantee this repository bought with
-   `hoist: false` + isolated after a documented napi incident.
-   D beats C because D preserves
-   strict declared-dependency resolution while C abandons it.
-5. Candidate B (loaded linker) ranks last despite the largest measured upside (project-local
-   dependency state about 1 GB / about 40,000 files down to about 7 MB / about 100 files;
-   strict
-   declared-dependency enforcement;
-   per-read SHA-512 verification;
-   sub-second warm installs),
-   because it fails constraints 1 and 6 on proven evidence,
-   its exclusion tail is
-   runtime-discovered rather than statically enumerable,
-   and it is a 12-day-old experimental
-   feature with
-   a same-week layout break,
-   an open config-schema rework (`pnpm/tasks#72`),
-   no stabilization
-   roadmap,
-   and bus factor 1.
-   C beats B because C at least runs every current workflow,
-   while B
-   breaks the typecheck/build/container surfaces outright.
+1.  **Candidate A,
+    keep `nodeLinker: isolated` (recommended)**:
+    the only candidate passing every
+    frozen hard constraint;
+    measured costs are bounded (about 1 GB / about 40,000 project-local
+    dependency files,
+    mostly Btrfs reflinks;
+    warm installs already sub-second).
+2.  Candidate E (standalone `@pnpm/esm-loader`) ranks below A because it changes nothing for this
+    decision:
+    packages stay materialized,
+    so no layout or file-count benefit exists;
+    it exited at
+    screening on scope mismatch.
+    A beats E because A is the working status quo and E is the same
+    status quo plus a manually maintained preload.
+3.  Candidate D (pnp) ranks below E because it fails the decision scope twice:
+    pnpm's pnp keeps
+    per-importer `node_modules` symlinks (not node_modules-free),
+    and with `symlink: false` the
+    repository's own troubleshooting record and 21-scenario matrix show the fs-resolver blindness
+    class that also sank candidate B,
+    with no compensating benefit.
+    E beats D because E at least
+    preserves the layout guarantees while D trades them away for a resolver model this toolchain
+    does not speak.
+4.  Candidate C (hoisted) ranks below D because it additionally fails constraint 8 by design:
+    phantom dependencies become resolvable,
+    the exact guarantee this repository bought with
+    `hoist: false` + isolated after a documented napi incident.
+    D beats C because D preserves
+    strict declared-dependency resolution while C abandons it.
+5.  Candidate B (loaded linker) ranks last despite the largest measured upside (project-local
+    dependency state about 1 GB / about 40,000 files down to about 7 MB / about 100 files;
+    strict
+    declared-dependency enforcement;
+    per-read SHA-512 verification;
+    sub-second warm installs),
+    because it fails constraints 1 and 6 on proven evidence,
+    its exclusion tail is
+    runtime-discovered rather than statically enumerable,
+    and it is a 12-day-old experimental
+    feature with
+    a same-week layout break,
+    an open config-schema rework (`pnpm/tasks#72`),
+    no stabilization
+    roadmap,
+    and bus factor 1.
+    C beats B because C at least runs every current workflow,
+    while B
+    breaks the typecheck/build/container surfaces outright.
 
 **Recommendation:
 do not migrate.

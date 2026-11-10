@@ -104,7 +104,7 @@ When the `EncodeColon` flag is set,
 (`r + fullOffset`,
  `fullOffset = 0xFEE0`),
  and to keep that reversible it quotes a
-*literal* fullwidth `：` by prefixing the quote rune:
+**literal** fullwidth `：` by prefixing the quote rune:
 
 ```go
 // lib/encoder/encoder.go:537-545
@@ -587,36 +587,36 @@ the Garage side was not searched.
 
 Constraint walk:
 
-1. Upstream's fault?
-    Split.
-    The double-encode needs a cross-client mask mismatch,
-    which is a
-   pipeline/config condition,
-    not a single-pass rclone defect.
-    The bisync-aborts-on-one-bad-
-   object behavior is arguably an rclone robustness defect.
-    The list/HEAD inconsistency is a
-   metadata-reference inconsistency that Garage documents and ships repairs for
-   (`garage repair versions`/`tables`,
-    `durability-repairs.md`),
-    i.e. a known operational
-   condition rather than an unreported defect.
-2. Can upstream fix it?
-    rclone could skip an un-HEADable source object with a warning instead
-   of a critical abort;
-    Garage could make HEAD consistent with LIST.
-    Both fixable in principle.
-3. Supporting the use case?
-    Yes for both (S3 sync of arbitrary UTF-8 keys is core to each).
-4. Would the repo welcome it?
-    Not assessed;
-    no prototype prepared.
-5. Will they likely fix it?
-    Unknown;
-    trackers not adequately searched (rate limit;
-    Gitea).
-6. Minimal fix prototyped?
-    No.
+1.  Upstream's fault?
+     Split.
+     The double-encode needs a cross-client mask mismatch,
+     which is a
+    pipeline/config condition,
+     not a single-pass rclone defect.
+     The bisync-aborts-on-one-bad-
+    object behavior is arguably an rclone robustness defect.
+     The list/HEAD inconsistency is a
+    metadata-reference inconsistency that Garage documents and ships repairs for
+    (`garage repair versions`/`tables`,
+     `durability-repairs.md`),
+     i.e. a known operational
+    condition rather than an unreported defect.
+2.  Can upstream fix it?
+     rclone could skip an un-HEADable source object with a warning instead
+    of a critical abort;
+     Garage could make HEAD consistent with LIST.
+     Both fixable in principle.
+3.  Supporting the use case?
+     Yes for both (S3 sync of arbitrary UTF-8 keys is core to each).
+4.  Would the repo welcome it?
+     Not assessed;
+     no prototype prepared.
+5.  Will they likely fix it?
+     Unknown;
+     trackers not adequately searched (rate limit;
+     Gitea).
+6.  Minimal fix prototyped?
+     No.
 
 Prototype abandoned deliberately,
  not skipped silently:

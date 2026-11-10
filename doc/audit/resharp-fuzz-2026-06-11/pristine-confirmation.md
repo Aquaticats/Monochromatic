@@ -90,9 +90,9 @@ selector,
  the flags-config `is_match` gate,
  the `find_anchored` longest-span
 gate).
- The shared *theme* is real and is recorded in `code-quality.md` as a
+ The shared **theme** is real and is recorded in `code-quality.md` as a
 systemic signal;
- the *count* of separately-reproducible,
+ the **count** of separately-reproducible,
  separately-fixable
 defects is ten.
 

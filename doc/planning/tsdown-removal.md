@@ -113,53 +113,53 @@ Read from `package/config/tsdown/src/` on 2026-07-15:
 
 ## Execution plan
 
-1. Pilot in a fresh worktree off `main`:
-   create `package/config/rolldown`,
-   migrate six representative packages,
-   verify each at the user boundary (VUB):
-   - `oxlint-plugin/tsdoc`:
-      node flavor,
-      published,
-      dist types consumed by `oxlint.config.ts`.
-   - `claude-code-plugin/correction-reminder`:
-      committed `bundle/node` output,
-      exercised through Claude Code.
-   - `git-policies/cli`:
-      bin with shebang,
-      run a real command.
-   - `toml-edit/core`:
-      neutral flavor,
-      inlined workspace deps,
-      tests green.
-   - `wc/app`:
-      client flavor,
-      page loaded via `agent-browser`.
-   - `file-manager/variant-electron`:
-      preload CJS,
-      exercised through the app.
-2. Sweep per flavor on `main` after pilot passes,
-   each flavor one atomic commit including its mise task swap:
-   node (70 configs),
-    browser (25),
-    client (7),
-   outliers (`tools`,
-   `main`,
-   `preload`;
-    five configs).
-3. Final commits:
-   remove `tsdown` from the pnpm catalog,
-   delete `package/config/tsdown`,
-   update docs.
-4. Docs updates:
-   supersede "Bundler:
-    tsdown > raw rolldown" in `doc/philosophy/tool-choices.md`
-   (rolldown 1.0-stable revisit trigger fired 2026-05-07;
-   note tsdown moved into the rolldown org as the official library layer,
-   and that this repo removes it anyway for layer reduction
-   plus the hidden-timer lifecycle delays);
-   retain tsdown troubleshooting docs
-   (root causes live on in `rolldown-plugin-dts`);
-   add a resume-time migration note for paused packages.
+1.  Pilot in a fresh worktree off `main`:
+    create `package/config/rolldown`,
+    migrate six representative packages,
+    verify each at the user boundary (VUB):
+    - `oxlint-plugin/tsdoc`:
+       node flavor,
+       published,
+       dist types consumed by `oxlint.config.ts`.
+    - `claude-code-plugin/correction-reminder`:
+       committed `bundle/node` output,
+       exercised through Claude Code.
+    - `git-policies/cli`:
+       bin with shebang,
+       run a real command.
+    - `toml-edit/core`:
+       neutral flavor,
+       inlined workspace deps,
+       tests green.
+    - `wc/app`:
+       client flavor,
+       page loaded via `agent-browser`.
+    - `file-manager/variant-electron`:
+       preload CJS,
+       exercised through the app.
+2.  Sweep per flavor on `main` after pilot passes,
+    each flavor one atomic commit including its mise task swap:
+    node (70 configs),
+     browser (25),
+     client (7),
+    outliers (`tools`,
+    `main`,
+    `preload`;
+     five configs).
+3.  Final commits:
+    remove `tsdown` from the pnpm catalog,
+    delete `package/config/tsdown`,
+    update docs.
+4.  Docs updates:
+    supersede "Bundler:
+     tsdown > raw rolldown" in `doc/philosophy/tool-choices.md`
+    (rolldown 1.0-stable revisit trigger fired 2026-05-07;
+    note tsdown moved into the rolldown org as the official library layer,
+    and that this repo removes it anyway for layer reduction
+    plus the hidden-timer lifecycle delays);
+    retain tsdown troubleshooting docs
+    (root causes live on in `rolldown-plugin-dts`);
+    add a resume-time migration note for paused packages.
 
 ## Pilot results (2026-07-15, branch `tsdown-removal`)
 

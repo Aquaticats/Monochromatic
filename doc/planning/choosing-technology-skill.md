@@ -510,52 +510,52 @@ must still pass every applicable gate.
 Replace `every meaningful candidate` with a reproducible candidate ledger and saturation rule.
 For each decision:
 
-1. Search the category's package registry,
-   vendor directory,
-   or official ecosystem index.
-2. Search repository-host topics,
-   code,
-   releases,
-   and organization projects.
-3. Search the broader web for peer tools,
-   comparative terms,
-   and nearest comparable technologies.
-4. Inspect this repository's incumbent,
-   parallel systems,
-   decision records,
-   and hand-rolled alternatives.
-5. Record every candidate,
-   discovery source,
-   base category,
-   overlays,
-   and cheap hard-gate result in the ledger.
-6. Before executing discovery,
-   record a finite literal query schedule for every required source class.
-   Include the exact problem class,
-   known synonyms,
-   protocol,
-   incumbent plus `alternative`,
-   deployment model,
-   ecosystem,
-   and category-specific registry keywords.
-7. A candidate is a plausible cheap-screen survivor only when no known hard gate has failed,
-   every cheap gate is pass or explicitly pending targeted evidence,
-   category fit is plausible,
-   and source or execution appears inspectable.
-8. Log each literal query,
-   provider or registry,
-   include and exclude filters,
-   sort order,
-   page or cursor,
-   result count,
-   and newly discovered survivors.
-9. For paginated sources,
-   continue until two consecutive complete pages add no plausible cheap-screen survivor or
-   the provider reports exhaustion.
-   A provider cap before either condition marks the source class blocked,
-   not saturated;
-   switch to an uncapped API or independent source,
-   and block recommendation if no replacement can complete that class.
+1.  Search the category's package registry,
+    vendor directory,
+    or official ecosystem index.
+2.  Search repository-host topics,
+    code,
+    releases,
+    and organization projects.
+3.  Search the broader web for peer tools,
+    comparative terms,
+    and nearest comparable technologies.
+4.  Inspect this repository's incumbent,
+    parallel systems,
+    decision records,
+    and hand-rolled alternatives.
+5.  Record every candidate,
+    discovery source,
+    base category,
+    overlays,
+    and cheap hard-gate result in the ledger.
+6.  Before executing discovery,
+    record a finite literal query schedule for every required source class.
+    Include the exact problem class,
+    known synonyms,
+    protocol,
+    incumbent plus `alternative`,
+    deployment model,
+    ecosystem,
+    and category-specific registry keywords.
+7.  A candidate is a plausible cheap-screen survivor only when no known hard gate has failed,
+    every cheap gate is pass or explicitly pending targeted evidence,
+    category fit is plausible,
+    and source or execution appears inspectable.
+8.  Log each literal query,
+    provider or registry,
+    include and exclude filters,
+    sort order,
+    page or cursor,
+    result count,
+    and newly discovered survivors.
+9.  For paginated sources,
+    continue until two consecutive complete pages add no plausible cheap-screen survivor or
+    the provider reports exhaustion.
+    A provider cap before either condition marks the source class blocked,
+    not saturated;
+    switch to an uncapped API or independent source,
+    and block recommendation if no replacement can complete that class.
 10. Execute every predeclared query in every required source class.
 11. After the initial schedule,
     collect every new taxonomy term recorded in the ledger,
@@ -709,24 +709,24 @@ or the required reason for each adjacent ranking.
 
 Use this sequence:
 
-1. Read repository and deployment facts that can be measured.
-2. Ask one context-fork preference only when it changes the candidate set.
-3. Classify each possible component by base category and overlays.
-4. Freeze known hard gates and the candidate-independent soft-scoring rubric.
-5. Run the discovery-saturation protocol and maintain the candidate ledger.
-6. Apply cheap hard-constraint and critical-evidence screening;
-   record unavailable critical evidence as a failed exit,
-   not a neutral unknown.
-7. Promote plausible hard-gate survivors to serious alternatives.
-8. As soon as the substantial threshold is crossed,
-   create or reopen the matching vet report before further evidence work;
-   if saturation produced no survivor or required discovery remains blocked,
-   create the report with a snapshot of completed context,
-   discovery,
-   and hard-gate screening,
-   then finish the terminal result;
-   otherwise update and commit the scoped report after every major phase.
-9. Run targeted category and overlay evidence checks that confirm every hard gate and provenance claim.
+1.  Read repository and deployment facts that can be measured.
+2.  Ask one context-fork preference only when it changes the candidate set.
+3.  Classify each possible component by base category and overlays.
+4.  Freeze known hard gates and the candidate-independent soft-scoring rubric.
+5.  Run the discovery-saturation protocol and maintain the candidate ledger.
+6.  Apply cheap hard-constraint and critical-evidence screening;
+    record unavailable critical evidence as a failed exit,
+    not a neutral unknown.
+7.  Promote plausible hard-gate survivors to serious alternatives.
+8.  As soon as the substantial threshold is crossed,
+    create or reopen the matching vet report before further evidence work;
+    if saturation produced no survivor or required discovery remains blocked,
+    create the report with a snapshot of completed context,
+    discovery,
+    and hard-gate screening,
+    then finish the terminal result;
+    otherwise update and commit the scoped report after every major phase.
+9.  Run targeted category and overlay evidence checks that confirm every hard gate and provenance claim.
 10. Promote every confirmed hard-gate survivor to finalist.
 11. Create and approve an execution manifest before each third-party command tree.
 12. Fully source-audit and validate every finalist through upstream and consumer boundaries.
@@ -936,27 +936,27 @@ and recommendation or terminal no-recommendation result.
 Before every report edit,
 use an atomic report-write protocol:
 
-1. Derive a lock key from the absolute report path and atomically create a private lock under
-   `/tmp/agent/technology-vet-locks/` with create-new semantics.
-2. Record session ID,
-   process ID,
-   start time,
-   report path,
-   and pre-edit report SHA-256 in the lock.
-3. After acquiring the lock,
-   rerun report selection because another session may have created a compatible report.
-4. For a new report,
-   create the final path with create-new semantics;
-   an existing path restarts selection.
-5. For an update,
-   write a sibling temporary file,
-   re-read the report SHA-256,
-   abort if it differs from the lock's pre-edit hash,
-   then atomically rename the temporary file.
-6. Release the lock only after durable write completion.
-7. Treat a lock as stale only when its process is absent and its recorded start is more than 30 minutes old;
-   if either fact cannot be established,
-   block and report the owner instead of deleting the lock.
+1.  Derive a lock key from the absolute report path and atomically create a private lock under
+    `/tmp/agent/technology-vet-locks/` with create-new semantics.
+2.  Record session ID,
+    process ID,
+    start time,
+    report path,
+    and pre-edit report SHA-256 in the lock.
+3.  After acquiring the lock,
+    rerun report selection because another session may have created a compatible report.
+4.  For a new report,
+    create the final path with create-new semantics;
+    an existing path restarts selection.
+5.  For an update,
+    write a sibling temporary file,
+    re-read the report SHA-256,
+    abort if it differs from the lock's pre-edit hash,
+    then atomically rename the temporary file.
+6.  Release the lock only after durable write completion.
+7.  Treat a lock as stale only when its process is absent and its recorded start is more than 30 minutes old;
+    if either fact cannot be established,
+    block and report the owner instead of deleting the lock.
 
 This protocol coordinates choosing-technology sessions and detects ordinary external edits before replacement.
 Never overwrite another session's edits.
@@ -1964,28 +1964,28 @@ The user selected this on 2026-07-09.
 
 Procedure:
 
-1. Inventory every upstream task and CI job at the pinned revision.
-2. Inspect the commands through the external-execution gate.
-3. Run the complete default CI-equivalent path in a secret-free,
-   disposable,
-   resource-bounded environment.
-4. Run every non-default suite relevant to claimed behavior or this repo's risk,
-   including test,
-   integration,
-   fuzz,
-   native,
-   Wasm,
-   feature,
-   and platform suites where applicable.
-5. Exercise relevant platform claims on Linux x64,
-   macOS arm64,
-   and Windows x64 when those are consumer targets.
-6. Record every omitted suite by exact command,
-   purpose,
-   and evidence that it cannot affect the claimed surface.
-7. Diagnose every failure.
-   Reject the finalist unless the failing path is proven outside every claimed and consumed surface.
-8. Exercise the real consumer boundary after upstream validation passes.
+1.  Inventory every upstream task and CI job at the pinned revision.
+2.  Inspect the commands through the external-execution gate.
+3.  Run the complete default CI-equivalent path in a secret-free,
+    disposable,
+    resource-bounded environment.
+4.  Run every non-default suite relevant to claimed behavior or this repo's risk,
+    including test,
+    integration,
+    fuzz,
+    native,
+    Wasm,
+    feature,
+    and platform suites where applicable.
+5.  Exercise relevant platform claims on Linux x64,
+    macOS arm64,
+    and Windows x64 when those are consumer targets.
+6.  Record every omitted suite by exact command,
+    purpose,
+    and evidence that it cannot affect the claimed surface.
+7.  Diagnose every failure.
+    Reject the finalist unless the failing path is proven outside every claimed and consumed surface.
+8.  Exercise the real consumer boundary after upstream validation passes.
 
 A relevant suite that cannot be inspected or run blocks recommendation.
 Hours-long work is not skipped merely for duration;
@@ -2047,24 +2047,24 @@ Use a fictional credential-handling automation choice whose candidates span:
 
 The example should show:
 
-1. measurable context gathered before preference questions;
-2. one context-fork question that changes the candidate set;
-3. category routing and applicable gates;
-4. discovery,
-   serious-alternative promotion,
-   finalist promotion,
-   and a hard-gate exit;
-5. precommitted criteria and weights;
-6. cited fictional evidence ratings,
-   confidence,
-   normalized arithmetic,
-   and sensitivity result;
-7. complete CI-equivalent and relevant-suite validation records for finalists;
-8. pros,
-   cons,
-   evidence limits,
-   and adjacent ranking reasons;
-9. automatic vet-report path and skill revision;
+1.  measurable context gathered before preference questions;
+2.  one context-fork question that changes the candidate set;
+3.  category routing and applicable gates;
+4.  discovery,
+    serious-alternative promotion,
+    finalist promotion,
+    and a hard-gate exit;
+5.  precommitted criteria and weights;
+6.  cited fictional evidence ratings,
+    confidence,
+    normalized arithmetic,
+    and sensitivity result;
+7.  complete CI-equivalent and relevant-suite validation records for finalists;
+8.  pros,
+    cons,
+    evidence limits,
+    and adjacent ranking reasons;
+9.  automatic vet-report path and skill revision;
 10. recommendation without adoption changes;
 11. later decision-record update only after an explicit adoption action.
 
@@ -2108,23 +2108,23 @@ The user selected this on 2026-07-09.
 
 Process:
 
-1. Give every decision-level soft criterion supported by an explicit requirement or preference its
-   precommitted 1 to 5 weight.
-2. Give every remaining decision-level soft criterion equal weight 1.
-3. Rate and score every fully validated finalist with the frozen rubric.
-4. Raise each equal-default criterion from weight 1 through weight 5,
-   one criterion at a time,
-   while holding all other inputs fixed.
-5. If no tested weight changes the winner,
-   keep equal defaults and do not ask a rubber-stamp question.
-6. If a tested weight changes the winner,
-   ask only the preference that determines that criterion's real weight,
-   then freeze,
-   rerun the score,
-   and rerun the complete sensitivity matrix.
-7. Apply the complete medium-confidence,
-   low-confidence,
-   and low-signal rating sensitivity matrix separately.
+1.  Give every decision-level soft criterion supported by an explicit requirement or preference its
+    precommitted 1 to 5 weight.
+2.  Give every remaining decision-level soft criterion equal weight 1.
+3.  Rate and score every fully validated finalist with the frozen rubric.
+4.  Raise each equal-default criterion from weight 1 through weight 5,
+    one criterion at a time,
+    while holding all other inputs fixed.
+5.  If no tested weight changes the winner,
+    keep equal defaults and do not ask a rubber-stamp question.
+6.  If a tested weight changes the winner,
+    ask only the preference that determines that criterion's real weight,
+    then freeze,
+    rerun the score,
+    and rerun the complete sensitivity matrix.
+7.  Apply the complete medium-confidence,
+    low-confidence,
+    and low-signal rating sensitivity matrix separately.
 
 Pros:
 
@@ -2164,20 +2164,20 @@ The user selected this on 2026-07-09 because the expected survivor set is manage
 
 Promotion sequence:
 
-1. Discovery records every credible candidate found by the category-appropriate search.
-2. Cheap screening checks known hard constraints,
-   category fit,
-   license,
-   apparent provenance,
-   and apparent inspectability.
-3. Plausible survivors become serious alternatives.
-4. Targeted evidence confirms every hard gate,
-   provenance,
-   safety,
-   reproducibility,
-   and category-fit claim.
-5. Every confirmed survivor becomes a finalist.
-6. Every finalist receives the full validation bar from Decision 7.
+1.  Discovery records every credible candidate found by the category-appropriate search.
+2.  Cheap screening checks known hard constraints,
+    category fit,
+    license,
+    apparent provenance,
+    and apparent inspectability.
+3.  Plausible survivors become serious alternatives.
+4.  Targeted evidence confirms every hard gate,
+    provenance,
+    safety,
+    reproducibility,
+    and category-fit claim.
+5.  Every confirmed survivor becomes a finalist.
+6.  Every finalist receives the full validation bar from Decision 7.
 
 No fixed top count,
 score interval,
@@ -2328,34 +2328,34 @@ The user selected this on 2026-07-09.
 
 Lifecycle:
 
-1. Before creating a report,
-   derive the canonical compatibility fingerprint and search `doc/audit/` for the same subject.
-2. Reuse only a report with the same full fingerprint;
-   if several match,
-   select greatest `last-updated` date and then lexicographically smallest repo-relative path.
-3. As soon as any substantial-evaluation threshold from Decision 3 is crossed,
-   create or reopen that report.
-   If saturation leaves no survivor or required discovery remains blocked,
-   snapshot the already completed context,
-   discovery,
-   queries,
-   and hard-gate exits before finishing the terminal result.
-4. Otherwise,
-   update it after context,
-   discovery,
-   hard-gate screening,
-   targeted evidence,
-   finalist validation,
-   scoring,
-   and synthesis phases.
-5. Record the governing skill revision and each evidence date.
-6. Finish the report before returning the recommendation.
-7. Create a new dated report when no full fingerprint matches;
-   on a same-day collision,
-   start with eight fingerprint characters and extend by four until the path is unique or
-   the full hash exposes corruption.
-8. Link later adoption decisions to the vet report;
-   do not turn the vet report itself into adoption authorization.
+1.  Before creating a report,
+    derive the canonical compatibility fingerprint and search `doc/audit/` for the same subject.
+2.  Reuse only a report with the same full fingerprint;
+    if several match,
+    select greatest `last-updated` date and then lexicographically smallest repo-relative path.
+3.  As soon as any substantial-evaluation threshold from Decision 3 is crossed,
+    create or reopen that report.
+    If saturation leaves no survivor or required discovery remains blocked,
+    snapshot the already completed context,
+    discovery,
+    queries,
+    and hard-gate exits before finishing the terminal result.
+4.  Otherwise,
+    update it after context,
+    discovery,
+    hard-gate screening,
+    targeted evidence,
+    finalist validation,
+    scoring,
+    and synthesis phases.
+5.  Record the governing skill revision and each evidence date.
+6.  Finish the report before returning the recommendation.
+7.  Create a new dated report when no full fingerprint matches;
+    on a same-day collision,
+    start with eight fingerprint characters and extend by four until the path is unique or
+    the full hash exposes corruption.
+8.  Link later adoption decisions to the vet report;
+    do not turn the vet report itself into adoption authorization.
 
 Pros:
 

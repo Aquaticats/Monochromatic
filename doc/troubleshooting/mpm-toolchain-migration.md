@@ -363,23 +363,23 @@ The adoption decision requires the rollback path to be recorded here
 (`doc/decision/mpm-toolchain-adoption.md`,
 section `Exit and rollback`).
 
-1. Each migration step lands as its own commit series,
-   so `git revert` of the cutover commits restores the Mise-owned toolchain
-   (`[tools]`,
-   `mise.lock`,
-   and the `mise.lock` CI scrapers)
-   without touching task,
-   `[env]`/`[vars]`,
-   or secret behavior.
-2. With `[tools]` and `mise.lock` back,
-   `mise install` and `mise upgrade` provision tools again.
-   `mise run` task behavior never changed across the migration,
-   so tasks run in both states.
-3. `mpm`-side removal is `mpm`-side:
-   delete the restore manifest (`mpm.packages.toml`),
-   the manager definitions (`mpm.managers.toml`),
-   and the sync entry (`package/file-enforcer/core/src/toolchain/`),
-   then reinstall the tools through any manager.
+1.  Each migration step lands as its own commit series,
+    so `git revert` of the cutover commits restores the Mise-owned toolchain
+    (`[tools]`,
+    `mise.lock`,
+    and the `mise.lock` CI scrapers)
+    without touching task,
+    `[env]`/`[vars]`,
+    or secret behavior.
+2.  With `[tools]` and `mise.lock` back,
+    `mise install` and `mise upgrade` provision tools again.
+    `mise run` task behavior never changed across the migration,
+    so tasks run in both states.
+3.  `mpm`-side removal is `mpm`-side:
+    delete the restore manifest (`mpm.packages.toml`),
+    the manager definitions (`mpm.managers.toml`),
+    and the sync entry (`package/file-enforcer/core/src/toolchain/`),
+    then reinstall the tools through any manager.
 
 Exercise status:
 not yet exercised as of 2026-10-26.
@@ -395,19 +395,19 @@ The migration's verification gates
 section `Verification`)
 are:
 
-1. `mise run toolchain:status` clean on a machine after a sync.
-2. A disposable home (`mktemp -d`,
-   `HOME=` and `XDG_DATA_HOME=` overrides,
-   container with 2 GiB and 2 CPUs)
-   syncs the Linux x64 slice,
-   then runs one TypeScript task,
-   one Rust task,
-   and one lint task through `mise run`.
-3. `mpm installed` and `mpm outdated` list the manager-backed tools.
-4. No synthetic host load,
-   and every probe reports the command,
-   working directory,
-   and exit status.
+1.  `mise run toolchain:status` clean on a machine after a sync.
+2.  A disposable home (`mktemp -d`,
+    `HOME=` and `XDG_DATA_HOME=` overrides,
+    container with 2 GiB and 2 CPUs)
+    syncs the Linux x64 slice,
+    then runs one TypeScript task,
+    one Rust task,
+    and one lint task through `mise run`.
+3.  `mpm installed` and `mpm outdated` list the manager-backed tools.
+4.  No synthetic host load,
+    and every probe reports the command,
+    working directory,
+    and exit status.
 
 ## What does not work
 

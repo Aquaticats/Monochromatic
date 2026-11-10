@@ -421,77 +421,77 @@ This is a recorded deviation from the skill's default breadth requirement.
 
 Frozen schedule (executed 2026-10-05):
 
-1. Repository incumbent class:
-   `rg` sweeps for `Cargo.toml`,
-   `.cargo/config.toml`,
-   `linker|link-arg|fuse-ld|mold|lld` across the main worktree;
-   `mise.toml`,
-   `Dockerfile`,
-   Containerfiles,
-   `.github/workflows`.
-   Result:
-   no configured Linux linker override;
-   GNU ld is the incumbent;
-   Windows MSVC pinned to
-   `lld-link.exe`.
-2. Category registry class (distro):
-   `dnf -q info mold` on Fedora 44.
-   Result:
-   `mold 2.40.4-4.fc44`,
-   license `MIT AND (Apache-2.0 OR MIT)`,
-   repository fedora,
-   URL `https://github.com/rui314/mold`.
-   Fedora's package predates v3.0.0.
-3. Category registry class (crates.io):
-   `GET https://crates.io/api/v1/crates?q=mold&per_page=5`.
-   Result:
-   only an unrelated yanked dependency-injection crate `mold 0.0.1` (2019).
-   The linker is not distributed through crates.io;
-   upstream issue #1661 asks for that.
-4. Repository host class:
-   `gh repo view rui314/mold` (metadata),
-   `gh release list`/`gh release
-   view v3.0.0` (assets,
-   digests,
-   notes),
-   `gh api repos/rui314/mold/languages`
-   (Rust 1745951,
-   Shell 478085,
-   C 4129 bytes),
-   `gh api .../readme`,
-   `gh api .../commits`,
-   `gh api .../contributors?per_page=8`,
-   `gh issue list --search "sort:updated-desc" --limit 10
-   --state all`,
-   `gh pr list` likewise,
-   `gh run list --limit 12`,
-   `gh api repos/google/oss-fuzz/contents/projects/mold` (404,
-   not covered).
-5. Broader web class:
-   web search
-   `mold linker rui314 "A Modern Linker" implementation language C++ ELF Mach-O support 2026`
-   (Exa).
-   Result:
-   repository,
-   README,
-   man page,
-   historical releases v2.0.0 (2023-07-26,
-   the MIT
-   relicense release),
-   v2.35.0,
-   v2.39.0,
-   March 2026 C++-era commits,
-   issue #1551 (LTO symbol
-   lookup).
-   No Mach-O support in mold itself;
-   the README architecture list is ELF-only.
-6. Vulnerability class:
-   OSV `POST https://api.osv.dev/v1/query` with
-   `{"commit":"8de38c35a2df16a25f7ff87ac3ad07156a925beb"}`.
-   Result:
-   `{}`,
-   no advisories affect
-   the pinned commit.
+1.  Repository incumbent class:
+    `rg` sweeps for `Cargo.toml`,
+    `.cargo/config.toml`,
+    `linker|link-arg|fuse-ld|mold|lld` across the main worktree;
+    `mise.toml`,
+    `Dockerfile`,
+    Containerfiles,
+    `.github/workflows`.
+    Result:
+    no configured Linux linker override;
+    GNU ld is the incumbent;
+    Windows MSVC pinned to
+    `lld-link.exe`.
+2.  Category registry class (distro):
+    `dnf -q info mold` on Fedora 44.
+    Result:
+    `mold 2.40.4-4.fc44`,
+    license `MIT AND (Apache-2.0 OR MIT)`,
+    repository fedora,
+    URL `https://github.com/rui314/mold`.
+    Fedora's package predates v3.0.0.
+3.  Category registry class (crates.io):
+    `GET https://crates.io/api/v1/crates?q=mold&per_page=5`.
+    Result:
+    only an unrelated yanked dependency-injection crate `mold 0.0.1` (2019).
+    The linker is not distributed through crates.io;
+    upstream issue #1661 asks for that.
+4.  Repository host class:
+    `gh repo view rui314/mold` (metadata),
+    `gh release list`/`gh release
+    view v3.0.0` (assets,
+    digests,
+    notes),
+    `gh api repos/rui314/mold/languages`
+    (Rust 1745951,
+    Shell 478085,
+    C 4129 bytes),
+    `gh api .../readme`,
+    `gh api .../commits`,
+    `gh api .../contributors?per_page=8`,
+    `gh issue list --search "sort:updated-desc" --limit 10
+    --state all`,
+    `gh pr list` likewise,
+    `gh run list --limit 12`,
+    `gh api repos/google/oss-fuzz/contents/projects/mold` (404,
+    not covered).
+5.  Broader web class:
+    web search
+    `mold linker rui314 "A Modern Linker" implementation language C++ ELF Mach-O support 2026`
+    (Exa).
+    Result:
+    repository,
+    README,
+    man page,
+    historical releases v2.0.0 (2023-07-26,
+    the MIT
+    relicense release),
+    v2.35.0,
+    v2.39.0,
+    March 2026 C++-era commits,
+    issue #1551 (LTO symbol
+    lookup).
+    No Mach-O support in mold itself;
+    the README architecture list is ELF-only.
+6.  Vulnerability class:
+    OSV `POST https://api.osv.dev/v1/query` with
+    `{"commit":"8de38c35a2df16a25f7ff87ac3ad07156a925beb"}`.
+    Result:
+    `{}`,
+    no advisories affect
+    the pinned commit.
 
 Expansion round:
 taxonomy terms collected from results were `sold`,
@@ -2021,10 +2021,10 @@ Incumbent rust-lld cons:
 
 ## Ranking
 
-1. Incumbent rust-lld (keep):
-   `22/24 = 91.7`.
-2. mold v3.0.0:
-   `13.0/24 = 54.2`.
+1.  Incumbent rust-lld (keep):
+    `22/24 = 91.7`.
+2.  mold v3.0.0:
+    `13.0/24 = 54.2`.
 
 Adjacent reason:
 both pass every hard gate;
@@ -2053,33 +2053,33 @@ not a hard-gate failure;
 mold passes every gate and is a credible future candidate.
 Revisit triggers (any one):
 
-1. Upstream fixes small-link overhead (the issue #1696 class),
-   removing the measured regression
-   on the repository's dominant link sizes.
-2. A hardened 3.0.x patch release lands and the aqua registry or Fedora packaging picks it up
-   (probes:
-   `mise ls-remote aqua:rui314/mold`,
-   `dnf info mold`),
-   removing the SC3 and SC5
-   blockers.
-3. Repository Linux link outputs grow beyond roughly 1-2 GiB,
-   where upstream data shows mold
-   pulling ahead of lld by multiples.
-   The largest binary measured here is the 541 MB
-   `monochromatic-lint` debug output;
-   a host scan also found `monochromatic-ide` debug at
-   124.6 MB and nothing above 100 MB in the host cargo build cache;
-   the container-built
-   `terminal` and `music-player` binaries leave no host artifacts and were not measured,
-   so
-   this trigger's distance is a lower bound,
-   not a certainty.
-4. A GNU-ld-default environment enters the build matrix (measured mold benefit in that
-   environment:
-   2.1x on a large debug link,
-   5-15x on the 541 MB relink arm).
-5. Documented link-time pain emerges (none exists today;
-   searched).
+1.  Upstream fixes small-link overhead (the issue #1696 class),
+    removing the measured regression
+    on the repository's dominant link sizes.
+2.  A hardened 3.0.x patch release lands and the aqua registry or Fedora packaging picks it up
+    (probes:
+    `mise ls-remote aqua:rui314/mold`,
+    `dnf info mold`),
+    removing the SC3 and SC5
+    blockers.
+3.  Repository Linux link outputs grow beyond roughly 1-2 GiB,
+    where upstream data shows mold
+    pulling ahead of lld by multiples.
+    The largest binary measured here is the 541 MB
+    `monochromatic-lint` debug output;
+    a host scan also found `monochromatic-ide` debug at
+    124.6 MB and nothing above 100 MB in the host cargo build cache;
+    the container-built
+    `terminal` and `music-player` binaries leave no host artifacts and were not measured,
+    so
+    this trigger's distance is a lower bound,
+    not a certainty.
+4.  A GNU-ld-default environment enters the build matrix (measured mold benefit in that
+    environment:
+    2.1x on a large debug link,
+    5-15x on the 541 MB relink arm).
+5.  Documented link-time pain emerges (none exists today;
+    searched).
 
 Individual developers may opt in at user scope (`~/.cargo/config.toml`,
 `[target.'cfg(target_os = "linux")'] rustflags = ["-C", "link-arg=-fuse-ld=mold"]`) without any

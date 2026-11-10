@@ -38,15 +38,15 @@ The implementation must preserve these existing behaviors:
 
 The current task graph is:
 
-1. `package/pi-plugin/auto-mode/mise.toml` extends the root `lint:oxlint` task template.
-2. The template in `mise.toml` calls `ensureOxlintConfig()` before invoking the oxlint wrapper.
-3. `ensureOxlintConfig()` considers source and configuration files from `package/config/oxlint` and every package under
-   `package/oxlint-plugin`.
-4. A missing or stale output triggers
-   `mise run //package/config/oxlint:build:js:node`.
-5. `package/config/oxlint/tsdown.node.config.ts` builds one config entry and three plugin sidecar entries.
-6. Each sidecar re-exports a plugin package's TypeScript `/ts` source subpath so the JavaScript bundle can inline it.
-7. Declaration generation fails for the external plugin package `src/index.ts` files before the lint process starts.
+1.  `package/pi-plugin/auto-mode/mise.toml` extends the root `lint:oxlint` task template.
+2.  The template in `mise.toml` calls `ensureOxlintConfig()` before invoking the oxlint wrapper.
+3.  `ensureOxlintConfig()` considers source and configuration files from `package/config/oxlint` and every package under
+    `package/oxlint-plugin`.
+4.  A missing or stale output triggers
+    `mise run //package/config/oxlint:build:js:node`.
+5.  `package/config/oxlint/tsdown.node.config.ts` builds one config entry and three plugin sidecar entries.
+6.  Each sidecar re-exports a plugin package's TypeScript `/ts` source subpath so the JavaScript bundle can inline it.
+7.  Declaration generation fails for the external plugin package `src/index.ts` files before the lint process starts.
 
 ## Evidence collected
 
@@ -124,22 +124,22 @@ and upstream-filing decision are recorded in
 
 ## Hypothesis results
 
-1. **Confirmed**
-   rolldown-plugin-dts 0.27.2 chooses tsgo before reading inherited `isolatedDeclarations`.
-   Tsgo emits the package tsconfig project,
-   while Rolldown later requests declarations for external workspace source modules included by the JavaScript bundle.
-2. **Rejected as a repair**
-   an aggregate declaration tsconfig would model Rolldown's dynamic bundle graph as a static TypeScript project.
-   Upstream 0.27.4 instead restores the repository's per-module Oxc path without coupling config-oxlint to transitive
-   source directories.
-3. **Rejected as a repair**
-   consuming prebuilt plugin declarations adds build-order and freshness dependencies that the current source-driven
-   sidecars intentionally avoid.
-   The 0.27.4 Oxc path preserves source inlining and requires no plugin prebuild.
-4. **Disproved**
-   TypeScript 7 is not broadly incompatible with repository declaration settings.
-   Package-local 0.27.2 builds pass,
-   and Node plus neutral builds pass under the explicit 0.27.4 Oxc generator.
+1.  **Confirmed**
+    rolldown-plugin-dts 0.27.2 chooses tsgo before reading inherited `isolatedDeclarations`.
+    Tsgo emits the package tsconfig project,
+    while Rolldown later requests declarations for external workspace source modules included by the JavaScript bundle.
+2.  **Rejected as a repair**
+    an aggregate declaration tsconfig would model Rolldown's dynamic bundle graph as a static TypeScript project.
+    Upstream 0.27.4 instead restores the repository's per-module Oxc path without coupling config-oxlint to transitive
+    source directories.
+3.  **Rejected as a repair**
+    consuming prebuilt plugin declarations adds build-order and freshness dependencies that the current source-driven
+    sidecars intentionally avoid.
+    The 0.27.4 Oxc path preserves source inlining and requires no plugin prebuild.
+4.  **Disproved**
+    TypeScript 7 is not broadly incompatible with repository declaration settings.
+    Package-local 0.27.2 builds pass,
+    and Node plus neutral builds pass under the explicit 0.27.4 Oxc generator.
 
 ## Investigation completed
 
@@ -148,25 +148,25 @@ The main worktree's unrelated concurrent changes remained untouched.
 
 Completed probes:
 
-1. Reproduced the original lint-triggered failure and the minimized config-oxlint build failure.
-2. Compared rolldown-plugin-dts 0.27.1,
-   0.27.2,
-   and 0.27.4 with the same consumer source.
-3. Verified the package-local stylistic build as a passing 0.27.2 control.
-4. Verified that explicit `oxc: true` cannot bypass 0.27.2's TypeScript 7 tsgo guard.
-5. Read rolldown-plugin-dts 0.27.2 and 0.27.4 source at their release tags.
-6. Read tsdown 0.22.4's pass-through from `UserConfig.dts` to rolldown-plugin-dts.
-7. Searched upstream releases,
-   commit history,
-   issues,
-   pull requests,
-   contribution policy,
-   and repository `.out-of-scope/` policy.
-8. Prototyped inferred and explicit Oxc selection under 0.27.4.
-9. Exercised Node and neutral shared presets,
-   package type lint,
-   package oxlint,
-   and the original user-facing lint task.
+1.  Reproduced the original lint-triggered failure and the minimized config-oxlint build failure.
+2.  Compared rolldown-plugin-dts 0.27.1,
+    0.27.2,
+    and 0.27.4 with the same consumer source.
+3.  Verified the package-local stylistic build as a passing 0.27.2 control.
+4.  Verified that explicit `oxc: true` cannot bypass 0.27.2's TypeScript 7 tsgo guard.
+5.  Read rolldown-plugin-dts 0.27.2 and 0.27.4 source at their release tags.
+6.  Read tsdown 0.22.4's pass-through from `UserConfig.dts` to rolldown-plugin-dts.
+7.  Searched upstream releases,
+    commit history,
+    issues,
+    pull requests,
+    contribution policy,
+    and repository `.out-of-scope/` policy.
+8.  Prototyped inferred and explicit Oxc selection under 0.27.4.
+9.  Exercised Node and neutral shared presets,
+    package type lint,
+    package oxlint,
+    and the original user-facing lint task.
 10. Verified pnpm 11.10.0's exact-version `minimumReleaseAgeExclude` syntax with
     `rolldown-plugin-dts@0.27.4` through the repository install task and its 731-entry supply-chain check.
 
@@ -246,61 +246,61 @@ and the aggregate project beats prebuild orchestration because it at least prese
 
 ### Dependency policy and lockfile
 
-1. Confirm `file-enforcer.config.ts` still does not manage `pnpm-workspace.yaml`.
-2. In `pnpm-workspace.yaml`,
-   add the exact selector `rolldown-plugin-dts@0.27.4` to `minimumReleaseAgeExclude`.
-   This applies the user's approved exception only to the reviewed release,
-   not to future rolldown-plugin-dts versions.
-   Retain it as the audit record for this exact reviewed release:
-   after the release ages past the gate it has no behavioral effect,
-   while removing it before then would make clean frozen installs fail.
-3. Add an exact `rolldown-plugin-dts: 0.27.4` override with a comment that:
-   0.27.2 selects experimental tsgo before inherited `isolatedDeclarations`;
-   0.27.4 adds `generator`;
-   and the override can be removed when tsdown's own dependency floor requires a release carrying that option.
-4. Run:
+1.  Confirm `file-enforcer.config.ts` still does not manage `pnpm-workspace.yaml`.
+2.  In `pnpm-workspace.yaml`,
+    add the exact selector `rolldown-plugin-dts@0.27.4` to `minimumReleaseAgeExclude`.
+    This applies the user's approved exception only to the reviewed release,
+    not to future rolldown-plugin-dts versions.
+    Retain it as the audit record for this exact reviewed release:
+    after the release ages past the gate it has no behavioral effect,
+    while removing it before then would make clean frozen installs fail.
+3.  Add an exact `rolldown-plugin-dts: 0.27.4` override with a comment that:
+    0.27.2 selects experimental tsgo before inherited `isolatedDeclarations`;
+    0.27.4 adds `generator`;
+    and the override can be removed when tsdown's own dependency floor requires a release carrying that option.
+4.  Run:
 
-   ```sh
-   mise run prepare:pnpm:install -- --no-frozen-lockfile
-   ```
+    ```sh
+    mise run prepare:pnpm:install -- --no-frozen-lockfile
+    ```
 
-   This exact command passed with the exact-version age exception in the disposable prototype.
-5. In a clean disposable worktree carrying the generated lockfile,
-   verify the frozen path:
+    This exact command passed with the exact-version age exception in the disposable prototype.
+5.  In a clean disposable worktree carrying the generated lockfile,
+    verify the frozen path:
 
-   ```sh
-   mise run prepare:pnpm:install -- --frozen-lockfile
-   ```
+    ```sh
+    mise run prepare:pnpm:install -- --frozen-lockfile
+    ```
 
-6. Inspect the generated `pnpm-lock.yaml` diff.
-   It must resolve rolldown-plugin-dts 0.27.4 with its registry integrity and tarball URL,
-   retain tsdown 0.22.4 and Rolldown 1.1.5 unless an independently required lock update is explained,
-   and contain no hand-edited lock content.
+6.  Inspect the generated `pnpm-lock.yaml` diff.
+    It must resolve rolldown-plugin-dts 0.27.4 with its registry integrity and tarball URL,
+    retain tsdown 0.22.4 and Rolldown 1.1.5 unless an independently required lock update is explained,
+    and contain no hand-edited lock content.
 
 ### Shared declaration generator
 
-1. In `package/config/tsdown/src/index.node.ts`,
-   replace `dts: true` in `baseOptions` with:
+1.  In `package/config/tsdown/src/index.node.ts`,
+    replace `dts: true` in `baseOptions` with:
 
-   ```typescript
-   dts: {
-     generator: 'oxc',
-   },
-   ```
+    ```typescript
+    dts: {
+      generator: 'oxc',
+    },
+    ```
 
-2. Apply the same change to the neutral preset in `package/config/tsdown/src/index.ts`.
-3. Leave `package/config/tsdown/src/index.client.ts` at `dts: false`.
-4. Update `package/config/tsdown/README.md` to state that Node and neutral presets explicitly use Oxc because the
-   shared TypeScript policy enforces `isolatedDeclarations`,
-   while type lint remains responsible for semantic checking.
-5. Do not add an isolated unit test for the option object.
-   Config-tsdown is a source-exported preset package with no self-build task,
-   while the regression occurs only when tsdown loads its transitive declaration plugin against a cross-package
-   Rolldown graph.
-   The config-oxlint build is the correct integration seam;
-   it is itself a four-entry consumer and root or package lint invokes it on every fresh checkout because generated
-   output is absent.
-   Node and neutral consumer builds cover both changed presets.
+2.  Apply the same change to the neutral preset in `package/config/tsdown/src/index.ts`.
+3.  Leave `package/config/tsdown/src/index.client.ts` at `dts: false`.
+4.  Update `package/config/tsdown/README.md` to state that Node and neutral presets explicitly use Oxc because the
+    shared TypeScript policy enforces `isolatedDeclarations`,
+    while type lint remains responsible for semantic checking.
+5.  Do not add an isolated unit test for the option object.
+    Config-tsdown is a source-exported preset package with no self-build task,
+    while the regression occurs only when tsdown loads its transitive declaration plugin against a cross-package
+    Rolldown graph.
+    The config-oxlint build is the correct integration seam;
+    it is itself a four-entry consumer and root or package lint invokes it on every fresh checkout because generated
+    output is absent.
+    Node and neutral consumer builds cover both changed presets.
 
 ### Auto-mode diagnostics exposed after the build repair
 
@@ -309,95 +309,95 @@ the original lint command reaches three pre-existing TSDoc diagnostics in
 `package/pi-plugin/auto-mode/src/ask-user.ts`.
 The implementation must fix them so the requested user-facing command is actually green:
 
-1. For `invokeTerminalNotification`,
-   replace `@param invocation` with separate `@param command` and `@param args` entries matching its destructured
-   fields.
-2. Remove its `@returns` tag because the function returns `Promise<void>`.
-3. Remove `notifyAsk`'s `@returns` tag for the same reason.
-4. Preserve the notification behavior and tests;
-   only documentation changes are needed.
+1.  For `invokeTerminalNotification`,
+    replace `@param invocation` with separate `@param command` and `@param args` entries matching its destructured
+    fields.
+2.  Remove its `@returns` tag because the function returns `Promise<void>`.
+3.  Remove `notifyAsk`'s `@returns` tag for the same reason.
+4.  Preserve the notification behavior and tests;
+    only documentation changes are needed.
 
 The exact edits passed auto-mode oxlint and type lint in the disposable prototype.
 
 ### Documentation and commits
 
-1. Keep `doc/troubleshooting/rolldown-plugin-dts-typescript-7-generator.md` aligned with the implemented dependency
-   selector,
-   age exception,
-   and verification results.
-2. Update this plan's status to implemented only after every acceptance criterion passes.
-3. Commit dependency policy and generated lock changes with explicit pathspecs before continuing.
-4. Commit shared preset and README changes with explicit pathspecs.
-5. Commit the auto-mode TSDoc correction separately so the independent diagnostics remain distinguishable from the
-   declaration fix.
-6. Commit final documentation evidence with explicit pathspecs.
+1.  Keep `doc/troubleshooting/rolldown-plugin-dts-typescript-7-generator.md` aligned with the implemented dependency
+    selector,
+    age exception,
+    and verification results.
+2.  Update this plan's status to implemented only after every acceptance criterion passes.
+3.  Commit dependency policy and generated lock changes with explicit pathspecs before continuing.
+4.  Commit shared preset and README changes with explicit pathspecs.
+5.  Commit the auto-mode TSDoc correction separately so the independent diagnostics remain distinguishable from the
+    declaration fix.
+6.  Commit final documentation evidence with explicit pathspecs.
 
 ## Verification procedure
 
 All fresh-output and freshness probes run in a disposable worktree created from the implementation commits,
 not against the main checkout's ignored build outputs.
 
-1. Confirm resolved versions in `pnpm-lock.yaml` and installed package metadata:
-   TypeScript 7.0.1-rc,
-   tsdown 0.22.4,
-   Rolldown 1.1.5,
-   and rolldown-plugin-dts 0.27.4.
-2. Run config-tsdown checks:
+1.  Confirm resolved versions in `pnpm-lock.yaml` and installed package metadata:
+    TypeScript 7.0.1-rc,
+    tsdown 0.22.4,
+    Rolldown 1.1.5,
+    and rolldown-plugin-dts 0.27.4.
+2.  Run config-tsdown checks:
 
-   ```sh
-   mise run //package/config/tsdown:lint:types
-   mise run //package/config/tsdown:lint:oxlint
-   mise run //package/config/tsdown:test:unit
-   ```
+    ```sh
+    mise run //package/config/tsdown:lint:types
+    mise run //package/config/tsdown:lint:oxlint
+    mise run //package/config/tsdown:test:unit
+    ```
 
-3. Before each aggregate build in the disposable worktree,
-   remove only its generated output directory:
+3.  Before each aggregate build in the disposable worktree,
+    remove only its generated output directory:
 
-   ```sh
-   rm --recursive --force package/config/oxlint/dist/final/node
-   mise run //package/config/oxlint:build:js:node
-   ```
+    ```sh
+    rm --recursive --force package/config/oxlint/dist/final/node
+    mise run //package/config/oxlint:build:js:node
+    ```
 
-   Run this fresh-output sequence twice.
-   Both runs must produce `index.mjs`,
-   its declaration entry and shared declaration chunk,
-   plus JavaScript and declaration files for all three plugin sidecars.
-4. Exercise one direct Node consumer and one direct neutral consumer:
+    Run this fresh-output sequence twice.
+    Both runs must produce `index.mjs`,
+    its declaration entry and shared declaration chunk,
+    plus JavaScript and declaration files for all three plugin sidecars.
+4.  Exercise one direct Node consumer and one direct neutral consumer:
 
-   ```sh
-   mise run //package/oxlint-plugin/stylistic:build:js:node
-   mise run //package/const/core:build:js:browser
-   ```
+    ```sh
+    mise run //package/oxlint-plugin/stylistic:build:js:node
+    mise run //package/const/core:build:js:browser
+    ```
 
-5. Run config-oxlint checks:
+5.  Run config-oxlint checks:
 
-   ```sh
-   mise run //package/config/oxlint:lint:types
-   mise run //package/config/oxlint:lint:oxlint
-   ```
+    ```sh
+    mise run //package/config/oxlint:lint:types
+    mise run //package/config/oxlint:lint:oxlint
+    ```
 
-6. Run auto-mode checks after the TSDoc correction:
+6.  Run auto-mode checks after the TSDoc correction:
 
-   ```sh
-   mise run //package/pi-plugin/auto-mode:lint:types
-   mise run //package/pi-plugin/auto-mode:test:unit
-   mise run //package/pi-plugin/auto-mode:lint:oxlint
-   ```
+    ```sh
+    mise run //package/pi-plugin/auto-mode:lint:types
+    mise run //package/pi-plugin/auto-mode:test:unit
+    mise run //package/pi-plugin/auto-mode:lint:oxlint
+    ```
 
-   The final command is the end-user boundary from the original report and must report zero warnings and zero errors.
-7. In the disposable worktree,
-   record the config output modification time,
-   touch a bundled plugin source,
-   rerun the auto-mode oxlint task,
-   and assert the output modification time increased.
-   This verifies `ensureOxlintConfig()` still rebuilds stale sidecars.
-8. Confirm the repaired build creates ten config-oxlint output files.
-   Compare the five JavaScript outputs against the recorded pre-repair SHA-256 values;
-   all must match.
-   Confirm the five declarations removed by the failed 0.27.2 build are present.
-9. Run Markdown lint on the plan,
-   troubleshooting document,
-   and config-tsdown README.
+    The final command is the end-user boundary from the original report and must report zero warnings and zero errors.
+7.  In the disposable worktree,
+    record the config output modification time,
+    touch a bundled plugin source,
+    rerun the auto-mode oxlint task,
+    and assert the output modification time increased.
+    This verifies `ensureOxlintConfig()` still rebuilds stale sidecars.
+8.  Confirm the repaired build creates ten config-oxlint output files.
+    Compare the five JavaScript outputs against the recorded pre-repair SHA-256 values;
+    all must match.
+    Confirm the five declarations removed by the failed 0.27.2 build are present.
+9.  Run Markdown lint on the plan,
+    troubleshooting document,
+    and config-tsdown README.
 10. Inspect `git status` and the complete diff.
     No unrelated concurrent file,
     ignored build output,

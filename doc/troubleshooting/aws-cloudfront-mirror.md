@@ -1,10 +1,10 @@
 # AWS CloudFront mirror: hostname correction and Free-plan restrictions
 
-**Original investigation**:
+Original investigation:
  2026-05-09.
-**Reassessment**:
+Reassessment:
  2026-09-07.
-**CAA renewal remedy**:
+CAA renewal remedy:
  2026-10-09.
  The mirror leaf became an ANAME carrying its own CAA,
  a second hostname
@@ -12,7 +12,7 @@
 and issue 6 is retracted.
  See
 [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
-**Hostname move**:
+Hostname move:
  2026-10-09,
  later the same day.
  The public mirror hostname moved from
@@ -37,7 +37,7 @@ which is the property this document was written to protect.
 moved to the same leaf-CAA shape at `fastly.aquati.cat`.
  Tracked as
 [issue 674](https://github.com/Aquaticat/Monochromatic/issues/674).
-**Subject**:
+Subject:
  Setting up `aws.aquati.cat` as a public CloudFront mirror of
 self-hosted `aquati.cat` while keeping the apex CAA limited to
 `letsencrypt.org`.
@@ -49,7 +49,7 @@ path (certificate issuance,
 (CloudFront HTTP 502).
 The reassessment retracts the inference that this proves an unfinished TLS 1.3 rollout.
 
-**Mirror status on 2026-09-07**:
+Mirror status on 2026-09-07:
 Restored and verified at `2026-09-07T21:42Z`.
 The live endpoint serves matching origin content through a native origin Host/SNI override.
 Direct probes of `aquati.cat:443` still negotiate TLS 1.3 and reject TLS 1.2 over IPv4 and IPv6 with `aquati.cat` SNI.
@@ -92,13 +92,13 @@ issue 7 records the reassessment.
 
 The configuration path:
 
-1. Drop cross-origin `Alt-Svc` from the apex.
-2. Request a single-name ACM cert for `aws.aquati.cat`.
-3. Place CAA on the subdomain to permit Amazon during issuance.
-4. Remove the subdomain CAA when `aws.aquati.cat` becomes a CNAME to
-   CloudFront.
-5. Encounter HTTP 502 from CloudFront (issue 7).
-   The authorized hostname correction subsequently restored `/` and the tested routes/resources.
+1.  Drop cross-origin `Alt-Svc` from the apex.
+2.  Request a single-name ACM cert for `aws.aquati.cat`.
+3.  Place CAA on the subdomain to permit Amazon during issuance.
+4.  Remove the subdomain CAA when `aws.aquati.cat` becomes a CNAME to
+    CloudFront.
+5.  Encounter HTTP 502 from CloudFront (issue 7).
+    The authorized hostname correction subsequently restored `/` and the tested routes/resources.
 
 This document records the issues encountered along that path.
 
@@ -479,8 +479,8 @@ Citations:
 
 Remove the CAA record at `aws.aquati.cat` before adding the CNAME:
 
-1. Delete `aws.aquati.cat. IN CAA 0 issue "amazon.com"`.
-2. Add `aws.aquati.cat. IN CNAME <distribution>.cloudfront.net.`.
+1.  Delete `aws.aquati.cat. IN CAA 0 issue "amazon.com"`.
+2.  Add `aws.aquati.cat. IN CNAME <distribution>.cloudfront.net.`.
 
 **Better solution,
  measured 2026-10-09**:
@@ -516,7 +516,7 @@ dig +short CNAME aws.aquati.cat
 
 ## Issue 6: removing the subdomain CAA stays safe because ACM follows CNAMEs
 
-**Retracted on 2026-10-09.**
+Retracted on 2026-10-09.
 The mechanism below is wrong,
 and relying on it is what let a renewal run into expiry.
 RFC 8659 section 3 climbs the parents of the queried FQDN;
@@ -553,22 +553,22 @@ After `aws.aquati.cat` becomes a CNAME,
  the CAA processing chain at
 ACM renewal time is:
 
-1. `aws.aquati.cat`:
-    no CAA,
-    but a CNAME is present,
-    so follow the
-   alias.
-2. `<distribution>.cloudfront.net`:
-    no CAA,
-    walk up.
-3. `cloudfront.net`:
-    no CAA,
-    walk up.
-4. `net`:
-    no CAA,
-    walk up.
-5. (root):
-    no CAA.
+1.  `aws.aquati.cat`:
+     no CAA,
+     but a CNAME is present,
+     so follow the
+    alias.
+2.  `<distribution>.cloudfront.net`:
+     no CAA,
+     walk up.
+3.  `cloudfront.net`:
+     no CAA,
+     walk up.
+4.  `net`:
+     no CAA,
+     walk up.
+5.  (root):
+     no CAA.
 
 No restrictive CAA is encountered along the chain.
  ACM is permitted,
@@ -1385,7 +1385,7 @@ Its historical rejection does not make future execution safe.
 
 ## Current configuration state
 
-**Status**:
+Status:
 mirror restoration verified on 2026-09-07.
 The deployed function overrides origin HTTP Host and TLS SNI to `aquati.cat`.
 Both original policies remain associated,
@@ -1675,28 +1675,28 @@ CAA-vs-CNAME coexistence),
 are RFC-mandated behaviors,
  not bugs.
 
-1. **Upstream's fault?
-   ** No. RFCs 7838,
-    8659,
-    1912,
-    2181 define the
-   behavior.
-    ACM,
-    Njalla,
-    and CloudFront each implement the specs
-   correctly.
-2. **Can upstream fix it?
-   ** Not applicable;
-    the RFC is the spec.
-3. **Supporting the use case?
-   ** Not applicable;
-    the use case is fully
-   supported,
-    just constrained by the specs.
-4. **Will they fix it?
-   ** Not applicable.
-5. **Minimal-fix prototype?
-   ** Not applicable.
+1.  **Upstream's fault?
+    ** No. RFCs 7838,
+     8659,
+     1912,
+     2181 define the
+    behavior.
+     ACM,
+     Njalla,
+     and CloudFront each implement the specs
+    correctly.
+2.  **Can upstream fix it?
+    ** Not applicable;
+     the RFC is the spec.
+3.  **Supporting the use case?
+    ** Not applicable;
+     the use case is fully
+    supported,
+     just constrained by the specs.
+4.  **Will they fix it?
+    ** Not applicable.
+5.  **Minimal-fix prototype?
+    ** Not applicable.
 
 **Decision:
  no upstream report.
@@ -1722,35 +1722,35 @@ none of which apply when the cause is an unsupported key algorithm
  UX defect,
  not a behavior defect.
 
-1. **Upstream's fault?
-   ** Yes.
-    Error message is genuinely misleading.
-2. **Can upstream fix it?
-   ** Yes;
-    one-line change to the error string in
-   the `CreateDistribution` validation path to name the unsupported
-   algorithm or list the supported set.
-3. **Supporting the use case?
-   ** Yes.
-    Single-name ACM cert + CloudFront
-   distribution is a documented,
-    common combination.
-4. **Will they fix it?
-   ** Unknown.
-    AWS service teams do iterate on error
-   message wording,
-    but this specific message has been in the field for
-   years across multiple algorithm changes (RSA → ECDSA,
-    P-256
-   introduction).
-    Low signal that a fix is queued.
-5. **Minimal-fix prototype?
-   ** Not feasible;
-    the validation code is
-   closed-source.
-    A user-facing prototype would be a Re:
-   Post feedback
-   item with the misleading message and the actual cause.
+1.  **Upstream's fault?
+    ** Yes.
+     Error message is genuinely misleading.
+2.  **Can upstream fix it?
+    ** Yes;
+     one-line change to the error string in
+    the `CreateDistribution` validation path to name the unsupported
+    algorithm or list the supported set.
+3.  **Supporting the use case?
+    ** Yes.
+     Single-name ACM cert + CloudFront
+    distribution is a documented,
+     common combination.
+4.  **Will they fix it?
+    ** Unknown.
+     AWS service teams do iterate on error
+    message wording,
+     but this specific message has been in the field for
+    years across multiple algorithm changes (RSA → ECDSA,
+     P-256
+    introduction).
+     Low signal that a fix is queued.
+5.  **Minimal-fix prototype?
+    ** Not feasible;
+     the validation code is
+    closed-source.
+     A user-facing prototype would be a Re:
+    Post feedback
+    item with the misleading message and the actual cause.
 
 **Decision:
  do not file as a bug.
@@ -1799,29 +1799,29 @@ reuse the existing CNAME.
  but not
 documented in a single canonical AWS doc.
 
-1. **Upstream's fault?
-   ** Yes,
-    narrowly:
-    docs gap.
-    Behavior is
-   reasonable;
-    documentation does not call it out.
-2. **Can upstream fix it?
-   ** Yes;
-    one paragraph in the ACM DNS
-   validation docs.
-3. **Supporting the use case?
-   ** Yes;
-    re-requesting after a failed cert
-   is a common path.
-4. **Will they fix it?
-   ** Unknown.
-    Docs feedback through the page's
-   feedback widget is the standard route.
-5. **Minimal-fix prototype?
-   ** Docs-only change;
-    the prototype is the
-   one-paragraph addition.
+1.  **Upstream's fault?
+    ** Yes,
+     narrowly:
+     docs gap.
+     Behavior is
+    reasonable;
+     documentation does not call it out.
+2.  **Can upstream fix it?
+    ** Yes;
+     one paragraph in the ACM DNS
+    validation docs.
+3.  **Supporting the use case?
+    ** Yes;
+     re-requesting after a failed cert
+    is a common path.
+4.  **Will they fix it?
+    ** Unknown.
+     Docs feedback through the page's
+    feedback widget is the standard route.
+5.  **Minimal-fix prototype?
+    ** Docs-only change;
+     the prototype is the
+    one-paragraph addition.
 
 **Decision:
  low-priority docs feedback only.
@@ -1835,29 +1835,29 @@ filed.
 
 The 2026-09-07 reassessment supersedes the original upstream attribution.
 
-1. **Upstream's fault?**
-   No upstream defect established.
-   The active policies forward a hostname that the configured origin does not serve correctly;
-   the policy-pair fixture correction restored matching content without changing TLS.
-   No CloudFront handshake capture was obtained.
-2. **Can upstream fix it?**
-   Not assessed without an established defect;
-   extending the API enum is not a proven requirement for automatic TLS 1.3.
-3. **Supporting the use case?**
-   Yes according to AWS's origin TLS 1.3 announcement.
-4. **Would upstream welcome this contribution?**
-   No contribution is proposed;
-   contribution-policy auditing is deferred until there is additive defect evidence.
-5. **Will upstream fix it?**
-   No forecast:
-   AWS describes support as already available.
-   Search found the existing [AWS feature request][origin-feature-request]
-   and [Caddy #7445][caddy-cloudfront-issue];
-   the latter was read with all comments and describes a separate SNI incident.
-6. **Minimal-fix prototype?**
-   A consumer-side policy correction passed fixture testing.
-   This establishes a configuration remedy,
-   not an upstream defect requiring a source patch.
+1.  **Upstream's fault?**
+    No upstream defect established.
+    The active policies forward a hostname that the configured origin does not serve correctly;
+    the policy-pair fixture correction restored matching content without changing TLS.
+    No CloudFront handshake capture was obtained.
+2.  **Can upstream fix it?**
+    Not assessed without an established defect;
+    extending the API enum is not a proven requirement for automatic TLS 1.3.
+3.  **Supporting the use case?**
+    Yes according to AWS's origin TLS 1.3 announcement.
+4.  **Would upstream welcome this contribution?**
+    No contribution is proposed;
+    contribution-policy auditing is deferred until there is additive defect evidence.
+5.  **Will upstream fix it?**
+    No forecast:
+    AWS describes support as already available.
+    Search found the existing [AWS feature request][origin-feature-request]
+    and [Caddy #7445][caddy-cloudfront-issue];
+    the latter was read with all comments and describes a separate SNI incident.
+6.  **Minimal-fix prototype?**
+    A consumer-side policy correction passed fixture testing.
+    This establishes a configuration remedy,
+    not an upstream defect requiring a source patch.
 
 The `.out-of-scope/` file inventory contained no AWS or Caddy exemption.
 No upstream issue or comment was filed.

@@ -156,10 +156,10 @@ Inspect every matching plan,
 
 After the initial schedule completes:
 
-1. Collect every new problem-class synonym from candidate metadata.
-2. Append one de-duplicated query round to each applicable external source.
-3. Freeze the expanded schedule.
-4. Record later terms without adding more queries.
+1.  Collect every new problem-class synonym from candidate metadata.
+2.  Append one de-duplicated query round to each applicable external source.
+3.  Freeze the expanded schedule.
+4.  Record later terms without adding more queries.
 
 ## Query ledger and saturation
 

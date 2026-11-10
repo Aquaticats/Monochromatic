@@ -549,59 +549,59 @@ issue was opened.
 The six constraints,
 walked explicitly:
 
-1. Is it really upstream's fault?
-   For the `os` handling,
-   yes:
-   the target loop ignores a documented tool option in the
-   lock rebuild,
-   which is behavior,
-   not wording.
-   The `cmake` half is repository state (a stale backend in the lock),
-   not an upstream defect.
-2. Can upstream fix it?
-   Yes,
-   and it did:
-   `b2e0c56` on `main` skips the excluded platforms before resolution.
-3. Are they supporting this use case?
-   Yes:
-   the `os` tool option exists for OS-specific tools,
-   the reporter of #14937
-   used it with `lockfile_platforms`,
-   and this repository uses it for `conda:bubblewrap`.
-4. Would the repo welcome our contribution?
-   No filing is possible from this work.
-   `CONTRIBUTING.md` says:
-   "AI replies
-   to Discussions and Issues are restricted.
-   Only use AI to reply to a thread if you created it,
-   opened a PR that
-   fixes it,
-   or have already had a contribution,
-   attributed to your GitHub account,
-   merged into the default branch of
-   mise."
-   This session meets none of those conditions,
-   and the policy calls the alternative an instant ban.
-   The audit
-   therefore ends with no comment and no issue.
-5. Will they likely fix it?
-   Already fixed:
-   merged 2026-10-25 and listed in the 2026.10.20 release pull request
-   [jdx/mise#14948](https://github.com/jdx/mise/pull/14948).
-6. Have we prototyped a minimal fix compatible with their architecture?
-   The upstream fix itself was built from `main`
-   at `b9e1506` and exercised against this repository (Harness 2):
-   pre-fix 2026.10.19 reproduces the failure,
-   the
-   fixed build resolves all 645 targets and writes a lock whose `conda:bubblewrap` keys stay Linux-only.
-   The
-   candidate-fix gate holds:
-   the fix is absent from `v2026.10.19`,
-   present on `main`,
-   and the reproduction inputs
-   (an `os`-limited tool plus multi-platform lock targets) match issue #14937,
-   with the additional fatal conda variant
-   traced in "Root cause".
+1.  Is it really upstream's fault?
+    For the `os` handling,
+    yes:
+    the target loop ignores a documented tool option in the
+    lock rebuild,
+    which is behavior,
+    not wording.
+    The `cmake` half is repository state (a stale backend in the lock),
+    not an upstream defect.
+2.  Can upstream fix it?
+    Yes,
+    and it did:
+    `b2e0c56` on `main` skips the excluded platforms before resolution.
+3.  Are they supporting this use case?
+    Yes:
+    the `os` tool option exists for OS-specific tools,
+    the reporter of #14937
+    used it with `lockfile_platforms`,
+    and this repository uses it for `conda:bubblewrap`.
+4.  Would the repo welcome our contribution?
+    No filing is possible from this work.
+    `CONTRIBUTING.md` says:
+    "AI replies
+    to Discussions and Issues are restricted.
+    Only use AI to reply to a thread if you created it,
+    opened a PR that
+    fixes it,
+    or have already had a contribution,
+    attributed to your GitHub account,
+    merged into the default branch of
+    mise."
+    This session meets none of those conditions,
+    and the policy calls the alternative an instant ban.
+    The audit
+    therefore ends with no comment and no issue.
+5.  Will they likely fix it?
+    Already fixed:
+    merged 2026-10-25 and listed in the 2026.10.20 release pull request
+    [jdx/mise#14948](https://github.com/jdx/mise/pull/14948).
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    The upstream fix itself was built from `main`
+    at `b9e1506` and exercised against this repository (Harness 2):
+    pre-fix 2026.10.19 reproduces the failure,
+    the
+    fixed build resolves all 645 targets and writes a lock whose `conda:bubblewrap` keys stay Linux-only.
+    The
+    candidate-fix gate holds:
+    the fix is absent from `v2026.10.19`,
+    present on `main`,
+    and the reproduction inputs
+    (an `os`-limited tool plus multi-platform lock targets) match issue #14937,
+    with the additional fatal conda variant
+    traced in "Root cause".
 
 Outcome:
 **nothing to add**.

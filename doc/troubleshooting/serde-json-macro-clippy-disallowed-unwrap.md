@@ -119,29 +119,29 @@ method never appears in the expansion.
 `.out-of-scope/` was checked:
  no serde_json or clippy exemption exists.
 
-1. Really upstream's fault?
-    No party is wrong:
-    serde_json's `unwrap` is deliberate and
-   documented as infallible for JSON-compatible types;
-    clippy's syntactic lint behaves as
-   designed;
-    the collision is a local-policy interaction.
-2. Can upstream fix it?
-    serde_json could expand to an unreachable-panic form,
-    but that is a
-   stylistic preference,
-    not a defect.
-3. Supported use case?
-    Both tools behave as documented.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraint 1 fails.
-5. Will they likely fix it?
-    No signal either way;
-    nothing needing a fix.
-6. Prototyped minimal fix?
-    Not applicable;
-    consumer-side form recorded above.
+1.  Really upstream's fault?
+     No party is wrong:
+     serde_json's `unwrap` is deliberate and
+    documented as infallible for JSON-compatible types;
+     clippy's syntactic lint behaves as
+    designed;
+     the collision is a local-policy interaction.
+2.  Can upstream fix it?
+     serde_json could expand to an unreachable-panic form,
+     but that is a
+    stylistic preference,
+     not a defect.
+3.  Supported use case?
+     Both tools behave as documented.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraint 1 fails.
+5.  Will they likely fix it?
+     No signal either way;
+     nothing needing a fix.
+6.  Prototyped minimal fix?
+     Not applicable;
+     consumer-side form recorded above.
 
 Decision:
  nothing to file.

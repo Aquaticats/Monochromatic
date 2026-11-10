@@ -152,14 +152,14 @@ there is no dirty-buffer or save lifecycle.
 
 On an external change:
 
-1. Read the new file off the UI thread.
-2. Compare old and new text and compute correspondence.
-3. Map caret,
-   selected range,
-   and the visible source anchor through the changes.
-4. Install the new revision only if its file identity and generation still match.
-5. Notify language servers in their negotiated synchronization mode before requesting fresh intelligence.
-6. Refresh syntax and annotations without holding for selection release.
+1.  Read the new file off the UI thread.
+2.  Compare old and new text and compute correspondence.
+3.  Map caret,
+    selected range,
+    and the visible source anchor through the changes.
+4.  Install the new revision only if its file identity and generation still match.
+5.  Notify language servers in their negotiated synchronization mode before requesting fresh intelligence.
+6.  Refresh syntax and annotations without holding for selection release.
 
 Start with Helix's rope,
 diff,
@@ -306,34 +306,34 @@ not evidence that their combined application already compiles or runs.
 
 ## Build sequence and gates
 
-1. Prove the source view and document correspondence in a disposable implementation spike.
-   Require selectable highlighted text,
-   click-to-caret,
-   drag and keyboard selection,
-   exact clipboard contents,
-   annotations,
-   scrolling,
-   and both supplied external-change examples.
-   Expose caret/selection and revision state to tests.
-2. Build the live reader around that proven view:
-   local root,
-   lazy tree,
-   search,
-   file switching,
-   and disk refresh.
-   Verify races and stale responses at each interface.
-3. Complete an end-to-end language-intelligence slice with actual TypeScript and Rust projects.
-   Exercise all five feature paths,
-   external reload synchronization,
-   capability reporting,
-   shutdown,
-   and write restrictions.
-4. Extend the verified path across the measured Helix-supported language inventory.
-   Package the selected grammars and tool configuration;
-   do not start every language server on launch or make the app an automatic dependency installer.
-5. Verify the complete native application on the current host,
-   run scoped lint/tests,
-   and update the behavior-difference record.
+1.  Prove the source view and document correspondence in a disposable implementation spike.
+    Require selectable highlighted text,
+    click-to-caret,
+    drag and keyboard selection,
+    exact clipboard contents,
+    annotations,
+    scrolling,
+    and both supplied external-change examples.
+    Expose caret/selection and revision state to tests.
+2.  Build the live reader around that proven view:
+    local root,
+    lazy tree,
+    search,
+    file switching,
+    and disk refresh.
+    Verify races and stale responses at each interface.
+3.  Complete an end-to-end language-intelligence slice with actual TypeScript and Rust projects.
+    Exercise all five feature paths,
+    external reload synchronization,
+    capability reporting,
+    shutdown,
+    and write restrictions.
+4.  Extend the verified path across the measured Helix-supported language inventory.
+    Package the selected grammars and tool configuration;
+    do not start every language server on launch or make the app an automatic dependency installer.
+5.  Verify the complete native application on the current host,
+    run scoped lint/tests,
+    and update the behavior-difference record.
 
 These are implementation gates within one deliverable,
 not permission to postpone required features to an unspecified later 0.x release.

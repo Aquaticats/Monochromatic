@@ -170,26 +170,26 @@ Searches across open and closed Rolldown issues and pull requests for
 
 The six constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** No.
-   This is an intentional,
-   tested deprecation with a precise replacement.
-2. **Can upstream fix it?
-   ** Not applicable as a defect.
-   Removing the warning would defeat the documented migration.
-3. **Are they supporting this use case?
-   ** Yes.
-   Rolldown supports single-bundle dynamic imports through `codeSplitting: false`,
-   and tsdown exposes Rolldown `outputOptions`.
-4. **Would the repo welcome our contribution?
-   ** The Rolldown `CONTRIBUTING.md` links its public contribution guide;
-   no repository policy inspected for this diagnosis prohibited outside contributions.
-   This does not override constraint 1.
-5. **Will they likely fix it?
-   ** No fix is warranted because current behavior is deliberate and covered by an upstream test.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream patch is appropriate.
-   The verified consumer-side option migration is the complete fix.
+1.  **Is it really upstream's fault?
+    ** No.
+    This is an intentional,
+    tested deprecation with a precise replacement.
+2.  **Can upstream fix it?
+    ** Not applicable as a defect.
+    Removing the warning would defeat the documented migration.
+3.  **Are they supporting this use case?
+    ** Yes.
+    Rolldown supports single-bundle dynamic imports through `codeSplitting: false`,
+    and tsdown exposes Rolldown `outputOptions`.
+4.  **Would the repo welcome our contribution?
+    ** The Rolldown `CONTRIBUTING.md` links its public contribution guide;
+    no repository policy inspected for this diagnosis prohibited outside contributions.
+    This does not override constraint 1.
+5.  **Will they likely fix it?
+    ** No fix is warranted because current behavior is deliberate and covered by an upstream test.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream patch is appropriate.
+    The verified consumer-side option migration is the complete fix.
 
 Nothing should be filed upstream.
 The retained artifact is intentionally not fileable:

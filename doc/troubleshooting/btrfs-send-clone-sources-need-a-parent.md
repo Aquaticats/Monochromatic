@@ -94,39 +94,39 @@ for example `btrfs inspect-internal logical-resolve` of a sample).
 2026-11-07,
 after the ranking sent to the coordinator:
 
-1. Every first-pass send is `btrfs send -p <empty parent> -c <every earlier copy> <snapshot>`.
-   The empty parent is one empty subvolume (`empty-parent-base`) snapshotted read-only as `empty-parent` and sent first.
-   Comparing a snapshot with an empty root can only create inodes,
-   so no (number,
-   generation) pair is ever compared,
-   and the kernel finds shared extents by their physical backreferences,
-   so sharing with every earlier copy is kept.
-   Measured by the coordinator on the fixture:
-   `empty`,
-   `s000 -p empty` and `s001 -p empty -c s000` were received and
-   `rsync --checksum` found no difference for `s001`.
-2. The final pass sends `-p` the first-pass snapshot of the same subvolume (one history).
-3. Before any send the copy tool refuses a destination that holds two subvolumes with one received UUID
-   (measured:
-   `btrfs receive` resolved a clone source to an older copy with the same received UUID) or a subvolume in
-   the received folder that no record knows.
-4. Every first-pass copy is verified against its snapshot before the cut-over (`--pass=verify-first`,
-   `rsync --dry-run`
-   by path,
-   type,
-   size,
-   time and mode,
-   and `--checksum` on request),
-   excusing exactly the inventoried nested subvolumes,
-   which a snapshot shows as empty folders and a send does not carry.
-5. Rejected:
-   full sends with no clone sources (3833 GiB apparent against 263.6 GiB with sharing,
-   so it does not fit),
-   and a related subvolume as parent (can pair the wrong inodes).
-   Not built:
-   a root-run client for `BTRFS_IOC_SEND` with clone sources and no parent,
-   which has the same safety
-   as the empty parent and needs code the CLI makes unnecessary.
+1.  Every first-pass send is `btrfs send -p <empty parent> -c <every earlier copy> <snapshot>`.
+    The empty parent is one empty subvolume (`empty-parent-base`) snapshotted read-only as `empty-parent` and sent first.
+    Comparing a snapshot with an empty root can only create inodes,
+    so no (number,
+    generation) pair is ever compared,
+    and the kernel finds shared extents by their physical backreferences,
+    so sharing with every earlier copy is kept.
+    Measured by the coordinator on the fixture:
+    `empty`,
+    `s000 -p empty` and `s001 -p empty -c s000` were received and
+    `rsync --checksum` found no difference for `s001`.
+2.  The final pass sends `-p` the first-pass snapshot of the same subvolume (one history).
+3.  Before any send the copy tool refuses a destination that holds two subvolumes with one received UUID
+    (measured:
+    `btrfs receive` resolved a clone source to an older copy with the same received UUID) or a subvolume in
+    the received folder that no record knows.
+4.  Every first-pass copy is verified against its snapshot before the cut-over (`--pass=verify-first`,
+    `rsync --dry-run`
+    by path,
+    type,
+    size,
+    time and mode,
+    and `--checksum` on request),
+    excusing exactly the inventoried nested subvolumes,
+    which a snapshot shows as empty folders and a send does not carry.
+5.  Rejected:
+    full sends with no clone sources (3833 GiB apparent against 263.6 GiB with sharing,
+    so it does not fit),
+    and a related subvolume as parent (can pair the wrong inodes).
+    Not built:
+    a root-run client for `BTRFS_IOC_SEND` with clone sources and no parent,
+    which has the same safety
+    as the empty parent and needs code the CLI makes unnecessary.
 
 ## Cost of a send on the empty parent
 
