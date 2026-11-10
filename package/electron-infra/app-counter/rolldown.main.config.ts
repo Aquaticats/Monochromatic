@@ -3,6 +3,13 @@ import {
   type RolldownOptions,
 } from 'rolldown';
 
+import { runtimeExternals, } from './src/runtime-externals.ts';
+
+/**
+ Package name of the Electron runtime that loads the bundle.
+ */
+const ELECTRON_PACKAGE = 'electron';
+
 /**
  Main-process bundle config for Electron's Node-flavoured ESM runtime.
  
@@ -15,12 +22,7 @@ const mainProcessConfig: RolldownOptions = defineConfig({
   input: ['./src/main.ts',],
   platform: 'node',
   transform: { target: 'node22', },
-  external: [
-    // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored protocol prefix test for node builtins; input is one bare import specifier; no repetition, no backtracking.
-    /^node:/u,
-    // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored literal name test keeping the electron runtime external; input is one bare import specifier; no repetition, no backtracking.
-    /^electron(\/|$)/u,
-  ],
+  external: runtimeExternals({ packageNames: [ELECTRON_PACKAGE,], }),
   output: {
     dir: 'dist/app',
     format: 'es',
