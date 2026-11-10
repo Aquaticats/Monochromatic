@@ -202,11 +202,15 @@ type SharedRootShapeCase = {
  @param path - Address the walk is currently at.
  @param into - Accumulator, filled in place so the walk stays tail-shaped.
  */
-const collectBodies = (
-  state: JsoncEditState,
-  path: readonly (string | number)[],
-  into: string[],
-): void => {
+const collectBodies = ({
+  state,
+  path,
+  into,
+}: {
+  readonly state: JsoncEditState;
+  readonly path: readonly (string | number)[];
+  readonly into: string[];
+},): void => {
   const valueComment = jsoncGetComment({ state, path: [...path,], },);
   if (valueComment !== COMMENT_ABSENT)
     into.push(valueComment.text,);
@@ -222,7 +226,7 @@ const collectBodies = (
     return;
   if (Array.isArray(value,)) {
     value.forEach(function walkElement(_: unknown, index: number,): void {
-      collectBodies(state, [...path, index,], into,);
+      collectBodies({ state, path: [...path, index,], into, },);
     },);
     return;
   }
@@ -230,7 +234,7 @@ const collectBodies = (
   if (keys === undefined)
     return;
   for (const key of keys)
-    collectBodies(state, [...path, key,], into,);
+    collectBodies({ state, path: [...path, key,], into, },);
 };
 
 /**
@@ -417,7 +421,7 @@ await describe({
               },);
               const reparsed = parseJsoncEdit({ source: asJsonc(emitted,), },);
               const bodies: string[] = [];
-              collectBodies(reparsed, [], bodies,);
+              collectBodies({ state: reparsed, path: [], into: bodies, },);
               for (const wanted of sample.commentBodies)
                 expect(bodies.includes(wanted,),).toBe(true,);
             }
