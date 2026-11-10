@@ -338,10 +338,11 @@ under rule `WGH`:
   Built since:
   "Carry edits forward" (`feat/git-policy-cli-merge-carries-unsaved-edits-forward`,
   `SPEC.md` "A merge whose paths hold the person's own work carries it forward"),
-  with one gap left:
-  a merge that would open an editor is still forwarded,
-  so native Git refuses it over unsaved work
-  (`--no-edit` completes it).
+  and a merge over that work that would open an editor now opens it in the wrapper
+  (`fix/git-policy-cli-merge-with-an-editor-carries-unsaved-work`,
+  `src/native/merge/merge_isolation_editor.rs`),
+  as the branch is pushed for review.
+  A merge over a clean checkout that would open one is still native Git's whole.
 - `never-stuck`:
   a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
   and the commit service's landing behind it.

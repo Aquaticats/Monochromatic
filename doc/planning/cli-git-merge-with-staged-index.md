@@ -281,6 +281,18 @@ cherry-pick or revert in progress.
 A merge run inside another wrapper's landing lease (a hook or `rebase --exec`) is not coordinated at all,
 as before.
 
+Changed since,
+on the branch `fix/git-policy-cli-merge-with-an-editor-carries-unsaved-work`
+(`src/native/merge/merge_isolation_editor.rs`):
+a merge that would open an editor over a checkout holding the person's own work in the paths it changes is completed,
+with the editor the merge would have opened,
+and only a merge over a clean checkout that would open one,
+or one started with `--edit`,
+is still native Git's
+(`SPEC.md`,
+"A merge whose paths hold the person's own work carries it forward").
+The notice that named `--no-edit` is gone.
+
 Behavior that differs from native Git on a clean checkout,
 by design:
 
