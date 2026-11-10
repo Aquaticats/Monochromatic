@@ -66,28 +66,28 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// ```ts
 /// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
-pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<&'static str>> {
+pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
     if read_text(member.join("config").as_path())? != template.config_text() {
-        return Ok(Some("its config is not the one this invocation would write"));
+        return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
     if read_text(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_text() {
-        return Ok(Some("its alternates do not name this invocation's object directory"));
+        return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
     }
     if read_text(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD {
-        return Ok(Some("its HEAD is not the one a creation leaves before a commit names its branch"));
+        return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
     for relative in SKELETON_DIRECTORIES {
         let path: std::path::PathBuf = member.join(relative);
         let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
-            return Ok(Some("a directory of the skeleton is not a directory"));
+            return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
         };
         if !metadata.is_dir() {
-            return Ok(Some("a directory of the skeleton is not a directory"));
+            return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
         }
     }
     let (shared, keeps_its_own_info) = shared_entries_of(template.common_dir.as_path(), template.git_dir.as_path())?;
     if keeps_its_own_info {
-        return Ok(Some("this worktree keeps its own info directory, so its shadows are made where the commit is"));
+        return Ok(Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is")));
     }
     let copies_worktree_config: bool = has_worktree_config(template.git_dir.as_path())?;
     // Every entry of the member must be one this invocation's creation makes.
@@ -97,36 +97,37 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         let own: bool = OWN_ENTRIES.contains(&name.as_str()) || (copies_worktree_config && name == WORKTREE_CONFIG);
         let linked: bool = shared.iter().any(|candidate| candidate.name.to_string_lossy() == name);
         if !own && !linked {
-            return Ok(Some("it holds an entry this invocation's creation does not make"));
+            return Ok(Some(format!("it holds {name}, which this invocation's creation does not make")));
         }
     }
     // Every entry the creation shares is here, and links to the same real entry.
     for entry in &shared {
         let link: std::path::PathBuf = member.join(&entry.name);
+        let shared_named: String = entry.name.to_string_lossy().into_owned();
         let Ok(metadata) = std::fs::symlink_metadata(link.as_path()) else {
-            return Ok(Some("a shared entry of the repository is not a link in the member"));
+            return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
         };
         if !metadata.file_type().is_symlink() {
-            return Ok(Some("a shared entry of the repository is not a link in the member"));
+            return Ok(Some(format!("the shared entry {shared_named} is not a link in the member")));
         }
         if std::fs::read_link(link.as_path())? != entry.source {
-            return Ok(Some("a shared entry of the member links somewhere other than the repository's own entry"));
+            return Ok(Some(format!("the shared entry {shared_named} links somewhere other than the repository's own entry")));
         }
     }
     if copies_worktree_config
         && read_text(member.join(WORKTREE_CONFIG).as_path())?
             != read_text(template.git_dir.join(WORKTREE_CONFIG).as_path())?
     {
-        return Ok(Some("its copy of the worktree's configuration is not the one a creation would copy"));
+        return Ok(Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")));
     }
     // Nothing of an earlier commit's work survives in a member.
     if !is_empty(member.join("objects").join("pack").as_path())? {
-        return Ok(Some("it holds a pack, which no creation leaves"));
+        return Ok(Some(String::from("it holds a pack, which no creation leaves")));
     }
     if !is_empty(member.join("refs").join("heads").as_path())?
         || !is_empty(member.join("refs").join("tags").as_path())?
     {
-        return Ok(Some("it holds a ref, which no creation leaves"));
+        return Ok(Some(String::from("it holds a ref, which no creation leaves")));
     }
     return Ok(None);
 }

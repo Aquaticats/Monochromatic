@@ -62,7 +62,7 @@ fn a_leftover_of_a_use_is_refused() {
         std::fs::write(shadow.join(leftover).as_path(), b"x\n").expect("leftover");
         assert_eq!(
             refusal(&template, shadow.as_path()).expect("checked"),
-            Some("it holds an entry this invocation's creation does not make"),
+            Some(format!("it holds {leftover}, which this invocation's creation does not make")),
             "{leftover}"
         );
     }
@@ -80,7 +80,7 @@ fn a_pack_or_a_ref_is_refused() {
     std::fs::write(packed.join("objects").join("pack").join("pack-x.pack").as_path(), b"x").expect("pack");
     assert_eq!(
         refusal(&template, packed.as_path()).expect("checked"),
-        Some("it holds a pack, which no creation leaves")
+        Some(String::from("it holds a pack, which no creation leaves"))
     );
     let referenced: PathBuf = creation(root.as_path(), &template, "created-ref");
     std::fs::write(
@@ -90,7 +90,7 @@ fn a_pack_or_a_ref_is_refused() {
     .expect("ref");
     assert_eq!(
         refusal(&template, referenced.as_path()).expect("checked"),
-        Some("it holds a ref, which no creation leaves")
+        Some(String::from("it holds a ref, which no creation leaves"))
     );
     remove(root.as_path());
 }
@@ -110,13 +110,13 @@ fn a_link_of_another_repository_is_refused() {
     std::os::unix::fs::symlink(elsewhere.as_path(), link.as_path()).expect("another link");
     assert_eq!(
         refusal(&template, moved.as_path()).expect("checked"),
-        Some("a shared entry of the member links somewhere other than the repository's own entry")
+        Some(String::from("the shared entry info links somewhere other than the repository's own entry"))
     );
     let missing: PathBuf = creation(root.as_path(), &template, "created-missing");
     std::fs::remove_file(missing.join("hooks").as_path()).expect("the real link");
     assert_eq!(
         refusal(&template, missing.as_path()).expect("checked"),
-        Some("a shared entry of the repository is not a link in the member")
+        Some(String::from("the shared entry hooks is not in the member"))
     );
     remove(root.as_path());
 }
@@ -133,18 +133,18 @@ fn a_config_of_another_invocation_is_refused() {
     other.repository_root = root.join("elsewhere");
     assert_eq!(
         refusal(&other, shadow.as_path()).expect("checked"),
-        Some("its config is not the one this invocation would write")
+        Some(String::from("its config is not the one this invocation would write"))
     );
     let mut other_object_directory: ShadowTemplate = template.clone();
     other_object_directory.object_directory = root.join("objects-elsewhere");
     assert_eq!(
         refusal(&other_object_directory, shadow.as_path()).expect("checked"),
-        Some("its alternates do not name this invocation's object directory")
+        Some(String::from("its alternates do not name this invocation's object directory"))
     );
     std::fs::write(shadow.join("HEAD").as_path(), b"ref: refs/heads/other\n").expect("head");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some("its HEAD is not the one a creation leaves before a commit names its branch")
+        Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch"))
     );
     remove(root.as_path());
 }
@@ -166,7 +166,7 @@ fn a_worktree_that_keeps_its_own_info_is_refused() {
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some("this worktree keeps its own info directory, so its shadows are made where the commit is")
+        Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is"))
     );
     remove(root.as_path());
 }

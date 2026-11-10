@@ -12,9 +12,11 @@
 //! "The resident service fills a pool of finished shadows,
 //! a commit renames one into place,
 //! and it builds inline as today when the pool is empty."
-//!  The fill runs beside the landing loop,
-//! never on a commit's path,
-//! and a fill that cannot run leaves the pool empty,
+//!  The fill runs on a thread of its own beside the landing loop,
+//! never on a commit's path and never on the runtime's blocking pool:
+//! a Git start needs the runtime that runs its waits,
+//! and that runtime refuses a start asked for from inside itself.
+//!  A fill that cannot run leaves the pool empty,
 //! which is the case every commit already handles.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,11 +24,8 @@
 //! startPoolFill({ context, request }); // returns at once
 //! ```
 
-/// One step of blocking work,
-/// off the runtime's threads.
-use crate::blocking_job::run_blocking_job;
-/// The service's own runtime.
-use crate::lazy_runtime::spawn_on_runtime;
+/// One thread per fill, which the system may refuse.
+use crate::scoped_start::{refused_thread_sentence, spawn_named};
 /// What a commit request names,
 /// and the facts a shadow is made from.
 use crate::service_protocol::CommitRequest;
@@ -38,14 +37,24 @@ use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Lock kept:
+///  whether this service is already filling a pool,
+///  which it sets and clears and nothing else touches:
+/// one fill at a time is as much as a pool of two members ever needs,
+/// and a landing never waits for this flag,
+/// because a wake that finds it set simply leaves the pool as it is.
+static FILLING: AtomicBool = AtomicBool::new(false);
 
 /// What:
 ///  Starts one fill for the worktree a request names,
-/// unless the pool already holds what it would make.
+/// unless the pool already holds what it would make or a fill is already running.
 /// Why:
 ///   Every answer the service gives is a commit the person waits for,
 /// so the fill is started beside the loop and never inside it.
-///  The check that the pool is full costs one `read_dir` and no Git start,
+///  The two checks cost one `read_dir` and one atomic exchange,
+/// and no Git start,
 /// which is what a busy repository does on every landing.
 ///
 /// In TS you'd write (pseudocode):
@@ -57,28 +66,28 @@ pub fn start(context: &GitContext, request: &CommitRequest) {
     if members(root.as_path()).len() >= POOL_LIMIT {
         return;
     }
+    if FILLING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     let context: GitContext = context.clone();
+    let named: String = request.common_dir.display().to_string();
     let common_dir: PathBuf = request.common_dir.clone();
-    let named: String = common_dir.display().to_string();
-    let told: String = named.clone();
     let git_dir: PathBuf = request.git_dir.clone();
     let repository: PathBuf = request.repository.clone();
-    let started = spawn_on_runtime(async move {
-        match run_blocking_job(move || fill_one(&context, &common_dir, &git_dir, &repository)).await {
-            Ok(Ok(_made)) => {}
-            Ok(Err(error)) => {
-                crate::service_warn!("the shadow pool of {told} was not filled: {}", error.0);
-            }
+    let started = spawn_named("shadow-pool-fill", move || {
+        // The flag is cleared however the fill ends, so one refused Git start does not stop every later fill.
+        let outcome: Result<Option<PathBuf>, GitFailure> = fill_one(&context, &common_dir, &git_dir, &repository);
+        FILLING.store(false, Ordering::Release);
+        match outcome {
+            Ok(_made) => {}
             Err(error) => {
-                crate::service_warn!("the shadow pool of {told} was not filled: the blocking pool gave no thread ({error:?})");
+                crate::service_warn!("the shadow pool of {named} was not filled: {}", error.0);
             }
         }
     });
-    if started.is_none() {
-        crate::diagnostic_log::debug(
-            "poolFill",
-            format!("the shadow pool of {named} is left to a later fill: this service has no worker to run one on").as_str(),
-        );
+    if let Err(error) = started {
+        FILLING.store(false, Ordering::Release);
+        crate::service_warn!("{}", refused_thread_sentence("fill the shadow pool", &error));
     }
 }
 

@@ -53,9 +53,13 @@ pub const SHADOW_POOL_NAME: &str = "shadow-pool";
 
 /// How many finished shadows are kept for one worktree.
 /// Measured:
-/// a fill survives about 40 commits a minute here at the busiest,
-/// so two cover a burst that begins before the first fill ends,
-/// and the third member a longer pool would hold is one no run of this host claimed between two fills.
+/// the busiest ten minutes of the wrapper's own records of 2026-11-10 hold 43 commits,
+/// each claim takes one member,
+/// and one fill at a time is as many as a landing makes,
+/// so a pool of two covers the moment two commits of one worktree overlap while the fill after the last landing runs,
+/// and a third member is one a busy repository would keep for nothing.
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "What each part of a commit's private repository is for, and how many commits need it".)
 pub const POOL_LIMIT: usize = 2;
 
 /// How old a half-made member must be before a fill removes it.
