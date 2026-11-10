@@ -4610,8 +4610,19 @@ and `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_b
 then the next commit).
 Planted control:
 removing the call failed both unit controls at once (2026-11-08,
-the same command);
-the binary control was not re-run with the call removed.
+the same command).
+The binary control was re-run with the call removed (2026-11-10,
+`cargo nextest run --locked --offline --test native_binary the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`)
+and it passed with the keep out and with it in,
+so it does not prove that guard,
+and the two unit controls are the guard's whole proof.
+Why it cannot:
+the batch the stop leaves open is one the landing imported,
+so a scratch reference holds its objects,
+and the drop's own sweep keeps that reference's tip at `refs/cli-git/kept/<seq>` before removing the reference (`service_scratch_ref_of_a_dropped_batch.rs`),
+which is the same commit the keep writes.
+The keep is what a commit with no scratch reference needs (`a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`),
+and no binary control reaches that route.
 Open:
 whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
 (today it stays on its scratch branch with the open intent),
