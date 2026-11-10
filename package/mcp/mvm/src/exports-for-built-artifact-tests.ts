@@ -7,8 +7,9 @@
  source, which `test-import/require-eventual-artifact` requires of every package with a
  build.
 
- Nothing in this package imports it, and no MCP client needs it: every export here is
- `@internal`, published only so the built artifact under test is the one tests load.
+ Nothing in this package imports it, and no MCP client needs it: these exports are not
+ part of the package's API, and they exist only so the built artifact under test is the
+ one tests load.
 
  @module
  */

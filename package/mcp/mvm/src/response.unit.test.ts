@@ -81,7 +81,7 @@ await describe({
           },
         },),
         it({
-          name: 'reports the tag to the log rather than to the client',
+          name: 'leaves the tool tag out of the text a client reads',
           fn: async () => {
             const response = errorResponse({
               tag: 'destroy_vm',
@@ -89,7 +89,7 @@ await describe({
             },);
 
             // The tag names the tool in this server's own logging; the caller only
-            // reads what went wrong.
+            // reads what went wrong, so it must not appear in the message.
             expect(response.content[0]?.text,).toBe('Error: no such VM',);
             expect(response.content[0]?.text,).not.toContain('destroy_vm',);
           },
@@ -212,16 +212,17 @@ await describe({
           },
         },),
         it({
-          name: 'accepts an annotated text item the local copy could not express',
+          name: 'lets a caller annotate a text item the builder produced',
           fn: async () => {
-            const annotated: TextContent = {
+            // Assigned to the builder's own item type, so an item type without
+            // `annotations` rejects this literal instead of quietly accepting it.
+            const annotated: ReturnType<typeof textResponse>['content'][number] = {
               text: 'VM created.',
               type: 'text',
               annotations: { audience: ['user',], },
             };
 
-            expectTypeOf<typeof annotated>()
-              .toExtend<ReturnType<typeof textResponse>['content'][number]>();
+            expect(annotated.annotations?.audience,).toEqual(['user',],);
           },
         },),
       ],
