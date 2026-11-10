@@ -144,6 +144,29 @@ fn the_deletion_pass_removes_extras_and_spares_the_excluded_path() {
     remove(parent.as_path());
 }
 
+/// What:
+///  Another command's stage container is left out of a pass at any depth,
+///  and nothing of it is copied.
+/// Why:
+///   A stage container holds the whole ignored state another worktree's copy is filling,
+/// credentials
+///  included,
+/// and nothing names it in the copy;
+/// a conversion that carried it into the new subvolume would leave that
+///  state in a worktree on another branch for good.
+#[test]
+fn another_commands_stage_container_is_left_out_of_a_pass() {
+    let (parent, source, destination) = trees("sync-stage-container");
+    let container: PathBuf = source.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    std::fs::create_dir_all(&container).expect("the stage container");
+    std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
+    let stats: SyncStats = run(source.as_path(), destination.as_path(), COPY);
+    assert!(!destination.join(".claude").exists(), "nothing of the stage container is copied");
+    let proved: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None });
+    assert_eq!((proved.files_copied, proved.deleted), (0, 0), "the proving pass finds nothing to do");
+    remove(parent.as_path());
+}
+
 /// Without the deletion switch extras stay;
 /// with the update-only switch they stay even when deletion is also asked.
 #[test]
