@@ -490,6 +490,25 @@ impl WorkHandlers for GitHandlers {
         return crate::worktree_trash::empty_trash(item);
     }
 
+    /// What:
+    ///  The same emptying,
+    /// its entry removals awaited on the runtime.
+    /// Why:
+    ///   The drain of a round is a task of the runtime,
+    /// and the synchronous face enters the runtime for
+    /// `remove_entries`,
+    /// which is refused there:
+    /// the trash would stay and the item would settle as failed.
+    /// The record and the reasons are the synchronous face's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trashAwaiting(item) { return emptyTrashAwaiting(item); }
+    /// ```
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
+    }
+
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,

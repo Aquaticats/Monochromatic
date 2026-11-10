@@ -121,6 +121,23 @@ pub trait WorkHandlers {
     fn trash(&self, _item: &WorkItem) -> Verdict {
         return Verdict::Skipped(String::from("this handler does not empty trash directories"));
     }
+    /// The same emptying,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and the synchronous disposal enters the runtime for its entry
+    /// removals,
+    /// which is refused from inside it;
+    /// a handler that knows nothing of the runtime keeps the synchronous one
+    /// as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trashAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.trash(item)));
+    }
 }
 
 /// The work directory of a repository.

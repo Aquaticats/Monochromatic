@@ -44,11 +44,18 @@ struct Recorder {
     pushes: RefCell<Vec<Vec<String>>>,
     upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
+    trashes: RefCell<Vec<String>>,
 }
 
 impl Recorder {
     fn answering(verdict: Verdict) -> Recorder {
-        return Recorder { verdict, pushes: RefCell::new(Vec::new()), upkeeps: RefCell::new(Vec::new()), reviews: RefCell::new(Vec::new()) };
+        return Recorder {
+            verdict,
+            pushes: RefCell::new(Vec::new()),
+            upkeeps: RefCell::new(Vec::new()),
+            reviews: RefCell::new(Vec::new()),
+            trashes: RefCell::new(Vec::new()),
+        };
     }
 }
 
@@ -65,6 +72,11 @@ impl WorkHandlers for Recorder {
 
     fn review(&self, item: &WorkItem) -> Verdict {
         self.reviews.borrow_mut().push(item.oid.clone());
+        return self.verdict.clone();
+    }
+
+    fn trash(&self, item: &WorkItem) -> Verdict {
+        self.trashes.borrow_mut().push(item.oid.clone());
         return self.verdict.clone();
     }
 }
@@ -1294,4 +1306,68 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
     assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
     assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");
     remove(root.as_path());
+}
+
+/// What:
+///  Every kind of work item a round of the service runs reaches its handler and is settled,
+/// asked by a task of the runtime.
+/// Why:
+///   The drain of a round is a task,
+/// and a kind it forgets is a person's backup,
+/// a worktree's left-out files or a shadow record
+///  that nothing ever runs.
+/// A face that is synchronous where the drain is a task settles its items as failed at best:
+/// the trash did,
+///  because the synchronous disposal enters the runtime and is refused from inside it.
+/// This control asks all four kinds at once,
+///  requires each handler to be asked once,
+/// and every item to be in `done`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying); expect(asked).toEqual(['push','maintenance','review','trash']); expect(settled).toEqual('done')
+/// ```
+#[test]
+fn the_awaited_drain_runs_every_kind_of_item() {
+    let repo: Repo = repo("work-awaited-every-kind");
+    let kinds: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+    let items: Vec<WorkItem> = kinds.iter().enumerate().map(|(index, kind)| { return item(&repo, *kind, format!("{index:040x}").as_str(), BRANCH); }).collect();
+    enqueue_all(&repo, items.as_slice());
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    // The drain of a round, awaited inside the runtime, which is where the lanes of a round run.
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+    ));
+    let mut asked: Vec<&str> = Vec::new();
+    if !recorder.pushes.borrow().is_empty() {
+        asked.push("push");
+    }
+    if !recorder.upkeeps.borrow().is_empty() {
+        asked.push("maintenance");
+    }
+    if !recorder.reviews.borrow().is_empty() {
+        asked.push("review");
+    }
+    if !recorder.trashes.borrow().is_empty() {
+        asked.push("trash");
+    }
+    assert_eq!(asked, vec!["push", "maintenance", "review", "trash"], "every kind reached its handler");
+    let settled: Vec<String> = names(&repo, DONE);
+    let mut expected: Vec<String> = items.iter().map(|entry| { return entry.id(); }).collect();
+    expected.sort();
+    assert_eq!(settled, expected, "every item is settled as done, so none was dropped");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no item was failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no item is left claimed");
+    // A push that went through forgets an earlier plan; nothing of this drain keeps a try for later.
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that runs every kind plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
 }

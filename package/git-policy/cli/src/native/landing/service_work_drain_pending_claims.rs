@@ -173,7 +173,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.
         for item in still_held_awaiting(&held, work_dir.as_path(), trashes).await {
-            let verdict: Verdict = handlers.trash(&item.item);
+            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
             settle_with_the_words(&held, work_dir.as_path(), &item, verdict, "trash").await;
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
