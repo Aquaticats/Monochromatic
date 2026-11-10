@@ -356,14 +356,15 @@ function observeProcessLifecycleMessage(
 function registerBackgroundProcessMonitor(
   pi: ForeignBorrowed<ExtensionAPI>,
 ): BackgroundProcessMonitor {
+  /* oxlint-disable no-restricted-syntax/no-function-root-let -- Pi result and message handlers jointly maintain one runtime-local immutable process snapshot. */
   /**
    Runtime-local immutable process-state cursor shared by passive observers.
    */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- Pi result and message handlers jointly maintain one runtime-local immutable process snapshot.
   let state: BackgroundProcessState = {
     liveProcessIds: [],
     terminalProcessIds: [],
   };
+  /* oxlint-enable no-restricted-syntax/no-function-root-let */
 
   pi.on(
     'tool_result',
