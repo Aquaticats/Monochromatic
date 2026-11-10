@@ -19,7 +19,7 @@ import {
 } from 'electron';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 import { writeJsonFileAtomically, } from '@monochromatic-dev/electron-infra-core/ts/atomic-json';
-import { tagged, } from '@monochromatic-dev/logger-core';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   APP_TITLE_PREFIX,
