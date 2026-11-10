@@ -31,19 +31,8 @@ await describe({
     it({
       name: 'keeps every step a counter below a fractional bound took',
       fn: async ({ expect, }) => {
-        /**
-         Bound the loop below runs to.
-         */
-        const bound = 2.5;
-
-        /**
-         Steps the counted loop takes for that bound.
-         */
-        const counted: number[] = [];
-        for (let step = 0; step < bound; step++)
-          counted.push(step,);
-
-        expect(numbersBelow(bound,),).toEqual(counted,);
+        // A counter that steps up from zero while it stays below 2.5 stops after these three steps.
+        expect(numbersBelow(2.5,),).toEqual([0, 1, 2,],);
       },
     },),
   ],
