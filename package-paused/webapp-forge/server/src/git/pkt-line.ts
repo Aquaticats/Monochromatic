@@ -25,7 +25,22 @@ const HEX_RADIX = 16;
 /**
  * Number of hex digits in the pkt-len prefix.
  */
-const PKT_LEN_BYTES = 4;
+export const PKT_LEN_BYTES = 4;
+
+/**
+ * Largest total pkt-line length, prefix included. gitprotocol-common: "The
+ * maximum length of a pkt-line's data component is 65516 bytes. Implementations
+ * MUST NOT send pkt-line whose length exceeds 65520 (65516 bytes of payload + 4
+ * bytes of length data)".
+ */
+const MAX_PKT_LEN_TOTAL = 65_520;
+
+/**
+ * Largest payload one pkt-line may carry; callers with more bytes must split
+ * them across frames, because a longer prefix needs a fifth hex digit and the
+ * frame buffer cannot hold it.
+ */
+export const MAX_PKT_LEN_PAYLOAD = MAX_PKT_LEN_TOTAL - PKT_LEN_BYTES;
 
 /**
  * A flush-pkt is `"0000"`.
@@ -129,9 +144,11 @@ export function delimPkt(): Uint8Array {
 /**
  * Encodes one pkt-line: prepends the hex length prefix to `payload`.
  *
- * @param payload - line content (bytes or UTF-8 string)
+ * @param payload - line content (bytes or UTF-8 string); at most 65516 bytes
  *
  * @returns full pkt-line: 4-byte length prefix concatenated with payload
+ *
+ * @throws Error when the payload needs more bytes than one frame can state
  *
  * @example
  * ```ts
@@ -145,6 +162,13 @@ export function encodePkt(payload: Uint8Array | string,): Uint8Array {
   const bytes = ((typeof payload) === 'string')
     ? new TextEncoder().encode(payload,)
     : payload;
+  if (bytes.byteLength > MAX_PKT_LEN_PAYLOAD) {
+    throw new Error(
+      `pkt-line: payload of ${String(bytes.byteLength,)} bytes exceeds the ${
+        String(MAX_PKT_LEN_PAYLOAD,)
+      }-byte maximum; split it across several pkt-lines`,
+    );
+  }
   /**
    * Total frame length includes the length prefix itself per the spec.
    */

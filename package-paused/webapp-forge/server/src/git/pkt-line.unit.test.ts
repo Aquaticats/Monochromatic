@@ -21,6 +21,22 @@ import {
 } from './pkt-line.ts';
 
 /**
+Largest payload one pkt-line may carry, from gitprotocol-common: the data
+component caps at 65516 bytes and the total must not exceed 65520.
+*/
+const MAX_PKT_PAYLOAD = 65_516;
+
+/**
+Bytes the length prefix occupies at the head of every frame.
+*/
+const PKT_LEN_PREFIX_BYTES = 4;
+
+/**
+Largest total frame length the ceiling above allows.
+*/
+const MAX_PKT_LEN_TOTAL = MAX_PKT_PAYLOAD + PKT_LEN_PREFIX_BYTES;
+
+/**
  * Concatenates pkt-line bytes into a single `Uint8Array`.
  *
  * @param chunks - ordered chunks
@@ -66,6 +82,36 @@ await describe({
         await Promise.resolve();
         const result = encodePkt('',);
         expect(new TextDecoder().decode(result,),).toBe('0004',);
+      },
+    },),
+    it({
+      name: 'encodePkt rejects a payload above the pkt-line maximum',
+      async fn() {
+        await Promise.resolve();
+        const oversized = new Uint8Array(MAX_PKT_PAYLOAD + 1,);
+        expect(function attemptEncode() {
+          encodePkt(oversized,);
+        },)
+          .toThrow('exceeds',);
+      },
+    },),
+    it({
+      name: 'encodePkt states the length of a ceiling-sized payload',
+      async fn() {
+        await Promise.resolve();
+        const frame = encodePkt(new Uint8Array(MAX_PKT_PAYLOAD,),);
+        expect(frame.byteLength,).toBe(MAX_PKT_LEN_TOTAL,);
+        const prefix = new TextDecoder().decode(
+          frame.subarray(
+            0,
+            PKT_LEN_PREFIX_BYTES,
+          ),
+        );
+        expect(prefix.length,).toBe(PKT_LEN_PREFIX_BYTES,);
+        expect(Number.parseInt(
+          prefix,
+          16,
+        ),).toBe(frame.byteLength,);
       },
     },),
     it({

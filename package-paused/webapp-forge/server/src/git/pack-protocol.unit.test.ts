@@ -39,8 +39,18 @@ const ANOTHER_OID = '0123456789abcdef0123456789abcdef01234567';
 /** Number of repetitions used to provoke sideband chunking in tests. */
 const SIDEBAND_CHUNKS_TO_PROVOKE = 3;
 
-/** Bytes of payload per chunk in the sideband chunking test. */
-const SIDEBAND_CHUNK_SIZE = 65_518;
+/**
+Payload bytes one side-band-64k frame carries: the largest legal pkt-line
+(65520 bytes, prefix included) minus the 4-byte prefix and the 1-byte channel
+marker, per gitprotocol-pack's side-band-64k ceiling.
+*/
+const SIDEBAND_CHUNK_SIZE = 65_515;
+
+/** Bytes the pkt-len prefix occupies at the head of every frame. */
+const PKT_LEN_PREFIX_BYTES = 4;
+
+/** Largest total pkt-line length gitprotocol-common permits. */
+const MAX_PKT_LEN_TOTAL = 65_520;
 
 /**
  * Concatenates pkt-line bytes into a single `Uint8Array`.
@@ -225,6 +235,32 @@ await describe({
             for (const chunk of chunks) {
               // Each chunk: 4-byte header + 1-byte channel + payload
               expect(chunk[4],).toBe(SidebandChannels.PACK,);
+            }
+          },
+        },),
+        it({
+          name: 'keeps every frame within the pkt-line maximum',
+          async fn() {
+            await Promise.resolve();
+            const payload = new Uint8Array(SIDEBAND_CHUNK_SIZE * SIDEBAND_CHUNKS_TO_PROVOKE,);
+            payload.fill(0x42,);
+            const chunks = multiplexSideband({
+              payload,
+              channel: SidebandChannels.PACK,
+              useSideBand64k: true,
+            },);
+            for (const chunk of chunks) {
+              const prefix = new TextDecoder().decode(
+                chunk.subarray(
+                  0,
+                  PKT_LEN_PREFIX_BYTES,
+                ),
+              );
+              expect(Number.parseInt(
+                prefix,
+                16,
+              ),).toBe(chunk.byteLength,);
+              expect(chunk.byteLength,).toBeLessThanOrEqual(MAX_PKT_LEN_TOTAL,);
             }
           },
         },),
