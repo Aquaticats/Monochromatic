@@ -265,9 +265,10 @@ fn index_without_staging_matches_the_real_index() {
 ///  so it took the real index's lock and created the person's index before any landing;
 ///  two commits in such a repository therefore failed each other with `index.lock` `file exists`,
 ///  and the decision record says every commit prepares without the real index lock
-///  (`doc/decision/cli-git-concurrent-commits.md`, "Parallel preparation").
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+///  "Parallel preparation").
 ///  A process for another program's hold on that lock is what a second commit is,
-///  so the lock is held here while the preparation runs.
+/// so the lock is held here while the preparation runs.
 #[test]
 fn a_repository_with_no_index_file_is_prepared_without_taking_the_real_index() {
     let root: PathBuf = fixture("commit-index-no-index-file");

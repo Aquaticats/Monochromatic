@@ -523,7 +523,8 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
 ///  The stopped records of the live log stood at exit 2 inside the preparation,
 ///  and nothing in them said whether a policy had refused content or the host had failed:
 ///  one shape ended in the two `git add` starts the explicit-path staging makes and named no reason.
-///  The refusal is Git's own, so the status the record states is the one the same command line exits with here,
+///  The refusal is Git's own,
+/// so the status the record states is the one the same command line exits with here,
 /// measured rather than assumed.
 #[test]
 fn a_commit_stopped_by_a_failing_git_step_states_the_step_and_its_status() {

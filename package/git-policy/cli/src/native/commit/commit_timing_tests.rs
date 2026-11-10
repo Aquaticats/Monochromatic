@@ -18,10 +18,9 @@
 
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+/// The reason one commit did not land,
+/// which the controls state and read back.
 use crate::commit_stop_reason::CommitStopReason;
-/// The status the controls' failing step exited with.
-/// It is Git's own status for a refusal, not the wrapper's exit code.
-const FAILED_STEP_STATUS: i32 = 128;
 use crate::commit_prepare_part_durations::PreparePart;
 use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
@@ -46,6 +45,11 @@ const GATE_MS: u64 = 37;
 const HANDOFF_MS: u64 = 41;
 /// Time the controls leave to no phase.
 const UNCOVERED_MS: u64 = 43;
+
+/// The status the controls' failing step exited with.
+/// It is Git's own status for a refusal,
+/// not the wrapper's exit code.
+const FAILED_STEP_STATUS: i32 = 128;
 /// The figures a control landing states:
 /// how long it held the index,
 /// how many commits queued behind it,
