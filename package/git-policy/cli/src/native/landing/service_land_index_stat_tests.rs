@@ -17,7 +17,8 @@ const STALE_FILE: &str = "stale.txt";
 /// and long enough for the steps of a fixture this size.
 const STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// Commits `name` with `content` to the world's branch, through Git alone.
+/// Commits `name` with `content` to the world's branch,
+/// through Git alone.
 fn commit_into(world: &World, name: &str, content: &str) {
     std::fs::write(world.repo.join(name), content).expect("write");
     git(world.repo.as_path(), &["add", "--", name]);
@@ -32,7 +33,8 @@ fn recording(world: &World, name: &str) -> String {
     );
 }
 
-/// The inode `name` has now, as `ls-files --debug` prints it.
+/// The inode `name` has now,
+/// as `ls-files --debug` prints it.
 fn inode_of(world: &World, name: &str) -> u64 {
     return std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(world.repo.join(name)).expect("the file"));
 }

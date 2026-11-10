@@ -95,6 +95,7 @@ without retaining its texts,
 inside the same resource-limited container.
 `minimize.mts` and `run-minimize.mts` retain the same bounded container envelope.
 No larger host run or production source change has been used to evade this failure.
+
 ## Verified cause and fix
 
 The 186-read minimized case reproduces heap exhaustion while reading one bounded file,

@@ -143,6 +143,15 @@ fn same_object(left: &Option<Side>, right: &Option<Side>) -> bool {
     };
 }
 
+/// What:
+///  The mode a side holds.
+/// Why:
+///   The mode is one field of a side,
+///  and both the layer's end and its stage read it.
+fn the_mode_of(found: &Side) -> String {
+    return found.mode.clone();
+}
+
 /// The mode of one side,
 /// or nothing when the side holds no entry.
 ///
@@ -151,7 +160,17 @@ fn same_object(left: &Option<Side>, right: &Option<Side>) -> bool {
 /// const modeOf = (side) => side === null ? null : side.mode;
 /// ```
 fn mode_of(side: &Option<Side>) -> Option<String> {
-    return side.as_ref().map(|found| { return found.mode.clone(); });
+    return side.as_ref().map(the_mode_of);
+}
+
+/// What:
+///  The mode a side records,
+/// for the base's own mode.
+/// Why:
+///   The base is compared with each side by mode alone,
+///  so only the mode is read from it.
+fn base_mode(side: &Side) -> &str {
+    return side.mode.as_str();
 }
 
 /// What:
@@ -170,9 +189,12 @@ fn mode_of(side: &Option<Side>) -> Option<String> {
 /// ```
 fn end_mode(layer: &Layer) -> Option<String> {
     let (Some(ours), Some(theirs)) = (&layer.ours, &layer.theirs) else {
-        return mode_of(&layer.ours).or_else(|| { return mode_of(&layer.theirs); });
+        return match mode_of(&layer.ours) {
+            Some(mode) => Some(mode),
+            None => mode_of(&layer.theirs),
+        };
     };
-    let base: Option<&str> = layer.base.as_ref().map(|side| { return side.mode.as_str(); });
+    let base: Option<&str> = layer.base.as_ref().map(base_mode);
     if base == Some(ours.mode.as_str()) {
         return Some(theirs.mode.clone());
     }
@@ -210,10 +232,18 @@ async fn bytes_of(runner: &dyn GitRunner, oid: &str) -> Result<Vec<u8>, String> 
 /// ```ts
 /// const stage = (side) => side === null ? null : { mode: parseInt(side.mode, 8), oid: side.oid };
 /// ```
+fn stage_of(found: &Side) -> Stage {
+    return Stage { mode: u32::from_str_radix(found.mode.as_str(), 8).unwrap_or(0), oid: found.oid.clone() };
+}
+
+/// What:
+///  The stage a side is,
+/// when the side holds an entry.
+/// Why:
+///   A side with no entry has no stage at all,
+///  which is what tells the pass the path was added or deleted.
 fn stage(side: &Option<Side>) -> Option<Stage> {
-    return side.as_ref().map(|found| {
-        return Stage { mode: u32::from_str_radix(found.mode.as_str(), 8).unwrap_or(0), oid: found.oid.clone() };
-    });
+    return side.as_ref().map(stage_of);
 }
 
 /// What:

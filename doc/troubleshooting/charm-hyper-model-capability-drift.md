@@ -269,26 +269,26 @@ so the full route fails before output capacity is compared.
 `.out-of-scope/` contains no Charm Hyper or provider-documentation exemption.
 Web search found no public Hyper documentation issue tracker entry matching this contradiction.
 
-1. Upstream fault:
-   yes for stale prose example;
-   no for repository allowlist drift,
-   which is consumer policy.
-2. Upstream can fix:
-   yes,
-   by generating attachment examples from live catalog or removing named examples.
-3. Supported use case:
-   yes,
-   provider docs explicitly instruct checking attachment badge before sending images.
-4. Contribution welcome:
-   unknown.
-   Hyper service documentation source and contribution policy were not found publicly.
-5. Likely fix:
-   unknown;
-   no public tracker or maintainer signal was found.
-6. Minimal compatible prototype:
-   no.
-   Documentation source is unavailable,
-   so consumer cannot create source-compatible patch.
+1.  Upstream fault:
+    yes for stale prose example;
+    no for repository allowlist drift,
+    which is consumer policy.
+2.  Upstream can fix:
+    yes,
+    by generating attachment examples from live catalog or removing named examples.
+3.  Supported use case:
+    yes,
+    provider docs explicitly instruct checking attachment badge before sending images.
+4.  Contribution welcome:
+    unknown.
+    Hyper service documentation source and contribution policy were not found publicly.
+5.  Likely fix:
+    unknown;
+    no public tracker or maintainer signal was found.
+6.  Minimal compatible prototype:
+    no.
+    Documentation source is unavailable,
+    so consumer cannot create source-compatible patch.
 
 Constraints 4 through 6 do not pass.
 Default is not to file.

@@ -261,30 +261,30 @@ External pull requests [7][pr-7] and [8][pr-8] received maintainer review,
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** Yes.
-   The published `exclude()` loop skips an unprocessed base after its own splice.
-   The reproduction uses the documented array interface and valid CIDRs.
-2. **Can upstream fix it?
-   ** Yes.
-   Moving the increment to the unchanged branch fixes the mutation invariant without changing the API.
-3. **Are they supporting this use case?
-   ** Yes.
-   The README advertises `exclude()` at `README.md:21`,
-    and `test/index.test.ts:47-58` treats array subtraction as a
-   supported operation.
-4. **Would the repo welcome our contribution?
-   ** Yes.
-   No contribution or AI policy bars it,
-    and comparable external correctness pull requests 7 and 8 were reviewed
-   and merged.
-5. **Will they likely fix it?
-   ** Yes with moderate confidence.
-   No duplicate or won't-fix signal exists,
-    and the maintainer released the prior external correctness fixes.
-6. **Have we prototyped a minimal compatible fix?
-   ** Yes.
-   The linked two-hunk patch passed the upstream suite and a separate built-artifact regression assertion.
+1.  **Is it really upstream's fault?
+    ** Yes.
+    The published `exclude()` loop skips an unprocessed base after its own splice.
+    The reproduction uses the documented array interface and valid CIDRs.
+2.  **Can upstream fix it?
+    ** Yes.
+    Moving the increment to the unchanged branch fixes the mutation invariant without changing the API.
+3.  **Are they supporting this use case?
+    ** Yes.
+    The README advertises `exclude()` at `README.md:21`,
+     and `test/index.test.ts:47-58` treats array subtraction as a
+    supported operation.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+    No contribution or AI policy bars it,
+     and comparable external correctness pull requests 7 and 8 were reviewed
+    and merged.
+5.  **Will they likely fix it?
+    ** Yes with moderate confidence.
+    No duplicate or won't-fix signal exists,
+     and the maintainer released the prior external correctness fixes.
+6.  **Have we prototyped a minimal compatible fix?
+    ** Yes.
+    The linked two-hunk patch passed the upstream suite and a separate built-artifact regression assertion.
 
 All filing constraints pass.
 This report keeps a fileable draft but does not send it without separate authorization for external communication.

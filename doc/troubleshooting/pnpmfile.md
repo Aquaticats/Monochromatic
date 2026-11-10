@@ -95,16 +95,16 @@ commit `e146e988ea`.
 
 ### Why `.mts` fails on two grounds
 
-1. The loader sends anything not ending in `.mjs` through
-   `require()`.
-    `.mts` is always ESM;
-    pnpm's CJS-context
-   `require('.pnpmfile.mts')` will not resolve a bare `.mts`
-   even with `--experimental-require-module
-   --experimental-strip-types`.
-2. `pnpmFileExistsSync` produces `.pnpmfile.mts.cjs` and finds
-   nothing,
-    so the explicit-flag path also fails.
+1.  The loader sends anything not ending in `.mjs` through
+    `require()`.
+     `.mts` is always ESM;
+     pnpm's CJS-context
+    `require('.pnpmfile.mts')` will not resolve a bare `.mts`
+    even with `--experimental-require-module
+    --experimental-strip-types`.
+2.  `pnpmFileExistsSync` produces `.pnpmfile.mts.cjs` and finds
+    nothing,
+     so the explicit-flag path also fails.
 
 Patching `.mts` support requires editing both the loader
 branch and the existence check upstream.
@@ -335,28 +335,28 @@ The constraint is upstream's intentional choice.
  Walking the 5
 constraints:
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The
-   constraint exists by design (no bundled TS compiler) but
-   the existence-check shape makes even `.cts` unusable
-   without flags.
-2. **Can upstream fix it?
-   ** Yes;
-    either accept a bundled
-   stripper or add explicit `.cts` auto-discovery when Node
-   supports it.
-    Both are non-trivial commitments.
-3. **Are they supporting this use case?
-   ** No;
-    the maintainer
-   reply on #2728 is explicit.
-4. **Will they likely fix it?
-   ** No,
-    given five years of
-   inactivity on #2728.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The
+    constraint exists by design (no bundled TS compiler) but
+    the existence-check shape makes even `.cts` unusable
+    without flags.
+2.  **Can upstream fix it?
+    ** Yes;
+     either accept a bundled
+    stripper or add explicit `.cts` auto-discovery when Node
+    supports it.
+     Both are non-trivial commitments.
+3.  **Are they supporting this use case?
+    ** No;
+     the maintainer
+    reply on #2728 is explicit.
+4.  **Will they likely fix it?
+    ** No,
+     given five years of
+    inactivity on #2728.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

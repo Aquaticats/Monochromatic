@@ -639,31 +639,31 @@ No `.out-of-scope/` entry matches this incident.
 Open and closed issue and pull-request searches in `earendil-works/pi` for
 `AssistantMessageEventStream result error stopReason` found no duplicate.
 
-1. **Is it really upstream's fault?**
-    No.
-   Pi explicitly returns terminal error messages from `AssistantMessageEventStream.result()`
-    and exposes a separate compaction-aware API.
-   Advisor used both APIs incorrectly.
-2. **Can upstream fix it?**
-    Upstream could change contracts,
-    but no upstream change is required.
-   The complete correction is inside `package/pi-plugin/advisor`.
-3. **Are they supporting this use case?**
-    Yes,
-    Pi supports nested provider calls and custom tools.
-   That does not make Pi responsible for Advisor's terminal-state and context-selection policy.
-4. **Would the repo welcome our contribution?**
-    `CONTRIBUTING.md` allows understood AI-assisted code but requires issue prose in the contributor's own voice
-     or a clearly AI-labelled follow-up.
-   New-contributor issues are auto-closed pending maintainer review,
-    and PRs require prior `lgtm` approval.
-   No upstream contribution is warranted here.
-5. **Will they likely fix it?**
-    Not applicable because the observed contracts are intentional and remain unchanged in `v0.83.0`.
-6. **Have we prototyped a minimal upstream fix?**
-    No upstream prototype is appropriate because constraint 1 fails.
-   Constraints 1 to 5 do not all hold,
-    so the auto-prototype gate does not trigger.
+1.  **Is it really upstream's fault?**
+     No.
+    Pi explicitly returns terminal error messages from `AssistantMessageEventStream.result()`
+     and exposes a separate compaction-aware API.
+    Advisor used both APIs incorrectly.
+2.  **Can upstream fix it?**
+     Upstream could change contracts,
+     but no upstream change is required.
+    The complete correction is inside `package/pi-plugin/advisor`.
+3.  **Are they supporting this use case?**
+     Yes,
+     Pi supports nested provider calls and custom tools.
+    That does not make Pi responsible for Advisor's terminal-state and context-selection policy.
+4.  **Would the repo welcome our contribution?**
+     `CONTRIBUTING.md` allows understood AI-assisted code but requires issue prose in the contributor's own voice
+      or a clearly AI-labelled follow-up.
+    New-contributor issues are auto-closed pending maintainer review,
+     and PRs require prior `lgtm` approval.
+    No upstream contribution is warranted here.
+5.  **Will they likely fix it?**
+     Not applicable because the observed contracts are intentional and remain unchanged in `v0.83.0`.
+6.  **Have we prototyped a minimal upstream fix?**
+     No upstream prototype is appropriate because constraint 1 fails.
+    Constraints 1 to 5 do not all hold,
+     so the auto-prototype gate does not trigger.
 
 There is nothing additive to file upstream and no issue draft to retain.
 The actionable artifact is the repository-local correction plan in this document.

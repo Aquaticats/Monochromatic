@@ -224,6 +224,11 @@ pub mod worktree_convert_inspection;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
 
+/// The empty stage a conversion created and did not record,
+/// and whether the object at the converting name is it.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_unrecorded_stage;
+
 /// The read-only comparison of the old tree of a conversion with the installed one.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;

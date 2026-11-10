@@ -9,6 +9,7 @@ import {
 const config: NodeFlavorConfigs = perEntryNodeConfig({
   entries: [
     './src/index.ts',
+    './src/errors.ts',
     './src/application-exemption.ts',
     './src/application-exemption-command.ts',
     './src/privilege-context-data.ts',

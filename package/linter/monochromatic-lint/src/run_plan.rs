@@ -16,7 +16,10 @@
 ///  matching and typed rule selection.
 use crate::{
     config_error::ConfigError,
-    config_lookup::{ConfigurationSource, discover_configuration, load_configuration_at},
+    config_lookup::{
+        ConfigurationSource, NearestAnswer, NearestSource, discover_configuration,
+        load_configuration_at, nearest_above,
+    },
     config_match::{FileConfiguration, PreparedConfiguration, prepare_configuration},
     directive_options::DirectiveOptions,
     edits::FixScope,
@@ -172,6 +175,53 @@ pub struct ConfigStore {
 }
 
 /// What:
+///  What one directory contributes to the executable's nearest-file lookup:
+///  its remembered answer,
+///  or the one a native read produces.
+/// Why:
+///  The ancestor walk is owned by `nearest_above`;
+///  the store contributes only the per-directory answer,
+/// so its memo and the walk cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class CachedNearest { constructor(byDirectory: Map<Path, PreparedConfiguration | undefined>) {} }
+/// ```
+struct CachedNearest<'store> {
+    /// Answers already known,
+    ///  keyed by the directory they govern.
+    by_directory: &'store BTreeMap<PathBuf, Option<Arc<PreparedConfiguration>>>,
+}
+
+/// What:
+///  Answer one directory from the memo,
+///  or read and prepare its configuration file.
+/// Why:
+///  Thousands of files share a few configurations;
+///  this keeps each candidate file parsed once per run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(directory: Path): PreparedConfiguration | undefined;
+/// ```
+impl NearestSource for CachedNearest<'_> {
+    /// The prepared configuration governing this one directory.
+    type Found = Arc<PreparedConfiguration>;
+
+    /// The remembered answer,
+    ///  or the one a native read of this directory produces.
+    fn at(&self, directory: &Path) -> Result<Option<Arc<PreparedConfiguration>>, ConfigError> {
+        if let Some(known) = self.by_directory.get(directory) {
+            return Ok(known.clone());
+        }
+        let Some(source): Option<ConfigurationSource> = load_configuration_at(directory)? else {
+            return Ok(None);
+        };
+        return Ok(Some(Arc::new(prepare_configuration(source)?)));
+    }
+}
+
+/// What:
 ///  Build the store and answer per-file configuration questions.
 /// Why:
 ///  `--config` skips lookup and resolves patterns against the working directory,
@@ -268,6 +318,9 @@ impl ConfigStore {
     ///  so siblings and descendants reuse the answer.
     /// The nearest file is used alone;
     ///  configurations are never merged across directories.
+    /// The walk itself belongs to `nearest_above`,
+    ///  which discovery also uses;
+    ///  this store only answers for one directory and records what the walk asked.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -277,20 +330,14 @@ impl ConfigStore {
         &mut self,
         directory: &Path,
     ) -> Result<Option<Arc<PreparedConfiguration>>, ConfigError> {
-        let mut visited: Vec<PathBuf> = Vec::<PathBuf>::new();
-        let mut found: Option<Arc<PreparedConfiguration>> = None;
-        for ancestor in directory.ancestors() {
-            if let Some(known) = self.by_directory.get(ancestor) {
-                found = known.clone();
-                break;
-            }
-            visited.push(ancestor.to_path_buf());
-            if let Some(source) = load_configuration_at(ancestor)? {
-                found = Some(Arc::new(prepare_configuration(source)?));
-                break;
-            }
-        }
-        for ancestor in visited {
+        let NearestAnswer { found, consulted }: NearestAnswer<Arc<PreparedConfiguration>> =
+            nearest_above(
+                directory,
+                &CachedNearest {
+                    by_directory: &self.by_directory,
+                },
+            )?;
+        for ancestor in consulted {
             self.by_directory.insert(ancestor, found.clone());
         }
         return Ok(found);

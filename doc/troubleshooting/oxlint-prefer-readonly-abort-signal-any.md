@@ -193,21 +193,21 @@ Its tradeoff is maintaining a public effect contract that the rule does not requ
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No.
-   TypeScript accurately represents an authored anonymous object type,
-   and DOM requires the dependency relation.
-2. **Can upstream fix it?
-   ** No applicable upstream defect was found.
-3. **Are they supporting this use case?
-   ** TypeScript supports semantic symbol queries,
-   but project-specific effect identity is consumer policy.
-4. **Would the repo welcome our contribution?
-   ** Not applicable because neither upstream behavior is defective.
-5. **Will they likely fix it?
-   ** Not applicable because no upstream change is requested.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes,
-   the consumer-side ambient-owner recovery and mutation catalog pass focused tests.
+1.  **Is it really upstream's fault?
+    ** No.
+    TypeScript accurately represents an authored anonymous object type,
+    and DOM requires the dependency relation.
+2.  **Can upstream fix it?
+    ** No applicable upstream defect was found.
+3.  **Are they supporting this use case?
+    ** TypeScript supports semantic symbol queries,
+    but project-specific effect identity is consumer policy.
+4.  **Would the repo welcome our contribution?
+    ** Not applicable because neither upstream behavior is defective.
+5.  **Will they likely fix it?
+    ** Not applicable because no upstream change is requested.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes,
+    the consumer-side ambient-owner recovery and mutation catalog pass focused tests.
 
 Nothing should be filed upstream.

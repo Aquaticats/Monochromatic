@@ -69,54 +69,54 @@ with the sequence that produces each wrong result.
 One invocation of the program,
 in order:
 
-1. `run_process` asks the runtime probe,
-   switches hooks off for every later Git start,
-   reads its own executable and the current directory,
-   and stops at once when
-   `refusal_when_started_as_git` finds the marker
-   (`src/native/invocation/entry.rs:336-345`,
-   `started_as_git.rs:391-400`).
-2. `plan_invocation` stops when the forwarding target names this executable
-   (`entry.rs:153-158`),
-   strips the wrapper's own controls,
-   answers the management namespace itself,
-   else resolves the real Git
-   (`real_git.rs:489-517`,
-   with the fallback to the unit's `--git`
-   from `real_git_resolution.rs`).
-3. The action is planned:
-   a plain forward
-   that replaces the process with Git
-   (`entry_forward_action_planning.rs`,
-   `Action::Forward`),
-   the announced query that runs Git as a child and prints Git's version line after it
-   (`entry.rs:388-402`),
-   the coordinated forward for an index writer
-   (`entry_forward_action_planning.rs:150-167`),
-   the settled forward for the copy route
-   (`entry_forward_action_planning.rs:141-149`),
-   or a stop.
-4. `run_process` performs it
-   (`entry.rs:358-441`).
-   A plain forward never returns;
-   the others run Git as a child and return Git's status
-   (`worktree_copy_forward.rs:202-242`).
-5. A commit provisions the service,
-   then reaches it
-   (`landing/service_commit.rs:314-322`):
-   unit texts written when they differ,
-   the manager reloaded,
-   a failed state reset,
-   the worktree's socket started
-   (`service_provision.rs:187-232`).
-6. The service starts from the manager's socket,
-   settles the batches an earlier instance left,
-   accepts connections as tasks,
-   lands batches,
-   and ends on a signal with its own bounded shutdown
-   (`service_main.rs:254-356`,
-   `service_server.rs:249-478`,
-   `service_server_shutdown_after_a_stop.rs:62-82`).
+1.  `run_process` asks the runtime probe,
+    switches hooks off for every later Git start,
+    reads its own executable and the current directory,
+    and stops at once when
+    `refusal_when_started_as_git` finds the marker
+    (`src/native/invocation/entry.rs:336-345`,
+    `started_as_git.rs:391-400`).
+2.  `plan_invocation` stops when the forwarding target names this executable
+    (`entry.rs:153-158`),
+    strips the wrapper's own controls,
+    answers the management namespace itself,
+    else resolves the real Git
+    (`real_git.rs:489-517`,
+    with the fallback to the unit's `--git`
+    from `real_git_resolution.rs`).
+3.  The action is planned:
+    a plain forward
+    that replaces the process with Git
+    (`entry_forward_action_planning.rs`,
+    `Action::Forward`),
+    the announced query that runs Git as a child and prints Git's version line after it
+    (`entry.rs:388-402`),
+    the coordinated forward for an index writer
+    (`entry_forward_action_planning.rs:150-167`),
+    the settled forward for the copy route
+    (`entry_forward_action_planning.rs:141-149`),
+    or a stop.
+4.  `run_process` performs it
+    (`entry.rs:358-441`).
+    A plain forward never returns;
+    the others run Git as a child and return Git's status
+    (`worktree_copy_forward.rs:202-242`).
+5.  A commit provisions the service,
+    then reaches it
+    (`landing/service_commit.rs:314-322`):
+    unit texts written when they differ,
+    the manager reloaded,
+    a failed state reset,
+    the worktree's socket started
+    (`service_provision.rs:187-232`).
+6.  The service starts from the manager's socket,
+    settles the batches an earlier instance left,
+    accepts connections as tasks,
+    lands batches,
+    and ends on a signal with its own bounded shutdown
+    (`service_main.rs:254-356`,
+    `service_server.rs:249-478`,
+    `service_server_shutdown_after_a_stop.rs:62-82`).
 
 ## Findings ranked by what they risk losing
 
@@ -190,19 +190,19 @@ with `PATH` holding the wrapper's directory and a directory whose `git` is a scr
 /usr/local/bin/mono-git "$@"     # no exec
 ```
 
-1. The first wrapper searches `PATH`,
-   skips itself,
-   and selects the script as real Git (`real_git.rs:489-517`).
-2. It replaces itself with the script (`forwarding.rs:230-262`),
-   so the script's shell keeps the wrapper's process number and its
-   `replace` marker.
-3. The script starts the wrapper as a **child**.
-   That wrapper's parent is the shell,
-   its marker names the older process number in `replace` mode,
-   so `started_as_git` compares the marker with its own number and says no.
-4. It searches `PATH` again,
-   finds the same script,
-   and step 2 repeats.
+1.  The first wrapper searches `PATH`,
+    skips itself,
+    and selects the script as real Git (`real_git.rs:489-517`).
+2.  It replaces itself with the script (`forwarding.rs:230-262`),
+    so the script's shell keeps the wrapper's process number and its
+    `replace` marker.
+3.  The script starts the wrapper as a **child**.
+    That wrapper's parent is the shell,
+    its marker names the older process number in `replace` mode,
+    so `started_as_git` compares the marker with its own number and says no.
+4.  It searches `PATH` again,
+    finds the same script,
+    and step 2 repeats.
 
 The wrong result:
 no process ever exits,
@@ -280,34 +280,34 @@ in `ask_manager` (`service_provision.rs:236-247`):
 
 The sequence:
 
-1. The worktree's service unit ends in `failed`:
-   its start is refused often enough for the manager's start-rate limit
-   (`Restart=on-failure` in the service template,
-   `service_units/monochromatic-git-policy-cli@.service`),
-   or its program refuses to start
-   (`EXIT_REFUSED` at `service_main.rs:121`,
-   `EXIT_NOT_LISTENING` at `:124`).
-2. The person runs `git commit`.
-   `provision` finds the texts current and the socket file present,
-   so it returns without a reload,
-   without `reset_failed`,
-   and without a start (`service_provision.rs:344-350`).
-3. The client connects and nothing answers.
-   It asks the manager every second
-   (`MANAGER_ASK_EVERY`,
-   `service_client_settings_and_watches.rs:136`)
-   and gets `failed` twice,
-   which ends the wait
-   (`service_client_reach_service.rs:121-126`) with `ClientFailure::DidNotStart`.
-4. The message is
-   "The commit service did not start,
-   so this commit was not made.
-   Its log shows why:
-   ...
-   Run the commit again after fixing that."
-   (`landing/service_messages.rs:172-175`).
-   Running it again reproduces step 1 to 3:
-   nothing on this path can clear the failed state.
+1.  The worktree's service unit ends in `failed`:
+    its start is refused often enough for the manager's start-rate limit
+    (`Restart=on-failure` in the service template,
+    `service_units/monochromatic-git-policy-cli@.service`),
+    or its program refuses to start
+    (`EXIT_REFUSED` at `service_main.rs:121`,
+    `EXIT_NOT_LISTENING` at `:124`).
+2.  The person runs `git commit`.
+    `provision` finds the texts current and the socket file present,
+    so it returns without a reload,
+    without `reset_failed`,
+    and without a start (`service_provision.rs:344-350`).
+3.  The client connects and nothing answers.
+    It asks the manager every second
+    (`MANAGER_ASK_EVERY`,
+    `service_client_settings_and_watches.rs:136`)
+    and gets `failed` twice,
+    which ends the wait
+    (`service_client_reach_service.rs:121-126`) with `ClientFailure::DidNotStart`.
+4.  The message is
+    "The commit service did not start,
+    so this commit was not made.
+    Its log shows why:
+    ...
+    Run the commit again after fixing that."
+    (`landing/service_messages.rs:172-175`).
+    Running it again reproduces step 1 to 3:
+    nothing on this path can clear the failed state.
 
 The wrong result:
 every commit in that worktree fails in about two seconds
@@ -368,16 +368,16 @@ The sequence,
 which is everyday use in this repository,
 where most commands run in a linked worktree:
 
-1. In a linked worktree,
-   the person runs `git log -p | head -1`.
-2. The wrapper takes the copy route and starts Git as a child
-   with the caller's streams.
-3. `head` exits after one line,
-   the pipe closes,
-   and Git dies of `SIGPIPE`,
-   which is what Git does with a closed reader.
-4. `ChildOutcome::Signaled(13)` becomes `GitStatus { code: None }`,
-   then `1`.
+1.  In a linked worktree,
+    the person runs `git log -p | head -1`.
+2.  The wrapper takes the copy route and starts Git as a child
+    with the caller's streams.
+3.  `head` exits after one line,
+    the pipe closes,
+    and Git dies of `SIGPIPE`,
+    which is what Git does with a closed reader.
+4.  `ChildOutcome::Signaled(13)` becomes `GitStatus { code: None }`,
+    then `1`.
 
 The wrong result:
 the caller sees exit status 1 where Git's caller sees a death by `SIGPIPE`
@@ -459,21 +459,21 @@ and never calls `own_units_stop`
 
 The sequence:
 
-1. A commit provisions the units and asks the manager to start the socket.
-2. The process is killed before `note_worktree` writes the note.
-3. The manager starts the service for the next connection.
-   `worktree_of` finds no note,
-   and the journal has no `gitdir=` record yet because nothing has landed there,
-   so the answer is `Unmapped`
-   (`service_units_of_removed_worktrees.rs:250-268`).
-4. The worktree is removed by a plain `git worktree remove`,
-   which the copy route serves without asking the service,
-   or deleted without Git.
-5. Nothing asks:
-   the service has no `own_git_dir`,
-   the sweep counts the instance as unmapped and stops nothing
-   (`service_units_of_removed_worktrees.rs`,
-   `stop_units_of_gone_worktrees`).
+1.  A commit provisions the units and asks the manager to start the socket.
+2.  The process is killed before `note_worktree` writes the note.
+3.  The manager starts the service for the next connection.
+    `worktree_of` finds no note,
+    and the journal has no `gitdir=` record yet because nothing has landed there,
+    so the answer is `Unmapped`
+    (`service_units_of_removed_worktrees.rs:250-268`).
+4.  The worktree is removed by a plain `git worktree remove`,
+    which the copy route serves without asking the service,
+    or deleted without Git.
+5.  Nothing asks:
+    the service has no `own_git_dir`,
+    the sweep counts the instance as unmapped and stops nothing
+    (`service_units_of_removed_worktrees.rs`,
+    `stop_units_of_gone_worktrees`).
 
 The wrong result:
 a socket unit and a service unit for a directory that is gone keep running
@@ -524,23 +524,23 @@ with a watch it is also the wait before a start request).
 
 The sequence:
 
-1. A person stops the socket unit,
-   which the documented downgrade remedy tells them to do
-   (`SPEC.md`,
-   the paragraph "A downgrade to a release with one service"
-   names the stop before an older release commits),
-   or `systemctl --user stop` after a fault.
-   systemd keeps the socket file because the template sets no `RemoveOnStop=`.
-2. The next `git commit` finds the texts current and the socket file present,
-   so `provision` starts nothing (`service_provision.rs:344-350`).
-3. The client connects,
-   is refused,
-   and hears `inactive` from the manager,
-   but the start request waits for `start_wait` to pass.
-4. At ten seconds the manager is asked,
-   the socket starts,
-   the service starts,
-   and the commit lands.
+1.  A person stops the socket unit,
+    which the documented downgrade remedy tells them to do
+    (`SPEC.md`,
+    the paragraph "A downgrade to a release with one service"
+    names the stop before an older release commits),
+    or `systemctl --user stop` after a fault.
+    systemd keeps the socket file because the template sets no `RemoveOnStop=`.
+2.  The next `git commit` finds the texts current and the socket file present,
+    so `provision` starts nothing (`service_provision.rs:344-350`).
+3.  The client connects,
+    is refused,
+    and hears `inactive` from the manager,
+    but the start request waits for `start_wait` to pass.
+4.  At ten seconds the manager is asked,
+    the socket starts,
+    the service starts,
+    and the commit lands.
 
 The wrong result:
 that commit takes ten seconds longer than native Git,
@@ -562,69 +562,69 @@ what is on disk,
 what a kill just before and just after leaves,
 and what notices it later.
 
-1. Entry itself:
-   `hooks_off::activate` and `remember_own_executable` are memory only
-   (`entry.rs:338-342`,
-   `real_git.rs:584`).
-   A kill leaves nothing and nothing notices.
-2. Real-Git resolution:
-   reads only,
-   the candidate headers,
-   a whole-file comparison when lengths match
-   (`real_git_candidate.rs`,
-   `identical_content`),
-   and the unit's `--git` when `PATH` offers nothing
-   (`real_git_record.rs`).
-   A kill leaves nothing.
-3. Copy-route recovery inside a forwarded command:
-   writes and removes copy state.
-   It is the copy route's subject,
-   audited in `cli-git-copy-route-findings-on-main.md`,
-   and is skipped here.
-4. A unit file written:
-   `write_atomically` writes `"<name>.tmp-<pid>-<n>"` and renames it
-   (`service_provision_unit_file_ownership_and_writes.rs:29-38`),
-   so a reader sees the old file or the new one whole.
-   A kill between the write and the rename leaves a temporary file that nothing
-   removes and nothing reads:
-   `in_place` compares only the two real names
-   (`service_provision.rs:144-152`),
-   the survey reads only names ending `.sock` and `.git-dir`
-   (`service_units_of_removed_worktrees.rs:292-300`),
-   and the manager loads only unit names.
-   The cost is one small file per killed provisioning in the runtime directory,
-   which goes at logout.
-5. The earlier release's units removed:
-   `clear_earlier_units` and `retire_earlier_service` remove only files carrying
-   the wrapper's marker,
-   and `remove_settled` treats a file someone else removed as done
-   (`service_provision_unit_file_ownership_and_writes.rs`,
-   `remove_settled`).
-   A kill after the removals and before the current texts are written leaves no
-   units at all,
-   which `in_place` reports false for,
-   so the next commit writes them.
-   The earlier service's own retirement is retried because its files are only
-   removed after it stopped:
-   `for file in &owned_files { remove_settled(..) }` is the last step
-   (`service_provision_earlier_service_retirement.rs`,
-   `owned_files`).
-   Sound.
-6. The socket unit started and the note not yet written:
-   finding 4.
-7. The note written:
-   temporary file then rename,
-   so a kill leaves either the old text or the new one,
-   and the same temporary-file litter as step 4.
-8. The service creates its journal directory
-   (`service_main.rs:311-313`):
-   a kill leaves an empty directory,
-   which the next start uses.
-9. The service finishes the earlier single service's open batches
-   (`service_main.rs:342-349`)
-   and then prunes that shared journal's finished records.
-   A kill between the two leaves them unpruned,
-   which the next start repeats.
+1.  Entry itself:
+    `hooks_off::activate` and `remember_own_executable` are memory only
+    (`entry.rs:338-342`,
+    `real_git.rs:584`).
+    A kill leaves nothing and nothing notices.
+2.  Real-Git resolution:
+    reads only,
+    the candidate headers,
+    a whole-file comparison when lengths match
+    (`real_git_candidate.rs`,
+    `identical_content`),
+    and the unit's `--git` when `PATH` offers nothing
+    (`real_git_record.rs`).
+    A kill leaves nothing.
+3.  Copy-route recovery inside a forwarded command:
+    writes and removes copy state.
+    It is the copy route's subject,
+    audited in `cli-git-copy-route-findings-on-main.md`,
+    and is skipped here.
+4.  A unit file written:
+    `write_atomically` writes `"<name>.tmp-<pid>-<n>"` and renames it
+    (`service_provision_unit_file_ownership_and_writes.rs:29-38`),
+    so a reader sees the old file or the new one whole.
+    A kill between the write and the rename leaves a temporary file that nothing
+    removes and nothing reads:
+    `in_place` compares only the two real names
+    (`service_provision.rs:144-152`),
+    the survey reads only names ending `.sock` and `.git-dir`
+    (`service_units_of_removed_worktrees.rs:292-300`),
+    and the manager loads only unit names.
+    The cost is one small file per killed provisioning in the runtime directory,
+    which goes at logout.
+5.  The earlier release's units removed:
+    `clear_earlier_units` and `retire_earlier_service` remove only files carrying
+    the wrapper's marker,
+    and `remove_settled` treats a file someone else removed as done
+    (`service_provision_unit_file_ownership_and_writes.rs`,
+    `remove_settled`).
+    A kill after the removals and before the current texts are written leaves no
+    units at all,
+    which `in_place` reports false for,
+    so the next commit writes them.
+    The earlier service's own retirement is retried because its files are only
+    removed after it stopped:
+    `for file in &owned_files { remove_settled(..) }` is the last step
+    (`service_provision_earlier_service_retirement.rs`,
+    `owned_files`).
+    Sound.
+6.  The socket unit started and the note not yet written:
+    finding 4.
+7.  The note written:
+    temporary file then rename,
+    so a kill leaves either the old text or the new one,
+    and the same temporary-file litter as step 4.
+8.  The service creates its journal directory
+    (`service_main.rs:311-313`):
+    a kill leaves an empty directory,
+    which the next start uses.
+9.  The service finishes the earlier single service's open batches
+    (`service_main.rs:342-349`)
+    and then prunes that shared journal's finished records.
+    A kill between the two leaves them unpruned,
+    which the next start repeats.
 10. The service settles this worktree's own open batches,
     which `serve` runs **after** the `ready` line
     (`service_main.rs:350`,
@@ -847,71 +847,71 @@ is met here.
 
 ## Races between two commands on one repository
 
-1. Two commits provisioning at once:
-   both write identical texts,
-   both read them back as current,
-   and the second start is a no-op.
-   Sound,
-   except for the failure cleanup:
-   a commit whose `ask_manager` fails removes the files **it** wrote
-   (`service_provision.rs:219-224`),
-   so a commit that had just read them as current can start a socket whose unit
-   file is gone and fail with the manager's refusal.
-   The window needs a refused bus call;
-   not reproduced.
-   A fix worth considering is to remove the file only when it still holds this
-   call's text.
-2. Two releases at once,
-   an older one still on `PATH` and a newer one installed:
-   each writes unit texts naming its own binary (`service_provision.rs:200-216`),
-   so the last writer wins and the socket starts whichever text is on disk.
-   A commit of the older release can be served by the newer binary,
-   hear `OtherRelease` after ten seconds,
-   and fail,
-   which is the documented upgrade limit
-   (`service_client_reach_service.rs:175-205`,
-   `wait_ceilings.rs:60`).
-   Nothing is lost;
-   the commit says so and can be run again.
-3. Two worktrees of one repository:
-   two instances,
-   two journals,
-   two sockets,
-   one common object store.
-   Nothing in this route is keyed by the common directory except the
-   provisioning of the shared templates,
-   which is idempotent.
-   Sound.
-4. A worktree removed while its service serves it:
-   the service asks every `OWN_WORKTREE_CHECK` (`service_server.rs:341-348`),
-   the copy route asks before a removal
-   (`worktree_copy_forward.rs:266`,
-   `units_of_worktree_about_to_go`),
-   and both use the same `worktree_is_gone`
-   (`service_units_of_removed_worktrees.rs:191`,
-   `worktree_is_gone`),
-   so they cannot disagree.
-   Sound,
-   unless the note is missing,
-   which is finding 4.
-5. An upgrade while a commit waits:
-   the client asks the old service to retire,
-   the old service finishes the batch it is in and exits with status 0,
-   so `Restart=on-failure` does not start it again,
-   and the next connection starts the new binary from the rewritten text
-   (`SPEC.md:5794-5800`).
-   A suspended client whose request was landed retries the same identity and is
-   answered "already landed" from the journal
-   (`service_client.rs`,
-   `Submitted` and the journal's landed records).
-   Sound.
-6. A stop while a commit is in flight:
-   the connection is closed without an answer,
-   the client reconnects with the same identity,
-   and the new instance settles the open batch and answers it
-   (the commit route's subject).
-   The wait has the ceilings named above.
-   Sound within those bounds.
+1.  Two commits provisioning at once:
+    both write identical texts,
+    both read them back as current,
+    and the second start is a no-op.
+    Sound,
+    except for the failure cleanup:
+    a commit whose `ask_manager` fails removes the files **it** wrote
+    (`service_provision.rs:219-224`),
+    so a commit that had just read them as current can start a socket whose unit
+    file is gone and fail with the manager's refusal.
+    The window needs a refused bus call;
+    not reproduced.
+    A fix worth considering is to remove the file only when it still holds this
+    call's text.
+2.  Two releases at once,
+    an older one still on `PATH` and a newer one installed:
+    each writes unit texts naming its own binary (`service_provision.rs:200-216`),
+    so the last writer wins and the socket starts whichever text is on disk.
+    A commit of the older release can be served by the newer binary,
+    hear `OtherRelease` after ten seconds,
+    and fail,
+    which is the documented upgrade limit
+    (`service_client_reach_service.rs:175-205`,
+    `wait_ceilings.rs:60`).
+    Nothing is lost;
+    the commit says so and can be run again.
+3.  Two worktrees of one repository:
+    two instances,
+    two journals,
+    two sockets,
+    one common object store.
+    Nothing in this route is keyed by the common directory except the
+    provisioning of the shared templates,
+    which is idempotent.
+    Sound.
+4.  A worktree removed while its service serves it:
+    the service asks every `OWN_WORKTREE_CHECK` (`service_server.rs:341-348`),
+    the copy route asks before a removal
+    (`worktree_copy_forward.rs:266`,
+    `units_of_worktree_about_to_go`),
+    and both use the same `worktree_is_gone`
+    (`service_units_of_removed_worktrees.rs:191`,
+    `worktree_is_gone`),
+    so they cannot disagree.
+    Sound,
+    unless the note is missing,
+    which is finding 4.
+5.  An upgrade while a commit waits:
+    the client asks the old service to retire,
+    the old service finishes the batch it is in and exits with status 0,
+    so `Restart=on-failure` does not start it again,
+    and the next connection starts the new binary from the rewritten text
+    (`SPEC.md:5794-5800`).
+    A suspended client whose request was landed retries the same identity and is
+    answered "already landed" from the journal
+    (`service_client.rs`,
+    `Submitted` and the journal's landed records).
+    Sound.
+6.  A stop while a commit is in flight:
+    the connection is closed without an answer,
+    the client reconnects with the same identity,
+    and the new instance settles the open batch and answers it
+    (the commit route's subject).
+    The wait has the ceilings named above.
+    Sound within those bounds.
 
 ## Reproductions
 
@@ -1123,18 +1123,18 @@ unchanged.
 Inspect,
 in this order:
 
-1. "Reproductions" A,
-   whose script is `${HOME}/temp/agent/pi-entry-route-audit/recursion.ts`,
-   against `started_as_git.rs:275-292` and `real_git_candidate.rs:506-552`;
-2. "Reproductions" C,
-   whose script is `pipe-closes-early.ts`,
-   against `worktree_copy_forward.rs:466-472` and
-   `worktree_copy.rs:237-249`;
-3. the two findings read from the code,
-   against `service_provision.rs:140-170`,
-   `:236-246`,
-   `:344-350`,
-   and `service_client_reach_service.rs:98-131`.
+1.  "Reproductions" A,
+    whose script is `${HOME}/temp/agent/pi-entry-route-audit/recursion.ts`,
+    against `started_as_git.rs:275-292` and `real_git_candidate.rs:506-552`;
+2.  "Reproductions" C,
+    whose script is `pipe-closes-early.ts`,
+    against `worktree_copy_forward.rs:466-472` and
+    `worktree_copy.rs:237-249`;
+3.  the two findings read from the code,
+    against `service_provision.rs:140-170`,
+    `:236-246`,
+    `:344-350`,
+    and `service_client_reach_service.rs:98-131`.
 
 Respond with which of the two reproduced findings to fix first,
 and whether `SPEC.md:4703-4711` should be corrected before either is built.

@@ -11,10 +11,6 @@
  ```
  */
 
-import {
-  rename,
-  writeFile,
-} from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import {
   join,
@@ -27,6 +23,7 @@ import {
   ipcMain,
 } from 'electron';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { writeJsonFileAtomically, } from '@monochromatic-dev/electron-infra-core/ts/atomic-json';
 import { tagged, } from '@monochromatic-dev/logger-core';
 
 import type { BridgeFileEntry, } from './bridge-types.js';
@@ -44,6 +41,8 @@ import {
   REPORT_STATE_CHANNEL,
 } from './ipc-channels.js';
 import { listDirectory, } from './listing.js';
+
+//region Window, path, and logging configuration
 
 /**
  Main-process logger tagged at module boundary.
@@ -94,6 +93,10 @@ const rootDirectory = resolve(
   process.env[ROOT_DIRECTORY_ENVIRONMENT_VARIABLE] ?? homedir(),
 );
 
+//endregion Window, path, and logging configuration
+
+//region Wayland compositor switches
+
 /**
  Adds Chromium switches required for pure Wayland operation on Linux.
  
@@ -122,6 +125,10 @@ function configureLinuxWayland(): void {
     .XDG_SESSION_TYPE = 'wayland';
   mainLogger.info('Forced Chromium Ozone platform to Wayland for Linux.',);
 }
+
+//endregion Wayland compositor switches
+
+//region Boundary-test state observation
 
 /**
  Checks whether a value is a shallow record of JSON scalars, the only shape
@@ -154,6 +161,9 @@ function isShallowScalarRecord(
 /**
  Persists renderer state atomically when the boundary-test state path is set.
  
+ The write is `writeJsonFileAtomically` from the shared Electron infra package,
+ so this app never keeps a second definition of the temp-file plus rename.
+ 
  @param state - Shallow scalar state snapshot.
  
  @mutates state - `JSON.stringify` may invoke record accessors or proxy traps.
@@ -174,24 +184,10 @@ async function writeObservedState(
   if (statePath === undefined)
     return;
 
-  /**
-   Unique temp path so state readers never observe a truncated JSON file.
-   */
-  const tempStatePath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-
-  await writeFile(
-    tempStatePath,
-    `${JSON.stringify(
-      state,
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  );
-  await rename(
-    tempStatePath,
-    statePath,
-  );
+  await writeJsonFileAtomically({
+    filePath: statePath,
+    value: state,
+  },);
 }
 
 /**
@@ -220,6 +216,10 @@ function observeStateFromEvent({ payload, }: { readonly payload: unknown; },): v
     }
   })();
 }
+
+//endregion Boundary-test state observation
+
+//region IPC handlers
 
 /**
  Registers the IPC surface consumed by the preload bridge.
@@ -271,6 +271,10 @@ function registerIpcHandlers(): void {
   );
 }
 
+//endregion IPC handlers
+
+//region Main window creation
+
 /**
  Creates the main BrowserWindow and loads the renderer HTML entry.
  
@@ -312,6 +316,10 @@ async function createMainWindow(): Promise<BrowserWindow> {
   mainLogger.info('Renderer loaded.',);
   return mainWindow;
 }
+
+//endregion Main window creation
+
+//region App lifecycle
 
 /**
  Logs a failure from an app activation path that Electron does not await.
@@ -444,3 +452,5 @@ app.enableSandbox();
 installAppLifecycleHandlers();
 registerIpcHandlers();
 startFileManagerApp();
+
+//endregion App lifecycle

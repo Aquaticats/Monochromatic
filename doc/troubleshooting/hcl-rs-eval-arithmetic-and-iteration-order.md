@@ -314,53 +314,53 @@ and interpolation unwrapping.
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-    Yes for the panics,
-   the wraparound,
-   and the saturation:
-    a library that evaluates user input should not abort the process,
-    and the maintainer states the crates follow the HCL specifications
-    (issue #304,
-   comment of 2024-04-09).
-   The iteration order is also upstream's:
-    the native-syntax specification names lexicographic order.
-2. Can upstream fix it?
-    Yes.
-   Checked arithmetic with a float fallback,
-   a guard for a zero right-hand side,
-    a range check before the `as i64` cast,
-    and a sort in `evaluate_collection` are all local changes.
-   A full fix for arbitrary precision would be larger,
-    but is not needed to remove the panics and the wraparound.
-3. Are they supporting this use case?
-    Yes.
-   `crates/hcl-rs/tests/eval.rs` exercises binary operators,
-   `for` expressions,
-   and templates,
-    and the crate's documentation presents `hcl::eval` as the way to evaluate HCL expressions.
-4. Would the repo welcome our contribution?
-    Yes.
-   `CONTRIBUTING.md` invites pull requests,
-   asks for an issue first for breaking changes,
-    asks for regression tests,
-   and says nothing about AI assistance.
-   Note that changing the results of arithmetic and of `for` over objects is behavior-visible,
-    so the issue should come first,
-   as `CONTRIBUTING.md` requires.
-5. Will they likely fix it?
-    Likely for the panics;
-    less certain for iteration order,
-   which changes output for existing users,
-    though it aligns with the specification the maintainer cites.
-   No won't-fix statement exists.
-   Issue #566,
-   about the neighbouring literal-range problem,
-   was opened 2026-09-04
-    and has no maintainer reply yet,
-   which is silence rather than a decline.
-6. Have we prototyped a minimal fix compatible with their architecture?
-    Yes,
-   see the diff and its verification.
+1.  Is it really upstream's fault?
+     Yes for the panics,
+    the wraparound,
+    and the saturation:
+     a library that evaluates user input should not abort the process,
+     and the maintainer states the crates follow the HCL specifications
+     (issue #304,
+    comment of 2024-04-09).
+    The iteration order is also upstream's:
+     the native-syntax specification names lexicographic order.
+2.  Can upstream fix it?
+     Yes.
+    Checked arithmetic with a float fallback,
+    a guard for a zero right-hand side,
+     a range check before the `as i64` cast,
+     and a sort in `evaluate_collection` are all local changes.
+    A full fix for arbitrary precision would be larger,
+     but is not needed to remove the panics and the wraparound.
+3.  Are they supporting this use case?
+     Yes.
+    `crates/hcl-rs/tests/eval.rs` exercises binary operators,
+    `for` expressions,
+    and templates,
+     and the crate's documentation presents `hcl::eval` as the way to evaluate HCL expressions.
+4.  Would the repo welcome our contribution?
+     Yes.
+    `CONTRIBUTING.md` invites pull requests,
+    asks for an issue first for breaking changes,
+     asks for regression tests,
+    and says nothing about AI assistance.
+    Note that changing the results of arithmetic and of `for` over objects is behavior-visible,
+     so the issue should come first,
+    as `CONTRIBUTING.md` requires.
+5.  Will they likely fix it?
+     Likely for the panics;
+     less certain for iteration order,
+    which changes output for existing users,
+     though it aligns with the specification the maintainer cites.
+    No won't-fix statement exists.
+    Issue #566,
+    about the neighbouring literal-range problem,
+    was opened 2026-09-04
+     and has no maintainer reply yet,
+    which is silence rather than a decline.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+     Yes,
+    see the diff and its verification.
 
 ### Duplicate search
 

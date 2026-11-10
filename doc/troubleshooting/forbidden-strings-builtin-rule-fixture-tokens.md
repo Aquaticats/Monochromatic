@@ -199,21 +199,21 @@ Nothing is filed:
  as `builtin-rules.txt:409` records.
 Walking the six constraints for the ported rule:
 
-1. Upstream's fault:
-    no;
-    the over-match comes from this repository's port dropping the path scope.
-2. Upstream could fix it:
-    nothing to fix upstream.
-3. Supported use case:
-    upstream supports the rule only for Terraform files.
-4. Contribution welcome:
-    not assessed,
-    since there is nothing to contribute.
-5. Likely fix:
-    not applicable.
-6. Prototype:
-    none,
-    for the same reason.
+1.  Upstream's fault:
+     no;
+     the over-match comes from this repository's port dropping the path scope.
+2.  Upstream could fix it:
+     nothing to fix upstream.
+3.  Supported use case:
+     upstream supports the rule only for Terraform files.
+4.  Contribution welcome:
+     not assessed,
+     since there is nothing to contribute.
+5.  Likely fix:
+     not applicable.
+6.  Prototype:
+     none,
+     for the same reason.
 
 The durable local fix is per-rule path scoping or an allowance mechanism in the scanner,
  which the README lists as missing;

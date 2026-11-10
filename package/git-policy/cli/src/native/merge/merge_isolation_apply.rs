@@ -38,7 +38,9 @@ use crate::merge_isolation_report::not_applied_finding;
 use crate::merge_isolation_carry::drop_capture_ref;
 use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
 use crate::merge_isolation_carry_notice::report_lines;
-use crate::merge_isolation_carry_parts::Capture;
+/// The words a merge that could not be finished now prints,
+/// which its own file holds so this one stays inside the code-line limit.
+use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved, failure_text};
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The command-line reading.
@@ -433,82 +435,8 @@ fn save_for_a_later_finish(
     return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), held_for) });
 }
 
-/// What:
-///  The line for a merge that is saved on a side ref because another program holds the index.
-/// Why:
-///   The command exits 0 and the branch has not moved,
-/// so the person must be told where the merge is,
-/// what finishes
-///  it,
-/// what happens to their own edits meanwhile,
-/// and how to clear a lock no program uses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: git merge ${reference}: ...`
-/// ```
-fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, held_for: Option<Duration>) -> String {
-    let blocked: String = match held_for {
-        Some(waited) => format!("did not let go within {} seconds", waited.as_secs()),
-        None => String::from("is not one this command may clear"),
-    };
-    return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}) and {blocked}, so the \
-         merge is saved on {side_ref} and this command exits 0. Nothing of the merge is in the checkout yet and the branch has not moved: \
-         the next git command in this worktree finishes the checkout once that lock is free, and the edits you make meanwhile to files the \
-         merge does not change are kept. If no program is using this repository, the lock was left by a program that was killed, and \
-         removing it lets a command run.\n",
-        lock = lock.display()
-    );
-}
 
-/// What:
-///  The line for a merge whose commit could not be kept on a side ref.
-/// Why:
-///   Without that name the commit can be collected,
-/// so the merge is refused with nothing changed rather than
-///  promised for a later finish it may not reach.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: git merge ${reference}: ...`
-/// ```
-fn a_merge_that_could_not_be_saved(reference: &str, lock: &Path) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}), and the merge could \
-         not be kept on a side ref for a later finish. Nothing was changed. Run the merge again once that program is done, and if no \
-         program is using this repository, removing that lock lets a command run.\n",
-        lock = lock.display()
-    );
-}
 
-/// What:
-///  The line a merge prints when the carry back could not be written now.
-/// Why:
-///   The merge is made and the branch moved,
-/// so the command exits 0;
-/// the person's bytes are in the objects the capture
-///  names,
-/// and the record is kept,
-/// so the next command in the worktree carries them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: git merge ${reference}: the merge is made, and your changes could not be carried back (${detail}) ...`
-/// ```
-fn a_carry_that_stopped(reference: &str, failure: &CarryFailure, capture: &Capture) -> String {
-    let detail: String = match failure {
-        CarryFailure::IndexHeld(lock) => format!("another program holds this repository's index ({lock})"),
-        CarryFailure::Failed(text) => String::from(text.as_str()),
-        CarryFailure::Foreign(path) => format!("{} holds something else now", String::from_utf8_lossy(path.as_slice())),
-    };
-    let kept: &str = capture.reference.as_deref().unwrap_or("the record this merge wrote");
-    return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: the merge is made, and your own changes could not be carried back yet because \
-         {detail}. They are kept in {kept}, and the next git command in this worktree carries them into the files. Nothing of yours was \
-         removed.\n"
-    );
-}
 
 /// What:
 ///  What a failed step's detail means for the command's ending.
@@ -548,26 +476,6 @@ fn settle_a_failed_step(
     };
 }
 
-/// What:
-///  The text of a failure a carry or a clear reports.
-/// Why:
-///   Recovery's refusal takes text,
-/// and a failure a person reads names what the step was doing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const failureText = (failure: CarryFailure) => failure.detail;
-/// ```
-fn failure_text(failure: &CarryFailure) -> String {
-    return match failure {
-        CarryFailure::IndexHeld(lock) => format!("another program held {lock} until this merge had waited its longest"),
-        CarryFailure::Failed(detail) => String::from(detail.as_str()),
-        CarryFailure::Foreign(path) => format!(
-            "{} was written after this merge captured it, so the merge was not written over it",
-            String::from_utf8_lossy(path.as_slice())
-        ),
-    };
-}
 
 /// What:
 ///  Reach a marker phase,

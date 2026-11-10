@@ -17,6 +17,9 @@ mod support;
 /// filename,
 /// and subprocess operations.
 use std::{fs, io, path::Path, process::{Command, Output}};
+/// Import the one implementation of POSIX single-quote escaping,
+/// shared with the host fixture that installs this hook.
+use monochromatic_codex_plugin_bash_limit::shell_quote;
 
 /// What:
 /// `&Path` and `&str` borrow values;
@@ -68,6 +71,36 @@ fn rewrite(parent: &Path, original: &str) -> io::Result<String> {
 /// Execute borrowed shell source with the same clean Bash launch used in the baseline.
 fn shell(command: &str) -> io::Result<Output> {
     return Command::new("/bin/bash").args(["--noprofile", "--norc", "-c", command]).output();
+}
+
+/// What:
+/// `#[test]` registers a native test for the shared quoting policy;
+/// `Result<()>` permits a launch failure.
+/// Why:
+/// The host fixture builds its hook command from this same function,
+/// so a quoting rule that only survived the fixture's own characters would let that fixture
+/// exercise a different encoder than the hook rewrite uses.
+#[test]
+fn shell_quote_survives_a_shell_round_trip() -> io::Result<()> {
+    for value in [
+        "plain",
+        "with space",
+        "it's",
+        "two 'quotes' and a 'third' one",
+        "'",
+        "''",
+        "quotes and $HOME and $(untouched) `untouched` ; ../",
+        "trailing backslash \\",
+        "newline\nin the value",
+        "single'quote\nnext line",
+    ] {
+        // Quote the value at the shell boundary, then let Bash print the argument it receives.
+        let command = format!("printf '%s' {}", shell_quote(value));
+        let output = shell(&command)?;
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), value, "{command}");
+    }
+    return Ok(());
 }
 
 /// What:

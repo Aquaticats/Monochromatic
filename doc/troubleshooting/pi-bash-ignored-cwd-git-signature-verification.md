@@ -474,41 +474,41 @@ The thread and all comments were read.
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** No as a feature request,
-    and only partly as a diagnostic-quality issue.
-   The agent supplied a field absent from the advertised Bash schema.
-   Pi's permissive schema and destructuring make that mistake silent,
-    but a maintainer states in #5904 that `cwd` is
-   intentionally not a valid Bash parameter.
-2. **Can upstream fix it?
-   ** Yes technically.
-   Pi could reject unknown top-level fields,
-    strip them with an explicit warning,
-    or add a per-call directory field.
-   Technical possibility does not override the maintainers' intentional API boundary.
-3. **Are they supporting this use case?
-   ** No.
-   The maintainer explicitly rejected per-call `cwd` as a valid parameter.
-   The original reporter withdrew the request.
-4. **Would the repo welcome our contribution?
-   ** No for this generated artifact.
-   `CONTRIBUTING.md` requires issue text in the contributor's own voice and says not to use an LLM to generate it.
-   Recent maintainer responses also reject AI-generated tracker comments.
-5. **Will they likely fix it?
-   ** No based on direct signal.
-   Issue #5904 is closed as `not planned`,
-    received the `no-action` label,
-    and records the API choice as intentional.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No.
-   The automatic prototype gate does not trigger because constraints 1,
-    3,
-    4,
-    and 5 fail.
-   A local runtime probe is sufficient to verify the existing behavior;
-    changing a third-party clone would not produce a
-   welcome contribution.
+1.  **Is it really upstream's fault?
+    ** No as a feature request,
+     and only partly as a diagnostic-quality issue.
+    The agent supplied a field absent from the advertised Bash schema.
+    Pi's permissive schema and destructuring make that mistake silent,
+     but a maintainer states in #5904 that `cwd` is
+    intentionally not a valid Bash parameter.
+2.  **Can upstream fix it?
+    ** Yes technically.
+    Pi could reject unknown top-level fields,
+     strip them with an explicit warning,
+     or add a per-call directory field.
+    Technical possibility does not override the maintainers' intentional API boundary.
+3.  **Are they supporting this use case?
+    ** No.
+    The maintainer explicitly rejected per-call `cwd` as a valid parameter.
+    The original reporter withdrew the request.
+4.  **Would the repo welcome our contribution?
+    ** No for this generated artifact.
+    `CONTRIBUTING.md` requires issue text in the contributor's own voice and says not to use an LLM to generate it.
+    Recent maintainer responses also reject AI-generated tracker comments.
+5.  **Will they likely fix it?
+    ** No based on direct signal.
+    Issue #5904 is closed as `not planned`,
+     received the `no-action` label,
+     and records the API choice as intentional.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No.
+    The automatic prototype gate does not trigger because constraints 1,
+     3,
+     4,
+     and 5 fail.
+    A local runtime probe is sufficient to verify the existing behavior;
+     changing a third-party clone would not produce a
+    welcome contribution.
 
 Nothing should be posted upstream.
 The duplicate already documents the same schema and execution mismatch.

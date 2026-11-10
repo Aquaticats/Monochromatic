@@ -75,7 +75,8 @@ import {
 - Storing files uncompressed (compression method 0)
 - UTF-8 filenames (general purpose bit 11)
 - DOS modification timestamps (1980 epoch,
-   second granularity)
+   second granularity,
+   clamped to the 1980-01-01 through 2107-12-31 range DOS can represent)
 - Path validation (no NUL,
    no backslash,
    no leading slash,

@@ -13,16 +13,16 @@ No production source or configuration change is authorized yet.
 
 Adopt a phased combined direction:
 
-1. Keep all 5 learning HTML pages owned by dprint.
-2. Add an opt-in prose-preserving mode to the `markup_fmt` plugin used by dprint.
-3. Replace Malva at the CSS host seam with repository-owned CSS formatting.
-4. Add a package-local checker for the exact learning CSS contract.
-5. Keep Stylelint during a shadow migration of its remaining responsibilities and editor diagnostics.
-6. Remove Stylelint only after the responsibility,
-   fixture,
-   suppression,
-   CLI,
-   and editor gates pass.
+1.  Keep all 5 learning HTML pages owned by dprint.
+2.  Add an opt-in prose-preserving mode to the `markup_fmt` plugin used by dprint.
+3.  Replace Malva at the CSS host seam with repository-owned CSS formatting.
+4.  Add a package-local checker for the exact learning CSS contract.
+5.  Keep Stylelint during a shadow migration of its remaining responsibilities and editor diagnostics.
+6.  Remove Stylelint only after the responsibility,
+    fixture,
+    suppression,
+    CLI,
+    and editor gates pass.
 
 Superseded 2026-10-04:
  Stylelint was removed outright (`doc/decision/remove-stylelint.md`)
@@ -604,13 +604,13 @@ Do not carry `copypaste` or `Cannot fix` forward as accepted rationale.
 
 After owner acceptance:
 
-1. Land opt-in prose-preserving markup behavior with its default disabled.
-2. Route CSS host requests to the repository-owned formatter.
-3. Add the package-local exact stylesheet and line-budget checks.
-4. Change the affected colors and `NOTES.md` to preferred `none` channels.
-5. Add the missing color-scheme meta element to the other 4 pages.
-6. Add a transitional Stylelint override that converges with the owned output.
-7. Keep Stylelint's remaining semantic checks and editor plugins active.
+1.  Land opt-in prose-preserving markup behavior with its default disabled.
+2.  Route CSS host requests to the repository-owned formatter.
+3.  Add the package-local exact stylesheet and line-budget checks.
+4.  Change the affected colors and `NOTES.md` to preferred `none` channels.
+5.  Add the missing color-scheme meta element to the other 4 pages.
+6.  Add a transitional Stylelint override that converges with the owned output.
+7.  Keep Stylelint's remaining semantic checks and editor plugins active.
 
 A disposable transition config already reached a fixed point:
 Stylelint check passed,
@@ -639,15 +639,15 @@ Current diagnostics alone are not a parity oracle.
 
 Before removing Stylelint:
 
-1. Publish owned diagnostics for unsaved CSS and HTML buffers.
-2. Wire the server into the supported VS Code and IntelliJ workflows.
-3. Remove or replace all active Stylelint directives.
-4. Remove Stylelint formatting from the root format task.
-5. Remove Stylelint linting,
-   configuration,
-   dependencies,
-   and editor recommendations.
-6. Re-measure discovery and installed dependency footprint.
+1.  Publish owned diagnostics for unsaved CSS and HTML buffers.
+2.  Wire the server into the supported VS Code and IntelliJ workflows.
+3.  Remove or replace all active Stylelint directives.
+4.  Remove Stylelint formatting from the root format task.
+5.  Remove Stylelint linting,
+    configuration,
+    dependencies,
+    and editor recommendations.
+6.  Re-measure discovery and installed dependency footprint.
 
 ## Coverage by decision layer
 

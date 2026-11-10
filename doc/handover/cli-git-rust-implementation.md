@@ -59,6 +59,57 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A server refusal that cleared by itself (2026-11-09T23:32:48-05:00)
+
+The push of `29bae9bb87` to `main` was refused at 23:30:11 with `GH006: Protected branch update failed` and an empty reason,
+in the same minute that GitHub answered another push with `Internal Server Error` and a third with `GH009`.
+The commit is signed and `main` requires signatures.
+A plain `git push origin main` of the same commit,
+with nothing changed,
+then succeeded.
+GitHub's status API listed Git Operations as operational,
+so the cause on GitHub's side is not known.
+
+The wrapper's text in `plain_words` (`push/push_retry.rs:221`) says "Trying again would be refused the same way",
+which that push disproved.
+The behaviour stays,
+because it is the owner's decision ("auth and server hook declines stop until your next commit."),
+and `SPEC.md:3338-3349` also allows it.
+Only the sentence is wrong.
+Correcting it touches a path the release depends on,
+so it lands after the `0.6.1-alpha.6` bump commit is on main.
+
+### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
+
+`0.6.1-alpha.6` is not published,
+so the installed wrapper still stops a signed scratch commit at 3006 ms.
+The release gate on `cfce0bc84e` failed 2 of 6,909 tests
+(`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-cfce0bc84e-20261109T215524-0500.log`).
+
+`push::child_watch::tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling` failed with
+"Its watch could not end it:
+nothing proved which process to stop",
+in a test that refuses the watch nothing.
+`push/child_watch.rs:585` gives the watch the step's ceiling,
+and `push/child_watch.rs:595` gives the wait for the output the same ceiling,
+so the reading to test is that a watch thread scheduled late loses to its own backstop,
+which makes the sentence untrue and `is_ceiling` false.
+That reading rests on the source and this one failure.
+Branch `fix/git-policy-cli-step-ceiling-watch-and-output-wait-race` owns reproducing and fixing it.
+
+`fault_trace::a_worktree_copy_killed_at_each_unlink_leaves_a_recoverable_repository` failed at kill positions 2 and 3 with
+"the worktree has no ignored rules file,
+no stage is left,
+and no recovery pass named it".
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` makes an add whose copy cannot finish stay named on every command.
+Whether it removes this failure is being measured by alternating that sweep between main and the branch.
+
+No release run is in flight,
+so the finished wrapper branches land first,
+and then one gate runs on main for the alpha.
+From that gate's start,
+nothing touching a path the release depends on lands until the bump commit is on main.
+
 ### Where the work stands (2026-11-09T00:11:22-05:00)
 
 Merged since the last record here:
@@ -1607,11 +1658,6 @@ Seen only inside a larger run,
 passing alone,
 and open under `AGENTS.md` `SUF`:
 
-- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
-  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
-  timed out at 300 s in a run of 341 tests that took 932 s.
-- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
-  it passed alone in 2 s and in a rerun of its set.
 - `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
   failed on main and in two landing runs.
   The agent `oxlint-findings-left-on-main` owns it,
@@ -6772,6 +6818,100 @@ which that run did not reach.
   a cheaper fixture,
   or its own bound).
 
+### The worktree-copy install and its notices, after the lifecycle audit (2026-11-09T19:10:00-05:00)
+
+The audit is the worktree-lifecycle run
+(`${HOME}/temp/agent/sonnet-audits/worktree-lifecycle/`),
+reproduced against `7da0abce05`.
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` fixes its findings 1,
+2 and 3,
+each control failing before its fix:
+an install whose destination cannot hard-link the stage now fills a file with no name
+(`O_TMPFILE`,
+or a private name the same copy computes again on a filesystem without one),
+gives it the entry's mode before it can be read,
+and links it into place whole,
+so a credential never stands at a wider mode than its source and a killed copy leaves nothing at a final name
+(`9c160a9f1b`,
+`539ec29235`);
+a copy that truly cannot finish leaves `<identifier>.unfilled` beside its journal,
+which every command names until the worktree is removed or replaced,
+so a half-filled worktree is never forgotten (`84de1c4bcf`);
+a snapshot add whose own swap carried the ignored state no longer prints
+"received no ignored-state copy ... the record of this add stays",
+and a refused add whose destination carries another command's proof no longer promises a record it does not keep
+(`c348d68e25`);
+and a conversion adopts and abandons the empty stage it made and did not record,
+instead of blocking the worktree with a directory only a hand could remove (`36ec6c6aab`).
+The linter's findings on the branch's own files are fixed in `6d59893631`.
+Measured on this host with the built binary and disposable `HOME` and `XDG_RUNTIME_DIR`:
+`s11` sees `.env` at 0600 at the paused look,
+after the `SIGKILL` in that window and after the next command;
+`10` of `10` `SIGKILL`s inside the install (six,
+then four on the merged tree) were resumed whole,
+with no zero-length file,
+no missing entry and an empty journal root;
+`s5` prints no "received no ignored-state copy" line for a snapshot add that carried the state;
+`worktree_copy` ran `352` of `352` and `worktree_add` `27` of `27` on the merged tree,
+Clippy is clean,
+and the binary tests compile.
+A fourth gap in the same goal was found by the binary fault sweep after the first report and is fixed in the same
+branch:
+the ladder released the add's claim when its rung finished and the copy then made a claim of its own,
+so a command killed in that handover left a whole tracked checkout with no ignored state and no record at all
+(`kill-copy-mkdir-3: the worktree has no ignored rules file, no stage is left, and no recovery pass named it: ""`).
+The rung now hands its claim to the copy and no rung writes the completion marker,
+so the record of an add that owes a copy lives from before real Git until the copy's journal.
+Measured after:
+the seven copy kill sweeps (`mkdir`,
+`rename`,
+`renameat2`,
+`write`,
+`pwrite64`,
+`clone3`,
+`unlink`) passed `3` of `3` rounds,
+about `250` kills with no failure,
+where `5` of `8` runs of the selection that contains them failed one or two sweeps each;
+the selection passed `6` of `8` runs afterwards,
+`63` of `63` each (`19`,
+`22`,
+`25`,
+`35.9`,
+`102` and `122` seconds);
+one of the two others ran under load average `132` to `160` and failed `12` of `63` with no copy sweep among them,
+and the other ran at load `98` to `118` and failed `7` fault sweeps on the harness's own bound,
+`the wrapper was still running after 120 seconds and its group was ended`,
+with no recovery failure named.
+The unit filters `worktree_copy`,
+`worktree_add`,
+`stage_claim`,
+`worktree_dirty` and `subvolume` ran `731` of `731` with Clippy clean.
+`main` moved more than `250` commits after this branch's last merge and now carries `LadderResult.placed` in the same
+rung files,
+where this branch adds `LadderResult.claim`:
+the merge conflicts there and is left to the owner,
+who merges branches himself.
+A resolution keeps both fields,
+keeps the handover in `finish_clones`,
+`finish_snapshot` and `Ladder::finish`,
+and keeps the rungs from writing the completion marker while a copy is owed.
+`s9` killed `convert-worktree-to-subvolume` in `8` of `8` trials and every rerun finished with exit 0,
+nothing lost or changed,
+nothing left beside the worktree and no temporary in its administrative directory;
+the audit's `5` of `12` exits that left `<wt>.cli-git-converting` behind do not come back here,
+and the window itself is covered by the control that kills the run at the `stage-unrecorded` point.
+Audit findings 3 (a live checkout's ignored churn fails the copy) and 4 (a non-UTF-8 ignored name fails it)
+no longer reproduce here:
+`32942a6940` and the bytes work fixed them on `main`,
+`S2_FILES=1500` two-mutation runs ended `exit=0` with no leftover,
+and a `\xff\xfe.b` name is copied by its bytes.
+Still open:
+the twelve `monochromatic-lint` errors `main` carries in `commit/`,
+`invocation/`,
+`landing/` and `testing/`,
+which no commit of this branch changed,
+and the linter's package run therefore still ends non-zero.
+
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
 The target tree is drafted and cross-vendor reviewed in
@@ -10119,6 +10259,17 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   So merge gated work as it passes and dispatch again with everything combined.
   A release builds from origin's main:
   check `main...origin/main` and that fetch works before trusting a release's contents.
+  Land nothing that touches a path the release depends on until the bump commit is on main:
+  the workflow pushes its bump against the commit it checked out,
+  and it refuses when such a path moved after that checkout,
+  with "PUSH REFUSED:
+  Paths the release depends on changed on main since".
+  Run `42745449815` ended that way after a wrapper branch landed during the run,
+  and nothing was published.
+  Other packages' landings do not trigger the refusal.
+  `native:release:wait` takes `<run> <version>`.
+  A dry run publishes nothing,
+  so read its result with `gh run view`.
 - Gates:
   `node ~/temp/agent/gate/launch-gate.ts <worktree name or path> <label of lowercase letters, digits and hyphens>`
   starts the container gate as its own systemd unit `gpc-gate-<label>-<timestamp>`;

@@ -219,37 +219,37 @@ Open and closed Clack Issues and pull requests were searched for:
 
 No duplicate was found.
 
-1. **Is it really upstream's fault?**
-   Yes.
-   Node's historical behavior caused the color loss,
-   but Clack's package range declares affected runtimes while its snapshots require the fixed behavior.
-2. **Can upstream fix it?**
-   Yes.
-   Clack can raise its runtime floor,
-   revise its formatter contract,
-   or avoid depending on nested built-in formatting behavior.
-3. **Are they supporting this use case?**
-   Yes.
-   `note()` explicitly accepts a formatter,
-   and the upstream suite asserts nested colored formatter output.
-4. **Would the repo welcome our contribution?**
-   Yes.
-   `CONTRIBUTING.md` requests reproductions,
-   environment details,
-   tests,
-   and pull requests.
-   Its pull request template permits AI-generated code when disclosed.
-   No policy forbids a human-verified issue report.
-5. **Will they likely fix it?**
-   Plausible.
-   Maintenance and release activity are current,
-   and the relevant formatter tests remain active.
-   No maintainer rejection or stated non-goal was found.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes.
-   The recorded patch aligns package engines and contributor runtimes with Node 22.19.0.
-   The focused suite fails before the runtime-floor change on Node 22.18.0
-   and passes under the selected floor on Node 22.19.0.
+1.  **Is it really upstream's fault?**
+    Yes.
+    Node's historical behavior caused the color loss,
+    but Clack's package range declares affected runtimes while its snapshots require the fixed behavior.
+2.  **Can upstream fix it?**
+    Yes.
+    Clack can raise its runtime floor,
+    revise its formatter contract,
+    or avoid depending on nested built-in formatting behavior.
+3.  **Are they supporting this use case?**
+    Yes.
+    `note()` explicitly accepts a formatter,
+    and the upstream suite asserts nested colored formatter output.
+4.  **Would the repo welcome our contribution?**
+    Yes.
+    `CONTRIBUTING.md` requests reproductions,
+    environment details,
+    tests,
+    and pull requests.
+    Its pull request template permits AI-generated code when disclosed.
+    No policy forbids a human-verified issue report.
+5.  **Will they likely fix it?**
+    Plausible.
+    Maintenance and release activity are current,
+    and the relevant formatter tests remain active.
+    No maintainer rejection or stated non-goal was found.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes.
+    The recorded patch aligns package engines and contributor runtimes with Node 22.19.0.
+    The focused suite fails before the runtime-floor change on Node 22.18.0
+    and passes under the selected floor on Node 22.19.0.
 
 All constraints pass.
 The following draft is technically fileable,

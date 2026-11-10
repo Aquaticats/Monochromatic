@@ -288,9 +288,11 @@ const STALE_FILES: usize = 12;
 ///  The sleep is what the ceiling is measured against,
 /// and a sleep does not grow when the host runs many controls at once,
 /// where the step under the ceiling does:
-/// in a selection of 96 controls the landing controls took 62 s against 4.6 s alone, 13.5 times,
+/// in a selection of 96 controls the landing controls took 62 s against 4.6 s alone,
+/// 13.5 times,
 /// and the scratch step's own cost is about 0.1 s here,
-/// so a ceiling of 825 ms (eleven files at 100 ms, three quarters of the read)
+/// so a ceiling of 825 ms (eleven files at 100 ms,
+/// three quarters of the read)
 /// left room for only eight times that cost and ended the step instead.
 /// At 400 ms the same ceiling is 3,300 ms,
 /// which leaves the step 33 times its own cost before it is ended,

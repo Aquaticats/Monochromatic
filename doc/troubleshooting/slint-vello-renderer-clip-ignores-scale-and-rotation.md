@@ -511,42 +511,42 @@ not a fix that already covers this renderer.
 
 The six constraints:
 
-1. **Is it really upstream's fault?**
-   Yes.
-   `ItemRenderer::get_current_clip` is specified in the transformed coordinates,
-   the core and the text drawing rely on
-   it,
-   the sibling renderers implement it,
-   and the anyrender renderer does not.
-2. **Can upstream fix it?**
-   Yes:
-   two functions.
-3. **Are they supporting this use case?**
-   Yes:
-   `transform-scale` and `transform-rotation` are documented properties,
-   the renderer is under active work
-   (the Vello renderer is "experimental" in the 1.18 changelog,
-   and 1.19 moves it to wgpu 30),
-   and the same defect was
-   fixed for FemtoVG and the partial renderer within the last seven months.
-4. **Would the repo welcome our contribution?**
-   Yes.
-   `CONTRIBUTING.md` welcomes issues and pull requests,
-   points AI assistants to `AGENTS.md`,
-   asks that pull requests
-   be small and focused (this one is),
-   and asks contributors to make sure they wrote the contribution themselves;
-   issue templates exist (`1-bug-report.yaml`);
-   no AI ban or disclosure rule was found.
-5. **Will they likely fix it?**
-   Likely:
-   a maintainer fixed the FemtoVG twin in two small pull requests,
-   merged three to four weeks after issue 10904
-   was opened (2026-03-01),
-   and renderer parity fixes are merged continuously.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-   below.
+1.  **Is it really upstream's fault?**
+    Yes.
+    `ItemRenderer::get_current_clip` is specified in the transformed coordinates,
+    the core and the text drawing rely on
+    it,
+    the sibling renderers implement it,
+    and the anyrender renderer does not.
+2.  **Can upstream fix it?**
+    Yes:
+    two functions.
+3.  **Are they supporting this use case?**
+    Yes:
+    `transform-scale` and `transform-rotation` are documented properties,
+    the renderer is under active work
+    (the Vello renderer is "experimental" in the 1.18 changelog,
+    and 1.19 moves it to wgpu 30),
+    and the same defect was
+    fixed for FemtoVG and the partial renderer within the last seven months.
+4.  **Would the repo welcome our contribution?**
+    Yes.
+    `CONTRIBUTING.md` welcomes issues and pull requests,
+    points AI assistants to `AGENTS.md`,
+    asks that pull requests
+    be small and focused (this one is),
+    and asks contributors to make sure they wrote the contribution themselves;
+    issue templates exist (`1-bug-report.yaml`);
+    no AI ban or disclosure rule was found.
+5.  **Will they likely fix it?**
+    Likely:
+    a maintainer fixed the FemtoVG twin in two small pull requests,
+    merged three to four weeks after issue 10904
+    was opened (2026-03-01),
+    and renderer parity fixes are merged continuously.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+    below.
 
 All six hold.
 The draft is fileable as written,

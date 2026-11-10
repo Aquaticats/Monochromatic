@@ -345,22 +345,22 @@ Synthetic is hosted service.
 No provider source repository or matching issue tracker was found through
 [Synthetic API documentation][api-overview] or public repository search.
 
-1. **Is it upstream's fault?**
-   Partly.
-   Synthetic returned queue/full-target 503 responses,
-   and GLM-5.3-Flash repeatedly streamed until local grace cut it.
-   Pipeline's accumulated wait is also deliberate local quality policy.
-2. **Can upstream fix it?**
-   Provider can improve target availability and terminate pathological streams.
-3. **Are they supporting this use case?**
-   Yes for chat completion and structured output.
-4. **Would repository welcome contribution?**
-   Unknown because no provider source repository was found.
-5. **Will they likely fix it?**
-   Unknown without public tracker or service incident record.
-6. **Have we prototyped compatible fix?**
-   No upstream patch is possible from available source.
-   Local patch improves diagnosis without changing request contract.
+1.  **Is it upstream's fault?**
+    Partly.
+    Synthetic returned queue/full-target 503 responses,
+    and GLM-5.3-Flash repeatedly streamed until local grace cut it.
+    Pipeline's accumulated wait is also deliberate local quality policy.
+2.  **Can upstream fix it?**
+    Provider can improve target availability and terminate pathological streams.
+3.  **Are they supporting this use case?**
+    Yes for chat completion and structured output.
+4.  **Would repository welcome contribution?**
+    Unknown because no provider source repository was found.
+5.  **Will they likely fix it?**
+    Unknown without public tracker or service incident record.
+6.  **Have we prototyped compatible fix?**
+    No upstream patch is possible from available source.
+    Local patch improves diagnosis without changing request contract.
 
 Constraints four through six do not pass,
 so no upstream issue or additive comment should be filed.

@@ -567,38 +567,38 @@ Triggers:
 Ranked by severity,
 most severe first.
 
-1. **Every race-free and loss-free path runs through an experimental,
-   memory-unsafe core module.**
-   Placement before exec (`pidfd_spawnp` with `SETCGROUP`) and overflow-aware watching both need `node:ffi`,
-   Stability 1,
-   four months old,
-   whose flag default flipped in a minor release today.
-   A signature mistake crashes the daemon (`doc/api/ffi.md:15-19`).
-   The stable-API fallback exists but costs more:
-   `systemd-run --scope` per task (at least 7 ms of client and D-Bus work plus the ~10 ms attach lock,
-   full cost
-   unmeasured),
-   or a Node `process.execve` launcher (43 to 46 ms,
-   itself Stability 1) plus the lock.
-2. **The built-in watcher loses events silently on inotify overflow.**
-   Measured 0 of 300 later modifications delivered with no error after a 16,384-event flood,
-   caused by `deps/uv/src/unix/linux.c:2617-2619`.
-   Without the FFI reader,
-   the only backstop is a periodic full rescan (the stat walk alone took 5.3 s).
-3. **Recursive `fs.watch` on Linux is unusable at this size.**
-   41,205 watches,
-   662 ms synchronous setup,
-   243 MiB RSS;
-   the daemon must walk and watch directories itself.
-4. **No event-loop integration for pidfds.**
-   Exit detection relies on a `SIGCHLD` sweep with synchronous `waitid` (measured working),
-   not on readiness of the pidfd itself.
-5. **Documentation triggers**:
-   the IBM i contradiction and missing overflow caveat in `fs.watch`,
-   the FFI flag history contradiction,
-   and the IPC path "throw" wording.
-6. **No built-in BLAKE3 or xxHash**;
-   SHA-256 at 2.3 GiB/s covers the need.
+1.  **Every race-free and loss-free path runs through an experimental,
+    memory-unsafe core module.**
+    Placement before exec (`pidfd_spawnp` with `SETCGROUP`) and overflow-aware watching both need `node:ffi`,
+    Stability 1,
+    four months old,
+    whose flag default flipped in a minor release today.
+    A signature mistake crashes the daemon (`doc/api/ffi.md:15-19`).
+    The stable-API fallback exists but costs more:
+    `systemd-run --scope` per task (at least 7 ms of client and D-Bus work plus the ~10 ms attach lock,
+    full cost
+    unmeasured),
+    or a Node `process.execve` launcher (43 to 46 ms,
+    itself Stability 1) plus the lock.
+2.  **The built-in watcher loses events silently on inotify overflow.**
+    Measured 0 of 300 later modifications delivered with no error after a 16,384-event flood,
+    caused by `deps/uv/src/unix/linux.c:2617-2619`.
+    Without the FFI reader,
+    the only backstop is a periodic full rescan (the stat walk alone took 5.3 s).
+3.  **Recursive `fs.watch` on Linux is unusable at this size.**
+    41,205 watches,
+    662 ms synchronous setup,
+    243 MiB RSS;
+    the daemon must walk and watch directories itself.
+4.  **No event-loop integration for pidfds.**
+    Exit detection relies on a `SIGCHLD` sweep with synchronous `waitid` (measured working),
+    not on readiness of the pidfd itself.
+5.  **Documentation triggers**:
+    the IBM i contradiction and missing overflow caveat in `fs.watch`,
+    the FFI flag history contradiction,
+    and the IPC path "throw" wording.
+6.  **No built-in BLAKE3 or xxHash**;
+    SHA-256 at 2.3 GiB/s covers the need.
 
 ## Option 2: TypeScript on Bun
 
@@ -888,33 +888,33 @@ Triggers:
 Ranked by severity,
 most severe first.
 
-1. **Version trap with correctness loss on either side.**
-   The pinned 1.3.14 silently ignores `cgroup` (sandbox off without an error)
-   and its `fs.watch` delivers 1 of 100 distinct same-directory writes;
-   the fixes and native placement exist only in the Rust rewrite the repository explicitly distrusts,
-   released four weeks ago,
-   and none of those fixes were probed here.
-2. **On 1.3.14 every workaround stacks experimental pieces.**
-   Placement and watching need `bun:ffi` ("Do not rely on it in production"),
-   there are no asynchronous FFI calls,
-   and moving blocking calls off-thread needs Workers,
-   also experimental.
-3. **Repository policy conflict.**
-   A long-running daemon as a Bun island contradicts `AP4`,
-   `XRT`,
-   and `build-execution.md`,
-   and `CM3` already bans `bun test` after a test-harness misreport under Bun.
-4. **Native socket API loses data unless the caller buffers**
-   (72.2 percent lost in the fan-out probe);
-   `node:net` must be used instead.
-5. **Watcher scale and signal ambiguity even on 1.4.2.**
-   No `ignore` (100,532 watches recursively),
-   and overflow arrives as a null filename that also has other meanings.
-6. **Node-compat drift**:
-   signed `statfs().type`,
-   `getHashes()` omitting working algorithms,
-   and documentation that describes a different
-   version.
+1.  **Version trap with correctness loss on either side.**
+    The pinned 1.3.14 silently ignores `cgroup` (sandbox off without an error)
+    and its `fs.watch` delivers 1 of 100 distinct same-directory writes;
+    the fixes and native placement exist only in the Rust rewrite the repository explicitly distrusts,
+    released four weeks ago,
+    and none of those fixes were probed here.
+2.  **On 1.3.14 every workaround stacks experimental pieces.**
+    Placement and watching need `bun:ffi` ("Do not rely on it in production"),
+    there are no asynchronous FFI calls,
+    and moving blocking calls off-thread needs Workers,
+    also experimental.
+3.  **Repository policy conflict.**
+    A long-running daemon as a Bun island contradicts `AP4`,
+    `XRT`,
+    and `build-execution.md`,
+    and `CM3` already bans `bun test` after a test-harness misreport under Bun.
+4.  **Native socket API loses data unless the caller buffers**
+    (72.2 percent lost in the fan-out probe);
+    `node:net` must be used instead.
+5.  **Watcher scale and signal ambiguity even on 1.4.2.**
+    No `ignore` (100,532 watches recursively),
+    and overflow arrives as a null filename that also has other meanings.
+6.  **Node-compat drift**:
+    signed `statfs().type`,
+    `getHashes()` omitting working algorithms,
+    and documentation that describes a different
+    version.
 
 ## Option 3: TypeScript on Deno
 
@@ -1200,35 +1200,35 @@ Triggers:
 Ranked by severity,
 most severe first.
 
-1. **The built-in watcher cannot serve this repository.**
-   Recursive mode cannot prune `node_modules` (100,532 watches) and blocked the JS thread for 131 seconds;
-   many directory watches cost 657 ms per 10 writes at 5,480 directories.
-   A hand-written FFI inotify reader is mandatory,
-   not optional.
-2. **Asynchronous FFI starves the runtime's own file I/O.**
-   40 pending nonblocking calls stalled `Deno.readTextFile` for 1.9 seconds (32-thread cap).
-   The daemon must hand-write a `poll(2)` reactor over FFI for task pipes and inotify,
-   in addition to FFI spawn and FFI ioctls.
-3. **Most platform work lives outside Deno's API surface.**
-   No cgroup or pre-exec spawn hook,
-   no `execve`,
-   no fd access,
-   and `FICLONE_FORCE` silently ignored,
-   so spawn,
-   streams,
-   watching,
-   and btrfs all go through raw libc bindings.
-4. **The permission model is defeated.**
-   `/proc` and `/sys` access requires `-A`,
-   contrary to the documented symlink-only rule.
-5. **Repository fit.**
-   No Deno precedent for tools,
-   Node-only type configuration,
-   and file-enforcer resolution that depends on the working
-   directory.
-6. **Documentation contradictions** on permissions,
-   `copyFile` flags,
-   and `watchFs` recursion.
+1.  **The built-in watcher cannot serve this repository.**
+    Recursive mode cannot prune `node_modules` (100,532 watches) and blocked the JS thread for 131 seconds;
+    many directory watches cost 657 ms per 10 writes at 5,480 directories.
+    A hand-written FFI inotify reader is mandatory,
+    not optional.
+2.  **Asynchronous FFI starves the runtime's own file I/O.**
+    40 pending nonblocking calls stalled `Deno.readTextFile` for 1.9 seconds (32-thread cap).
+    The daemon must hand-write a `poll(2)` reactor over FFI for task pipes and inotify,
+    in addition to FFI spawn and FFI ioctls.
+3.  **Most platform work lives outside Deno's API surface.**
+    No cgroup or pre-exec spawn hook,
+    no `execve`,
+    no fd access,
+    and `FICLONE_FORCE` silently ignored,
+    so spawn,
+    streams,
+    watching,
+    and btrfs all go through raw libc bindings.
+4.  **The permission model is defeated.**
+    `/proc` and `/sys` access requires `-A`,
+    contrary to the documented symlink-only rule.
+5.  **Repository fit.**
+    No Deno precedent for tools,
+    Node-only type configuration,
+    and file-enforcer resolution that depends on the working
+    directory.
+6.  **Documentation contradictions** on permissions,
+    `copyFile` flags,
+    and `watchFs` recursion.
 
 ## Cross-option comparison
 

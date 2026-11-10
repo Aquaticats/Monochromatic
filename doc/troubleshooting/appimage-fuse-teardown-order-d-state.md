@@ -218,33 +218,33 @@ the server's `exe` points at the AppImage file itself and its `STAT` carries `s`
 
 Catalog of teardown orders:
 
-1. Payload first,
-    server left alone:
-    clean.
-   Every process,
-    including the server,
-    exits within eight seconds;
-   the mount disappears;
-   no escalation needed.
-2. Payload first,
-    then a redundant `kill` naming the server:
-    clean.
-   The server is already gone,
-    so the second `kill` reports `No such process`.
-3. Server first,
-    payload still running:
-    wedges.
-   The payload enters `D`,
-    ignores further `SIGTERM`,
-    and needs `SIGKILL`.
-4. One `kill -TERM` naming both:
-    wedges.
-   This is the shape that produced the recorded symptom,
-    because the server won the race.
-5. `SIGKILL` to the payload after the mount is already gone:
-    works,
-    with a delay.
-   All processes were gone four seconds later.
+1.  Payload first,
+     server left alone:
+     clean.
+    Every process,
+     including the server,
+     exits within eight seconds;
+    the mount disappears;
+    no escalation needed.
+2.  Payload first,
+     then a redundant `kill` naming the server:
+     clean.
+    The server is already gone,
+     so the second `kill` reports `No such process`.
+3.  Server first,
+     payload still running:
+     wedges.
+    The payload enters `D`,
+     ignores further `SIGTERM`,
+     and needs `SIGKILL`.
+4.  One `kill -TERM` naming both:
+     wedges.
+    This is the shape that produced the recorded symptom,
+     because the server won the race.
+5.  `SIGKILL` to the payload after the mount is already gone:
+     works,
+     with a delay.
+    All processes were gone four seconds later.
 
 Post-teardown state checks that passed after the clean order:
 
@@ -306,32 +306,32 @@ Nothing to file.
  Default policy is not to file,
  and two constraints fail outright.
 
-1. Is it really upstream's fault?
-   No.
-   The trigger was signalling the process that serves the mount a live process still executes from.
-   The runtime's documented direction of teardown,
-   payload exit closing `keepalive_pipe[0]` and the server signalling itself at `src/runtime.c:148`,
-   worked exactly as written when used.
-2. Can upstream fix it?
-   Plausibly,
-   by having the server ignore `SIGTERM` or forward it to the payload before unmounting.
-   Not reached,
-   because constraint 1 already fails.
-3. Are they supporting this use case?
-   No.
-   `README.md:100` at `effcebc` documents killing only the `--appimage-mount` inspection mode,
-   which never runs a payload.
-   No documented flow covers signalling the server of a running application.
-4. Would the repo welcome our contribution?
-   Unresolved and not needed.
-   `CONTRIBUTING.md` at `effcebc` welcomes issues and pull requests,
-   states no position on AI-assisted reports,
-   and that commit has no issue templates.
-5. Will they likely fix it?
-   No signal either way.
-   The runtime commit under test dates from 2019,
-   and no tracker search was run because constraints 1 and 3 already decide the outcome.
-6. Have we prototyped a minimal fix?
-   No.
-   The prototype obligation triggers only when constraints 1 through 5 hold or sorta-hold,
-   and constraints 1 and 3 fail here.
+1.  Is it really upstream's fault?
+    No.
+    The trigger was signalling the process that serves the mount a live process still executes from.
+    The runtime's documented direction of teardown,
+    payload exit closing `keepalive_pipe[0]` and the server signalling itself at `src/runtime.c:148`,
+    worked exactly as written when used.
+2.  Can upstream fix it?
+    Plausibly,
+    by having the server ignore `SIGTERM` or forward it to the payload before unmounting.
+    Not reached,
+    because constraint 1 already fails.
+3.  Are they supporting this use case?
+    No.
+    `README.md:100` at `effcebc` documents killing only the `--appimage-mount` inspection mode,
+    which never runs a payload.
+    No documented flow covers signalling the server of a running application.
+4.  Would the repo welcome our contribution?
+    Unresolved and not needed.
+    `CONTRIBUTING.md` at `effcebc` welcomes issues and pull requests,
+    states no position on AI-assisted reports,
+    and that commit has no issue templates.
+5.  Will they likely fix it?
+    No signal either way.
+    The runtime commit under test dates from 2019,
+    and no tracker search was run because constraints 1 and 3 already decide the outcome.
+6.  Have we prototyped a minimal fix?
+    No.
+    The prototype obligation triggers only when constraints 1 through 5 hold or sorta-hold,
+    and constraints 1 and 3 fail here.

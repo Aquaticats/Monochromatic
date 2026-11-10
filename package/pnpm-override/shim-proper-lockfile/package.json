@@ -3,7 +3,7 @@
   "name": "@monochromatic-dev/pnpm-override-shim-proper-lockfile",
   "description": "API-compatible shim for proper-lockfile; implements lockSync/lock via node:fs.mkdirSync atomic-dir locking. Replaces the abandoned upstream consumed by @earendil-works/pi-coding-agent's auth-storage and settings-manager modules.",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "main": "./index.cjs",
   "types": "./index.d.cts",
   "exports": {
@@ -19,6 +19,8 @@
   ],
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {},

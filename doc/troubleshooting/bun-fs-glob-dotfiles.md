@@ -109,23 +109,23 @@ prevents dot-file matching even with literal dot prefixes.
 
 ### Why this has not been widely reported
 
-1. `fs.glob` only stabilised in Node.
-   js v22.17.0 (June 2025):
-   most projects still use third-party packages.
-2. Third-party glob packages dominate:
-    `glob` (312M/week),
-   `fast-glob` (102M/week),
-    `tinyglobby` (77M/week) as of
-   March 2026.
-3. Bun's `fs.glob` has only 4 commits since its introduction in
-   January 2025;
-    the community is still finding more fundamental
-   compat gaps (`withFileTypes` missing,
-    directory matching
-   broken,
-    array patterns broken).
-4. The intersection of Bun users who use `fs.glob` and need
-   dot-file matching is nearly zero.
+1.  `fs.glob` only stabilised in Node.
+    js v22.17.0 (June 2025):
+    most projects still use third-party packages.
+2.  Third-party glob packages dominate:
+     `glob` (312M/week),
+    `fast-glob` (102M/week),
+     `tinyglobby` (77M/week) as of
+    March 2026.
+3.  Bun's `fs.glob` has only 4 commits since its introduction in
+    January 2025;
+     the community is still finding more fundamental
+    compat gaps (`withFileTypes` missing,
+     directory matching
+    broken,
+     array patterns broken).
+4.  The intersection of Bun users who use `fs.glob` and need
+    dot-file matching is nearly zero.
 
 ## Verification
 
@@ -178,7 +178,7 @@ Two files used `Bun.Glob`:
    matches named directories only
   (`package/*/*/dist/final`);
    no dot-file concern.
-   **Migrated**
+   Migrated
   to `node:fs/promises` glob.
 
 `package/file-enforcer/core/src/io/glob.ts` was removed on 2026-10-31 in `e7b5130459` (feat(*):
@@ -290,25 +290,25 @@ entries at all,
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the missing `dot:
-   true` in the bridge is a code defect.
-2. **Can upstream fix it?
-   ** Yes;
-    a one-line change to the bridge
-   options.
-3. **Are they supporting this use case?
-   ** Yes;
-    `node:fs/promises`
-   glob compatibility is an explicit Bun goal.
-4. **Will they likely fix it?
-   ** Bun has merged similar
-   one-line compatibility patches quickly in recent releases.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    the patch is
-   in-line above and trivially testable.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the missing `dot:
+    true` in the bridge is a code defect.
+2.  **Can upstream fix it?
+    ** Yes;
+     a one-line change to the bridge
+    options.
+3.  **Are they supporting this use case?
+    ** Yes;
+     `node:fs/promises`
+    glob compatibility is an explicit Bun goal.
+4.  **Will they likely fix it?
+    ** Bun has merged similar
+    one-line compatibility patches quickly in recent releases.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     the patch is
+    in-line above and trivially testable.
 
 The issue is filed at oven-sh/bun#28021 and includes the source
 locations and patch.

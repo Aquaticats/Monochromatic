@@ -116,91 +116,91 @@ Status words:
 
 ### Locks
 
-1. `src/native/service_index_attempts.rs` `wait_and_place` (landing waits for a foreign `index.lock`).
-   Waits for the lock to go;
-   ended today by release or a dead owner (a PID file naming a gone process),
-   nothing else.
-   Bound:
-   `LOCK_CEILING`.
-   At the bound:
-   the batch is withdrawn before the branch moved,
-   the built commit is kept on a side ref,
-   the client exits non-zero naming the holder and the command to run again.
-   Built.
-2. `src/native/index_holder_wait.rs:119` `wait_for_index_release` (a merge waits for any `index.lock`).
-   Ended by release or a dead owner.
-   Bound:
-   `LOCK_CEILING`.
-   At the bound:
-   the merge stops,
-   nothing changed,
-   non-zero,
-   naming
-   the holder.
-   Built.
-3. `src/native/service_index_wait.rs:162` `wait_for_service_hold` (a forwarded `git add`,
-   `rm` or `mv` waits for the service's
-   hold).
-   Ended by release,
-   a mark naming a gone holder,
-   or a hold of `UNASKABLE_HOLD_AGE` whose holder cannot be asked about.
-   Bound:
-   `SERVICE_HOLD_CEILING`.
-   At the bound:
-   the command runs and reports what Git says.
-   Built.
-4. `src/native/service_land_follow.rs:157` `update_index` (index reconciliation of a commit with no change left),
-   through
-   `wait_for_index_release_here`.
-   Bound:
-   the bound of entry 2.
-   At the bound:
-   the command ends,
-   non-zero as it always does.
-   Built.
-5. `src/native/service_hold_retry.rs:103` `run_again_while_service_holds` (up to `ATTEMPTS` 50 reruns,
-   each preceded by entry 3).
-   Bounded by count,
-   not by time:
-   the worst case is 50 times the bound of entry 3.
-   Proposed bound:
-   one deadline over the whole
-   loop,
-   `SERVICE_HOLD_CEILING`.
-   Built.
-6. `src/native/service_index_lock.rs:97` `try_acquire` and `src/native/index_reset_support.rs:209`:
-   one attempt,
-   no wait.
-   Bounded.
-7. Reference locks:
-   `src/native/auto_push.rs:46` `PUSH_LOCK_RETRIES` 3 with `PUSH_LOCK_PAUSE` 250 ms;
-   the stale lock judges
-   (`stale_ref_lock_*.rs`) read and decide without waiting.
-   Bounded.
-8. Lane and owner locks:
-   `src/native/worktree_convert_journal.rs:290` uses `flock(LOCK_EX | LOCK_NB)`,
-   which never waits.
-   The discard audit appends (`discard_audit.rs:335`) loop only on an interrupted write.
-   Bounded.
+1.  `src/native/service_index_attempts.rs` `wait_and_place` (landing waits for a foreign `index.lock`).
+    Waits for the lock to go;
+    ended today by release or a dead owner (a PID file naming a gone process),
+    nothing else.
+    Bound:
+    `LOCK_CEILING`.
+    At the bound:
+    the batch is withdrawn before the branch moved,
+    the built commit is kept on a side ref,
+    the client exits non-zero naming the holder and the command to run again.
+    Built.
+2.  `src/native/index_holder_wait.rs:119` `wait_for_index_release` (a merge waits for any `index.lock`).
+    Ended by release or a dead owner.
+    Bound:
+    `LOCK_CEILING`.
+    At the bound:
+    the merge stops,
+    nothing changed,
+    non-zero,
+    naming
+    the holder.
+    Built.
+3.  `src/native/service_index_wait.rs:162` `wait_for_service_hold` (a forwarded `git add`,
+    `rm` or `mv` waits for the service's
+    hold).
+    Ended by release,
+    a mark naming a gone holder,
+    or a hold of `UNASKABLE_HOLD_AGE` whose holder cannot be asked about.
+    Bound:
+    `SERVICE_HOLD_CEILING`.
+    At the bound:
+    the command runs and reports what Git says.
+    Built.
+4.  `src/native/service_land_follow.rs:157` `update_index` (index reconciliation of a commit with no change left),
+    through
+    `wait_for_index_release_here`.
+    Bound:
+    the bound of entry 2.
+    At the bound:
+    the command ends,
+    non-zero as it always does.
+    Built.
+5.  `src/native/service_hold_retry.rs:103` `run_again_while_service_holds` (up to `ATTEMPTS` 50 reruns,
+    each preceded by entry 3).
+    Bounded by count,
+    not by time:
+    the worst case is 50 times the bound of entry 3.
+    Proposed bound:
+    one deadline over the whole
+    loop,
+    `SERVICE_HOLD_CEILING`.
+    Built.
+6.  `src/native/service_index_lock.rs:97` `try_acquire` and `src/native/index_reset_support.rs:209`:
+    one attempt,
+    no wait.
+    Bounded.
+7.  Reference locks:
+    `src/native/auto_push.rs:46` `PUSH_LOCK_RETRIES` 3 with `PUSH_LOCK_PAUSE` 250 ms;
+    the stale lock judges
+    (`stale_ref_lock_*.rs`) read and decide without waiting.
+    Bounded.
+8.  Lane and owner locks:
+    `src/native/worktree_convert_journal.rs:290` uses `flock(LOCK_EX | LOCK_NB)`,
+    which never waits.
+    The discard audit appends (`discard_audit.rs:335`) loop only on an interrupted write.
+    Bounded.
 
 ### The commit service, client side
 
-9. `src/native/service_client.rs:416` `submit_loop` (the client waits for the answer,
-   with heartbeats).
-   Ended by an answer,
-   a silence of `HEARTBEAT_SILENCE`,
-   or a close;
-   nothing ends it while the service keeps sending.
-   Bound:
-   `ANSWER_CEILING`.
-   At the bound:
-   the client withdraws the request (below),
-   exits non-zero naming what the service was
-   waiting for when it could tell,
-   with the side ref and the command to run again;
-   if the request had landed,
-   success.
-   Built.
+9.  `src/native/service_client.rs:416` `submit_loop` (the client waits for the answer,
+    with heartbeats).
+    Ended by an answer,
+    a silence of `HEARTBEAT_SILENCE`,
+    or a close;
+    nothing ends it while the service keeps sending.
+    Bound:
+    `ANSWER_CEILING`.
+    At the bound:
+    the client withdraws the request (below),
+    exits non-zero naming what the service was
+    waiting for when it could tell,
+    with the side ref and the command to run again;
+    if the request had landed,
+    success.
+    Built.
 10. `src/native/service_client.rs:220` `reach` with a manager watch (waits for the service to start).
     Ended by a greeting or two `failed` answers of the manager;
     nothing else.
@@ -2306,3 +2306,105 @@ B "still lacks a valid safety proof").
   `fast-import` and the other steps that cannot run twice,
   which
   the clients behind them are told about after `NEVER_ENDED_STEP_SLOW_AFTER` and which end for each client at its own `ANSWER_CEILING`.
+
+## The watch and the wait for the output on one deadline, 2026-11-09T22:53:51-05:00
+
+The release gate on `cfce0bc84e`
+(`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-cfce0bc84e-20261109T215524-0500.log`)
+failed `push::child_watch::tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling`
+once in 6,909,
+asserting `is_ceiling(&error)` over this sentence:
+
+```text
+a quiet step ran for 0 seconds, the longest the wrapper lets one step run, and was ended. Its watch could not end
+it: nothing proved which process to stop. Hint: check with `ps` what the step waits for, and run the command again.
+```
+
+Nothing in that control refused the watch anything,
+so the reason it gave was false,
+and the error was not a `CeilingReached`.
+
+### The cause, measured
+
+`push/child_watch.rs` gave the watch the step's ceiling (`ChildWatch::within`)
+and gave the wait for the step's output the same ceiling as its backstop
+(`carried_for`),
+measured from the same moment in all but the microseconds
+between the begin mark and the read.
+Both run on the process's runtime,
+the watch as a task,
+so whichever was scheduled first won,
+and a watch that was a little late was passed by the backstop that exists for it.
+
+The watch writes a due notice before it judges the ceiling,
+and that write runs on the blocking pool,
+so the notice is one measured place the watch is held back:
+`a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling`
+holds it there,
+deterministically and with no load on the host,
+and the wait then reaches the deadline first.
+That control failed on the code before the fix in 0.79 s with the sentence above,
+and passes in 19.9 s after it.
+
+What the wrong answer cost,
+beyond the control:
+
+- A step that may be run again (`transaction_git.rs`,
+  `transaction_git_awaiting.rs`) was run again after a ceiling it had already
+  met,
+  which doubles the wait for a step that is too slow and tells the person
+  it "showed no sign of work",
+  which it had not.
+- The landing (`landing/service_land_git_steps_and_import_stream.rs`) answered
+  `Unavailable` instead of `StepTooSlow`,
+  so the commit the landing had built was
+  not kept on `refs/cli-git/kept/<n>`,
+  the step was not named,
+  and the scratch
+  ref holding that commit was removed.
+  That is the case to look at first:
+  a step
+  that may not be repeated loses the record of what it built when its ending is
+  misread.
+
+### The fix
+
+Three changes,
+each with a control:
+
+- The wait's backstop is the ceiling plus `THE_WATCH_HAS_ITS_ENDING`,
+  which is
+  `WATCHER_END_BOUND`:
+  the bound the drop of a watch already gives its task,
+  itself the owner's "3x worst case" over the 6.03 s delay measured here plus a
+  second,
+  24 times the 41.68 ms tail measured after the kill
+  (`foundation/worst_delay_seen_on_this_host.rs`,
+  `push/child_watch_running_task.rs`).
+  A wait that is only the backstop never
+  takes the ending from a watch that is still at it.
+- Only a watch whose pin proves which process to stop gets that room.
+  A watch
+  that can signal nothing (`Pinned::Unproven`) and one that never started leave
+  the whole ending to the wait,
+  at the ceiling itself,
+  with the sentences that
+  say so.
+  `ChildWatch::what_watches_the_step` is the one place that answers
+  which of the three it is (`TheWatchOfAStep`).
+- The error of a step the wait ends at that ceiling is the ceiling's own when a
+  watch was what should have ended it,
+  and the wait's sentence when nothing
+  could:
+  `CarriedCeiling::ending`.
+  A watch that proved no process ends nothing,
+  so neither of its two readings (`ceiling_hit`,
+  `expired`) is taken as the
+  step's ending (`ending_of_a_watched_step`).
+
+No wait became unbounded:
+the backstop is still a deadline,
+later by one
+measured bound.
+`only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling` pins
+the three backstops.

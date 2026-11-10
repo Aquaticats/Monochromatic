@@ -24,7 +24,9 @@ export type LineIndexOfParams = {
  Routes resolve anchors and bracket bases by line index, so every offset
  lookup funnels through here instead of rescanning the text.
  
- @param params - ascending line-start offsets and target offset
+ @param lineStarts - offset where each source line begins, ascending
+ 
+ @param offset - target source offset whose line is wanted
  
  @returns index of the last line whose start is at or before `offset`
  
@@ -37,9 +39,18 @@ export function lineIndexOf({
   lineStarts,
   offset,
 }: LineIndexOfParams,): number {
+  /**
+   Low end of the search span; the first line index still reachable.
+   */
   let low = 0;
+  /**
+   High end of the search span; the last line index still reachable.
+   */
   let high = lineStarts.length - 1;
   while (low < high) {
+    /**
+     Line index probed this round; the ceiling halves the remaining span.
+     */
     const middle = Math.ceil((low + high) / 2);
     if (at({
       arr: lineStarts,
@@ -57,23 +68,33 @@ export function lineIndexOf({
 // Bracket and suffix-keyword classification for line-leading tokens.
 
 /**
+ Close bracket text paired with each open bracket punctuator.
+ 
+ One table answers both questions the model asks of a punctuator: which
+ brackets exist, and which close bracket an open one pairs with.
+ */
+const CLOSE_BRACKET_BY_OPEN_VALUE: Readonly<Record<string, string>> = {
+  '(': ')',
+  '[': ']',
+  '{': '}',
+};
+
+/**
+ Close brace text a declaration body ends with, whose brace then bases on the
+ declaration's own line instead of on the brace itself.
+ */
+const CLOSE_BRACE_VALUE = '}';
+
+/**
  Punctuator values opening a bracket frame whose closer returns to the
  frame's base line.
  */
-const OPEN_BRACKET_VALUES = new Set([
-  '(',
-  '[',
-  '{',
-]);
+const OPEN_BRACKET_VALUES = new Set(Object.keys(CLOSE_BRACKET_BY_OPEN_VALUE,),);
 
 /**
  Punctuator values closing a bracket frame opened earlier.
  */
-const CLOSE_BRACKET_VALUES = new Set([
-  ')',
-  ']',
-  '}',
-]);
+const CLOSE_BRACKET_VALUES = new Set(Object.values(CLOSE_BRACKET_BY_OPEN_VALUE,),);
 
 /**
  Decides whether a token opens a bracket frame.
@@ -124,20 +145,15 @@ export function isCloseBracketToken(token: ExpectationToken,): boolean {
  ```
  */
 export function closeValueOfOpenBracket(openValue: string,): string {
-  switch (openValue) {
-    case '(': {
-      return ')';
-    }
-    case '[': {
-      return ']';
-    }
-    case '{': {
-      return '}';
-    }
-    default: {
-      throw new Error(`Not an open bracket: ${openValue}`,);
-    }
+  /**
+   Close bracket text paired with `openValue`; absent when the text is not an
+   open bracket punctuator.
+   */
+  const closeValue = CLOSE_BRACKET_BY_OPEN_VALUE[openValue];
+  if (closeValue === undefined) {
+    throw new Error(`Not an open bracket: ${openValue}`,);
   }
+  return closeValue;
 }
 
 /**
@@ -155,7 +171,9 @@ export type IsSuffixKeywordTokenParams = {
  The owning node kind disambiguates keywords from same-text identifiers, so
  property names and member accesses never take the suffix route.
  
- @param params - candidate token and owning node kind
+ @param token - candidate token
+ 
+ @param ownerType - node kind of the record owning the token
  
  @returns whether the token aligns with its statement line instead of indenting
  
@@ -211,7 +229,13 @@ export type AnchorLineIndexOfParams = {
  anchor at their statement. `Program` means source-rooted content, anchored
  at no line.
  
- @param params - records, collapsed owner record index, and checked line
+ @param records - pre-order records the anchor search walks
+ 
+ @param recordIndex - collapsed owner record of the line-leading token
+ 
+ @param lineIndex - zero-based index of the checked line
+ 
+ @param lineStarts - offset where each source line begins, ascending
  
  @returns anchor line index, or `-1` for source-rooted content
  
@@ -226,11 +250,21 @@ export function anchorLineIndexOf({
   lineIndex,
   lineStarts,
 }: AnchorLineIndexOfParams,): number {
-  let current = effectiveRecordIndexOf({
-    records,
-    recordIndex,
-  },);
-  while (current >= 0) {
+  for (
+    let current = effectiveRecordIndexOf({
+      records,
+      recordIndex,
+    },);
+    current >= 0;
+    current = effectiveRecordIndexOf({
+      records,
+      recordIndex: at({
+        arr: records,
+        index: current,
+      },)
+        .parentIndex,
+    },)
+  ) {
     /**
      Candidate ancestor record; its start line decides anchor or step-up.
      */
@@ -250,13 +284,8 @@ export function anchorLineIndexOf({
       offset: record.node
         .start,
     },);
-    if (recordLine >= lineIndex) {
-      current = effectiveRecordIndexOf({
-        records,
-        recordIndex: record.parentIndex,
-      },);
+    if (recordLine >= lineIndex)
       continue;
-    }
     if (!BODY_KINDS.has(record.node
       .type))
       return recordLine;
@@ -311,7 +340,19 @@ export type BracketBaseLineIndexOfParams = {
  directly by a closing construct (class, interface, enum, switch) use the
  construct's line, so closers never outdent past their statement.
  
- @param params - records, collapsed owner of the open token, and its position
+ @param sourceText - full file text, read for the owner's final character
+ 
+ @param records - pre-order records the owner lookup reads
+ 
+ @param ownerRecordIndex - owner record of the open bracket token
+ 
+ @param openValue - open bracket punctuator text
+ 
+ @param openOffset - source offset where the open bracket starts
+ 
+ @param openLine - line index carrying the open bracket
+ 
+ @param lineStarts - offset where each source line begins, ascending
  
  @returns base line index for the matching closer
  
@@ -375,7 +416,7 @@ export function bracketBaseLineIndexOf({
   }
   if (
     (owner.start < openOffset)
-      && (sourceText.charCodeAt(owner.end - 1,) === 125)
+      && (sourceText.charAt(owner.end - 1,) === CLOSE_BRACE_VALUE)
   ) {
     return lineIndexOf({
       lineStarts,

@@ -21,87 +21,87 @@ summary line.
 
 ## Root cause
 
-1. The plugin keeps one process-local bridge.
-   `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/semantic-bridge-lifecycle.ts:63` declares it:
+1.  The plugin keeps one process-local bridge.
+    `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/semantic-bridge-lifecycle.ts:63` declares it:
 
-   ```ts
-   export const bridgeState: {
-     api: API | typeof NO_API;
-     ...
-     channelRetired: boolean;
-   } = {
-   ```
+    ```ts
+    export const bridgeState: {
+      api: API | typeof NO_API;
+      ...
+      channelRetired: boolean;
+    } = {
+    ```
 
-2. `getApi` creates the TypeScript 7 synchronous API once and registers a
-   process-lifetime cleanup hook (`semantic-bridge-lifecycle.ts:121` and `:143`):
+2.  `getApi` creates the TypeScript 7 synchronous API once and registers a
+    process-lifetime cleanup hook (`semantic-bridge-lifecycle.ts:121` and `:143`):
 
-   ```ts
-   const api = new API({
-     cwd: process.cwd(),
-     fs: overlayFileSystem({ overlays: bridgeState.overlays, },),
-   },);
-   ...
-   process.once(
-     'beforeExit',
-     closeSemanticBridge,
-   );
-   ```
+    ```ts
+    const api = new API({
+      cwd: process.cwd(),
+      fs: overlayFileSystem({ overlays: bridgeState.overlays, },),
+    },);
+    ...
+    process.once(
+      'beforeExit',
+      closeSemanticBridge,
+    );
+    ```
 
-3. That API talks to a native child process,
-   which the plugin reaches through
-   TypeScript's unstable channel
-   (`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/typescript-sync-native-shutdown.ts:94`):
+3.  That API talks to a native child process,
+    which the plugin reaches through
+    TypeScript's unstable channel
+    (`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/typescript-sync-native-shutdown.ts:94`):
 
-   ```ts
-   nativeApiChild(api).kill('SIGKILL');
-   ```
+    ```ts
+    nativeApiChild(api).kill('SIGKILL');
+    ```
 
-   When the child exits,
-   its pipe yields the `Unexpected EOF while reading from
-   child process` message above.
+    When the child exits,
+    its pipe yields the `Unexpected EOF while reading from
+    child process` message above.
 
-4. The first terminal failure retires the bridge for the rest of the process
-   (`semantic-bridge-lifecycle.ts:184` and `:199`):
+4.  The first terminal failure retires the bridge for the rest of the process
+    (`semantic-bridge-lifecycle.ts:184` and `:199`):
 
-   ```ts
-   export function retireSemanticBridgeAfterChannelFailure({
-     error,
-   }: {
-     readonly error: unknown;
-   },): void {
-     if (bridgeState.channelRetired)
-       return;
-     bridgeState.channelRetired = true;
-     ...
-     rl.warn(`retiring semantic bridge after terminal channel failure: ${String(error,)}`);
-   ```
+    ```ts
+    export function retireSemanticBridgeAfterChannelFailure({
+      error,
+    }: {
+      readonly error: unknown;
+    },): void {
+      if (bridgeState.channelRetired)
+        return;
+      bridgeState.channelRetired = true;
+      ...
+      rl.warn(`retiring semantic bridge after terminal channel failure: ${String(error,)}`);
+    ```
 
-   Every later request fails closed instead of starting a replacement channel
-   (`semantic-bridge-lifecycle.ts:101`):
+    Every later request fails closed instead of starting a replacement channel
+    (`semantic-bridge-lifecycle.ts:101`):
 
-   ```ts
-   if (bridgeState.channelRetired)
-     throw new SemanticBridgeError({
-       reason: 'api-unavailable',
-       message: `TypeScript ${typescriptVersion} synchronous API was retired after a terminal channel failure; this process does not start a replacement channel.`,
-     },);
-   ```
+    ```ts
+    if (bridgeState.channelRetired)
+      throw new SemanticBridgeError({
+        reason: 'api-unavailable',
+        message: `TypeScript ${typescriptVersion} synchronous API was retired after a terminal channel failure; this process does not start a replacement channel.`,
+      },);
+    ```
 
-5. The rule catches that per file and skips the file,
-   so nothing is reported
-   (`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/readonly-rule-visitor.ts:109`):
+5.  The rule catches that per file and skips the file,
+    so nothing is reported
+    (`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/readonly-rule-visitor.ts:109`):
 
-   ```ts
-   catch (error) {
-     rl.warn(
-       `semantic evidence unavailable for ${context.filename}: ${
-         error instanceof SemanticBridgeError
-           ? `${error.reason}: ${caughtValueStack(error,)}`
-           : caughtValueStack(error,)
-       }`,
-     );
-   }
-   ```
+    ```ts
+    catch (error) {
+      rl.warn(
+        `semantic evidence unavailable for ${context.filename}: ${
+          error instanceof SemanticBridgeError
+            ? `${error.reason}: ${caughtValueStack(error,)}`
+            : caughtValueStack(error,)
+        }`,
+      );
+    }
+    ```
 
 What makes the child exit is not established here.
 The measured correlation was multi-threaded runs,
@@ -233,3 +233,57 @@ Open questions for whoever owns that package:
 - Should a retired bridge make the run fail rather than report zero findings?
   Silent success after a lost channel is the failure mode this document exists
   for.
+
+## The same lost channel can also panic the lint process
+
+Recorded 2026-11-10 from a per-package run over
+`package/claude-code-plugin/claude-spawn` at main commit
+`566f36a87664d5109046e9dcadf80b3e31428972`
+(2026-11-09T23:50:05-05:00),
+with oxlint 1.92.0,
+four linted files,
+and the runner at `CPUQuota=350%`,
+`MemoryMax=24G`,
+`TasksMax=4096`.
+
+Symptom,
+ from `mise run //package/claude-code-plugin/claude-spawn:lint:oxlint`
+with the default worker count:
+
+```text
+Found 0 warnings and 0 errors.
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x8 pc=0xbf31dc]
+
+goroutine 151 [running]:
+github.com/microsoft/TypeScript/tsc/internal/project/dirty.(*SyncMapEntry[...]).ChangeIf(...)
+	github.com/microsoft/TypeScript/tsc/internal/project/dirty/syncmap.go:128 +0x3c
+```
+
+The panic is followed by the same
+`retireSemanticBridgeAfterChannelFailure` warning and one
+`semantic evidence unavailable` warning per linted file that the EOF symptom
+produces,
+so the bridge death is the same event.
+Here the TypeScript child dies while a project-collection walk is in flight,
+and the walk dereferences a map entry the dead channel never filled,
+so the native process panics instead of answering with an EOF.
+The exit status stays 0,
+which makes the run indistinguishable from a clean one in both the status and
+the summary line.
+
+Reproduction and its control,
+ measured in one session:
+
+- the default worker count panicked in both of two runs (before and after
+  merging current main).
+- `OXLINT_THREADS=1` on the same tree reported
+  `Found 0 warnings and 0 errors` with no panic,
+  and its only warning was `project-not-found` for the package's `task.ts`,
+  which sits outside the package tsconfig.
+
+The workaround at "Verified workarounds" applies unchanged:
+`OXLINT_THREADS=1 mise run <package>:lint:oxlint`.
+The panic itself still belongs to
+`package/oxlint-plugin/prefer-readonly-parameter-type`,
+whose bridge lifecycle starts the child that dies.

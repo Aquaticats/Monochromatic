@@ -41,15 +41,15 @@
 
 ## Hard constraints
 
-1. The replacement must drive the embedded `@tursodatabase/database` engine
-   that every active Turso consumer uses,
-   or provide equivalent behavior on the same data.
-2. The replacement must preserve the native full-text index surface the active packages depend on:
-   `CREATE INDEX ... USING fts`,
-   `fts_match()`,
-   `fts_score()`,
-   available only behind the engine-specific `experimental: ['index_method']` connect option
-   (`doc/troubleshooting/turso-fts5-native-fts.md`).
+1.  The replacement must drive the embedded `@tursodatabase/database` engine
+    that every active Turso consumer uses,
+    or provide equivalent behavior on the same data.
+2.  The replacement must preserve the native full-text index surface the active packages depend on:
+    `CREATE INDEX ... USING fts`,
+    `fts_match()`,
+    `fts_score()`,
+    available only behind the engine-specific `experimental: ['index_method']` connect option
+    (`doc/troubleshooting/turso-fts5-native-fts.md`).
 
 ## Base components and overlays
 
@@ -226,23 +226,23 @@ All evidence accessed 2026-07-20 unless noted.
 
 Prisma cannot connect to the database our active packages actually run:
 
-1. No first-party adapter for `@tursodatabase/database` exists
-   (adapter roster and zero-match search in the clone).
-2. No community or Turso-authored adapter exists (widened discovery above).
-3. `@prisma/adapter-libsql` wraps `@libsql/client`,
-   a different engine and client API;
-   it cannot pass the `experimental: ['index_method']` connect option,
-   which only `@tursodatabase/database.connect()` accepts.
-4. Even under a hypothetical future adapter,
-   hard constraint 2 fails:
-   Prisma's schema DSL and migration engine cannot express
-   `CREATE INDEX ... USING fts` or query through `fts_match()`/`fts_score()`;
-   every FTS touchpoint would drop to raw SQL escape hatches,
-   which removes the type-safety value an ORM migration would be buying.
-5. Independently,
-   the file-format route (pointing a SQLite-family adapter at the `done` database file)
-   fails because the schema contains `CREATE INDEX ... USING fts`,
-   which no non-Turso engine parses.
+1.  No first-party adapter for `@tursodatabase/database` exists
+    (adapter roster and zero-match search in the clone).
+2.  No community or Turso-authored adapter exists (widened discovery above).
+3.  `@prisma/adapter-libsql` wraps `@libsql/client`,
+    a different engine and client API;
+    it cannot pass the `experimental: ['index_method']` connect option,
+    which only `@tursodatabase/database.connect()` accepts.
+4.  Even under a hypothetical future adapter,
+    hard constraint 2 fails:
+    Prisma's schema DSL and migration engine cannot express
+    `CREATE INDEX ... USING fts` or query through `fts_match()`/`fts_score()`;
+    every FTS touchpoint would drop to raw SQL escape hatches,
+    which removes the type-safety value an ORM migration would be buying.
+5.  Independently,
+    the file-format route (pointing a SQLite-family adapter at the `done` database file)
+    fails because the schema contains `CREATE INDEX ... USING fts`,
+    which no non-Turso engine parses.
 
 Secondary (not needed for the exit,
 recorded for completeness):
@@ -278,11 +278,11 @@ so "migrate to Prisma Next for Turso needs" has no implementable form today.
 
 Ranking of what remains:
 
-1. Keep the incumbent `@tursodatabase/database` direct-SQL layer (only surviving candidate).
-2. Prisma ORM 7.x (exited:
-    cannot drive the incumbent engine or its FTS surface).
-3. Prisma Next (exited:
-    no SQLite-family support at all).
+1.  Keep the incumbent `@tursodatabase/database` direct-SQL layer (only surviving candidate).
+2.  Prisma ORM 7.x (exited:
+     cannot drive the incumbent engine or its FTS surface).
+3.  Prisma Next (exited:
+     no SQLite-family support at all).
 
 Prisma 7.x ranks above Prisma Next because 7.x at least has an Early Access path
 to libSQL-flavored Turso,

@@ -676,34 +676,34 @@ found no issue that matched this version,
 stack,
 and host-GPU workaround.
 
-1. **Really upstream's fault:**
-    not established.
-   The crashing code is packaged with Android Emulator,
-   but the exact 37.1.11 source revision and the role of Fedora 44's host stack are unknown.
-2. **Upstream can fix it:**
-    yes if the defect reproduces in Google's matching build environment.
-   They can update SwiftShader or alter software-renderer selection.
-3. **Supported use case:**
-    yes.
-   The emulator help advertises `-no-window` and `swiftshader_indirect`,
-   and the release notes describe Linux software rendering.
-4. **Contribution welcome:**
-    bug reports are welcome.
-   The [Android bug-report guide][report-bugs] requests emulator version,
-   host CPU,
-   device configuration,
-   diagnostics,
-   and reproduction steps.
-   No AI-assistance ban was found in the public mirror's `README.md` or the reporting guide.
-5. **Likely fix:**
-    unknown.
-   No matching tracker signal was found.
-6. **Minimal fix prototyped:**
-    no.
-   The installed binary is stripped,
-   public emulator source predates build `15917651`,
-   and no source revision maps to the crashing packaged SwiftShader library.
-   A source patch would therefore target an unverified candidate rather than this incident.
+1.  **Really upstream's fault:**
+     not established.
+    The crashing code is packaged with Android Emulator,
+    but the exact 37.1.11 source revision and the role of Fedora 44's host stack are unknown.
+2.  **Upstream can fix it:**
+     yes if the defect reproduces in Google's matching build environment.
+    They can update SwiftShader or alter software-renderer selection.
+3.  **Supported use case:**
+     yes.
+    The emulator help advertises `-no-window` and `swiftshader_indirect`,
+    and the release notes describe Linux software rendering.
+4.  **Contribution welcome:**
+     bug reports are welcome.
+    The [Android bug-report guide][report-bugs] requests emulator version,
+    host CPU,
+    device configuration,
+    diagnostics,
+    and reproduction steps.
+    No AI-assistance ban was found in the public mirror's `README.md` or the reporting guide.
+5.  **Likely fix:**
+     unknown.
+    No matching tracker signal was found.
+6.  **Minimal fix prototyped:**
+     no.
+    The installed binary is stripped,
+    public emulator source predates build `15917651`,
+    and no source revision maps to the crashing packaged SwiftShader library.
+    A source patch would therefore target an unverified candidate rather than this incident.
 
 Decision:
 do not file the draft as-is.

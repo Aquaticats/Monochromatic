@@ -10,6 +10,7 @@
  @module
  */
 
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Logger
@@ -38,6 +39,11 @@ const l = tagged({
  leave a real 60 s tail for the Linkup and Exa fallback hops.
  */
 export const WHOLE_CALL_DEADLINE_MILLISECONDS = 120_000;
+
+/**
+ Default budget in whole seconds, the unit the diagnostic names it by.
+ */
+const WHOLE_CALL_DEADLINE_SECONDS = WHOLE_CALL_DEADLINE_MILLISECONDS / MS_PER_SECOND;
 
 //endregion Constants
 
@@ -76,7 +82,7 @@ export class WholeCallDeadlineError extends Error {
     super(
       `The Search Fetch ${operation} call exceeded its whole-call deadline of ${
         String(deadlineMs)
-      } ms (${String(WHOLE_CALL_DEADLINE_MILLISECONDS / 1_000)} s by default). The whole-call deadline bounds one complete call, including every fallback hop, and no caller signal extends it.`,
+      } ms (${String(WHOLE_CALL_DEADLINE_SECONDS)} s by default). The whole-call deadline bounds one complete call, including every fallback hop, and no caller signal extends it.`,
     );
     this.name = 'WholeCallDeadlineError';
     this.deadlineMs = deadlineMs;

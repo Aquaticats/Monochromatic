@@ -18,6 +18,7 @@ import {
 
 import { runCommand, } from './command.ts';
 import { expect, } from './errors.ts';
+import { numbersBelow, } from './numbers-below.ts';
 
 /**
  Bytes per pixel in the raw RGB data that ImageMagick writes.
@@ -273,24 +274,53 @@ export function diffBox(
     readonly b: Image;
   },
 ): Difference {
-  /**
-   Width of the shared area.
-   */
-  const width = Math.min(
-    a.width,
-    b.width,
-  );
+  return diffBoxWithin({
+    a,
+    b,
+    area: {
+      x: 0,
+      y: 0,
+      width: Math.min(
+        a.width,
+        b.width,
+      ),
+      height: Math.min(
+        a.height,
+        b.height,
+      ),
+    },
+  },);
+}
 
+/**
+ Counts the pixels of a rectangle for which a test holds, and bounds the ones it holds for. One walk serves every
+ rectangle the screenshot helpers read.
+ 
+ @param area - the rectangle to walk, which both images must contain
+ 
+ @param matches - the test, given a column and a row of the rectangle
+ 
+ @returns the count, and the bounding box of the pixels the test holds for when the count is not zero
+ 
+ @example
+ ```ts
+ pixelsMatchingInBox({ area: box, matches: function differsAt(x, y) { return pixelDiffers({ a, b, x, y },); }, },);
+ ```
+ */
+function pixelsMatchingInBox(
+  {
+    area,
+    matches,
+  }: {
+    readonly area: Box;
+    readonly matches: (
+      x: number,
+      y: number
+    ) => boolean;
+  },
+): Difference {
   /**
-   Height of the shared area.
-   */
-  const height = Math.min(
-    a.height,
-    b.height,
-  );
-
-  /**
-   Running count and bounds of the differing pixels, in a one-slot holder.
+   Running count and bounds in a one-slot holder.
    */
   const found = {
     count: 0,
@@ -299,32 +329,52 @@ export function diffBox(
     maxX: -1,
     maxY: -1,
   };
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++)
-      if (pixelDiffers({
-        a,
-        b,
+
+  /**
+   The rectangle's edges.
+   */
+  const {
+    x: left,
+    y: top,
+    width,
+    height,
+  } = area;
+
+  for (const rowOffset of numbersBelow(height,)) {
+    /**
+     Row the walk is on.
+     */
+    const y = top + rowOffset;
+    // A walk of the columns starts over for each row, because one walk is read once.
+    for (const columnOffset of numbersBelow(width,)) {
+      /**
+       Column the walk is on.
+       */
+      const x = left + columnOffset;
+      if (!matches(
         x,
         y,
-      },)) {
-        found.count++;
-        found.minX = Math.min(
-          found.minX,
-          x,
-        );
-        found.minY = Math.min(
-          found.minY,
-          y,
-        );
-        found.maxX = Math.max(
-          found.maxX,
-          x,
-        );
-        found.maxY = Math.max(
-          found.maxY,
-          y,
-        );
-      }
+      ))
+        continue;
+      found.count++;
+      found.minX = Math.min(
+        found.minX,
+        x,
+      );
+      found.minY = Math.min(
+        found.minY,
+        y,
+      );
+      found.maxX = Math.max(
+        found.maxX,
+        x,
+      );
+      found.maxY = Math.max(
+        found.maxY,
+        y,
+      );
+    }
+  }
   if (found.maxX < 0)
     return { count: found.count, };
   return {
@@ -416,30 +466,21 @@ export function differencesWithin(
     readonly box: Box;
   },
 ): number {
-  /**
-   Running count in a one-slot holder.
-   */
-  const found = { count: 0, };
-
-  /**
-   The rectangle's edges.
-   */
-  const {
-    x: left,
-    y: top,
-    width,
-    height,
-  } = box;
-  for (let y = top; y < (top + height); y++)
-    for (let x = left; x < (left + width); x++)
-      if (pixelDiffers({
+  return pixelsMatchingInBox({
+    area: box,
+    matches: function differsAt(
+      x: number,
+      y: number,
+    ): boolean {
+      return pixelDiffers({
         a,
         b,
         x,
         y,
-      },))
-        found.count++;
-  return found.count;
+      },);
+    },
+  },)
+    .count;
 }
 
 /**
@@ -497,32 +538,23 @@ export function countColor(
     readonly image: Image;
   },
 ): number {
-  /**
-   Running count in a one-slot holder.
-   */
-  const found = { count: 0, };
-
-  /**
-   The rectangle's edges.
-   */
-  const {
-    x: left,
-    y: top,
-    width,
-    height,
-  } = box;
-  for (let y = top; y < (top + height); y++)
-    for (let x = left; x < (left + width); x++)
-      if (sameColor({
+  return pixelsMatchingInBox({
+    area: box,
+    matches: function isColorAt(
+      x: number,
+      y: number,
+    ): boolean {
+      return sameColor({
         a: colorAt({
           image,
           x,
           y,
         },),
         b: color,
-      },))
-        found.count++;
-  return found.count;
+      },);
+    },
+  },)
+    .count;
 }
 
 /**
@@ -552,61 +584,18 @@ export function diffBoxWithin(
     readonly b: Image;
   },
 ): Difference {
-  /**
-   Running count and bounds in a one-slot holder.
-   */
-  const found = {
-    count: 0,
-    minX: Infinity,
-    minY: Infinity,
-    maxX: -1,
-    maxY: -1,
-  };
-
-  /**
-   The rectangle's edges.
-   */
-  const {
-    x: left,
-    y: top,
-    width,
-    height,
-  } = area;
-  for (let y = top; y < (top + height); y++)
-    for (let x = left; x < (left + width); x++)
-      if (pixelDiffers({
+  return pixelsMatchingInBox({
+    area,
+    matches: function differsAt(
+      x: number,
+      y: number,
+    ): boolean {
+      return pixelDiffers({
         a,
         b,
         x,
         y,
-      },)) {
-        found.count++;
-        found.minX = Math.min(
-          found.minX,
-          x,
-        );
-        found.minY = Math.min(
-          found.minY,
-          y,
-        );
-        found.maxX = Math.max(
-          found.maxX,
-          x,
-        );
-        found.maxY = Math.max(
-          found.maxY,
-          y,
-        );
-      }
-  if (found.maxX < 0)
-    return { count: found.count, };
-  return {
-    count: found.count,
-    box: {
-      x: found.minX,
-      y: found.minY,
-      width: (found.maxX - found.minX) + 1,
-      height: (found.maxY - found.minY) + 1,
+      },);
     },
-  };
+  },);
 }

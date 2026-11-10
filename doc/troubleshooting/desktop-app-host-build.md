@@ -7,12 +7,12 @@ Both are specific to the immutable-Fedora host layout (Bazzite 44,
  which
 has a conventional `/usr/lib` layout and a physical `HOME`.
 
-1. bindgen cannot find `stdbool.h`:
-    libclang lives in `/usr/lib64` but Fedora's clang resource headers are under
-   `/usr/lib`,
-    so clang's derived resource dir is wrong.
-2. zig 0.15.2 fails to spawn a generated build-step binary (`uucode_build_tables`) through a broken relative path,
-   because the global cache resolves through the `/home -> var/home` symlink while the build root is physical.
+1.  bindgen cannot find `stdbool.h`:
+     libclang lives in `/usr/lib64` but Fedora's clang resource headers are under
+    `/usr/lib`,
+     so clang's derived resource dir is wrong.
+2.  zig 0.15.2 fails to spawn a generated build-step binary (`uucode_build_tables`) through a broken relative path,
+    because the global cache resolves through the `/home -> var/home` symlink while the build root is physical.
 
 Both are fixed at our boundary by host-only env in each package `mise.toml` (`host_env` var).
  The details,
@@ -327,18 +327,18 @@ unaffected (its cache lives in a named volume with physical container paths;
 
 ### Issue 1: do not file
 
-1. Really upstream's fault?
-    No,
-    not cleanly.
-    This is the well-known Fedora `/usr/lib` vs `/usr/lib64` split
-   interacting with clang's resource-dir derivation.
-    The standard,
-    documented remedy across the ecosystem is
-   `BINDGEN_EXTRA_CLANG_ARGS` or installing the clang driver;
-    it is environment configuration,
-    not a bindgen defect.
-2. to 5.
-    Moot given (1).
+1.  Really upstream's fault?
+     No,
+     not cleanly.
+     This is the well-known Fedora `/usr/lib` vs `/usr/lib64` split
+    interacting with clang's resource-dir derivation.
+     The standard,
+     documented remedy across the ecosystem is
+    `BINDGEN_EXTRA_CLANG_ARGS` or installing the clang driver;
+     it is environment configuration,
+     not a bindgen defect.
+2.  to 5.
+     Moot given (1).
 
 Decision:
  do not file.
@@ -354,33 +354,33 @@ pattern is configuration,
 
 ### Issue 2: existing issue, do not refile
 
-1. Really upstream's fault?
-    Yes.
-    zig's build runner emits a wrong relative spawn path;
-    #24216 is labeled bug and a
-   related residual was acknowledged by a maintainer in-thread.
-2. Can upstream fix it?
-    Yes;
-    they fixed the main case in #24218.
-3. Supporting this use case?
-    Yes;
-    building in any directory with the default cache is supported.
-4. Will they fix it?
-    Plausible.
-    The main bug was fixed within a day;
-    the related residual was acknowledged.
-5. Prototyped a minimal fix?
-    No,
-    and intentionally so:
-    a matching upstream issue already exists (#24216,
-    closed via
-   #24218) and the residual relative-`--cache-dir` case was explicitly acknowledged in that thread.
-    Per the
-   duplicate rule,
-    we neither open a competing issue nor prototype a competing patch.
-    The consumer-side workaround
-   (`ZIG_GLOBAL_CACHE_DIR` on a physical path) solves the user-facing problem at our boundary regardless of upstream
-   movement.
+1.  Really upstream's fault?
+     Yes.
+     zig's build runner emits a wrong relative spawn path;
+     #24216 is labeled bug and a
+    related residual was acknowledged by a maintainer in-thread.
+2.  Can upstream fix it?
+     Yes;
+     they fixed the main case in #24218.
+3.  Supporting this use case?
+     Yes;
+     building in any directory with the default cache is supported.
+4.  Will they fix it?
+     Plausible.
+     The main bug was fixed within a day;
+     the related residual was acknowledged.
+5.  Prototyped a minimal fix?
+     No,
+     and intentionally so:
+     a matching upstream issue already exists (#24216,
+     closed via
+    #24218) and the residual relative-`--cache-dir` case was explicitly acknowledged in that thread.
+     Per the
+    duplicate rule,
+     we neither open a competing issue nor prototype a competing patch.
+     The consumer-side workaround
+    (`ZIG_GLOBAL_CACHE_DIR` on a physical path) solves the user-facing problem at our boundary regardless of upstream
+    movement.
 
 Existing issue:
  [ziglang/zig#24216](https://github.com/ziglang/zig/issues/24216) (closed,

@@ -305,30 +305,30 @@ from the pending deployment to the current one.
 The current investigation adds no installed-version result or minimal reproduction absent from that issue,
 so there is nothing additive to post.
 
-1. Is it really upstream's fault?
-   The default refusal and option scope are intentional,
-   documented safety behavior.
-   The confusing stage-then-error presentation is an upstream wording issue already tracked by issue #3728.
-2. Can upstream fix it?
-   Yes,
-   upstream can clarify that staging succeeded and print the exact follow-up subcommand.
-3. Are they supporting this use case?
-   Yes,
-   the manual documents additive `install --apply-live` and replacement-capable `apply-live` separately.
-4. Would the repo welcome our contribution?
-   `CONTRIBUTING.md`,
-   `.github/ISSUE_TEMPLATE/bug-report.yml`,
-   and `.github/PULL_REQUEST_TEMPLATE` accept external reports and patches.
-   No AI-assistance restriction was found.
-5. Will they likely fix it?
-   Unknown.
-   Issue #3728 remains open without a linked patch,
-   and the relevant source path has no post-2024 commit in the shallow v2026.2 source history.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   No.
-   The observed safety behavior is correct,
-   and the remaining wording concern is already tracked without new incident version data.
-   Constraints 1 and 5 do not trigger an upstream prototype.
+1.  Is it really upstream's fault?
+    The default refusal and option scope are intentional,
+    documented safety behavior.
+    The confusing stage-then-error presentation is an upstream wording issue already tracked by issue #3728.
+2.  Can upstream fix it?
+    Yes,
+    upstream can clarify that staging succeeded and print the exact follow-up subcommand.
+3.  Are they supporting this use case?
+    Yes,
+    the manual documents additive `install --apply-live` and replacement-capable `apply-live` separately.
+4.  Would the repo welcome our contribution?
+    `CONTRIBUTING.md`,
+    `.github/ISSUE_TEMPLATE/bug-report.yml`,
+    and `.github/PULL_REQUEST_TEMPLATE` accept external reports and patches.
+    No AI-assistance restriction was found.
+5.  Will they likely fix it?
+    Unknown.
+    Issue #3728 remains open without a linked patch,
+    and the relevant source path has no post-2024 commit in the shallow v2026.2 source history.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    No.
+    The observed safety behavior is correct,
+    and the remaining wording concern is already tracked without new incident version data.
+    Constraints 1 and 5 do not trigger an upstream prototype.
 
 Nothing to add to issue #3728:
 no comment draft is retained because repeating the same behavior

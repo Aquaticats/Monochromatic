@@ -406,31 +406,31 @@ but no report is warranted because the observed behavior matches the documented 
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** No.
-   Git documents each start-point form and its `post-checkout` ordering is deliberate.
-2. **Can upstream fix it?
-   ** Not applicable as a defect.
-   Changing all forms to start at invoking `HEAD` would remove documented selection features.
-3. **Are they supporting this use case?
-   ** Yes.
-   `Documentation/git-worktree.adoc` specifies branch creation,
-   explicit commit-ish selection,
-   remote guessing,
-   detached worktrees,
-   and orphan worktrees.
-4. **Would the repository welcome our contribution?
-   ** No for an AI-produced filing or patch.
-   `Documentation/SubmittingPatches:500-524` permits careful AI guidance but says content that looks AI-generated will
-   be rejected.
-   The project otherwise accepts mailing-list patches under its contribution process.
-5. **Will they likely fix it?
-   ** No fix is requested.
-   The behavior is intentional and no matching tracker item was found.
-6. **Have we prototyped a compatible minimal fix?
-   ** Not applicable.
-   There is no upstream defect to patch;
-   the consumer wrapper must classify command forms and post-checkout state.
+1.  **Is it really upstream's fault?
+    ** No.
+    Git documents each start-point form and its `post-checkout` ordering is deliberate.
+2.  **Can upstream fix it?
+    ** Not applicable as a defect.
+    Changing all forms to start at invoking `HEAD` would remove documented selection features.
+3.  **Are they supporting this use case?
+    ** Yes.
+    `Documentation/git-worktree.adoc` specifies branch creation,
+    explicit commit-ish selection,
+    remote guessing,
+    detached worktrees,
+    and orphan worktrees.
+4.  **Would the repository welcome our contribution?
+    ** No for an AI-produced filing or patch.
+    `Documentation/SubmittingPatches:500-524` permits careful AI guidance but says content that looks AI-generated will
+    be rejected.
+    The project otherwise accepts mailing-list patches under its contribution process.
+5.  **Will they likely fix it?
+    ** No fix is requested.
+    The behavior is intentional and no matching tracker item was found.
+6.  **Have we prototyped a compatible minimal fix?
+    ** Not applicable.
+    There is no upstream defect to patch;
+    the consumer wrapper must classify command forms and post-checkout state.
 
 Nothing should be filed upstream.
 There is no defect report or additive comment to draft.

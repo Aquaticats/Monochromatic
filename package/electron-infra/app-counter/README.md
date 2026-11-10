@@ -30,7 +30,9 @@ The hosted Electron command is launched through `/usr/bin/env --unset=DISPLAY`,
 The app must draw into the nested Wayland compositor,
  accept synthetic keyboard input,
  update the counter,
- and write the observed state file.
+ and write the observed state file through the shared `writeJsonFileAtomically`
+ of `@monochromatic-dev/electron-infra-core`,
+ which the main-process bundle inlines.
 
 ## Distribution target matrix
 

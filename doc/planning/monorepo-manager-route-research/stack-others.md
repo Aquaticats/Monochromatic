@@ -594,31 +594,31 @@ Triggers:
 
 ### Yikes
 
-1. **R9 cull trigger on the platform itself.**
-    Microsoft's own pages contradict each other about whether `DllImport` works under NativeAOT,
-     and every kernel feature in this design is a P/Invoke.
-    Switching to JIT deployment avoids the NativeAOT question but not the fact that the confusion was hit.
-2. **Every kernel feature is hand-declared FFI with hand-computed layouts.**
-    cgroup spawn,
-     inotify,
-     pidfd waits,
-     `FICLONE`,
-     `statfs`,
-     and btrfs ioctls all need P/Invoke signatures and byte offsets typed from C headers,
-     including a variadic `ioctl` declared as fixed-arity;
-     nothing checks them against the headers at build time.
-3. **Primary placement depends on a glibc API documented only in NEWS (X1)**,
-     and lazily bound P/Invokes fail at the first spawn rather than at startup on glibc older than 2.39.
-4. **No public readiness API for arbitrary fds.**
-    inotify and pidfd handling need dedicated threads and hand-written `poll` loops.
-5. **`FileSystemWatcher` cannot exclude directories**,
-     so the watcher is written from scratch on raw inotify.
-6. **pid 1 reaping hazard**:
-     in containers the runtime's `waitpid(-1)` steals task exit statuses.
-7. **Whole new toolchain and lint stack**,
-     including native build prerequisites on every build machine.
-8. **JSON without reflection or code generation**
-     means hand-mapping every RPC message through a DOM.
+1.  **R9 cull trigger on the platform itself.**
+     Microsoft's own pages contradict each other about whether `DllImport` works under NativeAOT,
+      and every kernel feature in this design is a P/Invoke.
+     Switching to JIT deployment avoids the NativeAOT question but not the fact that the confusion was hit.
+2.  **Every kernel feature is hand-declared FFI with hand-computed layouts.**
+     cgroup spawn,
+      inotify,
+      pidfd waits,
+      `FICLONE`,
+      `statfs`,
+      and btrfs ioctls all need P/Invoke signatures and byte offsets typed from C headers,
+      including a variadic `ioctl` declared as fixed-arity;
+      nothing checks them against the headers at build time.
+3.  **Primary placement depends on a glibc API documented only in NEWS (X1)**,
+      and lazily bound P/Invokes fail at the first spawn rather than at startup on glibc older than 2.39.
+4.  **No public readiness API for arbitrary fds.**
+     inotify and pidfd handling need dedicated threads and hand-written `poll` loops.
+5.  **`FileSystemWatcher` cannot exclude directories**,
+      so the watcher is written from scratch on raw inotify.
+6.  **pid 1 reaping hazard**:
+      in containers the runtime's `waitpid(-1)` steals task exit statuses.
+7.  **Whole new toolchain and lint stack**,
+      including native build prerequisites on every build machine.
+8.  **JSON without reflection or code generation**
+      means hand-mapping every RPC message through a DOM.
 
 ## Option P2: OCaml 5 with Eio
 
@@ -846,39 +846,39 @@ Triggers:
 
 ### Yikes
 
-1. **No in-language cgroup placement.**
-    Eio's own interface says child actions must be C and hides them under `Private`,
-     Eio's `clone3` stub cannot carry a cgroup,
-     and `Unix.fork` is unavailable once domains exist;
-     what remains is an extra exec per task,
-     libffi,
-     or repository C.
-2. **The kernel surface is missing from the standard library.**
-    No `ioctl`,
-     `statfs`,
-     inotify,
-     or peer credentials,
-     so btrfs work goes through CLI subprocesses or FFI.
-    The strongest precedent,
-     Dune,
-     solves the same problems with C stubs
-     (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`;
-   `src/rpc/csexp_rpc.ml:19-21`,
-   `:301`),
-     so following precedent means writing C.
-3. **R9 triggers in two libraries the natural design would use**
-     (`inotify-eio`,
-   `ctypes-foreign`),
-     and a probable trigger in Eio's core type signatures.
-4. **Toolchain is outside mise**:
-     no compiler or Dune entry in the registry,
-     so every machine and CI job builds an opam switch.
-5. **Thin library maintenance**:
-     the inotify binding has been idle since 2024-07,
-     and ctypes' GitHub releases lag its opam releases by several versions.
-6. **Evidence gap**:
-     no OCaml measurement was possible without installing a toolchain,
-     so trampoline cost and hashing throughput are unknown.
+1.  **No in-language cgroup placement.**
+     Eio's own interface says child actions must be C and hides them under `Private`,
+      Eio's `clone3` stub cannot carry a cgroup,
+      and `Unix.fork` is unavailable once domains exist;
+      what remains is an extra exec per task,
+      libffi,
+      or repository C.
+2.  **The kernel surface is missing from the standard library.**
+     No `ioctl`,
+      `statfs`,
+      inotify,
+      or peer credentials,
+      so btrfs work goes through CLI subprocesses or FFI.
+     The strongest precedent,
+      Dune,
+      solves the same problems with C stubs
+      (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`;
+    `src/rpc/csexp_rpc.ml:19-21`,
+    `:301`),
+      so following precedent means writing C.
+3.  **R9 triggers in two libraries the natural design would use**
+      (`inotify-eio`,
+    `ctypes-foreign`),
+      and a probable trigger in Eio's core type signatures.
+4.  **Toolchain is outside mise**:
+      no compiler or Dune entry in the registry,
+      so every machine and CI job builds an opam switch.
+5.  **Thin library maintenance**:
+      the inotify binding has been idle since 2024-07,
+      and ctypes' GitHub releases lag its opam releases by several versions.
+6.  **Evidence gap**:
+      no OCaml measurement was possible without installing a toolchain,
+      so trampoline cost and hashing throughput are unknown.
 
 ## Option P3: Python 3.14 (CPython, standard library first)
 
@@ -1092,28 +1092,28 @@ Triggers in third-party documentation:
 
 ### Yikes
 
-1. **All kernel work is untyped `ctypes` memory.**
-    cgroup spawn,
-     inotify event parsing,
-     `statfs`,
-     and btrfs argument blocks are byte buffers laid out by hand;
-     a wrong offset corrupts memory or misreads events instead of failing type checks.
-2. **Python is named as an unapproved language in the repository's own proposal**,
-     and the repository's strict static typing culture has no equivalent over the FFI layer.
-3. **GIL runtime.**
-    Measured threads slower than serial for hashing;
-     parallelism requires a forkserver process pool,
-     and any CPU work on the loop thread delays RPC and risks inotify overflow unless the reader has its own thread.
-4. **Primary placement depends on the NEWS-only glibc API (X1)**;
-     the documented trampoline costs about 10 to 14 ms per task (measured).
-5. **Third-party ecosystem fails the documentation gate** in the libraries a Python developer would reach for first,
-     forcing the hand-written `ctypes` layer of yikes 1.
-6. **Deployment of an interpreter plus environment** for a long-running daemon;
-     importing `asyncio`,
-   `json`,
-   `ctypes`,
-   and `hashlib` takes a median 54.8 ms (measured),
-     which affects client command latency.
+1.  **All kernel work is untyped `ctypes` memory.**
+     cgroup spawn,
+      inotify event parsing,
+      `statfs`,
+      and btrfs argument blocks are byte buffers laid out by hand;
+      a wrong offset corrupts memory or misreads events instead of failing type checks.
+2.  **Python is named as an unapproved language in the repository's own proposal**,
+      and the repository's strict static typing culture has no equivalent over the FFI layer.
+3.  **GIL runtime.**
+     Measured threads slower than serial for hashing;
+      parallelism requires a forkserver process pool,
+      and any CPU work on the loop thread delays RPC and risks inotify overflow unless the reader has its own thread.
+4.  **Primary placement depends on the NEWS-only glibc API (X1)**;
+      the documented trampoline costs about 10 to 14 ms per task (measured).
+5.  **Third-party ecosystem fails the documentation gate** in the libraries a Python developer would reach for first,
+      forcing the hand-written `ctypes` layer of yikes 1.
+6.  **Deployment of an interpreter plus environment** for a long-running daemon;
+      importing `asyncio`,
+    `json`,
+    `ctypes`,
+    and `hashlib` takes a median 54.8 ms (measured),
+      which affects client command latency.
 
 ## Cross-option comparison
 

@@ -333,26 +333,26 @@ and passes with it.
 Checked `.out-of-scope/`:
 no entry covers Rust std or its thread API.
 
-1. **Is it really upstream's fault?**
-   No.
-   Both behaviors are documented and deliberate:
-   `library/std/src/thread/functions.rs:633` to `:635` explains why the count is recomputed every call,
-   and `library/std/src/thread/mod.rs:128` to `:138` documents the 2 MiB spawn default and both override paths.
-   The regression was ours for adopting threads without reading them.
-2. **Can upstream fix it?**
-   Not applicable:
-   there is no defect to fix.
-3. **Are they supporting this use case?**
-   Yes,
-   through `Builder::stack_size` and caller-side caching,
-   which is what the workarounds use.
-4. **Would the repo welcome our contribution?**
-   Not evaluated,
-   because constraint 1 fails.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Not applicable.
+1.  **Is it really upstream's fault?**
+    No.
+    Both behaviors are documented and deliberate:
+    `library/std/src/thread/functions.rs:633` to `:635` explains why the count is recomputed every call,
+    and `library/std/src/thread/mod.rs:128` to `:138` documents the 2 MiB spawn default and both override paths.
+    The regression was ours for adopting threads without reading them.
+2.  **Can upstream fix it?**
+    Not applicable:
+    there is no defect to fix.
+3.  **Are they supporting this use case?**
+    Yes,
+    through `Builder::stack_size` and caller-side caching,
+    which is what the workarounds use.
+4.  **Would the repo welcome our contribution?**
+    Not evaluated,
+    because constraint 1 fails.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Not applicable.
 
 Duplicate search:
 `gh search issues --repo rust-lang/rust 'available_parallelism'` returned

@@ -71,22 +71,22 @@ Environment:
  but no filing is warranted
 anyway:
 
-1. Really upstream's fault?
-    No;
-    this is the flag's documented contract.
-2. Can upstream fix it?
-    Nothing to fix.
-3. Supported use case?
-    Yes,
-    with the exact remedy the error message names.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraint 1 fails.
-5. Will they likely fix it?
-    Nothing to fix.
-6. Prototyped minimal fix?
-    Not applicable;
-    one-line annotation recorded above.
+1.  Really upstream's fault?
+     No;
+     this is the flag's documented contract.
+2.  Can upstream fix it?
+     Nothing to fix.
+3.  Supported use case?
+     Yes,
+     with the exact remedy the error message names.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraint 1 fails.
+5.  Will they likely fix it?
+     Nothing to fix.
+6.  Prototyped minimal fix?
+     Not applicable;
+     one-line annotation recorded above.
 
 Decision:
  nothing to file.

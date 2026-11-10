@@ -13,7 +13,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { resolveCheapestServerType, } from '@monochromatic-dev/mvm-cli/ts/backend/hetzner/server-types.ts';
+import { resolveCheapestServerType, } from '../../../dist/final/node/index.mjs';
 
 /**
  Sets HCLOUD_TOKEN for a `using` scope so requireToken passes, restoring after.

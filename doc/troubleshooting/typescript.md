@@ -57,23 +57,23 @@ entry without a leading `./` when `baseUrl` is unset.
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** No. TypeScript / dprint correctly require
-   `baseUrl` to be set when `paths` contains non-relative entries;
-    the
-   warning is informative,
-    not a bug.
-2. **Can upstream fix it?
-   ** Not applicable;
-    this is documented behavior.
-3. **Supporting this use case?
-   ** Yes;
-    `paths` + `baseUrl` is a
-   first-class TypeScript feature.
-4. **Will they fix it?
-   ** Not applicable.
-5. **Minimal-fix prototype?
-   ** Not applicable.
+1.  **Upstream's fault?
+    ** No. TypeScript / dprint correctly require
+    `baseUrl` to be set when `paths` contains non-relative entries;
+     the
+    warning is informative,
+     not a bug.
+2.  **Can upstream fix it?
+    ** Not applicable;
+     this is documented behavior.
+3.  **Supporting this use case?
+    ** Yes;
+     `paths` + `baseUrl` is a
+    first-class TypeScript feature.
+4.  **Will they fix it?
+    ** Not applicable.
+5.  **Minimal-fix prototype?
+    ** Not applicable.
 
 **Decision:
  no upstream report.
@@ -160,32 +160,32 @@ referencing the function's generic parameter.
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** Partial.
-    TS2677 is a known limitation of
-   conditional-type assignability in type predicates,
-    documented in
-   the TypeScript handbook as a constraint of the type system rather
-   than a bug.
-2. **Can upstream fix it?
-   ** Possibly,
-    but the fix would require
-   extending conditional-type variance reasoning,
-    a structural-core
-   change touching the type relation algorithm.
-    Not a small change.
-3. **Supporting this use case?
-   ** Conditional types in type predicates
-   are not a documented first-class feature;
-    the recommendation is
-   intersection types as shown above.
-4. **Will they fix it?
-   ** Unlikely.
-    Multiple long-standing tracker
-   entries on conditional-type-in-predicate produce no movement.
-5. **Minimal-fix prototype?
-   ** Not feasible without touching the type
-   relation core.
+1.  **Upstream's fault?
+    ** Partial.
+     TS2677 is a known limitation of
+    conditional-type assignability in type predicates,
+     documented in
+    the TypeScript handbook as a constraint of the type system rather
+    than a bug.
+2.  **Can upstream fix it?
+    ** Possibly,
+     but the fix would require
+    extending conditional-type variance reasoning,
+     a structural-core
+    change touching the type relation algorithm.
+     Not a small change.
+3.  **Supporting this use case?
+    ** Conditional types in type predicates
+    are not a documented first-class feature;
+     the recommendation is
+    intersection types as shown above.
+4.  **Will they fix it?
+    ** Unlikely.
+     Multiple long-standing tracker
+    entries on conditional-type-in-predicate produce no movement.
+5.  **Minimal-fix prototype?
+    ** Not feasible without touching the type
+    relation core.
 
 **Decision:
  no upstream report.
@@ -274,34 +274,34 @@ inside an Astro project that does not also depend on `@types/react`.
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** Distributed across Astro and @types/mdx.
-    MDX
-   documentation explicitly says "the JSX namespace must be typed";
-   Astro chose to define JSX types under `astroHTML.JSX` namespace
-   rather than the global `JSX` namespace.
-    Neither side considers it
-   a bug.
-2. **Can upstream fix it?
-   ** Yes,
-    either by Astro adding a global
-   `JSX` re-export or by @types/mdx accepting a different namespace
-   prefix.
-    Both are tractable but require coordination.
-3. **Supporting this use case?
-   ** Astro+MDX without React is a
-   documented configuration,
-    but the namespace bridging step is
-   left to the user.
-4. **Will they fix it?
-   ** Astro issue #5061 has been open for years
-   without movement.
-    Low signal of a fix.
-5. **Minimal-fix prototype?
-   ** The workspace-side bridge
-   (`src/env.d.ts`) is the minimal fix;
-    no upstream code change is
-   strictly required.
+1.  **Upstream's fault?
+    ** Distributed across Astro and @types/mdx.
+     MDX
+    documentation explicitly says "the JSX namespace must be typed";
+    Astro chose to define JSX types under `astroHTML.JSX` namespace
+    rather than the global `JSX` namespace.
+     Neither side considers it
+    a bug.
+2.  **Can upstream fix it?
+    ** Yes,
+     either by Astro adding a global
+    `JSX` re-export or by @types/mdx accepting a different namespace
+    prefix.
+     Both are tractable but require coordination.
+3.  **Supporting this use case?
+    ** Astro+MDX without React is a
+    documented configuration,
+     but the namespace bridging step is
+    left to the user.
+4.  **Will they fix it?
+    ** Astro issue #5061 has been open for years
+    without movement.
+     Low signal of a fix.
+5.  **Minimal-fix prototype?
+    ** The workspace-side bridge
+    (`src/env.d.ts`) is the minimal fix;
+     no upstream code change is
+    strictly required.
 
 **Decision:
  no upstream report.
@@ -365,36 +365,80 @@ raw `.ts` from a module touching `FileSystemWritableFileStream`,
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** No. TypeScript checks consumed `.ts` files
-   under the consumer's tsconfig by design;
-    the lib setting is
-   inherited from the consumer,
-    not the package.
-    This is documented
-   compiler behavior.
-2. **Can upstream fix it?
-   ** Yes (in principle:
-    per-package lib
-   resolution),
-    but it would be a structural change to lib resolution.
-3. **Supporting this use case?
-   ** Workspace packages re-exporting raw
-   `.ts` sources is a non-standard pattern;
-    standard practice ships
-   `.d.ts` declarations.
-4. **Will they fix it?
-   ** Not on the roadmap.
-5. **Minimal-fix prototype?
-   ** Workspace-side fix (extending `/dom`
-   variant) is the minimal solution;
-    no upstream change needed.
+1.  **Upstream's fault?
+    ** No. TypeScript checks consumed `.ts` files
+    under the consumer's tsconfig by design;
+     the lib setting is
+    inherited from the consumer,
+     not the package.
+     This is documented
+    compiler behavior.
+2.  **Can upstream fix it?
+    ** Yes (in principle:
+     per-package lib
+    resolution),
+     but it would be a structural change to lib resolution.
+3.  **Supporting this use case?
+    ** Workspace packages re-exporting raw
+    `.ts` sources is a non-standard pattern;
+     standard practice ships
+    `.d.ts` declarations.
+4.  **Will they fix it?
+    ** Not on the roadmap.
+5.  **Minimal-fix prototype?
+    ** Workspace-side fix (extending `/dom`
+    variant) is the minimal solution;
+     no upstream change needed.
 
 **Decision:
  no upstream report.
 ** The workspace convention (extend
 `config-typescript/dom` everywhere) satisfies the constraint at the
 workspace boundary.
+
+## A bare include or exclude path in an extended config resolves against the declaring file
+
+### Problem
+
+A shared preset's `exclude` list claims to filter a consuming package's
+generated or backup trees,
+ yet `tsc --showConfig` in the consumer still lists files from them.
+The preset looks right to whoever edits it,
+ because each bare path names a directory beside the preset,
+ not beside the consumer.
+
+### Root cause
+
+TypeScript resolves every relative `include` and `exclude` path against the config
+file that declares it,
+ not against the config file that extends it.
+Only `${configDir}` (TypeScript 5.5 and later) expands to the directory of the
+project being compiled.
+`package/config/typescript/tsconfig.options.json` therefore filtered
+`package/config/typescript/dist`,
+ `package/config/typescript/bak`,
+ and `package/config/typescript/node_modules`
+in every one of the packages extending it,
+ and a consumer whose `include` reached its own `dist` or `bak` tree type-checked
+generated sources the preset claimed to exclude (issue #1275).
+
+### Solution
+
+Spell out `${configDir}` in every `include` and `exclude` path of a shared preset.
+Keep consumer-specific filtering in the consumer's own tsconfig,
+ where a bare relative path already resolves against that consumer.
+
+### Verification
+
+`package/config/typescript/src/tsconfig-options.unit.test.ts` runs the workspace
+compiler's `--showConfig` on a disposable consumer holding
+`src/retained.ts`,
+ `dist/generated.ts`,
+ `bak/copied.ts`,
+ and `deprecated/retired.ts`.
+It asserts that every resolved `exclude` path lands inside that consumer and that
+only `src/retained.ts` survives in the resolved file list.
+Restoring the bare prefixes fails two of its three cases.
 
 ## Narrowing not preserved inside function declarations
 
@@ -493,7 +537,7 @@ function setup(): void {
 }
 ```
 
-**Reassign to a new `const` with an explicit type annotation**
+Reassign to a new `const` with an explicit type annotation
 after the null check.
 The explicit annotation becomes the variable's declared type,
 which is non-null regardless of closure context:
@@ -525,33 +569,33 @@ function setup(): void {
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** No. The cited code in `checker.ts` (around
-   line 31181) deliberately excludes `SyntaxKind.FunctionDeclaration`
-   from the closure-narrowing loop because hoisting makes
-   call-before-guard legal.
-    The behavior is intentional safety,
-    not
-   a bug.
-2. **Can upstream fix it?
-   ** Possibly (via flow analysis that
-   distinguishes "definitely called after the guard" from "could be
-   called before"),
-    but this would be a significant change to the
-   control-flow analyzer that could regress soundness in edge cases.
-3. **Supporting this use case?
-   ** The recommended pattern is helper
-   functions returning non-null or explicit reassignment with
-   annotation;
-    both are documented and idiomatic.
-4. **Will they fix it?
-   ** Not on the roadmap.
-    The intentional
-   exclusion has been in place across multiple TypeScript major
-   versions (verified consistent in tsc 6.0.1-rc and tsgo 7.0.0-dev).
-5. **Minimal-fix prototype?
-   ** Not feasible without proving soundness
-   of the new flow-analysis branch.
+1.  **Upstream's fault?
+    ** No. The cited code in `checker.ts` (around
+    line 31181) deliberately excludes `SyntaxKind.FunctionDeclaration`
+    from the closure-narrowing loop because hoisting makes
+    call-before-guard legal.
+     The behavior is intentional safety,
+     not
+    a bug.
+2.  **Can upstream fix it?
+    ** Possibly (via flow analysis that
+    distinguishes "definitely called after the guard" from "could be
+    called before"),
+     but this would be a significant change to the
+    control-flow analyzer that could regress soundness in edge cases.
+3.  **Supporting this use case?
+    ** The recommended pattern is helper
+    functions returning non-null or explicit reassignment with
+    annotation;
+     both are documented and idiomatic.
+4.  **Will they fix it?
+    ** Not on the roadmap.
+     The intentional
+    exclusion has been in place across multiple TypeScript major
+    versions (verified consistent in tsc 6.0.1-rc and tsgo 7.0.0-dev).
+5.  **Minimal-fix prototype?
+    ** Not feasible without proving soundness
+    of the new flow-analysis branch.
 
 **Decision:
  no upstream report.
@@ -702,13 +746,13 @@ in a script that filters out diagnostics originating from `node_modules` paths.
 
 The wrapper:
 
-1. Runs `tsc --build` (or `tsc --build --noEmit`,
-    etc.) with all original arguments
-2. Captures stdout/stderr line by line
-3. Drops any line whose file path contains `/node_modules/`
-4. Drops continuation lines (indented lines following a dropped diagnostic)
-5. Preserves the exit code:
-    exits non-zero only if non-`node_modules` errors remain
+1.  Runs `tsc --build` (or `tsc --build --noEmit`,
+     etc.) with all original arguments
+2.  Captures stdout/stderr line by line
+3.  Drops any line whose file path contains `/node_modules/`
+4.  Drops continuation lines (indented lines following a dropped diagnostic)
+5.  Preserves the exit code:
+     exits non-zero only if non-`node_modules` errors remain
 
 This is the least invasive option because:
 
@@ -776,46 +820,46 @@ Since `zod` resolves fine through `node_modules`,
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** No,
-    per the TypeScript team's repeated
-   stance.
-    Cited issues (#41883,
-    #44205,
-    #48779,
-    #40426) all
-   closed or stalled with "Working as Intended" or "The only correct
-   path forward is to not have a .
-   ts file in your node_modules.
-   "
-   `skipLibCheck` is documented as `.d.ts`-only.
-2. **Can upstream fix it?
-   ** Yes (extend `skipLibCheck` to cover `.ts`
-   in `node_modules`,
-    or add a separate `skipNodeModulesCheck`
-   option),
-    but they have explicitly declined to do so.
-3. **Supporting this use case?
-   ** JSR's `.ts`-shipping is a JSR
-   convention;
-    TypeScript does not endorse it.
-    The TypeScript team's
-   stated path is "don't ship .
-   ts to node_modules.
-   "
-4. **Will they fix it?
-   ** No. Multiple closed-as-WAI issues with the
-   same request.
-    Filing a new one would duplicate #44205,
-    #48779,
-   #41883 without changing the outcome.
-5. **Minimal-fix prototype?
-   ** Even with a prototype,
-    the team's
-   position is structural ("don't have .
-   ts in node_modules"),
-    not
-   missing-implementation.
+1.  **Upstream's fault?
+    ** No,
+     per the TypeScript team's repeated
+    stance.
+     Cited issues (#41883,
+     #44205,
+     #48779,
+     #40426) all
+    closed or stalled with "Working as Intended" or "The only correct
+    path forward is to not have a .
+    ts file in your node_modules.
+    "
+    `skipLibCheck` is documented as `.d.ts`-only.
+2.  **Can upstream fix it?
+    ** Yes (extend `skipLibCheck` to cover `.ts`
+    in `node_modules`,
+     or add a separate `skipNodeModulesCheck`
+    option),
+     but they have explicitly declined to do so.
+3.  **Supporting this use case?
+    ** JSR's `.ts`-shipping is a JSR
+    convention;
+     TypeScript does not endorse it.
+     The TypeScript team's
+    stated path is "don't ship .
+    ts to node_modules.
+    "
+4.  **Will they fix it?
+    ** No. Multiple closed-as-WAI issues with the
+    same request.
+     Filing a new one would duplicate #44205,
+     #48779,
+    #41883 without changing the outcome.
+5.  **Minimal-fix prototype?
+    ** Even with a prototype,
+     the team's
+    position is structural ("don't have .
+    ts in node_modules"),
+     not
+    missing-implementation.
 
 **Decision:
  no upstream report.
@@ -1003,25 +1047,25 @@ without checking `isSupportedExtension` first.
 The crash is triggered by editord forwarding non-source files to tsgo.
 Two distinct paths lead to the panic:
 
-1. **Spawn trigger**:
-    when a non-source file is the first file opened
-   for a project root,
-    `pool.resolve({ type: 'tsgo' })` spawns tsgo
-   with that file as the trigger.
-    tsgo adds the file to the project
-   during initialization and panics on the unsupported extension.
+1.  **Spawn trigger**:
+     when a non-source file is the first file opened
+    for a project root,
+     `pool.resolve({ type: 'tsgo' })` spawns tsgo
+    with that file as the trigger.
+     tsgo adds the file to the project
+    during initialization and panics on the unsupported extension.
 
-2. **Reuse + feature request**:
-    when tsgo is already running
-   (spawned earlier from a `.ts` file),
-    and a non-source file is opened,
-   feature request handlers (`withClient` for hover,
-    inlayHints,
-    etc.)
-   call `pool.resolve()` which returns the existing client.
-   The handler sends the request with the non-source file's URI.
-   tsgo creates an inferred project for the unknown file,
-   which triggers parsing and the ScriptKind panic.
+2.  **Reuse + feature request**:
+     when tsgo is already running
+    (spawned earlier from a `.ts` file),
+     and a non-source file is opened,
+    feature request handlers (`withClient` for hover,
+     inlayHints,
+     etc.)
+    call `pool.resolve()` which returns the existing client.
+    The handler sends the request with the non-source file's URI.
+    tsgo creates an inferred project for the unknown file,
+    which triggers parsing and the ScriptKind panic.
 
 tsgo does NOT crash from its own directory scanning:
 `include`/`exclude` patterns work correctly during normal project loading
@@ -1060,18 +1104,18 @@ Verified to work for `tsgo --build` but does not prevent the LSP crash.
 
 ### What does not work
 
-- **tsconfig `include`/`exclude` patterns in LSP mode**:
+- tsconfig `include`/`exclude` patterns in LSP mode:
   these work for CLI `tsgo --build` and for normal project loading
   when tsgo is spawned by a `.ts` trigger,
   but do not prevent the crash when tsgo is spawned by a non-source trigger.
   The LSP's `DidOpenFile` → `ensureConfiguredProjectAndAncestorsForFile`
   likely adds the trigger file as a root file name,
   bypassing `matchFiles` extension filtering.
-- **Shadow root / symlink directory**:
+- Shadow root / symlink directory:
   pnpm workspace `node_modules` resolution breaks because `${configDir}`
   resolves to the shadow path and the nested `node_modules` structure
   does not contain hoisted dependencies.
-- **Restarting without any delay**:
+- Restarting without any delay:
   creates a crash loop;
    the 1 s flat retry gives time for the user
   to navigate away from the problematic file.
@@ -1080,15 +1124,15 @@ Verified to work for `tsgo --build` but does not prevent the LSP crash.
 
 Two earlier approaches failed because they only gated part of the problem:
 
-1. **Filtering only in `resolveAll`**:
-   feature request handlers call `pool.resolve()` directly via `withClient`,
-   bypassing the `resolveAll` include filter entirely.
-2. **Filtering only before spawning in `resolve()`**:
-   returning an existing tsgo client for a non-source file is just as
-   dangerous as spawning a new one:
-    the feature request sends the file URI
-   to tsgo,
-    which creates an inferred project and panics.
+1.  **Filtering only in `resolveAll`**:
+    feature request handlers call `pool.resolve()` directly via `withClient`,
+    bypassing the `resolveAll` include filter entirely.
+2.  **Filtering only before spawning in `resolve()`**:
+    returning an existing tsgo client for a non-source file is just as
+    dangerous as spawning a new one:
+     the feature request sends the file URI
+    to tsgo,
+     which creates an inferred project and panics.
 
 **Fixed** by checking tsconfig includes as the very first step in `resolve()`
 for tsgo,
@@ -1132,44 +1176,44 @@ regardless of whether a tsgo client exists for the project root.
 
 5-constraint walk:
 
-1. **Upstream's fault?
-   ** Yes.
-    `compilerHost.GetSourceFile` passes
-   `ScriptKindUnknown` to the parse cache without guarding,
-    leading
-   to a deliberate panic in `parser.initializeState`.
-    The parser
-   panic site exists specifically to flag this misuse (line
-   288-291),
-    so the calling code is buggy by the parser's own
-   contract.
-2. **Can upstream fix it?
-   ** Yes;
-    the suggested fix is a 4-line guard
-   in `compilerHost.GetSourceFile`.
-    PR #2679 already implemented the
-   equivalent fix for the completions code path (issue #2669);
-    the
-   same pattern applies here.
-3. **Supporting this use case?
-   ** Yes.
-    LSP support for projects
-   containing mixed file types (SVG icons alongside .
-   ts source) is a
-   first-class scenario;
-    the panic crashes the entire LSP,
-    which is
-   never the intended response.
-4. **Will they fix it?
-   ** Likely yes given the existing PR #2679 fix
-   pattern.
-    The completions team accepted the same shape of fix.
-5. **Minimal-fix prototype?
-   ** Yes;
-    the suggested patch below is
-   the prototype,
-    with related-issue evidence that the fix shape is
-   accepted upstream.
+1.  **Upstream's fault?
+    ** Yes.
+     `compilerHost.GetSourceFile` passes
+    `ScriptKindUnknown` to the parse cache without guarding,
+     leading
+    to a deliberate panic in `parser.initializeState`.
+     The parser
+    panic site exists specifically to flag this misuse (line
+    288-291),
+     so the calling code is buggy by the parser's own
+    contract.
+2.  **Can upstream fix it?
+    ** Yes;
+     the suggested fix is a 4-line guard
+    in `compilerHost.GetSourceFile`.
+     PR #2679 already implemented the
+    equivalent fix for the completions code path (issue #2669);
+     the
+    same pattern applies here.
+3.  **Supporting this use case?
+    ** Yes.
+     LSP support for projects
+    containing mixed file types (SVG icons alongside .
+    ts source) is a
+    first-class scenario;
+     the panic crashes the entire LSP,
+     which is
+    never the intended response.
+4.  **Will they fix it?
+    ** Likely yes given the existing PR #2679 fix
+    pattern.
+     The completions team accepted the same shape of fix.
+5.  **Minimal-fix prototype?
+    ** Yes;
+     the suggested patch below is
+    the prototype,
+     with related-issue evidence that the fix shape is
+    accepted upstream.
 
 **Decision:
  file upstream.
@@ -1633,68 +1677,68 @@ Catalog of semantics that differ:
    native `An error was suppressed during disposal`,
    helper
   `An error was suppressed during disposal.`
-  The spec creates "a newly created *SuppressedError* object" without passing a message,
+  The spec creates "a newly created **SuppressedError** object" without passing a message,
    so this string is
   implementation-defined and the difference is cosmetic.
 
 ### Workarounds
 
-1. **Compile with `target: esnext`.**
-   No helper text,
-    native syntax,
-    and symptom 2 disappears because the engine implements the fallback.
-   This workspace already sets `target: esnext` in `package/config/typescript/tsconfig.options.json`.
-   Tradeoffs:
-    `esnext` floats,
-    so a compiler upgrade can start preserving other syntax with no config
-   change;
-    the output only runs where `using` parses,
-    which per mdn/browser-compat-data means Chrome 134,
-   Firefox 141,
-    Node 24.0.0,
-    Deno 1.37 for `using` and 2.2.10 for `await using`,
-    Bun 1.0.23,
-    with Safari
-   recorded as preview;
-    and the option governs all downleveling,
-    not disposal alone.
-2. **Set `importHelpers: true` with `tslib` available at runtime.**
-   Fixture emit drops from 3264 to 952 bytes and one copy of the helper serves the whole dependency graph.
-   `tslib@2.8.1` exports both helpers at `tslib.es6.js:305` and `tslib.es6.js:334`.
-   Tradeoffs:
-    adds a runtime dependency;
-    the per-scope `try`/`catch`/`finally` scaffolding stays in every
-   function;
-    symptom 2 is unchanged because `tslib` carries the same guard;
-    and `importHelpers` applies to
-   module files.
-3. **Let the bundler own the transform.**
-   `rolldown` and oxc import one shared `@oxc-project/runtime/helpers/usingCtx` when the target lacks
-   support and preserve native `using` when it does not.
-   This workspace's shipped artifacts take the preserving path:
-    `.browserslistrc` resolves to chrome 154,
-   firefox 153,
-    android 154,
-    and_chr 154,
-    and_ff 157,
-    and node 26.x,
-    all above the thresholds,
-    and
-   `package/cloudflare-worker/rand/dist/final/neutral/worker.mjs:1` contains
-   `using flushAtExit=flushOnExit(ctx)`.
-   Tradeoffs:
-    the final emitter decides shipping syntax,
-    not `tsc`;
-    and
-   `package/config/rolldown/src/browserslist-targets.ts` prefers a generated targets JSON over a fresh
-   `browserslist` query when that file exists,
-    so verify what the build actually reads.
-4. **Hand-write `try`/`finally`.**
-   No helpers and no target coupling.
-   Tradeoffs:
-    loses the `SuppressedError` composition and the reverse-order guarantee,
-    and reintroduces the
-   cleanup duplication `using` exists to remove.
+1.  **Compile with `target: esnext`.**
+    No helper text,
+     native syntax,
+     and symptom 2 disappears because the engine implements the fallback.
+    This workspace already sets `target: esnext` in `package/config/typescript/tsconfig.options.json`.
+    Tradeoffs:
+     `esnext` floats,
+     so a compiler upgrade can start preserving other syntax with no config
+    change;
+     the output only runs where `using` parses,
+     which per mdn/browser-compat-data means Chrome 134,
+    Firefox 141,
+     Node 24.0.0,
+     Deno 1.37 for `using` and 2.2.10 for `await using`,
+     Bun 1.0.23,
+     with Safari
+    recorded as preview;
+     and the option governs all downleveling,
+     not disposal alone.
+2.  **Set `importHelpers: true` with `tslib` available at runtime.**
+    Fixture emit drops from 3264 to 952 bytes and one copy of the helper serves the whole dependency graph.
+    `tslib@2.8.1` exports both helpers at `tslib.es6.js:305` and `tslib.es6.js:334`.
+    Tradeoffs:
+     adds a runtime dependency;
+     the per-scope `try`/`catch`/`finally` scaffolding stays in every
+    function;
+     symptom 2 is unchanged because `tslib` carries the same guard;
+     and `importHelpers` applies to
+    module files.
+3.  **Let the bundler own the transform.**
+    `rolldown` and oxc import one shared `@oxc-project/runtime/helpers/usingCtx` when the target lacks
+    support and preserve native `using` when it does not.
+    This workspace's shipped artifacts take the preserving path:
+     `.browserslistrc` resolves to chrome 154,
+    firefox 153,
+     android 154,
+     and_chr 154,
+     and_ff 157,
+     and node 26.x,
+     all above the thresholds,
+     and
+    `package/cloudflare-worker/rand/dist/final/neutral/worker.mjs:1` contains
+    `using flushAtExit=flushOnExit(ctx)`.
+    Tradeoffs:
+     the final emitter decides shipping syntax,
+     not `tsc`;
+     and
+    `package/config/rolldown/src/browserslist-targets.ts` prefers a generated targets JSON over a fresh
+    `browserslist` query when that file exists,
+     so verify what the build actually reads.
+4.  **Hand-write `try`/`finally`.**
+    No helpers and no target coupling.
+    Tradeoffs:
+     loses the `SuppressedError` composition and the reverse-order guarantee,
+     and reintroduces the
+    cleanup duplication `using` exists to remove.
 
 ### What does not work
 
@@ -1729,53 +1773,53 @@ Symptom 2 is the only candidate;
  symptom 1 is documented,
  intended behavior of `importHelpers`.
 
-1. **Upstream's fault?**
-   Yes.
-   The guard is TypeScript's own emitted text at `tsc/internal/printer/helpers.go:82`,
-    and it contradicts
-   `GetDisposeMethod` as merged in tc39/ecma262#3000.
-   Not a wording issue and not an architectural restriction.
-2. **Can upstream fix it?**
-   Yes.
-   One token,
-    prototyped and built here.
-3. **Are they supporting this use case?**
-   Yes.
-   `using` downlevel emit is a documented feature with conformance baselines under
-   `tsc/testdata/baselines/reference/conformance/usingDeclarations*`,
-    including
-   `usingDeclarationsWithImportHelpers.js`.
-4. **Would the repo welcome our contribution?**
-   No for an agent-filed report or pull request.
-   `CONTRIBUTING.md:15` ("Instructions for autonomous coding agents") states a pull request is acceptable
-   only if a specific human operator chose that specific issue and will shepherd it through review,
-    and
-   `CONTRIBUTING.md:25` bans automated comments with an immediate block for inauthentic activity.
-   No blanket ban on human-filed reports that disclose AI assistance was found in `CONTRIBUTING.md` or
-   `.github/ISSUE_TEMPLATE/`.
-   Per that section's own instruction to surface it and stop,
-    this is handed to the operator.
-5. **Will they likely fix it?**
-   No signal either way,
-    which meets the constraint.
-   The helper text is actively maintained,
-    a related emit bug is open at microsoft/TypeScript#63522
-   ("Declarations that shadow global `Symbol` break emit for `using` declarations"),
-    and duplicate searches
-   over `gh search issues` and `gh search prs` for `asyncDispose null`,
-    `Object not disposable`,
-    and
-   `addDisposableResource asyncDispose null` returned no matches in `microsoft/TypeScript` or
-   `microsoft/tslib`.
-6. **Minimal fix prototyped?**
-   Yes,
-    in a disposable clone at `${HOME}/temp/agent/upstream-prototype.Dqh0XXSR/ts`,
-    origin
-   `https://github.com/microsoft/TypeScript.git`,
-    HEAD `fed0bf24149fb1ed36039212648bafdafc1ea10e`,
-    built
-   with `GOMAXPROCS=2 go build -p 2 -o ./tsc-patched ./cmd/tsc` (4m27s,
-    go 1.27.1).
+1.  **Upstream's fault?**
+    Yes.
+    The guard is TypeScript's own emitted text at `tsc/internal/printer/helpers.go:82`,
+     and it contradicts
+    `GetDisposeMethod` as merged in tc39/ecma262#3000.
+    Not a wording issue and not an architectural restriction.
+2.  **Can upstream fix it?**
+    Yes.
+    One token,
+     prototyped and built here.
+3.  **Are they supporting this use case?**
+    Yes.
+    `using` downlevel emit is a documented feature with conformance baselines under
+    `tsc/testdata/baselines/reference/conformance/usingDeclarations*`,
+     including
+    `usingDeclarationsWithImportHelpers.js`.
+4.  **Would the repo welcome our contribution?**
+    No for an agent-filed report or pull request.
+    `CONTRIBUTING.md:15` ("Instructions for autonomous coding agents") states a pull request is acceptable
+    only if a specific human operator chose that specific issue and will shepherd it through review,
+     and
+    `CONTRIBUTING.md:25` bans automated comments with an immediate block for inauthentic activity.
+    No blanket ban on human-filed reports that disclose AI assistance was found in `CONTRIBUTING.md` or
+    `.github/ISSUE_TEMPLATE/`.
+    Per that section's own instruction to surface it and stop,
+     this is handed to the operator.
+5.  **Will they likely fix it?**
+    No signal either way,
+     which meets the constraint.
+    The helper text is actively maintained,
+     a related emit bug is open at microsoft/TypeScript#63522
+    ("Declarations that shadow global `Symbol` break emit for `using` declarations"),
+     and duplicate searches
+    over `gh search issues` and `gh search prs` for `asyncDispose null`,
+     `Object not disposable`,
+     and
+    `addDisposableResource asyncDispose null` returned no matches in `microsoft/TypeScript` or
+    `microsoft/tslib`.
+6.  **Minimal fix prototyped?**
+    Yes,
+     in a disposable clone at `${HOME}/temp/agent/upstream-prototype.Dqh0XXSR/ts`,
+     origin
+    `https://github.com/microsoft/TypeScript.git`,
+     HEAD `fed0bf24149fb1ed36039212648bafdafc1ea10e`,
+     built
+    with `GOMAXPROCS=2 go build -p 2 -o ./tsc-patched ./cmd/tsc` (4m27s,
+     go 1.27.1).
 
 The prototyped diff:
 
@@ -2032,6 +2076,62 @@ The mistaken newline expectation does not invalidate the separate nonzero-status
 
 There is nothing to file upstream from this wrapper defect.
 The independent Go thread failure remains bounded by its existing incident evidence.
+
+## `new` on a namespace import of an `export =` module reports TS2351 while the same value constructs elsewhere
+
+### Problem
+
+A CommonJS declaration that ends in `export = Stream;` (a module namespace type) rejects a `new` through a
+ namespace import,
+ although the runtime value is a constructor and every other import form constructs it:
+
+```ts
+// form-c.ts
+import * as shim from './shimA.cjs';
+const v = new shim({});
+// error TS2351: This expression is not constructable.
+//   Type 'typeof Stream' has no construct signatures.
+```
+
+Measured with tsc 7.1.0-beta against
+ `package/pnpm-override/shim-readable-stream/index.d.cts`:
+
+- `import shim = require('./shimA.cjs'); new shim({});` compiles,
+   and the result is typed as the namespace.
+- `const typed: typeof import('node:stream') = shim; new typed({});` compiles.
+- `import shimDefault from './shimA.cjs'; new shimDefault({});` compiles,
+   in both a CommonJS and a module file.
+- `import * as ns from './shimA.cjs'; new ns.default({});` compiles.
+- `new (require('./shimA.cjs'))({});` compiles,
+   because `require` is typed `any`,
+   so the expression is `new any`.
+
+### Root cause
+
+The checker accepts `new` for an `export =` alias,
+ a namespace-typed value,
+ a default import of the same module,
+ and `any`,
+ and rejects it for a namespace import of the same declaration,
+ so the discriminator is the callee's symbol rather than only its type.
+This note records the observed split;
+ the internal reason was not traced,
+ because TypeScript 7.1.0-beta ships as a native binary and the checker source is not in the package.
+The rule is still actionable:
+ read the symbol kind a diagnostic names before calling the declaration wrong.
+
+Consequence for a bug report that reads a declaration statically:
+ the TS2351 symptom appears only for the namespace-import form of a constructor-valued `module.exports`,
+ while `require` callers never see it.
+Say which import form reproduced the diagnostic before treating the declaration as the defect.
+
+### Verification
+
+One scratch file per form,
+ compiled with `typeRoots` pinned at this workspace's `@types/node`,
+ plus a positive control (`const bad: string = 1;`) in the same `include` list proving the file set was checked.
+The same declaration is what `package/pnpm-override/shim-readable-stream/index.d.cts` ships;
+ `doc/decision/readable-stream-shim.md` records why that declaration stays the module namespace.
 
 ## Related Documentation
 
