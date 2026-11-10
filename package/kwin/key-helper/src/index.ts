@@ -80,54 +80,38 @@ function onDoubleShift(): void {
   }
 }
 
-/**
- Start the D-Bus service and every evdev monitor.
- 
- @example
- ```ts
- await main();
- ```
- */
-async function main(): Promise<void> {
-  /**
-   Session bus connection.
-   */
-  const bus = sessionBus();
-  bus.exportInterface(
-    keyHelperInterface,
-    DBUS_PATH,
-    keyHelperInterfaceDescriptor
-  );
-  /**
-   Promise-returning `RequestName`, resolving to its numeric reply code.
-   */
-  const requestName: (
-    name: string,
-    flags: number
-  ) => Promise<number> = promisify(bus.requestName
-    .bind(bus));
-  /**
-   `RequestName` reply code for {@link DBUS_SERVICE}.
-   */
-  const retCode = await requestName(
-    DBUS_SERVICE,
-    DBUS_NAME_NO_FLAGS
-  );
-  if (retCode !== DBUS_NAME_PRIMARY_OWNER) {
-    throw new Error(`[key-helper] failed to own ${DBUS_SERVICE}: RequestName returned ${retCode}`);
-  }
-  tagged({
-    tag: main.name,
-    l: keyHelperLogger,
-  },)
-    .info(`D-Bus service registered: ${DBUS_SERVICE}`,);
-  // The watcher runs for the life of the daemon: it rescans so a replugged or
-  // newly attached keyboard is monitored again, and keeps a monitor on every
-  // device it finds.
-  await watchShiftDevices({ onDoubleShift, });
-}
-
 // A startup failure ends the process through the throw, so Node prints the message and the stack, and the status is one.
-await main();
+/**
+ Session bus connection.
+ */
+const bus = sessionBus();
+bus.exportInterface(
+  keyHelperInterface,
+  DBUS_PATH,
+  keyHelperInterfaceDescriptor
+);
+/**
+ Promise-returning `RequestName`, resolving to its numeric reply code.
+ */
+const requestName: (
+  name: string,
+  flags: number
+) => Promise<number> = promisify(bus.requestName
+  .bind(bus));
+/**
+ `RequestName` reply code for {@link DBUS_SERVICE}.
+ */
+const retCode = await requestName(
+  DBUS_SERVICE,
+  DBUS_NAME_NO_FLAGS
+);
+if (retCode !== DBUS_NAME_PRIMARY_OWNER) {
+  throw new Error(`[key-helper] failed to own ${DBUS_SERVICE}: RequestName returned ${retCode}`);
+}
+keyHelperLogger.info(`D-Bus service registered: ${DBUS_SERVICE}`,);
+// The watcher runs for the life of the daemon: it rescans so a replugged or
+// newly attached keyboard is monitored again, and keeps a monitor on every
+// device it finds.
+await watchShiftDevices({ onDoubleShift, });
 
 //endregion Daemon

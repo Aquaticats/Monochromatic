@@ -31,6 +31,10 @@ import {
   reportedUntil,
 } from './fake-command-fixture.ts';
 
+//region Fixtures
+// The interpreter, the statuses and timings the cases assert on, and the child
+// program that writes more than a buffered runner holds.
+
 /**
  Interpreter that runs each child, so a stand-in tool is never needed.
  */
@@ -100,6 +104,10 @@ const CHATTY_CHILD_SCRIPT = `
   process.exit(${String(FAILURE_EXIT_CODE)});
 `;
 
+//endregion Fixtures
+
+//region Helpers
+
 /**
  Run one command and return the error it threw, or `undefined` when it resolved.
  
@@ -123,6 +131,12 @@ async function failureOf(request: {
   return undefined;
 }
 
+//endregion Helpers
+
+//region Started children
+// The two programs the started-call cases drive: one that outlives the call
+// that started it, one that fails after that call returned.
+
 /**
  Program the sleep-held child runs: report that it started, then keep running
  for longer than a caller that waited for it would allow.
@@ -139,6 +153,12 @@ const FAILING_STARTED_CHILD_SCRIPT = `
   process.stderr.write(${JSON.stringify(FAILURE_TEXT)});
   process.exit(${String(FAILURE_EXIT_CODE)});
 `;
+
+//endregion Started children
+
+//region Cases
+// `runCommand` to completion and `startCommand` past it, each case driving the
+// built artifact against a real child process.
 
 await describe({
   name: '',
@@ -306,3 +326,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

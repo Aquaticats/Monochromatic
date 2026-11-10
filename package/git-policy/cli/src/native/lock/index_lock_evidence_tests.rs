@@ -519,3 +519,52 @@ fn an_unidentified_holder_keeps_a_pid_file_from_naming_the_number_as_absent() {
         Verdict::Dead(42)
     );
 }
+
+/// How long evidence that must not wait may take to answer in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+///  which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A named pipe where Git's PID file would be is unreadable evidence,
+///  answered without waiting for a writer.
+/// Why:
+///  Opening a pipe for reading waits for its writer,
+/// and this read runs inside the landing lock's wait,
+///  so the configured ceiling could never expire and every commit behind the lock waited with it
+/// (`SPEC.md`,
+/// "Every wait has a bound";
+/// a cross-vendor audit's finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo('.git/index~pid.lock'); const answer = await within(PATIENCE, () => readPidFileEvidence(path, startMissing)); expect(answer).toEqual({ kind: 'unreadable' });
+/// ```
+#[test]
+fn a_named_pipe_at_the_pid_file_is_not_waited_for() {
+    let root: PathBuf = fixture("evidence-pid-file-pipe");
+    let path: PathBuf = root.join("index~pid.lock");
+    make_pipe(path.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<PidFile>();
+    let asked: PathBuf = path.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(read_pid_file_evidence(asked.as_path(), start_missing));
+    });
+    let answer: PidFile = match receiver.recv_timeout(PATIENCE) {
+        Ok(found) => found,
+        Err(_) => panic!("the PID file's evidence waited for a writer of a pipe for {PATIENCE:?}"),
+    };
+    assert!(
+        matches!(answer, PidFile::Unreadable(_)),
+        "a pipe is unreadable evidence, and never a death: {answer:?}"
+    );
+    remove(root.as_path());
+}
