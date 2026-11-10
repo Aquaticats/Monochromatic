@@ -1,12 +1,17 @@
 /**
- Guards on this package's iteration shape, which no lint rule enforces.
+ Guards on the iteration shape two modules of this package depend on, which no
+ lint rule enforces.
 
  `.agents/skills/project-code-review/SKILL.md` prefers functional iteration,
  then `for...of`, over a classic `for` loop, and allows the classic form only
  beside a comment stating why the preferred form is not feasible. No linter
- reads that comment, so the two modules this rule flagged are read here and
+ reads that comment, so the modules the standard flagged are read here and
  checked directly. Keeping a counted loop on purpose means updating this guard,
  which is the point.
+
+ Only these modules are held: the package's other counted loops (`create-with-retry.ts`
+ walks its attempt budget and `reconcile.ts` walks an Issue-number range, each
+ using the counter itself) are a sweep of their own, not a character scan.
 
  @module
  */
@@ -39,13 +44,14 @@ const COUNTED_LOOP_HEADS: readonly string[] = [
 ];
 
 /**
- Prefixes of a comment line, whose text is prose rather than a loop this package runs.
+ Opening of a block comment, whose text is prose rather than a loop the module runs.
  */
-const COMMENT_LINE_PREFIXES: readonly string[] = [
-  '*',
-  '//',
-  '/*',
-];
+const BLOCK_COMMENT_OPENER = '/*';
+
+/**
+ Closing of a block comment.
+ */
+const BLOCK_COMMENT_CLOSER = '*/';
 
 /**
  Source line opening a counted loop, used to prove the scan reports one.
@@ -61,13 +67,27 @@ const SAMPLE_SOURCE = [
 ].join('\n',);
 
 /**
- Source text quoting a counted loop inside a block comment and running none.
+ Source text stating why the loop beside it keeps the index form.
  */
-const COMMENT_ONLY_SOURCE = [
+const SAMPLE_JUSTIFICATION = '/* index keeps UTF-16 unit semantics */';
+
+/**
+ Source text holding a loop the scan must report after a leading block comment.
+ */
+const COMMENT_PREFIXED_SOURCE = [
+  `${SAMPLE_JUSTIFICATION} ${SAMPLE_COUNTED_LOOP_LINE}`,
+  '}',
+].join('\n',);
+
+/**
+ Source text quoting a counted loop in prose and in a string, and running none.
+ */
+const QUOTED_SOURCE = [
+  `// ${SAMPLE_COUNTED_LOOP_LINE}`,
   '/**',
   ` * ${SAMPLE_COUNTED_LOOP_LINE}`,
   ' */',
-  'return value;',
+  `const note = '${SAMPLE_COUNTED_LOOP_LINE}';`,
 ].join('\n',);
 
 //endregion
@@ -75,26 +95,52 @@ const COMMENT_ONLY_SOURCE = [
 //region Helpers
 
 /**
+ Reports the source text a line starts its statement with, dropping a leading
+ block comment.
+
+ A head that does not open a statement is quoted prose, so requiring the
+ statement start keeps both comment text and string literals out of the report.
+ A block comment continuing from an earlier line without a `*` prefix would be
+ read as code, which reports a loop the module does not run: a visible false
+ report, never a silent miss.
+
+ @param line - One source line.
+
+ @returns Text from the first code token on the line, or the empty string when the line only opens a comment.
+ */
+function statementText(line: string,): string {
+  /**
+   Line without its indentation.
+   */
+  const trimmed = line.trimStart();
+  if (!trimmed.startsWith(BLOCK_COMMENT_OPENER,)) {
+    return trimmed;
+  }
+  /**
+   Offset of the block comment closer on this line, or -1 when it continues below.
+   */
+  const closerIndex = trimmed.indexOf(BLOCK_COMMENT_CLOSER,);
+  if (closerIndex === (-1)) {
+    return '';
+  }
+  return trimmed
+    .slice(closerIndex + BLOCK_COMMENT_CLOSER.length,)
+    .trimStart();
+}
+
+/**
  Reports the counted loop heads a module's source text runs.
 
  @param source - One module's text.
 
- @returns Loop head lines the module executes, in source order.
+ @returns Statement lines holding a counted loop head, in source order.
  */
 function countedLoopHeads(source: string,): readonly string[] {
   return source.split('\n',)
-    .filter(function isNotComment(line,): boolean {
-      /**
-       Line without its indentation.
-       */
-      const trimmed = line.trim();
-      return !COMMENT_LINE_PREFIXES.some(function startsComment(prefix,): boolean {
-        return trimmed.startsWith(prefix,);
-      },);
-    },)
-    .filter(function holdsCountedLoop(line,): boolean {
+    .map(statementText,)
+    .filter(function holdsCountedLoop(statement,): boolean {
       return COUNTED_LOOP_HEADS.some(function namesHead(head,): boolean {
-        return line.includes(head,);
+        return statement.startsWith(head,);
       },);
     });
 }
@@ -104,7 +150,7 @@ function countedLoopHeads(source: string,): readonly string[] {
 //region Guard
 
 await describe({
-  name: 'package iteration shape',
+  name: 'guarded module iteration shape',
   children: [
     it({
       name: 'reports a counted loop the source runs',
@@ -113,9 +159,16 @@ await describe({
       },
     },),
     it({
-      name: 'ignores a counted loop quoted in a comment',
+      name: 'reports a counted loop a justification comment precedes',
       fn: async () => {
-        expect(countedLoopHeads(COMMENT_ONLY_SOURCE,),).toStrictEqual([],);
+        expect(countedLoopHeads(COMMENT_PREFIXED_SOURCE,),)
+          .toStrictEqual([SAMPLE_COUNTED_LOOP_LINE,],);
+      },
+    },),
+    it({
+      name: 'ignores a counted loop quoted in a comment or a string',
+      fn: async () => {
+        expect(countedLoopHeads(QUOTED_SOURCE,),).toStrictEqual([],);
       },
     },),
     it({
