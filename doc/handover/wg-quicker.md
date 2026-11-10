@@ -381,9 +381,9 @@ then bring the interface down and up again so application exemptions attach.
 
 Target UID precedence:
 
-1. `WG_QUICKER_EXEMPT_UID`;
-2. `SUDO_UID`;
-3. non-root effective UID.
+1.  `WG_QUICKER_EXEMPT_UID`;
+2.  `SUDO_UID`;
+3.  non-root effective UID.
 
 Direct root execution without explicit or sudo identity fails closed.
 A non-root `wg-quicker` process relaunches exact current Node runtime and CLI bundle through sudo before config access.

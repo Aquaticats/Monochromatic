@@ -730,26 +730,26 @@ image installs the workspace lock during the build,
 and the browserslist oracle runs its own npm install.
 It lost for this workspace on four counts:
 
-1. Offline is impossible for the same reason the mount exists:
-   an install inside the container cannot read the
-   store either,
-   so it needs the network on every start.
-2. The download repeats per start.
-   The shared store measures 62 GB on this host,
-   and the lock resolves the whole
-   dependency set,
-   so each of the matrix cells and each browser run would fetch it before running milliseconds of
-   tests.
-3. It writes.
-   A network install writes `node_modules` into the mounted checkout,
-   which every other cell,
-   worktree
-   and session reads,
-   or into an image layer that must be rebuilt on every lock change.
-4. It would not have fixed the browser run on its own:
-   `npx playwright` prefers the checkout's own Playwright over
-   the image's,
-   so the version in the mounted tree still decides which browsers are needed.
+1.  Offline is impossible for the same reason the mount exists:
+    an install inside the container cannot read the
+    store either,
+    so it needs the network on every start.
+2.  The download repeats per start.
+    The shared store measures 62 GB on this host,
+    and the lock resolves the whole
+    dependency set,
+    so each of the matrix cells and each browser run would fetch it before running milliseconds of
+    tests.
+3.  It writes.
+    A network install writes `node_modules` into the mounted checkout,
+    which every other cell,
+    worktree
+    and session reads,
+    or into an image layer that must be rebuilt on every lock change.
+4.  It would not have fixed the browser run on its own:
+    `npx playwright` prefers the checkout's own Playwright over
+    the image's,
+    so the version in the mounted tree still decides which browsers are needed.
 
 Not measured:
 the wall time of a network install per cell.

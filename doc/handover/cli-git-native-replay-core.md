@@ -413,23 +413,23 @@ build stops at `cargo vendor --locked`.
 
 ### Remaining after drain
 
-1. Read `~/temp/agent/replay-core-container-4.log` and `~/temp/agent/replay-core-mutation-2.log`.
-   Confirm that
-   every planted control is noticed and that the container tests pass.
-2. If the campaign finished,
-   record its caught,
-   missed,
-   unviable,
-   and timeout totals here.
-   Justify each survivor with a code-based proof.
-   Rerun any timed-out file alone and record the result.
-3. Record the image identifier under Final gate.
-4. If the campaign did not run,
-   rerun it from the worktree with
-   `GIT_POLICY_NATIVE_IMAGE_TAG=replay node <gate-slot path> mise run //package/git-policy/cli:native:test:container`
-   and then
-   `GIT_POLICY_NATIVE_IMAGE_TAG=replay node <gate-slot path> mise run //package/git-policy/cli:native:mutation:scoped -- <the --file list>`.
-   The `--file` list is the 14 modules named in the `Mutation scope:` note.
+1.  Read `~/temp/agent/replay-core-container-4.log` and `~/temp/agent/replay-core-mutation-2.log`.
+    Confirm that
+    every planted control is noticed and that the container tests pass.
+2.  If the campaign finished,
+    record its caught,
+    missed,
+    unviable,
+    and timeout totals here.
+    Justify each survivor with a code-based proof.
+    Rerun any timed-out file alone and record the result.
+3.  Record the image identifier under Final gate.
+4.  If the campaign did not run,
+    rerun it from the worktree with
+    `GIT_POLICY_NATIVE_IMAGE_TAG=replay node <gate-slot path> mise run //package/git-policy/cli:native:test:container`
+    and then
+    `GIT_POLICY_NATIVE_IMAGE_TAG=replay node <gate-slot path> mise run //package/git-policy/cli:native:mutation:scoped -- <the --file list>`.
+    The `--file` list is the 14 modules named in the `Mutation scope:` note.
 
 Mutation scope:
 `replay_patch`,

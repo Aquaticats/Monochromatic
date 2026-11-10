@@ -124,8 +124,8 @@ fn attempt(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -> Resu
     return Err(refused(
         2,
         format!(
-            "monochromatic-git-policy-cli: git merge: the branch moved or the index lock was taken in {MAX_ROUNDS} merges in a row, so the wrapper \
-             stopped; nothing was changed. Run the merge again.\n"
+            "monochromatic-git-policy-cli: git merge: the branch moved, a file the merge carries was saved again, or the index lock was \
+             taken in {MAX_ROUNDS} merges in a row, so the wrapper stopped; nothing of yours was changed. Run the merge again.\n"
         ),
     ));
 }

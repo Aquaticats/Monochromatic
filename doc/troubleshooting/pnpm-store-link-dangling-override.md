@@ -58,6 +58,11 @@ Already up to date
 
 ## Repair
 
+This hand repair is the fallback for a store that
+`pnpm install --force` cannot rewrite;
+the pnpm-driven repair at `## Repair with pnpm itself` is what worked on
+`@earendil-works/pi-coding-agent` 1.5.1.
+
 Repoint that single store entry at a checkout that outlives the worktree,
 then re-probe resolution:
 
@@ -70,6 +75,102 @@ node --input-type=module -e "import { createRequire } from 'node:module'; \
 const r = createRequire('/home/user/.local/share/pnpm/store/v11/links/@earendil-works/pi-coding-agent/1.5.0/<hash>/node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js'); \
 console.log(r.resolve('proper-lockfile'))"
 ```
+
+## Repair with pnpm itself
+
+Reprobed at 2026-11-10T02:05:55-05:00 against
+`@earendil-works/pi-coding-agent` 1.5.1,
+the version this repository pins today
+(the 1.5.0/`6997a68d` directory this record first named no longer receives installs):
+`pnpm install --force --offline --frozen-lockfile`,
+run in the affected worktree,
+rewrote the link and needed no hand-written symlink.
+
+Before the `--force` run,
+seventeen of the twenty-five `1.5.1/<hash>` link directories
+under the store carried a dangling `node_modules/proper-lockfile`,
+including
+`a0e03dcc9a3e104accb0b5668344df7db96167cc345e0684dff316a3ac16121a`,
+the one the worktree's `package/pi-plugin/advisor` resolves.
+Its target climbed thirteen levels and then named `var/mnt/...`,
+so resolution
+from the real parent landed on `/var/var/mnt/...`:
+
+```text
+../../../../../../../../../../../../../var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/<worktree>/package/pnpm-override/shim-proper-lockfile
+```
+
+A plain `pnpm install --offline --frozen-lockfile` in the same worktree reported
+`Already up to date` and changed nothing,
+matching the symptom above.
+The `--force` run finished in 24 seconds and wrote the same thirteen levels against
+`mnt/...` instead,
+which resolves through `/var` to the worktree's shim:
+
+```text
+../../../../../../../../../../../../../mnt/encrypted/repository/Monochromatic/.claude/worktrees/<worktree>/package/pnpm-override/shim-proper-lockfile
+```
+
+Re-probed after the run,
+`os.path.exists()` through that link answered `true`,
+and the four unit suites of `package/pi-plugin/advisor` that load
+`@earendil-works/pi-coding-agent` at runtime
+(`extension`,
+`operation-failure-accounting`,
+`rendering-error`,
+`rendering-operation`)
+ran green;
+before it,
+each failed with `ERR_MODULE_NOT_FOUND: Cannot find package
+'proper-lockfile'`.
+
+`--force` repairs only the resolution the install used.
+The sixteen other dangling
+`1.5.1/<hash>` directories stayed dangling when that run finished.
+
+## A second override hits the same defect
+
+Observed on 2026-11-10T08:57:00-05:00 in worktree
+`.claude/worktrees/pi-open-issues-aquati-cat`.
+The `@ungap/structured-clone` override
+(`link:package/pnpm-override/shim-ungap-structured-clone`)
+was broken in the two store link directories that worktree resolves:
+
+- `links/@/mdast-util-to-hast/13.2.1/053862084a402c679ed21142fe0b4952f00c28390f94bdf41a864fb3c2d206e8/node_modules/@ungap/structured-clone`
+  carried the same fourteen-level climb against the worktree path,
+  so resolution from the real parent landed on `/var/var/mnt/...`
+  and `os.path.exists()` answered `false`;
+- `links/@/rehype-autolink-headings/7.1.0/2020553868367a9104dc5829cd3919ffbc1195a19fb21046f1748959f11ee027/node_modules/@ungap`
+  was empty,
+  so the package simply did not resolve.
+
+Before the repair,
+every unit suite of `package/ssg/aquati.cat` failed with
+`ERR_MODULE_NOT_FOUND: Cannot find package '@ungap/structured-clone'`,
+raised from `mdast-util-to-hast/lib/footer.js`
+and `rehype-autolink-headings/lib/index.js`.
+
+An absolute target that outlives the worktree repairs both entries
+and does not depend on the climb count
+(the empty `@ungap` directory is created first):
+
+```sh
+mkdir -p '<store-link-dir>/node_modules/@ungap'
+ln --symbolic --force --no-dereference \
+  /var/mnt/encrypted/repository/Monochromatic/package/pnpm-override/shim-ungap-structured-clone \
+  '<store-link-dir>/node_modules/@ungap/structured-clone'
+```
+
+`pnpm install --offline --frozen-lockfile` in the worktree answered
+`Already up to date` and changed neither entry.
+`pnpm install --force` was not run here:
+its documented result above writes links into the current worktree,
+which dangles once that worktree is removed,
+and it rewrites store directories other sessions resolve through.
+
+After the repair,
+`mise run //package/ssg/aquati.cat:test:unit` exited 0
+with 31 passing suite lines across the twenty test files.
 
 ## Limits
 

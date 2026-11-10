@@ -186,63 +186,63 @@ Expected:
 Status:
  DONE
 
-1. Run **`cd ~/k8s-playground`**.
-   Expected:
-    the `enter` hook fires and prints `[bootstrap] $ mise install` followed by
-   `mise all tools are installed` (the first run instead downloads kind/kubectl/k9s/helm/node).
-   After it,
-    `command -v kind` resolves to a path under `~/.local/share/mise/installs/kind/`.
+1.  Run **`cd ~/k8s-playground`**.
+    Expected:
+     the `enter` hook fires and prints `[bootstrap] $ mise install` followed by
+    `mise all tools are installed` (the first run instead downloads kind/kubectl/k9s/helm/node).
+    After it,
+     `command -v kind` resolves to a path under `~/.local/share/mise/installs/kind/`.
 
-2. Run **`mise run up`**.
-   Expected:
-    lines `Ensuring node image (kindest/node:v1.36.1)`,
-    then
-   `Starting control-plane`,
-    then `Set kubectl context to "kind-play"`,
-    and finally a node table row
-   `play-control-plane   Ready    control-plane   <age>   v1.36.1`.
-    First run takes about a minute
-   while the node image downloads;
-    later runs print `Cluster play already exists; skipping create.`
+2.  Run **`mise run up`**.
+    Expected:
+     lines `Ensuring node image (kindest/node:v1.36.1)`,
+     then
+    `Starting control-plane`,
+     then `Set kubectl context to "kind-play"`,
+     and finally a node table row
+    `play-control-plane   Ready    control-plane   <age>   v1.36.1`.
+     First run takes about a minute
+    while the node image downloads;
+     later runs print `Cluster play already exists; skipping create.`
 
-3. Run **`mise run status`**.
-   Expected:
-    `Kubernetes control plane is running at https://127.0.0.1:<port>` and every pod in the
-   `kube-system` namespace showing `Running` (coredns,
-    etcd,
-    kindnet,
-    kube-apiserver,
-   kube-controller-manager,
-    kube-proxy,
-    kube-scheduler) plus `local-path-provisioner`.
+3.  Run **`mise run status`**.
+    Expected:
+     `Kubernetes control plane is running at https://127.0.0.1:<port>` and every pod in the
+    `kube-system` namespace showing `Running` (coredns,
+     etcd,
+     kindnet,
+     kube-apiserver,
+    kube-controller-manager,
+     kube-proxy,
+     kube-scheduler) plus `local-path-provisioner`.
 
-4. Optional,
-    prove a real workload serves traffic.
-    Run,
-    one command per line:
+4.  Optional,
+     prove a real workload serves traffic.
+     Run,
+     one command per line:
 
-   ```sh
-   kubectl --context kind-play create deployment hello --image=nginx --port=80
-   kubectl --context kind-play rollout status deployment/hello --timeout=120s
-   kubectl --context kind-play port-forward deployment/hello 8080:80 &
-   curl --silent --retry 15 --retry-connrefused --retry-delay 1 http://localhost:8080
-   kill %1
-   kubectl --context kind-play delete deployment hello
-   ```
+    ```sh
+    kubectl --context kind-play create deployment hello --image=nginx --port=80
+    kubectl --context kind-play rollout status deployment/hello --timeout=120s
+    kubectl --context kind-play port-forward deployment/hello 8080:80 &
+    curl --silent --retry 15 --retry-connrefused --retry-delay 1 http://localhost:8080
+    kill %1
+    kubectl --context kind-play delete deployment hello
+    ```
 
-   Expected:
-    `deployment "hello" successfully rolled out`,
-    then the nginx HTML containing
-   `<title>Welcome to nginx!</title>`,
-    then `deployment.apps "hello" deleted`.
+    Expected:
+     `deployment "hello" successfully rolled out`,
+     then the nginx HTML containing
+    `<title>Welcome to nginx!</title>`,
+     then `deployment.apps "hello" deleted`.
 
-5. Optional,
-    browse interactively.
-    Run **`mise run k9s`**,
-    then quit with **`:q`**.
-   Expected:
-    the k9s TUI opens listing the cluster's pods;
-    **`:q`** returns to the shell.
+5.  Optional,
+     browse interactively.
+     Run **`mise run k9s`**,
+     then quit with **`:q`**.
+    Expected:
+     the k9s TUI opens listing the cluster's pods;
+     **`:q`** returns to the shell.
 
 ## What to check
 
