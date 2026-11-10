@@ -8,6 +8,9 @@
 /// TypeScript equivalent:
 /// `type Value = JsonValue;`
 use serde_json::Value;
+/// Import the crate's library module,
+/// which owns the POSIX single-quote escaping used at the command boundary.
+use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// Import filesystem checks for the previously initialized worker group.
 use std::fs;
 /// Import the standard error and result types.
@@ -15,29 +18,6 @@ use std::io;
 /// Import a borrowed filesystem path,
 /// rather than its owning `PathBuf` sibling.
 use std::path::Path;
-
-/// What:
-/// `fn` declares a function;
-/// `&str` borrows text while `String` owns its result.
-/// Why:
-/// Only the cgroup filename crosses a shell-quotation boundary.
-/// TypeScript equivalent:
-/// `function shellQuote(value: string): string { ... }`
-fn shell_quote(value: &str) -> String {
-    // What: `mut` permits appending to an owned buffer; `String::from` copies the literal.
-    // Why: Build the escaped path in one linear pass.
-    // TypeScript equivalent: `let output = "'";`
-    let mut output = String::from("'");
-    for character in value.chars() {
-        if character == '\'' {
-            output.push_str("'\\''");
-        } else {
-            output.push(character);
-        }
-    }
-    output.push('\'');
-    return output;
-}
 
 /// What:
 /// `pub` exposes this function to the entry point;
