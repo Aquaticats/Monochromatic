@@ -78,6 +78,69 @@ class EmptyStructuredReviewTextError extends Error {
 
 //endregion Empty-output error -- distinguishes empty output from malformed JSON
 
+//region Provider failure error -- terminal provider event surfaced as a throw
+
+/**
+ Terminal provider failure carried by a stream error event.
+ 
+ A provider that refuses, throttles, or aborts a request ends its stream with an
+ `error` event instead of a tool call. Callers retry another candidate or report
+ the failure when a request throws, so the event becomes this error rather than
+ an omitted-tool reply built from text the provider never sent.
+ 
+ @example
+ ```ts
+ throw new StructuredReviewProviderError({
+   stopReason: 'error',
+   errorMessage: '429: rate limited',
+ });
+ ```
+ */
+class StructuredReviewProviderError extends Error {
+  /**
+   Provider diagnostic sent with the failing response, absent when it sent none.
+   */
+  readonly errorMessage?: string;
+  /**
+   Terminal stop reason the provider reported for this stream.
+   */
+  readonly stopReason: 'aborted' | 'error';
+
+  /**
+   Create provider failure carrying the provider's own diagnostic.
+   
+   @param stopReason - terminal stop reason the provider reported
+   
+   @param errorMessage - provider diagnostic sent with the failing response
+   
+   @example
+   ```ts
+   new StructuredReviewProviderError({ stopReason: 'error', errorMessage: '429: rate limited' });
+   ```
+   */
+  constructor(
+    {
+      stopReason,
+      errorMessage,
+    }: {
+      readonly stopReason: 'aborted' | 'error';
+      readonly errorMessage?: string;
+    },
+  ) {
+    super(
+      errorMessage === undefined
+        ? `Structured reviewer provider failed (stopReason "${stopReason}") and sent no error message`
+        : `Structured reviewer provider failed (stopReason "${stopReason}"): ${errorMessage}`,
+    );
+    this.name = 'StructuredReviewProviderError';
+    this.stopReason = stopReason;
+    if (errorMessage !== undefined)
+      this.errorMessage = errorMessage;
+  }
+}
+
+//endregion Provider failure error -- terminal provider event surfaced as a throw
+
 //region Collection -- one stream folded into tool arguments or finalized text
 
 /**
@@ -91,7 +154,7 @@ class EmptyStructuredReviewTextError extends Error {
  
  @mutates stream - async iteration consumes supplied stream
  
- @throws when reviewer calls unexpected tool
+ @throws when reviewer calls unexpected tool, or {@link StructuredReviewProviderError} when the provider fails
  
  @example
  ```ts
@@ -119,6 +182,20 @@ async function collectStructuredStream(
   /* oxlint-enable no-restricted-syntax/no-function-root-let */
 
   for await (const event of stream) {
+    if (event.type === 'error') {
+      /**
+       Trimmed provider diagnostic, absent when the provider sent none.
+       */
+      const errorMessage = event.error
+        .errorMessage
+        ?.trim();
+      throw new StructuredReviewProviderError({
+        stopReason: event.reason,
+        ...((errorMessage === undefined) || (errorMessage === '')
+          ? {}
+          : { errorMessage, }),
+      },);
+    }
     if (event.type === 'toolcall_end') {
       /**
        Complete tool call emitted by reviewer.
@@ -164,6 +241,8 @@ async function collectStructuredStream(
  
  @throws {@link EmptyStructuredReviewTextError} for empty output
  
+ @throws {@link StructuredReviewProviderError} when the provider fails
+ 
  @example
  ```ts
  await collectDirectJson({ stream, expectedToolName: 'submit_review' });
@@ -198,5 +277,6 @@ export {
   collectDirectJson,
   collectStructuredStream,
   EmptyStructuredReviewTextError,
+  StructuredReviewProviderError,
 };
 export type { CollectedStructuredStream, };
