@@ -1922,3 +1922,44 @@ fn a_snapshot_holding_a_newer_entry_is_kept() {
     assert!(settled.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "{settled:?}");
     remove(root.as_path());
 }
+
+/// A snapshot a person made before the record is not the stage that record's creation made:
+/// every entry of it predates the instant the record holds,
+/// and its shape is a btrfs snapshot and nothing more,
+/// so the identity the record never gained is the only thing that would have told the two apart.
+/// Why the control reads this way:
+///  a reaping that takes the shape for the identity deletes the person's snapshot and the only copy of a file in it.
+#[test]
+fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-add-window-replacement") else { return };
+    let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    std::fs::write(repo.join("mine.txt"), b"the only copy of this file").expect("the file a person keeps");
+    let backup: PathBuf = root.join("a-persons-snapshot");
+    crate::fs_btrfs_ioctl::snapshot_create_at(repo.as_path(), backup.as_path()).expect("the person's own snapshot");
+    std::fs::remove_file(repo.join("mine.txt")).expect("the backup now holds the only copy");
+    // Every entry of the backup predates the instant the record below names.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let common: PathBuf = repo.join(".git");
+    let destination: PathBuf = root.join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
+    let container: PathBuf = claim.container().to_path_buf();
+    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &crate::worktree_ladder_test_support::main_identity(repo.as_path())).expect("source");
+    record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now()).expect("the record of the creation");
+    crate::fs_btrfs_ioctl::snapshot_create_at(source.root.as_path(), container.as_path()).expect("the snapshot the killed add made");
+    // The kill: the claim stays, and the record never gained an identity.
+    std::mem::forget(claim);
+    let interrupted: PathBuf = root.join("the-add-stage-moved-aside");
+    std::fs::rename(container.as_path(), interrupted.as_path()).expect("the add's own stage is moved aside");
+    std::fs::rename(backup.as_path(), container.as_path()).expect("the person's snapshot is put at the stage name");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.join("mine.txt").exists(), "the person's snapshot and the only copy of the file survive: {notices:?}");
+    assert!(interrupted.exists(), "the stage the add made and another command moved aside is not this claim's to remove");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("names no object"); }),
+        "the folder is kept and the reason is said: {notices:?}"
+    );
+    crate::fs_btrfs_ioctl::subvolume_destroy_at(interrupted.as_path()).expect("the add's snapshot");
+    crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the control's snapshot");
+    remove(root.as_path());
+}

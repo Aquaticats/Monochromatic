@@ -108,3 +108,31 @@ fn the_worktree_this_add_made_is_not_named() {
     std::fs::remove_dir_all(repo.as_path()).expect("the fixture's repository");
     crate::test_support::remove(root.as_path());
 }
+
+/// A regular file the source replaced with a named pipe after the copy is a path the new worktree holds the older bytes
+/// of, so the line that says what the copy is behind on names it.
+/// Why the control reads this way:
+///  the fresh walk classifies a named pipe as an entry no worktree can hold and drops it from the manifest,
+/// so a list built from the manifest's entries alone never names the path,
+/// while the walk's own uncopiable list holds it.
+#[cfg(unix)]
+#[test]
+fn the_file_a_source_replaced_with_a_named_pipe_is_named() {
+    let (root, repo, source, instant) = source_with_an_entry_written_after("after-the-copy-pipe");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let replaced: PathBuf = repo.join("ignored/older.txt");
+    std::fs::remove_file(replaced.as_path()).expect("the old regular file goes away");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(replaced.as_path()).status().expect("mkfifo runs");
+    assert!(made.success(), "the named pipe is made");
+    let newer: Vec<Vec<u8>> = entries_newer_than_the_copy(&crate::test_support::git_context(), &source, root.join("new-worktree").as_path(), instant).expect("the audit");
+    assert!(
+        newer.iter().any(|path: &Vec<u8>| { return path.as_slice() == b"ignored/newer.txt"; }),
+        "the control's ordinary newer file is still named: {newer:?}"
+    );
+    assert!(
+        newer.iter().any(|path: &Vec<u8>| { return path.as_slice() == b"ignored/older.txt"; }),
+        "the path the source now holds a named pipe at is named: {newer:?}"
+    );
+    std::fs::remove_dir_all(repo.as_path()).expect("the fixture's repository");
+    crate::test_support::remove(root.as_path());
+}
