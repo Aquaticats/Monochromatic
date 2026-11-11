@@ -288,6 +288,53 @@ fn a_retired_tree_is_kept_while_its_record_guards_a_live_workspace_inside_anothe
     assert!(important.exists(), "the live workspace's file is user data and must never be removed by a pass over idle trees: {second:?}");
 }
 
+/// A workspace behind a directory this user may not search has not stopped existing,
+/// so the ledger that names it keeps the tree holding that workspace until the workspace is confirmed absent.
+#[test]
+fn a_workspace_behind_a_directory_this_user_may_not_search_is_not_a_gone_one() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let outer: PathBuf = make_tree(&base, "aa/00000000000001", Some(&root.path().join("gone")));
+    let closed: PathBuf = outer.join("closed");
+    let live: PathBuf = closed.join("live-workspace");
+    fs::create_dir_all(&live).expect("the live workspace");
+    let important: PathBuf = live.join("important.txt");
+    fs::write(&important, b"live user source\n").expect("the live workspace's file");
+    age_everything(&outer, NOW - 5 * DAY);
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000002", &live, 5 * DAY);
+    close(&closed, 0o000);
+
+    let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(_)), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the ledger that names a workspace this user may not look for is not thrown away with its tree: {first:?}");
+
+    close(&closed, 0o700);
+    assert_eq!(fs::read_to_string(&important).expect("the live workspace's file survived the first pass"), "live user source\n");
+    close(&closed, 0o000);
+
+    let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "{second:?}");
+    close(&closed, 0o700);
+    assert!(important.exists(), "a pass over idle trees never removes a live workspace: {second:?}");
+}
+
+/// A tree is kept whenever its workspace cannot be shown to be gone,
+/// which is every answer other than a confirmed absence.
+#[test]
+fn a_tree_whose_workspace_cannot_be_shown_to_be_gone_is_kept() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let closed: PathBuf = root.path().join("closed");
+    let workspace: PathBuf = closed.join("workspace");
+    fs::create_dir_all(&workspace).expect("the workspace behind a closed directory");
+    let tree: PathBuf = aged_tree(&base, "ab/00000000000013", &workspace, 5 * DAY);
+    close(&closed, 0o000);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    close(&closed, 0o700);
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(tree.exists());
+}
+
 /// A retired tree whose record names a workspace outside the base still goes,
 /// so keeping the record of a nested workspace does not keep every retired tree.
 #[test]
