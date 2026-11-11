@@ -66,7 +66,7 @@ pub fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
 pub fn attach_target(path: &Path, mark: u32) -> io::Result<Option<ActiveAttachment>> {
     let cgroup = match std::fs::File::open(path) {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if crate::process_info::means_vanished(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
     let links = attach_marker_unpinned(cgroup.as_raw_fd(), mark)?;

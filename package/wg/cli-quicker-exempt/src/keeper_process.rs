@@ -2,6 +2,8 @@
 
 /// Persisted process identity and socket mark.
 use crate::keeper_state::KeeperProcess;
+/// Whether an error means the process is gone.
+use crate::process_info::means_vanished;
 /// Standard process-file and syscall failures.
 use std::io;
 /// Unix path bytes for exact `/proc` command-line comparison.
@@ -102,7 +104,8 @@ pub fn command_process_is_live(
 ) -> io::Result<bool> {
     match validate_command_identity(pid, start_time, expected, role) {
         Ok(()) => return Ok(true),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        // A reaped process leaves a file its reader opened behind, and the kernel answers `ESRCH` there.
+        Err(error) if means_vanished(&error) => return Ok(false),
         Err(error) => return Err(error),
     }
 }
@@ -152,7 +155,7 @@ fn wait_for_disappearance(
                 std::thread::sleep(STOP_POLL);
             }
             Ok(_) => return Ok(true),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+            Err(error) if means_vanished(&error) => return Ok(true),
             Err(error) => return Err(error),
         }
     }

@@ -190,6 +190,56 @@ function collectLines(
 }
 
 /**
+ Bound on the whole IPinfo Lite download,
+ in milliseconds.
+
+ The archive is hundreds of megabytes across the tunnel;
+ a working link finishes it in seconds,
+ and a link that stopped moving is worth giving up on rather than waiting for.
+ */
+const ASN_FETCH_DEADLINE_MILLISECONDS = 10 * 60 * 1000;
+
+/**
+ Reads the next chunk of the database,
+ and fails with the deadline named when it passed before one arrived.
+
+ @param reader - Pull reader over the decompressed body.
+
+ @param signal - Signal that fires when the deadline passes.
+
+ @param deadline - Bound in milliseconds, for the message.
+
+ @param targetAsn - ASN the request is for, for the message.
+
+ @returns The next read result.
+
+ @throws {@link AsnDatabaseError} when the deadline passed.
+ */
+async function readOrStop(
+  reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>,
+  signal: AbortSignal,
+  deadline: number,
+  targetAsn: string,
+): Promise<ReadableStreamReadResult<Uint8Array<ArrayBuffer>>> {
+  if (signal.aborted) {
+    throw new AsnDatabaseError(
+      `IPinfo Lite did not finish within ${String(deadline,)} ms for ${targetAsn}; the request was abandoned.`,
+    );
+  }
+  try {
+    return await reader.read();
+  } catch (error: unknown) {
+    if (signal.aborted) {
+      throw new AsnDatabaseError(
+        `IPinfo Lite did not finish within ${String(deadline,)} ms for ${targetAsn}; the request was abandoned.`,
+        { cause: error, },
+      );
+    }
+    throw error;
+  }
+}
+
+/**
  Streams IPinfo Lite and collects networks assigned to one ASN.
  
  @param targetAsn - Normalized ASN to retain.
@@ -223,9 +273,22 @@ export async function fetchAsnNetworks(
   },);
   fl.debug(`requesting IPinfo Lite database for ${targetAsn}`,);
   /**
+   Bound on the whole download,
+   so a stalled connection ends the fetch instead of waiting for ever:
+   the tunnel the database crosses may blackhole an address,
+   and a caller waiting on the networks never returns.
+   Ten minutes is a bound for a stalled transfer and not a target:
+   the archive is hundreds of megabytes and a working link finishes it in seconds.
+   */
+  const deadline = ASN_FETCH_DEADLINE_MILLISECONDS;
+  /**
+   Signal that ends the request and the body reads when the bound passes.
+   */
+  const signal = AbortSignal.timeout(deadline,);
+  /**
    HTTP response carrying gzip-encoded NDJSON.
    */
-  const response = await fetch(databaseUrl(token,),);
+  const response = await fetch(databaseUrl(token,), { signal, },);
   if (!response.ok) {
     throw new AsnDatabaseError(
       `IPinfo Lite database request failed with HTTP ${String(response.status,)}.`,
@@ -280,7 +343,7 @@ export async function fetchAsnNetworks(
       networks,
     },);
     // oxlint-disable-next-line eslint/no-await-in-loop -- ReadableStream readers are sequential pull sources.
-    readState.current = await reader.read();
+    readState.current = await readOrStop(reader, signal, deadline, targetAsn,);
   }
   /**
    Final decoder flush and unterminated trailing line.

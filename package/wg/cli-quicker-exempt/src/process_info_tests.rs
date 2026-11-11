@@ -276,3 +276,18 @@ fn an_entry_without_a_home_directory_field_is_an_error() {
     assert_eq!(account.gid, 42);
     assert_eq!(account.home, std::path::PathBuf::from("/home/tester"));
 }
+
+/// A process that was reaped while a file it left open was read answers `ESRCH`
+/// (`No such process`),
+/// and that is a vanished process and not a failure of the scan:
+/// the control fails on the earlier reader, which treated only `ENOENT` as gone and
+/// stopped the whole socket-marking rescan with "POLICY NOT IN FORCE".
+#[test]
+fn a_reaped_process_answers_esrch_and_counts_as_gone() {
+    let reaped = std::io::Error::from_raw_os_error(libc::ESRCH);
+    assert_eq!(reaped.raw_os_error(), Some(libc::ESRCH));
+    assert!(crate::process_info::means_vanished(&reaped));
+    assert!(crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::NotFound)));
+    assert!(!crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
+    assert!(!crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::InvalidData)));
+}

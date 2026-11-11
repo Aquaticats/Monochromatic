@@ -171,7 +171,24 @@ await describe({
         )
           expect(isPublicAddress({ family: '-4', address, },),).toBe(false,);
         expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text: '2606:4700::6810:84e5', },), },),).toBe(true,);
-        for (const text of ['::', '::1', 'fe80::1', 'fc00::1', 'fd12::1', 'ff02::1',])
+        for (
+          const text of [
+            '::',
+            '::1',
+            'fe80::1',
+            'fc00::1',
+            'fd12::1',
+            'ff02::1',
+            // The whole IETF protocol assignments block is no more public unicast than Teredo:
+            // benchmarking, the AMT prefix, AS112, ORCHIDv2 and the documentation block sit in it too.
+            '2001:2::1',
+            '2001:3::1',
+            '2001:4:112::1',
+            '2001:20::1',
+            '2001:db8::1',
+            '100:0:0:1::1',
+          ]
+        )
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
         for (const address of ['192.0.0.8', '192.0.2.1', '198.51.100.4', '203.0.113.9', '198.18.0.1', '198.19.255.254', '192.88.99.1',])
           expect(isPublicAddress({ family: '-4', address, },),).toBe(false,);
@@ -179,11 +196,13 @@ await describe({
           expect(isPublicAddress({ family: '-4', address, },),).toBe(true,);
         for (const text of ['::ffff:7f00:1', '::ffff:0:0', '64:ff9b::808:808', '2002:c000:204::1', '2001:db8::1', '100::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
-        for (const text of ['2003::1', '2001:db9::1', '64:ff9c::1', '100:0:0:1::1',])
+        for (const text of ['2003::1', '2001:db9::1', '64:ff9c::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
         for (const text of ['fec0::1', '64:ff9b:1::1', '3fff::1', '3fff:fff:ffff::1', '2001::1', '2001:0:4136:e378::1', '5f00::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
-        for (const text of ['2001:4860:4860::8888', '2001:1::1', '2001:4:112::1', '3ffe::1', '4000::1', '5e00::1', '2606:4700:4700::1111',])
+        // `2001:1::1` (port control anycast), `2001:4:112::1` (AS112) and the translation prefix
+        // `100:0:0:1::/64` are special-purpose addresses and never public unicast.
+        for (const text of ['2001:4860:4860::8888', '3ffe::1', '4000::1', '5e00::1', '2606:4700:4700::1111',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
       },
     },),

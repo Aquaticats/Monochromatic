@@ -82,6 +82,8 @@ mod application_watch;
 mod bytes_as_lowercase_hex;
 /// The command line the program accepts and the work behind it.
 mod cli_commands;
+/// Whether a descriptor has a line to read, within a limit.
+mod line_ready;
 /// Starts and stops detached application watcher.
 mod application_watch_service;
 /// Persists detached application watcher identity.
@@ -181,6 +183,9 @@ mod impostor_guard_tests;
 /// Unit tests for the session bus client.
 #[cfg(test)]
 mod session_bus_tests;
+/// Unit tests for the bounded wait on a line.
+#[cfg(test)]
+mod line_ready_tests;
 /// Unit tests for scope adoption.
 #[cfg(test)]
 mod scope_adoption_tests;

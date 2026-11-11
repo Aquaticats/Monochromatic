@@ -40,14 +40,18 @@ export const BLOCKED_IPV4_RANGES: readonly string[] = [
  IPv4-mapped (in the hex form `::ffff:7f00:1` the kernel prints too),
  the NAT64 translation prefix and its local-use prefix,
  the discard-only prefix,
- Teredo,
- documentation (both blocks),
+ the whole IETF protocol assignments block of `2001::/23`
+ (Teredo, benchmarking, the AMT prefix, the AS112 prefix, ORCHIDv2 and the documentation block among them),
+ the IPv4-IPv6 translation prefix `100:0:0:1::/64`,
  6to4,
  segment-routing identifiers,
  link-local,
  deprecated site-local,
  unique local,
  and multicast.
+ Blocking the parent block and not only Teredo matters:
+ the watcher installs a route rule for every whole address a resolver answers,
+ and `2001:2::/48` (benchmarking) or `2001:20::/28` (ORCHIDv2) are no more public unicast than `2001::/32`.
  */
 export const BLOCKED_IPV6_RANGES: readonly string[] = [
   '::/128',
@@ -56,7 +60,8 @@ export const BLOCKED_IPV6_RANGES: readonly string[] = [
   '64:ff9b::/96',
   '64:ff9b:1::/48',
   '100::/64',
-  '2001::/32',
+  '100:0:0:1::/64',
+  '2001::/23',
   '2001:db8::/32',
   '2002::/16',
   '3fff::/20',

@@ -483,7 +483,7 @@ await describe({
          */
         const pathFiles = [...new Set(found.get('PATH',),),].toSorted((left, right,) => left.localeCompare(right,),);
         expect(pathFiles.filter((file,) => file.endsWith('.ts',),),).toEqual(['application-exemption-command.ts',],);
-        expect(pathFiles.filter((file,) => file.endsWith('.rs',),),).toEqual(['bounded_command.rs', 'user_client.rs',],);
+        expect(pathFiles.filter((file,) => file.endsWith('.rs',),),).toEqual(['bounded_command.rs', 'impostor_guard_child.rs', 'user_client.rs',],);
       },
     },),
     it({

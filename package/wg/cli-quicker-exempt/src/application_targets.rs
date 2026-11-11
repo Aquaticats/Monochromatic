@@ -372,6 +372,10 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
     }
 }
 
+/// Whether an error means the process is gone,
+/// which the shared reader of process facts also decides.
+use crate::process_info::means_vanished;
+
 /// Scans direct app slice entries identifying Ghostty,
 ///  Steam,
 ///  Helium,
@@ -406,12 +410,7 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
 fn read_process_file(path: &Path) -> io::Result<Option<String>> {
     match std::fs::read_to_string(path) {
         Ok(text) => return Ok(Some(text)),
-        Err(error)
-            if error.kind() == io::ErrorKind::NotFound
-                || error.kind() == io::ErrorKind::PermissionDenied =>
-        {
-            return Ok(None);
-        }
+        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => return Ok(None),
         Err(error) => return Err(error),
     }
 }
@@ -420,12 +419,7 @@ fn read_process_file(path: &Path) -> io::Result<Option<String>> {
 fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
     match std::fs::read_link(path) {
         Ok(executable) => return Ok(Some(executable)),
-        Err(error)
-            if error.kind() == io::ErrorKind::NotFound
-                || error.kind() == io::ErrorKind::PermissionDenied =>
-        {
-            return Ok(None);
-        }
+        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => return Ok(None),
         Err(error) => return Err(error),
     }
 }

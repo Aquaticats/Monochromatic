@@ -46,6 +46,8 @@ use crate::update_report::{policy_failure, policy_notice, refused_root_failures}
 use crate::user_account::UserAccount;
 /// Handshake and file errors.
 use std::io::{self, BufRead, BufReader, Write};
+/// The descriptor of the handshake channel.
+use std::os::fd::AsRawFd;
 /// Unix log creation mode.
 use std::os::unix::fs::OpenOptionsExt;
 /// Child process session setup hook.
@@ -57,6 +59,10 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 /// Child readiness after inotify installation and race-closing second scan.
 const READY: &str = "READY";
+/// How long the watcher may take to report readiness or to commit.
+/// The wait is bounded because `watch-start` holds the lifecycle lock while it waits:
+/// a watcher that never says one of them would keep every other lifecycle command out for good.
+const HANDSHAKE_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 /// Parent command after watcher state reaches durable storage.
 const COMMIT: &str = "COMMIT";
 /// Child acknowledgement before entering event loop.
@@ -100,6 +106,26 @@ fn read_message(output: &mut BufReader<ChildStdout>) -> io::Result<String> {
         ));
     }
     return Ok(line.trim_end().to_owned());
+}
+
+/// Waits until `reader` can be read or `limit` passes,
+/// and reports whether a line is there.
+fn line_is_ready(reader: &BufReader<ChildStdout>, limit: std::time::Duration) -> io::Result<bool> {
+    return crate::line_ready::line_is_ready(reader.get_ref().as_raw_fd(), limit);
+}
+
+/// Reads one handshake message,
+/// but not for longer than `limit`:
+/// the caller holds the lifecycle lock while it waits,
+/// so a watcher that never speaks must not keep it.
+fn read_message_within(output: &mut BufReader<ChildStdout>, limit: std::time::Duration, what: &str) -> io::Result<String> {
+    if !line_is_ready(output, limit)? {
+        return Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("the watcher did not report {what} within {limit:?}"),
+        ));
+    }
+    return read_message(output);
 }
 
 /// Stops persisted watcher only when complete command identity matches.
@@ -195,7 +221,7 @@ fn spawn_watch_candidate(
         return Err(io::Error::other("watcher stdout absent"));
     };
     let mut output = BufReader::new(stdout);
-    let ready = read_message(&mut output);
+    let ready = read_message_within(&mut output, HANDSHAKE_LIMIT, "readiness");
     let ready_message = match ready {
         Ok(message) => message,
         Err(error) => {
@@ -248,7 +274,7 @@ pub fn start_application_watch(
     }
     writeln!(candidate.input, "{COMMIT}")?;
     candidate.input.flush()?;
-    let acknowledgement = read_message(&mut candidate.output)?;
+    let acknowledgement = read_message_within(&mut candidate.output, HANDSHAKE_LIMIT, "its commit")?;
     if acknowledgement != COMMITTED {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
