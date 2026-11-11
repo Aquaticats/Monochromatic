@@ -1045,6 +1045,21 @@ await describe({
       },
     },),
     it({
+      name: 'a run asked for no attempts makes none at a full pool either',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'always-concurrency-limit',
+          extraOptions: ['--retry-cap=0',],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(run.summary.retries,).toBe(0,);
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
+        expect(run.feed.some((entry,) => entry.kind === 'waiting-for-a-slot'),).toBe(false,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(1,);
+      },
+    },),
+    it({
       name: 'a spent Synthetic quota moves the run to the owner’s fallback provider, on the session it already has',
       fn: async () => {
         const run = await runDriver({

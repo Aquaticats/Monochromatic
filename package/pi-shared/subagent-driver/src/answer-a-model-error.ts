@@ -467,6 +467,15 @@ function decisionAboutAnotherAttempt({
   readonly retry: RetryWaiting;
   readonly kind: ModelErrorKind
 },): AttemptDecision {
+  /**
+   How many attempts the run allows.
+   */
+  const { retryCap, } = watch.options;
+  // A run asked for no attempts at all makes none, whatever kind of failure it met: a retry cap of zero is the run this driver
+  // made before it retried anything, and the wait a full pool would get does not override a decision the caller made.
+  if (retryCap === 0) {
+    return { makeAttempt: false, };
+  }
   if (kind === 'concurrency-limit') {
     /**
      How long the run waits for a slot, in all.
