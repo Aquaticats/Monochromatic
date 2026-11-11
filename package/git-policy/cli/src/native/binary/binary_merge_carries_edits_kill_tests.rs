@@ -238,7 +238,8 @@ fn a_kill_after_the_branch_moved_carries_the_edits() {
 }
 
 /// What:
-///  A save that accepts the whole merge, made after the branch moved and a kill stopped the carry:
+///  A save that accepts the whole merge,
+///  made after the branch moved and a kill stopped the carry:
 /// the next command leaves the newer save as it is,
 ///  says the path changed under the merge,
 ///  and the older captured line does not come back.

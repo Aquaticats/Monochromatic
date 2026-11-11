@@ -114,9 +114,9 @@ pub struct MergeIntent {
     /// A recovery has no reading of its own,
     ///  so a save that accepts the whole merge is told apart from Git's own
     ///  write by this one
-    /// (`merge_isolation_carry_landed.rs`,
+    /// (`merge_isolation_carry_landed.rs`;
     /// `doc/handover/cli-git-rust-implementation.md`,
-    /// "The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name").
+    /// section `2026-11-10T15:43:18-05:00`).
     pub landed: Vec<LandedFile>,
 }
 

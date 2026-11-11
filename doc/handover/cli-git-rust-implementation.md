@@ -112,26 +112,38 @@ its four findings summarised in `~/temp/agent/pi-runs/kimi-findings-round-133.md
 all four are about the carry.
 Two were reproduced here and two are read from the code.
 
-- **A save that accepts the whole merge was replaced by the older captured layer after a kill (real, fixed).**
+- **A save that accepts the whole merge was replaced by the older captured layer after a kill (real and fixed).**
   The apply reads the entry every path Git's own update wrote
-  (`merge_isolation_apply.rs`, `landed_of`),
+  (`merge_isolation_apply.rs`,
+  `landed_of`),
   and the carry writes a path only while that entry still stands;
   a recovery passed an empty reading,
   and `the_file_git_landed` answers `true` for a path the reading does not name,
   so a killed merge's recovery judged every path by its bytes alone
   (`merge_isolation_recovery_carry.rs`).
   The reading is now published into the merge's record before the marker a kill stops at
-  (`rewrite_merge_intent`, `merge_isolation_journal.rs`,
-  staged beside the record and renamed over it, with no flush on the merge's own path),
+  (`rewrite_merge_intent`,
+  `merge_isolation_journal.rs`,
+  staged beside the record and renamed over it,
+  with no flush on the merge's own path),
   and both recovery carries pass `intent.landed`.
   Control `a_save_after_the_kill_that_accepts_the_whole_merge_stands`
   (`binary_merge_carries_edits_kill_tests.rs`)
-  failed before the fix with the older line back in the file and passes after it;
-  the review's program printed `REPRODUCED` against `ee545033ad` and `NOT REPRODUCED` after.
-  A record written before that reading carries none: an earlier release's,
+  fails with the two recovery call sites put back to `&[]`,
+  which is what `ee545033ad` did at those two places,
+  and passes with them:
+  the failing run left the older captured line in the file,
+  `left: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\nthe person's own line\n")`
+  against `right: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\n")`,
+  at `binary_merge_carries_edits_kill_tests.rs:271`.
+  The review's program printed `REPRODUCED` on the reverted binary and `NOT REPRODUCED` on this one,
+  which left the newer save alone and said the path changed while the merge ran.
+  A record written before that reading carries none:
+  an earlier release's,
   and one a machine crash left at the state before the rename.
-  There the recovery judges a path by its bytes, as this branch did before.
-- **A save that lands between Git's write and the reading is read as Git's own (real window, no change).**
+  There the recovery judges a path by its bytes,
+  as this branch did before.
+- **A save that lands between Git's write and the reading is read as Git's own (a window that stays).**
   No evidence this command can read tells the two apart:
   the save leaves the merge's own bytes in the entry Git made.
   The carry then merges the older layer into the file,
@@ -139,30 +151,77 @@ Two were reproduced here and two are read from the code.
   nothing either side wrote is discarded.
   Control `a_save_that_lands_before_the_reading_keeps_both_sides`
   pins what that leaves.
-  `SPEC.md`, "Recovery", records the window and why it stays.
-- **A live merge record does not restore a previous release's aside (recorded limit, no change).**
+  `SPEC.md`,
+  "Recovery",
+  records the window and why it stays.
+- **A live merge record does not restore a previous release's aside (a recorded limit that stays).**
   A private name an earlier release wrote carries no merge key,
   so no record claims it;
   it is left where it is and named with the path it belongs to,
   and the person moves it back.
   Putting an unclaimed name back is the hazard the round-two finding 3 removed:
   it brings back a file the person deleted.
-  The bytes stay at a path the command prints.
-  `SPEC.md`, "Recovery" now states the claiming rule, which it did not before.
-- **An unreadable holder is ignored before the aside is unlinked (recorded limit, no change).**
-  `SPEC.md:12967-12971` states it with the removal's proof:
-  "a process in another user namespace, or one that cannot be read, is not seen,
+  The bytes stay at a path the command prints,
+  and the command names the private file,
+  the path it belongs to,
+  and that nothing was removed.
+  The record is `a3e78adc32`'s message,
+  "a private name an earlier release left names no record,
+  so a merge interrupted before this change is reported rather than put back by itself",
+  and the section of this file of `2026-11-10T15:43:18-05:00`,
+  which also records that nothing sweeps a kept name.
+  `SPEC.md`,
+  "Recovery" now states the claiming rule,
+  which it did not before.
+- **An unreadable holder is ignored before the aside is unlinked (a recorded limit that stays).**
+  `SPEC.md` states it with the removal's proof,
+  at lines 12967 to 12971 here and 12941 to 12945 at `ee545033ad`:
+  "a process in another user namespace,
+  or one that cannot be read,
+  is not seen,
   so a file such a process holds open is removed with its private name".
-  Measured on this host: 782 of 1507 processes have a descriptor directory this user cannot read,
+  The tolerance is the owner's answer of 2026-11-07,
+  "Service removes it",
+  whose stated limit is that a complete scan sees every readable process
+  (`doc/handover/questions-for-the-owner.md`,
+  lines 1254 to 1258 at `ee545033ad`).
+  Measured again here:
+  681 of 1281 processes have a descriptor directory this user cannot read,
   so counting one as a possible holder would keep every aside forever.
-  The tolerance is the owner's of 2026-11-07, "Service removes it", applied to the same scan.
 
 The reproductions are the review's programs with three changes:
 Git is called as plain `git`,
 every command gets a throwaway `HOME` and `XDG_RUNTIME_DIR`,
-and a fixture commit is built from plumbing (`add`, `write-tree`, `commit-tree`, `update-ref`),
+and a fixture commit is built from plumbing (`add`,
+`write-tree`,
+`commit-tree`,
+`update-ref`),
 because a porcelain commit starts the commit service,
 which cannot start from a runtime directory that has no session bus.
+Both programs were run again with this branch's binary,
+and with a binary of this branch whose two recovery call sites pass `&[]` again:
+the first prints `NOT REPRODUCED` with the fix and `REPRODUCED` without it,
+and the second still prints `REPRODUCED` either way,
+which is the recorded limit.
+
+Checks after the last edit:
+`mise run //package/git-policy/cli:native:build` passes,
+`native:clippy` passes,
+`cargo nextest run --lib -- merge::` is 245 passed,
+`push::auto_push_reconcile::tests::` is 85 passed,
+and `--test native_binary -- merge` is 158 run:
+156 passed,
+2 failed.
+The two are `word_merge_finish::a_merge_options_setting_is_applied_to_the_finish` and
+`word_merge_finish::a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+which this branch does not touch;
+a second run of that module failed a different pair of its own controls,
+and each of the four passes when it runs without the others,
+with the harness supervisor naming the disk:
+`no progress for 5.0 s: no task was runnable, waiting for the disk or held from outside`,
+next to a `git update-ref` step that took 7447 ms.
+`monochromatic-lint` reports nothing in this branch's added lines;
+the eleven it reports in this file lie outside them and are there at `ee545033ad` too.
 
 Next action:
 land this branch;

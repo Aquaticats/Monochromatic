@@ -110,6 +110,7 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
         Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
     }
 }
+
 /// What:
 ///  Put the person's own work back exactly as it was captured,
 /// for a merge that does not land.
