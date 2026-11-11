@@ -55,7 +55,8 @@ fn a_record_of_an_earlier_release_carries_no_reading() {
 /// Why:
 ///   This is the defect the reading exists for:
 /// a machine that resumed from sleep moved the wall clock past the window while the client,
-/// whose wait does not count a suspended host's sleep, was still inside it.
+/// whose wait does not count a suspended host's sleep,
+/// was still inside it.
 /// The same record judged by its modification time alone looks older than the window,
 /// which is what the cleanup did before the reading was written.
 #[test]

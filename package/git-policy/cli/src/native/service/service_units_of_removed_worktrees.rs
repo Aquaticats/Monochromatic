@@ -414,7 +414,8 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 
 /// What:
 /// Stops the socket unit of one instance through the manager
-/// and keeps the journal, the note and the socket file for the sweep that follows this process's end,
+/// and keeps the journal,
+/// the note and the socket file for the sweep that follows this process's end,
 /// when the worktree of that instance is gone,
 /// and nothing when it is not.
 /// Why:
@@ -458,10 +459,19 @@ pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &
         //  the sweep removes them together with the files that name this instance once this process is gone.
         None => crate::service_log!(
             "the journal of this commit service is kept at {} for the sweep that follows this process's end, because this service is still one of its writers",
-            journal_of_the_instance(folders.state_dir, instance).map_or_else(|| String::from("a folder this process was given no state directory for"), |journal| journal.display().to_string())
+            journal_folder_in_words(folders.state_dir, instance)
         ),
     }
     return Ok(Some(gone));
+}
+
+/// The journal folder of an instance in words,
+/// for a line that names where the journal a service leaves is kept.
+fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
+    let Some(journal) = journal_of_the_instance(state_dir, instance) else {
+        return String::from("a folder this process was given no state directory for");
+    };
+    return journal.display().to_string();
 }
 
 /// What:

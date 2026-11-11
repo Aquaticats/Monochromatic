@@ -22,7 +22,8 @@
 //! (`service_commit_looking_for_what_landed.rs`),
 //! so a record written within `A_FINISHED_RECORD_IS_READ` keeps the journal for the clients that can still read it.
 //! That age is judged on the reading of the clocks the record itself carries,
-//! so a wall clock that steps, or a host that resumed from sleep,
+//! so a wall clock that steps,
+//! or a host that resumed from sleep,
 //! never makes a record of this boot look older than the wait its client is inside
 //! (`service_journal_record_age.rs`);
 //! a record an earlier release wrote carries no reading and is judged by its modification time.
@@ -50,6 +51,8 @@ use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
+use crate::push_retry::PLAN_DIRECTORY;
+use crate::service_claim_watch::WATCH_DIRECTORY;
 use crate::service_instance::{service_unit_instance, socket_path};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
@@ -274,6 +277,14 @@ fn reason_of_a_kept_file(name: &str) -> &'static str {
 fn reason_of_a_kept_folder(name: &str) -> &'static str {
     if name == LANDING_RECORD_DIRECTORY {
         return "a record of a landing or of a withdrawal";
+    }
+    // The after-commit work of the instance: a service of this worktree reads both when it starts again,
+    // so a worktree that comes back at the same path finds its pending push and the repositories it was still to look at.
+    if name == WATCH_DIRECTORY {
+        return "the repositories this service was still to look at, which a service of this worktree reads when it starts again";
+    }
+    if name == PLAN_DIRECTORY {
+        return "the pushes this service was still to try again, which a service of this worktree reads when it starts again";
     }
     return "a folder this release does not know";
 }

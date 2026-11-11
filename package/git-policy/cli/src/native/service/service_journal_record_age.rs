@@ -100,8 +100,8 @@ pub fn stamp_of(text: &str) -> Option<ClaimTime> {
 /// const within = (modified) => modified.ok && now - modified < A_FINISHED_RECORD_IS_READ;
 /// ```
 fn is_within_the_time_a_client_looks(modified: std::io::Result<SystemTime>) -> bool {
-    let Ok(modified) = modified else { return true };
-    return match modified.elapsed() {
+    let Ok(written) = modified else { return true };
+    return match written.elapsed() {
         Ok(age) => age < A_FINISHED_RECORD_IS_READ,
         // A time after now is a clock that moved, so no age is proven either.
         Err(_in_the_future) => true,
@@ -129,12 +129,12 @@ fn is_within_the_time_a_client_looks(modified: std::io::Result<SystemTime>) -> b
 /// aClientMayStillRead(stamp, modified, now) // true: keep the record for a client that may still look
 /// ```
 pub fn a_client_may_still_read(stamp: Option<&ClaimTime>, modified: std::io::Result<SystemTime>, now: &ClaimTime) -> bool {
-    let Some(stamp) = stamp else { return is_within_the_time_a_client_looks(modified) };
+    let Some(written) = stamp else { return is_within_the_time_a_client_looks(modified) };
     // A restart ended every client of the boot the record was written in, so no client of it is left to read it.
-    if now.is_past_the_boot_of(stamp) {
+    if now.is_past_the_boot_of(written) {
         return false;
     }
-    return now.elapsed_since(stamp) < A_FINISHED_RECORD_IS_READ;
+    return now.elapsed_since(written) < A_FINISHED_RECORD_IS_READ;
 }
 
 /// Controls stay out of the release executable.

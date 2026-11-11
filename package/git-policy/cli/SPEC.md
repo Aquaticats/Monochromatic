@@ -10056,7 +10056,8 @@ its after-commit task writes the note of a repository to look at and the plan of
 on a thread of its own and from jobs of the blocking pool,
 so a write that lands between the listing that says the journal holds nothing unresolved and the removal of the whole tree
 would be taken with it.
-It keeps the journal, the note and the socket file instead,
+It keeps the journal,
+the note and the socket file instead,
 names the journal in its own log when it holds work a person may want,
 and leaves the removal to the sweep that asks the manager whether its service is gone
 (`service stop-units-of-removed-worktrees`),
@@ -10089,7 +10090,9 @@ the monotonic clock and the wall clock,
 the reading a claim's lease is judged by (`service/claim_time.rs`),
 so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
 a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
-and only a record of an earlier release, which carries no reading, is judged by its modification time.
+and only a record of an earlier release,
+which carries no reading,
+is judged by its modification time.
 A wall clock that stepped forward is therefore no reason to take a record a client of this boot may still read.
 A journal kept only for those clients,
 or for a service the manager does not yet report gone,

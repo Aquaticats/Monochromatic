@@ -1471,7 +1471,8 @@ when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
-keeps the journal, the note and the socket file,
+keeps the journal,
+the note and the socket file,
 and ends with status 0.
 It never removes its own journal:
 its after-commit task writes the note of a repository to look at and the plan of a push to try again,

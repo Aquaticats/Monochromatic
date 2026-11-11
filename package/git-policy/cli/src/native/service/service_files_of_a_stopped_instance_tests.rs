@@ -119,6 +119,32 @@ fn the_service_keeps_its_own_journal_while_its_own_task_may_still_write_it() {
 }
 
 /// What:
+///  A service whose own journal holds the record of a batch that did not land
+///  keeps that record,
+/// the note and the socket file,
+///  so the sweep names it to the person and nothing is removed on their behalf.
+/// Why:
+///   That record is the only place the request and the commit a person asked for are written together,
+/// and the service that finds it cannot remove the journal it may still write.
+#[test]
+fn the_service_keeps_its_journal_and_the_files_that_name_it_when_a_batch_did_not_land() {
+    let machine: Machine = machine("files-own-unlanded");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
+    let intent: PathBuf = journal.join(format!("7.{OPEN_EXTENSION}"));
+    std::fs::write(&intent, b"seq=7\n").expect("a batch that did not land");
+    let mut recorder: Recorder = Recorder::default();
+    let stopped: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    assert_eq!(stopped, Some(gone));
+    assert!(intent.exists(), "the record of a commit that has not landed is kept");
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep finds the instance and names it");
+    remove(machine.root.as_path());
+}
+
+/// What:
 ///  A journal that holds the record of a commit that has not landed stays,
 ///  with every file in it,
 ///  and the command is told which file kept it.
@@ -277,7 +303,8 @@ fn set_time(path: &std::path::Path, when: SystemTime) {
 ///  the reading it carries says it was written a moment ago,
 ///  and the client whose answer was lost still reads the commit it became.
 /// Why:
-///   A time sync, a person or a machine that resumed from sleep moves the wall clock,
+///   A time sync,
+/// a person or a machine that resumed from sleep moves the wall clock,
 /// and the wait a client is inside is measured on the monotonic clock,
 /// which does not count a suspended host's sleep,
 /// so the cleanup judged by the modification time alone removed the only record
@@ -348,6 +375,42 @@ fn a_finished_record_of_an_earlier_release_is_judged_by_its_modification_time() 
     );
     assert!(!journal.exists());
     remove(root.as_path());
+}
+
+/// What:
+///  A journal that holds the after-commit records of its instance keeps the journal
+///  and names each of them for what it is.
+/// Why:
+///   Those records are what a service of this worktree reads when it starts again,
+/// so they are work a person may want,
+/// and a notice that calls them a folder this release does not know tells them nothing about what they would lose.
+#[test]
+fn a_journal_of_after_commit_work_stays_and_is_named_for_what_it_holds() {
+    for (directory, reason) in [
+        (
+            crate::service_claim_watch::WATCH_DIRECTORY,
+            "the repositories this service was still to look at, which a service of this worktree reads when it starts again",
+        ),
+        (
+            crate::push_retry::PLAN_DIRECTORY,
+            "the pushes this service was still to try again, which a service of this worktree reads when it starts again",
+        ),
+    ] {
+        let root: PathBuf = fixture(format!("files-after-commit-{directory}").as_str());
+        let state: PathBuf = root.join("state");
+        let instance: &str = "0000000000000000000000000000000f";
+        let journal: PathBuf = journal_folder(state.as_path(), instance);
+        std::fs::create_dir_all(journal.join(directory)).expect("a folder of the after-commit work");
+        std::fs::write(journal.join(directory).join("a-record"), b"a record of work the service had left").expect("a record in it");
+        let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+            Some(JournalAfterStop::HoldsWork(kept)) => kept,
+            other => panic!("{directory} keeps the journal and is named: {other:?}"),
+        };
+        assert_eq!(kept.entry, directory);
+        assert_eq!(kept.reason, reason, "{directory} is named for what it is, not as a folder this release does not know");
+        assert!(journal.exists(), "a journal of after-commit work stays");
+        remove(root.as_path());
+    }
 }
 
 /// What:
