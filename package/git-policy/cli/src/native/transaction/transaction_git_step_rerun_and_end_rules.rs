@@ -509,7 +509,8 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
 /// or `refs/worktree/cli-git-service/<number>`.
 /// Why:
 ///  `is_side_ref_write` accepts an `update-ref` only for these names,
-/// and each ends in a number, with `-rescue` allowed after the kept name's number.
+/// and each ends in a number,
+/// with `-rescue` allowed after the kept name's number.
 ///  The words are the ones
 ///  `service_scratch_ref_of_a_dropped_batch.rs` writes,
 /// spelled again here because that folder uses this one and may not be used by it.

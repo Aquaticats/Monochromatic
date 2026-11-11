@@ -86,7 +86,8 @@ fn context(git_dir: &Path) -> GitContext {
     return GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.to_path_buf()) };
 }
 
-/// Plant the lock file an update of `name` refused, as a killed or a concurrent Git leaves it.
+/// Plant the lock file an update of `name` refused,
+/// as a killed or a concurrent Git leaves it.
 fn plant_lock(common_dir: &Path, name: &str) {
     let lock: PathBuf = common_dir.join(format!("{name}.lock"));
     std::fs::create_dir_all(lock.parent().expect("the directory of the lock")).expect("the lock's directory");
@@ -167,13 +168,15 @@ fn a_kept_reference_that_names_another_commit_is_left_and_said() {
 }
 
 /// What:
-///  A linked worktree whose checkout a person deleted, which is the state `git worktree prune` exists for,
+///  A linked worktree whose checkout a person deleted,
+/// which is the state `git worktree prune` exists for,
 ///  still has its held commit kept before Git takes the registration and the per-worktree reference.
 /// Why:
 ///  The question and the write ran Git with the deleted checkout as its working directory,
 ///  which Git cannot start in,
 ///  so the wrapper warned and handed the prune to Git,
-///  which took the record, the per-worktree reference and then the commit itself
+///  which took the record,
+/// the per-worktree reference and then the commit itself
 ///  (a review of `ee545033ad`,
 ///  finding 1).
 #[test]
@@ -201,7 +204,8 @@ fn a_held_commit_of_a_deleted_checkout_survives_the_prune() {
 
 /// What:
 ///  A lock standing on the batch's own kept reference keeps the commit on the reference beside it,
-///  which a removal leaves alone, so the command still finishes and the commit survives it.
+///  which a removal leaves alone,
+/// so the command still finishes and the commit survives it.
 /// Why:
 ///  The write of the batch's kept reference was reported as failed and the removal ran anyway,
 ///  which deleted the per-worktree reference and then the commit
