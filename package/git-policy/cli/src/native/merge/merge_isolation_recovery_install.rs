@@ -17,6 +17,9 @@
 //! ```
 
 use crate::inner_git_words::record_words;
+/// Every permission bit a person can set except the three the merge decides from Git's entry.
+#[cfg(unix)]
+use crate::merge_isolation_carry_permissions::PERMISSION_BITS_WITHOUT_EXECUTE;
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{Change, worktree_path};
 use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk};
@@ -338,10 +341,6 @@ fn give_back_one_files_permissions<W: std::io::Write + ?Sized>(location: &Path, 
         let _ = (location, taken, out);
     }
 }
-
-/// Every permission bit a person can set except the three the merge decides from Git's entry.
-#[cfg(unix)]
-const PERMISSION_BITS_WITHOUT_EXECUTE: u32 = 0o7666;
 
 /// What:
 ///  Remove the directories a deleted path leaves empty up to the worktree top.

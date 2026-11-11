@@ -39,7 +39,8 @@ use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_cop
 /// which say what stands at its path and what ends it.
 use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
 use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, merge_key_of_a_record, stale_carry_names_of};
-/// The records still there, and whether the merge each names still runs.
+/// The records still there,
+/// and whether the merge each names still runs.
 use crate::merge_isolation_journal::{list_merge_intents, parse_merge_intent};
 use crate::transaction_owner::OwnerLiveness;
 /// Reading the bytes of a file through Git.
@@ -231,7 +232,8 @@ async fn the_file_holds_them_awaiting(context: &GitContext, root: &Path, locatio
 /// a copy that is executable where its path is not is the only executable
 ///  copy of those bytes,
 /// and removing it loses the person's mode
-/// (`SPEC.md`, the copy whose bytes the file at its path holds again).
+/// (`SPEC.md`,
+/// the copy whose bytes the file at its path holds again).
 ///  A symbolic link's permissions are the platform's and say nothing about the link,
 /// so two links holding one target are one entry.
 ///
@@ -515,7 +517,9 @@ fn remove_the_copy_because_git_holds_it<W: Write + ?Sized>(git_dir: &Path, copy:
 /// and putting one back under it makes Git refuse the checkout the merge was about to
 ///  make,
 /// so a command that has nothing to do with that merge would fail it (the owner's "Agents should never
-///  wait on each other on commits or merges", and `SPEC.md`, the record of a merge whose owner still runs).
+///  wait on each other on commits or merges",
+/// and `SPEC.md`,
+/// the record of a merge whose owner still runs).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

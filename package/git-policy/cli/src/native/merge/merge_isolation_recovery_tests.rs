@@ -4104,7 +4104,9 @@ fn a_merge_built_on_after_it_landed_carries_the_persons_edit_onto_the_moved_head
 }
 
 /// What:
-///  A save at the copy's own path, made after the bytes were compared, keeps the copy.
+///  A save at the copy's own path,
+/// made after the bytes were compared,
+/// keeps the copy.
 /// Why:
 ///  The copy is removed because the file at its path holds the same bytes;
 /// a save that arrives between that comparison and the

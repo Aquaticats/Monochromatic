@@ -338,7 +338,8 @@ pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &
 /// The words name the ref and the command that makes the merge on what the files hold now,
 /// so the way forward is one they
 ///  can type rather than a decision only the wrapper could make
-/// (`merge_isolation_recovery.rs`, the paths that are nobody's).
+/// (`merge_isolation_recovery.rs`,
+/// the paths that are nobody's).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

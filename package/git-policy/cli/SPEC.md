@@ -4491,8 +4491,11 @@ and "never discard user data"):
   A mode the person set without touching the bytes is theirs as the bytes are:
   the merge's own content is written with their mode,
   and a staged mode stays staged over the merge's object,
-  where every permission bit Git does not record (the read and write bits of each of the owner, the group and
-  everyone, and the setuid, setgid and sticky bits above them) is kept from the entry the write replaces and
+  where every permission bit Git does not record (the read and write bits of each of the owner,
+  the group and
+  everyone,
+  and the setuid,
+  setgid and sticky bits above them) is kept from the entry the write replaces and
   only the execute bits come from Git's entry
   (`keep_the_permissions_of_the_entry_it_replaces` in `src/native/merge/merge_isolation_carry_place.rs`,
   and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`
@@ -13963,7 +13966,8 @@ a copy whose merge still runs is left for that merge to finish,
 because a command beside a live merge that put the copy back under it would make Git refuse the checkout the
 merge was part way through making,
 and a copy whose merge key names a record that was written after the command read the owners is left too:
-the records are read again beside the copy it decides, so a merge that started in the moment between the two
+the records are read again beside the copy it decides,
+so a merge that started in the moment between the two
 keeps the file it took instead of meeting it again under the path it cleared,
 a copy whose path is empty and whose merge stopped without finishing goes back,
 a copy whose bytes the file at its path holds again,
@@ -13978,8 +13982,12 @@ because a save or a chmod that arrived after the comparison would leave the copy
 bytes or the older mode,
 a copy whose bytes that file holds but whose permissions it does not keeps its bytes and is named with that reason,
 where the permissions are every bit a person can set,
-the setuid, setgid and sticky bits above the read, write and execute bits of each of the owner, the group and
-everyone, because Git records only the execute ones and a copy that is the only entry carrying a special bit is
+the setuid,
+setgid and sticky bits above the read,
+write and execute bits of each of the owner,
+the group and
+everyone,
+because Git records only the execute ones and a copy that is the only entry carrying a special bit is
 not the second file of those bytes,
 and so does a copy a program still holds open,
 a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
@@ -14043,8 +14051,11 @@ is not written over at all:
 the record goes,
 the merge's commit stays on its ref,
 and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now,
-where a recorded ref another command repointed is not that promise: the commit is kept on a name of the
-command's own, written with an all-zero old value so no other command's commit is replaced, and the line names
+where a recorded ref another command repointed is not that promise:
+the commit is kept on a name of the
+command's own,
+written with an all-zero old value so no other command's commit is replaced,
+and the line names
 that name too,
 because a commit whose record and ref are both gone is collected by `git gc`
 (`keep_the_merge_on_a_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
