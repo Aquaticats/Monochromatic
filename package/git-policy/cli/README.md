@@ -618,7 +618,7 @@ Read-only commands,
   one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next;
   when the add
-   succeeds without being a snapshot,
+   succeeds without being a snapshot because of a cause the person can change,
   one line on standard error (unless `--quiet`) and one journal entry say why,
   in plain
    words,
@@ -698,14 +698,7 @@ Read-only commands,
      a worktree-specific configuration,
      a submodule,
      `.gitattributes`
-   files that differ between the source and the new `HEAD`,
-     and `--force`,
-     `--no-checkout`,
-     `-B`,
-     `--orphan`,
-     `--track`,
-   any `-c` option,
-     and `--no-worktree-copy`;
+   files that differ between the source and the new `HEAD`;
      rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git monochromatic-git-policy-cli migrate-to-subvolume` or `git monochromatic-git-policy-cli convert-worktree-to-subvolume` makes them
    subvolumes).
@@ -798,6 +791,10 @@ Read-only commands,
    command:
      only the cheap checks (no followed links,
      identities compared on opening) guard against it.
+  Unless `--quiet` is given the snapshot also prints one line of its own saying the worktree was made as a snapshot of the
+   main checkout and that nested worktrees,
+     caches,
+     run records and the stage containers of other commands were left out.
   The line reads like `monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because the main checkout has
    uncommitted changes in 2 paths (for example notes.md). Commit or stash them, and the next add is a snapshot that
    takes seconds.` It tells uncommitted changes,
@@ -811,7 +808,20 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
-  Every worktree the wrapper creates on btrfs is a subvolume,
+  The ladder does not read `--force`,
+     `--no-checkout`,
+     `-B`,
+     `--orphan`,
+     `--track`,
+   any `-c` option,
+     or `--no-worktree-copy`:
+     Git makes such a worktree alone,
+   as an ordinary directory,
+     and `--no-worktree-copy` skips the ignored-state copy with it.
+     An add run from such a worktree says it is not a subvolume and names
+   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
+  Every worktree the ladder makes on btrfs is a subvolume,
+     whatever rung served it,
      so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung,
      because every real Git start of the wrapper switches hooks off.
@@ -1446,7 +1456,6 @@ when:
 is a mount point,
 is on another device than its parent
  or is a symbolic link;
- it already is a subvolume with no migration recorded;
  the parent directory has fewer free bytes than the metadata of the checkout's entries needs
  (2048 bytes per entry:
 one kibibyte measured per copied entry on btrfs,
@@ -1468,6 +1477,10 @@ and the refusal names the count and both byte figures);
 `packed-refs.lock` or
  `shallow.lock` in `.git` or in a linked worktree's administrative directory);
  the commit service has unfinished work in `.git/monochromatic-git-policy-cli/work/pending` or `claimed`.
+A checkout that already is a subvolume with no migration recorded is no refusal:
+the command says there is nothing to do,
+exits 0,
+and names `--remove-old` when the migration's original tree is still beside it.
 Exit status 0 means done,
 already done or previewed;
 1 means a refusal;
@@ -2471,9 +2484,9 @@ or a lock nothing proves held):
  until `MERGE_LOCK_CEILING` (1 minute),
 whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
- at the bound it names the holder and the merge ends with Git's refusal,
-non-zero,
-with nothing changed.
+ at the bound it names the holder and the merge is saved on a side ref,
+exits 0,
+and changes nothing in the checkout (see "A merge saved for a later command").
 The notice names the merge,
 says it has changed nothing yet,
 names the lock and the holder with its proof
@@ -2551,8 +2564,8 @@ Each with its cause:
   or an index that holds unmerged entries:
   the command is native Git's whole,
   which refuses such a checkout itself.
-- A lock that stays held for the whole wait limit:
-  the merge stops,
+- A merge whose commit cannot be kept on a side ref while the lock stays held:
+  the command is refused with status 2,
   changes nothing and leaves the lock.
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
@@ -4144,7 +4157,8 @@ wherever the name sits below the main checkout:
  a directory that holds a `.git` file or directory (another checkout,
 including every registered worktree);
  the caches `.pnpm-store`,
-`.gradle` and `.kotlin`;
+`.gradle`,
+`.kotlin` and `.zig-cache`;
  a `.cache` directory other than the one in the repository root (the root `.cache` holds the tool launchers and generated
  inputs that tasks read,
 so it is copied);
