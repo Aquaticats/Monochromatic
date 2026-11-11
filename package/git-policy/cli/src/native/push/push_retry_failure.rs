@@ -55,35 +55,45 @@ pub const REMOTE_REJECTED: &str = "[remote rejected]";
 /// ends the same way.
 /// The reason alone says nothing about which rule of the server refused the push,
 /// and GitHub writes that same
-///  reason for a protected-branch refusal it answers with `PROTECTED_BRANCH_CODE`,
+///  reason for a protected-branch refusal it answers with `PROTECTED_BRANCH_REFUSAL`,
 /// which is retried;
-/// a decline without that code stays final.
+/// a decline without those words stays final.
 pub const HOOK_DECLINED: &str = "hook declined";
 
 /// What:
-///  The code GitHub's own server puts in the message of a push it refused because the update met the branch's
-///  protection rules,
-/// with the reference it refused.
+///  The words GitHub's own server puts in the message of a push it refused because the update met the branch's
+///  protection rules:
+/// the code,
+/// its own words for the refusal,
+/// and the reference it refused.
 /// Why:
-///   The code is the only part of the refusal that says which rule answered:
+///   These are the only part of the refusal that says which rule answered:
 /// the reason beside it is
 ///  `protected branch hook declined`,
 /// which the server writes for any of its own rules,
-/// and the words after the code were empty in every refusal this repository recorded
+/// and what followed the code was empty in every refusal this repository recorded
 ///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+/// The code alone is not matched,
+/// because GitHub answers other refusals with codes of the same family
+///  (`GH006 Cannot delete this branch` was recorded in `doc/audit/git-usage.2026-06-05.md`),
+/// and a server's own hook
+///  message can carry those letters for a reason of its own.
 /// It is looked for anywhere in the push's output,
-/// because a server's own message reaches the client as a `remote:` line
-///  of its own,
+/// because a server's own message reaches the client as a
+///  `remote:` line of its own,
 /// apart from the rejection line Git prints.
-pub const PROTECTED_BRANCH_CODE: &str = "GH006";
+pub const PROTECTED_BRANCH_REFUSAL: &str = "GH006: Protected branch update failed";
 
 /// What:
-///  How many tries in all the service gives a push the server refuses with `PROTECTED_BRANCH_CODE`,
+///  How many tries of one push the plan makes in all when the server answers with `PROTECTED_BRANCH_REFUSAL`,
 /// counting the first one,
 /// before it stops and asks the person.
 /// Why:
 ///   Such a refusal can clear by itself and can also refuse every try,
 /// so it is neither final nor retried for ever.
+/// The figure is the push's own try number and not a count of the refusals:
+/// the plan names a try and no cause,
+/// so a stall or an offline failure before the refusal spends tries too.
 /// Citation:
 ///  the three refusals recorded in `doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`:
 /// the
@@ -134,7 +144,7 @@ fn rejection_lines(output: &str) -> Vec<&str> {
 /// or nothing.
 pub fn protected_branch_refusal(output: &str) -> Option<&str> {
     for line in output.lines() {
-        if line.contains(PROTECTED_BRANCH_CODE) {
+        if line.contains(PROTECTED_BRANCH_REFUSAL) {
             return Some(line.trim());
         }
     }
@@ -313,6 +323,9 @@ fn pauses_before_the_last_try(first: Duration) -> Duration {
 /// because that is what
 ///  the service knows,
 /// and the push runs themselves are measured by nobody.
+/// The figure is the push's own count of tries and not a count of refusals,
+/// so the words say that the last try was
+///  refused and never that every try was.
 /// The words name the two shapes the refusal has:
 /// a branch rule that
 ///  refuses every try,
@@ -322,11 +335,11 @@ fn pauses_before_the_last_try(first: Duration) -> Duration {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// outOfTriesWords(firstPauseMs) // 'monochromatic-git-policy-cli: ... tried it 5 times, over 2 minutes and 30 seconds, ...'
+/// outOfTriesWords(firstPauseMs) // 'monochromatic-git-policy-cli: ... stopped ... after 5 tries over 2 minutes and 30 seconds ...'
 /// ```
 pub fn out_of_tries_words(first: Duration) -> String {
     return format!(
-        "monochromatic-git-policy-cli: the server refused this push as an update to a protected branch. The commit service tried it {PROTECTED_BRANCH_TRIES} times, over {span}, and has stopped trying this branch. \
+        "monochromatic-git-policy-cli: the server refused the last try of this push as an update to a protected branch, and the commit service has stopped trying this branch, after {PROTECTED_BRANCH_TRIES} tries over {span}. \
          What the server said on the last try is below. \
          A rule of the branch that refuses this commit every time (a branch that requires signed commits refuses a commit that is not signed) needs the commit or the rule changed: fix what the message names, then commit again. \
          When nothing in the message names something you can change, the refusal was the server's answer at that moment, and running `git push` by hand may land this commit unchanged.",

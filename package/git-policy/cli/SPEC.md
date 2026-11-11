@@ -4191,16 +4191,19 @@ a worktree that shows such a staged deletion puts the file back with `git restor
 A push the service stopped or that failed is tried again by the service on its own,
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
-until it lands or the person must act (`src/native/push/push_retry.rs`).
+until it lands or the person must act (`src/native/push/push_retry.rs`,
+and what a failure's own words mean in `src/native/push/push_retry_failure.rs`).
 One cause is tried a fixed number of times instead of until it passes:
 a refusal GitHub answers with `GH006: Protected branch update failed for <ref>`
 is the hosting service's own protected-branch rule,
 which cleared by itself three times in this repository and can also refuse every push,
-so the service tries it `PROTECTED_BRANCH_TRIES` times (five,
-which the default pause makes about two and a half minutes)
-and then reports it as failed (owner decision,
+so a push answered with it is given `PROTECTED_BRANCH_TRIES` tries in all,
+which the default first pause spreads over two and a half minutes,
+and is then reported as failed (owner decision,
 2026-11-11:
 "Make the wrapper auto retry on GH006").
+A try the push spent on a stall or an offline failure counts too,
+since the plan names a try and not a cause.
 A hook decline with no such code anywhere in the push's output stays final.
 Its plan is kept in a file whose name is a hash of the branch and of the bytes of the worktree's Git directory
 (`src/native/push/push_retry_store.rs`),
@@ -4232,7 +4235,7 @@ the notice says that it could not be told and names the commit still.
 The person must act for a conflict,
 for a login the service does not have,
 for a hook on the server that declined the push without a protected-branch code,
-and for a protected-branch refusal whose five tries the server refused as well
+and for a protected-branch refusal whose last try the server refused as well
 (owner decisions,
 2026-11-03 and 2026-11-11:
 "Offline is retried,

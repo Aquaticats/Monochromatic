@@ -293,7 +293,7 @@ fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person()
     assert!(shown_record.contains("GH006"), "the person is shown what GitHub said: {shown_record}");
     assert!(shown_record.contains("stopped trying this branch"), "the person is told the service has stopped: {shown_record}");
     assert!(
-        shown_record.contains(&format!("tried it {PROTECTED_BRANCH_TRIES} times")),
+        shown_record.contains(&format!("after {PROTECTED_BRANCH_TRIES} tries over")),
         "the person is told how many tries the service gave it: {shown_record}"
     );
     let span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, COUNTED_PAUSE).as_secs(); }).sum();

@@ -3925,13 +3925,13 @@ fractional or non-numeric value is ignored.
   GitHub answers one with
    `GH006: Protected branch update failed for <ref>`,
   and such a refusal cleared by itself three times in this repository,
-  so the service tries it five times in all;
-  with the default first pause the tries come after 10 seconds and then 20,
-   40 and 80,
-  so the last one is two and a half minutes after the refusal.
+  so a push answered with it is given five tries in all
+   (a try a stall or an offline failure spent counts too),
+  and with the default first pause the last of those tries comes two and a half minutes after the refusal.
   That is the owner's decision of 2026-11-11,
    "Make the wrapper auto retry on GH006";
-  the code is what makes the refusal a protected-branch refusal,
+  GitHub's words for a refused update are what make it that refusal
+   (the code family alone also covers other refusals such as one of a deletion),
   since the reason beside it
    (`protected branch hook declined`) is where any server writes words of its own.
   A refusal that keeps coming back ends after that fifth try

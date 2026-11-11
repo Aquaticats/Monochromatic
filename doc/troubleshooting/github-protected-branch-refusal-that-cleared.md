@@ -31,7 +31,7 @@ Two causes,
 of different kinds.
 
 The wrapper's sentence was our defect:
-`plain_words` in `package/git-policy/cli/src/native/push/push_retry.rs`
+`plain_words` in `package/git-policy/cli/src/native/push/push_retry_failure.rs`
 said that trying again would be refused the same way,
 which the push by hand disproved inside the same hour.
 A server's refusal is its answer at that moment;
@@ -47,7 +47,8 @@ and GitHub writes that same reason,
 for the refusal it answers with `GH006`.
 So the one refusal the repository recorded as clearing by itself three times
 was the one the wrapper never tried again.
-`PROTECTED_BRANCH_CODE` and `protected_branch_refusal` in that file now read the code,
+`PROTECTED_BRANCH_REFUSAL` and `protected_branch_refusal` in that file now read GitHub's words for a refused
+update,
 `PROTECTED_BRANCH_TRIES` bounds the retry at five tries,
 and `out_of_tries` stops it;
 a hook decline with no such code anywhere in the push's output stays final,
@@ -76,9 +77,10 @@ and this page does not claim one.
 The observation is the whole evidence:
 one refusal at a second-precise time,
 and one plain push of the same commit that landed minutes later.
-There is no harness that makes GitHub refuse a protected-branch update on demand,
-so neither catalog the reporting rules ask for can be built,
-and the reading rests on the recorded events rather than on a reproduction.
+There is no harness that makes GitHub itself refuse a protected-branch update on demand,
+so the catalog of GitHub's own causes cannot be built,
+and the reading of those refusals rests on the recorded events rather than on a reproduction.
+What the wrapper does with one is reproduced below with a local remote whose hook answers with GitHub's code.
 
 It happened again at `2026-11-10T02:24:59-05:00`,
 on the push of commit `1535eab9bf`,
@@ -134,7 +136,8 @@ because it is the owner's decision:
 > but auth and server hook declines stop until your next commit.
 
 That decision is quoted in `package/git-policy/cli/SPEC.md` and `package/git-policy/cli/README.md`
-with the same wording, and GitHub's refusal is carved out of it by the owner's answer of 2026-11-11:
+with the same wording,
+and GitHub's refusal is carved out of it by the owner's answer of 2026-11-11:
 
 > Make the wrapper auto retry on GH006
 
@@ -152,7 +155,7 @@ so the workaround is to try,
 not a promise that it lands.
 
 The wrapper's own record says what is known
-(`package/git-policy/cli/src/native/push/push_retry.rs`,
+(`package/git-policy/cli/src/native/push/push_retry_failure.rs`,
 `plain_words` for a plain decline,
 `out_of_tries_words` for a refusal that outlasted its tries):
 the server's hook declined this push,

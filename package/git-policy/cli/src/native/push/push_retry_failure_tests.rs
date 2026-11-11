@@ -42,6 +42,21 @@ const UPDATE_DECLINED: &str = "remote: update says no        \nremote: error: ho
 const PROTECTED_BRANCH_DECLINED: &str = " ! [remote rejected] main -> main (protected branch hook declined)\n";
 
 /// What:
+///  A hook decline whose own words merely carry the refusal's code,
+///  and GitHub's answer to a push that would delete a protected branch.
+/// Why:
+///   The code alone is not the refusal:
+/// a server's hook can print anything,
+/// and GitHub uses the same family for refusals of its own that a retry turns into a tighter rule each time
+///  (`GH006 Cannot delete this branch` was recorded in `doc/audit/git-usage.2026-06-05.md`).
+/// The marker is GitHub's words for a refused update,
+/// so neither of these is read as one.
+const A_DECLINE_NAMING_THE_CODE: &str = "remote: our rules are filed under GH00642        \nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+
+/// GitHub's answer to a push that would delete a protected branch.
+const A_DELETION_REFUSED_AS_PROTECTED: &str = "remote: error: GH006: Cannot delete this branch        \nTo https://github.com/Aquaticats/Monochromatic\n ! [remote rejected]       main -> main (protected branch hook declined)\nerror: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'\n";
+
+/// What:
 ///  GitHub's answer to the commit service's auto-push of `main`,
 ///  word for word,
 /// at `2026-11-11T06:42-05:00`.
@@ -116,12 +131,18 @@ fn a_github_protected_branch_refusal_is_tried_again() {
 
 /// A server hook's decline is final,
 /// whichever hook declined and whoever wrote its reason,
-/// as long as no protected-branch code says what the refusal is.
+/// as long as neither the words GitHub answers with nor a protected-branch update's refusal is there.
 #[test]
 fn a_server_hook_decline_is_not_tried_again() {
-    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {
+    for output in [
+        PRE_RECEIVE_DECLINED,
+        UPDATE_DECLINED,
+        PROTECTED_BRANCH_DECLINED,
+        A_DECLINE_NAMING_THE_CODE,
+        A_DELETION_REFUSED_AS_PROTECTED,
+    ] {
         assert_eq!(final_failure(output), Some(FinalFailure::Declined), "{output}");
-        assert_eq!(unrecognised_rejection(output), None, "a decline that is known is not reported as unknown: {output}");
+        assert_eq!(protected_branch_refusal(output), None, "nothing here is an update a retry can wait out: {output}");
     }
 }
 
@@ -204,8 +225,8 @@ fn a_protected_branch_refusal_is_given_a_fixed_number_of_tries() {
     for try_number in [PROTECTED_BRANCH_TRIES, PROTECTED_BRANCH_TRIES + 1, 1_000] {
         assert!(out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is past the bound");
     }
-    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {
-        assert!(!out_of_tries(output, 1_000), "a decline with no protected-branch code is final and never counted: {output}");
+    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED, A_DECLINE_NAMING_THE_CODE, A_DELETION_REFUSED_AS_PROTECTED] {
+        assert!(!out_of_tries(output, 1_000), "a refusal that is not an update this release reads is final and never counted: {output}");
     }
     for output in [CONNECTION_REFUSED, UNRESOLVED] {
         assert!(!out_of_tries(output, 1_000), "a cause that can pass is retried until it passes and has no count: {output}");
@@ -226,10 +247,10 @@ fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time()
     let first: Duration = Duration::from_secs(10);
     let span: Duration = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, first); }).fold(Duration::ZERO, |sum, pause| { return sum + pause; });
     let words: String = out_of_tries_words(first);
-    let tries_phrase: String = format!("tried it {PROTECTED_BRANCH_TRIES} times");
+    let tries_phrase: String = format!("after {PROTECTED_BRANCH_TRIES} tries over");
     let span_phrase: String = format!("{} minutes and {} seconds", span.as_secs() / 60, span.as_secs() % 60);
     for said in [
-        "the server refused this push as an update to a protected branch",
+        "the server refused the last try of this push as an update to a protected branch",
         "stopped trying this branch",
         "signed commits",
         "commit again",
@@ -239,7 +260,8 @@ fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time()
     ] {
         assert!(words.contains(said), "{said} in {words}");
     }
-    for absent in ["until the push lands", "keeps trying"] {
+    // The count is the push's own, so the words never claim that every try met the refusal.
+    for absent in ["until the push lands", "keeps trying", "tried it"] {
         assert!(!words.contains(absent), "{absent} in {words}");
     }
     // A plan whose pauses add up to less than a minute says seconds, and one that adds up to none says so.

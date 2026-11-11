@@ -36,7 +36,7 @@ use crate::service_work_storage_awaited::{
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, Retrying};
+use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use std::path::{Path, PathBuf};
@@ -213,10 +213,10 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 //  branch that requires signatures) refuses every try as well,
                 // so the tries end and the branch waits for the person
                 //  instead of for ever.
-                if out_of_tries(text.as_str(), due.attempt + 1)
-                    && let Some(first) = replanning.first
-                {
-                    let said: String = format!("{}\n{}", out_of_tries_words(first), text);
+                //  The words are the same whether or not this round keeps a plan,
+                // so a drain that reports a retryable failure as failed still names what the server said.
+                if out_of_tries(text.as_str(), due.attempt + 1) {
+                    let said: String = format!("{}\n{}", out_of_tries_words(replanning.first.unwrap_or(FIRST_PAUSE)), text);
                     crate::service_warn!(
                         "the push of {branch:?} failed on try {} of {PROTECTED_BRANCH_TRIES} and needs you: {}",
                         due.attempt + 1,
