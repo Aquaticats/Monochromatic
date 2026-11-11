@@ -118,8 +118,9 @@ fn a_line_that_moves_nowhere_says_nothing() {
 ///  A repository that keeps no reflog for a branch answers nothing about it.
 /// Why:
 ///  Nothing then proves the branch was made anywhere,
-///  so the landed sweep examines it as it did before the rule that reads a reflog
-///  (`README.md`, "The wrapper removes a worktree by itself when the branch it holds lands").
+///  so the landed sweep examines it as it did before the rule that reads a reflog:
+///  `README.md` says so under
+///  "The wrapper removes a worktree by itself when the branch it holds lands".
 #[test]
 fn a_branch_with_no_reflog_answers_nothing() {
     let root: PathBuf = fixture("branch-reflog-absent");
