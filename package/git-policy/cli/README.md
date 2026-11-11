@@ -1396,8 +1396,10 @@ and which goes away with the units at logout or shutdown;
 for a unit set up before that,
 the `gitdir=` line of a record in the service's journal names the worktree.
 Either text counts only when it hashes to the instance.
-The command stops only an instance whose Git directory is missing while the repository that held it is there
-(a repository on a drive that is not mounted proves nothing),
+The command stops only an instance whose Git directory is missing and whose repository is proven gone:
+the nearest directory above the Git directory that exists proves it deleted when it is the root of a mounted filesystem or holds other entries,
+while an empty one may be a drive that is not mounted yet and proves nothing
+(the proof is the one the pushes waiting for a new try are read by, `landing/unreachable_git_dir_proven_gone.rs`),
 says which worktree each stopped instance was,
 and names an instance that maps to nothing without touching it.
 A stopped instance's note and socket file are removed,
@@ -1415,13 +1417,19 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
-A service that finds its own worktree gone stops its own socket and serves nothing,
+A service that finds its own worktree or repository gone stops its own socket and serves nothing,
 so those leftovers also go without anyone running the command.
 It asks the same question of the same note and journal records,
 when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
-stops its socket with the stop mode that leaves the units requiring it alone,
+and it asks it before the after-commit work counts itself busy:
+a plan kept for a push waiting for a new try counts the service busy,
+so a service asked only after that count never asked at all and kept retrying a repository that was gone.
+The pushes it kept for that repository end with it,
+and one line in the journal names the branches that will not be tried again;
+a plan of a repository that is still there stays.
+It stops its socket with the stop mode that leaves the units requiring it alone,
 removes the note,
 the socket file and the journal when the journal holds nothing else,
 and ends with status 0.
