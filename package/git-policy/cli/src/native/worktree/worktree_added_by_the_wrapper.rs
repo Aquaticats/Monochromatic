@@ -130,7 +130,8 @@ pub fn record_or_log(common_dir: &Path, worktree: &Path) {
 ///  is empty,
 ///  or names another path is not this worktree's,
 ///  and is a "no" like an absent one.
-///  The record ends with the one line feed `record` writes, and the path before it is compared as bytes,
+///  The record ends with the one line feed `record` writes,
+///  and the path before it is compared as bytes,
 ///  so a worktree whose path ends in a space is the worktree the record names.
 ///
 /// In TS you'd write (pseudocode):
