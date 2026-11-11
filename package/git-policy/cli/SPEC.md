@@ -3064,6 +3064,9 @@ so a moved worktree is still the one the record names:
 the record is kept and its line and commands name the path the registration gives it now.
 A readiness check holds a copy back from a source that is itself the destination of a record that still stands,
 whether that worktree was moved or not.
+A registration that cannot be read for a moment proves nothing about the worktree it registered,
+so the record it might name is kept and named by a later pass,
+never settled on a guess.
 No command a person runs fills an existing worktree,
 and none is planned:
 the owner answered a request for one (2026-11-10) with "No,
