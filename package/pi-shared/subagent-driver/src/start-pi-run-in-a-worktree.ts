@@ -26,6 +26,7 @@ import {
   isRecord,
 } from './read-pi-fields.ts';
 import { gitRunnerOf, } from './git-command.ts';
+import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
@@ -293,6 +294,21 @@ async function statusOf({
   };
 }
 
+/**
+ The `PATH` the session's own processes get, which a systemd unit does not inherit from the shell that started this command.
+ */
+const pathOfMiseEnvironment = await requiredOutputOf({
+  run: runCommandWithChildProcess,
+  command: 'mise',
+  words: [
+    'exec',
+    '--',
+    'printenv',
+    'PATH',
+  ],
+  folder: options.checkoutFolder,
+},);
+
 if (!readOnlyInMain) {
   console.log(await makeWorktree({
     git,
@@ -300,6 +316,28 @@ if (!readOnlyInMain) {
     worktree,
     branch: options.branch,
   },),);
+}
+
+try {
+  console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    sessionPath: pathOfMiseEnvironment,
+    workingFolder: worktree,
+  },)} answers as the policy wrapper`,);
+}
+catch (error) {
+  // Issue 1768: a session whose git is the system binary never runs the wrapper, so this run is refused before anything is
+  // started rather than started without the policies, the guards against discarding work and the automatic push. The check
+  // refuses with an error of this package's own, whose message says everything a reader needs; any other failure is not a
+  // refusal and is left as the uncaught error it is.
+  if (!Error.isError(error,)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(1,);
+}
+
+if (!readOnlyInMain) {
   /**
    What linking the worktree's dependencies answered.
    */
@@ -337,17 +375,7 @@ const unit = unitCommandOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment: await requiredOutputOf({
-    run: runCommandWithChildProcess,
-    command: 'mise',
-    words: [
-      'exec',
-      '--',
-      'printenv',
-      'PATH',
-    ],
-    folder: options.checkoutFolder,
-  },),
+  pathOfMiseEnvironment,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,

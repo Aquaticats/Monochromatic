@@ -49,6 +49,52 @@ and each offers the step it owns:
 Each has a `mise` task of its own name under
 `//package/pi-shared/subagent-driver:`.
 
+### The git a session would run
+
+A session whose `git` resolves to the system binary never runs this repository's Git policy wrapper,
+so it commits past every policy,
+past the guards against discarding work,
+and without the automatic push after each commit.
+The wrapper cannot notice its own absence:
+`git --version` prints the same text either way.
+So the launchers ask before a session starts
+([issue 1768](https://github.com/Aquaticat/Monochromatic/issues/1768),
+`doc/troubleshooting/git-policy-wrapper-launcher-path.md`).
+They resolve `git` on the `PATH` the session would get,
+the way the session's own commands resolve it,
+in the folder the session would work in,
+and then ask that program for its policy namespace help:
+`git monochromatic-git-policy-cli --help` prints that help only when the wrapper answers it.
+
+The question is bounded at ten seconds,
+well above the 72 ms it took in this checkout on 2026-11-11,
+because a session starts unattended and nothing here waits forever.
+A program that does not answer is refused as well as one that answers wrongly.
+
+`start-pi-run-in-a-worktree` asks after it has made the worktree and before it links dependencies,
+so a refused launch has started no unit, written no run folder and linked nothing,
+and it exits 1 saying:
+
+- the path of the `git` the session would run,
+- what that program answered,
+- and the fix: the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
+  which `mise run toolchain:install` makes,
+  and that folder has to come before the system one on the session's `PATH`.
+
+A worktree it made stays as it is:
+the refusal line names that folder,
+and nothing here removes a worktree that may be an earlier run's.
+
+`drive-pi-subagent` asks the same question of the environment it is about to hand Pi,
+in the working folder it was given,
+before Pi starts and before it writes the run folder.
+That is what covers a unit a coordinator started by hand rather than through the launcher above.
+
+What this does not decide:
+whether `git-lfs` resolves, which the same incident also needed;
+and work the launcher does before the check (its own `git worktree add`) runs with the launcher's own `PATH`,
+which a protected session already sets.
+
 ### The provider pools
 
 A pool is how many runs one provider account answers at once,
@@ -245,7 +291,10 @@ and the feed's last write,
 each with a limit of its own,
 so a run ends even when Pi answers nothing at the end.
 
-`pi` must be on `PATH`.
+`pi` must be on `PATH`,
+and the `git` this session would run must be this repository's policy wrapper,
+which the driver asks before it starts Pi
+(see the section "The git a session would run").
 
 ## Files a run writes
 
