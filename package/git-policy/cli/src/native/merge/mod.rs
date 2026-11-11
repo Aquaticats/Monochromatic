@@ -172,6 +172,12 @@ pub mod merge_isolation_carry_layers;
 /// merged or left alone.
 pub mod merge_isolation_carry_notice;
 
+/// One path a carry kept whole:
+/// what stands at it of the person's work,
+/// what the merge made of it,
+/// and the line that says both and names the command that reaches the merge's version.
+pub mod merge_isolation_carry_kept_path;
+
 /// Putting one planned worktree write in place,
 /// or leaving a path alone because what stands there is not the entry that was judged.
 pub mod merge_isolation_carry_place;
