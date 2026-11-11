@@ -54,7 +54,8 @@ fn a_deleted_repository(holder: &Path, name: &str) -> (PathBuf, PathBuf) {
 ///  and the plans of a repository that is there and of one behind a mount point that holds nothing stay.
 /// Why:
 ///   This is the state the owner reported:
-/// a unit of a `/tmp` repository deleted hours before, retrying at try 149.
+/// a unit of a `/tmp` repository deleted hours before,
+/// retrying at try 149.
 /// The two plans that stay are what the rule must not take:
 /// a repository whose push can still run,
 /// and a drive that is not mounted yet.

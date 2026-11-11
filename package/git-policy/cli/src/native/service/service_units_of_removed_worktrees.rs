@@ -125,7 +125,8 @@ pub struct SweepOutcome {
 /// the nearest directory above the Git directory that exists,
 /// which proves the repository deleted when it is the root of a mounted filesystem or holds other entries,
 /// and proves nothing when it holds nothing at all.
-/// Both questions are asked here, so the service,
+/// Both questions are asked here,
+/// so the service,
 /// the survey,
 /// the sweep and `doctor` never disagree about a gone worktree.
 ///
@@ -432,7 +433,8 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn 
 /// (`service_plans_of_a_gone_repository.rs`),
 /// and the socket,
 /// the note and the socket file go,
-/// so `doctor` counts nothing left over, the next sweep asks nothing and a service started later has no try left to spend.
+/// so `doctor` counts nothing left over,
+/// the next sweep asks nothing and a service started later has no try left to spend.
 /// Only the socket is stopped,
 /// and with the mode that leaves what requires it alone:
 /// the service's own end is what stops its service unit,

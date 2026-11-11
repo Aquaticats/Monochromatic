@@ -38,7 +38,9 @@ use std::path::{Path, PathBuf};
 ///   The lines are what the service says once in its journal,
 /// so a person can see which commits of the deleted repository lost their tries.
 /// The shape is the one the drain's own line names them in:
-/// the branch, then `of`, then the commit.
+/// the branch,
+/// then `of`,
+/// then the commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

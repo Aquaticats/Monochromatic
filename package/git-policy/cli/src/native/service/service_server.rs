@@ -252,7 +252,9 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 /// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
 /// so an unmounted device and an instance nothing names keep the service serving.
 /// The question is asked before the busy count and before the idle bound:
-/// after-commit work that counts itself busy, and a service that has served nothing for hours, both answer it the same way.
+/// after-commit work that counts itself busy,
+/// and a service that has served nothing for hours,
+/// both answer it the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
