@@ -10,7 +10,8 @@
 //!  A file or a link standing where the move needs a folder is such a file:
 //!  the reset replaces it with that folder.
 
-use super::{KEPT_FOLDER_NAME, PathLeftInTheWay, UntrackedInTheWay, keep_the_untracked_paths_in_the_way, recovery_words};
+use super::{PathLeftInTheWay, UntrackedInTheWay, keep_the_untracked_paths_in_the_way, recovery_words};
+use crate::pull_untracked_paths_in_the_way_kept_copies::KEPT_FOLDER_NAME;
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};

@@ -4314,9 +4314,18 @@ so the wrapper copies every such file beside the Git directory first
 `pull_untracked_paths_in_the_way.rs`),
 names each copy in that line,
 and offers the hatch only after what it could not copy
-(a directory standing where the new commit writes a file,
+(a directory holding files standing where the new commit writes a file,
 a path it could not read)
 is named for the person to move out of the worktree first.
+A file or a link Git does not track standing on the way to an added path,
+where the move needs a folder,
+is copied the same way,
+because the reset replaces it with that folder;
+a component the previous commit tracked is not copied,
+since `git diff <old head>` holds its bytes.
+The listing names the repository by its absolute paths rather than keeping the command line's global options,
+so a relative `-C` or `--git-dir` is read once,
+from the directory the person typed the command in.
 The copies are never replaced:
 a second pull that keeps files makes the next numbered folder.
 A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
