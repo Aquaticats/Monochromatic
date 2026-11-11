@@ -14490,12 +14490,28 @@ The third is where a crate that vendors another project clones that project
 (`libghostty-vt-sys` cloned Ghostty into it) and runs Git in that clone,
 so the clone is the build step's checkout and not the person's work.
 An empty value of any of these variables counts as unset.
-A repository whose Git directory lies inside one of them is exempt,
-and the wrapper says so on standard error before Git runs,
+A repository whose Git directory and worktree top both lie inside one of them is exempt,
+so the exemption covers the tool's own checkout and nothing else:
+a linked worktree keeps its Git directory in the main clone
+(`<clone>/.git/worktrees/<name>`)
+while its files stand where they were added,
+and a worktree added outside that directory is the person's work even when the clone it came from is the tool's.
+The wrapper says so on standard error before Git runs,
 naming the variable and the directory it points at,
 so a variable that happens to name a repository is visible to the person:
 "this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
-which contains its Git directory".
+which contains both its Git directory and its worktree".
+The comparison is made on resolved paths:
+each allowlisted directory is resolved before it is compared,
+and Git's identity query prints the resolved path of the worktree and the Git directory
+for every spelling an invocation can use
+(the working directory reached through a symbolic link,
+`-C`,
+`GIT_WORK_TREE`,
+`--work-tree`,
+`core.worktree`,
+and a worktree added through a symbolic link all printed it on Git 2.56.0),
+so an exemption never depends on how a path was spelled.
 The record carries the same name in `facts.exemptedBy`
 and the outcome `exempt`.
 The rejection names the form,
