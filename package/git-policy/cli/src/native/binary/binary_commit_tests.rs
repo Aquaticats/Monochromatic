@@ -227,9 +227,10 @@ fn an_explicit_path_commit_lands_once_and_leaves_nothing() {
     remove_settled(&fixture);
 }
 
-/// A path before an equal, separated `-m` value is a path and the later token is the message,
-/// so `git commit a.txt -m a.txt` lands the named path with the message `a.txt` as native Git does:
-/// the message is never removed as the path it spells.
+/// A message that spells the path named before it stays:
+/// `git commit a.txt -m a.txt` lands the path `a.txt` with the message `a.txt`,
+/// as native Git does,
+/// because only a token in option position is removed.
 #[test]
 fn a_message_equal_to_a_path_stays_and_the_path_is_committed() {
     let fixture: Fixture = fixture("commit-message-equal-path");
@@ -253,8 +254,8 @@ fn a_message_equal_to_a_path_stays_and_the_path_is_committed() {
 }
 
 /// A long option is accepted by any unambiguous prefix,
-/// so the value of `--mess` is the person's message even when it spells `-o` or `--only`:
-/// `git commit --mess -o -- a.txt` lands the message `-o` as native Git does.
+/// so the value of `--mess` is the person's message even when it spells `-o` or `--only`,
+/// and `git commit --mess -o -- a.txt` lands the message `-o` as native Git does.
 #[test]
 fn an_abbreviated_message_keeps_a_value_that_spells_a_flag() {
     let fixture: Fixture = fixture("commit-abbreviated-message");

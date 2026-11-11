@@ -94,9 +94,10 @@ pub(crate) fn scan_long_option(
     // `.as_encoded_bytes()` lends the raw bytes of the token without decoding them.
     let token: &[u8] = arguments[index].as_encoded_bytes();
     // `?` returns a refusal to our caller, or unwraps Git's reading of the token.
-    let resolution: Resolution = resolve_long_option(token, table, mode.keep_unknown).map_err(|kind| {
-        return OptionError { kind, token: index };
-    })?;
+    let resolution: Resolution = match resolve_long_option(token, table, mode.keep_unknown) {
+        Ok(resolved) => resolved,
+        Err(kind) => return Err(OptionError { kind, token: index }),
+    };
     // `match` picks one arm per variant and the compiler refuses the code if one is forgotten.
     return match resolution {
         Resolution::KeptUnknown => {
