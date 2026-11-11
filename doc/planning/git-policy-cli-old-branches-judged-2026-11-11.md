@@ -663,7 +663,10 @@ recorded in the section "The port this session made".
 ## The port this session made
 
 Branch `fix/git-policy-cli-open-issues-fourth-pass`,
-started from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`.
+started from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`,
+in its own worktree at
+`/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/git-policy-cli-open-issues-fourth-pass`
+which this session keeps for the review.
 
 Commit `7f84c90b1b`.
 It carries `doc/planning/git-wrapper-open-issues-round-4.md` as the branch
