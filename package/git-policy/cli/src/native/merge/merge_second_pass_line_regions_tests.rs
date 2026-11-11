@@ -6,22 +6,27 @@
 
 use super::*;
 
+/// The labels the second pass gives one merge:
+/// a fresh value per call,
+/// so this is one of them.
+const LABELS: MarkerLabels<'_> = MarkerLabels { ours: b"ours-0f8b1c", base: b"base-0f8b1c", theirs: b"theirs-0f8b1c" };
+
 /// A `--zdiff3` answer with two regions,
 /// as Git writes one,
 /// with the labels the second pass gives it.
-const TWO_REGIONS: &[u8] = b"head\n<<<<<<< ours\nours one\n||||||| base\nbase one\n=======\ntheirs one\n>>>>>>> theirs\nbetween\n<<<<<<< ours\nours two\n||||||| base\n=======\ntheirs two\n>>>>>>> theirs\ntail\n";
+const TWO_REGIONS: &[u8] = b"head\n<<<<<<< ours-0f8b1c\nours one\n||||||| base-0f8b1c\nbase one\n=======\ntheirs one\n>>>>>>> theirs-0f8b1c\nbetween\n<<<<<<< ours-0f8b1c\nours two\n||||||| base-0f8b1c\n=======\ntheirs two\n>>>>>>> theirs-0f8b1c\ntail\n";
 
 /// Both regions are cut out with their three sides and their markers,
 /// and the settled text keeps the order of the file.
 #[test]
 fn an_answer_is_cut_into_its_settled_text_and_its_regions() {
-    let cut: Cut = cut(TWO_REGIONS).expect("a two-region answer cuts");
+    let cut: Cut = cut(TWO_REGIONS, &LABELS).expect("a two-region answer cuts");
     assert_eq!(cut.settled, vec![b"head\n".to_vec(), b"between\n".to_vec(), b"tail\n".to_vec()]);
     assert_eq!(cut.regions.len(), 2);
     assert_eq!(cut.settled.len(), cut.regions.len() + 1);
     let first: &Region = &cut.regions[0];
     assert_eq!((first.base.as_slice(), first.ours.as_slice(), first.theirs.as_slice()), (b"base one\n".as_slice(), b"ours one\n".as_slice(), b"theirs one\n".as_slice()));
-    assert_eq!(first.markers, b"<<<<<<< ours\nours one\n||||||| base\nbase one\n=======\ntheirs one\n>>>>>>> theirs\n".to_vec());
+    assert_eq!(first.markers, b"<<<<<<< ours-0f8b1c\nours one\n||||||| base-0f8b1c\nbase one\n=======\ntheirs one\n>>>>>>> theirs-0f8b1c\n".to_vec());
     // A region both sides inserted at one point has no common ancestor text.
     assert!(cut.regions[1].base.is_empty());
     assert_eq!(cut.regions[1].theirs, b"theirs two\n".to_vec());
@@ -32,8 +37,8 @@ fn an_answer_is_cut_into_its_settled_text_and_its_regions() {
 /// has an empty base and the second side where `=======` says.
 #[test]
 fn a_region_without_a_common_ancestor_section_is_cut_with_an_empty_base() {
-    let plain: &[u8] = b"<<<<<<< ours\none\n=======\ntwo\n>>>>>>> theirs\n";
-    let cut: Cut = cut(plain).expect("an answer of two sides cuts");
+    let plain: &[u8] = b"<<<<<<< ours-0f8b1c\none\n=======\ntwo\n>>>>>>> theirs-0f8b1c\n";
+    let cut: Cut = cut(plain, &LABELS).expect("an answer of two sides cuts");
     assert_eq!(cut.regions.len(), 1);
     assert!(cut.regions[0].base.is_empty());
     assert_eq!((cut.regions[0].ours.as_slice(), cut.regions[0].theirs.as_slice()), (b"one\n".as_slice(), b"two\n".as_slice()));
@@ -45,12 +50,12 @@ fn a_region_without_a_common_ancestor_section_is_cut_with_an_empty_base() {
 /// A line that only looks like a marker outside a region is the file's own text.
 #[test]
 fn an_answer_that_cannot_be_cut_is_refused() {
-    assert!(cut(b"<<<<<<< ours\n>>>>>>> theirs\n").is_err(), "a region with no split line cannot be cut");
-    assert!(cut(b"<<<<<<< ours\none\n=======\ntwo\n").is_err(), "an answer that ends inside a region cannot be cut");
-    assert!(cut(b"<<<<<<< ours\none\n<<<<<<< ours\ntwo\n=======\nthree\n>>>>>>> theirs\n").is_err(), "a region inside a region cannot be cut");
+    assert!(cut(b"<<<<<<< ours-0f8b1c\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(), "a region with no split line cannot be cut");
+    assert!(cut(b"<<<<<<< ours-0f8b1c\none\n=======\ntwo\n", &LABELS).is_err(), "an answer that ends inside a region cannot be cut");
+    assert!(cut(b"<<<<<<< ours-0f8b1c\none\n<<<<<<< ours-0f8b1c\ntwo\n=======\nthree\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(), "a region inside a region cannot be cut");
     // A line that only starts like a marker is text, as Git's own seven-character run makes it,
     // and so is one outside a region: Git does not escape the markers it writes.
-    let text: Cut = cut(b"<<<<<<\n>>>>>>\n=======\n").expect("six characters and a marker outside a region are text");
+    let text: Cut = cut(b"<<<<<<\n>>>>>>\n=======\n", &LABELS).expect("six characters and a marker outside a region are text");
     assert!(text.regions.is_empty());
     assert_eq!(text.settled[0], b"<<<<<<\n>>>>>>\n=======\n".to_vec());
 }

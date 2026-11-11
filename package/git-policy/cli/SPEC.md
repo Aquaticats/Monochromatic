@@ -12179,11 +12179,19 @@ see the refusal below.
 A `--zdiff3` answer is cut into the text Git settled and the regions it left,
 and a region's line numbers for the report and the journal are found by searching its text forward from the end
 of the region before it.
+The markers of that answer carry labels made unguessable for every merge
+(`-L ours-<random> -L base-<random> -L theirs-<random>`):
+Git does not escape the markers it writes,
+so a block the file already held that looks exactly like a conflict would otherwise be taken for a region
+and replaced by the word pass.
 An answer that ends inside a region,
 that nests a region inside another,
-or whose region count differs from the conflict count Git reported is refused,
+or whose region count is other than the conflict count Git reported is refused,
 and its file stays exactly as Git left it:
 a region read wrongly would lose a side.
+Git's exit status stops counting at 127,
+so at that count the answer may hold more regions than Git counted and never fewer,
+and a shortfall is refused as any other difference is.
 
 Owner decision (2026-11-10),
 verbatim:
