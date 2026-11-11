@@ -2403,7 +2403,14 @@ The rule is:
   and Cargo's build-script output directory (`OUT_DIR`,
   which Cargo sets for every build script and passes on to what it starts),
   where a crate that vendors another project clones it and runs Git in that clone,
-  as `libghostty-vt-sys` did with Ghostty.
+  as `libghostty-vt-sys` did with Ghostty,
+  and Cargo's build directory (`CARGO_BUILD_DIR`,
+  else `CARGO_BUILD_BUILD_DIR`,
+  else `CARGO_TARGET_DIR`),
+  which is the whole tree those clones stand in,
+  so a step that runs Git there without `OUT_DIR` is exempt too;
+  a relative value names nothing,
+  and a repository a person deliberately keeps under it gets no worktree policies.
   An empty value of any of these variables counts as unset.
   The exemption is chosen by the environment of the command itself,
   so the wrapper says on standard error which variable exempted the repository and which directory it named,

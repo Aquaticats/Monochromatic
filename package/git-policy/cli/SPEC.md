@@ -16107,6 +16107,39 @@ which Cargo sets for every build script and passes on to what it starts).
 The third is where a crate that vendors another project clones that project
 (`libghostty-vt-sys` cloned Ghostty into it) and runs Git in that clone,
 so the clone is the build step's checkout and not the person's work.
+Cargo's build directory is the fourth and the widest:
+`CARGO_BUILD_DIR`,
+then `CARGO_BUILD_BUILD_DIR`,
+then `CARGO_TARGET_DIR`,
+the first of them that is set and not empty.
+The owner's answer of 2026-11-11 chose this entry (`#3024`,
+option 1 of `doc/planning/git-wrapper-open-issues-round-4.md`),
+because the vendored clone keeps every rule only while its directory is exempt,
+and a second build step,
+an interrupted first one,
+or a person running Git in that clone
+reaches the same trees without `OUT_DIR` in its environment.
+The three names are not the same setting to Cargo:
+Cargo never reads `CARGO_BUILD_DIR`;
+`CARGO_BUILD_BUILD_DIR` is the environment spelling of `build.build-dir`
+(Cargo's configuration reference),
+and `build.build-dir` defaults to `build.target-dir`,
+whose own variable is `CARGO_TARGET_DIR`.
+The wrapper reads no Cargo configuration file,
+because `build.build-dir` and `build.target-dir` resolve a relative value against the directory of the file that
+set them,
+can hold the `{workspace-root}`,
+`{cargo-cache-home}` and `{workspace-path-hash}` templates,
+and are host configuration the environment-named list exists to keep out of the wrapper's source.
+A relative value names nothing:
+Cargo resolves one against a directory this invocation cannot know
+(`CARGO_TARGET_DIR` against Cargo's own working directory,
+a configuration value against the file's directory),
+and a Git process a build script starts works in that script's package directory,
+so exempting a guess could cover a repository nobody named.
+The limit of this entry is its width:
+a repository someone deliberately keeps under the build directory
+gets no worktree policies at all.
 An empty value of any of these variables counts as unset.
 A repository whose Git directory and worktree top both lie inside one of them is exempt,
 so the exemption covers the tool's own checkout and nothing else:

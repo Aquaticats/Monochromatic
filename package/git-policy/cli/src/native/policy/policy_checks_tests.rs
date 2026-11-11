@@ -374,6 +374,70 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
     remove(root.as_path());
 }
 
+/// linked-worktree-only:
+///  a repository under the invocation's Cargo build directory is exempt,
+/// and the same repository keeps its guard when the variable is unset or names a directory beside it.
+/// Why:
+///  The owner's answer of 2026-11-11 exempts the Cargo build directory,
+///  where a crate that vendors another project keeps that clone (`#3024`),
+///  so the exemption covers the build step's tree and nothing a person works in.
+#[test]
+fn linked_worktree_exempts_a_cargo_build_directory() {
+    let root: PathBuf = fixture("checks-cargo-build-dir");
+    let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
+    let clone: PathBuf = build_dir.join("debug/build/libghostty-vt-sys-1/out/ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    // The variable names the build directory: the discard runs, and the notice names the variable that chose it.
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["reset", "--hard"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
+            None,
+        ),
+    );
+    assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
+    assert_eq!(exempt.notices, vec![exemption_notice("CARGO_TARGET_DIR", build_dir.as_path())]);
+    // An unset variable exempts nothing: the same clone is refused while it holds changes.
+    let mut unset: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["checkout", "bebca846"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(&[], None),
+    );
+    assert_eq!(
+        unset.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+        )
+    );
+    // A directory beside the build directory is not exempt.
+    let mut beside: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["checkout", "bebca846"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(
+                OsString::from("CARGO_TARGET_DIR"),
+                root.join("another-build").into_os_string(),
+            )],
+            None,
+        ),
+    );
+    assert_eq!(
+        beside.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+        )
+    );
+    remove(root.as_path());
+}
+
 /// branch-worktree-only:
 ///  explicit creation is rejected without a query;
 ///  a bare name asks once.
