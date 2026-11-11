@@ -101,6 +101,52 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### 0.6.1-alpha.9 installed; the next integration is being built (2026-11-10T20:18:00-05:00)
+
+Release `0.6.1-alpha.9` (bump `64989e5e89`) shipped:
+the `crate-release` run `42935168319` passed its release and publish jobs,
+and the `cargo-publish` run `42935721432` built the archives and created the GitHub release
+`monochromatic-git-policy-cli-v0.6.1-alpha.9` at 2026-11-11T01:07:58Z.
+It is installed through `toolchain:update`;
+the repository lock commit `68937a8e22` took 5,331 ms,
+the service upgrade included.
+
+Two defects showed on the way, both open:
+
+- `native:release:wait` printed "RELEASE RUN FAILED: no publish was started" for run `42935168319`,
+  which had succeeded;
+  the archives come from the separate `cargo-publish` workflow.
+  The waiter is `package/crate-release/cli/bin/await-release.ts`.
+- The machine-global lock still names `0.6.1-alpha.8`,
+  so every `git` call prints `mpm-shadow`'s older-lock warning.
+  Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  does not run: no `mpm-shadow` is on `PATH`.
+  Agent `mpm-shadow-printed-global-lock-remedy-runs-as-printed` is fixing the printed remedies.
+
+Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
+built from `main` by the coordinator's script,
+which tries each branch with `git merge-tree --write-tree` first and merges only the clean ones:
+36 of 53 merged,
+17 conflicted.
+The 17 went back to their own agents to merge the integration branch and resolve.
+Five compile errors where merged branches met were fixed in `5686c7bb29`
+(three tests lacked the new `holder` field of `CommitRequest`,
+one closure lacked its explicit `return`,
+one test bound a value it never used);
+Clippy is clean on it,
+and both test suites run on it in unit `integrate-jam-fixes-suites`.
+Four branches whose runs ended before finishing are left out until resumed agents finish them:
+`commits-that-stop-after-their-add-steps`,
+`pushes-of-main-that-stalled-today`,
+`wrapper-suite-failures-on-main-tip`
+and `gate-flakes-scratch-sweep-and-descriptor-limit`.
+Kimi reviews each merged branch's own change on the integration branch's code (rule `KRV`).
+Next:
+merge the resolved branches,
+gate,
+land on `main`,
+release `0.6.1-alpha.10`.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
