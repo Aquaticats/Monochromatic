@@ -81,9 +81,9 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// so the entries Git's own `init` adds there are not considered.
 ///  An entry a commit reads that the repository has gained since the fill is refused,
 /// because the member would give the commit the view of the moment it was made;
-///  an entry it has lost is not,
-/// since a link to a name that is no longer there resolves to nothing,
-/// which is the view a creation of this moment gives.
+///  an entry it has lost is refused as well when the member still links it,
+///  because a creation of this moment makes no link at that name,
+/// and a filter or a hook that writes into the directory a link names fails on one that resolves to nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,6 +132,15 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         };
         if !metadata.file_type().is_symlink() {
             return Ok(Some(format!("the shared entry {name} is not a link in the member")));
+        }
+        // A link whose target has gone is not the link a creation of this moment makes, and the commit
+        //  must not be handed a directory it cannot write into: a filter or a hook that writes there fails.
+        match std::fs::metadata(link.as_path()) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Some(format!("the shared entry {name} points at an entry the repository no longer holds")));
+            }
+            Err(error) => return Err(error),
         }
     }
     // Every entry the creation shares is here, and links to the same real entry.

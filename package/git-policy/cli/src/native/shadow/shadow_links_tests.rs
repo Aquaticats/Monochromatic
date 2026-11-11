@@ -269,7 +269,9 @@ fn existing_shadow_entries_are_replaced_by_links() {
 /// never failing it.
 ///  Unix makes a link to a name whether or not that name is there,
 /// and Git reads a link to nothing as nothing,
-///  which is what a creation of this moment holds.
+///  which is what a creation of this moment holds;
+/// a pooled member that still holds one is refused at a claim,
+///  because nothing may write into the directory it names.
 #[test]
 fn a_shared_entry_that_is_gone_before_it_is_linked_is_not_an_error() {
     let root: PathBuf = fixture("shadow-links-gone");
@@ -385,5 +387,41 @@ fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
         "the pool is not in the shadow"
     );
     assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "a real shared entry is");
+    remove(root.as_path());
+}
+
+/// What:
+///  A listing of the shared `info` that reports an error is the creation's to report,
+///  never a directory quietly linked short of the entries the repository holds.
+/// Why:
+///   The shadow's `info` is where a commit finds `attributes`,
+///  `exclude` and `grafts`,
+///  so a listing that dropped a failed read would give it a view of the repository's filters and
+///  excludes that no one chose,
+///  and the commit would be built from bytes the person's attributes never named.
+///  The two arms are one control:
+/// a written directory lists every entry,
+/// so the error this reads is the only reason the first arm is empty.
+#[test]
+fn an_error_while_listing_the_shared_info_is_reported() {
+    let root: PathBuf = fixture("shadow-links-shared-info-error");
+    let info: PathBuf = root.join("info");
+    std::fs::create_dir_all(info.as_path()).expect("a shared info");
+    std::fs::write(info.join("attributes").as_path(), "* text\n").expect("attributes");
+    std::fs::write(info.join("exclude").as_path(), "*.log\n").expect("exclude");
+    std::fs::write(info.join("sparse-checkout").as_path(), "/*\n").expect("the per-worktree pattern");
+    let written: std::fs::ReadDir = std::fs::read_dir(info.as_path()).expect("a written directory");
+    let listed: Vec<SharedEntry> = shared_info_entries(written).expect("a directory that reads lists");
+    let mut names: Vec<String> = listed.iter().map(|entry| { return entry.name.to_string_lossy().into_owned(); }).collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![String::from("attributes"), String::from("exclude")],
+        "every shared entry is listed, and never the per-worktree pattern"
+    );
+    let failed: std::io::Result<Vec<SharedEntry>> =
+        shared_info_entries(vec![Err(std::io::Error::other("a directory read that failed"))].into_iter());
+    let error: std::io::Error = failed.expect_err("an error the listing reports is the creation's, never an entry left out");
+    assert_eq!(error.kind(), std::io::ErrorKind::Other, "the creation reports the error the listing gave it");
     remove(root.as_path());
 }

@@ -325,9 +325,11 @@ pub fn shared_entries_of(
 /// Why:
 ///   The entries are the ones `shared_entries_of` lists,
 /// so the two never disagree.
-///  An entry that vanishes between the listing and the link is linked by no creation,
-/// so it is not an error:
-/// a removal of `lfs` or `rr-cache` while a commit runs must not fail the commit.
+///  An entry that vanishes between the listing and the link is not an error:
+/// a removal of `lfs` or `rr-cache` while a commit runs must not fail the commit,
+/// on Unix a link to that name is made and resolves to nothing,
+/// and a pooled member that still holds such a link is refused at a claim
+/// (`shadow_pool_member.rs`, `refusal`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -408,6 +410,32 @@ fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
 }
 
 /// What:
+///  The entries of a real `info` directory a shadow links,
+///  or the error one entry's reading reported.
+/// Why:
+///   A linked worktree's `info` mixes the entries every commit reads with its own sparse pattern,
+///  and a listing that fails partway must not pass for a directory that holds fewer entries:
+/// an `info/attributes` left out of the shadow is a commit whose filters,
+/// excludes and grafts are not the person's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sharedInfoEntries(listed) // { name, source, directory }[]
+/// ```
+fn shared_info_entries(
+    listed: impl Iterator<Item = std::io::Result<std::fs::DirEntry>>,
+) -> std::io::Result<Vec<SharedEntry>> {
+    let mut shared: Vec<SharedEntry> = Vec::new();
+    for read in listed {
+        let entry: std::fs::DirEntry = read?;
+        if is_not_the_per_worktree_pattern(&entry) {
+            shared.push(shared_entry_of(entry));
+        }
+    }
+    return Ok(shared);
+}
+
+/// What:
 ///  Links the real common directory into the shadow and copies the per-worktree entries.
 /// Why:
 ///   A linked worktree's `info/sparse-checkout` lives outside the common directory,
@@ -433,11 +461,7 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     set_private_directory(shadow_info.as_path())?;
     let shared_info: PathBuf = common_dir.join("info");
     let shared: Vec<SharedEntry> = match std::fs::read_dir(shared_info.as_path()) {
-        Ok(listed) => listed
-            .flatten()
-            .filter(is_not_the_per_worktree_pattern)
-            .map(shared_entry_of)
-            .collect(),
+        Ok(listed) => shared_info_entries(listed)?,
         // Only an absent shared `info` is tolerated: a per-worktree sparse checkout is then the whole of it.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(error),
