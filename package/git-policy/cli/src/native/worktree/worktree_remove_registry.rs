@@ -207,15 +207,15 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
     let worktrees: PathBuf = common_dir.join("worktrees");
     let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path()).ok()?;
     let mut picked: Option<&[u8]> = None;
-    for registered in &registered {
-        if !ends_with_name(registered.path.as_slice(), operand.as_bytes()) {
+    for listed in &registered {
+        if !ends_with_name(listed.path.as_slice(), operand.as_bytes()) {
             continue;
         }
         // Git's suffix match answers a unique worktree or none; two matches send it to the resolved path instead.
         if picked.is_some() {
             return None;
         }
-        picked = Some(registered.path.as_slice());
+        picked = Some(listed.path.as_slice());
     }
     let only: &[u8] = picked?;
     let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(only))).ok()?;

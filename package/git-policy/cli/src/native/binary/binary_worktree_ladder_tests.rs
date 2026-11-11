@@ -238,8 +238,9 @@ fn a_name_that_differs_only_by_case_is_left_to_git() {
     remove(&fixture);
 }
 
-/// A name two registrations match, ignoring ASCII case, is Git's ambiguous case even when one of them spells the same
-/// directory through a symbolic link:
+/// A name two registrations match,
+/// ignoring ASCII case,
+/// is Git's ambiguous case even when one of them spells the same directory through a symbolic link:
 /// Git says the name is not a working tree,
 /// so the wrapper leaves it to Git and the worktree keeps every ignored file.
 /// Why:

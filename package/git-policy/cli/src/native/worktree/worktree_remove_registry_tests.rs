@@ -120,7 +120,9 @@ fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
     remove(root.as_path());
 }
 
-/// A second registration that ends in the operand, ignoring ASCII case, is another worktree to Git
+/// A second registration that ends in the operand,
+/// ignoring ASCII case,
+/// is another worktree to Git
 /// even when it names the same directory through a symbolic link:
 /// Git counts registrations,
 /// not directories,
