@@ -89,7 +89,9 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
         if matches!(&made, Ok(output) if output.succeeded()) {
             return None;
         }
-        // The reference says whether a write finished, whatever the wait for it said.
+        // The reference says whether a write finished, whatever the wait for it said. What the caller writes is unchanged: a name
+        //  that cannot be read is written again, and a name another command wrote is the caller's own decision as it always was
+        //  (`keep_on_a_side_ref_only_if_free` refuses one that exists, and both other callers write the value they were given).
         if matches!(value_of(git, repository, name), RefValue::Names(named) if named == tip) {
             return None;
         }
