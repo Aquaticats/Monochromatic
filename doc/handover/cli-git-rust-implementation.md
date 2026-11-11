@@ -148,6 +148,20 @@ Four branches whose runs ended before finishing are left out until resumed agent
 `wrapper-suite-failures-on-main-tip`
 and `gate-flakes-scratch-sweep-and-descriptor-limit`.
 Kimi reviews each merged branch's own change on the integration branch's code (rule `KRV`).
+
+At 2026-11-10T21:50-05:00 a second pass had merged five more (41 of 53),
+one more missing `holder` was fixed in `171edd1c00`,
+and Clippy is clean there.
+Both suites on `5686c7bb29`, rerunning only the failures, left 33 failing tests
+(11 in `invocation::entry` and one source guard, 8 around stage containers,
+5 in the service and landing, 6 commit budgets, the 3 host-only settle controls);
+four agents on branches cut from `5686c7bb29` fix them by area
+(`fix/git-policy-cli-integration-failures-*-after-alpha-9`).
+Agent capacity that night was set by Neuralwatt, not by the session's slot numbers:
+6 DeepSeek requests at once while the subscription is in overage,
+7 flex requests per model,
+and Pi ends a run on either 429;
+`.agents/skills/pi-as-subagent/SKILL.md` records the numbers and three launcher defects fixed then.
 Next:
 merge the resolved branches,
 gate,
