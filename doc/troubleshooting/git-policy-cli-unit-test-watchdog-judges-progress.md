@@ -718,7 +718,7 @@ assertion `left == right` failed: a watcher ended the process:
 ```
 
 That quoted line is `run_progress_tests.rs:386` of the gate's own commit;
-on this branch the same assertion sits at `run_progress_tests.rs:399`.
+on this branch the same assertion sits at `run_progress_tests.rs:402`.
 
 `left: None` is a child that ended with no signal,
 so the control's first two assertions had already passed:
@@ -825,12 +825,12 @@ and the control needed both removed.
   never on whether two watchers can keep each other alive.
   The child now waits for ever on a channel nothing sends to,
   and the parent runs it with `run_child_with_stderr_until`,
-  whose `CHILD_DEADLINE` (45 s in `run_progress_tests.rs:222`) turns a watcher that never ends it
+  whose `CHILD_DEADLINE` (45 s in `run_progress_tests.rs:224`) turns a watcher that never ends it
   into the control's failure.
 
 ### The controls now
 
-- `a_readers_own_stat_line_is_not_the_runs_work` (`run_progress_tests.rs:435`) asks the
+- `a_readers_own_stat_line_is_not_the_runs_work` (`run_progress_tests.rs:440`) asks the
   accounting directly and needs no load.
   The test thread registers as a reader,
   takes a look,
@@ -839,7 +839,7 @@ and the control needed both removed.
   and requires the judged bytes not to move.
   The stat line's own shrink is asserted beside it,
   so a rename that changed nothing cannot pass the control.
-- `two_watchers_do_not_keep_each_other_alive` (`run_progress_tests.rs:390`) asks what it always
+- `two_watchers_do_not_keep_each_other_alive` (`run_progress_tests.rs:394`) asks what it always
   asked,
   and only a watcher can answer it now.
 
@@ -896,7 +896,7 @@ against 9 of 10 before it.
 
 ### The read-error accounting audit, 2026-11-11T09:15:03-05:00
 
-A cross-vendor audit read the source of `426c4022f4` and `bbee0cdb`
+A cross-vendor audit read the source of `426c4022f4` and `bbee0cd9e8`
 in a worktree of its own and confirmed the read order:
 everything before the caller's `io` read is memory work.
 `the_readers` clones the mutex-protected vector (`run_progress.rs:187`),
@@ -936,7 +936,7 @@ so the reads it had already made were never booked.
   and `389`
   and `487`
   and `538`).
-- The booking moved before the look is judged readable (`run_progress.rs:557`),
+- The booking moved before the look is judged readable (`run_progress.rs:558`),
   so no look leaves its own readings behind,
   whatever it could read.
 
