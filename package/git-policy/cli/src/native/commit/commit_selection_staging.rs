@@ -25,7 +25,7 @@ use crate::commit_staged_additions::{explain_ignored_refusal, pathspecs_of_file}
 use crate::private_index_request::{CaptureIndexes, caller_pathspec_request};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, checked_from, run_git, run_git_checked};
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Why a start of the private staging ended:
@@ -105,6 +105,61 @@ pub(crate) fn add_selected_paths(
 }
 
 /// What:
+///  The directory the relative pathspecs of this command are read from.
+/// Why:
+///   Git reads a relative pathspec below the top of the worktree the command works on,
+/// from the directory it runs in when that directory is inside that worktree,
+///  and from the worktree's own top when it is outside it.
+///  A command line that names another worktree (`--git-dir` with `--work-tree`) from a directory outside it
+/// reads the exact name `selected.js` as that worktree's top-level file,
+///  so a reader that asked the invocation directory instead would find no file,
+/// take the element for a pattern,
+///  and stage it with `git add --update`,
+/// which refuses a path nothing tracked and leaves the commit to fail.
+///  The worktree named is resolved against the directory the `-C` chain reached,
+/// as Git resolves it,
+///  and a worktree or directory that cannot be resolved answers with the invocation directory,
+/// which is where Git reads the pathspec when it names no worktree of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathspecBase = (context, cwd) => { const workTree = valueOf('--work-tree', repositorySelection(cwd, context.globalPrefix)); if (!workTree) return cwd; const root = realpath(workTree); return root && realpath(cwd)?.startsWith(root) ? cwd : root; };
+/// ```
+pub(crate) fn pathspec_base(context: &GitContext, cwd: &Path) -> PathBuf {
+    let selection: Vec<OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    let Some(work_tree) = named_work_tree(selection.as_slice()) else { return cwd.to_path_buf() };
+    let Ok(root) = std::fs::canonicalize(work_tree) else { return cwd.to_path_buf() };
+    let here: PathBuf = std::fs::canonicalize(cwd).unwrap_or_else(|_unresolved| { return cwd.to_path_buf(); });
+    if here.starts_with(root.as_path()) {
+        return cwd.to_path_buf();
+    }
+    return root;
+}
+
+/// What:
+///  The worktree a resolved repository selection names,
+///  and nothing when it names none.
+/// Why:
+///  `from_global_options` answers the selection as option-and-value pairs,
+/// and Git reads the last `--work-tree` of a command line,
+///  which is the one the selection kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namedWorkTree = (selection) => selection.find((token, at) => token === '--work-tree' && selection[at + 1])?.[1];
+/// ```
+fn named_work_tree(selection: &[OsString]) -> Option<&Path> {
+    let mut at: usize = 0;
+    while at + 1 < selection.len() {
+        if selection[at] == "--work-tree" {
+            return Some(Path::new(selection[at + 1].as_os_str()));
+        }
+        at += 2;
+    }
+    return None;
+}
+
+/// What:
 ///  Stages the selection's elements into the private index:
 /// an element that names one file as it is,
 /// and a directory,
@@ -125,10 +180,11 @@ pub(crate) fn add_selected_paths(
 /// ```
 fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), SelectionStagingFailure> {
     let literal: bool = pattern_characters_are_literal(context);
+    let base: PathBuf = pathspec_base(context, cwd);
     let mut named_files: Vec<&OsString> = Vec::new();
     let mut patterns: Vec<&OsString> = Vec::new();
     for item in items {
-        if names_one_file(cwd, item.as_os_str(), literal) {
+        if names_one_file(base.as_path(), item.as_os_str(), literal) {
             named_files.push(item);
         } else {
             patterns.push(item);

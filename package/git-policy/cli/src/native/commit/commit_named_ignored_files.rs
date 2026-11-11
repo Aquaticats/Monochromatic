@@ -12,6 +12,10 @@
 //!  A path the real index tracks is not refused:
 //! the private index carries that entry (`commit_staged_additions.rs`),
 //! and `git add` then refreshes it without asking an ignore rule (issue 1807).
+//!  The directory an element is read from is the one Git reads a relative pathspec from (`pathspec_base`): the
+//! invocation directory when it is inside the worktree the command works on,
+//!  and that worktree's top otherwise,
+//! which is where a command line that names another worktree reads it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,14 +23,14 @@
 //! ```
 
 use crate::commit_index_selection::IndexSelection;
-use crate::commit_selection_staging::{Selected, names_one_file, pattern_characters_are_literal, selection_items};
+use crate::commit_selection_staging::{Selected, names_one_file, pathspec_base, pattern_characters_are_literal, selection_items};
 use crate::path_bytes::path_message_text;
 use crate::private_index_request::indexed_request;
 use crate::private_storage::{ReadRefusal, read_regular_file};
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, command_text, run_git};
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The core of the finding:
 ///  the fixed behavior of an explicit-path commit's selection,
@@ -66,9 +70,10 @@ pub fn named_ignored_files(
         return Ok(Vec::new());
     };
     let literal: bool = pattern_characters_are_literal(context);
+    let base: PathBuf = pathspec_base(context, cwd);
     let mut named: Vec<&OsString> = Vec::new();
     for item in items.iter() {
-        if names_one_file(cwd, item.as_os_str(), literal) {
+        if names_one_file(base.as_path(), item.as_os_str(), literal) {
             named.push(item);
         }
     }

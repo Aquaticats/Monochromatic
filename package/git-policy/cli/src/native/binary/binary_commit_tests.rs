@@ -701,6 +701,56 @@ fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  A named file of a worktree the command line selects with `--git-dir` and `--work-tree`,
+///  committed from a directory outside that worktree:
+///  the ignored one is refused with the named-ignored finding,
+///  and the one nothing ignores is committed as an exact path.
+/// Why:
+///   Git reads a relative pathspec from the top of the selected worktree when the directory the command runs in
+/// is outside it,
+///  and the invocation directory holds neither file,
+/// so a reader that asked it took both for patterns:
+/// `git add --update` refused the ignored file with a pathspec failure instead of naming what to do,
+///  and refused the file nothing ignores,
+/// which an exact path commits.
+#[test]
+fn a_commit_of_a_selected_worktree_names_a_file_the_invocation_directory_does_not_hold() {
+    let fixture: Fixture = fixture("commit-selected-worktree-outside");
+    let first: PathBuf = repository(&fixture, OsStr::new("first"));
+    let second: PathBuf = repository(&fixture, OsStr::new("second"));
+    std::fs::write(second.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, second.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, second.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(second.join("ignored.js"), b"ignored\n").expect("the ignored file only the selected worktree holds");
+    std::fs::write(second.join("plain.txt"), b"plain\n").expect("the file nothing ignores only the selected worktree holds");
+    let nested: PathBuf = first.join("nested");
+    std::fs::create_dir(&nested).expect("nested");
+    let git_dir: String = second.join(".git").to_str().expect("a UTF-8 fixture path").to_owned();
+    let work_tree: String = second.to_str().expect("a UTF-8 fixture path").to_owned();
+    let base: String = git_text(&fixture, second.as_path(), &["rev-parse", "HEAD"]);
+    let refused: Observed = run_commit(
+        &fixture,
+        nested.as_path(),
+        &["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str(), "commit", "--message=ignored", "--", "ignored.js"],
+    );
+    let refusal: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{refusal}");
+    assert!(refusal.contains("explicit-path-commit/named-path-ignored"), "the ignored file is named as ignored, not failed as a pathspec: {refusal}");
+    assert!(refusal.contains("ignored.js"), "{refusal}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-parse", "HEAD"]), base, "the refused commit landed nothing");
+    let landed: Observed = run_commit(
+        &fixture,
+        nested.as_path(),
+        &["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str(), "commit", "--message=plain", "--", "plain.txt"],
+    );
+    let failure: String = stderr_of(&landed);
+    assert_eq!(landed.code, Some(0), "the file nothing ignores is committed as an exact path: {failure}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain\n");
+    assert_nothing_left(&fixture, second.as_path());
+    remove_settled(&fixture);
+}
+
 /// A repository where a force-added ignored file is held as intent-to-add and another tracked file is edited:
 /// the shape a partial commit must record with both changes.
 fn ignored_intent_repository(fixture: &Fixture, name: &str) -> PathBuf {
