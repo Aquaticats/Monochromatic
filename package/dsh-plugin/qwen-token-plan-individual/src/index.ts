@@ -14,6 +14,9 @@ import type {
 import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
+import type {
+  QwenTokenPlanIndividualCredentialsLookupResult,
+} from './fetch-listing.ts';
 import {
   qwenTokenPlanIndividualLogger,
 } from './logging.ts';
@@ -34,8 +37,10 @@ export * from './snapshot.ts';
 /**
  Host services the plugin reads at activation: the settings surface whose
  `llm-pi-ai` entry the route is written through. The credentials service is
- read optionally through `ctx.get`, so a composition without one keeps the
- served snapshot instead of refusing to load.
+ looked up lazily through `ctx.get` when the listing fetch runs, so a
+ composition without one keeps the served snapshot instead of refusing to
+ load, and one the loader registers after this plugin's `apply` is still
+ seen.
  */
 export const inject: readonly string[] = ['settings'];
 
@@ -64,23 +69,27 @@ export function apply(ctx: Context): void {
    service is present when this runs.
    */
   const settings: SettingsForms = ctx.settings;
-  /**
-   Credentials service resolving the route's `apiKeyEnv` reference, or absent
-   in a composition that mounts none; the refresh degrades to the served
-   snapshot either way.
-   */
-  const credentials = ctx.get('credentials');
   logger
     .debug('qwen-token-plan-individual route feed applied over the llm-pi-ai settings entry');
   /**
    Fire-and-forget mount refresh: bounded, and its failure branches log and
-   keep the served snapshot instead of throwing.
+   keep the served snapshot instead of throwing. The credentials lookup is a
+   thunk, not a capture, because the loader can register the credentials
+   service after this `apply` runs; the refresh calls it when the listing
+   fetch is about to run.
    */
   void refreshQwenTokenPlanIndividualRoute({
     settings,
-    ...(credentials === undefined
-      ? {}
-      : { credentials, }),
+    getCredentials: function getCredentials(): QwenTokenPlanIndividualCredentialsLookupResult {
+      /**
+       Credentials service mounted at lookup time; absent here reads as "none
+       yet", which the refresh outlasts within its mount-race budget.
+       */
+      const credentials = ctx.get('credentials');
+      return credentials === undefined
+        ? {}
+        : { credentials, };
+    },
   },);
 }
 

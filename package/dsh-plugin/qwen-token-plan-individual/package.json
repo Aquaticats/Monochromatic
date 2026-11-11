@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*"
   },
