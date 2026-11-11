@@ -33,6 +33,11 @@ Design:
 - cli-git already owns a trust model in this repository:
    [`doc/decision/cli-git-policies-platform.md`](cli-git-policies-platform.md)
    and `package/git-policy/cli/src/allowed-worktree-dirs.ts`.
+   Note 2026-11-10T18:32:51-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+   The allowlist it held is `default_allowed_worktree_dirs` in
+   `package/git-policy/cli/src/native/invocation/effective_target.rs`,
+   and the `trust`, `untrust` and `status` commands this decision adopts are retired
+   (`package/git-policy/cli/src/native/invocation/management.rs:93`).
 
 ## Decision
 

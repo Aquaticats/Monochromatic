@@ -7,12 +7,13 @@ use super::*;
 use crate::fs_beneath::ObjectId;
 use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_journal::create_journal_for;
+use crate::worktree_copy_journal::{create_journal_for, ensure_journal_root};
 use crate::worktree_copy_journal_encoding_and_validation::PendingJournal;
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
 use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX};
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage, claim_stage_for_add_as};
+use crate::worktree_copy_unfilled_record::remember_unfilled;
 
 /// A repository with an ignored `cache` directory and one linked worktree `source`,
 /// returned with the canonical source root,
@@ -201,6 +202,45 @@ fn the_bound_record_names_the_destination_too() {
     remove(root.as_path());
 }
 
+/// A copy that ended before it was whole leaves its record naming the worktree it did not fill,
+/// and no journal and no claim stand beside it,
+/// so the record is the only sign that this source holds less than its own source ignores.
+/// A copy staged from it would carry that state on with a success line and no word,
+/// so the record holds the copy back.
+#[cfg(unix)]
+#[test]
+fn a_source_a_copy_ended_unfilled_is_not_staged_from() {
+    let root: PathBuf = fixture("source-readiness-unfilled");
+    let (source, _main, common) = repository_with_a_source(root.as_path());
+    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
+    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("the source's identity");
+    let owner: String = dead_copy_owner().token();
+    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
+    assert_eq!(
+        source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
+        Some(UnfinishedCopy::LeftUnfilled),
+        "the record of the copy that ended is the only sign the source is not whole"
+    );
+    remove(root.as_path());
+}
+
+/// A record that names a worktree a copy ended in, standing where that worktree is not,
+/// says nothing about the worktree at that path now:
+/// the worktree it described is gone or was replaced,
+/// so it holds no copy back and its own command settles it.
+#[cfg(unix)]
+#[test]
+fn a_record_of_a_replaced_worktree_does_not_make_the_source_busy() {
+    let root: PathBuf = fixture("source-readiness-unfilled-replaced");
+    let (source, _main, common) = repository_with_a_source(root.as_path());
+    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
+    let owner: String = dead_copy_owner().token();
+    let replaced: ObjectId = ObjectId { device: 1, inode: 2, birth: None };
+    remember_unfilled(journal.as_path(), source.as_path(), replaced, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
+    assert_eq!(source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"), None);
+    remove(root.as_path());
+}
+
 /// The line names the worktree that was made,
 /// the source that is still being filled,
 /// and the commands that have the copy made later.
@@ -210,6 +250,19 @@ fn the_notice_names_both_worktrees_and_how_to_copy_later() {
         source_still_being_filled_notice(Path::new("/repo/topic"), Path::new("/repo/source"), UnfinishedCopy::Running),
         String::from(
             "monochromatic-git-policy-cli: \"/repo/topic\" was made, but it received no ignored-state copy, because \"/repo/source\" is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished, `git worktree remove \"/repo/topic\"` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"
+        )
+    );
+}
+
+/// A source a copy ended in is not one the next command finishes:
+/// the person removes that worktree and makes it again,
+/// so the line names that route and not a command that will never come.
+#[test]
+fn the_notice_of_a_source_a_copy_ended_in_names_the_route_that_settles_it() {
+    assert_eq!(
+        source_still_being_filled_notice(Path::new("/repo/topic"), Path::new("/repo/source"), UnfinishedCopy::LeftUnfilled),
+        String::from(
+            "monochromatic-git-policy-cli: \"/repo/topic\" was made, but it received no ignored-state copy, because the ignored-state copy of \"/repo/source\" ended before it was whole, and \"/repo/source\" holds less than its own source ignores until the record of that copy is settled. Once that worktree is whole, `git worktree remove \"/repo/topic\"` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"
         )
     );
 }

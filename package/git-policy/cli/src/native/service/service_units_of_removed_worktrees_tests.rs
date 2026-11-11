@@ -7,49 +7,8 @@
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::test_support::{fixture, git, remove, repository};
-
-/// One repository and one runtime directory on disk:
-/// a checkout's Git directory with linked worktrees' administrative directories under it.
-struct Machine {
-    root: PathBuf,
-    runtime: PathBuf,
-    state: PathBuf,
-}
-
-fn machine(name: &str) -> Machine {
-    let root: PathBuf = fixture(name);
-    let runtime: PathBuf = root.join("run");
-    let state: PathBuf = root.join("state");
-    std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
-    std::fs::create_dir_all(&state).expect("state directory");
-    return Machine { root, runtime, state };
-}
-
-impl Machine {
-    fn folders(&self) -> UnitFolders<'_> {
-        return UnitFolders { runtime_dir: self.runtime.as_path(), state_dir: Some(self.state.as_path()) };
-    }
-
-    /// The administrative directory a linked worktree named `name` has,
-    /// made when `present` and otherwise only named.
-    fn linked(&self, name: &str, present: bool) -> PathBuf {
-        let common: PathBuf = self.root.join("repository/.git");
-        let admin: PathBuf = common.join("worktrees").join(name);
-        if present {
-            std::fs::create_dir_all(&admin).expect("administrative directory");
-        } else {
-            std::fs::create_dir_all(&common).expect("common directory");
-        }
-        return admin;
-    }
-
-    /// A socket file for an instance,
-    /// as the manager keeps one while the socket unit listens.
-    fn socket_of(&self, instance: &str) {
-        std::fs::write(socket_path(self.runtime.as_path(), instance), b"listening").expect("socket file");
-    }
-}
+use crate::service_units_fixture_test_support::{Machine, machine};
+use crate::test_support::{git, remove, repository};
 
 /// The units of a worktree that was removed are stopped by name through the manager,
 /// the socket first so nothing starts the service again,

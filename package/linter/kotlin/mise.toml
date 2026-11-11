@@ -3,7 +3,8 @@
 # mise.toml), not here, so the fanout-discovered package `lint` below stays a
 # local compile check and does not scan the repo twice.
 #
-# Gradle is the committed wrapper (gradle 9.5.1), matching the android-app pattern;
+# Gradle is the committed wrapper, matching the android-app pattern; the version is whatever
+# gradle/wrapper/gradle-wrapper.properties pins, so this comment does not repeat it (issue #2327).
 # java is inherited from the root mise manifest. detekt and the detekt CLI resolve
 # from mavenCentral.
 

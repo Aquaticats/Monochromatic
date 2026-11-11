@@ -171,6 +171,37 @@ fn a_subvolume_worktree_is_removed_and_a_dirty_one_is_refused() {
     remove(&fixture);
 }
 
+/// A clean subvolume worktree named by the last component of its path is removed by the one-call destroy:
+/// Git picks a worktree by the last path components of every registered path before it resolves a real path
+/// (`find_worktree` in Git's `worktree.c`),
+/// so the wrapper serves that name too.
+/// Why:
+///  A person names the worktree the way Git lets them name it;
+///  a typed branch name that Git resolves must not fall back to Git's file-by-file walk of a subvolume.
+#[test]
+fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
+    let fixture: Fixture = fixture("ladder-remove-last-component");
+    if !on_btrfs_or_acknowledged(&fixture, "ladder-remove-last-component") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let topic: PathBuf = fixture.root.join("topic");
+    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    age_tracked_files(&fixture, topic.as_path());
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "topic"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(!topic.exists(), "the worktree is gone");
+    assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
+    let said: String = stderr_of(&removed);
+    if removal_allowed(fixture.root.as_path()) {
+        assert!(said.contains("destroyed the btrfs subvolume of the removed worktree in one step"), "the one-call destroy is stated: {said}");
+    }
+    remove(&fixture);
+}
+
 /// Make a freshly added worktree provably clean:
 /// Git trusts the stat fields of a file only when the file is older than the
 ///  index,

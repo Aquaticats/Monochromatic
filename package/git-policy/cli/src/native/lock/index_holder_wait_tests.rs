@@ -267,6 +267,33 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
     remove(root.as_path());
 }
 
+/// What:
+///  The wait a merge makes before its own apply says the merge is saved for a later command,
+///  not that Git refuses it.
+/// Why:
+///  A held lock is not the merge's failure (`SPEC.md`,
+///  "Merges and commits never fail"):
+/// the merge is saved on a side ref and exits 0,
+///  so a line promising another command's refusal sends the person to a command that does not fail and leaves the
+///  saved merge unnamed.
+#[test]
+fn the_merge_wait_says_the_merge_is_saved_not_that_git_refuses() {
+    let root: std::path::PathBuf = fixture("holder-wait-merge-saved");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the other program holds the lock");
+    let sink: SharedSink = SharedSink::default();
+    let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
+    let mut writer = crate::test_support::ActionSink::new(&sink, 1, move || { remover.remove(); });
+    let outcome: IndexWait = wait_for_index_release_before_a_merge_that_clears_a_dead_lock(index.as_path(), &mut writer);
+    assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
+    let text: String = sink.text();
+    assert!(text.contains("the merge is saved"), "the saved merge is named: {text}");
+    assert!(!text.contains("reports what Git says"), "the line promises no report the merge does not make: {text}");
+    assert!(!text.contains("Git's own refusal"), "the line promises no refusal the merge does not make: {text}");
+    remove(root.as_path());
+}
+
 /// The id of a process that has ended,
 /// so a PID file can name one that is gone.
 fn gone_process_id() -> u32 {

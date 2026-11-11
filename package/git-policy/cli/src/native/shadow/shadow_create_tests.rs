@@ -129,6 +129,37 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
     remove(root.as_path());
 }
 
+/// What:
+///  A repository whose directory name is not UTF-8 writes its real object directory into the shadow's alternates
+///  as its own bytes,
+///  and the shadow's Git reads the real store through it.
+/// Why:
+///   A spelling of the path replaced the byte with U+FFFD,
+///  so the alternate named a directory that does not exist and the shadow's Git called the shadow no repository.
+#[test]
+fn the_alternates_keep_a_path_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-not-utf8");
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = path_bytes_of(repo.join(".git").join("objects").as_path()).to_vec();
+    expected.push(b'\n');
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the alternate is the object directory's own bytes"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "the shadow's Git reads the real store through the alternate"
+    );
+    remove(root.as_path());
+}
+
 /// Creating the shadow leaves the real refs,
 /// the real index and the worktree bytes unchanged.
 #[test]

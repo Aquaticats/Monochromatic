@@ -25,6 +25,7 @@
   "monochromatic-git-policy-cli": {
     "crateDir": "package/git-policy/cli",
     "scope": "git-policy/cli",
+    "dispatchGate": ["node", "bin/native-release-host-controls.ts"],
     "pinFiles": ["package/git-policy/cli.fuzz/Cargo.toml"],
     "checkBins": ["monochromatic-git-policy-cli"],
     "lockDirs": ["package/git-policy/cli.fuzz"]

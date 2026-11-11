@@ -66,6 +66,15 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// Why one commit did not land,
+/// as the timing record states it.
+pub mod commit_stop_reason;
+
+/// The last Git step of this process that failed,
+/// and the status it exited with,
+/// for the timing record.
+pub mod git_step_failure;
+
 /// How long each stretch of a commit's preparation held no Git child,
 /// by name,
 /// for the timing record.
@@ -85,6 +94,9 @@ pub mod conclusion_cleanup;
 /// conclusion kind,
 /// ref backend and base.
 pub mod capture_invocation;
+
+/// The answers of one `git rev-parse` report the invocation capture reads.
+pub mod git_report_answers;
 
 /// The private index and object store a commit's preparation selects,
 /// and the Git request that carries them.
@@ -108,6 +120,10 @@ pub mod commit_index;
 /// The worktree paths an explicit-path commit stages,
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
+
+/// The named files an ignore rule refuses,
+/// decided from the selection before any `git add` runs (issue 6278).
+pub mod commit_named_ignored_files;
 
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;

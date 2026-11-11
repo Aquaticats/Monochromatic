@@ -42,15 +42,16 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  The copy that has not finished filling one source,
-/// by whether the process that owns it still runs.
+/// by what the record of it says about its owner and how it ended.
 /// Why:
-///   The person reads a different sentence for a copy that runs now and for one
-/// that was interrupted,
-/// and both hold the new copy back.
+///   The person reads a different sentence for a copy that runs now,
+/// for one whose owner was interrupted,
+/// and for one that ended before it was whole,
+/// and every one of the three holds the new copy back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UnfinishedCopy = 'running' | 'interrupted';
+/// type UnfinishedCopy = 'running' | 'interrupted' | 'left-unfilled';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnfinishedCopy {
@@ -62,6 +63,11 @@ pub enum UnfinishedCopy {
     /// or a new add,
     /// completes it.
     Interrupted,
+    /// The copy ended before it was whole and left its record behind:
+    /// the source holds less than its own source ignores,
+    /// and nothing finishes it on its own,
+    /// so the person settles that worktree.
+    LeftUnfilled,
 }
 
 /// What:
@@ -180,6 +186,25 @@ pub fn source_is_still_being_filled_around(
         );
         return Ok(Some(unfinished));
     }
+    // A copy that ended before it was whole leaves its record and nothing else: no claim and no journal stand beside it,
+    // so the record is the only sign that this source holds less than its own source ignores. A copy staged from it would
+    // carry that state on as a success. Its owner still running means the install is in progress, as a journal would say.
+    if let Some(unfinished) = crate::worktree_copy_unfilled_record::standing_record_of(common_dir, source_root)? {
+        let copy: UnfinishedCopy = match token_owner_is_dead(unfinished.owner.as_deref(), unfinished.path.as_path())? {
+            true => UnfinishedCopy::LeftUnfilled,
+            false => UnfinishedCopy::Running,
+        };
+        debug(
+            "worktreeCopySource",
+            format!(
+                "{} is left unfilled by the record {}",
+                source_root.display(),
+                unfinished.path.display()
+            )
+            .as_str(),
+        );
+        return Ok(Some(copy));
+    }
     return Ok(None);
 }
 
@@ -236,6 +261,9 @@ pub(crate) fn claim_destination(claim: &Path) -> Option<PathBuf> {
 /// and `git worktree remove` leaves
 ///  a worktree that holds changes alone,
 /// so nothing the person wrote is discarded.
+///  A source a copy ended in is settled by the person and not by a command,
+/// so its line says so instead of promising
+///  a command that never comes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -247,6 +275,7 @@ pub fn source_still_being_filled_notice(destination: &Path, source: &Path, unfin
     let why: String = match unfinished {
         UnfinishedCopy::Running => format!("because {shown_source} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished"),
         UnfinishedCopy::Interrupted => format!("because the ignored-state copy of {shown_source} was interrupted before it finished, so its ignored files are only partly there. Once a command has completed that copy"),
+        UnfinishedCopy::LeftUnfilled => format!("because the ignored-state copy of {shown_source} ended before it was whole, and {shown_source} holds less than its own source ignores until the record of that copy is settled. Once that worktree is whole"),
     };
     return format!(
         "monochromatic-git-policy-cli: {shown_destination} was made, but it received no ignored-state copy, {why}, `git worktree remove {shown_destination}` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"

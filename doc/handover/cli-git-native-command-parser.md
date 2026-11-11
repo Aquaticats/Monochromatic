@@ -234,9 +234,13 @@ where `region` is the tokens after the subcommand word:
 - `parse_status_region` returns `StatusRegion` (`machine_readable`,
   `wrapper`);
   `has_status_hints_override(global_prefix)` reads the global options.
-- `parse_add_region` returns `AddRegion` (`bulk_matches: Vec<BulkMatch>`,
+- `parse_add_region` returns `AddRegion` (`all_token: Option<usize>`,
+  `update_token: Option<usize>`,
+  `pathspec_tokens`,
   `resolved`,
-  `wrapper`).
+  `wrapper`);
+  `add_explicit_question` keeps the tokens that may stage in bulk and
+  `decide_add_explicit` judges them against what Git lists.
 - `parse_reset_region` returns `ResetRegion` (`mode: Option<ResetMode>`,
   `wrapper`);
   `reset_changes_worktree` reads it.

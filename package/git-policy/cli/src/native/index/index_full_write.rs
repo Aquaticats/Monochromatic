@@ -21,7 +21,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const bytes = writeFullIndex(index, (data) => sha1(data)); // undefined: a name or size outside what the format holds
+//! const bytes = writeFullIndex(index, (data) => sha1(data), { kind: 'hashed' }); // undefined: a name or size outside what the format holds
 //! ```
 
 use crate::index_byte_search::common_prefix_length;
@@ -29,6 +29,24 @@ use crate::index_fsmonitor::write_fsmonitor;
 use crate::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORKTREE};
 use crate::index_stat::encode_varint;
 use crate::index_untracked_io::write_untracked;
+
+/// What:
+///  What the file ends with,
+///  which the configuration decides.
+/// Why:
+///   `do_write_index` writes the checksum of everything before it,
+///  or,
+///  under `index.skipHash`,
+///  a run of zero bytes saying the computation was skipped (`git-config`,
+///  Git 2.56.0).
+pub enum Trailer {
+    /// The checksum over the bytes before it.
+    Hashed,
+    /// The zeros `index.skipHash` writes instead,
+    /// `checksum_length` of them,
+    /// which the object format decides.
+    Skipped { checksum_length: usize },
+}
 
 /// The largest name length the flags hold;
 /// a longer name stores this value.
@@ -80,7 +98,7 @@ fn write_extension(out: &mut Vec<u8>, signature: &[u8; 4], content: &[u8]) {
 /// The file's bytes,
 /// with the checksum `hash` makes of everything before it;
 /// `None` for more entries than the format counts.
-pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>) -> Option<Vec<u8>> {
+pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>, trailer: Trailer) -> Option<Vec<u8>> {
     let extended: bool = index.entries.iter().any(has_extended);
     // Git demotes a version 3 file to version 2 when no entry needs the extended flags, and promotes a version 2 file with one.
     let version: u32 = if index.version == 4 { 4 } else if extended { 3 } else { 2 };
@@ -111,8 +129,14 @@ pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>) -> O
         }
         write_extension(&mut out, b"FSMN", write_fsmonitor(monitor.token.as_slice(), dirty.as_slice()).as_slice());
     }
-    let checksum: Vec<u8> = hash(out.as_slice());
-    out.extend_from_slice(checksum.as_slice());
+    match trailer {
+        Trailer::Hashed => {
+            let checksum: Vec<u8> = hash(out.as_slice());
+            out.extend_from_slice(checksum.as_slice());
+        }
+        // Zeros of the checksum's own length: Git says with them that the computation was skipped.
+        Trailer::Skipped { checksum_length } => out.resize(out.len() + checksum_length, 0),
+    }
     return Some(out);
 }
 

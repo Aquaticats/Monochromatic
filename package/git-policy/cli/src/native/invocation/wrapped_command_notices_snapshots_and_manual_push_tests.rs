@@ -22,6 +22,13 @@ fn nothing_asked() -> crate::held_push_commit_on_the_remote::NothingAsked {
     return crate::held_push_commit_on_the_remote::NothingAsked;
 }
 
+/// The wake a control gives when it has no service to tell:
+/// a control of the line must reach no service,
+/// and the settlement it makes leaves the record runnable either way.
+fn nothing_woken() -> crate::held_push_release_wakes_the_service::NothingWoken {
+    return crate::held_push_release_wakes_the_service::NothingWoken;
+}
+
 /// A commit name as it is,
 /// so a control reads the line the record holds.
 struct AsIs;
@@ -53,17 +60,19 @@ fn a_held_push_is_said_with_no_notice_directory() {
         tries: 0,
     };
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "no notice directory exists before the push is held");
-    crate::work_item::hold(work_dir.as_path(), &item).expect("the push is held");
+    crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "the hold wrote no second file: the record is the state");
-    let said: Vec<String> = crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked());
+    let said: Vec<String> = crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken());
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(oid.as_str()), "{}", said[0]);
-    assert!(said[0].contains("next push"), "{}", said[0]);
-    // The words claim only what is known: the push is held, and the next push of its branch carries it.
+    // The words claim only what is known: the record names no command, so no verdict was ever written for its checks, and the
+    //  line says what still has to happen for the commit to leave this worktree.
+    assert!(said[0].contains("is held"), "{}", said[0]);
+    assert!(said[0].contains("no command has said whether its checks passed"), "{}", said[0]);
+    assert!(said[0].contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", said[0]);
     assert!(!said[0].contains("stopped"), "the line does not claim the command stopped: {}", said[0]);
-    assert!(!said[0].contains("checks"), "and not that its checks ran or not: {}", said[0]);
     // The state stands while the record stands, so the line stands with it and cannot disagree with it.
-    let again: Vec<String> = crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked());
+    let again: Vec<String> = crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken());
     assert_eq!(again, said, "the line is the record's: {again:?}");
     assert!(
         crate::work_item::state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id()).exists(),
@@ -78,7 +87,7 @@ fn a_worktree_with_nothing_held_says_nothing() {
     let root: PathBuf = fixture("notices-held-push-quiet");
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let git_dir: PathBuf = repo.join(".git");
-    assert!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()).is_empty(), "a worktree with nothing held says nothing");
+    assert!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).is_empty(), "a worktree with nothing held says nothing");
     assert!(push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs).is_empty(), "and nothing failed either");
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "the check made no directory either");
     remove(root.as_path());
@@ -104,10 +113,10 @@ fn a_released_push_is_not_said() {
         created: crate::iso_time::now_iso(),
         tries: 0,
     };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("the push is held");
-    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()).len(), 1);
+    crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
+    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).len(), 1);
     assert!(crate::work_item::promote(work_dir.as_path(), item.id().as_str()), "the producer released it");
-    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()), Vec::<String>::new(), "a released push is not said");
+    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()), Vec::<String>::new(), "a released push is not said");
     remove(root.as_path());
 }
 
@@ -130,10 +139,10 @@ fn a_blocked_push_is_not_said() {
         created: crate::iso_time::now_iso(),
         tries: 0,
     };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("the push is held");
-    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()).len(), 1);
+    crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
+    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).len(), 1);
     crate::work_item::block(work_dir.as_path(), &item, "final-newline: the file does not end with a newline");
-    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()), Vec::<String>::new(), "a blocked push is not said");
+    assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()), Vec::<String>::new(), "a blocked push is not said");
     remove(root.as_path());
 }
 

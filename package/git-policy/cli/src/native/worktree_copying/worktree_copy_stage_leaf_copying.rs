@@ -100,12 +100,16 @@ pub fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool 
 ///  cloning when the filesystem allows.
 /// Why:
 ///   Exclusive creation never overwrites an existing staged file.
+///  The failure is the operating system's own,
+/// so a caller that is not this copy reads the cause from its kind
+///  instead of guessing it from the message,
+/// and the copy stage words it for the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
 /// ```
-pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), WorktreeCopyError> {
+pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), std::io::Error> {
     return copy_file_exclusive_with(source, destination, try_clone).map(drop);
 }
 
@@ -229,18 +233,16 @@ pub fn copy_file_exclusive_with(
     source: &Path,
     destination: &Path,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
-) -> Result<Option<FileStamp>, WorktreeCopyError> {
-    let mut input: std::fs::File =
-        crate::plain_file::open_plain_file(source).map_err(raw_failure_of)?;
+) -> Result<Option<FileStamp>, std::io::Error> {
+    let mut input: std::fs::File = crate::plain_file::open_plain_file(source)?;
     let mut output: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(destination)
-        .map_err(raw_failure_of)?;
+        .open(destination)?;
     let before: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     // A successful clone already holds every byte, so only a refused clone copies them.
     if !clone(&input, &output) {
-        std::io::copy(&mut input, &mut output).map_err(raw_failure_of)?;
+        std::io::copy(&mut input, &mut output)?;
         return Ok(None);
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
@@ -462,7 +464,7 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
                 Ok(CopiedLeaf::Staged(None))
             }
             Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) => Ok(CopiedLeaf::Gone),
-            Err(error) => Err(named_source_failure(&source_path, "cannot be read", &failure_with_cause(format!("{error}").as_str(), None))),
+            Err(error) => Err(named_source_failure(&source_path, "cannot be read", &error)),
         },
     };
 }
@@ -507,8 +509,12 @@ fn still_holds_the_listed_kind(source_path: &Path, kind: EntryKind) -> bool {
 /// ```ts
 /// `${path} ${what} (${error})`
 /// ```
-fn named_source_failure(source_path: &Path, what: &str, error: &WorktreeCopyError) -> WorktreeCopyError {
-    let message: String = format!("{} {what} ({})", source_path.display(), error.0);
+fn named_source_failure(
+    source_path: &Path,
+    what: &str,
+    error: &dyn std::fmt::Display,
+) -> WorktreeCopyError {
+    let message: String = format!("{} {what} ({error})", source_path.display());
     return failure_with_cause(message.as_str(), None);
 }
 
