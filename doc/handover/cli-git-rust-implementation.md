@@ -148,7 +148,10 @@ What changed:
 - Not covered by this change, and Pi still reads them: `AGENTS.md`, this handover and other repository docs, which speak of the owner throughout.
   Asked how far the instruction reaches, the owner picked "Prompts I send only (Recommended)", so those stay as they are.
 - Asked whether to write it into `AGENTS.md` as a new rule plus an amendment, the owner answered "Amend BRQ only."
-  Rule `BRQ` now says a brief to Pi carries a requirement as the project's own, implying no human owner.
+  The first amendment said "to Pi,"; the owner, on reading it: "\"to Pi,\" - too specific."
+  So rule `BRQ` now says it of every brief and note, whichever agent it goes to:
+  a requirement is stated as the project's own, with its record's path, implying no human owner.
+  That covers Claude Code native subagents and reviewers of other vendors as well as Pi.
 - The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
   They may no longer be edited where they are, so their output is reworded as data before a run starts,
   until the brief writers live in the workspace package.

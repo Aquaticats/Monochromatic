@@ -574,9 +574,8 @@ RT4:
 
 BRQ:
  Briefs and notes carry as requirements only what the user decided,
- quoted with source;
- to Pi,
- as the project's own,
+ stated as the project's own,
+ citing its record,
  implying no human owner;
  own ideas are suggestions;
  inferred ones:
