@@ -76,6 +76,7 @@ fn a_lock_that_still_stands_is_said_as_a_commit_that_is_kept() {
     assert!(line.contains(&format!("the commit {COMMIT} is kept")), "the commit is kept: {line}");
     assert!(line.contains("has not moved yet"), "the branch has not moved yet: {line}");
     assert!(line.contains("refs/heads/main.lock"), "the lock it waits for is named: {line}");
+    assert!(line.contains("removing the lock with `rm -- "), "what the person may do is said, and only when no Git process uses the repository: {line}");
     assert!(!line.contains("refus"), "nothing was refused: {line}");
 }
 

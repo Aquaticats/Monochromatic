@@ -32,12 +32,16 @@
 
 use crate::held_commit_record::{Held, forget, list};
 use crate::held_commit_replay::{Replay, onto, value_now};
-pub use crate::held_commit_settle_outcomes::Settled;
 use crate::service_journal::{DONE_EXTENSION, Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+/// What became of one held commit,
+/// and the words the service writes about it:
+/// both live beside the settlement (`held_commit_settle_outcomes.rs`).
+pub use crate::held_commit_settle_outcomes::Settled;
 
 /// What a Git that could not be started is said to be,
 /// in one sentence the callers share.
