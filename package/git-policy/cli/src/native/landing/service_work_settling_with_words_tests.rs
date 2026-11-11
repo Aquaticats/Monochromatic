@@ -48,7 +48,8 @@ impl WorkHandlers for OneVerdict {
 /// and the handler that answers each attempt with `said`,
 /// in a fresh fixture.
 struct Queued {
-    /// The fixture's root, which a control removes.
+    /// The fixture's root,
+    /// which a control removes.
     root: PathBuf,
     /// The common directory the record is queued under.
     common: PathBuf,
@@ -83,7 +84,8 @@ fn queued(name: &str, said: impl Fn(u32) -> Verdict + 'static) -> Queued {
     return Queued { root, common, work, id: item.id(), handlers: OneVerdict { said: Box::new(said), asked: Cell::new(0) } };
 }
 
-/// Drain whatever `queued` holds, through the service's own drain.
+/// Drain whatever `queued` holds,
+/// through the service's own drain.
 fn drained(queued: &Queued) {
     let mut replanning = Replanning { first: None, changes: Vec::new(), plans: None };
     crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(queued.common.as_path(), &queued.handlers, CLAIM_LEASE, Renewal::Timed, &mut replanning, &SERVICE_KINDS))
