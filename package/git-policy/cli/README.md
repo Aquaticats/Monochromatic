@@ -2296,6 +2296,11 @@ also when `--no-enforce-worktree` is given:
   the `HEAD` it was on,
   and how many tracked paths differed from it
   (and says that it counted tracked changes only).
+  That count is a best-effort fact read under a two-second bound,
+  and the line leaves it out when the read does not answer in time,
+  so a disk other sessions are hammering never holds your removal:
+  a linked worktree of this repository's size answers in about a third of a second,
+  and took more than 5 s under that load before the bound.
 - `git branch -d`,
   `git branch -D` and `git branch --delete` from the main worktree;
   one line per branch names the branch,
@@ -4327,6 +4332,10 @@ Each line names what the command waits for,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
   The first notice of a quick query step comes after 5 seconds and that of a bulk step after 10 seconds,
    so a step that only needed a moment prints nothing.
+  The Git command named is the subcommand,
+   also when the wrapper starts the read with a global option such as `-C <directory>`:
+   the option's value is stepped over and never printed,
+   because it can be a pathname.
 
 ```text
 // standard error of a git add that waits for the commit service to finish a commit

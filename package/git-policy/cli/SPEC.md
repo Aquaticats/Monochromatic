@@ -5852,6 +5852,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   which is the whole of every read inside it.
   It is below `ANSWER_CEILING`,
   so the person hears what blocked the check before the service's own bound.
+- `CHANGED_PATHS_CEILING` 2 seconds:
+  the one `git status` a `git worktree remove` reads to record how many tracked paths differed from the
+  `HEAD` the removal took,
+  and the count is a best-effort fact about a loss that is already attributable from the rest of the line,
+  so this read ends there and the line leaves the count out
+  (`src/native/worktree/worktree_audit.rs`).
+  A linked worktree of this repository's size (23,194 tracked paths,
+  3.1 MB index) answered in 0.29 to 0.43 s with a warm page cache,
+  in six runs over two fixtures on 2026-11-11,
+  and took more than 5 s under the load other sessions put on the disk,
+  which is the wait notice a person saw during a removal.
+  Two seconds is 4.6 times the warm figure,
+  and below the 5 seconds after which a wait is announced,
+  so this read is never announced as a wait.
 - `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
   the longest one Git
   step runs,
@@ -15228,7 +15242,9 @@ and leave one audit line each
   `head` (the removed worktree's `HEAD` ref,
   read from its own Git directory),
   `changed` (how many tracked paths differed from that `HEAD`,
-  from one `git status --untracked-files=no` in the target),
+  from one `git status --untracked-files=no` in the target,
+  read under `CHANGED_PATHS_CEILING` so a slow disk cannot hold the removal,
+  and left out when that read does not answer in time),
   and `counted`,
   which says `tracked changes only`.
   Untracked and ignored files are deliberately not counted:
