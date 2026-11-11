@@ -246,7 +246,7 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
             names.push(name);
         }
     }
-    names.sort_by(by_mark_name);
+    names.sort_by(|left, right| return by_mark_name(left, right));
     for name in names {
         marks.push(root.join(name.as_str()));
     }
@@ -262,8 +262,8 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
 /// ```ts
 /// marks.sort(([left], [right]) => compareJs(left, right))
 /// ```
-fn by_mark_name(left: &String, right: &String) -> std::cmp::Ordering {
-    return crate::worktree_copy_selection::js_order(left.as_str(), right.as_str());
+fn by_mark_name(left: &str, right: &str) -> std::cmp::Ordering {
+    return crate::worktree_copy_selection::js_order(left, right);
 }
 
 /// What:
