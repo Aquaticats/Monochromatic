@@ -18,7 +18,7 @@ use std::os::unix::net::UnixStream;
 /// The socket path.
 use std::path::Path;
 /// Bounded waits.
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Most bytes accepted for one message.
 const MAX_MESSAGE_BYTES: usize = 1 << 20;
@@ -112,8 +112,17 @@ impl BusConnection {
     }
 
     /// Reads one message,
-    /// or nothing when the timeout passed with nothing to read.
-    fn read_message(&mut self) -> Result<Option<Message>, SessionBusError> {
+    /// or nothing when `deadline` passes with nothing to read.
+    ///
+    /// The wait is measured against one deadline for the whole call,
+    /// not against the socket timeout alone:
+    /// a bus that answers with a message of another serial,
+    /// or with a signal,
+    /// more often than that timeout would restart it on every read,
+    /// and a caller that skips those messages would never finish.
+    /// The socket timeout is set to what is left of the deadline
+    /// so a silent bus ends the wait as well.
+    fn read_message_before(&mut self, deadline: Instant) -> Result<Option<Message>, SessionBusError> {
         loop {
             if let Some(length) = message_length(&self.buffer)
                 && self.buffer.len() >= length
@@ -128,6 +137,11 @@ impl BusConnection {
             if self.buffer.len() >= MAX_MESSAGE_BYTES {
                 return Err(SessionBusError::Failed(format!("the bus sent more than {MAX_MESSAGE_BYTES} bytes")));
             }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Ok(None);
+            }
+            let _read_timeout = self.stream.set_read_timeout(Some(left));
             let mut chunk = [0u8; 8192];
             match self.stream.read(&mut chunk) {
                 Ok(0) => return Err(SessionBusError::Failed("the bus closed the socket".to_string())),
@@ -149,8 +163,9 @@ impl BusConnection {
         if let Err(error) = self.stream.flush() {
             return Err(socket_failure(&error, "the call to the bus"));
         }
+        let deadline = Instant::now() + self.timeout;
         loop {
-            let Some(message) = self.read_message()? else {
+            let Some(message) = self.read_message_before(deadline)? else {
                 return Err(SessionBusError::TimedOut(format!("the bus did not answer {member} within {:?}", self.timeout)));
             };
             if message.reply_serial != Some(serial) {
@@ -202,8 +217,11 @@ impl BusConnection {
     /// which the guard uses as the event that the name's owner changed,
     /// or nothing when the wait passed with nothing to read.
     pub fn next_signal(&mut self) -> Result<Option<Message>, SessionBusError> {
+        // One deadline for the whole wait,
+        // so a bus that keeps sending other messages cannot starve the poll that ends it.
+        let deadline = Instant::now() + self.timeout;
         loop {
-            let Some(message) = self.read_message()? else { return Ok(None) };
+            let Some(message) = self.read_message_before(deadline)? else { return Ok(None) };
             if message.kind == crate::dbus_wire::SIGNAL {
                 return Ok(Some(message));
             }

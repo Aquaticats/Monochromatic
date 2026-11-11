@@ -659,6 +659,15 @@ in order:
    the journal
    and the desktop of the watched user.
 
+Every call to that bus ends at a deadline measured from its start,
+and not only at the socket timeout:
+a bus that answers with a message of another serial,
+or with a signal,
+more often than that timeout would restart it on every read,
+and the guard would skip those messages for ever without ever finishing its question about the name.
+The wait for `NameOwnerChanged` is bounded by one deadline the same way,
+so a bus that keeps sending other messages cannot starve the poll that ends it.
+
 Every signal is proven first.
 The pid a bus reports is not an identity the kernel keeps:
 an owner can exit and the kernel can give its number to another process of the same user,

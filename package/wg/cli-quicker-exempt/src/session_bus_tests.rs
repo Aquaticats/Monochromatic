@@ -29,6 +29,9 @@ const HELD_NAME: &str = "org.freedesktop.systemd1";
 const OWNER_UNIQUE: &str = ":1.42";
 /// The pid the fake daemon reports for that connection.
 const OWNER_PID: u32 = 4242;
+/// A serial no call of this client uses,
+/// so a reply to it is a message every caller skips.
+const NOISE_SERIAL: u32 = 1_000_000;
 
 /// What the fake daemon answers to `GetNameOwner`.
 #[derive(Clone, Copy)]
@@ -245,4 +248,112 @@ fn a_refused_login_is_a_failure() {
     };
     refusing.join().ok();
     assert!(error.contains("refused the login"), "{error}");
+}
+
+/// Builds a fake daemon that answers the login,
+/// `Hello` and `AddMatch`,
+/// and then answers every further call with a valid message that is neither its reply nor a signal,
+/// more often than the client's socket timeout.
+/// A bus can do that with a signal,
+/// and a client that only restarts its socket timeout on every read waits for ever.
+fn noise_bus(name: &str) -> FakeBus {
+    let base = socket_directory(name);
+    let _removed = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&base).expect("make the fixture directory");
+    let socket = base.join("bus");
+    let listener = UnixListener::bind(&socket).expect("bind the fake bus");
+    let _nonblocking = listener.set_nonblocking(true);
+    let received: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let recorded = Arc::clone(&received);
+    let stopping = Arc::clone(&stop);
+    let thread = std::thread::Builder::new()
+        .name("noise-bus".to_string())
+        .spawn(move || {
+            while !stopping.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut stream, _address)) => {
+                        let _timeout = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                        let login = read_line(&mut stream);
+                        if !login.starts_with("\u{0}AUTH EXTERNAL") {
+                            continue;
+                        }
+                        let _wrote = stream.write_all(b"OK 00000000000000000000000000000000\r\n");
+                        let begin = read_line(&mut stream);
+                        if begin != "BEGIN\r\n" {
+                            continue;
+                        }
+                        while let Some(bytes) = read_message(&mut stream) {
+                            let Ok(message) = decode_message(&bytes) else { break };
+                            let member = message.member.clone().unwrap_or_default();
+                            recorded.lock().map(|mut calls| return calls.push(member.clone())).ok();
+                            if member == "Hello" || member == "AddMatch" {
+                                let _answered = stream.write_all(&encode_reply(message.serial, None));
+                                continue;
+                            }
+                            // Answer with a reply to another serial, again and again,
+                            // faster than the client's timeout,
+                            // and never with the reply it waits for and never with a signal.
+                            while !stopping.load(Ordering::Relaxed) {
+                                let noise = encode_reply(NOISE_SERIAL, None);
+                                if stream.write_all(&noise).is_err() {
+                                    break;
+                                }
+                                std::thread::sleep(Duration::from_millis(10));
+                            }
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(2)),
+                    Err(_other) => break,
+                }
+            }
+        })
+        .expect("start the fake bus");
+    return FakeBus { socket, received, stop, thread: Some(thread) };
+}
+
+/// A call answers at its deadline even when the daemon keeps sending other messages.
+///
+/// The client skips every message that is not the reply it waits for,
+/// so a peer that sends one more often than the socket timeout restarts that timeout
+/// and the call never ends:
+/// the guard then never finishes asking who owns the manager's name,
+/// cannot remove an impostor,
+/// and cannot reach the loop condition that notices its watcher closed its input.
+#[test]
+fn a_call_answers_at_its_deadline_while_the_daemon_sends_other_messages() {
+    let bus = noise_bus("noise-call");
+    let mut connection = BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'").expect("the bus answers");
+    // The call runs in a thread of its own,
+    // so this test fails instead of hanging when the call never answers.
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let answer = connection.call_owner(HELD_NAME);
+        sender.send(answer).ok();
+    });
+    let answer = receiver.recv_timeout(Duration::from_secs(10)).expect("the call answered within ten seconds");
+    worker.join().ok();
+    let refusal = answer.expect_err("noise is not an answer");
+    assert!(matches!(refusal, SessionBusError::TimedOut(_)), "{refusal}");
+    assert!(refusal.to_string().contains("GetNameOwner"), "{refusal}");
+}
+
+/// The wait for the bus's change answers at its deadline too,
+/// so a daemon that keeps sending messages that are not signals cannot starve the guard's poll.
+#[test]
+fn the_wait_for_a_change_answers_at_its_deadline() {
+    let bus = noise_bus("noise-signal");
+    let mut connection = BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'").expect("the bus answers");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        // A call first, which leaves the daemon sending its noise,
+        // and then the wait for a change, which the noise is only in the way of.
+        let _first = connection.call_owner(HELD_NAME);
+        sender.send(connection.next_signal()).ok();
+    });
+    let answer = receiver.recv_timeout(Duration::from_secs(10)).expect("the wait answered within ten seconds");
+    worker.join().ok();
+    // The wait's own answer to a deadline that passed with nothing to read is `None`,
+    // which is what the guard's poll reads as "no change".
+    assert!(matches!(answer, Ok(None)), "{answer:?}");
 }
