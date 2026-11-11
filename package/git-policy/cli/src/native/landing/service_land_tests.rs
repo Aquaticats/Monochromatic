@@ -86,6 +86,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         index: world.repo.join(".git/index"),
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
+        holder: String::new(),
     };
 }
 
@@ -1502,6 +1503,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         index: world.repo.join(".git/index"),
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
+        holder: String::new(),
     };
     return (landed, name);
 }

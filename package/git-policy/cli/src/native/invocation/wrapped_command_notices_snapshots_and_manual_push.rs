@@ -170,7 +170,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     //  (`held_push_commit_on_the_remote.rs`).
     let context: GitContext = checks.facts.transaction_context();
     let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
-    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record) {
+    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record, &crate::held_push_release_wakes_the_service::AskTheService { context: &context }) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }

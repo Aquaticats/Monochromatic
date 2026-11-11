@@ -219,5 +219,6 @@ fn a_request_of(repo: &Path) -> CommitRequest {
         index: repo.join(".git/index"),
         scratch: repo.join(".git/scratch"),
         captured: 0,
+        holder: String::new(),
     };
 }

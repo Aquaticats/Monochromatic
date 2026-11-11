@@ -375,6 +375,16 @@ pub mod service_handoff;
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;
 
+/// Which command will decide a held commit's post-commit checks,
+/// and the verdict that command left.
+pub mod held_push_holder_and_verdict;
+
+/// The wake a command gives the service when it releases a held push by itself.
+pub mod held_push_release_wakes_the_service;
+
+/// What the filesystem proves about a Git directory the service can no longer resolve.
+pub mod unreachable_git_dir_proven_gone;
+
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;
 
