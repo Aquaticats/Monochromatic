@@ -35,6 +35,59 @@ the bypass the install steps already name (`README.md`,
 A Git a person starts as `/usr/bin/git` is outside every policy,
 every audit line and every wait of this file.
 
+Local durability follows what the remote already holds.
+The owner,
+2026-11-10:
+"We don't care about data protection on the local drive if it's pushed."
+Correcting the coordinator's first reading,
+the owner added the same day:
+"I only say things that are already on remote doesn't deserve strong data protection against power outage and stuff."
+So a sync (`fsync`,
+`fdatasync`,
+`syncfs`,
+a btrfs sync ioctl,
+or a call that forces a btrfs commit) is not needed when everything it protects is already on the remote,
+such as the files a worktree add checks out from a pushed commit
+or objects fetched from the remote.
+For everything else
+(an index that holds staged changes,
+a person's commits and merges before their push lands,
+build trees and caches,
+and the wrapper's own records)
+the owner handed the choice to the coordinator,
+2026-11-10:
+"I think you can decide yourself on which fsync to remove and not have to ask me. Or do it with the advisor."
+The coordinator's rule,
+made with the advisor on 2026-11-10 and open to the owner's veto:
+
+- The baseline is what native Git syncs for the same data.
+  Git 2.56.0's default `core.fsync` syncs packs,
+  pack indexes and the commit graph,
+  and not loose objects,
+  references or the index:
+  `write-or-die.h:20-22` at tag `v2.56.0` defines `FSYNC_COMPONENTS_DEFAULT` as the objects and derived metadata
+  without `FSYNC_COMPONENT_LOOSE_OBJECT`,
+  and this machine sets no `core.fsync` (read 2026-11-10).
+  A plain `git commit` here therefore makes no sync,
+  and the wrapper's answer to a commit waits on no sync of its own.
+- Where the wrapper moves,
+  replaces or deletes a person's uncommitted bytes and native Git has no matching operation
+  (the merge carry,
+  the aside renames,
+  the trash,
+  the stage,
+  subvolume conversion),
+  the sync that makes the new copy durable before the old one goes stays,
+  unless kernel source shows that a power cut cannot leave the old copy gone without the new one.
+- Removing a sync needs a test that leaves the file it guarded empty,
+  torn or absent,
+  as a power cut can,
+  and shows that the next command proceeds at once and loses nothing this rule protects.
+  Kill tests cannot show it,
+  because the page cache survives `SIGKILL`.
+- Where moving a sync off the waiting path does not stop the waiting path stalling behind it,
+  the coordinator chooses between removing the sync and batching it into one.
+
 ## Module seams
 
 The executable has these external seams:

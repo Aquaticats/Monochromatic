@@ -184,6 +184,45 @@ Next action:
 review and merge this branch;
 then the same two windows want a run of the whole binary suite,
 which this branch ran only for the merge modules.
+
+### Sonnet audit of jams on add, commit and merge (2026-11-10, against `e498914475`)
+
+The full report is `~/temp/agent/sonnet-audits/jams-on-add-commit-merge/findings.md`,
+with its reproduction scripts and logs beside it.
+Its one finding,
+F1:
+an uncontended commit took a median of 0.9 to 14.4 s,
+p90 up to 26.2 s and at most 46.8 s,
+where plain Git took 16 to 46 ms,
+on a host with load average 120 to 170.
+No commit waited on another.
+The time sat in the commit service's index-lock step (`lock_stage_kind=pre`,
+`queued_behind=0`),
+and under `strace -f -T` six service threads' `fsync` calls took 8 to 12.5 s each,
+behind which the `renameat2` placing `index.lock` stalled.
+The audit names `src/native/landing/service_durable.rs`,
+`service_index_placement.rs`,
+`service_index_prestage.rs`,
+`service_index_lock.rs` and `service_index_attempts.rs`.
+The owner's bound is "commits vs native git should not take 5s longer."
+
+Agent `wrapper-never-waits-on-btrfs-commits` has it.
+The owner's rule on syncs,
+2026-11-10:
+"I only say things that are already on remote doesn't deserve strong data protection against power outage and stuff."
+The index lock marker and the landing records protect things that are not on the remote,
+so the agent takes their syncs off the commit's waiting path where the protection stays the same,
+and asks the owner before removing any of them.
+
+Nothing else reproduced as one command waiting on another:
+commits during an add were as slow as F1 alone,
+and commits,
+adds and merges killed with `SIGKILL` left the next commands working,
+with a rerun merge keeping unsaved and staged edits.
+The audit did not exercise the snapshot add route,
+clients sharing one checkout,
+or kills at a chosen state.
+
 ### Trying Kimi K3.1 Pro as auditor and reviewer (2026-11-10T05:53:55-05:00)
 
 The owner:
