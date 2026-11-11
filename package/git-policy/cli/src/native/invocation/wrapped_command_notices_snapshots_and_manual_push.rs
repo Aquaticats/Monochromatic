@@ -21,7 +21,9 @@ use crate::auto_push_single_flight::PushGit;
 use crate::child_environment::environment_with_overlay;
 /// `git add` asks for what it would stage.
 use crate::candidate_prediction::CandidateRequest;
-use crate::discard_audit::{AuditOutcome, record_audit};
+use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
+/// The form word an audit line carries.
+use crate::discard_audit_record::DecidedForm;
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_lifecycle::manual_push_scope;
 use crate::policy_checks::ShippedChecks;
@@ -88,20 +90,25 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     // An alias reaches the command Git really runs, so this record names the expansion like the guard does.
     let forwarded: GuardedForwarded = guarded_forwarded(checks);
     let seen: &[OsString] = forwarded.arguments.as_slice();
-    let command = match forwarded.decision {
+    let form: DecidedForm = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => command,
+        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => {
+            DecidedForm::Guarded(*command)
+        }
+        // A write to the settings every worktree shares runs under the hatch, and this line is what a later reader
+        //  uses to attribute the change to the command that made it.
+        LinkedWorktreeDecision::SharedRemote(_) => DecidedForm::SharedRemote,
         // The owner asked for one line for these two recorded forms, and the policy that writes it is skipped under
         //  the hatch: the line is written here instead, with the same facts a run without the hatch would carry.
         LinkedWorktreeDecision::Audited(audited) => {
             if let Ok(location) = checks.facts.location() {
-                record_audited(&mut checks.facts, seen, audited, &location);
+                record_audited(&mut checks.facts, seen, *audited, &location);
             }
             return;
         }
     };
     if let Ok(location) = checks.facts.location() {
-        record_audit(&location.identity, command, AuditOutcome::Hatch, seen, None);
+        record_audit_with_facts(&location.identity, form, AuditOutcome::Hatch, seen, None, &[]);
     }
 }
 

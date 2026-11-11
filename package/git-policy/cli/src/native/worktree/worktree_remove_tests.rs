@@ -12,7 +12,12 @@ use crate::test_support::{age, git, git_context, remove, repository};
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string() };
+    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
+}
+
+/// The same plan with the force a person passes as `-f`/`--force`.
+fn forced_plan_for(target: &Path) -> RemovePlan {
+    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: true };
 }
 
 /// Whether the wrapper served the plan:
@@ -61,6 +66,36 @@ fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
         assert!(!listing.contains("wt"), "{listing}");
     } else {
         assert!(worktree.join("tracked.txt").is_file(), "a refusal changes nothing");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A subvolume worktree that holds a change is destroyed by a forced removal where the mount allows the call,
+///  and left whole to Git when the person did not force it.
+/// Why:
+///   Git's own removal skips its cleanliness proof,
+///  populated submodules included,
+/// only when the force is set,
+///  so the forced removal answers for exactly the worktree it was given;
+///  this runs the real kernel call and the real mount option,
+/// which no stand-in can.
+#[test]
+fn btrfs_a_forced_removal_of_a_changed_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
+    let Some(root) = btrfs_fixture("remove-forced") else { return };
+    let (repo, worktree) = clean_subvolume_worktree(root.as_path());
+    let changed: PathBuf = worktree.join("tracked.txt");
+    std::fs::write(changed.as_path(), b"unsaved work\n").expect("a change");
+    // The unforced form is Git's, exactly as it is without the change.
+    assert!(!served_plan(&repo, &plan_for(worktree.as_path())), "a changed worktree is Git's without the force");
+    assert_eq!(std::fs::read(changed.as_path()).expect("the change is still there"), b"unsaved work\n");
+    let forced: bool = served_plan(&repo, &forced_plan_for(worktree.as_path()));
+    assert_eq!(forced, removal_allowed(root.as_path()));
+    if forced {
+        assert!(!worktree.exists(), "the forced removal destroyed the worktree and its change with it");
+        assert!(!repo.join(".git/worktrees/wt").exists(), "the registration is gone too");
+    } else {
+        assert_eq!(std::fs::read(changed.as_path()).expect("a refusal changes nothing"), b"unsaved work\n");
     }
     remove(root.as_path());
 }

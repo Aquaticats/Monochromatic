@@ -25,6 +25,7 @@ use super::support::{Fixture, Observed, fixture, git, on_btrfs_or_acknowledged, 
 use git_policy_cli::fs_btrfs_ioctl::subvolume_create_at;
 use git_policy_cli::fs_kind::is_subvolume_root;
 use git_policy_cli::fs_mount_options::read_mount_facts;
+use git_policy_cli::worktree_remove::DESTROY_NOTICE;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -197,7 +198,9 @@ fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
     assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
     let said: String = stderr_of(&removed);
     if removal_allowed(fixture.root.as_path()) {
-        assert!(said.contains("destroyed the btrfs subvolume of the removed worktree in one step"), "the one-call destroy is stated: {said}");
+        // The sentence is the one the removal owns, so a rewording of what it says the commit service then deletes does
+        //  not read as a rung that went missing.
+        assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated: {said}");
     }
     remove(&fixture);
 }

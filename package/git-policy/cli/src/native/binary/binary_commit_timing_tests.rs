@@ -29,6 +29,7 @@ use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_protocol::RELEASE;
+use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -552,24 +553,32 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
 ///  The refusal is Git's own,
 /// so the status the record states is the one the same command line exits with here,
 /// measured rather than assumed.
+/// The input is a tracked file this user may not read:
+///  an explicit-path commit stages a named file with `git add --`,
+///  and that start is the one Git refuses.
+/// A pathspec matching nothing is no longer a Git step's refusal:
+///  `commit_pathspec_matching_nothing.rs` makes it the caller's input error,
+///  refused before any step starts,
+///  with a finding of its own (`binary_commit_tests.rs`).
 #[test]
 fn a_commit_stopped_by_a_failing_git_step_states_the_step_and_its_status() {
     let fixture: Fixture = fixture("timing-stop-step");
     let repo: PathBuf = base_repository(&fixture);
-    // A directory the worktree holds whose content nothing staged: an explicit-path commit stages a named file with
-    //  `git add --` and a directory or a pattern with `git add --update --`, and that start is the one Git refuses.
-    std::fs::create_dir(repo.join("newdir")).expect("newdir");
-    std::fs::write(repo.join("newdir/only-untracked.txt"), b"untracked\n").expect("a new file");
+    // A tracked file the worktree holds, which this process may not read: `git add -- a.txt` cannot index what it cannot
+    //  open, and nothing about the request is the caller's input error.
     std::fs::write(repo.join("a.txt"), b"edit by the timing stop control\n").expect("a.txt");
+    let mut closed: std::fs::Permissions = std::fs::metadata(repo.join("a.txt")).expect("a.txt").permissions();
+    closed.set_mode(0o000);
+    std::fs::set_permissions(repo.join("a.txt"), closed).expect("a.txt with no permission of its own");
     let name: String = format!("timing-stop-step-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let refused = super::support::run_direct(&fixture, &repo, &["add", "--update", "--", "newdir"]);
+    let refused = super::support::run_direct(&fixture, &repo, &["add", "--", "a.txt"]);
     let status: i64 = i64::from(refused.code.expect("Git's own status"));
-    assert_ne!(status, 0, "Git refuses a pathspec that matches nothing it tracks");
-    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt", "newdir"]);
+    assert_ne!(status, 0, "Git refuses a file it may not read");
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let served = observe(&mut command, b"");
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
@@ -978,8 +987,10 @@ fn marker_files(repo: &Path) -> Vec<String> {
 /// The first commit of a service stages its marker itself and the landing that takes the lock starts the markers of the
 /// batches after it,
 /// as many as the service keeps made ahead:
-/// the second commit's lock is placed from its file (`lock_stage_kind=pre`),
-/// `MARKERS_MADE_AHEAD` files at most wait in the Git directory between commits,
+/// their flush is the background task's,
+/// so it runs while the service is idle,
+/// the second and third commits' locks are placed from those files (`lock_stage_kind=pre`),
+/// and no more files wait in the Git directory between commits than `MARKERS_MADE_AHEAD`,
 /// and none is left when the service retires.
 #[test]
 fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
@@ -993,13 +1004,19 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     for round in 0..3 {
         let served = commit_a(&fixture, &repo, runtime.as_path());
         assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
-        // The markers of the batches after this one are started while its landing holds the lock, so they are there by its answer,
-        // and their number is the one the service keeps, not one more with every commit.
+        // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
+        //  is idle.
         let began: Instant = Instant::now();
-        while marker_files(&repo).len() != MARKERS_MADE_AHEAD {
+        while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
             assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
             std::thread::sleep(Duration::from_millis(10));
         }
+        // A file on the disk is not yet a marker the next commit places: the making ends when its flush is handed to the
+        //  background task, so one more interval with the same files is what says the making has returned.
+        let settled: Vec<String> = marker_files(&repo);
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(marker_files(&repo), settled, "round {round}: the markers changed while the commit was about to come");
+        assert!(settled.len() <= MARKERS_MADE_AHEAD, "round {round}: no more files wait than the design makes ahead: {settled:?}");
     }
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 3, "{answered:?}");
@@ -1034,9 +1051,10 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let runtime: PathBuf = runtime_for(name.as_str());
     let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    // The markers of the batches after this one are started while its landing holds the lock, so they are there by its answer.
+    // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
+    //  is idle.
     let began: Instant = Instant::now();
-    while marker_files(&repo).len() != MARKERS_MADE_AHEAD {
+    while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
         assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
         std::thread::sleep(Duration::from_millis(10));
     }

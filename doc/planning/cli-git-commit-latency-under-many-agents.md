@@ -3927,6 +3927,98 @@ A record says `outcome` and `exitCode`,
 and nothing names which `ClientFailure` ended it nor its words,
 so the six-send silence above had to be read from the counts and from the service's journal rather than
 stated by the record.
+
+## The marker made ahead: the flush stays and no landing waits for it (2026-11-10T21:45:00Z)
+
+What this answers:
+what a landing spent when it waited for the index lock's marker to finish its flush,
+and how the flush is kept without that wait.
+
+### The pick
+
+The owner's rules are "never discard user data" and "commits vs native git should not take 5s longer",
+and the measured wait was 9 to 13 seconds with `lock_stage_kind=pre`,
+which is the whole of `take` in `service_index_prestage.rs`.
+The coordinator's pick,
+recorded in `doc/handover/questions-for-the-owner.md` with the owner's veto open,
+is neither side of the trade:
+the flush stays,
+it starts as early as the code allows,
+and a landing that finds it still running takes the lock the ordinary way and never waits for it.
+
+### What changed
+
+- The marker of the batch after this one is started as soon as the landing has its lock
+  (`service_land_take_index_lock.rs`),
+  so the flush spends the landing's own seconds instead of beginning after the answer.
+- `take` and `start` never wait (`service_index_prestage.rs`):
+  a marker still being flushed stays in the service's slot and the landing stages its own,
+  and the marker that was flushing is removed once it is finished,
+  by the batch that follows or by the service's end.
+  `discard`,
+  which runs between landings and at the service's end,
+  still waits for it,
+  so no file is left behind and one file at most is ever being made.
+
+### Before and after, on one worktree and three commits in a row
+
+The `answered` line of the service,
+in whole milliseconds:
+
+- before:
+  `lock_wait_ms=4 lock_stage_ms=0 lock_stage_kind=cold`,
+  then `lock_wait_ms=9369 lock_stage_ms=9333 lock_stage_kind=pre`,
+  then `lock_wait_ms=12867 lock_stage_ms=12825 lock_stage_kind=pre`.
+- after:
+  `lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold`,
+  three times,
+  with `lock_hold_ms` 32,
+  91 and 14 and `landing_ms` 44,
+  101 and 27.
+
+### Many commits at once, after
+
+The method is the one the section above used:
+2,000 tracked files,
+24 linked worktrees,
+one service per worktree,
+24 commits started in the same tick,
+two rounds per arm.
+This run's host was quieter than that one's (load average 33,
+31 and 39 against 162,
+142 and 141),
+so the two runs' medians are not comparable and only the lock figures are.
+
+- native Git:
+  48 commits,
+  median 35,
+  p95 55,
+  largest 59.
+- the wrapper:
+  48 commits,
+  median 372,
+  p95 834,
+  largest 842.
+- every one of the 46 landings named `lock_stage_kind=cold`,
+  with `lock_stage_ms` 0 for 42 of them,
+  1 for three and 7 for one,
+  and `lock_wait_ms` never above 13.
+  The flush did not finish between one round and the next on this disk,
+  so no landing took a marker made ahead and none waited for one:
+  a flush here commits the whole filesystem's dirty data,
+  which is the cost the design exists to keep off a commit's path.
+
+### What this tree keeps of both
+
+Each section here measured its own tree.
+The section above stood the landing aside from a flush still running and started one marker,
+and the section below made two markers and handed their flush to the background task.
+The tree merged from the two keeps both:
+two markers are started when a landing takes the lock,
+`take` never waits for one that is still being made,
+and the flush of a marker is the background task's,
+so a commit either places a finished marker or stages its own.
+
 ## What the installed release spent over its Git steps, and the two lock markers (2026-11-10T18:45:00-05:00)
 
 What this answers:

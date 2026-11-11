@@ -1,7 +1,7 @@
 //! What:
 //!  The markers of the next batches' index locks,
 //! created and written while the service lands the batch before them,
-//!  and its flush handed to the service's background task,
+//!  and their flush handed to the service's background task,
 //! so that a commit's lock path only places one.
 //! Why:
 //!  The flush of the marker kept nothing a commit needs on the drive:
@@ -24,8 +24,15 @@
 //! they are removed when the service ends or the batch a marker was made for is passed,
 //! and they name this process,
 //! so the next service removes what a crash left (`remove_dead_staging`).
-//! A commit that arrives while the mark is still being made waits for the making and never for a flush,
-//! and does not start a second.
+//! A commit that arrives while a marker is still being made never waits for it:
+//! it stages its own marker the ordinary way,
+//! as a landing does when nothing was made ahead,
+//! and the markers that were still being made finish beside it and are removed when they are done,
+//! by the batch that follows or by the service's end.
+//! The making is short and starts as early as the code allows,
+//! while the landing that started it still holds the lock and moves the branch,
+//! because the file is created and written there and its flush is the background task's,
+//! so a commit usually finds one of the two finished and places it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -94,7 +101,8 @@ static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec:
 /// the one the next batch takes and the one after that,
 /// so every flush has a whole landing to finish in.
 /// It is also the bound on the files the service leaves in the Git directory,
-/// and a control counts them by it.
+/// so a control counts them by it rather than repeat the number,
+/// and it is public for those controls.
 pub const MARKERS_MADE_AHEAD: usize = 2;
 
 /// One file made ahead and where it was written.
@@ -201,11 +209,12 @@ fn identity_error(error: ProcessIdentityError) -> std::io::Error {
 ///  Starts making the marker of batch `seq` for the index `index`,
 /// unless that is already made or being made.
 /// Why:
-///   A marker for another index is replaced:
-/// it is waited for and removed first.
-/// A marker for another batch of this index is kept,
+///   A marker for another index is waited for and removed first.
+/// A marker of another batch of this index is kept:
+/// it is the spare a following landing takes,
 /// so the files waiting are the batches after this one,
-/// and the oldest goes when the service keeps more than `MARKERS_MADE_AHEAD`.
+/// and at most `MARKERS_MADE_AHEAD` are made,
+/// the oldest going before another is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,6 +229,8 @@ pub fn start(index: &Path, seq: u64) {
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
     // The markers that can still be used here: every one for this index, and the one this call asks for among them.
+    // A marker of this batch is kept exactly as it is, being made or finished, so the landing that asks again for it
+    //  starts nothing; nothing here is dropped, because a marker still being made is nobody's to wait for.
     let mut kept: Vec<Slot> = Vec::new();
     let mut same: bool = false;
     for slot in take_slots() {
@@ -248,21 +259,26 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
         remove_unused(kept.remove(oldest));
     }
     let work_lock: PathBuf = lock.clone();
-    // The flush is handed to the service's background task, so a commit that takes this marker waits for the making of the
-    //  file and never for a flush; see the module doc.
+    // The flush is handed to the service's background task, so a commit that takes this marker never waits for a flush;
+    //  see the module doc.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
+        // The three points of the marker's own life, where a control kills the service: before its file exists, with the
+        //  file recorded and its flush not yet asked for, and with the file complete and its flush asked for.
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_START);
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
         // The file is recorded before the flush, because the flush can take seconds on a loaded disk and a stop that
         // arrives while it runs must find the file: a record made after the flush would leave it behind.
         let (staged, held) = stage_marker(work_lock.as_path(), seq, marker.as_str())?;
         let made: Prestaged = Prestaged { staged, held, marker };
         publish(&made);
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_STAGED);
         if let Err(error) = sync(&made.held) {
             forget_made_ahead(made.staged.as_path());
             drop(made.held);
             let _removed = std::fs::remove_file(made.staged.as_path());
             return Err(error);
         }
+        crate::service_fault::reach(crate::service_fault::PRESTAGE_FLUSHED);
         return Ok(made);
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
@@ -329,10 +345,14 @@ fn remove_unused(slot: Slot) {
 ///  The marker made for batch `seq` of the index `index`,
 /// or nothing when none was made for exactly that.
 /// Why:
-///   A marker for another batch or index is removed and the commit stages its own.
+///   A marker for another batch or index is removed,
+/// and the commit stages its own.
 /// A marker of a later batch is kept:
 /// it is the spare the next landing takes.
-/// A marker still being flushed is waited for.
+/// A marker still being made is no marker for this landing:
+/// it is left to finish where it is,
+/// and the commit stages its own,
+/// because nothing on the commit's path waits for a disk.
 /// A file that is no longer the file that was flushed (the Git directory was replaced,
 /// or the pathname now names another file)
 /// is no marker,
@@ -358,14 +378,29 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
             } else {
                 kept.push(slot);
             }
-        } else {
+        } else if slot.work.is_finished() {
             // A marker for another index, or for a batch this one has passed, is never used: its file goes.
             remove_unused(slot);
+        } else {
+            // Its making has not returned, and nothing on the commit's path waits for a disk: it stays where it is until
+            //  it is finished, and the batch that follows or the service's end removes it then.
+            kept.push(slot);
         }
     }
+    let Some(wanted) = mine else {
+        put_slots(kept);
+        return None;
+    };
+    if !wanted.work.is_finished() {
+        // The making has not returned: the landing stages its own marker the ordinary way and waits for nothing, because
+        //  this is on the commit's path. The marker stays in the slots, so it is removed once it is finished and no file is
+        //  left behind.
+        kept.push(wanted);
+        put_slots(kept);
+        return None;
+    }
     put_slots(kept);
-    let slot: Slot = mine?;
-    let made: Prestaged = made_marker(slot.work)?;
+    let made: Prestaged = made_marker(wanted.work)?;
     forget_made_ahead(made.staged.as_path());
     if !still_there(&made) {
         return None;
@@ -384,6 +419,10 @@ pub fn is_made() -> bool {
 
 /// Removes every marker made ahead,
 /// waiting for a flush that is still running.
+/// Why:
+///  This is the service's end and the idle time between landings,
+/// where nothing of a commit waits for the disk;
+/// a landing stands aside from a flush still running rather than calling this.
 pub fn discard() {
     for slot in take_slots() {
         remove_unused(slot);

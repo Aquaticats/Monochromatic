@@ -456,42 +456,86 @@ fn ignored_work_survives(repo: &std::path::Path) -> bool {
     return repo.join(".env").exists() && repo.join("ignored/data.bin").exists();
 }
 
-/// A `clean` that deletes ignored files is rejected in a clean linked worktree,
-/// because a linked worktree that holds no tracked change can still hold the
-/// environment files the person depends on.
+/// What:
+///  The audit lines a clean leaves after the ones already in the file,
+/// with the last one last.
+/// Why:
+///   A clean that runs must leave exactly one line naming it and the worktree it ran in,
+///  and nothing else about the repository changes the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [line] = auditLinesSince(repo, before)
+/// ```
+fn audit_lines_since(repo: &std::path::Path, before: usize) -> Vec<String> {
+    return audit_lines_of(repo).split_off(before);
+}
+
+/// A `clean` that deletes ignored files runs in a linked worktree,
+/// exits with Git's own status,
+/// and leaves one audit line naming the command and the worktree,
+/// because the owner answered the question about it on 2026-11-10 with
+/// "All four are deleted,
+///  exit 0,
+///  and the audit log records the command."
 #[test]
-fn a_clean_that_deletes_ignored_files_is_rejected_in_a_linked_worktree() {
+fn a_clean_that_deletes_ignored_files_runs_and_is_logged_in_a_linked_worktree() {
     let fixture: Fixture = fixture("discard-clean-ignored");
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
-    keep_ignored_work(linked.as_path());
-    for arguments in [
-        vec!["clean", "-fdx"],
-        vec!["clean", "-fdX"],
-        vec!["clean", "--force", "-d", "-x"],
+    // `-x` is measured over tracked and untracked work; `-X` deletes ignored files only, so the line says the
+    //  policy asked no question.
+    for (arguments, form, dirty) in [
+        (vec!["clean", "-fdx"], "CleanIgnored", "\"dirty\":false"),
+        (vec!["clean", "-fdX"], "CleanIgnoredOnly", "\"dirty\":null"),
+        (vec!["clean", "--force", "-d", "-x"], "CleanIgnored", "\"dirty\":false"),
     ] {
+        keep_ignored_work(linked.as_path());
+        let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} deleted ignored files: {}",
-            stderr_of(&observed)
-        );
-        assert!(
-            ignored_work_survives(linked.as_path()),
-            "{arguments:?} deleted the ignored work anyway"
-        );
+        assert!(!rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!ignored_work_survives(linked.as_path()), "{arguments:?} kept the ignored work");
+        let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+        assert_eq!(lines.len(), 1, "{arguments:?} left {lines:?}");
+        let last: &str = lines.first().expect("one line");
+        for field in [
+            format!("\"form\":\"{form}\""),
+            String::from("\"outcome\":\"allowed\""),
+            String::from("\"worktree\":\"linked\""),
+            String::from(dirty),
+        ] {
+            assert!(last.contains(field.as_str()), "{field} missing from {last}");
+        }
+        // The line names the command the person typed.
+        for word in &arguments {
+            assert!(last.contains(format!("\"{word}\"").as_str()), "{word} missing from {last}");
+        }
     }
-    // The same clean is allowed where the ignored files are not what it deletes.
+    // The main worktree still refuses, and nothing of it is measured or deleted.
+    keep_ignored_work(repo.as_path());
+    let main: Observed = run_wrapped(&fixture, repo.as_path(), &["clean", "-fdx"]);
+    assert!(rejected_by_policy(&main), "{}", stderr_of(&main));
+    assert!(ignored_work_survives(repo.as_path()), "the main worktree lost its ignored work");
+    // An untracked file is still a reason to refuse the same clean in the linked worktree.
+    keep_ignored_work(linked.as_path());
+    std::fs::write(linked.join("new.txt"), b"the person wrote this\n").expect("untracked file");
+    let untracked: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
+    assert!(rejected_by_policy(&untracked), "{}", stderr_of(&untracked));
+    assert!(ignored_work_survives(linked.as_path()), "the refused clean deleted the ignored work");
+    assert!(linked.join("new.txt").exists(), "the refused clean deleted the untracked file");
+    std::fs::remove_file(linked.join("new.txt")).expect("drop the untracked file");
+    // The dry runs list what each would delete, in every worktree.
+    let dry: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-ndx"]);
+    assert!(!rejected_by_policy(&dry), "{}", stderr_of(&dry));
+    assert_eq!(dry.code, Some(0), "{}", stderr_of(&dry));
+    assert!(String::from_utf8_lossy(dry.stdout.as_slice()).contains(".env"), "{}", String::from_utf8_lossy(dry.stdout.as_slice()));
+    assert!(ignored_work_survives(linked.as_path()), "a dry run deleted the ignored work");
+    // A plain clean, which keeps the ignored files, is unaffected.
     let without_ignored: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fd"]);
     assert!(!rejected_by_policy(&without_ignored), "{}", stderr_of(&without_ignored));
     assert!(ignored_work_survives(linked.as_path()), "a plain clean deleted ignored work");
-    // And the documented way to clear build output still runs.
-    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
-    std::fs::remove_dir_all(linked.join("ignored")).expect("drop the ignored directory");
-    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
-    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
-    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
     remove(&fixture);
 }
 
@@ -950,11 +994,12 @@ fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
     std::fs::remove_file(linked.join("notes.txt")).expect("drop the untracked file");
     let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
     assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
-    // The ignored work the clean really would delete is still measured.
+    // The ignored work the same spelling deletes is no longer a reason to refuse it, so it runs and goes.
     keep_ignored_work(linked.as_path());
     let deleting: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
-    assert!(rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
-    assert!(ignored_work_survives(linked.as_path()), "the ignored work went");
+    assert!(!rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
+    assert_eq!(deleting.code, Some(0), "{}", stderr_of(&deleting));
+    assert!(!ignored_work_survives(linked.as_path()), "the ignored work stayed");
     remove(&fixture);
 }
 

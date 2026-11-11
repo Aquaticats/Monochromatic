@@ -921,10 +921,34 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
     return repo.join(".git/monochromatic-git-policy-cli-merges");
 }
 
-/// The files in a records directory.
+/// The merge records in a records directory,
+/// which are its `.json` files:
+/// the reading of what Git's update left travels beside a record as a `.landed` file,
+/// and it is no record of its own.
 pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
-        .map(|entries| { return entries.flatten().map(|entry| { return entry.path(); }).collect(); })
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.path(); })
+                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "json"; }); })
+                .collect();
+        })
+        .unwrap_or_default();
+    files.sort();
+    return files;
+}
+
+/// The readings of what Git's update left in a records directory.
+pub(super) fn landed_in(directory: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.path(); })
+                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "landed"; }); })
+                .collect();
+        })
         .unwrap_or_default();
     files.sort();
     return files;
@@ -963,11 +987,13 @@ fn a_kill_after_the_branch_moved_leaves_a_consistent_checkout() {
     stage_unrelated_work(&fixture, repo.as_path());
     let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-applied");
     assert_eq!(records_in(records.as_path()).len(), 1);
+    assert_eq!(landed_in(records.as_path()).len(), 1, "the reading of what Git's update left went beside the record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
     assert_eq!(text(&status.stdout).lines().filter(|line| { return line.starts_with("M  u.txt") || line.starts_with("A  new.txt") || line.starts_with("D  v.txt"); }).count(), 3);
     assert_eq!(text(&status.stdout).lines().count(), 3, "only the other session's work is staged: {}", text(&status.stdout));
     assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new());
+    assert_eq!(landed_in(records.as_path()), Vec::<PathBuf>::new(), "the reading goes with the record it belongs to");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);

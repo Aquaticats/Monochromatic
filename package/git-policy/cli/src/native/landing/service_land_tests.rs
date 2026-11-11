@@ -1945,10 +1945,14 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// on the
 /// wait,
 /// because the command reports what it kept and that promise must survive a power cut.
-/// The lock marker's flush is not one of them:
-/// `sync_file` hands it to the service's background task
-///  (`service_index_placement.rs`),
-/// so no landing's queue ever holds it.
+/// The index lock's marker is not one of those records:
+/// it names the holder and nothing else,
+/// so 322079b2f0 handed its flush to the service's background task,
+/// which `sync_file` in `service_index_placement.rs` does,
+/// and no commit waits for it,
+/// a withdrawal included
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+/// "What was changed").
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1956,17 +1960,23 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
     let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
     crate::service_fault::hooks::take_events();
+    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
     let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
     let events: Vec<String> = crate::service_fault::hooks::take_events();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
+    // Positive control: this withdrawal had the marker's flush to hand over, so a landing that stopped queueing it fails here.
+    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what.as_str() == crate::service_index_placement::LOCK_MARKER_SYNC);
+    assert_eq!(markers, vec![String::from(crate::service_index_placement::LOCK_MARKER_SYNC)], "the marker's flush is handed to the background task: {events:?}");
     let mut forced: Vec<String> = waited.clone();
-    // The marker's flush is asked for and made by the background task, so what this landing forces is every other sync it asked for.
-    let mut asked: Vec<String> = queued.iter().filter(|what| { return what.as_str() != crate::service_index_placement::LOCK_MARKER_SYNC; }).cloned().collect();
+    let mut asked: Vec<String> = records;
     forced.sort();
     asked.sort();
-    assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
+    assert_eq!(forced, asked, "every record the landing queued was made before it returned: {events:?}");
+    crate::service_durable::drain();
+    let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
+    assert!(made >= markers.len() as u64, "the background task made the marker's queued flush, made {made}");
     remove(world.root.as_path());
 }
 

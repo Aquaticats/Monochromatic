@@ -1,15 +1,21 @@
 //! What:
 //!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy:
-//! the one directory it names.
+//! the one directory it names,
+//!  and whether the person forced it.
 //! Why:
 //!  Only the plain form (one directory,
-//! no option,
+//! one optional `-f` or `--force`,
 //! a non-empty name) is served;
-//! `--force` and every other option change what Git checks,
+//! every other option changes what Git checks,
 //! so those stay with Git.
 //! The name is read the way Git reads it:
 //!  first as the last components of the registered worktree paths,
 //! then as a path.
+//! The force is part of the plan because it decides whether the removal runs Git's
+//!  cleanliness proof at all (`remove_worktree` in Git's `builtin/worktree.c` calls
+//! `check_clean_worktree` only when
+//!  `force` is zero),
+//! and a forced removal is the one an agent runs on a worktree it has worked in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +36,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovePlan = { target: string; operand: string };
+/// type RemovePlan = { target: string; operand: string; force: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemovePlan {
@@ -39,13 +45,32 @@ pub struct RemovePlan {
     /// The operand as the person typed it,
     /// which Git also matches against the last components of every registered path.
     pub operand: OsString,
+    /// Whether the person passed `-f` or `--force`,
+    /// which is what makes Git remove a worktree that holds changes.
+    pub force: bool,
+}
+
+/// Whether a token is one of the two spellings of Git's force option for this command.
+/// Why:
+///   Every other spelling (`-ff`,
+/// `--forc`,
+/// a cluster)
+/// counts the force twice or takes an abbreviation the wrapper does not
+///  read,
+/// so each of those is left to Git rather than read as one force.
+fn is_force(token: &OsString) -> bool {
+    return matches!(token.as_encoded_bytes(), b"-f" | b"--force");
 }
 
 /// What:
-///  Plan one invocation of `git worktree remove` that names exactly one directory and no option.
+///  Plan one invocation of `git worktree remove` that names exactly one directory and at most one `-f` or `--force`.
 /// Why:
-///   `--force` and every other option change what Git checks,
+///   Every other option changes what Git checks,
 /// so those forms stay with Git.
+/// The forced form is served because Git's own
+///  `--force` removal deletes exactly the worktree the destroy deletes,
+/// and because a forced removal is the form
+///  the wrapper's own reports tell a person to run.
 /// `common_dir` is the invoking repository's common Git directory,
 /// where Git's list of worktree paths lives;
 /// without it only the path form is read.
@@ -59,9 +84,11 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
         return None;
     }
     let rest: &[OsString] = &arguments[subcommand_index + 2..];
-    let operand: &OsString = match rest {
-        [only] if !only.as_encoded_bytes().starts_with(b"-") => only,
-        [separator, only] if separator.as_encoded_bytes() == b"--" => only,
+    let (force, operand): (bool, &OsString) = match rest {
+        [only] if !only.as_encoded_bytes().starts_with(b"-") => (false, only),
+        [separator, only] if separator.as_encoded_bytes() == b"--" => (false, only),
+        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => (true, only),
+        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => (true, only),
         _ => return None,
     };
     // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
@@ -72,10 +99,10 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
     if let Some(common) = common_dir
         && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
     {
-        return Some(RemovePlan { target, operand: operand.clone() });
+        return Some(RemovePlan { target, operand: operand.clone(), force });
     }
     let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone() });
+    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone(), force });
 }
 
 /// Removal plan controls stay out of the release executable.

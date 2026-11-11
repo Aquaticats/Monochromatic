@@ -537,3 +537,8 @@ pub(crate) async fn place_file_awaiting(
 pub(crate) fn is_still_the_judged_entry(root: &Path, path: &[u8], judged: &JudgedFile) -> bool {
     return file_identity(worktree_path(root, path).as_path()) == judged.identity;
 }
+
+/// The controls of the placement stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_carry_place_tests.rs"]
+mod tests;

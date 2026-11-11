@@ -33,10 +33,14 @@ use crate::rule_linked_worktree::{
     GuardedCommand, dirty_worktree_message, exemption_notice, main_worktree_message, outside_worktree_message,
     repository_stash_message,
 };
+/// Whether a command writes the remote settings every worktree shares,
+///  and the text its refusal prints.
+use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
+use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The shipped checks over a command,
 ///  the given facts and no candidates.
@@ -609,18 +613,20 @@ fn content_policies_follow_the_lifecycle_content() {
 #[test]
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
     for (values, command, scope, tree) in [
-        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked", None),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked", Some("HEAD")),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked", Some("topic")),
-        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked", None),
-        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked", None),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked", None),
-        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked", None),
-        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything", None),
-        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly", None),
-        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked", None),
+        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, Some("Tracked"), None),
+        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, Some("Tracked"), Some("HEAD")),
+        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("topic")),
+        (vec!["reset"], GuardedCommand::ResetMixed, Some("Tracked"), None),
+        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, Some("Tracked"), None),
+        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, Some("Tracked"), None),
+        (vec!["clean", "-fd"], GuardedCommand::Clean, Some("TrackedAndUntracked"), None),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, Some("TrackedAndUntracked"), None),
+        // `-X` deletes ignored files only, so a linked worktree holds nothing this policy protects and it asks
+        //  nothing; the main worktree still refuses it.
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, None, None),
+        (vec!["stash", "push"], GuardedCommand::Stash, Some("Tracked"), None),
     ] {
-        let dirty_scope = format!("dirty:{scope}");
+        let dirty_scope: Option<String> = scope.map(|name| { return format!("dirty:{name}"); });
         // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
         let tree_question = match tree {
             Some(revision) => format!("ignored-and-tracked:{revision}"),
@@ -640,7 +646,22 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 "{values:?} main dirty={dirty}"
             );
         }
-        let mut clean_questions: Vec<&str> = vec!["location", dirty_scope.as_str()];
+        // A form with no question of its own runs in a linked worktree whatever it holds, and leaves one line.
+        let Some(scope_asked) = dirty_scope else {
+            for dirty in [false, true] {
+                assert_eq!(
+                    pre_forward(
+                        PolicyId::LinkedWorktreeOnly,
+                        values.as_slice(),
+                        dirty_in(linked_worktree("/r", "/w"), dirty)
+                    ),
+                    (clean(), asked(&["location"])),
+                    "{values:?} linked dirty={dirty}"
+                );
+            }
+            continue;
+        };
+        let mut clean_questions: Vec<&str> = vec!["location", scope_asked.as_str()];
         if !tree_question.is_empty() {
             clean_questions.push(tree_question.as_str());
         }
@@ -664,7 +685,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                     "linked-worktree-required",
                     &dirty_worktree_message(command)
                 ),
-                asked(&["location", dirty_scope.as_str()])
+                asked(&["location", scope_asked.as_str()])
             ),
             "{values:?} linked dirty"
         );
@@ -860,9 +881,10 @@ fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
 }
 
 /// linked-worktree-only:
-///  a clean that carries its own exclusion patterns is measured by Git's own dry run of that clean,
+///  a clean that carries its own exclusion patterns is measured by Git's own dry runs of that clean,
 ///  because the status cannot see those patterns,
-///  and a dry run Git cannot answer stops the command.
+///  and only a path the patterns alone call ignored is refused:
+///  an ignored file the worktree itself has is not a reason to refuse the clean in a linked worktree.
 #[test]
 fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
     let command: GuardedCommand = GuardedCommand::CleanIgnoredOnly;
@@ -870,15 +892,27 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
         vec!["clean", "-fdX", "--exclude=notes.txt"],
         vec!["clean", "--force", "-X", "-e", "notes.txt"],
     ] {
+        // A path only the typed clean names is one the patterns call ignored, so it is refused.
         let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        deleting.clean_deletes = Ok(true);
+        deleting.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
+        deleting.clean_deletes_without_exclusions = Ok(Vec::<Vec<u8>>::new());
         let (outcome, questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
         assert_eq!(outcome, one("linked-worktree-required", &dirty_worktree_message(command)), "{values:?}");
         let question: &String = questions.last().expect("a last question");
         assert!(question.starts_with("clean-would-delete:"), "{values:?}: {question}");
         assert!(question.contains("-X"), "{values:?}: {question}");
-        assert!(question.contains("notes.txt"), "{values:?}: {question}");
+        assert!(!question.contains("notes.txt"), "{values:?} the second dry run carries no pattern: {question}");
+        // A path both dry runs name is one the worktree itself ignores, which is no reason to refuse.
+        let mut both: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        let ignored: Vec<Vec<u8>> = vec![b"Would remove .env".to_vec()];
+        both.clean_deletes = Ok(ignored.clone());
+        both.clean_deletes_without_exclusions = Ok(ignored);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), both).0,
+            clean(),
+            "{values:?} an ignored file"
+        );
         // A dry run Git cannot answer is a failure, never "nothing to delete".
         let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
         unreadable.clean_deletes = Err(String::from("Git could not read what the clean would delete: fatal"));
@@ -889,13 +923,96 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
             ),
             "{values:?} unreadable"
         );
-        // A clean that would delete nothing runs.
-        let mut empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        empty.clean_deletes = Ok(false);
+        // The second dry run Git cannot answer is a failure too.
+        let mut second: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        second.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
+        second.clean_deletes_without_exclusions =
+            Err(String::from("Git could not read what the clean would delete: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), second).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} second unreadable"
+        );
+        // A clean that would delete nothing runs, and asks the second question nowhere.
+        let empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        let (nothing_outcome, nothing_questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty);
+        assert_eq!(nothing_outcome, clean(), "{values:?} nothing to delete");
         assert_eq!(
-            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty).0,
-            clean(),
-            "{values:?} nothing to delete"
+            nothing_questions
+                .iter()
+                .filter(|asked_for| { return asked_for.starts_with("clean-would-delete:"); })
+                .count(),
+            1,
+            "{values:?}: {nothing_questions:?}"
+        );
+    }
+}
+
+/// linked-worktree-only:
+///  a command that changes the remote settings every worktree shares is refused in a linked
+///  worktree,
+///  names the main checkout and the file the worktrees share,
+///  and runs as before everywhere else.
+#[test]
+fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree() {
+    // The scripted repository's linked worktree is `/w` of the main checkout `/r`, whose shared file is `/r/.git/config`.
+    let shared_file: &Path = Path::new("/r/.git/config");
+    let main_checkout: &Path = Path::new("/r");
+    for (values, written) in [
+        (
+            vec!["remote", "set-url", "origin", "https://example.invalid/two.git"],
+            SharedRemoteWrite::RemoteSubcommand("set-url"),
+        ),
+        (
+            vec!["config", "--add", "remote.origin.pushurl", "DISABLED"],
+            SharedRemoteWrite::Key(String::from("remote.origin.pushurl")),
+        ),
+        (
+            vec!["config", "remove-section", "remote.origin"],
+            SharedRemoteWrite::Section(String::from("remote.origin")),
+        ),
+    ] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                values.as_slice(),
+                located(linked_worktree("/r", "/w"))
+            ),
+            (
+                one(
+                    SHARED_REMOTE_SETTINGS_CODE,
+                    &shared_remote_settings_message(&written, shared_file, main_checkout)
+                ),
+                asked(&["location", "main-worktree"])
+            ),
+            "{values:?}"
+        );
+    }
+    // The main checkout owns the file, and a place outside a worktree shares it with nothing.
+    for location in [main_worktree("/r", ""), outside_worktree()] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                &["remote", "set-url", "origin", "https://example.invalid/two.git"],
+                located(location)
+            ),
+            (clean(), location_only())
+        );
+    }
+    // A read and a per-worktree write are not the shared settings, so not even the location is asked.
+    for values in [
+        vec!["remote", "-v"],
+        vec!["remote", "get-url", "origin"],
+        vec!["config", "--get", "remote.origin.url"],
+        vec!["config", "--worktree", "remote.origin.url", "own"],
+    ] {
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unlocatable()),
+            (clean(), Vec::<String>::new()),
+            "{values:?}"
         );
     }
 }

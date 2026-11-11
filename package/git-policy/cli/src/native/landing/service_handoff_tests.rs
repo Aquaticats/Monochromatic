@@ -4,7 +4,7 @@ use super::*;
 use crate::service_client::Activation;
 use crate::service_messages::Platform;
 use crate::service_server::Bind;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, spawn_owned};
 use crate::work_item::{PENDING, state_directory};
 use std::time::Duration;
 
@@ -217,6 +217,43 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     remove(root.as_path());
 }
 
+/// What:
+///  The verdict a commit writes into its held push record flushes neither the record nor its directory,
+/// and the record still holds the verdict whole.
+/// Why:
+///   Native Git's commit makes no sync,
+/// so a commit's answer may wait on none of the wrapper's own
+///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`);
+/// a commit that flushed here waited on a filesystem commit before it could exit.
+/// The record is staged beside its name and published by one rename,
+/// so a kill leaves the verdict and a machine crash leaves the record the gate found,
+///  which `held_push_holder_and_verdict.rs` settles as a record with no verdict.
+#[test]
+fn the_verdict_a_commit_records_flushes_nothing() {
+    let root: std::path::PathBuf = fixture("handoff-verdict-no-flush");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID);
+    // The positive control: the recorders do report the flushes of the writer that keeps them.
+    let probe: std::path::PathBuf = root.join("probe.json");
+    std::fs::write(probe.as_path(), b"before\n").expect("a record to replace");
+    crate::private_storage::replace_private_file(probe.as_path(), b"after\n").expect("the synced writer");
+    assert_eq!(crate::private_storage::take_file_syncs(), vec![probe.clone()], "the synced writer flushes the record");
+    assert_eq!(crate::private_storage::take_directory_syncs().len(), 1, "and its directory once");
+    crate::private_storage::take_file_syncs();
+    crate::private_storage::take_directory_syncs();
+    crate::work_item::hold(work.as_path(), &item, "1/2/3").expect("the push is held");
+    crate::private_storage::take_file_syncs();
+    crate::private_storage::take_directory_syncs();
+    promote_the_push(&handoff, OID).expect("the gate approved the backup");
+    assert_eq!(crate::private_storage::take_file_syncs(), Vec::<std::path::PathBuf>::new(), "a pass is written without a flush");
+    assert_eq!(crate::private_storage::take_directory_syncs(), Vec::<std::path::PathBuf>::new(), "and its directory is not flushed either");
+    let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
+    let record: String = std::fs::read_to_string(pending.as_path()).expect("the record the pass moved into the queue");
+    assert!(record.contains("\"verdict\":\"passed\""), "the record holds the whole verdict: {record}");
+    remove(root.as_path());
+}
+
 /// A push record the wrapper promoted and no service has taken says the push is queued,
 /// and one that has just been queued is a push in flight.
 #[test]
@@ -302,10 +339,14 @@ fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
 /// and a process a control starts and waits for is the one holder it can
 ///  make without a race.
 fn a_command_that_has_ended() -> String {
-    let mut child = std::process::Command::new("true").spawn().expect("a child starts");
+    // Only a child that outlives the read of its identity has one: a child that has already ended, or a zombie the
+    // parent has not reaped yet, answers "gone" (`process_identity.rs`), and a `true` raced this read in about one
+    // run in ten.
+    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
     let pid: u32 = child.id();
     let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
-    let _ended = child.wait();
+    let _ended = child.kill();
+    let _reaped = child.wait();
     return format!("{}/{pid}/{birth}", crate::claim_time::current_boot_id());
 }
 
