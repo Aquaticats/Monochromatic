@@ -138,7 +138,20 @@ fn change_named<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
 /// symlinkMetadataSync(location).isDirectory();
 /// ```
 fn is_a_directory(location: &Path) -> bool {
-    return std::fs::symlink_metadata(location).map(|found| { return found.is_dir(); }).unwrap_or(false);
+    return std::fs::symlink_metadata(location).map(is_a_directory_entry).unwrap_or(false);
+}
+
+/// Whether one entry's own metadata says it is a directory.
+///  A symbolic link is not one:
+/// its metadata is the link's,
+/// and a link to a directory is a file of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADirectoryEntry = (found) => found.isDirectory();
+/// ```
+fn is_a_directory_entry(found: std::fs::Metadata) -> bool {
+    return found.is_dir();
 }
 
 /// What:
@@ -177,6 +190,17 @@ fn the_entries_below(root: &Path, prefix: &[u8]) -> Vec<String> {
     return names;
 }
 
+/// The bytes of one entry's name,
+/// which the list of names prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theBytesOf = (name) => new TextEncoder().encode(name);
+/// ```
+fn the_bytes_of(name: &String) -> Vec<u8> {
+    return name.as_bytes().to_vec();
+}
+
 /// What:
 ///  The sentence a merge that would replace such a directory ends with.
 /// Why:
@@ -191,7 +215,7 @@ fn the_entries_below(root: &Path, prefix: &[u8]) -> Vec<String> {
 /// ```
 pub fn the_line(reference: &str, found: &InTheWay) -> String {
     let path: String = String::from_utf8_lossy(found.path.as_slice()).into_owned();
-    let named: Vec<Vec<u8>> = found.entries.iter().map(|one| { return one.as_bytes().to_vec(); }).collect();
+    let named: Vec<Vec<u8>> = found.entries.iter().map(the_bytes_of).collect();
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {path} stands as a directory that holds {}, and this merge puts a file \
          at {path}, so the merge was not made and nothing in the worktree, the index or the branch changed, and no file of yours was \

@@ -933,7 +933,8 @@ fn a_head_the_feature_is_ahead_of(fixture: &Fixture, name: &str) -> PathBuf {
 /// What:
 ///  A fast-forward whose added path is a directory the person staged keeps the file and its index entry.
 /// Why:
-///   Measured with the built wrapper: this merge exited 0,
+///   Measured with the built wrapper:
+/// this merge exited 0,
 /// `added.txt` held the branch's file,
 /// and
 ///  `added.txt/nested/file.txt` was gone with its index entry,

@@ -3871,7 +3871,8 @@ and "never discard user data"):
   a mode the pass cannot take,
   a path the merge deletes and a path the person deleted keep the
   person's side whole and are named on standard error with what to do;
-  two sides of different kinds, a symbolic link on one and a file on the other,
+  two sides of different kinds,
+  a symbolic link on one and a file on the other,
   cannot be merged as text at all,
   so they keep the person's side whole and are named too;
   a path written after the capture is left alone and named,
@@ -3897,10 +3898,13 @@ A directory that stands where the merge puts a file is not work a carry can hold
 a directory and a file cannot share one path.
 Git's own update replaces such a directory,
 and everything below it goes with it:
-measured, an untracked `added.txt/nested/file.txt` was gone after a merge that added `added.txt`,
-and so was a staged one, with its index entry,
+measured,
+an untracked `added.txt/nested/file.txt` was gone after a merge that added `added.txt`,
+and so was a staged one,
+with its index entry,
 after a merge the wrapper reported as made.
-So the merge stops before the first byte of the worktree, the index or the branch changes,
+So the merge stops before the first byte of the worktree,
+the index or the branch changes,
 when that directory holds anything the merge does not delete itself,
 and the line names the path,
 the files below it,

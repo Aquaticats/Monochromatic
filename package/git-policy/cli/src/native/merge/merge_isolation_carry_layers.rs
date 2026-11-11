@@ -308,7 +308,7 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
     // A symbolic link and a file are not two texts a word pass can merge: measured, a merge wrote the person's link target
     //  and the merge's lines between markers into a link whose target was that whole text, so the link they made was gone.
     //  Their side is kept whole instead, and named with the merge's version in the merge commit.
-    if !the_same_kind_of_entry(&layer) {
+    if !the_same_kind_of_entry(layer) {
         return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
     }
     if layer.base.is_none() {
