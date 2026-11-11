@@ -20,6 +20,8 @@ use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
+/// The kernel's answer about this process's controlling terminal,
+/// which decides whether the never-prompt pair is in the overlay.
 use crate::control_terminal::{Terminal, control_terminal};
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
@@ -69,25 +71,24 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// What:
-///  The forward action for these fixtures:
-///  real Git,
-///  the lock-PID overlay,
-///  the forward-target marker,
-///  the never-prompt pair when the process running this control has no controlling terminal,
-///  and no warning.
+/// The overlay every typed command's real-Git start carries,
+/// for the terminal this process has:
+/// the lock-PID injection and the forward-target marker,
+/// plus the never-prompt pair when no controlling terminal answered.
 /// Why:
-///  A forwarded command's overlay carries that pair exactly when its process has no controlling terminal,
-///  so the expectation has to be built from the same reading (`control_terminal`) the wrapper takes.
-///  A control that froze the overlay without the pair passed at a person's terminal.
-///  The same control failed under a test runner,
-///  an agent's shell,
-///  and a container started without `--tty`,
-///  where no controlling terminal exists:
-///  both arrangements must pass.
-///  The pair's own order and contents are controlled in `child_environment_tests.rs`;
-///  these controls are about which action is planned and with which arguments.
-pub(super) fn forward(arguments: Vec<OsString>) -> Action {
+///  The plan asks the kernel for this process's controlling terminal,
+/// so a suite run at a terminal and one run in a session without one
+///  each expect the overlay its own answer produces;
+/// the answer never comes from whether standard input is a terminal
+/// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
+/// and a control that froze the overlay without the pair passed at a person's terminal
+/// while it failed under a test runner,
+/// an agent's shell or a container started without `--tty`,
+/// where no controlling terminal exists:
+/// both arrangements must pass.
+/// The pair's variables and order are proven in `child_environment_tests.rs`;
+/// these controls are about which action is planned and with which arguments.
+fn expected_overlay() -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
         (
@@ -100,15 +101,22 @@ pub(super) fn forward(arguments: Vec<OsString>) -> Action {
             OsString::from(REAL_GIT),
         ),
     ];
-    // The pair goes last, as the invocation overlay appends it, so a variable the caller set for its own children cannot
-    // reopen the prompt.
     if control_terminal() == Terminal::Absent {
+        // The pair goes last, as the invocation's own overlay appends it,
+        // so a variable the caller set for this process's children cannot reopen the prompt.
         overlay.extend(never_prompt_overlay());
     }
+    return overlay;
+}
+
+/// The forward action for these fixtures:
+///  real Git,
+///  the overlay of `expected_overlay` and no warning.
+pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay,
+        overlay: expected_overlay(),
         stderr: String::new(),
     };
 }

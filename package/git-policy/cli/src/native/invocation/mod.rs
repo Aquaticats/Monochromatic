@@ -165,7 +165,8 @@ pub mod wrapped_command;
 /// manual push.
 pub mod wrapped_command_notices_snapshots_and_manual_push;
 
-/// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
+/// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists,
+/// and the Git it starts for its own work also carries `core.fsmonitor=false`.
 pub mod hooks_off;
 
 /// The startup step of a command:

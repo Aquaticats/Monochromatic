@@ -689,6 +689,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a value from `-c` or the environment has no file,
   so the finding says to remove it there.
   The line or finding comes after the other notes and before the filesystem section.
+  It is about the person's own Git:
+  the Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+  (owner decision,
+  2026-11-10;
+  see "Real Git starts with traditional hooks off"),
+  so a scope that turns the monitor on costs the person's own commands and a forwarded command,
+  never a commit or a landing.
   The exit status never depends on it,
   and doctor never writes configuration.
   A listing that cannot be read or parsed is said plainly in place of the line.
@@ -1241,11 +1248,14 @@ as for every rung:
 using the
 command is accepting that risk,
 and no step defends against it.
-The wrapper passes no `core.fsmonitor` setting here;
+The wrapper passes no `core.fsmonitor` setting to the `git worktree add` it forwards;
 Git's fsmonitor is off in the person's global configuration
 (owner decision,
-2026-11-03;
-see "Git's own fsmonitor" in `README.md`).
+2026-11-03),
+and the Git the ladder starts for its own steps passes `-c core.fsmonitor=false`
+(owner decision,
+2026-11-10;
+see "Real Git starts with traditional hooks off" and "Git's own fsmonitor" in `README.md`).
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and,
 for a source that is a
@@ -1607,9 +1617,15 @@ Git's parallel checkout made a 20,000-file checkout faster in all three paired r
 (36.9 s to 4.5 s,
 3.1 to 2.3,
 7.2 to 1.75).
-The wrapper passes no `core.fsmonitor` setting and does not touch its daemon;
+The wrapper passes no `core.fsmonitor` setting to the add it forwards and does not touch its daemon;
 Git's fsmonitor is off in the person's global configuration (owner decision,
-2026-11-03).
+2026-11-03),
+and the ladder's own steps run with `-c core.fsmonitor=false` (owner decision,
+2026-11-10:
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)";
+see "Real Git starts with traditional hooks off").
 
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot,
@@ -5773,6 +5789,26 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
+  What provisioning already knows before that wait ends it at once instead,
+  and the message names the cause and every way to change it
+  (`src/native/service/service_provision_refusals_before_the_wait.rs`):
+  an address longer than one socket address can hold
+  (the runtime directory,
+  the folder of the sockets,
+  the instance and `.sock` take at most 107 bytes,
+  so the runtime directory may take 40),
+  and a service the manager made listen at another address than the one this command waits at,
+  which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
+  because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+  The manager's answer about the address it made is the fact that decides the second;
+  an answer that cannot be read proves nothing and leaves the wait as it was,
+  so a manager of another release never fails a commit that would have landed.
+  A session bus that carries no user service manager answers with the remedy for an account without user services,
+  not with the bus's own words,
+  and a runtime directory that cannot be written loses the operating system's error number and gains that remedy.
+  None of this is a second way to commit:
+  the service is the only writer,
+  so a command that cannot reach it changes nothing and stops.
 - A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
   left to the
   service's retry plan,
@@ -7018,10 +7054,13 @@ and otherwise the wrapper says what it found and prints the command that clears 
 - Git's own file-system monitor is off in the person's global configuration,
   by the owner's decision of 2026-11-03
   (see the README section "Git's own fsmonitor";
-  `git monochromatic-git-policy-cli doctor` says so).
+  `git monochromatic-git-policy-cli doctor` says so),
+  and the Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+  (owner decision,
+  2026-11-10;
+  see "Real Git starts with traditional hooks off").
   Nothing here sets,
-  unsets,
-  pins or passes `core.fsmonitor`,
+  unsets or pins `core.fsmonitor`,
   and no tier of the judgement counts the daemon's descriptors
   or working directory as evidence of anything.
 
@@ -7788,30 +7827,47 @@ The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git
 `pre-push` included,
 so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-`core.fsmonitor` is not in this prefix,
-like the programs Git starts for its own features (filters,
-editors,
-signing programs,
-credential helpers):
-the program it names is not reached by the hooks path or by any event switch
+The same prefix carries `-c core.fsmonitor=false` for the Git the wrapper starts for its own work:
+the commit's index builds and trees,
+`read-tree`,
+`diff-tree`,
+`reset`,
+the scratch commit,
+the landing and service steps,
+and its queries.
+A command the person typed is forwarded and keeps the person's setting.
+Git's own file-watching daemon registers a watch on every directory of the work tree before it answers,
+and a Git that reads the index waits for it for up to `fsmonitor.startTimeout` (60 s by default),
+so a commit step must not depend on the daemon being there or starting;
+two steps of one commit waited 60 s each for it
+(`doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`).
+A program `core.fsmonitor` names is not reached by the hooks path or by any event switch
 (measured on Git 2.56.0,
-including with `hook.fsmonitor-watchman.enabled=false`).
+including with `hook.fsmonitor-watchman.enabled=false`),
+which is why the setting itself is passed.
 Owner decisions,
 in order,
 quoted with the date each was superseded:
 "To stop the fsmonitor program - we don't need to."
 (kept the wrapper from stopping the monitor;
 superseded 2026-11-03),
-and,
-on 2026-11-03,
 "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
 disable git's fsmonitor globally entirely and make doctor say so."
-(recorded in `README.md`,
-"Git's own fsmonitor").
+(2026-11-03;
+recorded in `README.md`,
+"Git's own fsmonitor"),
+and,
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+"B:
+off for internal Git (Recommended)"
+(2026-11-10;
+`doc/handover/questions-for-the-owner.md`,
+"The wrapper's own Git and fsmonitor";
+this amends the decision of 2026-11-03,
+which stands for the person's own Git).
 So the setting is off in the person's global configuration,
 `git monochromatic-git-policy-cli doctor` says so,
-and the wrapper still neither
-passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
+and the wrapper still neither starts nor stops a monitor daemon.
 The wrapper injects no hook of its own,
 so no event is an exception.
 
@@ -7834,7 +7890,7 @@ so no event is an exception.
   so the command inside it runs with the options Git gives that shell and not with these.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
-  repository configures and the wrapper reads `core.hooksPath` that way (the commit warning,
+  repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,
   `doctor`).
   `git config --edit` (or `-e`) starts an editor,
   and a Git the editor starts inherits the options,
@@ -10568,10 +10624,12 @@ The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
 measured over the whole of it:
-near zero when the marker was ready,
-the rest of the flush when it was not,
-a wait for a flush that failed or was for another batch plus the cold staging that followed,
-the whole creation and flush when it staged its own;
+near zero when a marker made ahead was finished for it,
+the removals of the markers it cannot use,
+the whole creation when it staged its own,
+and never the making of a marker another batch will place,
+nor the flush of a marker,
+which the background task makes;
 `lock_stage_kind` says `pre` or `cold`.
 
 A lock the holder owns is removed by the release after the index is installed,
@@ -11788,10 +11846,14 @@ wrapper's,
 and stay;
 a program that is a hook event is switched off.
 `core.fsmonitor` is among them,
-and the wrapper does not set it:
+and the wrapper's own Git passes `-c core.fsmonitor=false` rather than relying on the person's setting;
+a command the person typed keeps it:
 it is off in the person's global configuration
-(owner decision,
-2026-11-03),
+(owner decisions,
+2026-11-03 and 2026-11-10,
+the later one asking "Should the wrapper switch fsmonitor off for its own internal Git commands only?"
+and answering "B:
+off for internal Git (Recommended)"),
 and `git monochromatic-git-policy-cli doctor` says so.
 `monochromatic-git-policy-cli.config.jsonc` is data:
 it has no command or executable field,
@@ -12899,9 +12961,10 @@ A command that stops between a take and the write leaves the file under a privat
 `.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
 where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
 so a name at the file system's component limit still has a private name that can exist;
-the next command puts such a file back before it judges the path,
-says on standard error that it did,
-and where the path holds something else keeps both and names the private file.
+the next command puts such a file back before it judges the path and says on standard error that it did,
+and where the path holds something else keeps both,
+names the private file,
+and records the copy so a later command ends it.
 A file written into a taken one after the take checked it is kept rather than removed,
 and its private name is said.
 The private name is removed only on a proof that nothing can write into the file any more,
@@ -12951,6 +13014,32 @@ and a file that cannot go back is named and counted as installed;
 a take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
 so a file that appeared in that instant stays;
+a copy a private name holds is decided by the bytes it carries,
+never by its name alone:
+a private name this release wrote carries the key of the merge that took it,
+so a record that is still there is the only claim that may put it back,
+and a name an earlier release wrote carries no key at all,
+so its bytes decide,
+a copy whose raw bytes are the branch's own file form for the path,
+the merge's own file form,
+or the person's captured file being the file the merge judged there,
+which a merge that has not finished puts back when the path is empty,
+while a copy holding anything else stays beside its path,
+because a merge that ended leaves a name whose file the person may have deleted themselves;
+a copy a merge keeps is recorded inside the worktree's Git directory,
+one file per copy under `monochromatic-git-policy-cli-kept-copies/`,
+naming the copy and the path it belongs to,
+and every command that runs the recovery decides every recorded copy again,
+so a copy no later merge touches is not a file no command ever ends:
+a copy whose path is empty and whose own merge is unfinished goes back,
+a copy whose bytes the file at its path holds again is removed,
+a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
+`git restore` command that reaches those bytes,
+and any other copy stays,
+is named on standard error with `mv` and `rm` as the two commands that end it,
+and is removed the moment the file at its path holds its bytes again;
+a copy whose bytes nothing else holds is the person's alone,
+and no command decides it for them;
 the emptied directories of every path the merge deletes are pruned on each attempt,
 whether or not the path already stands at its end state,
 because a kill between finishing a child's private name and removing the directory it emptied leaves an empty directory
@@ -12992,6 +13081,26 @@ so a refusal stops the command and says the merge is partly installed in that wo
 that is decided by what the index and the checkout hold when the refusal is made,
 not by which step refused,
 so a foreign file or a staged entry met after the install began stops the command too.
+What Git's own update left at each path the merge writes is read once,
+after the checkout moved and before the carry,
+and written beside the record as `<transaction id>.landed`;
+the recovery of a merge whose branch already names it judges each path against that reading rather than against its bytes
+alone,
+so a save that arrives after a kill and holds the merge's own bytes is a different entry from the one Git wrote,
+stands,
+and is named,
+where without the reading its bytes would be the merge's own and the person's older layer would be written over them.
+The reading is not flushed:
+a kill leaves the page cache intact and a power loss leaves it absent;
+the reading goes with the record it belongs to,
+and one that cannot be read leaves the recovery reading by bytes as it did before.
+The line a recovery writes about a path it carried says which merge it is finishing,
+never a repository ref of the branch it lands on.
+The line about a path the merge writes and the person's side of which holds nothing says that nothing stood there when
+the merge captured it,
+and never that the person deleted it:
+a file a command set aside before the capture leaves the same state,
+and the line about that copy names it.
 The branch is resolved before anything else,
 so a merge whose branch already names the merge commit is settled from that alone and its leftover record goes without a
 worktree read that may have become impossible.
@@ -13579,7 +13688,7 @@ an `answered` line for every request with the phases of its stay
 `queued_ms`,
 `settle_ms`,
 `lock_wait_ms` and the holder when one is named,
-the split of the lock wait into the flush of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
+the split of the lock wait into the making of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
 and when the lock was found held `lock_looks`,
 `lock_found` and `lock_last`,
 `reads_ms`,

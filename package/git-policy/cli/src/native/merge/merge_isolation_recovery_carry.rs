@@ -19,7 +19,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_carry::drop_capture_ref_awaiting;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry_awaiting, changes_between_awaiting, restore_awaiting};
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, LandedFile, carry_awaiting, changes_between_awaiting, restore_awaiting};
 use crate::merge_isolation_carry_notice::report_lines;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
@@ -46,13 +46,14 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     intent: &MergeIntent,
+    landed: &[LandedFile],
     out: &mut W,
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
+            for line in report_lines("", &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
             }
             return Ok(true);

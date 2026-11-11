@@ -884,8 +884,10 @@ Read-only commands,
    (a mount without `user_subvol_rm_allowed`,
    for one).
      Nothing of yours is in it:
-   a worktree is only removed
-   after the wrapper proved it clean and unlocked.
+   a removal without `--force` runs only
+   after the wrapper proved the worktree clean and unlocked,
+   and a forced removal deletes whatever the worktree held,
+   which its own line says on standard error because nothing was checked first.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
@@ -2672,6 +2674,37 @@ Now the merge runs and the person's work is carried across it:
   and carries them when it did.
   A layer the person saved again while the merge ran stays as they left it,
   and is named.
+- What Git's own update left at each path is written beside the merge's record
+  (`<transaction id>.landed`) once the checkout moved and before the carry,
+  so the command that finishes a killed merge judges each path against the file Git left
+  rather than against its bytes alone.
+  A save that arrives after the kill and holds the merge's own bytes therefore stands,
+  and is named,
+  where reading by bytes alone would take it for the merge's own file
+  and write the person's older layer over it.
+- A file the merge set aside and could not put back is a copy beside its path,
+  named `.cli-git-recovery-<key>-<process>-<count>-<moment>`,
+  and it is never dropped while its bytes are the person's alone.
+  A copy whose path is empty and whose merge is unfinished goes back into the checkout.
+  A copy whose bytes the person's file holds again,
+  or the branch's own commit holds for that path,
+  is removed,
+  and the line says which of the two it was.
+  Any other copy stays where it is,
+  and its line names the copy,
+  `mv -- <copy> <path>` to put it back,
+  `rm -- <copy>` to drop it,
+  and the end a later command performs by itself once `<path>` holds its bytes again.
+  Every copy a merge keeps is recorded under
+  `.git/monochromatic-git-policy-cli-kept-copies/`,
+  so every later command that runs the merge recovery decides it again,
+  even when no merge touches its path.
+  A copy an earlier release of this program left carries no merge key in its name,
+  so its bytes decide it:
+  a copy of the branch's own file,
+  or of the person's own captured file,
+  goes back while a merge is unfinished,
+  and anything else is kept and named rather than put back on a guess.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
@@ -3150,6 +3183,22 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
+  Two causes end the commit at once instead of after that wait,
+  because the command knows them before it waits,
+  and each message names the setting that has to change and every way to change it:
+  a runtime directory that leaves no room for the service's address
+  (that address takes at most 107 bytes,
+  so `XDG_RUNTIME_DIR` may take 40),
+  and a service the account's manager started at another address than the one this command waits at,
+  which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
+  (a unit,
+  a container or a script with one of its own):
+  run the commit from your login session,
+  or set `XDG_RUNTIME_DIR` to the manager's.
+  An account without user services is still told `loginctl enable-linger`,
+  which is also what a session bus with no user manager behind it says.
+  The commit service remains the only writer of a commit,
+  so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
   heartbeats or not):
   the client withdraws the request,
@@ -4462,6 +4511,18 @@ which the next command drops as already landed,
 or one whose branch moved,
 which it settles as it would settle any such record.
 The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
+What Git's own update left at each path of a merge that carries work travels beside the record as
+`<transaction id>.landed`,
+so a command that finishes a killed merge reads the same entries the command that moved the checkout read;
+it goes with the record and is never read by a command the record is gone from.
+A file a merge kept beside a path is recorded in `monochromatic-git-policy-cli-kept-copies` in the worktree's Git directory,
+one small file per copy naming the copy and the path it belongs to.
+It is not a record a command refuses anything for:
+a copy whose bytes the person's file holds again,
+or the branch's commit holds them,
+is removed and the line says which,
+a copy an unfinished merge names goes back,
+and any other copy is named again on every command that runs the recovery until one of those holds.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
@@ -4991,7 +5052,7 @@ The wrapper adds the same pair to a forwarded command whose process has no contr
 (`invocation_overlay` in `src/native/invocation/child_environment.rs`).
 A control that compares a forwarded command's environment builds the pair from the same reading,
 `control_terminal()`
-(`forward` in `src/native/invocation/entry_tests.rs`).
+(`expected_overlay` in `src/native/invocation/entry_tests.rs`).
 A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
 an agent's shell or a container started without `--tty`,
 which is how the campaigns start theirs:
@@ -5035,8 +5096,22 @@ The measurements and the cause are in `doc/troubleshooting/git-fsmonitor-daemon-
 
 What the wrapper does now:
 
-- It still never passes `-c core.fsmonitor=...` to any Git child,
-  never writes `core.fsmonitor` in any repository,
+- The Git it starts for its own work passes `-c core.fsmonitor=false`:
+  the commit's index builds and trees,
+  `read-tree`,
+  `diff-tree`,
+  `reset`,
+  the scratch commit,
+  the landing and service steps,
+  and its queries.
+  A Git that reads the index asks the file-watching daemon first and waits for it,
+  so a step that found no daemon
+  took 60 s twice in one commit.
+  The option is part of the prefix every real-Git start already carries,
+  so it adds no process and no start.
+- A command the person typed is forwarded with their configuration untouched,
+  so the person's `core.fsmonitor` stays for what they run themselves.
+- It never writes `core.fsmonitor` in any repository,
   and never starts,
   stops or kills `git fsmonitor--daemon`.
   The setting is the person's configuration,
@@ -5063,6 +5138,16 @@ What the wrapper does now:
   Doctor reads one more configuration listing with `--show-origin` for this,
   because the snapshot the commit path
   reads names scopes but not files.
+
+The wrapper's own Git is the exception,
+because the owner chose it on 2026-11-10:
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)".
+So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
+and never a command the person typed
+(`doc/handover/questions-for-the-owner.md`,
+"The wrapper's own Git and fsmonitor").
 
 The owner's earlier words,
 kept as history;
