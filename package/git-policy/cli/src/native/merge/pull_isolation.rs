@@ -37,9 +37,10 @@ use crate::service_index_wait::wait_for_service_hold_here;
 /// The inherited environment,
 /// which decides whether the reflog message is already set.
 use crate::child_environment::environment_value;
-/// The one spelling of the worktree guard's hatch,
-/// which the fast-forward failure's recovery line names.
-use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
+/// The untracked files the fetch's branch move would overwrite,
+/// kept before the failure is worded,
+/// and the words that name every copy.
+use crate::pull_untracked_paths_in_the_way::{UntrackedInTheWay, keep_the_untracked_paths_in_the_way, recovery_words};
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
 /// The command a pull becomes.
@@ -502,12 +503,11 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
             None => true,
         };
         if move_failed {
-            return PullStep::Ended(CoordinatedRun::Failed {
-                stderr: format!(
-                    "fatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff {orig_head}\noutput, run\n$ git reset --hard\nto recover.\nmonochromatic-git-policy-cli: that reset discards whatever this worktree holds, and the wrapper's worktree guard refuses a hard reset here without {WORKTREE_ENFORCEMENT_ESCAPE_HATCH}, which is what made this fast-forward fail; run git reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard if you mean it.\n"
-                ),
-                code: 128,
-            });
+            // Git's own recovery words say to save `git diff <old head>`, which holds no untracked file, and the reset
+            // they offer deletes the untracked file that made this move fail, so the wrapper keeps those bytes itself
+            // and names every copy before it prints the words (`pull_untracked_paths_in_the_way`).
+            let in_the_way: UntrackedInTheWay = keep_the_untracked_paths_in_the_way(&context, root, git_dir, orig_head.as_str(), curr_head.as_str());
+            return PullStep::Ended(CoordinatedRun::Failed { stderr: recovery_words(orig_head.as_str(), &in_the_way), code: 128 });
         }
     }
     let fetched: String = std::fs::read_to_string(git_dir.join("FETCH_HEAD")).unwrap_or_default();
