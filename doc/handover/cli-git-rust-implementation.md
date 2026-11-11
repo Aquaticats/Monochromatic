@@ -210,10 +210,37 @@ The Kimi review starter had reviewed `main...branch`,
 which for a branch cut from an integration tip holds every integrated change:
 163 to 271 files against the branch's own 0 to 2.
 It now reviews each branch's own merge range (`M^1...M^2` of its merge into the integration branch),
-pinned to `bc3d54f9cd`;
-branches whose change under the source folder is only tests are skipped by design.
+pinned to `bc3d54f9cd`,
+and a branch whose own change under the source folder is only tests is skipped.
+That starter keyed a branch by its current tip, so it saw only a branch's last merge:
+five branches were merged twice,
+and for `worktree-add-killed-mid-copy-is-finished-or-named` the last merge was a README change,
+so its real change would have gone unreviewed.
+`~/temp/agent/pi-runs/start-kimi-reviews-of-branches-merged-twice.ts` reviews those five over every merge,
+matching merges by subject,
+because a branch that merged the integration into itself has every earlier branch's tip among its ancestors.
+
+The binary suite on `ba1be33739` passed 962 of 965.
+The three failures are the killed-copy controls
+(`fault_trace::a_worktree_copy_killed_at_each_{chmod,openat2,write}_leaves_a_recoverable_repository`):
+a worktree add killed at that call leaves a worktree without its source's ignored files,
+and the next command only prints manual steps (remove an `index.lock`, `reset --hard`, or rerun the add)
+or names a stage it cannot prove it made.
+Run alone, the 14 such controls failed 0 and then 1 at `8bd685935d`,
+and 2 to 10 at every later commit tried;
+the step comes at `5197a5537b`,
+the merge of `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`,
+which moved the reading of ignored files into `repo_read/repository_facts_ignored_files.rs`.
+Alternating runs of the two commits and of the alpha.9 base `edbbafa190` are measuring whether that step is real
+(unit `alternate-killed-copy-controls`, results in `~/temp/agent/pi-runs/alternate-killed-copy-controls-results.txt`).
+Agent `killed-add-leftover-copy-is-not-another-commands-wait` has the evidence.
+Release rule applied:
+only a reproduced data-loss or recovery regression that is new since alpha.9 holds `0.6.1-alpha.10`
+(the owner: "Prioritize fixing the jams and release jam fixes asap.", "Alphas don't even have to resolve all flakes.");
+a Sonnet subagent is classifying the Kimi data-loss findings as older than alpha.9 or new
+(`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`).
 Next:
-the binary suite's result,
+those two answers,
 the Kimi reviews of the newly merged branches,
 the Kimi-findings and audit fixes once free space allows,
 gate,
