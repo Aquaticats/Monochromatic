@@ -1035,7 +1035,9 @@ fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
 #[test]
 fn only_a_push_to_the_branchs_own_tracked_remote_names_a_reference_to_write() {
     let own: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/heads/main")] };
-    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"), Some("refs/remotes/origin/main"));
+    // The push plan keeps the name Git answers the upstream question with, which is abbreviated; both spellings name one reference.
+    assert_eq!(pushed_tracking_ref(Some("origin/main"), &own, "refs/heads/main"), Some("origin/main"), "the abbreviated name the plan carries");
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"), Some("refs/remotes/origin/main"), "the full name");
     let elsewhere: Sent = Sent { remote: String::from("mirror"), targets: vec![String::from("refs/heads/main")] };
     assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &elsewhere, "refs/heads/main"), None, "the tracked remote is not the one this push wrote");
     let matching: Sent = Sent { remote: String::from("origin"), targets: Vec::new() };

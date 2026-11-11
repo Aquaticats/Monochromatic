@@ -482,7 +482,7 @@ pub fn push_once(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ref = (upstream, sent, branchRef) => upstream === `refs/remotes/${sent.remote}/${branchRef.slice('refs/heads/'.length)}` && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
+/// const ref = (upstream, sent, branchRef) => [sent.remote + '/' + short, 'refs/remotes/' + sent.remote + '/' + short].includes(upstream) && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
 /// ```
 pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, branch_ref: &str) -> Option<&'a str> {
     let of: &'a str = upstream?;
@@ -491,8 +491,11 @@ pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, br
         return None;
     }
     let short: &str = branch_ref.strip_prefix("refs/heads/")?;
-    let expected: String = format!("refs/remotes/{}/{short}", sent.remote);
-    return (of == expected).then_some(of);
+    // The push plan asks Git for the upstream and keeps the name Git answers with, which is the abbreviated `origin/main`; the
+    //  full form is accepted as well, because a reader that spells it out names the same reference.
+    let full: String = format!("refs/remotes/{}/{short}", sent.remote);
+    let abbreviated: String = format!("{}/{short}", sent.remote);
+    return (of == full || of == abbreviated).then_some(of);
 }
 
 /// What:
