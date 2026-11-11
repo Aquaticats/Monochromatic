@@ -249,7 +249,7 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string() }),
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
     };
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
         Path::new(REAL_GIT),
