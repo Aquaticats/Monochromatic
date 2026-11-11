@@ -48,6 +48,10 @@ pub struct WorktreeAboutToGo {
     /// The canonical administrative directory of the worktree,
     /// which the removal deletes.
     pub git_dir: PathBuf,
+    /// The Git common directory of the worktree,
+    /// which holds the shadow pool its commits were served from and
+    ///  survives the removal.
+    pub common_dir: PathBuf,
 }
 
 /// What:
@@ -77,7 +81,7 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
             return None;
         }
     };
-    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin });
+    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin, common_dir: common_dir.to_path_buf() });
 }
 
 /// What:

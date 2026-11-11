@@ -24,7 +24,7 @@ use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use crate::service_commit::ServiceCommit;
 use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
-use crate::service_pruned::prepared_content_missing;
+use crate::service_pruned::the_objects_it_names_are_gone;
 use crate::service_amend_replayed::AmendedCommit;
 use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service};
 use crate::service_messages::{ClientFailure, render};
@@ -102,12 +102,7 @@ pub(crate) fn answer_after_a_failure(attempt: FailedAttempt<'_>) -> Result<Servi
     // Content a prune removed is its own ending: the service answered that the commit names an object that is gone, and the
     //  worktree is not read again to make that commit.
     if matches!(attempt.failure, ClientFailure::Unavailable)
-        && prepared_content_missing(
-            attempt.native_inputs.capture.layout.common_dir.as_path(),
-            attempt.native_inputs.capture.layout.object_directory.as_path(),
-            attempt.native_inputs.capture.layout.object_format.as_str(),
-            attempt.sent,
-        )
+        && the_objects_it_names_are_gone(attempt.sent, &attempt.native_inputs.capture.layout)
     {
         return Err(content_was_pruned());
     }

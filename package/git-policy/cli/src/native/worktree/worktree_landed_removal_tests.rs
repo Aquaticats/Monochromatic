@@ -11,6 +11,7 @@
 //! ```
 
 use super::{LandedPlace, LandedSweep, sweep_landed_worktrees};
+use crate::shadow_pool::pool_root_for;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, spawn_owned};
 use crate::worktree_added_by_the_wrapper::record;
 use std::path::{Path, PathBuf};
@@ -73,6 +74,26 @@ fn head_of(main: &Path) -> String {
 }
 
 /// What:
+///  The shadow pool of the fixture's linked worktree,
+///  holding one finished member as a fill leaves it.
+/// Why:
+///   A pool is named from the administrative directory of the worktree it serves,
+///  which Git names after the worktree's own last folder and the removal deletes,
+///  so this is the folder a removal either takes or leaves behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pool = poolRootFor(common, join(common, 'worktrees', basename(worktree))); mkdirSync(join(pool, 'member', 'objects'), { recursive: true });
+/// ```
+fn planted_pool(landed: &Landed) -> PathBuf {
+    let last: &std::ffi::OsStr = landed.worktree.file_name().expect("the worktree's last folder names its administrative directory");
+    let admin: PathBuf = landed.common.join("worktrees").join(last);
+    let pool: PathBuf = pool_root_for(landed.common.as_path(), admin.as_path());
+    std::fs::create_dir_all(pool.join("member").join("objects")).expect("a pool as a fill leaves it");
+    return pool;
+}
+
+/// What:
 ///  Land `feature` on `main` and answer the sweep of the worktrees it landed.
 /// Why:
 ///   The merge is the event the sweep hangs on,
@@ -117,6 +138,37 @@ fn a_landed_worktree_with_uncommitted_work_stays() {
     assert!(!sweep.kept[0].why.is_empty(), "the reason is named: {sweep:?}");
     assert!(landed.worktree.exists(), "the worktree stays");
     assert_eq!(std::fs::read(notes.as_path()).expect("the file is still there"), b"what I was in the middle of\n");
+}
+
+/// What:
+///  A worktree the sweep removes takes its shadow pool with it,
+///  and one it keeps keeps its pool.
+/// Why:
+///   The pool of a worktree is that worktree's own and sits in the common Git directory,
+///  which no removal deletes,
+///  so a removal that left it behind would hold a finished tree of every worktree this
+///  sweep removes for as long as the repository lives
+///  (`worktree_removal_clears_the_pool.rs`).
+#[test]
+fn a_removed_worktrees_shadow_pool_goes_with_it() {
+    let landed: Landed = a_repository_with_a_worktree("landed-pool-gone");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let pool: PathBuf = planted_pool(&landed);
+    assert!(pool.exists(), "the pool is there before the sweep: {}", pool.display());
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "one landed worktree is removed: {sweep:?}");
+    assert!(!pool.exists(), "the pool of the removed worktree goes with it: {}", pool.display());
+}
+
+#[test]
+fn a_kept_worktrees_shadow_pool_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-pool-kept");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let pool: PathBuf = planted_pool(&landed);
+    std::fs::write(landed.worktree.join("notes.md").as_path(), b"what I was in the middle of\n").expect("a file the person wrote");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while the worktree holds work: {sweep:?}");
+    assert!(pool.exists(), "the worktree stays, so its pool stays: {}", pool.display());
 }
 
 #[test]

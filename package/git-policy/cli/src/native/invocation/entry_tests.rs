@@ -70,23 +70,32 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 
 /// The forward action for these fixtures:
 ///  real Git,
-///  the lock-PID overlay and no warning.
+///  the lock-PID overlay,
+///  the never-prompt pair this process earns when it has no controlling terminal,
+///  and no warning.
+///  The pair comes from the invocation's own answer because a test process with a terminal and one without forward the
+///  same routing;
+///  the pair's variables and order are proven in `child_environment_tests.rs`.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
+    let mut overlay: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
+        (
+            OsString::from("GIT_CONFIG_KEY_0"),
+            OsString::from("core.lockfilePid"),
+        ),
+        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
+        (
+            OsString::from(FORWARD_TARGET_VARIABLE),
+            OsString::from(REAL_GIT),
+        ),
+    ];
+    if crate::control_terminal::control_terminal() == crate::control_terminal::Terminal::Absent {
+        overlay.extend(crate::child_environment::never_prompt_overlay());
+    }
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay: vec![
-            (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-            (
-                OsString::from("GIT_CONFIG_KEY_0"),
-                OsString::from("core.lockfilePid"),
-            ),
-            (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
-            (
-                OsString::from(FORWARD_TARGET_VARIABLE),
-                OsString::from(REAL_GIT),
-            ),
-        ],
+        overlay,
         stderr: String::new(),
     };
 }
