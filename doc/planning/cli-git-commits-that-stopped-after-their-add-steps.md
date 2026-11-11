@@ -392,8 +392,8 @@ on three grounds:
 - it adds no Git start to a refusal.
   The per-element question started one `git ls-files` for every element that named no
   file,
-  and the after-fix probe of 2026-11-11T01:42:53.192Z took 109 ms for three
-  refusals where the before-fix run of 2026-11-10T22:57:35.102Z took 47 ms.
+  and the probe of this branch's own answer at 2026-11-11T01:42:53.192Z took 109 ms for
+  three refusals where the before-fix run of 2026-11-10T22:57:35.102Z took 47 ms.
   The two runs were not made under the same host load,
   so that difference measures nothing by itself;
   the starts are still a cost that reading the refusal already in hand does not pay.
@@ -461,7 +461,7 @@ in a fresh disposable repository:
 The before run at 2026-11-10T22:57:35.102Z ended the same three commands in 47 ms
 with exit `2` and one `engine-failure` each,
 and the run of 2026-11-11T01:42:53.192Z,
-against a build before this merge,
+against a build that still carried this branch's own per-element answer,
 ended them in 109 ms.
 Those three runs were not made under the same host load,
 so the differences between them measure nothing on their own.
