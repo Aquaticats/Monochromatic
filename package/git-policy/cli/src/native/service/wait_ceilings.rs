@@ -830,7 +830,61 @@ pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
 /// waitingNoticeAfter() // Duration
 /// ```
 pub fn waiting_notice_after() -> Duration {
-    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+    return notice_after_from(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(), WAITING_NOTICE_AFTER);
+}
+
+/// How long a `git worktree add` runs before it says which step it is in,
+/// then again at `ADD_STANDING_NOTICE_REPEAT` while it stays in one step.
+/// A notice threshold,
+/// not a bound:
+/// nothing ends at it.
+///  Owner,
+/// 2026-11-03:
+/// "60s is fine for adding worktrees",
+/// with the brief's "an add that is still waiting after a few seconds says what it
+///  waits for".
+///  Measured on this host,
+/// 2026-11-11,
+/// load average 58 to 61:
+/// five concurrent adds of a 24-package checkout took 29,487,
+/// 29,493,
+/// 31,652,
+/// 31,659 and 35,574 ms,
+/// and a single one took 4,288 ms;
+/// the steps of one add ran from a few milliseconds to 12,177 ms,
+/// and one `fsync` of its own bookkeeping took 11,239 ms.
+/// Five seconds is longer than a step of an add that is making progress on an idle host,
+/// and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
+pub const ADD_STANDING_NOTICE_AFTER: Duration = Duration::from_secs(5);
+
+/// How long an add that stays in one step waits between two of the lines that name it.
+/// A notice threshold,
+/// not a bound.
+///  Measured on this host,
+/// 2026-11-11:
+/// the longest step of the five concurrent adds above was 13,903 ms,
+///  so fifteen seconds prints one line for a step and no second line for a step too short to be one.
+pub const ADD_STANDING_NOTICE_REPEAT: Duration = Duration::from_secs(15);
+
+/// The environment variable that sets how long an add waits before it says which step it is in,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy add prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound.
+pub const ADD_STANDING_NOTICE_VARIABLE: &str = "CLI_GIT_ADD_NOTICE_SECONDS";
+
+/// How long an add waits before it says which step it is in:
+/// the setting when it holds a positive number of seconds,
+/// `ADD_STANDING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addStandingNoticeAfter() // Duration
+/// ```
+pub fn add_standing_notice_after() -> Duration {
+    return notice_after_from(std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(), ADD_STANDING_NOTICE_AFTER);
 }
 
 /// What:
@@ -845,13 +899,29 @@ pub fn waiting_notice_after() -> Duration {
 /// noticeAfterOf('30') // 30 s
 /// ```
 pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    return notice_after_from(setting, WAITING_NOTICE_AFTER);
+}
+
+/// What:
+///  The wait a setting stands for,
+/// or `shipped` when the setting means nothing.
+/// Why:
+///   More than one notice has a variable of its own,
+/// and each shipped wait has its own measurement,
+/// so the reader of a setting and its fallback are one rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterFrom('30', shipped) // 30 s
+/// ```
+pub fn notice_after_from(setting: Option<&str>, shipped: Duration) -> Duration {
     let seconds: Option<u64> = match setting {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
     };
     return match seconds {
         Some(found) if found > 0 => Duration::from_secs(found),
-        _ => WAITING_NOTICE_AFTER,
+        _ => shipped,
     };
 }
 /// The longest the optional configuration warning of a commit may take to reach the stream it is written to.

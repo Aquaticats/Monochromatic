@@ -5072,6 +5072,12 @@ A directory a `git worktree add` was snapshotting into is removed the same way o
 holds the identity of what stands there and the folder holds nothing that record cannot account for,
 which is how a whole snapshot of a checkout with its credentials and its `.git` stops outliving the command that was
 killed;
+the directory Git made is settled the same way once the snapshot was swapped into place:
+the identity the add's record holds for it proves it,
+Git's own pointer goes,
+a file that arrived there meanwhile moves into the worktree it belongs to,
+and the folder goes once it is empty,
+so a swap interrupted before that cleanup leaves no folder you are told to remove yourself;
 a directory the wrapper cannot prove that way stays,
 is named on every command with the reason,
 and is yours to look at and remove by hand,
@@ -5097,6 +5103,8 @@ and a copy killed at any moment leaves nothing at a file's real name for the nex
 
 A worktree whose ignored-state copy ended before it finished is filled by the next command run in that worktree,
 from the source its add recorded,
+unless its snapshot was swapped into place already,
+in which case the ignored state came with the files and no command copies anything,
 and only a copy that truly cannot be made leaves the worktree named,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
 A command in another worktree never pays for that copy:
@@ -5159,7 +5167,11 @@ so a `$`,
 a backquote,
 a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
 The record stays until the worktree is whole or gone,
-so the same line comes again from every command that runs the recovery.
+so the same line comes again from every command that runs the recovery,
+except for a worktree whose snapshot was swapped into place before the kill:
+that object carries the ignored state with the files,
+so nothing says a copy is owed and the record settles,
+where it used to promise a copy nobody needed and to name files that were already there.
 A look at the destination that fails,
 rather than finding no pointer,
 keeps the record too:
@@ -6831,6 +6843,29 @@ Guard tests keep it so:
   so an entry that rotated away is still an entry and its commit is never reviewed twice.
   `SHADOW_REVIEW_LOG` points it at another file;
   the runbook is `doc/runbook/standards-review-gate.md`.
+
+### An add that is still running
+
+A `git worktree add` that is still running after five seconds prints one line on standard error naming the step it is
+in,
+in your words and not the timing record's,
+and prints it again every fifteen seconds while it stays in one step.
+The line is advisory:
+nothing waits for it,
+nothing ends the add at it,
+and a fast add prints none of it.
+On a loaded machine an add of this repository took half a minute with nothing said before this line existed,
+which cannot be told from a hang;
+the add's own steps and their times are in the timing log under "Splitting a slow worktree add".
+`CLI_GIT_ADD_NOTICE_SECONDS` sets how long it waits before the first line,
+and a setting that is missing,
+is not a number or is zero leaves the shipped five seconds.
+An add also no longer waits for the disk to commit its own bookkeeping:
+the stage claim,
+the add's record of its destination and the binding written into that record are each published whole by one rename and
+flushed by nobody,
+because a kill keeps them in the page cache and a flush there is a commit of the whole filesystem that waited 11 seconds
+behind other writers on a loaded machine.
 
 ### Splitting a slow worktree add
 

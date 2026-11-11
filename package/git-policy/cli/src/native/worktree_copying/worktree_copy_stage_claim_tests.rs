@@ -1785,6 +1785,324 @@ fn btrfs_the_stage_a_killed_snapshot_add_left_is_removed() {
     remove(root.as_path());
 }
 
+/// What:
+///  One ignored-state copy the add of `destination` owes,
+/// taken from the checkout beside it.
+/// Why:
+///   The record's source and selection are what a later command reads to make the copy the add owed,
+/// so a control of the record needs both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = { source: dirname(destination), selection: 'ignored' };
+/// ```
+fn owed_copy_beside(destination: &Path) -> crate::worktree_add_binding::OwedCopy {
+    return crate::worktree_add_binding::OwedCopy {
+        source: destination.parent().expect("a destination has a parent").to_path_buf(),
+        selection: crate::worktree_add_binding::OwedSelection::Ignored,
+    };
+}
+
+/// The two records of an add are published whole by their renames and flushed by nobody.
+///
+/// A loaded host made this step wait with nothing said:
+/// `recordDestination` took 9,282 ms of an add of 29,487 ms,
+/// 9,310 ms of one of 31,652 ms,
+/// and 13,903 ms of one of 31,659 ms (measured 2026-11-11),
+/// and one `fsync` of the claim's temporary file took 11,239 ms on its own.
+/// A kill keeps both records in the page cache,
+/// so the flush bought nothing a kill can take away,
+/// and the next command answers an absent record at once (`settle_interrupted_add`).
+#[test]
+fn the_records_of_an_add_are_published_without_flushing() {
+    let (root, common, destination) = scene("claim-add-records-unflushed");
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    take_file_syncs();
+    take_directory_syncs();
+    let claim: StageClaim = claim_stage_for_creation(common.as_path(), Some(destination.as_path()), true, Some(&owed)).expect("claim").expect("an add that copies records one");
+    assert!(claim.path.exists(), "the claim is published");
+    assert!(claim.path.with_extension("add").exists(), "the record beside it is published");
+    let recorded: String = std::fs::read_to_string(claim.path.with_extension("add")).expect("the record");
+    assert_eq!(crate::worktree_add_binding::owed_copy_of(recorded.as_str()), Some(owed), "the record still names the copy it owes");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "neither record is flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor is the directory that holds them");
+    remove(root.as_path());
+}
+
+/// The record of the binding is published whole by one rename,
+/// and the directory that holds it is flushed once at most.
+///
+/// This is the second write of the same kind:
+/// it waited 1,950 ms of one loaded add and 3,390 ms of another (measured 2026-11-11),
+/// and it names objects recovery only ever reports,
+/// never removes without a second proof.
+#[test]
+fn the_record_of_a_binding_is_published_without_flushing() {
+    let (root, common, destination) = scene("claim-binding-unflushed");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let admin: PathBuf = common.join("worktrees/topic");
+    std::fs::create_dir_all(admin.as_path()).expect("admin");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let binding = Binding {
+        destination: destination.clone(),
+        destination_id: crate::worktree_add_binding::path_identity(destination.as_path()).expect("the destination's identity"),
+        admin: admin.clone(),
+        admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"),
+        pointer: b"gitdir: /nowhere/worktrees/topic\n".to_vec(),
+    };
+    take_file_syncs();
+    take_directory_syncs();
+    claim.record_binding(&binding).expect("the binding is recorded");
+    let recorded: String = std::fs::read_to_string(claim.path.with_extension("add")).expect("the record");
+    assert_eq!(crate::worktree_add_binding::decode_record(recorded.as_str()), Some(Recorded::Registered(binding)), "the record holds the binding whole");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the record is not flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor is the directory that holds it");
+    remove(root.as_path());
+}
+
+/// A reaping that removed nothing flushes nothing;
+/// one that removed a dead owner's stage flushes the directory whose entries changed.
+///
+/// The flush is the directory's,
+/// so an add that found other adds' live claims paid a filesystem commit for no removal at all:
+/// measured 2026-11-11 as 4,617 ms of one add and 4,619,
+/// 13,792 and 13,886 ms of three others,
+/// out of the `recover` step of five concurrent adds.
+#[test]
+fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
+    let (root, common, destination) = scene("claim-reap-flush");
+    // A live owner's claim is the shape concurrent adds leave for each other: nothing of it is removed.
+    let live: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &current_copy_owner().expect("owner")).expect("claim");
+    assert!(!live.container().exists(), "the claim creates no container");
+    take_file_syncs();
+    take_directory_syncs();
+    let untouched: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(untouched, Vec::<String>::new(), "a live owner's claim is nobody's to settle: {untouched:?}");
+    assert!(live.path.exists(), "the claim stays for its owner");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "nothing was flushed for a removal that never happened");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor was the directory");
+    std::mem::forget(live);
+    remove(root.as_path());
+    // A dead owner's stage that the record of its creation proves is removed, and that removal is made durable.
+    let (dead_root, dead_common, container, _record) = killed_add_with_its_object_recorded("claim-reap-flush-dead");
+    take_file_syncs();
+    take_directory_syncs();
+    let removed: Vec<String> = reap_abandoned_stages(dead_common.as_path()).expect("reap");
+    assert!(removed.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "the dead owner's stage is removed: {removed:?}");
+    assert!(!container.exists(), "the stage is gone");
+    assert_eq!(take_directory_syncs(), vec![std::fs::canonicalize(journal_root(dead_common.as_path())).expect("canonical")], "the directory whose entries changed is flushed");
+    remove(dead_root.as_path());
+}
+
+/// What:
+///  An index file that says it holds `entries` entries.
+/// Why:
+///   The proof that a checkout is whole reads only the index's header,
+/// so a control gives it the count the shape it builds needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexWith = (entries) => Buffer.from([...Buffer.from('DIRC'), 0,0,0,2, ...u32be(entries)]);
+/// ```
+fn index_holding(entries: u32) -> Vec<u8> {
+    let mut bytes: Vec<u8> = Vec::from(*b"DIRC");
+    bytes.extend_from_slice(&2_u32.to_be_bytes());
+    bytes.extend_from_slice(&entries.to_be_bytes());
+    return bytes;
+}
+
+/// What:
+///  The worktree a killed add left at `destination`,
+///  as Git's own files make it,
+/// with the administrative directory `admin` holding an index of `entries` entries.
+/// Why:
+///   The settlement reads Git's pointer and index rather than running Git,
+/// so a control writes the two files it reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdir(destination); write(join(destination, '.git'), pointer); write(join(destination, 'a.txt'), 'one\n'); mkdir(admin); write(join(admin, 'index'), indexWith(1));
+/// ```
+fn registered_worktree(destination: &Path, admin: &Path, entries: u32) -> Vec<u8> {
+    std::fs::create_dir_all(destination).expect("destination");
+    std::fs::create_dir_all(admin).expect("admin");
+    let pointer: Vec<u8> = format!("gitdir: {}\n", admin.display()).into_bytes();
+    std::fs::write(destination.join(".git"), pointer.as_slice()).expect("the pointer Git wrote");
+    std::fs::write(destination.join("a.txt"), b"one\n").expect("a file of the checkout");
+    std::fs::write(admin.join("index"), index_holding(entries)).expect("the index");
+    return pointer;
+}
+
+/// A `git worktree add` killed between the exchange that publishes its snapshot and the removal of the directory Git
+/// made leaves that directory at the stage name,
+/// holding Git's pointer and nothing else.
+///
+/// The sweep settles it
+/// (`worktree_copy_swapped_add_settlement.rs`):
+/// the identity the add's record holds for the directory Git made is the rule
+/// `settle_displaced` applies,
+/// so Git's pointer goes and the empty folder with it;
+/// and the add's record settles,
+/// because the object the record of the stage's
+/// creation made is the one standing at the destination.
+/// Nothing tells the person to remove a stage they cannot account
+/// for,
+/// and nothing says a whole worktree is missing files.
+#[test]
+fn the_directory_git_made_is_removed_from_the_stage_name_once_the_snapshot_is_in_place() {
+    let (root, common, destination) = scene("claim-displaced-git-directory");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    let claim: StageClaim = claim_stage_for_add_as_owing(common.as_path(), destination.as_path(), &dead_copy_owner(), Some(&owed)).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    // The swap put the snapshot at the destination, and Git's directory, with the pointer Git wrote, at the stage name.
+    std::fs::create_dir_all(container.as_path()).expect("the directory Git made");
+    std::fs::write(container.join(".git"), pointer.as_slice()).expect("Git's pointer");
+    let git_made = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the directory Git made");
+    let snapshot = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the snapshot");
+    std::fs::write(
+        claim.path.with_extension("add").as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: git_made, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    // The add's own record is aged past the grace a record that names no Git is kept for, and its process died here.
+    age_past_the_patience(claim.path.with_extension("add").as_path());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "the directory Git made holds nothing of the person's, so it goes: {notices:?}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the add is whole and its records settle: {notices:?}");
+    assert!(destination.join(".git").exists() && destination.join("a.txt").exists(), "the published worktree is not touched");
+    assert!(
+        notices.iter().all(|notice: &String| { return !notice.contains("may be missing"); }),
+        "a worktree whose snapshot is in place is not said to be missing the files that source ignores: {notices:?}"
+    );
+    remove(root.as_path());
+}
+
+/// An entry somebody put in the directory Git made before a kill left it at the stage name
+/// moves into the worktree it belongs to instead of being removed.
+///
+/// The settlement of an exchanged add is the rule the creating command applies moments earlier
+/// (`settle_displaced`):
+/// Git's pointer goes when it is the one the add's record holds,
+/// every other entry moves without replacing an entry standing in the worktree,
+/// and the folder goes once it is empty,
+/// so nothing of the person's is deleted and nothing of theirs is overwritten.
+#[test]
+fn an_entry_in_the_directory_git_made_moves_into_the_worktree_it_belongs_to() {
+    let (root, common, destination) = scene("claim-displaced-git-directory-moved");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    std::fs::create_dir_all(container.as_path()).expect("the directory Git made");
+    std::fs::write(container.join(".git"), pointer.as_slice()).expect("Git's pointer");
+    std::fs::write(container.join("notes.txt"), b"mine").expect("a file written there before the kill");
+    let git_made = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the directory Git made");
+    let snapshot = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the snapshot");
+    std::fs::write(
+        claim.path.with_extension("add").as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: git_made, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            None,
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    age_past_the_patience(claim.path.with_extension("add").as_path());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(std::fs::read(destination.join("notes.txt")).expect("the entry is in the worktree it belongs to"), b"mine", "{notices:?}");
+    assert!(!container.exists(), "the folder goes once it holds nothing: {notices:?}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the add's records settle with the folder: {notices:?}");
+    remove(root.as_path());
+}
+
+/// An entry in the directory Git made whose name the published worktree already holds is never replaced:
+/// it stays in the folder,
+/// the folder stays with it,
+/// and its claim stays so the next command names it.
+#[test]
+fn an_entry_whose_name_the_worktree_holds_keeps_the_folder_and_is_named() {
+    let (root, common, destination) = scene("claim-displaced-git-directory-kept");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    std::fs::write(destination.join("notes.txt"), b"the worktree's own").expect("an entry of the worktree itself");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    std::fs::create_dir_all(container.as_path()).expect("the directory Git made");
+    std::fs::write(container.join(".git"), pointer.as_slice()).expect("Git's pointer");
+    std::fs::write(container.join("notes.txt"), b"mine").expect("a file written there before the kill");
+    let git_made = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the directory Git made");
+    let snapshot = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the snapshot");
+    std::fs::write(
+        claim.path.with_extension("add").as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: git_made, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            None,
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    age_past_the_patience(claim.path.with_extension("add").as_path());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(std::fs::read(destination.join("notes.txt")).expect("the worktree's own entry"), b"the worktree's own", "nothing replaces an entry of the worktree");
+    assert_eq!(std::fs::read(container.join("notes.txt")).expect("the file stays"), b"mine", "the entry stays where it was written");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("notes.txt"); }),
+        "the line names what kept the folder: {notices:?}"
+    );
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the folder keeps its claim while it stands: {notices:?}");
+    remove(root.as_path());
+}
+
+/// A worktree whose destination holds the object the record of the stage's creation made is not named as missing files.
+///
+/// This is the second notice of the same kill point:
+/// the record still names the copy the add owed,
+/// but the snapshot that
+/// was swapped in carries the ignored state,
+/// so nothing is missing and nothing is owed.
+#[test]
+fn a_destination_that_holds_the_adds_snapshot_is_not_said_to_be_missing_its_files() {
+    let (root, common, destination) = scene("claim-snapshot-placed");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    let claim: StageClaim = claim_stage_for_add_as_owing(common.as_path(), destination.as_path(), &dead_copy_owner(), Some(&owed)).expect("claim");
+    let snapshot = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), claim.container(), snapshot).expect("the record of the snapshot");
+    let record: PathBuf = claim.path.with_extension("add");
+    std::fs::write(
+        record.as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: snapshot, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    age_past_the_patience(record.as_path());
+    std::mem::forget(claim);
+    let settled: Settlement = settle_interrupted_add(record.as_path());
+    assert_eq!(settled.notice, None, "a worktree whose snapshot is in place holds the files its source ignores");
+    assert!(!settled.keep, "so the record that names the copy settles");
+    remove(root.as_path());
+}
+
 /// The record an earlier release wrote before it created the container names the container and the instant and no
 /// identity,
 /// and this release reads it back as that shape,

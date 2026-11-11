@@ -493,3 +493,50 @@ fn a_record_that_names_a_copy_is_kept_by_a_command_in_another_worktree() {
     assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the records go with the copy: {said}");
     remove(root.as_path());
 }
+
+/// A destination that holds the object the add's own snapshot became owes no copy,
+/// and the directory Git made at the
+/// stage name goes with the add's records.
+///
+/// This is the kill point right after the exchange that publishes an add:
+/// the record still names the copy the add owed,
+/// so every command of the repository used to finish a copy nobody needed and to say the worktree was missing files it
+/// already held,
+/// and the stage name held Git's own directory for ever (sonnet audit of alpha.10,
+/// F6).
+#[test]
+fn a_destination_that_holds_the_adds_snapshot_owes_no_copy_and_leaves_no_stage() {
+    let (root, repo, destination) = interrupted_add("owed-copy-snapshot-placed");
+    let common: PathBuf = repo.join(".git");
+    let claim_path: PathBuf = claim_path_of(crate::worktree_copy_journal::journal_root(common.as_path()).as_path());
+    let (container, _owner): (PathBuf, Option<String>) = read_claim(claim_path.as_path()).expect("a claim that reads").expect("one claim");
+    let record: PathBuf = claim_path.with_extension("add");
+    let owed: OwedCopy = crate::worktree_add_binding::owed_copy_of(std::fs::read_to_string(record.as_path()).expect("the record").as_str()).expect("the record names the copy the add owed");
+    let admin: PathBuf = registration_directory(destination.as_path()).expect("the worktree's registration");
+    let placed = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), placed).expect("the record of the snapshot");
+    // The exchange put the snapshot at the destination and the directory Git made at the stage name, holding the pointer
+    // Git wrote there.
+    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("the pointer Git wrote");
+    std::fs::create_dir_all(container.as_path()).expect("the directory Git made");
+    std::fs::write(container.join(".git"), pointer.as_slice()).expect("Git's pointer");
+    let git_made = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the directory Git made");
+    std::fs::write(
+        record.as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: git_made, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert!(!destination.join("cache/data").exists(), "nothing is copied into a worktree whose snapshot already holds the ignored files: {said}");
+    assert!(!said.contains("finishing the ignored-state copy"), "and no copy is started: {said}");
+    assert!(!said.contains("still owed"), "nothing is said to be owed: {said}");
+    assert!(!said.contains("may be missing"), "a snapshot that is in place is not missing the files its source ignores: {said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the add's records settle, because the snapshot is whole: {said}");
+    assert!(!container.exists(), "the directory Git made is removed with them: {said}");
+    remove(root.as_path());
+}

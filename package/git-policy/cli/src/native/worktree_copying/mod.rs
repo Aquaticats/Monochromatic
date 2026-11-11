@@ -104,6 +104,16 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The two sweeps of the journal root that remove files rather than stages,
+/// kept beside the reaping so that file stays under the line limit.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_swept_files;
+
+/// Whether the copy an add's dead record still owes has a future in a worktree other than the one the command runs in,
+/// kept beside the reaping so that file stays under the line limit.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_owed_copy_elsewhere;
+
 /// The stage containers a live command is filling that stand below a tree,
 /// read from the claims beside the journals.
 #[cfg(unix)]

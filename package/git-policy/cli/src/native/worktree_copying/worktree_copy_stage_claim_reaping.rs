@@ -26,15 +26,19 @@ use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
+use crate::worktree_copy_recovery::RecoveryDestinations;
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
-use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, remove_made};
+use crate::worktree_copy_stage_claim_owed_copy_elsewhere::copy_owed_to_another_worktree;
+use crate::worktree_copy_stage_made_object::remove_made;
 use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
+// The sweeps that remove files rather than stages live beside this file, so this one stays under the line limit.
+pub use crate::worktree_copy_stage_claim_swept_files::remove_dead_temporaries;
+pub(crate) use crate::worktree_copy_stage_claim_swept_files::remove_records_nothing_claims;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -229,24 +233,6 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     return Ok(Some((container, fields.owner)));
 }
 
-/// What:
-///  Removes the temporaries that dead writers left in the journal root.
-/// Why:
-///   A write cut off before its rename leaves a file nothing else names.
-/// The writer is in the file's name,
-/// so the sweep
-///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
-/// ```
-pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<(), WorktreeCopyError> {
-    for name in &verdicts.dead_temporaries {
-        remove_file_if_present(root.join(name).as_path())?;
-    }
-    return Ok(());
-}
 
 /// Which owners were found dead,
 /// decided before anything is removed.
@@ -273,6 +259,20 @@ impl StageVerdicts {
     /// ```
     pub fn names_dead_claim(&self, name: &str) -> bool {
         return self.dead_claims.contains(name);
+    }
+
+    /// What:
+    ///  The names of the temporaries whose writer is dead.
+    /// Why:
+    ///   The sweep that removes them lives beside this file,
+    /// and a dead writer's names are the one thing it needs from here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.deadTemporaryNames() // the names of a dead writer's temporaries
+    /// ```
+    pub(crate) fn dead_temporary_names(&self) -> &BTreeSet<String> {
+        return &self.dead_temporaries;
     }
 }
 
@@ -431,6 +431,7 @@ pub fn reap_judged_stages(
 ) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     let names: Vec<String> = claim_names(root.as_path())?;
+    let mut changed: bool = false;
     let mut notices: Vec<String> = Vec::new();
     if !names.is_empty() {
         let mut journaled: BTreeSet<PathBuf> = BTreeSet::new();
@@ -467,6 +468,7 @@ pub fn reap_judged_stages(
                     match provenance_of(claim.as_path(), container.as_path())? {
                         Provenance::Proved => {
                             remove_stage(container.as_path())?;
+                            changed = true;
                             notices.push(removed_stage_words(container.as_path()));
                         }
                         Provenance::Gone => {}
@@ -481,6 +483,7 @@ pub fn reap_judged_stages(
                     match assert_private_path(container.as_path(), Role::PrivateStage) {
                         Ok(()) => {
                             remove_stage(container.as_path())?;
+                            changed = true;
                             notices.push(removed_copy_stage_words(container.as_path()));
                         }
                         Err(_) if !still_there(container.as_path())? => {}
@@ -492,7 +495,7 @@ pub fn reap_judged_stages(
             // there makes the copy, and the pending check has already named the worktree. Nothing here settles it, so the
             // obligation outlives this command. The stage above is a partial copy nothing may resume, so its removal stays
             // open to every command: a worktree that is gone has no command left to clean up its own stage.
-            if copy_owed_to_another_worktree(common_dir, record.as_path(), destinations) {
+            if copy_owed_to_another_worktree(common_dir, claim.as_path(), record.as_path(), destinations) {
                 continue;
             }
             let settled: Settlement = settle_interrupted_add(record.as_path());
@@ -508,106 +511,16 @@ pub fn reap_judged_stages(
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
             remove_file_if_present(claim.as_path())?;
+            changed = true;
         }
     }
-    remove_dead_temporaries(root.as_path(), verdicts)?;
-    remove_records_nothing_claims(root.as_path())?;
-    absent_is_fine(sync_directory(root.as_path()))?;
+    changed |= remove_dead_temporaries(root.as_path(), verdicts)?;
+    changed |= remove_records_nothing_claims(root.as_path())?;
+    // The flush makes the removals durable, and nothing else: an add that found other adds' live claims removed nothing and
+    // paid a filesystem commit for it (measured 2026-11-11 as 4.6 to 13.9 seconds of the `recover` step of five
+    // concurrent adds). A removal a power cut takes back only means the next command settles the same records again.
+    if changed {
+        absent_is_fine(sync_directory(root.as_path()))?;
+    }
     return Ok(notices);
-}
-
-
-/// What:
-///  Whether an interrupted add's record still owes a copy into a worktree other than the one the command runs
-/// in,
-/// with a checkout whole enough for the installation.
-/// Why:
-///  Such a copy is that worktree's own work and has a future there,
-/// so this command must neither settle the obligation nor drop
-///  the claim that names it;
-/// the pending check writes one line naming the worktree
-///  instead,
-/// and the first command run there makes the copy or names why it cannot.
-/// A destination that is not a worktree of this repository,
-/// or one whose
-///  checkout is not whole,
-/// has no such future and settles as it always did,
-/// which is what names a half-made
-///  worktree to the person.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const owedElsewhere = (record, destinations) => { const text = read(record); const destination = destinationOfRecord(text); return destination !== undefined && !finishesDestinations(destinations, destination) && owedCopyOf(text) !== undefined && addIsFinished(destination); };
-/// ```
-fn copy_owed_to_another_worktree(
-    common_dir: &Path,
-    record: &Path,
-    destinations: &RecoveryDestinations<'_>,
-) -> bool {
-    let Ok(text) = std::fs::read_to_string(record) else {
-        return false;
-    };
-    let destination: PathBuf = match crate::worktree_add_binding::decode_record(text.as_str()) {
-        Some(crate::worktree_add_binding::Recorded::Planned(named)) => named,
-        Some(crate::worktree_add_binding::Recorded::Registered(binding)) => binding.destination,
-        None => return false,
-    };
-    if finishes_destination(destinations, destination.as_path()) {
-        return false;
-    }
-    // A record written before the add named its source and selection owes no copy, so nothing may be filled from it.
-    if crate::worktree_add_binding::owed_copy_of(text.as_str()).is_none() {
-        return false;
-    }
-    // The copy has a future only where the registration and the checkout are whole under this repository.
-    if crate::worktree_copy_recovery::destination_registration(common_dir, destination.as_path())
-        != crate::worktree_copy_recovery::Registration::Registered
-    {
-        return false;
-    }
-    let Some(admin) = registration_directory(destination.as_path()) else {
-        return false;
-    };
-    return add_is_finished(destination.as_path(), admin.as_path());
-}
-
-/// What:
-///  Removes every record of a stage's object that no claim beside it names.
-/// Why:
-///   A claim is released with its record,
-/// but a kill between the two removals leaves the record,
-/// and so does a claim another command
-///  reaped;
-/// a record nothing claims proves nothing about any folder and no later command reads it,
-/// so it would stay for ever.
-/// The sweep names only records,
-/// leaves every other file of the journal root alone,
-/// and a file a live writer is renaming is never
-///  touched,
-/// because a write publishes its record with one rename and no temporary of that name is listed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name))) await rm(join(root, name));
-/// ```
-fn remove_records_nothing_claims(root: &Path) -> Result<(), WorktreeCopyError> {
-    // `match` treats an absent root as holding no records, and every other failure as fatal.
-    let listing = match std::fs::read_dir(root) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(raw_failure(&error)),
-    };
-    let mut unclaimed: Vec<PathBuf> = Vec::new();
-    for listed in listing {
-        let path: PathBuf = listed.map_err(raw_failure_of)?.path();
-        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
-        if !root.join(format!("{identifier}.stage")).exists() {
-            unclaimed.push(path);
-        }
-    }
-    for path in unclaimed {
-        remove_file_if_present(path.as_path())?;
-    }
-    return Ok(());
 }
