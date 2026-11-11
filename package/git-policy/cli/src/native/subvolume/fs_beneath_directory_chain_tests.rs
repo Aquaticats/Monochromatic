@@ -1,5 +1,6 @@
 //! Controls for the chain of directories a walk keeps open:
 //! a deeper path after a sibling keeps the part it shares,
+//! a path too deep to keep is walked without holding one descriptor per component,
 //! a link and a mount are still refused,
 //! and a directory on another filesystem is refused there too.
 
@@ -7,7 +8,7 @@ use super::DirectoryChain;
 use crate::fs_beneath::{device_of, identity_of, open_directory_beneath, open_root};
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, open_descriptors, remove, restore_limit, set_soft_limit};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::MetadataExt;
@@ -23,6 +24,51 @@ fn open_directory(path: &Path) -> std::io::Result<File> {
 /// for the chain's argument.
 fn names(components: &[&str]) -> Vec<OsString> {
     return components.iter().map(OsString::from).collect();
+}
+
+/// A directory `depth` deep below `root`,
+/// one character per component,
+/// and the names that lead to it.
+///
+/// Why:
+/// this is the plain shape of a deeply nested checkout:
+/// one-letter components keep the whole pathname below `PATH_MAX` at a depth no descriptor limit allows.
+fn deeply_nested(root: &Path, depth: usize) -> Vec<OsString> {
+    let mut deepest: PathBuf = root.to_path_buf();
+    let mut component_names: Vec<OsString> = Vec::with_capacity(depth);
+    for _ in 0..depth {
+        let next: PathBuf = deepest.join("d");
+        std::fs::create_dir(next.as_path()).expect("a directory of the deep fixture");
+        deepest = next;
+        // The same one-letter name, the next level down.
+        component_names.push(OsString::from("d"));
+    }
+    return component_names;
+}
+
+/// A path deeper than a chain may keep every ancestor of is walked one descriptor at a time,
+/// so a valid depth is answered rather than refused at the process's descriptor limit.
+#[test]
+fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
+    // Deeper than the 1024 descriptors a service commonly allows, and short enough that 1100 one-character
+    //  components still fit the 4096-byte pathname limit.
+    const DEPTH: usize = 1100;
+    // The room the walk gets beyond the descriptors this process already holds: a walk that keeps one
+    //  directory open at a time needs two at its peak, the one it holds and the one it is opening.
+    const ROOM: u64 = 3;
+    let root: PathBuf = fixture("chain-deep");
+    let component_names: Vec<OsString> = deeply_nested(root.as_path(), DEPTH);
+    let held: File = open_directory(root.as_path()).expect("the root of the deep fixture");
+    let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
+    let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + ROOM);
+    // The walk under test, with only `ROOM` descriptors left free; it answers the identity of the directory so the
+    //  borrow of the chain ends here.
+    let walked = chain.directory(component_names.as_slice()).map(|found| identity_of(found).expect("an identity").encode());
+    restore_limit(before);
+    let from_the_chain: String = walked.expect("a path deeper than the chain may keep is still answered");
+    let direct: File = open_directory_beneath(&held, component_names.as_slice()).expect("the same path, one directory at a time");
+    assert_eq!(from_the_chain, identity_of(&direct).expect("an identity").encode(), "the chain answers the directory the names lead to");
+    remove(root.as_path());
 }
 
 /// A path deeper than the one before is opened from the part the two share,
