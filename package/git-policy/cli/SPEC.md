@@ -7605,6 +7605,14 @@ because no branch names the commit yet.
 The answer is `ServiceMessage::Held` with the words,
 the client prints them and exits `0`,
 and the commit is on the side reference.
+The service's line about the hold says what the answer says:
+the commit is kept,
+the branch has not moved yet,
+and it moves when the lock is gone,
+on this command or on the next one in that worktree,
+and the line names the repository the batch belongs to as every line about a batch does.
+No state a settlement decides between calls the commit refused,
+and `src/native/landing/held_commit_settle_outcomes.rs` words all six of them.
 
 A kill at any instruction leaves a state the next command settles again,
 and the commit is never lost and never applied twice:
@@ -13720,6 +13728,16 @@ where the line has them,
 `CLI_GIT_BRANCH`,
 `CLI_GIT_OUTCOME`,
 `CLI_GIT_BATCH` and `CLI_GIT_OID`.
+A line about a batch,
+a landing,
+a push or a held commit names the repository it is about,
+as `in the repository at <worktree root>`,
+beside the batch or the branch and before anything about the outcome:
+one journal covers every worktree of the machine,
+including the fixtures of the tests,
+so a line without a repository is read as one about the repository its reader is in
+(`src/native/service/service_timing.rs`,
+`in_the_repository_at`).
 A value is carried as written:
 one that holds a newline goes in the protocol's length-prefixed form
 (`NAME`,

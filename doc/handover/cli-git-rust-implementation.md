@@ -323,6 +323,14 @@ the index update the landed commit owes is kept: <repo>/.git/monochromatic-git-p
 ([RecoveryReport { seq: 1, decision: Drop, handled: Dropped }])
 ```
 
+The two batch lines above are quoted as `3b0a23017e` printed them.
+Since 2026-11-11 they name the repository of the batch (`in the repository at <worktree root>`)
+and the held one says the commit is kept and the branch has not moved yet,
+never that the write was refused
+(`package/git-policy/cli/SPEC.md`,
+"Timing logs";
+`package/git-policy/cli/src/native/landing/held_commit_settle_outcomes.rs`).
+
 The fix asks whether a held record was there before the settlement,
 and after a settlement that finished it,
 reads the intent again with `the_intent_as_it_reads_now`:

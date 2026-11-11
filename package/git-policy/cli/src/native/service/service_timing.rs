@@ -452,7 +452,9 @@ pub fn retire_line(release: &str) -> String {
 ///  and a control's fixture runs the same service:
 ///  a line that says only `batch 41` can be read as one about the repository its reader is in,
 ///  which is how the host run of 0.6.1-alpha.10 had a held fixture commit read as a failed commit on this repository's own `main`.
-///  Every line about a batch, a landing, a push or a held commit names the repository it is about,
+///  Every line about a batch,
+/// a landing,
+/// a push or a held commit names the repository it is about,
 ///  and names it beside the batch or the branch,
 ///  before anything about the outcome.
 ///

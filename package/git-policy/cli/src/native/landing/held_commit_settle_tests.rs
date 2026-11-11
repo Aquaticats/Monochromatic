@@ -68,7 +68,7 @@ fn subjects(repo: &Path, count: usize) -> String {
 ///  kept on the side reference the landing names,
 ///  with a journal and a held record exactly as a landing that met a lock leaves them.
 /// Why:
-///   The state a settlement reads is what a killed or refused landing writes,
+///   The state a settlement reads is what a killed landing or a held write leaves,
 ///  and this control makes it the same way:
 ///  the objects exist,
 ///  the branch is at the base,
@@ -80,7 +80,7 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
     git(repo, &["add", "--", EDITED]);
     git(repo, &["commit", "--quiet", "--message", HELD_SUBJECT]);
     let held_commit: String = head_of(repo);
-    // The branch goes back to the base, so the commit is only on the side reference, as a refused branch write leaves it.
+    // The branch goes back to the base, so the commit is only on the side reference, as a branch write a lock held off leaves it.
     git(repo, &["update-ref", "--no-deref", kept_reference(1).as_str(), held_commit.as_str()]);
     git(repo, &["reset", "--hard", "--quiet", base.as_str()]);
     // The person's worktree still holds the bytes the commit captured: the commit took them and the branch has not moved.
@@ -430,14 +430,16 @@ fn a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed(
 /// What:
 ///  The line a restart writes about a held batch names the repository of that batch,
 ///  says the commit is kept,
-///  and worded as a commit a lock holds, never as one it refused.
+///  and worded as a commit a lock holds,
+/// never as one it refused.
 /// Why:
 ///   The host run of the 0.6.1-alpha.10 release printed this line for a passing fixture,
 ///  and with no repository in it,
 ///  the coordinator read it as a commit on this repository's own `main` that failed.
 ///  The owner's rule is "Commits should never fail",
 ///  and a held commit does not:
-///  it is kept, waits for the lock and lands when the lock clears,
+///  it is kept,
+/// waits for the lock and lands when the lock clears,
 ///  which is what every word of the line has to say.
 #[test]
 fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kept() {

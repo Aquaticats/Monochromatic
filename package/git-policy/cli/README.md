@@ -6480,6 +6480,22 @@ console.log(hash.toString(16).padStart(32, "0"));
 ' "$(git rev-parse --absolute-git-dir)"
 ```
 
+Every line the service writes about a batch,
+a landing,
+a push or a held commit names the repository it is about,
+as `in the repository at <worktree root>`,
+beside the batch or the branch and before anything about the outcome.
+One journal covers every worktree of the machine,
+and one of them is a test's fixture,
+so a line without a repository reads as one about the repository you are in.
+A line about a commit a reference lock holds never says the commit was refused:
+the commit is kept,
+the branch has not moved yet,
+and the line says what moves it and what,
+if anything,
+you may do
+(see "A commit held behind a reference lock").
+
 `systemctl --user list-units --all 'monochromatic-git-policy-cli@*.service'` lists the instances that exist.
 Read the unit around the commit's `startMillis`:
 

@@ -463,7 +463,7 @@ pub mod service_scratch_ref_marker_of_a_batch;
 /// The record of a commit a reference lock keeps off its branch:
 /// what the branch was,
 /// what it goes to,
-/// the locks that refused the write,
+/// the locks that held the write off,
 /// and when the commit was held.
 pub mod held_commit_record;
 
@@ -474,6 +474,10 @@ pub mod held_commit_replay;
 /// Moving the branch of a held commit once nothing stands in the way,
 /// and finishing what the landing owes after the move.
 pub mod held_commit_settle;
+
+/// What became of one held commit when a settlement looked at it,
+/// and the journal line the service writes about it.
+pub mod held_commit_settle_outcomes;
 
 /// What the wrapper says about a commit that a reference lock keeps off its branch.
 pub mod held_commit_words;

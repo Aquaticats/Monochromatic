@@ -154,11 +154,7 @@ pub fn finish_after_move(git: &GitContext, intent: &Intent, lock: IndexLock, jou
         Ok(_) => follow_up(git, repository, intent, lock, journal),
         Err(code) => {
             drop(lock);
-            crate::service_error!(
-                "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
-                intent.seq,
-                crate::service_timing::in_the_repository_at(repository)
-            );
+            crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
             false
         }
     };
@@ -236,11 +232,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
             Ok(false) => return settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal)),
             Ok(true) => {}
             Err(code) => {
-                crate::service_error!(
-                    "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
-                    intent.seq,
-                    crate::service_timing::in_the_repository_at(repository)
-                );
+                crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
                 return Settled::Open;
             }
         }
@@ -255,11 +247,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         }
         // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
         Indexed::Unreadable => {
-            crate::service_error!(
-                "batch {} {} stays open: its completion record cannot be read, so the index is left as it is",
-                intent.seq,
-                crate::service_timing::in_the_repository_at(repository)
-            );
+            crate::service_error!("batch {} {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
             return Settled::Open;
         }
         Indexed::Absent => {}
@@ -279,11 +267,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
             }
             Err(code) => {
                 drop(held);
-                crate::service_error!(
-                    "batch {} {} stays open: the head of the worktree cannot be read under the lock ({code:?}), so the index is left as it is",
-                    intent.seq,
-                    crate::service_timing::in_the_repository_at(repository)
-                );
+                crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read under the lock ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
                 return Settled::Open;
             }
         }
@@ -292,11 +276,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         Gate::Replay => settled_of(follow_up(git, repository, intent, held, journal)),
         Gate::Wait => {
             drop(held);
-            crate::service_error!(
-                "batch {} {} stays open: the record of the index file its landing saw cannot be read now",
-                intent.seq,
-                crate::service_timing::in_the_repository_at(repository)
-            );
+            crate::service_error!("batch {} {} stays open: the record of the index file its landing saw cannot be read now", intent.seq, crate::service_timing::in_the_repository_at(repository));
             Settled::Open
         }
         Gate::Leave(reason) => {
@@ -621,12 +601,7 @@ settled; its owed index update is settled from the worktree's own record of it",
             }
         }
         let Some(decision) = decision_for(&git, &intent) else {
-            crate::service_error!(
-                "batch {} stays open: Git gave no answer about {} {}, so its intent is kept",
-                intent.seq,
-                intent.reference,
-                crate::service_timing::in_the_repository_at(intent.repository.as_path())
-            );
+            crate::service_error!("batch {} stays open: Git gave no answer about {} {}, so its intent is kept", intent.seq, intent.reference, crate::service_timing::in_the_repository_at(intent.repository.as_path()));
             continue;
         };
         let handled: Handled = match (decision, owner) {

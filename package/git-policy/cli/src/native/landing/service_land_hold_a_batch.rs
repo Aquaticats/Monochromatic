@@ -166,7 +166,11 @@ its commit is not kept; {} Run the commit again once the journal at {} can be wr
 ///  so the line names the seconds a holder has.
 ///  The commit is kept and nothing failed,
 ///  so the line never says the write was refused:
-///  the line a lock raises says what waits, what happens next, and what, if anything, the person may do.
+///  the line a lock raises says what waits,
+/// what happens next,
+/// and what,
+/// if anything,
+/// the person may do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
