@@ -53,7 +53,9 @@ const COVERED_PREFIXES: &[&str] = &[
 ];
 
 /// The source files that ship nothing:
-///  a mock server and a fixture,
+///  a mock server,
+///  a fixture,
+///  and the fault points a control holds and lets go,
 ///  declared under `#[cfg(test)]` in their folder's module tree.
 /// Why:
 ///   Their locks are a test's own,
@@ -65,7 +67,7 @@ const COVERED_PREFIXES: &[&str] = &[
 /// ```ts
 /// const TEST_ONLY_SOURCES = ['standards_review/standards_review_mock.rs'];
 /// ```
-const TEST_ONLY_SOURCES: &[&str] = &["standards_review/standards_review_mock.rs"];
+const TEST_ONLY_SOURCES: &[&str] = &["standards_review/standards_review_mock.rs", "service/service_fault_hooks_test_support.rs"];
 
 /// Words that name a lock primitive in code.
 const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX", "LOCK_SH"];
