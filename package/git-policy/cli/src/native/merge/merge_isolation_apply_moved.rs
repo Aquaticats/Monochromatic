@@ -40,6 +40,7 @@ use crate::merge_isolation_carry_parts::Capture;
 /// The paths the merge changes,
 /// and what Git's own update left at each of them.
 use crate::merge_isolation_changes::Change;
+/// What Git's own update left at each path the merge changes.
 use crate::merge_isolation_carry_landed::LandedFile;
 /// The lines a carry prints about the paths it carried,
 /// and everything one carry did.
@@ -127,7 +128,7 @@ pub(crate) fn carry_and_settle(
     return match after_the_carry(&place, root, intent, reference) {
         AfterTheCarry::WhereTheMergePutIt => CarryEnding { lines, finished: true },
         AfterTheCarry::OntoTheMovedHead(moved_lines) => CarryEnding { lines: moved_lines, finished: true },
-        AfterTheCarry::Waiting(line) => CarryEnding { lines: line, finished: false },
+        AfterTheCarry::Waiting(line) => CarryEnding { lines: format!("{lines}{line}"), finished: false },
     };
 }
 
@@ -203,8 +204,12 @@ async fn after_the_carry_awaiting(
     }
     // A branch that is not built on this merge is one this command may not write over: the record keeps the person's bytes and the
     //  command that owns the moved checkout puts them back.
-    let built_on_it: bool =
-        is_ancestor_awaiting(place, root, intent.new_oid.as_str(), tip.as_str()).await.map_err(|refusal| refusal.error.0)?;
+    let answer: Result<bool, crate::merge_isolation_recovery_steps::MergeRefusal> =
+        is_ancestor_awaiting(place, root, intent.new_oid.as_str(), tip.as_str()).await;
+    let built_on_it: bool = match answer {
+        Ok(found) => found,
+        Err(refusal) => return Err(refusal.error.0),
+    };
     if !built_on_it {
         return Ok(AfterTheCarry::Waiting(the_branch_is_not_built_on_it(reference, target, tip.as_str())));
     }

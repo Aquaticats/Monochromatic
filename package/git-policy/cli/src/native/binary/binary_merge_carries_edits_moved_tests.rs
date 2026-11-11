@@ -124,3 +124,52 @@ fn an_edit_survives_a_second_merge_that_lands_while_the_carry_runs() {
     assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the person's line is still unsaved: {words}");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A branch another command moved off the merge while its carry ran:
+///  the merge exits 0,
+///  keeps the record and the capture ref,
+///  says where the person's bytes are,
+///  and the next command puts them back.
+/// Why:
+///   A commit that is not built on the merge is one this command may not write the merge's paths over,
+/// and the
+///  owner's bar is that the command ends and nothing of the person's is removed
+/// (`never discard user data`,
+///  "Merges and commits never fail").
+/// A record that no later command can settle would be worse than the defect,
+/// so the next command must
+///  finish it, which is what the exit status of `git merge-base --is-ancestor` decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paused = pausedAt('merge-applied'); resetHard('HEAD^1'); commitEmpty(); const ran = paused.released();
+/// expect(ran.code).toBe(0); expect(records()).not.toBe(''); await wrapped(['status']); expect(read('a.txt')).toContain('the person line');
+/// ```
+#[test]
+fn an_edit_survives_a_branch_another_command_moved_off_the_merge() {
+    let fixture: Fixture = fixture("carry-live-moved-away");
+    let repo: PathBuf = edited(&fixture, "repo");
+    let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-applied");
+    // Another command puts the branch back on the merge's first parent and commits there: not built on the merge.
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD^1"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=a branch off the merge"]);
+    let away: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let output: Output = paused.released("merge-applied");
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert_eq!(output.status.code(), Some(0), "the merge ends and names where the bytes are: {words}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), away, "the branch stays where the other command left it");
+    assert!(words.contains("not built on this merge"), "the line says the commit is not built on the merge: {words}");
+    assert!(!records(repo.as_path()).is_empty(), "the record stays, because the person's bytes are not back in the file: {words}");
+    assert!(side_refs(&fixture, repo.as_path()).contains("refs/cli-git/carried/"), "the capture ref stays with the bytes: {words}");
+    assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(on_main_a().as_str()), "the file holds what the other command left");
+    // The next command in the worktree is what settles the record and puts the person's work back.
+    let next: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), b"");
+    assert_eq!(next.code, Some(0), "the next command finishes the record instead of refusing: {}", said(&next));
+    let back: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
+    assert!(back.contains(PERSON_LINE), "the person's line is back: {back:?}");
+    assert_eq!(records(repo.as_path()), "", "the record went once the bytes were back");
+    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the capture ref went with it");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), away, "the branch is still the other command's");
+    remove_settled(&fixture);
+}

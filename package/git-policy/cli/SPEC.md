@@ -13643,6 +13643,19 @@ A checkout holding the merge's file for one path and the branch's content for th
 stopped between two files,
 so it is put back to the moved head like every other path of a begun merge,
 and the line naming the moved branch is true of the checkout it leaves.
+Whether the branch was built on the merge is `git merge-base --is-ancestor`'s exit status:
+`0` is yes,
+`1` is no,
+and any other exit,
+and a command that never started,
+is a read that failed.
+The status is read and never the failure's wording,
+because a `1` and a start that failed are worded alike
+(`is_ancestor_awaiting` in `src/native/merge/merge_isolation_recovery.rs`,
+the same reading as `ancestry_of` in `src/native/push/auto_push_reconcile_basics_and_limits.rs`),
+so a branch another command reset away from the merge is settled as moved rather than refused as partly installed.
+A read that fails keeps the record,
+and the next command decides from a reading it makes itself.
 A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
 nothing is set aside for it,
 the merge's own deletions empty it before the checkout,
