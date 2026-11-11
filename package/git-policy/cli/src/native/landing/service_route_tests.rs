@@ -199,6 +199,44 @@ fn the_worktree_git_directory_keeps_a_path_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  The worktree's Git directory asked of Git keeps a name that ends in a space.
+/// Why:
+///   Every ASCII whitespace byte was taken from the answer,
+///  so the route named a directory that does not exist
+/// and the commit had no instance to hand its work to.
+#[test]
+fn the_worktree_git_directory_keeps_a_name_that_ends_in_a_space() {
+    let root: PathBuf = fixture("route-git-dir-space");
+    let repo: PathBuf = root.join("repository");
+    let administered: PathBuf = root.join("own ");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    crate::test_support::git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            administered.to_str().expect("a UTF-8 fixture path"),
+            repo.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    // Global options name the repository, so the in-process reader leaves the answer to Git.
+    let context: GitContext = GitContext {
+        real_git: PathBuf::from(GIT),
+        overlay: crate::test_support::isolated_overlay(),
+        global_prefix: vec![std::ffi::OsString::from("--git-dir"), administered.clone().into_os_string()],
+        common_dir: None,
+    };
+    assert_eq!(
+        worktree_git_dir(&context, root.as_path()),
+        Some(std::fs::canonicalize(administered.as_path()).expect("the directory Git made")),
+        "the Git directory keeps the space that belongs to its name"
+    );
+    remove(root.as_path());
+}
+
 /// The status of a worktree whose Git directory cannot be resolved says the cause,
 /// and does not connect to any socket.
 #[test]
