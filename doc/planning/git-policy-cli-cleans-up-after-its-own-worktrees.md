@@ -493,7 +493,9 @@ Ignored directories are never read:
  a build writes them into the worktree alone,
  which is the state this sweep exists to give back,
  and reading every file below them would cost the tree on every merge;
- the removal line says the ignored files went because the merge's own worktree holds every one of them.
+ the removal line says the ignored files went because the merge's own worktree holds every one of them,
+ and it says a directory Git ignores went with the worktree unread,
+ so a person who kept something inside one learns it is not in the worktree the merge ran in.
 The comparison is a stat and a bounded byte read per ignored file Git lists,
  and this repository's own worktree measured 136 such files against 468 ignored directories,
  so the sweep keeps the space it was written for.

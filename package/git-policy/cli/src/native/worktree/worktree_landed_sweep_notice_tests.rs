@@ -38,6 +38,26 @@ fn a_removed_worktree_is_named_with_its_branch_and_what_it_kept() {
     assert!(line.contains("what frees the space its snapshot held"), "{line}");
 }
 
+/// What:
+///  The line about a removal says a directory Git ignores went with it unread.
+/// Why:
+///   `worktree_landed_ignored_files.rs` never reads an ignored directory,
+///  so whatever a person kept inside one is not in the worktree the merge ran in,
+///  and a line that speaks only about the ignored files reads as if all of that state is safe elsewhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(landedSweepLines(aSweepThatRemoved())[0]).toContain('A directory Git ignores went with it unread');
+/// ```
+#[test]
+fn a_removed_worktree_says_an_ignored_directory_went_unread() {
+    let lines: Vec<String> = landed_sweep_lines(&a_sweep_that_removed());
+    let line: &str = lines[0].as_str();
+    assert!(line.contains("ignored files there went with it"), "{line}");
+    assert!(line.contains("A directory Git ignores went with it unread"), "{line}");
+    assert!(line.contains("anything you kept inside one"), "{line}");
+}
+
 #[test]
 fn a_kept_worktree_is_named_with_its_reason_and_the_command_that_removes_it() {
     let sweep: LandedSweep = LandedSweep {
