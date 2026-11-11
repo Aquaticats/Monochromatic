@@ -128,6 +128,29 @@ fn a_tree_a_process_uses_is_kept() {
     assert!(tree.exists());
 }
 
+/// A tree a process is running a program from stays,
+/// even when the base is named through a symbolic link.
+/// Why:
+/// `/proc` names the program a process runs with every link resolved,
+/// so a root reached through a link matched none of those names
+/// (measured 2026-11-11 in a throwaway build folder, `lean_proc_scan_tests`).
+#[test]
+fn a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link() {
+    let root = scratch();
+    let real: PathBuf = root.path().join("real");
+    fs::create_dir_all(&real).expect("the real directory");
+    let linked: PathBuf = root.path().join("link");
+    std::os::unix::fs::symlink(&real, &linked).expect("a link to the real directory");
+    let tree: PathBuf = aged_tree(&real.join("base"), "ab/0000000000000a", &root.path().join("gone"), 5 * DAY);
+    let program: PathBuf = crate::lean_test_support::copy_a_program(&tree.join("debug").join("build"));
+    let child: Child = Command::new(&program).arg("120").spawn().expect("start the program the tree holds");
+    let _holder: Sleeper = Sleeper { child };
+    let outcomes = collect(&linked.join("base"), &[], false);
+    assert!(matches!(verdict_of(&outcomes, &linked.join("base").join("ab/0000000000000a")), TreeVerdict::Skip(ref why) if why.contains("uses")), "{outcomes:?}");
+    assert!(tree.exists(), "{} holds a running program and must stay", tree.display());
+    assert!(program.exists(), "{} is running and must stay", program.display());
+}
+
 #[test]
 fn a_tree_nothing_identifies_waits_for_the_longer_idle_period() {
     let root = scratch();

@@ -5,14 +5,14 @@
 
 /// Files,
 /// processes and locks.
-use std::{fs, fs::File, os::unix::fs::PermissionsExt, path::{Path, PathBuf}, process::{Child, Command}};
+use std::{fs, fs::File, os::unix::fs::PermissionsExt, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Child, Command}};
 
 /// The lock a build takes.
 use rustix::fs::{FlockOperation, flock};
 
 use crate::lean_identity::Deadline;
 use crate::lean_sweep_plan::OlderCompilerSweep;
-use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, make_profile, real_environment};
+use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, copy_a_program, make_profile, real_environment};
 use crate::lean_unit_removal::{ProfileOutcome, apply_removals};
 use crate::test_scratch::scratch;
 
@@ -46,7 +46,6 @@ impl Drop for Sleeper {
         let _ = self.child.wait();
     }
 }
-
 /// Runs the sweep for real on a profile directory.
 fn sweep(profile: &Path) -> ProfileOutcome {
     let mut log: Vec<String> = Vec::new();
@@ -106,6 +105,33 @@ fn a_unit_a_process_uses_is_kept_whole_and_the_rest_is_still_swept() {
     for path in &other_stale {
         assert!(!path.exists(), "{} is not in use and goes", path.display());
     }
+}
+
+/// A unit a process is running a program from stays,
+/// even when the profile directory is named through a symbolic link.
+/// Why:
+/// `/proc` names the program a process runs with every link resolved,
+/// so a root reached through a link matched none of those names and the sweep removed the unit
+/// (measured 2026-11-11 in a throwaway build folder: a unit whose `out/` held the program a live process was running
+/// went with `0 uses under the roots`, and the same fixture named without the link kept it).
+#[test]
+fn a_unit_a_process_runs_a_program_from_is_kept_even_through_a_link() {
+    let root = scratch();
+    let real: PathBuf = root.path().join("real");
+    fs::create_dir_all(&real).expect("the real directory");
+    let linked: PathBuf = root.path().join("link");
+    symlink(&real, &linked).expect("a link to the real directory");
+    let profile: PathBuf = make_profile(&real, "debug");
+    let stale: PathBuf = add_new_unit(&profile, "alpha", "00000000000000aa", OLD_COMPILER, NOW - 10 * DAY);
+    add_new_unit(&profile, "beta", "00000000000000bb", NEW_COMPILER, NOW - HOUR);
+    let program: PathBuf = copy_a_program(&stale.join("out"));
+    let child: Child = Command::new(&program).arg("120").spawn().expect("start the program the unit holds");
+    let _holder: Sleeper = Sleeper { child };
+    let outcome: ProfileOutcome = sweep(&linked.join("debug"));
+    assert_eq!(outcome.units, 0, "a unit a process runs a program from was removed: {outcome:?}");
+    assert_eq!(outcome.kept_in_use, 1, "{outcome:?}");
+    assert!(stale.exists(), "{} holds a running program and must stay", stale.display());
+    assert!(program.exists(), "{} is running and must stay", program.display());
 }
 
 #[test]
