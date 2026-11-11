@@ -170,6 +170,58 @@ export class WatcherMissingError extends Error {
 }
 
 /**
+ Error raised when an `up` was interrupted by a signal between two of its steps.
+
+ A signal's default action ends the process without an exception,
+ so nothing would run the rollback that removes a half-configured tunnel;
+ this error is thrown at the next step boundary instead,
+ which the up's own rollback answers.
+
+ @example
+ ```ts
+ throw new UpInterruptedError({ signal: 'SIGINT', step: 'set the DNS servers' });
+ ```
+ */
+export class UpInterruptedError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'UpInterruptedError';
+
+  /**
+   The step the up was about to run when the signal arrived.
+   */
+  readonly step: string;
+
+  /**
+   Creates the error naming the signal and the step that did not run.
+
+   @param signal - The signal that arrived.
+
+   @param step - What the up was about to do.
+
+   @example
+   ```ts
+   new UpInterruptedError({ signal: 'SIGINT', step: 'add the addresses' });
+   ```
+   */
+  public constructor(
+    {
+      signal,
+      step,
+    }: {
+      readonly signal: NodeJS.Signals;
+      readonly step: string;
+    },
+  ) {
+    super(
+      `The up was interrupted by ${signal} before it could ${step}, so it is rolled back: what this up already created is being removed.`,
+    );
+    this.step = step;
+  }
+}
+
+/**
  Error raised when an external command's program could not be started,
  for example because it is not installed.
  The command never ran,

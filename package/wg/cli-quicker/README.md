@@ -536,6 +536,45 @@ It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
 
+## An interrupted run, and how long a command may take
+
+`up` installs handlers for `SIGINT` and `SIGTERM` before its first step and removes them when it ends.
+A signal therefore stops the up between two steps,
+runs the same rollback a failing step runs,
+and reports the signal and the step that did not run:
+
+```text
+The up was interrupted by SIGINT before it could install the routes and rules, so it is rolled back: what this up already created is being removed.
+```
+
+Without those handlers the signal's default action ends the process at once,
+before any rollback,
+and whatever the up had already created stayed behind.
+The decision is the owner's:
+"nothing should ever wait forever or indefinitely",
+and an interrupt that leaves a half-configured tunnel is the same failure in the other direction.
+A second signal stops at once and abandons the rollback,
+because a person who asks twice wants the process gone.
+`down` keeps the signal's default action:
+its order already blocks traffic before it removes routing,
+so a `down` that is killed part way leaves traffic blocked and not outside the tunnel.
+
+Every command `wg-quicker` runs itself ends at a deadline:
+`ip`, `wg`, `nft`,
+`resolvectl` and `sysctl` get sixty seconds,
+and a command still running then is killed and reported as
+`CommandTimeoutError`,
+naming the command and the limit.
+Sixty seconds is a stall detector and not a target:
+measured on the host of the review inside a disposable network namespace,
+the slowest call was `ip link delete` at 52 ms,
+and `wg addconf` with a peer of 5000 prefixes took 5 ms.
+A hook is the user's own command and `wg-quick` waits for it,
+so a hook gets ten minutes,
+which is where it has certainly stopped making progress;
+the error names the hook and the limit,
+so a hook that legitimately needs longer can be changed.
+
 ## Taking the tunnel down
 
 `wg-quicker down` runs the steps that can fail before it removes any routing.
@@ -902,6 +941,19 @@ because a tunnel brought up behind the block would carry nothing,
 and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
 because the network stays blocked.
 The rollback of a failed `up` does not use this order and does not block.
+
+A program that cannot be started fails its step with a `CommandSpawnError` that names the program and the system's reason,
+for example a host without `wg`:
+
+```text
+Command could not be started: wg addconf /tmp/wg-quicker-XXXX/addconf.conf
+spawn wg ENOENT
+```
+
+The step fails like any other,
+so the rollback of the `up` runs and the tunnel is not left half configured.
+A program that never ran is never reported as an exit code,
+which is why `ip` and its companions cannot use the "allowed to fail" path for a missing program.
 
 ### Upgrading a running tunnel
 

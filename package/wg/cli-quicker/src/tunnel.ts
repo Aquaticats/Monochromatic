@@ -4,6 +4,7 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { startExemptionsOrAbort, } from './application-exemption.ts';
+import { watchForInterruption, } from './interrupt-signal.ts';
 import type { WireguardConfig, } from './config.ts';
 import { CommandError, } from './errors.ts';
 import {
@@ -301,7 +302,15 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
    Interface brought up by this sequence.
    */
   const iface = config.interfaceName;
+  /**
+   Ends this up at the next step boundary when a signal arrives,
+   so the rollback below runs and no half-configured tunnel is left behind.
+   Disposed when the up ends, whichever way it ended,
+   so a later `down` in the same process sees the default action of a signal again.
+   */
+  using interruption = watchForInterruption();
   await bringUp({
+    interruption,
     ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
     steps: {
       addLink: function addLinkStep(): Promise<void> {
