@@ -2498,9 +2498,13 @@ so a destination holding only its `.git` file is not whole,
 while an index with no entries belongs to a tree with nothing to write,
 so a destination holding only its `.git` file is whole,
 which is what a worktree at a commit with an empty tree looks like after every step finished.
-A record written before the add was bound carries only the destination,
+A record written before the add was bound carries the destination,
+the source worktree and the selection its copy takes,
 so the `gitdir:` pointer of the destination's own `.git` file names the registration the proof reads,
 and an add killed between Git's registration and that record is reported and kept like a bound one.
+A record written before those two fields existed carries the destination alone,
+and its worktree is named rather than filled,
+because nothing says where its ignored state would come from.
 The pointer is read as Git reads it
 (`read_gitfile_gently`,
 `setup.c`):
@@ -3048,15 +3052,21 @@ An installation writes one record of its destination and that destination's iden
 naming the worktree,
 the source and the owner that wrote it,
 and removes it when the installation completes.
+An installation that ends without finishing rewrites that record's reason with what ended it,
+so every later command prints which entry differs or which step failed,
+not only that files are missing.
 Every command that runs the recovery names a worktree whose record's owner is dead and whose destination is still that
 object,
 with the `git worktree remove --force` and same `git worktree add` commands that settle it,
 and removes the record once the worktree is gone or a different object stands at that path.
-No command fills an existing worktree,
+No command a person runs fills an existing worktree,
 and none is planned:
 the owner answered a request for one (2026-11-10) with "No,
 remove and add again",
-so removing the worktree and adding it again stays the only remedy.
+so removing the worktree and adding it again stays the only remedy a person has.
+What recovery makes is the copy a killed add never made,
+from the source and the selection that add recorded,
+and nothing else.
 An add whose own Git was refused at a destination that carries another command's registration proof settles its own
 record and says so,
 instead of promising a later command's report of a record nothing keeps.
@@ -3215,6 +3225,32 @@ Every pending transaction then reaches an end:
   and the recovering invocation writes the failure as a notice and continues.
 - Completed cleanup is resumed without reinstalling entries.
 
+Before the journals,
+recovery makes the copy an interrupted add still owes
+(`src/native/worktree_copying/worktree_copy_owed_copy.rs`):
+a claim whose owner is dead,
+whose record names a source and a selection,
+whose destination is still a registration of this repository with a whole checkout,
+and whose stage no pending journal names,
+is filled from that source by the same staging,
+journaling and installation a creating command makes.
+Nothing is overwritten,
+because the installation accepts an exact entry and refuses a differing one,
+so a worktree that gained anything since the add is named instead of written into.
+One command copies into one destination:
+before it stages,
+it creates a marker in the journal root whose name carries its owner,
+one exclusive create of `<identifier>.<owner>.taking`,
+and a marker whose owner is dead is removed and taken over,
+so two commands that find the same dead claim never stage into one name.
+A copy that cannot be made ends with the record of an unfilled worktree,
+naming the reason the failure gave,
+so every later command prints that reason instead of staging the source again;
+the worktree is named with `git worktree remove --force <path>` and the same `git worktree add` line,
+and the record goes when the worktree is removed or replaced.
+A source that is no longer a worktree of this repository ends the copy the same way,
+and a source that is itself being filled leaves the record for the next command.
+
 After the journals,
 recovery removes every stage container that a dead owner's claim names and no pending journal names:
 a claim whose owner lives is a copy between claiming and journaling and is left whole,
@@ -3280,6 +3316,16 @@ a step that finds an entry another command already removed treats it as removed,
 a claim or a record that vanished while it was read is skipped,
 and the words that say what went are written by every sweep that still found the folder.
 A claim whose container was never created is removed without a notice.
+A container that holds the registration its copy was made for,
+in the stage binding a copy writes before the first payload entry
+(`worktree_copy_stage_binding.rs`),
+or one that holds nothing but the parts of that record,
+which a kill inside its write leaves,
+holds none of the source's ignored files:
+the pass before the journals removes it and makes the copy again into that name,
+so no claim names it here.
+A container that proves neither keeps its claim and is reported,
+and a container of an add that holds no binding is judged by the record beside its claim.
 
 Three sites remove a stage container by the path a record names:
 finishing a transaction (`remove_pending_journal`,

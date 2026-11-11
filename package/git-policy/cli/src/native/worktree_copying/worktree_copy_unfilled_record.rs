@@ -275,11 +275,37 @@ pub fn remember_unfilled(
     source: &Path,
     owner: Option<&str>,
 ) -> Result<(), WorktreeCopyError> {
+    return remember_unfilled_with(journal, destination, identity, source, owner, "the copy did not finish");
+}
+
+/// What:
+///  Name the worktree a copy gave up on,
+/// with what ended the copy in the record itself.
+/// Why:
+///   A reason that lived only in the output of the command that saw the failure is gone with it;
+/// the record repeats the words
+///  on every later command,
+/// so the person reads which entry differs or which worktree cannot be reached,
+/// not only that something
+///  is missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rememberUnfilledWith({ journal, destination, identity, source, owner, reason });
+/// ```
+pub fn remember_unfilled_with(
+    journal: &Path,
+    destination: &Path,
+    identity: crate::fs_beneath::ObjectId,
+    source: &Path,
+    owner: Option<&str>,
+    reason: &str,
+) -> Result<(), WorktreeCopyError> {
     let copy: UnfilledCopy = UnfilledCopy {
         destination: destination.to_path_buf(),
         destination_identity: identity,
         source: source.to_path_buf(),
-        reason: String::from("the copy did not finish"),
+        reason: reason.to_string(),
         owner: owner.map(str::to_string),
     };
     let path: PathBuf = unfilled_path_of(journal);
