@@ -5000,3 +5000,225 @@ no flush is left to wait for the disk.
   which is a manager reload and two starts against the owner's user manager.
   A one-time cost of an install,
   not of a commit.
+
+## The pool's claim, the index's refresh, and the answer that holds no step (2026-11-11T13:13:39-05:00)
+
+What this answers:
+what each of the three stretches the section above left open spends,
+measured on this host,
+and what was taken off the commit's path for two of them.
+The third is answered to the point where its cost is named:
+the stretch that shows time with no Git step is an in-process answer,
+and this section says which request it answers and what that request reads.
+
+### The spread of one binary, first
+
+Method:
+the paired harness of the section above,
+with the same release on both arms,
+two reflink copies of a disposable clone of this repository on this volume
+(`/var/mnt/encrypted/temp/agent/pi-commit-perf-2`),
+each arm with its own `HOME`, `XDG_RUNTIME_DIR` and commit service,
+one explicit-path signed commit per round,
+the arms alternating and the order flipped each round,
+eight rounds,
+every wrapped commit traced with `strace --follow-forks --syscall-times`.
+
+- Whole command, as the harness measured it:
+  one arm's median 58,797 ms (9,597 to 240,695),
+  the other's 48,389 ms (8,636 to 98,477).
+  One commit lost 240 seconds.
+  The host's load average was 124 to 223 during the runs,
+  other agents' builds included,
+  which is why the whole-command figures cannot resolve a change of any of these sizes.
+- `prepareParts.index` over the eight commits:
+  48,286 ms on one arm and 47,979 on the other (0.6 percent apart),
+  but their maxima are 15,911 against 22,947 (1.4 times apart).
+- `buildParts."shadow pool"`:
+  6,523 against 24,920 (3.8 times apart);
+  maxima 3,265 against 18,763.
+  Whether a commit takes a member at all varies,
+  and so does which fill met it.
+- `prepareParts.stagedDeletions`:
+  748 against 1,606 (2.1 times apart);
+  maxima 273 against 1,214.
+
+So a difference smaller than these spreads is noise,
+and each change below is stated in the currency that does not move with the load:
+the calls a commit makes,
+counted from the traces,
+and the stretch its own record names.
+
+### What the three stretches spent
+
+The 99 records of the installed `0.6.1-alpha.10` read again for the step beside the stretch:
+`git update-index` ran in **94 of them**,
+21,453 ms in all,
+largest 8,633 ms.
+That child is the whole-index stat refresh of a private index,
+and it is what the second change below replaces.
+
+One traced commit of the clone (`b-round-3-1`), whose record names
+`prepareParts.index` 2,182 ms,
+`buildParts."shadow pool"` 3,126 ms and
+`prepareParts.stagedDeletions` 66 ms:
+
+- The claim of a finished member:
+  the member's `rename` out of the pool's directory took **1,678 ms**,
+  the five `readlink` calls and fifteen `statx` calls of that claim took **0.4 ms** between them
+  (the clone's common directory shares five entries;
+  this checkout shares twenty-five, which is the pairing the section above counted),
+  and the rest of the claim's 3,126 ms is directory listings and the waits between calls.
+  So on this volume the claim's one metadata write is what the commit waits for,
+  and the per-entry questions cost seconds only when the volume stalls on them,
+  which is what the largest recorded claim (6,708 ms) is.
+- The stat-data walk:
+  23,790 calls of the wrapper's own threads in one stretch,
+  627 ms of traced time.
+  Native `git commit -- <one path>` on a fixture of 2,000 files makes **10,146** `newfstatat` and **2,099** `openat`,
+  where this walk makes one question per entry:
+  the walk is the pass native Git also makes, made in process,
+  and it is not what either change below touches.
+- `stagedDeletions`:
+  the stretch holds **no child at all** in the record's step ledger,
+  and no record of any commit holds one there.
+  It is answered in process:
+  `commit_staged_deletions.rs` runs
+  `git diff-index --cached --name-only --diff-filter=D -z <base> -- <pathspecs>`,
+  and `repo_read_query::diff_cached` answers exactly that form,
+  so the request never reaches a child and no step names it.
+  What that answer reads is the real index (3,220,000 bytes on this checkout),
+  its entries,
+  and the base commit's tree,
+  and the private-index build reads the same file again about two hundred milliseconds later
+  (`IndexBytes::read`):
+  the record with `stagedDeletions` 2,188 ms has `prepareSpans."index read"` 4,082 ms,
+  the first commit of the clone's run named 1,214 ms there and 12,542 ms in `index`,
+  and the largest in the 99 is 2,403 ms.
+
+### The change: a claim asks one question of each shared entry
+
+`shadow_pool_member.rs` compared every shared entry with `symlink_metadata` and then `read_link`.
+The listing of the member already answers the first question:
+its type comes with the listing,
+and `read_link` alone refuses an entry that is missing and one that is not a link.
+So the pair became one call,
+and the member's own `symlink_metadata` went too,
+because listing it is the answer to that question.
+Every refusal the file gave is still given,
+with the same words.
+
+Red control:
+`shadow::shadow_pool_member::tests::a_claim_asks_one_link_question_of_each_shared_entry`
+holds the count at one per shared entry,
+through a counter of the link questions a claim asks,
+and names the fixture's own entry count in its message,
+so a claim that asks two per entry fails at that count.
+The module's controls pass:
+`Summary [   7.785s] 8 tests run: 8 passed, 6622 skipped`.
+
+### The change: the refresh looks at the entries the walk named
+
+The walk answered yes or no,
+and a yes started `git update-index --refresh`,
+which asks the file system about every entry of the index.
+The walk already knows which entries lost their stat data,
+so it now names them,
+and the refresh is `git add --refresh` with exactly those paths,
+which Git documents as refreshing the stat information of the paths it is given,
+and which was measured to refresh those entries and no other.
+
+Measured on a fixture of 2,000 files whose entries hold their files' stat data,
+with every entry's times moved and its content untouched,
+`strace --summary-only --trace=%file`:
+
+- `update-index --refresh`, the whole index:
+  **4,031** `newfstatat`, **2,016** `openat`, 166 to 230 ms;
+  and **25,723** `newfstatat` on this checkout's own index (23,333 entries, 200 of them moved),
+  11.6 s inside those calls under `strace`,
+  against **805** for the named form with the same 200 paths,
+  5.7 ms inside them.
+- `add --refresh` with the paths it is given:
+  **34** `newfstatat` for one path, 14 to 28 ms;
+  331 for a hundred;
+  1,531 for half the index (115 ms);
+  6,031 for all of it (234 ms).
+  Git spends about four questions per named path on matching it against the index,
+  Git matches every pathspec against the index,
+  so a list as long as the index costs more than refreshing everything:
+  `REFRESH_NAMES_ONE_PATH_IN` holds the named form to one path in two entries,
+  with the two thirds the measurement leaves as margin,
+  and a longer set is refreshed whole, as it was.
+- The index the two forms leave is the same, entry for entry,
+  for a path whose times moved and whose content did not,
+  for a path whose file the worktree lost (the entry stays, nothing is removed),
+  and for a path with a glob byte in its name,
+  which `:(top,literal)` names exactly.
+  `update-index --refresh` with a path list is refused by Git for those paths
+  ("does not exist and --remove not passed"),
+  which is why the named form is `add`.
+
+Red controls:
+`commit::commit_index_stat_refresh::tests::the_refresh_looks_at_the_entries_the_walk_named_and_no_other`
+holds that the entry of a path the commit stages from the worktree keeps its old record,
+which a whole-index refresh rewrites;
+`commit::commit_index_stat_refresh::tests::a_named_refresh_keeps_the_entry_of_a_file_the_worktree_lost`
+holds that a lost file's entry is still there;
+and
+`commit::commit_index_stat_staleness::tests::the_walk_names_every_stale_path_and_no_other`
+holds the paths and the index's size the walk answers with,
+which the yes-or-no answer had no shape for.
+
+### What this leaves
+
+- The pool's claim now asks one question per shared entry instead of two,
+  and the member's own stat is gone with it.
+  What the claim still waits for on a stalled volume is its one `rename`
+  (1,678 ms in the traced commit),
+  which is the whole of what taking a member costs,
+  and the directory listings around it.
+  Removing those needs a manifest the fill writes,
+  which would stop catching a member changed after it was published,
+  or a member named for the template's digest,
+  and both need the owner's call.
+- `stagedDeletions` is an in-process answer and reads the real index,
+  which `IndexBytes::read` reads again a moment later for the private copies.
+  One read of that file per command would take a second 3,200,000-byte read,
+  and its parse, off the commit's path,
+  and it is the change this section does not take:
+  the request is answered inside the reader seam,
+  so sharing bytes with it means a cache of that read that every in-process reader consults,
+  which is a change to a seam no measurement here covers,
+  and the largest recorded stretch (2,403 ms) is smaller than the spread of the whole command.
+- The stat-data walk is still one question per entry,
+  which is the pass native Git makes for itself
+  (10,146 `newfstatat` against this walk's 23,334 on the same kind of checkout),
+  and taking it off the commit's path means letting the scratch commit pay it under its ceiling,
+  which is the failure the walk exists to prevent.
+
+### The two changes at the user boundary, in one paired run
+
+Method:
+the harness above,
+one arm per binary (the branch point and this branch),
+five rounds,
+and, so that the refresh runs at all,
+two hundred tracked files whose times moved and whose content did not
+before every commit,
+which is the state a restored or copied worktree is in.
+
+- The refresh child, by the record's own steps:
+  the branch point names `git update-index`
+  16,135, 67,677, 9,886, 7,032 and 3,929 ms (104,659 ms in all);
+  this branch names `git add` for the same five commits
+  2,254, 27,339, 31,781, 1,966 and 1,317 ms (64,657 ms in all).
+  The counts are the figure that resolves:
+  25,723 file-system questions become 805, measured on the checkout's own index,
+  and the run's own spread has already been shown to exceed 38 percent of a sum of five.
+- The claim, counted from the same traces:
+  its stretch holds six fewer `statx` questions (47 against 41, 49 against 43),
+  which in this clone's common directory of five shared entries is one question per entry,
+  and in this checkout's twenty-five it is twenty-six fewer of the sixty-odd.
+- `prepareParts.index` (the walk) and `prepareParts.stagedDeletions` were not touched:
+  32,732 against 50,872 ms and 381 against 224 ms over the five commits,
+  which is the spread of the unchanged arm and not a change.
