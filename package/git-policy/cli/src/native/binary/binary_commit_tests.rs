@@ -1319,7 +1319,8 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
 ///  Git initialized a directory under the replacement character,
 ///  the creation then protected a path that did not exist,
 ///  and the commit stopped instead of landing.
-///  A message file that is not text is Git's to read, so Git builds this commit in the shadow repository.
+///  A message file that is not text is Git's to read,
+/// so Git builds this commit in the shadow repository.
 #[test]
 fn a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf8() {
     use std::ffi::OsString;
@@ -1347,9 +1348,11 @@ fn a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf
 }
 
 /// What:
-///  A commit lands in a worktree whose Git directory name ends with a space, selected with `--git-dir`.
+///  A commit lands in a worktree whose Git directory name ends with a space,
+/// selected with `--git-dir`.
 /// Why:
-///   The route reads the Git directory from Git's answer, and it removed a trailing byte that belongs to the name:
+///   The route reads the Git directory from Git's answer,
+/// and it removed a trailing byte that belongs to the name:
 ///  it resolved a directory that does not exist and reached no service,
 ///  so the commit stopped instead of landing in the repository the person selected.
 #[test]
