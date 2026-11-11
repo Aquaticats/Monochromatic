@@ -641,6 +641,13 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The abort forms while the operation they undo waits for its conflicts:
+/// what runs,
+/// what is saved first,
+/// and what is left to Git.
+#[path = "binary_abort_during_an_operation_tests.rs"]
+mod abort_during_an_operation;
+
 /// The rerere cache a concluded merge leaves behind,
 /// compared with real Git.
 #[path = "binary_merge_rr_cleanup_tests.rs"]
