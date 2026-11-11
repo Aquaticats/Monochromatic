@@ -54,18 +54,23 @@ const COVERED_PREFIXES: &[&str] = &[
 
 /// The source files that ship nothing:
 ///  a mock server and a fixture,
+///  and the service's hooks at its fault points,
 ///  declared under `#[cfg(test)]` in their folder's module tree.
 /// Why:
 ///   Their locks are a test's own,
 ///  and an inventory entry would say one of them ships;
 ///  keeping the
 ///       file out of the scan instead would hide the production locks beside it.
+/// `service/service_fault_hooks_test_support.rs` holds the hold a control sets on whichever thread reaches a
+///  fault point, and `service/service_fault.rs` declares it under `#[cfg(test)]`.
+///  It arrived with `7663284896`,
+///  which ran a filtered unit selection that did not include this scan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const TEST_ONLY_SOURCES = ['standards_review/standards_review_mock.rs'];
+/// const TEST_ONLY_SOURCES = ['standards_review/standards_review_mock.rs', 'service/service_fault_hooks_test_support.rs'];
 /// ```
-const TEST_ONLY_SOURCES: &[&str] = &["standards_review/standards_review_mock.rs"];
+const TEST_ONLY_SOURCES: &[&str] = &["standards_review/standards_review_mock.rs", "service/service_fault_hooks_test_support.rs"];
 
 /// Words that name a lock primitive in code.
 const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX", "LOCK_SH"];

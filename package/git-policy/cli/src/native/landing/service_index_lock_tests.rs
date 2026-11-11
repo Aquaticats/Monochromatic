@@ -1680,27 +1680,49 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
     remove(root.as_path());
 }
 
-/// The flush the service makes of its marker is the operating system's:
-/// a file that cannot be flushed (a pipe has no data to
-/// make durable) is an error from `sync_file`,
-/// and a file that can be flushed is not.
+/// What:
+///  The flush the service makes of its marker is the background task's,
+/// so what `sync_file` answers is the hand-over's answer and never the flush's:
+/// a file that cannot be flushed (a pipe has no data to make durable) does not end the step that asked for it,
+/// a file that can be flushed is handed over the same way,
+/// and the task makes both.
+/// Why:
+///  The marker names the process that holds the lock and nothing else,
+///  and its flush sat on every commit's path,
+///  8 to 12.5 s of it under load
+///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+/// A marker a power cut tears names no holder,
+///  and the step before a landing removes exactly that file at once
+///  (`service_index_unheld_removal.rs`),
+///  so no commit waits for the flush and no commit's answer is the flush's.
 /// Durability itself is not observable without a crash;
-/// what is observable is that the call is made and its answer returned.
+/// what is observable is that the call answers before the flush,
+///  that a flush that cannot be made does not reach the caller,
+///  and that the task makes it.
 #[test]
-fn the_flush_of_the_marker_is_the_operating_systems() {
-    use crate::service_index_placement::sync_file;
+fn the_markers_flush_is_handed_over_and_its_answer_never_reaches_the_caller() {
+    use crate::service_index_placement::{LOCK_MARKER_SYNC, sync_file};
     use std::os::fd::FromRawFd;
+    use std::sync::atomic::Ordering;
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` fills the two integers of the array it is given.
     assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
     // SAFETY: each descriptor is a fresh end of the pipe, owned by exactly one `File`.
     let (reader, writer) = unsafe { (std::fs::File::from_raw_fd(ends[0]), std::fs::File::from_raw_fd(ends[1])) };
-    let refused = sync_file(&writer).expect_err("a pipe cannot be flushed");
-    assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
+    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst);
+    crate::service_fault::hooks::take_events();
+    sync_file(&writer).expect("a pipe's flush is handed over like any other file's, so the step that asked for it goes on");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    assert_eq!(events, vec![format!("sync-queued:{LOCK_MARKER_SYNC}")], "the marker's flush is queued, and none is waited for");
+    crate::service_durable::drain();
+    assert!(crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst) > before, "the background task made the flush of the pipe the step handed over");
     drop((reader, writer));
     let (root, index) = index_in("index-lock-sync-file");
     let file = std::fs::File::create(index.with_file_name("a-file")).expect("a file");
+    let before_the_file: u64 = crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst);
     assert!(sync_file(&file).is_ok());
+    crate::service_durable::drain();
+    assert!(crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst) > before_the_file, "a file that can be flushed is handed over the same way, and the task makes it");
     remove(root.as_path());
 }
 

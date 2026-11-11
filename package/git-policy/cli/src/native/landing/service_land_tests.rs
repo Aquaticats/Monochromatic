@@ -1945,6 +1945,14 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// on the
 /// wait,
 /// because the command reports what it kept and that promise must survive a power cut.
+/// The lock marker is the one sync the landing queues and leaves to the background task
+/// (`service_index_placement::sync_file`,
+/// `deferred_file`):
+/// it names the holder and nothing else,
+/// and a torn marker is judged stale and removed by the next command,
+/// so no commit waits for its flush
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+/// "What was changed").
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1957,8 +1965,11 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
-    let mut forced: Vec<String> = waited.clone();
-    let mut asked: Vec<String> = queued.clone();
+    // Every record the landing queued is made before it returns; the lock marker is not a record and its flush is the
+    //  background task's, so the promise names the records alone.
+    let mut forced: Vec<String> = waited.iter().filter(|name: &&String| { return name.as_str() != crate::service_index_placement::LOCK_MARKER_SYNC; }).cloned().collect();
+    let mut asked: Vec<String> = queued.iter().filter(|name: &&String| { return name.as_str() != crate::service_index_placement::LOCK_MARKER_SYNC; }).cloned().collect();
+    assert!(queued.contains(&String::from(crate::service_index_placement::LOCK_MARKER_SYNC)), "the marker's flush is handed over, not dropped: {events:?}");
     forced.sort();
     asked.sort();
     assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");

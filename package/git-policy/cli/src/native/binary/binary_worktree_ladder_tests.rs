@@ -197,7 +197,9 @@ fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
     assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
     let said: String = stderr_of(&removed);
     if removal_allowed(fixture.root.as_path()) {
-        assert!(said.contains("destroyed the btrfs subvolume of the removed worktree in one step"), "the one-call destroy is stated: {said}");
+        // The line the removal prints when the subvolume is handed to the service, read from its one owner: the hand-over
+        //  renames the subvolume away and the service deletes the files after the command returns (`worktree_remove.rs`).
+        assert!(said.contains(git_policy_cli::worktree_remove::DESTROY_NOTICE), "the one-step destroy and the service's delete of the files are stated: {said}");
     }
     remove(&fixture);
 }

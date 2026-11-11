@@ -18,7 +18,8 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::FORWARD_TARGET_VARIABLE;
+use crate::child_environment::invocation_overlay;
+use crate::control_terminal::control_terminal;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
@@ -70,23 +71,18 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 
 /// The forward action for these fixtures:
 ///  real Git,
-///  the lock-PID overlay and no warning.
+///  the overlay the product plans for a command of this process,
+///  and no warning.
+/// Why:
+///  The never-prompt pair is in that overlay exactly when this process has no controlling terminal,
+///  so a list written out here would answer for the terminal nextest happens to give it and not for the
+///  one the product reads;
+///  asking the product keeps the two answers the same fact.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay: vec![
-            (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-            (
-                OsString::from("GIT_CONFIG_KEY_0"),
-                OsString::from("core.lockfilePid"),
-            ),
-            (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
-            (
-                OsString::from(FORWARD_TARGET_VARIABLE),
-                OsString::from(REAL_GIT),
-            ),
-        ],
+        overlay: invocation_overlay(&[], Path::new(REAL_GIT), control_terminal()),
         stderr: String::new(),
     };
 }
