@@ -1997,8 +1997,11 @@ The rule is:
   which keeps the ignored files,
   is not rejected for an ignored file,
   though the rules above still reject it in the main worktree and in a linked worktree that holds
-  uncommitted changes or untracked files,
-  so its rejection names `git clean --no-enforce-worktree -fd`.
+  uncommitted changes or untracked files.
+  Its own report ends with the hatch advice,
+  and the report a `git clean -x` gets names the whole form,
+  `git clean --no-enforce-worktree -fd`,
+  which deletes the untracked files and keeps the ignored ones.
   `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
   A `git clean -X` that names its own exclusions (`-e`,
   `--exclude`) is measured by Git's own dry runs of that clean,
