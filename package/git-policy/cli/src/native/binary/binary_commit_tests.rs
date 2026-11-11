@@ -8,7 +8,7 @@
 
 use super::support::{
     Fixture, Observed, bounded_for, fixture, git, observe, porcelain, remove, repository, run_direct,
-    stderr_of, wrapper_first_path,
+    stderr_of, stderr_without_wait_notices, wrapper_first_path,
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -1308,5 +1308,40 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
     assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--message=merged"]).code, Some(0));
     assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "the merge row");
     assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(), "commit (merge): merged\n", "the merge's wording");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit Git itself builds lands in a reftable repository whose own directory name is not UTF-8.
+/// Why:
+///   A reftable shadow is the one shadow Git itself creates with `init`,
+///  and the path handed to that `init` was a spelling of the shadow's path:
+///  Git initialized a directory under the replacement character,
+///  the creation then protected a path that did not exist,
+///  and the commit stopped instead of landing.
+///  A message file that is not text is Git's to read, so Git builds this commit in the shadow repository.
+#[test]
+fn a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf8() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("commit-reftable-not-utf8-directory");
+    let repo: PathBuf = fixture.root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(&fixture, repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    let base: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    // A message file that is not text is Git's to read, so Git builds this commit in the shadow repository, and Git's own
+    //  warning about the encoding is the only thing on standard error.
+    std::fs::write(repo.join("message.txt"), b"one \xe9\n").expect("message file");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--file=message.txt", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "the commit lands: {}", stderr_of(&landed));
+    let said: String = stderr_without_wait_notices(&landed);
+    assert!(!said.contains("failed:"), "no step of the shadow creation failed: {said}");
+    assert!(!said.contains("monochromatic-git-policy-cli:"), "the wrapper adds no words of its own: {said}");
+    assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch moved to the new commit");
+    assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
