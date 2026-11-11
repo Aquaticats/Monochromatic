@@ -1452,7 +1452,7 @@ and it is not the only writer in a build folder:
   and every unit of it is relinked the first time the newer one builds.
   That is what mechanism B sweeps afterwards,
   and it is what replaced a test binary under a run:
-  the sweep's pass of 2026-11-11 ended at 07:31:34,
+  the sweep's pass of 2026-11-11 ended by 07:31:34,
   and the build folder the failing run used was first written at 09:16:55 the same day,
   so no lean pass had ever judged it.
 - A container that mounts the base somewhere else is judged by the device and inode of the build locks,
