@@ -215,6 +215,10 @@ pub mod merge_isolation_apply;
 /// and what a clear that met newer bytes does about them.
 pub mod merge_isolation_apply_stops;
 
+/// What a landed merge does when its branch moved while its own carry ran:
+/// the person's work is merged with the branch as it is now.
+pub mod merge_isolation_apply_moved;
+
 /// The words an isolated merge prints when it could not be finished now.
 pub mod merge_isolation_apply_findings;
 

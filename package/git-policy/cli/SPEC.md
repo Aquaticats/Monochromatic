@@ -4363,6 +4363,25 @@ and "never discard user data"):
   Every such finding exits 0:
   the merge is made,
   and the person's work is theirs to judge.
+- The branch itself may move while the carry runs,
+  because another command lands a commit on it.
+  The carry then finds the merge's paths holding that commit's content,
+  and the record and the ref that keep the person's layers are the only copy left of them.
+  So the branch is read once more after the carry,
+  and a commit built on this merge is what the captured layers are merged with and written to the files,
+  exactly as the recovery of a killed merge carries them onto a moved head
+  (`carry_onto_awaiting` in `src/native/merge/merge_isolation_recovery_carry.rs`,
+  asked by `src/native/merge/merge_isolation_apply_moved.rs`):
+  the later commit stands,
+  the person's work is merged with it,
+  and the record and the ref go only once that write finished.
+  A branch that moved away from the merge is never written over:
+  the record and the ref stay,
+  the command names them,
+  and the next git command in the worktree puts the person's work back.
+  A branch that could not be read leaves the same record and ref.
+  Every one of these endings exits 0,
+  and the line that names the moved commit is printed before the per-path lines of the carry onto it.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
   a layer written after the capture holds bytes newer than the capture and is left as it is and named,

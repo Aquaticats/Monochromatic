@@ -244,7 +244,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 if action != MergeRecoveryAction::BranchMoved {
                     return Ok(action);
                 }
-                if !carry_onto_awaiting(place, root, intent, head, out).await? {
+                if !carry_onto_awaiting(place, root, intent, head, intent.target_ref.as_deref().unwrap_or("HEAD"), out).await? {
                     return Ok(MergeRecoveryAction::IndexHeld);
                 }
                 if let Err(error) = drop_record(record) {
@@ -355,12 +355,14 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
 ///   The two cases of a moved branch are unlike:
 /// a branch built on the merge holds its content,
 /// and one that was reset away does not.
+/// A merge whose own carry runs asks the same question about the branch it landed on
+///  (`merge_isolation_apply_moved.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function isAncestor(place, root, ancestor, commit): boolean; // git merge-base --is-ancestor
 /// ```
-async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
+pub(crate) async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
     let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
     return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
         Ok(_) => Ok(true),
