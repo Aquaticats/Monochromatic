@@ -13,7 +13,7 @@
 use super::{LandedPlace, LandedSweep, sweep_landed_worktrees};
 use crate::held_commit_record::{Held, write};
 use crate::shadow_pool::pool_root_for;
-use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, spawn_owned};
+use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository};
 use crate::worktree_added_by_the_wrapper::record;
 use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use std::path::{Path, PathBuf};
@@ -83,15 +83,33 @@ fn a_repository_with_a_worktree_and_ignore_rules(name: &str, rules: &str) -> Lan
     return Landed { root, main, common, worktree };
 }
 
+/// What:
+///  An empty stand-in process table for one fixture.
+/// Why:
+///   The sweep reads the machine's processes,
+///  and a control that read the real ones would depend on every program every other session runs:
+///  a program started in between that hides its working folder would keep a worktree the control expects removed.
+///  The one control about a process working inside writes the entry it needs instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = anEmptyProcessTable(landed); // path to the table
+/// ```
+fn an_empty_process_table(landed: &Landed) -> PathBuf {
+    let table: PathBuf = landed.root.join("proc");
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    return table;
+}
+
 /// The place one control sweeps,
-/// with the real process table.
-fn place_of<'a>(landed: &'a Landed, context: &'a crate::transaction_git::GitContext, registered_before: &'a RegisteredBefore) -> LandedPlace<'a> {
+/// with the fixture's own process table.
+fn place_of<'a>(landed: &'a Landed, context: &'a crate::transaction_git::GitContext, registered_before: &'a RegisteredBefore, proc_root: &'a Path) -> LandedPlace<'a> {
     return LandedPlace {
         context,
         cwd: landed.main.as_path(),
         common_dir: landed.common.as_path(),
         current_root: Some(landed.main.as_path()),
-        proc_root: Path::new("/proc"),
+        proc_root,
         registered_before,
     };
 }
@@ -195,7 +213,8 @@ fn land_feature(landed: &Landed) -> LandedSweep {
     git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
     let after: String = head_of(landed.main.as_path());
     let context: crate::transaction_git::GitContext = git_context();
-    let place: LandedPlace<'_> = place_of(landed, &context, &registered_before);
+    let table: PathBuf = an_empty_process_table(landed);
+    let place: LandedPlace<'_> = place_of(landed, &context, &registered_before, table.as_path());
     return sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
 }
 
@@ -258,18 +277,87 @@ fn a_kept_worktrees_shadow_pool_stays() {
     assert!(pool.exists(), "the worktree stays, so its pool stays: {}", pool.display());
 }
 
+/// What:
+///  A stand-in process table with one process,
+///  whose working folder is `working` when the table reports one and unreadable when it does not.
+/// Why:
+///   A control writes the state the sweep must read,
+///  and the machine's own processes must not decide what a control sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = aTableWithOneProcessIn(landed, 4242); // path to the table
+/// ```
+fn a_table_with_one_process(landed: &Landed, pid: u32, working: Option<&Path>, up_seconds: u64, start_ticks: u64) -> PathBuf {
+    let table: PathBuf = landed.root.join("proc");
+    let entry: PathBuf = table.join(pid.to_string());
+    std::fs::create_dir_all(entry.as_path()).expect("a process entry");
+    match working {
+        Some(directory) => {
+            std::os::unix::fs::symlink(directory, entry.join("cwd")).expect("the working folder of the process");
+        }
+        None => {
+            std::fs::write(entry.join("cwd"), b"not a link, so nothing can be read from it").expect("a working folder that cannot be read");
+        }
+    }
+    // The start time is what decides whether a process that hides its folder could be inside the worktree.
+    std::fs::write(table.join("uptime"), format!("{up_seconds}.00 0.00\n")).expect("the machine's uptime");
+    std::fs::write(entry.join("stat"), stat_with_start_ticks(pid, start_ticks)).expect("the process's own row");
+    return table;
+}
+
+/// The words `/proc/<pid>/stat` uses for a process that started after `start_ticks` clock ticks of uptime.
+fn stat_with_start_ticks(pid: u32, start_ticks: u64) -> String {
+    let mut fields: Vec<String> = vec![String::from("R")];
+    // Every field between the state and the start time is a number this read never looks at.
+    for _unused in 0..18 {
+        fields.push(String::from("0"));
+    }
+    fields.push(start_ticks.to_string());
+    return format!("{pid} (a helper) {}\n", fields.join(" "));
+}
+
 #[test]
 fn a_landed_worktree_with_a_process_inside_stays() {
     let landed: Landed = a_repository_with_a_worktree("landed-busy");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
-    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("120").current_dir(landed.worktree.as_path()))
-        .expect("a helper working in the worktree");
-    let sweep: LandedSweep = land_feature(&landed);
-    let _ended = child.kill();
-    let _waited = child.wait();
+    let table: PathBuf = a_table_with_one_process(&landed, 4242, Some(landed.worktree.as_path()), 1_000, 100);
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
     assert!(sweep.removed.is_empty(), "nothing is removed while a process works there: {sweep:?}");
     assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
-    assert!(sweep.kept[0].why.contains(&format!("process {} is working in it", child.id())), "{}", sweep.kept[0].why);
+    assert!(sweep.kept[0].why.contains("process 4242 is working in it"), "{}", sweep.kept[0].why);
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
+///  A process of this account that hides its working folder inside a landed worktree keeps it.
+/// Why:
+///   Nothing proves such a process is outside the worktree,
+///  and skipping it removed the folder under a live process,
+///  which a cross-vendor review of the landed sweep reproduced.
+#[test]
+fn a_landed_worktree_with_a_hidden_process_inside_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-hidden-process");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    // Started at the very moment the machine came up, so it is younger than the worktree however young the worktree is.
+    let table: PathBuf = a_table_with_one_process(&landed, 4343, None, 1_000, 100_000);
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    assert!(sweep.removed.is_empty(), "nothing is removed while a process may be working there: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(sweep.kept[0].why.contains("process 4343"), "the reason names the process: {}", sweep.kept[0].why);
+    assert!(sweep.kept[0].why.contains("hides its working folder"), "{}", sweep.kept[0].why);
     assert!(landed.worktree.exists(), "the worktree stays");
 }
 
@@ -388,7 +476,8 @@ fn a_worktree_added_after_the_merge_is_not_removed_by_its_sweep() {
     git(landed.main.as_path(), &["worktree", "add", "--quiet", late.to_str().expect("a UTF-8 fixture path"), "feature"]);
     record(landed.common.as_path(), late.as_path()).expect("the record of a worktree this program made");
     let context: crate::transaction_git::GitContext = git_context();
-    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before);
+    let table: PathBuf = an_empty_process_table(&landed);
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
     let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "main");
     assert!(sweep.removed.is_empty(), "a worktree added after the merge landed is not removed: {sweep:?}");
     assert!(sweep.kept.is_empty() && sweep.unproven.is_empty(), "it was no candidate at all: {sweep:?}");

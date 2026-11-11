@@ -421,10 +421,35 @@ each one a control:
   `rebase-merge`,
   `rebase-apply` or `sequencer`
    stands in its administrative directory;
-- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it;
+- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it,
+  and no process of this account that hides its working folder and started after the worktree was made;
 - every ignored file and link it holds is also in the worktree this merge ran in,
   by kind,
   mode and bytes (the paragraph below).
+
+A process can hide its working folder from its own account:
+`PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the user that owns the process,
+and another cross-vendor review found that the sweep removed the worktree under such a process.
+The kernel answers nothing else about one,
+and the programs that hide their folders on this desktop are the services that start at boot or login
+(measured 2026-11-11: `systemd --user`,
+`(sd-pam)`,
+`kwin_wayland`,
+`polkit-kde-authentication-agent-1`,
+`ssh-agent` and three more),
+so keeping every worktree they might be in would remove none at all.
+A working folder can only lead into a directory that already existed,
+so a process older than the worktree directory cannot be inside it,
+and the directory's birth time settles that.
+A hidden process that is younger,
+or whose age or the worktree's cannot be read,
+keeps the worktree,
+and the reason names the process so a person can look at it.
+The cost is a worktree kept while a young hidden program runs elsewhere on the machine:
+safe,
+and readable in the notice rather than silent.
+The landed sweep's controls write their own process table,
+so no test depends on which programs this machine happens to run.
 
 Cleanliness,
 that Git would remove the worktree without `--force`,

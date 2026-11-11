@@ -61,6 +61,7 @@ use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLandedRemoval";
@@ -311,8 +312,10 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
             return Examined::Kept(format!("a {marker} stands in it, so an operation there is unfinished"));
         }
     }
-    if let Some(pid) = process_working_inside(one.worktree.as_path(), place.proc_root) {
-        return Examined::Kept(format!("process {pid} is working in it"));
+    // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
+    //  inside at all: a process older than the directory cannot have changed into it.
+    if let Some(working) = process_working_inside(one.worktree.as_path(), place.proc_root, age_of(one.worktree.as_path())) {
+        return Examined::Kept(working.why());
     }
     match place.current_root {
         Some(source) => match ignored_entries_alone_here(place.context, one.worktree.as_path(), one.admin.as_path(), source) {
@@ -343,6 +346,47 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
         Ok(()) => Examined::Removed,
         Err(reason) => Examined::Kept(reason),
     };
+}
+
+/// What:
+///  How long a directory has existed,
+///  as the filesystem records when it was made.
+/// Why:
+///   A process that hides its working folder can only be working inside a directory that existed when it started,
+///  so the worktree's age is what separates the services that start at login from a process this worktree's own work began.
+///  A filesystem that records no birth time says nothing,
+///  and the hidden process then keeps the worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ageOf(directory) // Duration | undefined
+/// ```
+#[cfg(target_os = "linux")]
+fn age_of(directory: &Path) -> Option<Duration> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(directory.as_os_str().as_bytes()).ok()?;
+    // SAFETY: an all-zero `statx` is a valid value for the call to fill.
+    let mut found: libc::statx = unsafe { std::mem::zeroed() };
+    // SAFETY: `name` outlives the call, `found` is a live `statx`, and `AT_FDCWD` with an absolute path names the directory.
+    let called: libc::c_int = unsafe { libc::statx(libc::AT_FDCWD, name.as_ptr(), 0, libc::STATX_BTIME, &mut found) };
+    if called != 0 || found.stx_mask & libc::STATX_BTIME == 0 {
+        return None;
+    }
+    let seconds: u64 = u64::try_from(found.stx_btime.tv_sec).ok()?;
+    let made: SystemTime = SystemTime::UNIX_EPOCH + Duration::new(seconds, found.stx_btime.tv_nsec);
+    return SystemTime::now().duration_since(made).ok();
+}
+
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+/// No birth time to read on a platform without `statx`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ageOf(directory) // undefined
+/// ```
+#[cfg(not(target_os = "linux"))]
+fn age_of(_directory: &Path) -> Option<Duration> {
+    return None;
 }
 
 /// The controls of the sweep stay out of the release executable.
