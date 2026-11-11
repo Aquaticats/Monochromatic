@@ -15,6 +15,9 @@
  A shape no list here recognises counts as a failure another attempt cannot fix, which is how such a run ends today: only a
  shape that is known to pass is waited out.
 
+ A 429 in any form is not the driver's to answer: Pi's own automatic retry makes its attempts at a rate limit, a concurrency
+ limit and a quota, so the driver neither re-prompts one nor waits one out. Which layer owns which errors is in `README.md`.
+
  Every text is folded to lower case once, and each shape is then a plain substring of it, so a failure of a few kilobytes is
  read in one pass and nothing here can backtrack. A status code is read only where the text starts with one, which is where a
  response writes it: the same digits inside a body name a token count or a limit the provider states, and neither is transient.
@@ -38,13 +41,13 @@ export type ModelErrorKind =
    */
   | 'transient'
   /**
-   A rate limit that passes, such as HTTP 429: another attempt can fix it, and the coordinator measures these apart from other
-   failures.
+   A rate limit that passes, such as HTTP 429: Pi's own automatic retry answers one, so the driver makes no attempt at it. The
+   coordinator measures these apart from other failures all the same.
    */
     | 'throttled'
   /**
-   A quota or a plan limit: written as a rate limit, but another attempt cannot refill it, so it ends the run and is counted apart
-   all the same.
+   A quota or a plan limit: written as a rate limit, but nothing refills it, so Pi's own retry leaves it too and the run ends on
+   it. It is counted apart all the same.
    */
     | 'quota-reached'
   /**
@@ -384,19 +387,22 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
 }
 
 /**
- Tells whether another attempt may fix a failure of this kind.
+ Tells whether the driver itself answers a failure of this kind with another attempt.
+
+ A 429 is Pi's own automatic retry's to answer, in every form it comes: a rate limit, a concurrency limit and a quota all reach
+ the driver only once Pi's retry has given up on them, so the driver re-prompts none of them and waits none of them out.
 
  @param kind - what kind of failure a model error is
 
- @returns whether the run answers it with another attempt
+ @returns whether the driver answers it with another attempt
 
  @example
  ```ts
- const retried = anotherAttemptMayFix('transient',);
+ const retried = driverRetries('transient',);
  ```
  */
-export function anotherAttemptMayFix(kind: ModelErrorKind,): boolean {
-  return (kind === 'transient') || (kind === 'throttled');
+export function driverRetries(kind: ModelErrorKind,): boolean {
+  return kind === 'transient';
 }
 
 /**

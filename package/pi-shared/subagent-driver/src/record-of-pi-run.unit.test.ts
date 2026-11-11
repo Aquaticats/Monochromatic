@@ -85,6 +85,11 @@ function declineNothing(): void {
   throw new Error('no dialog was expected',);
 }
 
+/**
+ A rate limit, shaped as a gateway sends one, and the error the record's own tests end a run on.
+ */
+const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
+
 function assistantMessage(
   content: readonly Record<string, unknown>[],
   ending: Record<string, unknown> = {},
@@ -221,6 +226,78 @@ await describe({
         record.observe({ event: assistantMessage([{ type: 'text', text: 'steered back', },],), declineDialog: declineNothing, },);
         expect(record.unrecoveredModelError().failed,).toBe(false,);
         await record.close();
+      },
+    },),
+    it({
+      name: 'keeps what Pi said when its own automatic retry gave up on the error the run ended on',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: RATE_LIMIT_ERROR_TEXT, },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'auto_retry_start', attempt: 1, }, declineDialog: declineNothing, },);
+        record.observe({
+          event: {
+            type: 'auto_retry_end',
+            success: false,
+            attempt: 3,
+            finalError: RATE_LIMIT_ERROR_TEXT,
+          },
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        const summary = await summaryOf(record,);
+        expect(summary.piRetryGaveUp,).toEqual({
+          attempts: 3,
+          problem: RATE_LIMIT_ERROR_TEXT,
+        },);
+        expect(summary.modelError,).toBe(RATE_LIMIT_ERROR_TEXT,);
+        expect(summary.retries,).toBe(0,);
+        // An event that names no attempt leaves the count at none rather than inventing one.
+        const unnamed = recordOnOwnClock(join(folder.path, 'unnamed.jsonl',),);
+        unnamed.record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: RATE_LIMIT_ERROR_TEXT, },),
+          declineDialog: declineNothing,
+        },);
+        unnamed.record.observe({
+          event: { type: 'auto_retry_end', success: false, },
+          declineDialog: declineNothing,
+        },);
+        unnamed.record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        expect((await summaryOf(unnamed.record,)).piRetryGaveUp,).toEqual({
+          attempts: 0,
+          problem: RATE_LIMIT_ERROR_TEXT,
+        },);
+      },
+    },),
+    it({
+      name: 'leaves nothing of Pi\'s own retry once a reply succeeded',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: RATE_LIMIT_ERROR_TEXT, },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({
+          event: {
+            type: 'auto_retry_end',
+            success: false,
+            attempt: 1,
+            finalError: RATE_LIMIT_ERROR_TEXT,
+          },
+          declineDialog: declineNothing,
+        },);
+        record.observe({
+          event: assistantMessage([{ type: 'text', text: 'recovered', },],),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        const summary = await summaryOf(record,);
+        expect('piRetryGaveUp' in summary,).toBe(false,);
+        expect('modelError' in summary,).toBe(false,);
       },
     },),
     it({

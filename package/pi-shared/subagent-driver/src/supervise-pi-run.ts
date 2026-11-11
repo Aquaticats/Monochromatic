@@ -118,6 +118,31 @@ function attemptsOf(summary: RunSummary,): string {
 }
 
 /**
+ Says what Pi's own automatic retry reported when it gave up on the model error the run ended with, so the reason the driver
+ prints names the layer that answered that error rather than leaving a reader to think nothing tried.
+
+ @param summary - what the caller reads
+
+ @returns the note, in words, or nothing when Pi reported giving up on nothing
+ */
+function piRetryNoteOf(summary: RunSummary,): string {
+  /**
+   What Pi reported when it stopped retrying.
+   */
+  const exhausted = summary.piRetryGaveUp;
+  if (exhausted === undefined) {
+    return '';
+  }
+  /**
+   How many attempts Pi's retry made, as text.
+   */
+  const attempts = String(exhausted.attempts,);
+  return (exhausted.attempts === 1)
+    ? ', and Pi\'s own automatic retry gave up on it after 1 attempt'
+    : `, and Pi's own automatic retry gave up on it after ${attempts} attempts`;
+}
+
+/**
  Says what Pi reported of a compaction, when one kept the run's prompt waiting, so the message names why Pi took nothing rather
  than leaving a reader to guess.
 
@@ -318,7 +343,7 @@ export async function supervisePiRun(
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
+      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
         options.runFolder,
         'summary.json',
       )} and Pi's standard error in ${

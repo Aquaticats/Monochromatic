@@ -47,6 +47,7 @@ import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
+  PI_AUTOMATIC_RETRIES,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
   TRANSIENT_ERROR_TEXT,
@@ -946,17 +947,47 @@ await describe({
       },
     },),
     it({
-      name: 'a rate limit is retried like a transient failure and counted apart',
+      name: 'a 429 Pi\'s own retry recovers ends the run as one that came back, with no attempt by the driver',
       fn: async () => {
-        const run = await runDriver({
-          scenario: 'rate-limit-then-success',
-          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
-        },);
+        const run = await runDriver({ scenario: 'rate-limit-recovered-by-pi', },);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
-        expect(run.summary.retries,).toBe(1,);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        // Pi answered the 429 itself, which the coordinator measures apart, and the driver re-prompted nothing.
+        expect(run.summary.retries,).toBe(0,);
         expect(run.summary.rateLimitErrors,).toBe(1,);
-        expect(run.feed.find((entry,) => entry.kind === 'retry')?.errorKind,).toBe('throttled',);
+        expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect(run.feed.some((entry,) => entry.kind === 'auto_retry_end'),).toBe(true,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',),).toHaveLength(1,);
+        expect('piRetryGaveUp' in run.summary,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'a 429 Pi\'s own retry gives up on ends the run once, naming the error and the spent retry',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'rate-limit-retries-exhausted',
+          turnCap: TURN_CAP_ABOVE_RETRIES,
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(RATE_LIMIT_ERROR_TEXT,);
+        // One attempt: the turn Pi made at the task. The driver re-prompted nothing, whatever its own bound allows.
+        expect(run.summary.retries,).toBe(0,);
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',),).toHaveLength(1,);
+        expect(run.feed.some((entry,) => (entry.kind === 'retry') || (entry.kind === 'retry_prompt')),).toBe(false,);
+        // Every failed attempt of Pi's own is counted apart, since each named a rate limit.
+        expect(run.summary.rateLimitErrors,).toBe(PI_AUTOMATIC_RETRIES + 1,);
+        // What Pi reported when it stopped retrying is kept, so a coordinator sees the 429 was Pi's retry's to answer.
+        expect(run.summary.piRetryGaveUp,).toEqual({
+          attempts: PI_AUTOMATIC_RETRIES,
+          problem: RATE_LIMIT_ERROR_TEXT,
+        },);
+        expect(run.feed.some((entry,) => entry.kind === 'auto_retry_end'),).toBe(true,);
+        expect(run.standardError,).toContain(
+          `Pi's own automatic retry gave up on it after ${String(PI_AUTOMATIC_RETRIES,)} attempts`,
+        );
       },
     },),
     it({

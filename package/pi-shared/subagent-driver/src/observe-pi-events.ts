@@ -7,11 +7,13 @@
 import {
   FEED_PREVIEW_CHARACTERS,
   MODEL_ERROR_WITHOUT_TEXT,
+  NO_PI_RETRY_GAVE_UP,
   NO_RUN_FAILURE,
 } from './driver-constants.ts';
 import type {
   EventObservation,
   PiRecord,
+  PiRetryGaveUp,
   RunFailure,
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
@@ -26,11 +28,12 @@ import {
 } from './read-pi-fields.ts';
 
 /**
- The events worth a feed line of their own detail: a compaction of the session, how it ended, and the other waits a run makes a
- reader sit through.
+ The events worth a feed line of their own detail: a compaction of the session, how it ended, Pi's own automatic retry and whether
+ it ended in a reply or gave up, and the other waits a run makes a reader sit through.
  */
 const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
   'auto_retry_start',
+  'auto_retry_end',
   'compaction_start',
   'compaction_end',
   'queue_update',
@@ -64,6 +67,12 @@ export type ObservedPiRun = {
   readonly turnCount: () => number;
   readonly lastAssistantText: () => string;
   readonly unrecoveredModelError: () => RunFailure;
+
+  /**
+   What Pi reported of its own automatic retry when it stopped retrying the error the run stands on, or that it said nothing of
+   one.
+   */
+  readonly piRetryGaveUp: () => PiRetryGaveUp;
 
   /**
    What Pi reported of its own session, when that is why the run could not go on: a compaction that failed, or one still under
@@ -132,6 +141,11 @@ export function startObservingPiRun({
     pendingModelError?: string;
 
     /**
+     What Pi reported when its own automatic retry stopped retrying the error the run stands on.
+     */
+    piRetryGaveUp?: PiRetryGaveUp;
+
+    /**
      The error Pi settled on, which is why a run ends as a model error.
      */
     unrecoveredModelError?: string;
@@ -181,6 +195,8 @@ export function startObservingPiRun({
       noteAnswer();
       delete state.pendingModelError;
       delete state.unrecoveredModelError;
+      // A reply that succeeded answers the error Pi's own retry was retrying, so nothing is left of that retry either.
+      delete state.piRetryGaveUp;
     }
     note({
       kind: 'assistant',
@@ -270,6 +286,28 @@ export function startObservingPiRun({
         },
       ],
       [
+        'auto_retry_end',
+        function onAutoRetryEnd({ event, },) {
+          if (event.success === true) {
+            // Pi's retry ended in a reply that worked, and the reply itself is what clears the error it answered.
+            return;
+          }
+          /**
+           How many attempts Pi's retry made at the error, which only its own event knows.
+           */
+          const attempts = ((typeof event.attempt) === 'number') ? event.attempt : 0;
+          /**
+           What Pi said when it stopped, which is the error's own text unless Pi named none there.
+           */
+          const said = textOf(event.finalError,);
+          state.piRetryGaveUp = {
+            gaveUp: true,
+            attempts,
+            problem: (said === '') ? (state.pendingModelError ?? MODEL_ERROR_WITHOUT_TEXT) : said,
+          };
+        },
+      ],
+      [
         'compaction_start',
         function onCompactionStart({ event, },) {
           state.compaction = {
@@ -339,6 +377,9 @@ export function startObservingPiRun({
         failed: true,
         problem: state.unrecoveredModelError,
       };
+    },
+    piRetryGaveUp: function piRetryGaveUp() {
+      return state.piRetryGaveUp ?? NO_PI_RETRY_GAVE_UP;
     },
     compactionProblem: function compactionProblem() {
       /**
