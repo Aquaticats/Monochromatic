@@ -263,3 +263,41 @@ fn a_tree_that_holds_directories_this_user_may_not_write_is_removed_and_the_line
     let line: &String = log.iter().find(|line| { return line.starts_with("removed tree "); }).expect("the removal line");
     assert!(line.contains("mode changed on 2 directories this user could not write"), "{line}");
 }
+
+/// A tree whose record is the only thing keeping another tree from being removed is not removed itself,
+/// even when its own toolchain is retired:
+/// the record it holds is where the live workspace inside that other tree is known from,
+/// and a later pass has nothing else to guard with.
+#[test]
+fn a_retired_tree_is_kept_while_its_record_guards_a_live_workspace_inside_another_tree() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let outer: PathBuf = aged_tree(&base, "ab/00000000000010", &root.path().join("gone"), 5 * DAY);
+    let live: PathBuf = outer.join("live-workspace");
+    fs::create_dir_all(&live).expect("the live workspace");
+    let important: PathBuf = live.join("important.txt");
+    fs::write(&important, b"live user source\n").expect("the live workspace's file");
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000011", &live, 5 * DAY);
+    let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(ref why) if why.contains("lies inside")), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the record that guards {} is not thrown away with its tree: {first:?}", outer.display());
+    assert!(retired.exists() && important.exists(), "{first:?}");
+    // The second pass has the same records to work from, so it makes the same decision.
+    let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "a later pass keeps the tree the live workspace lies inside: {second:?}");
+    assert!(important.exists(), "the live workspace's file is user data and must never be removed by a pass over idle trees: {second:?}");
+}
+
+/// A retired tree whose record names a workspace outside the base still goes,
+/// so keeping the record of a nested workspace does not keep every retired tree.
+#[test]
+fn a_retired_tree_whose_workspace_is_outside_the_base_still_goes() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let alive: PathBuf = root.path().join("a-checkout-that-still-exists");
+    fs::create_dir_all(&alive).expect("the workspace");
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000012", &alive, 5 * DAY);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&outcomes, &retired), TreeVerdict::Removed { .. }), "{outcomes:?}");
+    assert!(alive.exists(), "the workspace is outside the base and is not removed with the tree");
+}
