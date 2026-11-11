@@ -417,6 +417,20 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 /// because a state step that outlasts it is one the round after it serves better.
 pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest a landing's own state step waits:
+/// the read of a worktree's `HEAD` file and of the `commondir` that proves the directory is that
+///  worktree's,
+/// which `landing/service_head.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a read waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a read that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a state step of the after-commit work is granted (`AFTER_COMMIT_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const LANDING_STATE_CEILING: Duration = START_CEILING;
+
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
 /// `cargo clean`,
