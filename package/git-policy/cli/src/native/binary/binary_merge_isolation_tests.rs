@@ -922,8 +922,9 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
 }
 
 /// The merge records in a records directory,
-/// which are its `.json` files: the reading of what Git's update left travels beside
-/// a record as a `.landed` file and is no record of its own.
+/// which are its `.json` files:
+/// the reading of what Git's update left travels beside a record as a `.landed` file,
+/// and it is no record of its own.
 pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
         .map(|entries| {
