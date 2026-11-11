@@ -102,15 +102,15 @@ The proof is a point in time,
 and the drain does not apply what it asks:
 the change a gone repository produces is applied by the service loop after the drain returns
 (`push_retry.rs`,
-`Retrying::apply`).
+`PushRetries::apply`).
 A repository renamed away and back in that gap,
 or one whose drive comes back then,
 reads as gone when it was looked at and is reachable when the plan would be dropped.
 
 The forget a gone repository produces therefore carries `only_while_unreachable`,
 and the applier asks the filesystem once more before it drops the plan:
-a Git directory that names a directory now keeps its plan,
-and one that is still missing ends it as before.
+a Git directory that names a directory now is not dropped on the stale proof,
+and one that is still missing ends its plan as before.
 Every other forget (a push that landed,
 one that needs the person,
 one whose record is no longer acceptable)
@@ -123,6 +123,31 @@ in `landing/unreachable_git_dir_proven_gone_tests.rs` fails before this change
 with the plan removed after the repository returned,
 and passes after it.
 
+### The plan the round had already taken out
+
+The first release of this rule skipped the forget and kept the branch's plan on disk,
+and the running service still had no try for it.
+The round of the service's work takes what is due out of the plan before it drains the directory and hands
+it to the worker (`landing/service_work_run_round.rs`,
+`plan_the_round`),
+so the plan the gone repository's drain ends is one the schedule no longer holds:
+skipping the forget kept a file and nothing else,
+`next_wait` answered nothing,
+and the promised push waited for a service restart to read the plan from disk again.
+
+Cross-vendor review of 2026-11-11,
+round 174,
+finding 3.
+The forget a gone repository produces now carries the plan its reading ended,
+and the applier puts that plan back when the directory is there again:
+the try the plan was for never ran,
+so it is due at once,
+and the running service drains the repository as soon as the plan says so.
+The control above models that `take_due` before it drains,
+which is what the first version of it did not do:
+a control that schedules a plan of its own hides the loss,
+because nothing removes the plan the service holds.
+
 What this does not repair:
 a repository renamed away and back long after the change was applied is still read as gone when the change lands,
 and its plan ends with the journal line.
@@ -130,3 +155,16 @@ Nothing on the filesystem tells a deleted repository from a renamed one,
 so that case is one of the proof's limits rather than a state the applier can see.
 The commit stays local in that case,
 and the journal line names the path whose plan ended.
+
+### The file the worker removes and the plan the loop puts back
+
+The file of the forgotten plan goes where every forget's file goes:
+the worker that decided the branch needs no new try removes it,
+and for this kind of forget it removes it only while the directory still fails a directory check
+(`landing/service_work_handlers_replanning_and_acceptance.rs`,
+`forget_when_unreachable`).
+So a repository renamed back before the worker ran keeps its file as well as the plan the applier puts back,
+and one that reads as gone on the worker's own reading loses the file there;
+the applier's later reading is what decides about the list,
+and a plan it puts back is written to the journal again by the next drain that decides the push needs a
+new try (`Replanning::keep_the_plan`).

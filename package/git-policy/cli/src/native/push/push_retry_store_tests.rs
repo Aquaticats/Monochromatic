@@ -241,3 +241,34 @@ fn a_file_that_holds_no_plan_is_removed() {
     assert!(!garbage.exists());
     remove_fixture(root.as_path());
 }
+
+/// What:
+///  A plan whose record could not be read is read again at a later start,
+/// not removed.
+/// Why:
+///  "never discard user data":
+/// the cleanup (`remove_files_of`) keeps a file whose record it could not read,
+/// because an unreadable plan may schedule a push that is neither done nor cancelled,
+/// so `load` must not take it either:
+/// a read that failed says nothing about what the file holds,
+/// and the next start may read it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync(path, 0o000); expect(load(root)).toEqual([]); expect(existsSync(path)).toBe(true); expect(loadReporting(root).unread).toBe(true);
+/// ```
+#[test]
+fn a_plan_whose_record_could_not_be_read_is_kept_and_read_again() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("retry-store-unreadable-load");
+    let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
+    save(root.as_path(), &waiting).expect("saved");
+    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable");
+    assert!(load(root.as_path()).is_empty(), "a plan that could not be read is not read as a push");
+    assert!(only.exists(), "a plan that could not be read is kept, so its push is not forgotten");
+    assert!(load_reporting(root.as_path()).unread, "a start that met a file it could not read says so, so it reads the plan again");
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o600)).expect("readable again");
+    assert_eq!(load(root.as_path()), vec![waiting], "the next read finds the plan the failed one kept");
+    remove_fixture(root.as_path());
+}

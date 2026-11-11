@@ -238,10 +238,16 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     remove(machine.root.as_path());
 }
 
-/// A service that starts for a worktree that is gone stops its own socket and serves nothing:
-/// the socket goes first so no connection starts it again,
-/// and the service unit is never asked to stop,
-/// because the service's own end is what stops it.
+/// What:
+///  A service that starts for a worktree that is gone stops its own socket and serves nothing:
+///  the socket goes first so no connection starts it again,
+///  and the service unit is never asked to stop,
+///  because the service's own end is what stops it.
+/// Why:
+///   The journal is not removed here,
+/// because this process is still one of its writers;
+/// the note and the socket file stay so the sweep that asks the manager whether the service is gone
+/// finds the instance and removes the journal then.
 #[test]
 fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
     let machine: Machine = machine("units-own-gone");
@@ -253,8 +259,8 @@ fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
     let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
     assert_eq!(gone, Some(removed));
     assert_eq!(recorder.stops(), vec![format!("stop-alone {}", socket_unit_instance(instance.as_str()))]);
-    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note goes with the socket, so the doctor counts no leftover");
-    assert!(!socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the stopped socket's file is removed");
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep that follows this process's exit finds the instance");
+    assert!(socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file stays with the note, and a later sweep removes both");
     remove(machine.root.as_path());
 }
 

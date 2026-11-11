@@ -552,8 +552,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// Why:
 ///   The tree holds the private index and the conclusion copies a landing reads,
 ///   so only the landing that named it may decide that it is done with it.
-///  A tree whose client is gone waits for that landing instead of for its connection to close,
-///  which is what makes a killed client's queued commit land on the tree it made.
+///  A tree whose client is gone is left where it is rather than removed with its answer:
+///  a client that reconnects sends the same request again and reads it there,
+///  and a request with no client left to make its commit gives its tree to the sweep by age.
 ///  A request the service did not land (a commit sent back to be prepared again,
 /// a branch that moved) has no landing
 ///  that read its tree:

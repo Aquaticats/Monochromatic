@@ -24,7 +24,7 @@
 //! // runWrapped(linked, ['remote', 'set-url', 'origin', url]).status === 1
 //! ```
 
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -634,6 +634,130 @@ fn the_main_checkout_still_changes_its_remote_settings() {
         Some(0),
         "a `--file` write to the shared file was refused in the main checkout: {}",
         stderr_of(&named_run)
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  Run one command in a linked worktree from `directory`,
+///  under a `--work-tree` that names another directory,
+///  and require the shared-remote refusal with the shared file unchanged.
+/// Why:
+///  Git reads a relative `--file` path from the directory the command runs in,
+///  and `--work-tree` does not move
+///  that directory for `git config`,
+///  so a path written that way names the shared file whenever the same path from the
+///  same directory does;
+///  the refusal must say so and change nothing.
+fn another_work_tree_still_leaves_a_relative_file_path_in_the_shared_refusal(
+    fixture: &Fixture,
+    directory: &Path,
+    global_options: &[&str],
+    named: &str,
+) {
+    let before: Vec<u8> = config_bytes(fixture.root.join("repo").as_path());
+    let mut form: Vec<&str> = global_options.to_vec();
+    form.extend_from_slice(&["config", "--file", named, "remote.origin.url", OTHER_URL]);
+    let observed: Observed = run_wrapped(fixture, directory, form.as_slice());
+    let stderr: String = stderr_of(&observed);
+    assert_eq!(
+        observed.code,
+        Some(1),
+        "git {} was not refused in {}: {stderr}",
+        form.join(" "),
+        directory.display()
+    );
+    assert!(
+        stderr.contains(SHARED_REMOTE_CODE),
+        "git {} printed no shared-remote finding: {stderr}",
+        form.join(" ")
+    );
+    assert_eq!(
+        config_bytes(fixture.root.join("repo").as_path()),
+        before,
+        "git {} changed the shared configuration",
+        form.join(" ")
+    );
+}
+
+/// A relative `--file` path names the shared file from the directory the command runs in,
+///  which `--work-tree` does not change,
+///  so the write is refused there too,
+///  and a file of the command's own under the same options still runs.
+///  The last step is the oracle:
+///  real Git resolves the same spelling from the same directory and writes the shared file.
+#[test]
+fn a_relative_file_path_beside_another_work_tree_is_read_from_the_directory_the_command_runs_in() {
+    let fixture: Fixture = fixture("shared-remote-work-tree-relative");
+    let place: PathBuf = fixture.root.join("linked");
+    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let elsewhere: PathBuf = fixture.root.join("nested").join("elsewhere");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("nested directory");
+    let elsewhere_text: &str = elsewhere.to_str().expect("text path");
+    // From the worktree's own root, the shared file is one level up beside the repository.
+    another_work_tree_still_leaves_a_relative_file_path_in_the_shared_refusal(
+        &fixture,
+        linked.as_path(),
+        &["--work-tree", elsewhere_text],
+        "../repo/.git/config",
+    );
+    // `-C` moves the directory the command runs in before the path is read, so the same refusal holds
+    //  when the caller starts somewhere else.
+    let linked_text: &str = linked.to_str().expect("text path");
+    another_work_tree_still_leaves_a_relative_file_path_in_the_shared_refusal(
+        &fixture,
+        repo.as_path(),
+        &["-C", linked_text, "--work-tree", elsewhere_text],
+        "../repo/.git/config",
+    );
+    // A file of the command's own is still written, and where the command really runs.
+    let own: PathBuf = linked.join("own.config");
+    let allowed: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &[
+            "--work-tree",
+            elsewhere_text,
+            "config",
+            "--file",
+            "own.config",
+            "remote.origin.url",
+            "https://example.invalid/own.git",
+        ],
+    );
+    assert_eq!(
+        allowed.code,
+        Some(0),
+        "a file of the command's own was refused: {}",
+        stderr_of(&allowed)
+    );
+    let own_text: String = std::fs::read_to_string(own.as_path()).expect("named configuration");
+    assert!(
+        own_text.contains("https://example.invalid/own.git"),
+        "the file of the command's own holds nothing: {own_text}"
+    );
+    assert!(
+        !elsewhere.join("own.config").exists(),
+        "the wrapper read the path from the work tree instead of the command's directory"
+    );
+    // Real Git is the oracle: the spelling above names the shared file from the same directory.
+    let oracle: Observed = run_direct(
+        &fixture,
+        linked.as_path(),
+        &[
+            "--work-tree",
+            elsewhere_text,
+            "config",
+            "--file",
+            "../repo/.git/config",
+            "remote.origin.url",
+            OTHER_URL,
+        ],
+    );
+    assert_eq!(oracle.code, Some(0), "real Git refused the spelling: {}", stderr_of(&oracle));
+    assert!(
+        String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(OTHER_URL),
+        "real Git did not write the shared file through the same relative path"
     );
     remove(&fixture);
 }

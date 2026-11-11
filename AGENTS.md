@@ -841,6 +841,11 @@ FDL:
  `-delete` implies `-depth`,
  which turns `-prune` into a no-op.
 
+RLW:
+ `rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`):
+ write every path literally,
+ because an unset or empty variable widens what gets deleted.
+
 VKI:
  Synthetic key input:
  nested compositor or caller-independent broker only;

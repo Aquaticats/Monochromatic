@@ -338,16 +338,21 @@ await describe({
             /**
              Signals the stubbed transport received, in order.
              */
-            const seenSignals: (AbortSignal | null)[] = [];
+            const seenSignals: AbortSignal[] = [];
             ctx.sinon
               .stub(globalThis, 'fetch',)
               .callsFake(function stubbedFetch(
                 _input: string | URL | Request,
                 init?: RequestInit,
               ): Promise<Response> {
-                seenSignals.push(init?.signal ?? null,);
+                /**
+                 Signal the stubbed request carried, when it carried one.
+                 */
+                const requestSignal = init?.signal ?? undefined;
+                if (requestSignal !== undefined)
+                  seenSignals.push(requestSignal,);
                 return new Promise(function neverSettles(_resolve, reject) {
-                  init?.signal
+                  requestSignal
                     ?.addEventListener('abort', function onAbort() {
                       reject(new Error('aborted',),);
                     }, { once: true, },);
@@ -434,16 +439,10 @@ await describe({
                 },
               },
               fetcher: function fetcher(): Promise<QwenTokenPlanListingResponse> {
-                return Promise.resolve(new Response(
-                  JSON.stringify({
-                    object: 'list',
-                    data: [{ id: 'qwen3.8-max', }],
-                  },),
-                  {
-                    status: 200,
-                    headers: { 'content-type': 'application/json', },
-                  },
-                ),);
+                return Promise.resolve(Response.json({
+                  object: 'list',
+                  data: [{ id: 'qwen3.8-max', }],
+                },),);
               },
               environment: {},
             },);

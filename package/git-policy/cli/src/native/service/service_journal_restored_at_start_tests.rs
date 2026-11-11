@@ -1,10 +1,11 @@
 //! Controls for the journal read at a service's start:
 //! a plan or a watch that gives no answer is left behind at its ceiling,
-//! and the service starts without it instead of never starting.
+//! the service starts with what it read rather than never starting,
+//! and it keeps both directories and reads them again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! stallThePlan(); expect(restoredWithin(100, plan, watch, undefined)).toEqual([noRetries, noWatch]);
+//! stallThePlan(); const [retries, watch] = restoredWithin(100, plan, watchDir, undefined); expect(retries.needsRestore()).toBe(true);
 //! ```
 
 use super::*;
@@ -46,13 +47,19 @@ fn release_the_pipe(path: &std::path::Path) {
 
 /// What:
 ///  A plan file that gives no answer is left behind at the ceiling,
-/// and the service starts with no plan and no watch.
+/// the service starts with no plan and no watch read yet,
+/// and both keep their directories and read them again.
 /// Why:
 ///  Finding 3 of the review of `b3d00b3be4` is a service whose read of the journal held it,
 /// so the read is bounded and its
 ///  answer is allowed to be nothing:
-/// a journal nobody may read costs a push its retry until the next service starts,
+/// a journal nobody may read costs a push its retry until the next read,
 /// never a commit.
+/// Findings 1 and 2 of the review of `bc3d54f9cd` are what a start that then forgot the journal cost:
+/// a service that wrote its plan into memory only,
+/// and one that never read the journal again,
+/// so a push an earlier service had promised was not tried for the life of that service
+/// and a retry it reported as kept was lost when the process ended.
 #[test]
 fn a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling() {
     let root: std::path::PathBuf = crate::test_support::fixture("journal-restored-at-start");
@@ -66,11 +73,16 @@ fn a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling() {
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
     assert_eq!(made, 0, "the pipe must stand where a plan file would be: {}", std::io::Error::last_os_error());
     let began: Instant = Instant::now();
-    let (retries, notes): (PushRetries, ClaimWatch) = restored_within(SHORT_CEILING, plan, watch, None);
+    let (retries, notes): (PushRetries, ClaimWatch) = restored_within(SHORT_CEILING, plan.clone(), watch.clone(), None);
     let waited: Duration = began.elapsed();
     release_the_pipe(stalled.as_path());
-    assert!(retries.directories().is_empty(), "a plan that gave no answer leaves the service with no pushes to retry");
-    assert!(notes.key().is_none(), "a watch that gave no answer is kept in memory only, so nothing is scheduled for it");
+    assert!(retries.directories().is_empty(), "a plan that gave no answer leaves the service with no pushes to retry yet");
     assert!(waited >= SHORT_CEILING, "the read was given its ceiling: {waited:?}");
+    // What this service makes is written where the next service reads it, and both reads are made again: a service that started
+    //  without the journal still keeps every retry it promises and still finds the pushes an earlier service left.
+    assert_eq!(retries.plans(), Some(plan.as_path()), "the plan of a start that could not read the journal leaves its files in the journal");
+    assert!(retries.needs_restore(), "the plan that gave no answer is read again, so the pushes an earlier service left are tried");
+    assert_eq!(notes.key(), Some(watch.clone()), "the notes of a start that could not read them are written in the journal, not lost with the process");
+    assert!(notes.needs_retry(), "the notes that gave no answer are read again");
     crate::test_support::remove(root.as_path());
 }

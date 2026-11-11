@@ -43,7 +43,7 @@ export {
   createQwenTokenPlanIndividualApiKeyAuth,
   isApiKeyCredential,
   resolveQwenTokenPlanIndividualCredential,
-  storedCredentialKey,
+  storedCredentialSources,
   type QwenTokenPlanIndividualCredentialResolution,
   type QwenTokenPlanIndividualCredentialSource,
   type QwenTokenPlanIndividualCredentialSources,
