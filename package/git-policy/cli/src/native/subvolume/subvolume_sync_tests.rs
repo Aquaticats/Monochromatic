@@ -291,8 +291,8 @@ fn a_read_only_directory_is_filled_and_ends_read_only() {
     run(source.as_path(), destination.as_path(), COPY);
     assert_eq!(std::fs::read(destination.join("locked/b")).expect("copied into the read-only directory"), b"b");
     assert_eq!(std::fs::metadata(destination.join("locked")).expect("directory").mode() & 0o7777, 0o555);
-    std::fs::set_permissions(source.join("locked"), PermissionsExt::from_mode(0o755)).expect("restore");
-    std::fs::set_permissions(destination.join("locked"), PermissionsExt::from_mode(0o755)).expect("restore");
+    // Both copies stay closed, so the fixture goes closed:
+    // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     remove(parent.as_path());
 }
 
@@ -324,7 +324,8 @@ fn an_unreadable_directory_stops_the_pass_naming_it() {
     std::fs::create_dir(source.join("dir/closed")).expect("directory");
     std::fs::set_permissions(source.join("dir/closed"), PermissionsExt::from_mode(0o000)).expect("closed");
     let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("stopped");
-    std::fs::set_permissions(source.join("dir/closed"), PermissionsExt::from_mode(0o755)).expect("restore");
+    // The directory stays closed, and the fixture goes closed too:
+    // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     assert!(matches!(&error, MigrateError::UnreadableDirectory { path, .. } if path.ends_with("dir/closed")), "{error}");
     remove(parent.as_path());
 }
