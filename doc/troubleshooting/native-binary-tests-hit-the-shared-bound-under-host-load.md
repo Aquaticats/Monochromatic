@@ -1622,6 +1622,25 @@ so the wrapper stood in a socket read for longer than the window while its own c
 Run alone immediately afterwards,
 the same four controls passed in 6.3 s
 (`Summary [   6.263s] 4 tests run: 4 passed, 958 skipped`).
+Two later runs of the same four controls,
+at load averages of 96 and 113,
+ended the same way with a different pair each time,
+and a third run with `--test-threads 1` failed on a third of them,
+so no single control carries the flake:
+each of the four finishes a merge through the service,
+and waits for its answer.
+That last run's own service lines name the wait:
+
+```text
+monochromatic-git-policy-cli-service: the background sync of 1 records of a landing took 3165 ms
+monochromatic-git-policy-cli-service: the background sync of 6 records of a landing took 1852 ms
+```
+
+The seven `abort_during_an_operation` controls,
+which land no commit,
+passed
+`Summary [  51.541s] 7 tests run: 7 passed, 955 skipped` in the same period,
+and each of the four `merge_rr_cleanup` controls passed at least once that day.
 
 The exemptions the supervisor has are for a command that *is* a commit
 (`COMMIT_BOUND_SECONDS`,
