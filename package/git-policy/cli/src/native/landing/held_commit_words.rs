@@ -93,7 +93,7 @@ pub fn removal(locks: &[PathBuf]) -> String {
 }
 
 /// What:
-///  The words a commit ends with when its branch write was refused by a lock nothing proves gone,
+///  The words a commit ends with when a lock nothing proves gone kept its branch write from happening,
 ///  on standard error,
 ///  with exit `0`.
 /// Why:
@@ -220,7 +220,7 @@ pub fn landed(held: &Held, commit: &str, the_index_waits: bool) -> String {
     let branch: String = branch_of(&held.reference);
     let index: &str = if the_index_waits { "Another program wrote the index after the landing saw it, so its entries are left as that program made them and the next commit in this worktree sets them; until then `git status` shows the commit's paths. " } else { "" };
     return format!(
-        "the held commit {commit} landed on {branch}: the lock that refused its branch write is gone, so the branch has moved. {index}Its push \
+        "the held commit {commit} landed on {branch}: the lock that held its branch write is gone, so the branch has moved. {index}Its push \
 was not released, because the command that made the commit had already ended and ran no post-commit gate; the next commit or push from \
 {branch} carries it."
     );

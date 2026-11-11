@@ -360,3 +360,66 @@ fn a_held_commit_real_git_built_is_kept_on_the_side_reference_and_survives_a_pru
     drop(service);
     remove_settled(&fixture);
 }
+
+/// What:
+///  Every line the service writes about a batch names the repository that batch belongs to.
+/// Why:
+///   The host run of the 0.6.1-alpha.10 release printed,
+///  among passing controls,
+///  "batch 1794399384028651 was refused the write of refs/heads/main while the branch still names 3ad2a9ab2e32eaf6f484b23fafe0cba5c5172a98,
+///  so a reference lock stands in the way",
+///  from a control that held a lock on purpose and whose commits both landed.
+///  Nothing in the line said which repository the service acted on,
+///  so the coordinator and then the owner read it as a commit on this repository's own `main` that failed.
+///  A line a fixture's service writes must never read as one about another repository,
+///  so a line about a batch names the worktree the batch belongs to.
+#[test]
+fn every_line_about_a_batch_names_the_repository_the_batch_belongs_to() {
+    let (fixture, repo, service) = scene("reference-lock-names-its-repository");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    let logged: String = service_log(fixture.root.as_path());
+    // The phrase the service uses to name the repository of a batch, and not a path a line mentions on its way to something
+    //  else: a lock's own path is inside the repository and says nothing about which repository the batch is in.
+    let names_it: String = format!("in the repository at {}", repo.display());
+    let about_a_batch: Vec<&str> = logged.lines().filter(|line| { return line.contains("batch "); }).collect();
+    assert!(!about_a_batch.is_empty(), "the service said something about the batch: {logged}");
+    for line in about_a_batch {
+        assert!(line.contains(names_it.as_str()), "a line about a batch says `{names_it}`: {line}");
+    }
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit the service makes and keeps behind a lock is never worded as one it refused.
+/// Why:
+///   The owner's rule is "Commits should never fail",
+///  and the alpha.10 host run's "was refused the write of refs/heads/main" belonged to a commit the service wrote,
+///  kept and then landed.
+///  The word refused belongs to the states where nothing was made,
+///  so the line a lock raises says the commit is kept and the branch has not moved yet,
+///  and says what the person may do.
+#[test]
+fn the_words_for_a_commit_a_lock_holds_never_call_it_refused() {
+    let (fixture, repo, service) = scene("reference-lock-words-the-hold");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    let logged: String = service_log(fixture.root.as_path());
+    // The lines about the batch itself, which are the ones that word what became of the commit: a wait for another program's
+    //  index lock says `result=refused` and is about the lock, not about the commit.
+    let about_a_batch: String = logged.lines().filter(|line| { return line.contains("batch "); }).collect::<Vec<&str>>().join("\n");
+    assert!(about_a_batch.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
+    assert!(!about_a_batch.contains("refus"), "a commit that is kept and lands is not one that was refused: {logged}");
+    assert!(about_a_batch.contains("the commit ") && about_a_batch.contains("is kept"), "the line says the commit is kept: {logged}");
+    assert!(about_a_batch.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
+    assert!(about_a_batch.contains("removing the lock") && about_a_batch.contains("rm -- "), "the line says what the person may do and gives the command: {logged}");
+    drop(service);
+    remove_settled(&fixture);
+}

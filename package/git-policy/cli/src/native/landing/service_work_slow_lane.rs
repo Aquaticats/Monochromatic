@@ -35,10 +35,9 @@ use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{CLAIM_LEASE, GitHandlers};
+use crate::service_work_common_directory::{common_directory_of, is_bare_common_directory};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
-use crate::service_work_handlers_replanning_and_acceptance::{
-    Replanning, SLOW_KINDS, Wake, WorkHandlers, common_directory_of, is_bare_common_directory, work_directory,
-};
+use crate::service_work_handlers_replanning_and_acceptance::{Replanning, SLOW_KINDS, Wake, WorkHandlers, work_directory};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -1613,6 +1613,58 @@ fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
     remove(root.as_path());
 }
 
+/// What:
+///  A creation that finds a journal whose owner is dead reports it and does not wait for it,
+///  when the worktree that owed the copy is another one.
+/// Why:
+///  The pending check runs before every forwarded command in a linked worktree or a bare repository,
+///  and the copy is the size of the source's whole ignored tree;
+///  a command in one worktree that finished another worktree's copy paid for that work itself
+///  (measured at 15,151 ignored entries and 63.5 s of silence in a second worktree,
+///  `doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
+///  The rule since then is that a copy is finished only by a command run in the worktree it fills,
+///  so this one names the worktree,
+///  says the copy is still owed and that nothing is lost,
+///  and its record stays for the command that will make it
+///  (`worktree_copy_owed_copy.rs`,
+///  `owed_in_another_worktree_notice`).
+/// The durability writes of its settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
+#[cfg(unix)]
+#[test]
+fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
+    keep_the_durability_writes_in_the_page_cache();
+    let root: PathBuf = fixture("lifecycle-owed-copy-another-worktree");
+    let (main, common) = source(root.as_path());
+    let older: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("older");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "older", older.to_str().expect("utf8")]);
+    let dead = journal_for(main.as_path(), common.as_path(), older.as_path(), &dead_copy_owner());
+    let topic: PathBuf = root.join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    let text: String = String::from_utf8(stderr).expect("utf8");
+    assert!(
+        text.starts_with(
+            format!(
+                "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {} is still owed; the first command run in that worktree makes it, and this command does not wait for it.\n",
+                quote(older.to_string_lossy().as_ref())
+            )
+            .as_str()
+        ),
+        "the copy `older` owes is named and this command does not wait for it: {text}"
+    );
+    assert!(dead.path.exists(), "the record of the copy `older` still owes is kept for its own command: {text}");
+    assert!(!older.join("cache/data").exists(), "another worktree's copy is not made here: {text}");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("own copy"), b"payload", "this command's own copy is made");
+    remove(root.as_path());
+}
+
 /// A creation whose command line names no readable destination copies nothing and says so once Git succeeded.
 #[cfg(unix)]
 #[test]

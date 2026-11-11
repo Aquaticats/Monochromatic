@@ -16,8 +16,12 @@
 //! ```
 
 /// The lines and the phase arithmetic.
-use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, index_update_ms_of, retire_line, stamped_line, started_line, wait_line};
+use super::{
+    Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, in_the_repository_at, index_update_ms_of, retire_line,
+    stamped_line, started_line, wait_line,
+};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Milliseconds each phase is given in the controls;
@@ -47,6 +51,12 @@ const PLACE_MS: u64 = 953;
 
 /// How many other commits were waiting for this one's landing to finish in the controls.
 const QUEUED_BEHIND: usize = 4;
+
+/// The worktree root the controls' batches land in.
+/// Why:
+///  One journal covers every worktree of the machine,
+///  so the line about a batch names the worktree it landed in.
+const REPOSITORY: &str = "/home/a person/repo";
 
 /// The `key=value` words of a line (a quoted value is taken whole),
 /// after the leading word.
@@ -113,6 +123,7 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         reference,
         outcome: "landed",
         batch: 9,
+        repository: Path::new(REPOSITORY),
         size: 3,
         position: 2,
         queued_behind: QUEUED_BEHIND,
@@ -140,6 +151,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["branch"], "refs/heads/main");
     assert_eq!(found["outcome"], "landed");
     assert_eq!(found["batch"], "9");
+    assert_eq!(found["repository"], REPOSITORY, "the repository the batch landed in is named, quoted so a path with a space stays one field: {line}");
     assert_eq!(found["size"], "3");
     assert_eq!(found["position"], "2");
     assert_eq!(found["read_ms"], READ_MS.to_string());
@@ -380,14 +392,14 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
 #[test]
 fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_free_one() {
     let notes: WaitNotes = landing().lock_notes;
-    let line: String = wait_line(7, Duration::from_millis(990), &notes, true).expect("a held lock is written down");
-    assert!(line.starts_with("waited for the index lock batch=7 result=taken lock_wait_ms=990 "), "{line}");
+    let line: String = wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, true).expect("a held lock is written down");
+    assert!(line.starts_with("waited for the index lock batch=7 repository=\"repo\" result=taken lock_wait_ms=990 "), "{line}");
     assert!(line.contains("lock_found=") && line.contains("lock_last="), "{line}");
-    assert!(wait_line(7, Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
+    assert!(wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
     let quick: WaitNotes = WaitNotes { staging: Duration::from_millis(3), ..WaitNotes::default() };
-    assert_eq!(wait_line(8, Duration::from_millis(5), &quick, true), None);
+    assert_eq!(wait_line(8, Path::new("repo"), Duration::from_millis(5), &quick, true), None);
     let slow_flush: WaitNotes = WaitNotes { staging: SLOW_LOCK_STEP, ..WaitNotes::default() };
-    let slow: String = wait_line(9, SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
+    let slow: String = wait_line(9, Path::new("repo"), SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
     assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
 }
 
@@ -480,6 +492,7 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         reference: "refs/heads/main",
         outcome: "landed",
         batch: 1,
+        repository: Path::new(REPOSITORY),
         size: 1,
         position: 1,
         queued_behind: 0,
@@ -517,6 +530,7 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
         reference: "refs/heads/main",
         outcome: "landed",
         batch: 1,
+        repository: Path::new(REPOSITORY),
         size: 1,
         position: 1,
         queued_behind: 0,
@@ -550,4 +564,71 @@ fn a_record_from_before_the_rename_still_gives_its_index_update() {
     let both: String = format!("{recorded} index_update_ms=5");
     assert_eq!(index_update_ms_of(both.as_str()), Some(5));
     assert_eq!(index_update_ms_of("answered request=\"r\""), None, "a line without the step gives none");
+}
+
+/// What:
+///  Two repositories whose paths differ only in bytes that are no text are named differently,
+///  and a path that is text reads as it is.
+/// Why:
+///  One journal covers every worktree of the machine,
+///  and two worktrees can differ only in bytes that cannot be written as text:
+///  the readable spelling of both is the same string with U+FFFD where the byte was,
+///  so a label built that way names neither and a line cannot be attributed to its repository
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that distinct non-UTF-8 repository paths produce identical repository labels).
+///  `path_message_text` keeps the readable spelling for prose,
+///  and the exact bytes travel in the field beside it,
+///  so the label of a repository is the one place that has to tell them apart.
+#[test]
+fn two_repositories_whose_paths_differ_only_in_bytes_that_are_no_text_are_named_differently() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt as _;
+    let first: PathBuf = PathBuf::from(OsString::from_vec(b"/repo/worktree-\xFF".to_vec()));
+    let second: PathBuf = PathBuf::from(OsString::from_vec(b"/repo/worktree-\xFE".to_vec()));
+    assert_ne!(first, second, "the two paths are different");
+    let first_label: String = in_the_repository_at(first.as_path());
+    let second_label: String = in_the_repository_at(second.as_path());
+    assert_ne!(first_label, second_label, "the labels tell the two repositories apart: {first_label} and {second_label}");
+    assert!(!first_label.contains('\n'), "the label stays one line: {first_label}");
+    assert_eq!(in_the_repository_at(Path::new("/repo/worktree")), "in the repository at /repo/worktree", "a path that is text reads as it is");
+}
+
+/// What:
+///  A worktree whose path holds a space is named in one field,
+///  so the line keeps its shape and the journal has the whole path.
+/// Why:
+///  Paths with spaces are ordinary,
+///  and a field written as `repository=/home/a person/repo` splits the moment anything reads the line by its spaces:
+///  the field reads `/home/a` and the rest becomes text nothing owns
+///  (found by this branch's own control of the `answered` line,
+///  whose fixture root holds a space).
+///  The `repository` field is therefore written with Rust's quoted form,
+///  as `branch` already is.
+#[test]
+fn a_repository_whose_path_holds_a_space_is_named_in_one_field() {
+    let landing: LandTiming = landing();
+    let line: String = answered_line(&Answered {
+        request: "r",
+        reference: "refs/heads/main",
+        outcome: "landed",
+        batch: 1,
+        repository: Path::new(REPOSITORY),
+        size: 1,
+        position: 1,
+        queued_behind: 0,
+        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        queued: Duration::ZERO,
+        settle: Duration::ZERO,
+        landing: &landing,
+        land_total: Duration::ZERO,
+        answer: Duration::ZERO,
+        total: Duration::ZERO,
+        quiet: &[],
+        steps: &[],
+        steps_dropped: 0,
+    });
+    assert_eq!(fields(line.as_str())["repository"], REPOSITORY, "the whole path is one field: {line}");
+    assert!(line.contains(&format!("repository={REPOSITORY:?}")), "the field is the path's quoted form: {line}");
+    let wait: String = wait_line(7, Path::new(REPOSITORY), Duration::from_millis(990), &landing.lock_notes, true).expect("a held lock is written down");
+    assert_eq!(fields(wait.as_str())["repository"], REPOSITORY, "the wait line keeps it whole too: {wait}");
 }

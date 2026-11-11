@@ -112,9 +112,10 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
         git_dir: first.git_dir.clone(),
     };
     // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves,
-    // so a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
+    // so a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`), and the
+    //  copy's own line names the worktree it was made for.
     let conclusion_began: Instant = Instant::now();
-    crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
+    crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq, first.repository.as_path());
     timing.reads_split.conclusion += conclusion_began.elapsed();
     let journal_began: Instant = Instant::now();
     let written = write_intent(context.journal.as_path(), &intent);

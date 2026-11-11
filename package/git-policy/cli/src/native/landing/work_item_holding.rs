@@ -326,7 +326,8 @@ pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
     let blocked: PathBuf = state_directory(work_dir, BLOCKED);
     if let Err(error) = create_private_directory_all(blocked.as_path()) {
         crate::service_error!(
-            "the blocked verdict of the push record {id} cannot be kept, because its directory cannot be made ({error}); the held record stays, so nothing here publishes that commit"
+            "the blocked verdict of the push record {id} {} cannot be kept, because its directory cannot be made ({error}); the held record stays, so nothing here publishes that commit",
+            crate::service_timing::in_the_repository_at(item.repository.as_path())
         );
         return false;
     }
@@ -338,15 +339,19 @@ pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => {
             crate::service_error!(
-                "the blocked verdict of the push record {id} could not be written ({error}); the held record stays, so nothing here publishes \
-                 that commit"
+                "the blocked verdict of the push record {id} {} could not be written ({error}); the held record stays, so nothing here publishes \
+                 that commit",
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
             );
             return false;
         }
     }
     // The name is the last part of the verdict a crash can lose, so the directory that holds it is flushed too.
     if let Err(error) = sync_directory(blocked.as_path()) {
-        crate::service_error!("the blocked verdict of the push record {id} cannot be flushed: {error}");
+        crate::service_error!(
+            "the blocked verdict of the push record {id} {} cannot be flushed: {error}",
+            crate::service_timing::in_the_repository_at(item.repository.as_path())
+        );
         return false;
     }
     forget_held(work_dir, id.as_str());

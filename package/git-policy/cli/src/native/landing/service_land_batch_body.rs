@@ -246,10 +246,10 @@ pub(crate) fn land_batch_body(
         match witness_of(first.index.as_path()) {
             Ok(witness) => {
                 if let Err(error) = write_start(context.journal.as_path(), seq, &witness) {
-                    crate::service_error!("batch {seq}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update");
+                    crate::service_error!("batch {seq} {}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update", crate::service_timing::in_the_repository_at(repository));
                 }
             }
-            Err(error) => crate::service_error!("batch {seq}: the index file cannot be looked at ({error}); a restart will not replay the index update"),
+            Err(error) => crate::service_error!("batch {seq} {}: the index file cannot be looked at ({error}); a restart will not replay the index update", crate::service_timing::in_the_repository_at(repository)),
         }
         timing.reads_split.witness += witness_began.elapsed();
         reach("before-ref");
@@ -318,7 +318,7 @@ pub(crate) fn land_batch_body(
                     }
                 };
                 let within_bound: bool = Instant::now() < deadline;
-                crate::service_land_hold_a_batch::say_it_waits(seq, &first.reference, old.as_str(), within_bound);
+                crate::service_land_hold_a_batch::say_it_waits(seq, repository, &first.reference, old.as_str(), within_bound);
                 match wait_out_the_reference_locks(lock_roots.as_slice(), &crate::stale_ref_locks::Judge::here(), deadline) {
                     // Nothing stands any more and the bound for waiting on one has not passed: the branch is where it was,
                     //  so the write may be tried again.

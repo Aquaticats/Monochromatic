@@ -3,7 +3,7 @@
 //!  the branch and its two values,
 //!  the commits,
 //!  the journal whose intent holds the batch,
-//!  the locks that refused the write,
+//!  the locks that held the write off,
 //!  and when it was held.
 //! Why:
 //!  Git refuses a reference update at once when a lock file stands,
@@ -78,7 +78,7 @@ pub struct Held {
     /// The message the branch move writes in the reflog,
     /// byte for byte.
     pub reflog: Vec<u8>,
-    /// The locks that stood when the write was refused.
+    /// The locks that stood when the branch write did not happen.
     pub locks: Vec<PathBuf>,
     /// When the commit was held,
     /// as ISO 8601.
@@ -117,7 +117,7 @@ pub struct Holding<'a> {
     /// The batch's intent,
     /// as the landing wrote it before the branch write.
     pub intent: &'a crate::service_journal::Intent,
-    /// The locks that stood when the write was refused.
+    /// The locks that stood when the branch write did not happen.
     pub locks: Vec<PathBuf>,
     /// The message the branch move writes in the reflog,
     /// byte for byte.

@@ -213,7 +213,12 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     let path: PathBuf = path_of(owed.git_dir.as_path(), owed.seq);
     let folder: PathBuf = directory_of(owed.git_dir.as_path());
     if let Err(error) = create_private_directory_all(folder.as_path()) {
-        crate::service_error!("batch {}: the record of its owed index update cannot be made in {} ({error})", owed.seq, folder.display());
+        crate::service_error!(
+            "batch {} {}: the record of its owed index update cannot be made in {} ({error})",
+            owed.seq,
+            crate::service_timing::in_the_repository_at(owed.repository.as_path()),
+            folder.display()
+        );
         return None;
     }
     // A replay writes what the first landing wrote, and a batch built again under its own number replaces the commit it names: an
@@ -230,7 +235,12 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Some(path),
         Err(error) => {
-            crate::service_error!("batch {}: the record of its owed index update cannot be written in {} ({error})", owed.seq, path.display());
+            crate::service_error!(
+                "batch {} {}: the record of its owed index update cannot be written in {} ({error})",
+                owed.seq,
+                crate::service_timing::in_the_repository_at(owed.repository.as_path()),
+                path.display()
+            );
             None
         }
     };

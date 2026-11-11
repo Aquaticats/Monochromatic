@@ -148,11 +148,19 @@ fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
 /// once as the directory and once after `..`,
 /// so a name of half the room that is left keeps both spellings inside the longest address,
 /// and the check about the room an address needs cannot be what refuses a control of spellings.
+///  One round writes `/`,
+/// `..`,
+/// `/` and the name beside what the earlier text holds,
+/// which is four bytes and one more copy of the name:
+/// the budget therefore takes off those four and gives each copy half of the rest.
+///  Taking off three left the address one byte over the longest whenever the rest halved evenly,
+/// so the control passed or failed by the width of the process number in its scratch path
+/// (`short_parent`).
 fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
     let parent: PathBuf = short_parent();
     let longest: usize = longest_runtime_directory(INSTANCE);
-    // `/`, `..` and `/` are the three bytes one spelling adds between the two copies of the name.
-    let room: usize = longest - parent.as_os_str().len() - 1 - 3;
+    // `/`, `..` and the `/` that starts the name's second copy are the four bytes one round adds beside that copy.
+    let room: usize = longest - parent.as_os_str().len() - 1 - 4;
     let name_length: usize = room / 2;
     assert!(name_length > tag.len(), "the tag {tag:?} leaves room to pad a name of {name_length} bytes");
     return runtime_directory_of_length(parent.as_os_str().len() + 1 + name_length, tag);

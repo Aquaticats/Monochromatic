@@ -241,7 +241,14 @@ fn a_hold_the_restart_finishes_is_reported_as_finished() {
     let reports: Vec<RecoveryReport> = recover(&world.context);
     assert_eq!(
         reports,
-        vec![RecoveryReport { seq: SEQ, decision: Recovery::Finish, handled: Handled::Finished }],
+        vec![
+            RecoveryReport {
+                seq: SEQ,
+                repository: world.repo.clone(),
+                decision: Recovery::Finish,
+                handled: Handled::Finished,
+            },
+        ],
         "the batch this restart landed and finished is reported"
     );
     assert_eq!(head_of(world.repo.as_path()), held.new, "the report is about a batch whose branch really moved");

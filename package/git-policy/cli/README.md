@@ -6995,6 +6995,28 @@ console.log(hash.toString(16).padStart(32, "0"));
 ' "$(git rev-parse --absolute-git-dir)"
 ```
 
+Every line the service writes about a batch,
+a landing,
+a push or a held commit names the repository it is about,
+as `in the repository at <worktree root>`,
+beside the batch or the branch and before anything about the outcome.
+One journal covers every worktree of the machine,
+and one of them is a test's fixture,
+so a line without a repository reads as one about the repository you are in.
+A line about a commit a reference lock holds never says the commit was refused:
+the commit is kept,
+and the line says what moves it:
+the branch,
+when the lock is gone,
+and what,
+if anything,
+you may do.
+A line the landing writes when it is held says the branch has not moved yet,
+because that landing had just read it;
+a line a settlement writes from the locks alone says only that the move of the branch waits for them,
+because it read nothing else
+(see "A commit held behind a reference lock").
+
 `systemctl --user list-units --all 'monochromatic-git-policy-cli@*.service'` lists the instances that exist.
 Read the unit around the commit's `startMillis`:
 
@@ -7026,7 +7048,12 @@ A line carries its priority (`err` for something the service needed and could no
 and on some lines `CLI_GIT_REQUEST_ID`,
 `CLI_GIT_BRANCH`,
 `CLI_GIT_OUTCOME`,
-`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+`CLI_GIT_BATCH`,
+`CLI_GIT_OID` and `CLI_GIT_REPOSITORY`.
+A line about a push names the worktree whose push it is,
+as `repository=<worktree root>` beside the branch,
+or as `in the repository at <worktree root>` when it is prose,
+because one journal covers every worktree of the machine and a branch name is the same in all of them.
 When the journal is not listening or the machine's socket queue is full,
 the line goes to standard error instead,
 prefixed with its priority as `<n>` for the stream to read,
@@ -7059,7 +7086,9 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   `branch-moved` or
   `failed:<code>`.
   `batch`,
-  `size` and `position` say which requests landed together.
+  `size` and `position` say which requests landed together,
+  and `repository` names the worktree the batch landed in,
+  because one journal covers every worktree of the machine.
   The phases,
   in order of time:
   `read_ms` (the client sending its line),
@@ -7106,7 +7135,7 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   so a sum can fall short of its total by less than one per term.
   The line never holds the commit's message,
   its author or its address.
-- `waited for the index lock batch=<n> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
+- `waited for the index lock batch=<n> repository=<worktree root> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
   found held or when flushing the marker or waiting took a second or more,
   at the moment the wait ends;
   it carries the same `lock_*` fields as the `answered` line,
@@ -7119,7 +7148,7 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   after a colon),
   `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>`
   say the other work ran,
-  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`)
+  and `settled the batch an earlier service left open in the repository at <worktree root> batch=<n> decision=finish|hold|drop` (a `warning`)
   comes for each batch a restart found open.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,

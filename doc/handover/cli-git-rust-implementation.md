@@ -263,6 +263,25 @@ and one each in `service_durable.rs`,
 `worktree_remove_hand_over_tests.rs`,
 `worktree_copy_source_still_being_filled_tests.rs`,
 and `service_work_drain_pending_claims.rs`).
+### 0.6.1-alpha.10 dispatched, and the alpha.11 integration gated (2026-11-11T07:01:28-05:00)
+
+The alpha.10 gate on `b96767962c` ran 7574 tests: 7573 passed, 1 failed,
+`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive` (the test watchdog's own control, in 5.2 s),
+so it shipped under "Alphas don't even have to resolve all flakes." and "Release now, fixes in alpha.11".
+That failure is not yet rerun alone.
+The integration merged into `main` as `84b67256a7`;
+`native:clippy` on `main` then refused `clippy::manual_map` at `worktree_copy_prune.rs:319`, fixed in `574063773d`, and passed on the rerun.
+`native:release -- 0.6.1-alpha.9 0.6.1-alpha.10` runs in unit `gpc-release-0-6-1-alpha-10`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.10.log`; its host gate runs `native:test:host:btrfs` first).
+
+For alpha.11, pass 8 of `integrate-jam-fixes-after-alpha-9.ts` merged ten branches onto `main` at `7b9eba790e`.
+Two type errors where they met were fixed in `a735f75caa`.
+The landed-worktree sweep now removes nothing when a held commit could not be kept, and reports the refusal as its reason.
+A `clippy::ptr_arg` was fixed in `82829a1696`, and Clippy is clean there.
+Two branches conflicted and went back to their agents (round 166):
+`fix/git-policy-cli-commands-never-wait-on-or-fail-with-a-silent-service` (`wait_ceilings_tests.rs`)
+and `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings` (the merge carry files).
+Gate `gpc-gate-alpha-11-on-82829a1696-20261111T070128-0500` runs on `82829a1696`.
 
 ### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
 ### A Kimi K3.1 Pro review of the pull's printed remedies: two findings, both reproduced and fixed (2026-11-11T15:13:43-05:00)
@@ -675,25 +694,7 @@ The owner's earlier question in `doc/handover/questions-for-the-owner.md`
 ("The automatic push and a commit a policy blocked") is untouched by this branch:
 a person's own push is still unchanged,
 and only the automatic push stops.
-### 0.6.1-alpha.10 dispatched, and the alpha.11 integration gated (2026-11-11T07:01:28-05:00)
 
-The alpha.10 gate on `b96767962c` ran 7574 tests: 7573 passed, 1 failed,
-`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive` (the test watchdog's own control, in 5.2 s),
-so it shipped under "Alphas don't even have to resolve all flakes." and "Release now, fixes in alpha.11".
-That failure is not yet rerun alone.
-The integration merged into `main` as `84b67256a7`;
-`native:clippy` on `main` then refused `clippy::manual_map` at `worktree_copy_prune.rs:319`, fixed in `574063773d`, and passed on the rerun.
-`native:release -- 0.6.1-alpha.9 0.6.1-alpha.10` runs in unit `gpc-release-0-6-1-alpha-10`
-(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.10.log`; its host gate runs `native:test:host:btrfs` first).
-
-For alpha.11, pass 8 of `integrate-jam-fixes-after-alpha-9.ts` merged ten branches onto `main` at `7b9eba790e`.
-Two type errors where they met were fixed in `a735f75caa`.
-The landed-worktree sweep now removes nothing when a held commit could not be kept, and reports the refusal as its reason.
-A `clippy::ptr_arg` was fixed in `82829a1696`, and Clippy is clean there.
-Two branches conflicted and went back to their agents (round 166):
-`fix/git-policy-cli-commands-never-wait-on-or-fail-with-a-silent-service` (`wait_ceilings_tests.rs`)
-and `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings` (the merge carry files).
-Gate `gpc-gate-alpha-11-on-82829a1696-20261111T070128-0500` runs on `82829a1696`.
 ### Two Kimi K3.1 Pro gate findings on the sweep helper and the descriptor search: both real, both fixed (2026-11-11T10:17:24-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-commit-at-the-descriptor-ceiling-lands`,
@@ -1289,6 +1290,14 @@ panicked at src/native/landing/service_land_finish_held_settlement_tests.rs:197:
 the index update the landed commit owes is kept: <repo>/.git/monochromatic-git-policy-cli/work/owed/1.owed
 ([RecoveryReport { seq: 1, decision: Drop, handled: Dropped }])
 ```
+
+The two batch lines above are quoted as `3b0a23017e` printed them.
+Since 2026-11-11 they name the repository of the batch (`in the repository at <worktree root>`)
+and the held one says the commit is kept and the branch has not moved yet,
+never that the write was refused
+(`package/git-policy/cli/SPEC.md`,
+"Timing logs";
+`package/git-policy/cli/src/native/landing/held_commit_settle_outcomes.rs`).
 
 The fix asks whether a held record was there before the settlement,
 and after a settlement that finished it,
