@@ -261,8 +261,18 @@ async function settledWithinBound<T>({
  @example
  ```ts
  await runGateChecks({
-   testRun: () => runCommand({ command: 'podman', args: ['run', ...limits, image] }),
-   clippyRun: () => runCommand({ command: 'podman', args: [...clippyArguments], capture: true, allowFailure: true }),
+   testRun: deadlineMilliseconds => runCommand({
+     command: 'podman',
+     args: ['run', ...limits, image],
+     deadlineMilliseconds,
+   }),
+   clippyRun: deadlineMilliseconds => runCommand({
+     command: 'podman',
+     args: [...clippyArguments],
+     capture: true,
+     allowFailure: true,
+     deadlineMilliseconds,
+   }),
  });
  ```
  */
