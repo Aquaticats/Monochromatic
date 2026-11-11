@@ -397,8 +397,8 @@ fn a_relative_search_path_is_recorded_against_the_adds_directory() {
     let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
     let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written).expect("the record");
     let recorded: SearchPathOfTheAdd = decode(item.parent.as_str()).expect("the entry").search_path;
-    let SearchPathOfTheAdd::Set(named) = recorded else { panic!("the record carries a search path: {recorded:?}") };
-    let named: PathBuf = PathBuf::from(named);
+    let SearchPathOfTheAdd::Set(recorded_path) = recorded else { panic!("the record carries a search path: {recorded:?}") };
+    let named: PathBuf = PathBuf::from(recorded_path);
     assert!(named.is_absolute(), "the record names a search path that means nothing outside the add's directory: {}", named.display());
     assert!(named.ends_with("bin"), "{}", named.display());
     remove(root.as_path());

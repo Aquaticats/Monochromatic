@@ -409,7 +409,7 @@ fn toolchain_tool(scene: &Scene, label: &str) -> String {
 fn an_add_with_no_search_path_does_not_borrow_the_services_path() {
     let scene: Scene = scene("relink-job-no-add-search-path");
     let own_link: PathBuf = scene.worktree.join(".cache/toolchain-bin/mpm-shadow");
-    std::fs::create_dir_all(own_link.parent().expect("the link's directory").to_path_buf()).expect("the worktree's toolchain link directory");
+    std::fs::create_dir_all(own_link.parent().expect("the link's directory")).expect("the worktree's toolchain link directory");
     executable(own_link.as_path(), toolchain_tool(&scene, "own-link").as_bytes());
     let service_bin: PathBuf = scene.root.join("service-bin");
     std::fs::create_dir_all(service_bin.as_path()).expect("the service's own search path");

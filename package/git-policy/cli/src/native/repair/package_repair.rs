@@ -344,8 +344,8 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
             // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
             //  worktree this record names rather than nothing at all.
-            if let Some(queued) = queued {
-                queued.take_back();
+            if let Some(still_queued) = queued {
+                still_queued.take_back();
             }
             findings.pnpm.extend(here.pnpm);
             findings.toolchain.extend(here.toolchain);

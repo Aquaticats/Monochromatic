@@ -298,7 +298,7 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 /// and a search path that cannot be written back.
 fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry, String> {
     let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else { return Ok(entry.clone()) };
-    let relative: bool = std::env::split_paths(search_path).any(|directory| !directory.as_os_str().is_empty() && !directory.is_absolute());
+    let relative: bool = std::env::split_paths(search_path).any(|directory| return !directory.as_os_str().is_empty() && !directory.is_absolute());
     if !relative {
         return Ok(entry.clone());
     }
@@ -330,14 +330,14 @@ fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry
 /// ```
 pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<WorkItem, String> {
     let created: String = now_iso();
-    let entry: RelinkEntry = entry_with_an_absolute_search_path(entry)?;
+    let recorded: RelinkEntry = entry_with_an_absolute_search_path(entry)?;
     return Ok(WorkItem {
         kind: WorkKind::Relink,
         repository: destination.to_path_buf(),
         git_dir: common_dir.to_path_buf(),
         branch_ref: String::from(RELINK_REFERENCE),
         oid: object_name_of(destination, created.as_str()),
-        parent: encode(&entry)?,
+        parent: encode(&recorded)?,
         created,
         tries: 0,
     });
