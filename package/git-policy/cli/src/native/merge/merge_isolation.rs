@@ -269,7 +269,8 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
     // The paths whose own work the merge would write over: everything Git's status reports, untracked files included, because
-    //  a merge that adds a path an untracked file stands at is refused by Git too. They are read once here, before the merge
+    //  a merge that adds a path an untracked file stands at is refused by Git too, and the ignored untracked files of the
+    //  person's, which no status lists and which the merge overwrites without a word. They are read once here, before the merge
     //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
