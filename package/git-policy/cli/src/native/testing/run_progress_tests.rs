@@ -218,7 +218,8 @@ fn a_task_that_keeps_moving_keeps_the_run_alive_though_the_totals_fall() {
 /// How much the worker of the control above moves at every look.
 const WORKER_MOVES: u64 = 100;
 
-/// What the task of the first look above had moved, before each successor of it moved less.
+/// What the task of the first look above had moved,
+/// before each successor of it moved less.
 const THE_TASK_BEFORE_HAD_MOVED: u64 = 10_000;
 
 /// How much less than its predecessor each task of the control above moved.
@@ -420,9 +421,9 @@ fn run_child_with_stderr_within(name: &str, stderr: std::process::Stdio, deadlin
             None => std::thread::sleep(Duration::from_millis(100)),
         }
     };
-    let stdout: Vec<u8> = read_a_pipe_until_it_ends(child.stdout.take());
-    let stderr: Vec<u8> = read_a_pipe_until_it_ends(child.stderr.take());
-    return Some(std::process::Output { status, stdout, stderr });
+    let collected_out: Vec<u8> = read_a_pipe_until_it_ends(child.stdout.take());
+    let collected_err: Vec<u8> = read_a_pipe_until_it_ends(child.stderr.take());
+    return Some(std::process::Output { status, stdout: collected_out, stderr: collected_err });
 }
 
 /// What:
@@ -442,8 +443,8 @@ fn run_child_with_stderr_within(name: &str, stderr: std::process::Stdio, deadlin
 /// function drain(pipe) { const bytes = []; for (;;) { const chunk = read(pipe, { nonBlocking: true }); if (chunk.length === 0) return bytes; bytes.push(...chunk) } }
 /// ```
 fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRawFd>) -> Vec<u8> {
-    let Some(mut pipe) = pipe else { return Vec::new() };
-    let descriptor: std::os::fd::RawFd = pipe.as_raw_fd();
+    let Some(mut unending) = pipe else { return Vec::new() };
+    let descriptor: std::os::fd::RawFd = unending.as_raw_fd();
     // SAFETY: the descriptor belongs to `pipe`, which outlives both calls, and neither takes a pointer.
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
     if flags < 0 {
@@ -456,7 +457,7 @@ fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRa
     let mut collected: Vec<u8> = Vec::new();
     let mut buffer: [u8; 8_192] = [0; 8_192];
     loop {
-        match pipe.read(buffer.as_mut_slice()) {
+        match unending.read(buffer.as_mut_slice()) {
             // The pipe ended, so everything the child wrote has been read.
             Ok(0) => return collected,
             Ok(read) => collected.extend_from_slice(buffer.get(..read).unwrap_or(buffer.as_slice())),
@@ -650,7 +651,8 @@ fn child_that_waits_under_the_watchdog() {
 /// How long the child of the control below leaves a process holding its output open.
 /// It is far longer than the start of a child test on this host (measured at up to 11 s under load),
 /// so a collection that waits for the end of the pipe cannot pass by accident,
-/// and the control ends that process itself, so nothing of the run outlives it.
+/// and the control ends that process itself,
+/// so nothing of the run outlives it.
 const PIPE_HOLDER_LIFE: Duration = Duration::from_secs(60);
 
 /// How long the control below lets the collection of a child's output take before it counts the wait as unbounded.
@@ -664,12 +666,16 @@ const OUTPUT_COLLECTION_ALLOWED: Duration = Duration::from_secs(20);
 #[ignore = "started by a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output in a process of its own"]
 fn child_that_leaves_a_pipe_holder() {
     forbid_core_dumps();
-    let holder: std::process::Child = std::process::Command::new("sleep")
-        .arg(PIPE_HOLDER_LIFE.as_secs().to_string())
-        .spawn()
-        .expect("a process that holds this child's output starts");
-    // The parent ends this process once it has read this line, so nothing of the run outlives the control.
-    println!("holder {}", holder.id());
+    // A shell starts the holder in the background and says its number;
+    // the shell itself ends at once,
+    // so the holder outlives this child and keeps the child's output open.
+    // The parent ends the holder once it has read the line,
+    // so nothing of the run outlives the control.
+    let shell: std::process::ExitStatus = std::process::Command::new("sh")
+        .args(["-c", format!("sleep {} & echo \"holder $!\"", PIPE_HOLDER_LIFE.as_secs()).as_str()])
+        .status()
+        .expect("a shell starts a process that holds this child's output");
+    assert!(shell.success(), "the shell that starts the holder ended with {shell}");
 }
 
 /// What:
