@@ -220,24 +220,37 @@ and the brief's 984/522 was taken at 08:55.
 
 ## Verification
 
-The controls that fail before these changes and pass after them:
+The controls, and the state each one fails in before the change it judges:
 
 - `a_worktree_whose_whole_repository_was_deleted_is_gone`
-  (`src/native/service/service_units_of_removed_worktrees_tests.rs`):
-  fails with "the directory that held the repository holds other entries" on the old rule.
+  (`src/native/service/service_units_of_removed_worktrees_tests.rs`)
+  fails with the old rule put back,
+  at the assertion "the directory that held the repository holds other entries, so the repository was deleted and nothing is left to serve".
 - `a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted`
-  (`src/native/service/service_server_own_worktree_tests.rs`):
-  fails on the old arm order, where the busy answer kept the service alive.
+  (`src/native/service/service_server_own_worktree_tests.rs`)
+  fails with the old arm order put back,
+  after its own minute of patience:
+  "a planned push for a repository that is gone kept the service alive after its check".
 - `a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes`
   and `a_journal_that_keeps_a_plan_of_a_repository_that_is_there_stays`
-  (`src/native/service/service_units_of_removed_worktrees_tests.rs`).
-- `a_plan_of_a_deleted_repository_ends_and_the_plans_of_repositories_that_are_there_stay`
-  (`src/native/service/service_plans_of_a_gone_repository_tests.rs`).
+  (`src/native/service/service_units_of_removed_worktrees_tests.rs`)
+  fail with the plan ending taken out of the stop:
+  the journal is kept "because it holds push-retries, a folder this release does not know",
+  and both plans stay.
+  The plans' own control
+  (`a_plan_of_a_deleted_repository_ends_and_the_plans_of_repositories_that_are_there_stay`,
+  `src/native/service/service_plans_of_a_gone_repository_tests.rs`)
+  has no state before the module exists;
+  it holds the rule of the new function,
+  and the two controls above hold its use.
 - `a_service_the_manager_made_elsewhere_is_refused_with_both_addresses`
-  (`src/native/service/service_provision_refusals_before_the_wait_tests.rs`):
-  now also asserts that nothing was started.
+  (`src/native/service/service_provision_refusals_before_the_wait_tests.rs`)
+  fails with the pre-start question taken out:
+  "nothing was started in a manager that serves another runtime directory: [`within 20`, `start monochromatic-git-policy-cli@0123….socket`]".
 - `a_service_a_control_starts_is_never_handed_the_manager_of_its_parent`
-  (`src/native/binary/binary_service_tests.rs`).
+  (`src/native/binary/binary_service_tests.rs`)
+  fails with the support's two removals taken out:
+  the stand-in bus accepts the connection the service made.
 
 The measured before and after for the rule itself is the two counts above:
 34 units found by the old rule,

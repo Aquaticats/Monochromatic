@@ -95,3 +95,12 @@ The controls of the proof itself are
 `a_path_behind_an_unmounted_mount_point_may_return`,
 `the_root_of_a_mounted_filesystem_proves_the_repository_gone` and
 `the_line_names_the_path_the_proof_and_the_branches`.
+
+## The same proof decides the units of the gone worktree
+
+The units of the same deleted repositories kept a socket listening and a service retrying,
+because the proof was asked about the plans alone.
+Since 2026-11-11 the units and the sweep ask it too
+(`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`),
+so a worktree whose repository this proof says is gone loses its socket,
+and the plans of that repository end with one journal line instead of another try.
