@@ -271,6 +271,24 @@ answers where they carry over.
   whose name marks it media
   (`image`, `video`, `audio`, `tts`, `asr`, `realtime`)
   is skipped rather than served as chat.
+- **DSH credential seam is structural** (decided 2026-11-11T06:05:00-05:00):
+  the fetch module types the credentials service by its one `resolve` call,
+  mirroring `NeuralWattSettingsTarget`,
+  instead of importing `@deepseek-ai/dsh-credentials`.
+  Rationale measured then ruled:
+  the sibling's production source imports `@deepseek-ai/*` as types only
+  (its sole value import sits in a characterization test),
+  `brandString` is identity at runtime,
+  and the host's own `apiKeyEnv` seam reads `hit.value` with a fallback,
+  which the structural call matches.
+  `credentialRef` does validate the reference name and throws `TypeError`
+  on a malformed one before branding;
+  the shipped constant matches the grammar,
+  so the branded call and the raw string resolve identically.
+  The package keeps `peerDependencies` plus `devDependencies`
+  for `@deepseek-ai/cordis`, `@deepseek-ai/dsh-llm-pi-ai`,
+  and `@deepseek-ai/dsh-settings`,
+  mirroring `package/dsh-plugin/neuralwatt/package.json`.
 
 ## Shared core export surface
 
