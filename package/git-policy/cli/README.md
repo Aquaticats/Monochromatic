@@ -2550,7 +2550,8 @@ and an editor can change any remote setting,
 so `--edit` with `--global`,
 `--system`,
 `--worktree` or a `--file` of its own is what runs.
-The `edit` subcommand takes no argument ("wrong number of arguments, should be 0"),
+The `edit` subcommand takes no argument ("wrong number of arguments,
+should be 0"),
 so `git config edit <key>` keeps Git's own refusal.
 A setting that is not a remote setting can always be named from the worktree:
 `git config <key> <value>`.

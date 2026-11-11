@@ -340,7 +340,8 @@ fn config_file(parsed: &ParsedOptions) -> ConfigFile {
 ///  `--blob` names a
 ///       stored object and never a file,
 ///  so a region that states both names neither.
-///  The last use wins, as Git's own
+///  The last use wins,
+/// as Git's own
 ///       variables do.
 ///  A region that names several files runs nothing,
 ///  so the caller reads the path only of the one file

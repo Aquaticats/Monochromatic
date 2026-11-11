@@ -125,7 +125,8 @@ pub enum SharedRemoteWrite {
 
 /// What:
 ///  The write a command would make to the remote settings every worktree of the repository
-///  shares, and the file it names for it.
+///  shares,
+/// and the file it names for it.
 ///  `Option<PathBuf>` is the path the command named,
 ///  when it named one.
 /// Why:
