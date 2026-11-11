@@ -13148,6 +13148,10 @@ a copy whose bytes the branch's own commit holds for that path is removed with t
 `git restore` command that reaches those bytes,
 and any other copy stays,
 is named on standard error with `mv` and `rm` as the two commands that end it,
+with both paths in them quoted the way a shell reads a word back
+(`crate::shell_quote`,
+the one owner of that spelling,
+`commands_that_end_the_copy` in `src/native/merge/merge_isolation_carry_writes.rs`),
 and is removed the moment the file at its path holds its bytes again;
 a copy whose bytes nothing else holds is the person's alone,
 and no command decides it for them;
