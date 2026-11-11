@@ -10436,6 +10436,15 @@ because nothing scans `failed`:
 a kill in between would abandon the branch in silence
 (`requeue_expired_reporting_telling`).
 
+A push record names its branch in text,
+so a commit on a branch whose name is not text leaves none:
+a spelling with replacement characters would push another branch.
+The commit lands as any other,
+and the command says once that the automatic push was not queued,
+naming the branch in the `$'...'` form and saying that a push the person makes sends it
+(`src/native/landing/service_handoff.rs`,
+`src/native/service/service_server_land_group_owed_pushes.rs`).
+
 A push record's id is its name and its idempotency key:
 the kind,
 the landed object and,
@@ -11446,6 +11455,16 @@ and the time of invocation.
 One configuration listing read at that moment serves every later decision of the commit.
 A worktree whose `HEAD` leaves the recorded branch before the landing fails the commit with a plain message
 and the message the person typed saved in a file.
+Every name is bytes:
+the symbolic `HEAD` and its target are read from Git's answer unchanged,
+so a branch whose name holds a byte that is not UTF-8 is captured,
+recorded, prepared and moved as that name,
+and every message shows it in the `$'...'` form a shell reads back
+(`src/native/foundation/ref_name.rs`).
+The same holds for the arguments of the command:
+a message, a message file's name or a `--pathspec-from-file` name reaches real Git with the bytes the person typed
+(`src/native/commit/commit_args.rs`,
+`src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs`).
 
 The capture's own `rev-parse` report names the repository the caller selected
 (`--git-dir`,

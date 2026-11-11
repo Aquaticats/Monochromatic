@@ -7,7 +7,7 @@
 //!  (`topic-\xff` is an ordinary branch),
 //!  and a spelling with replacement characters names another ref.
 //!  Reading `git symbolic-ref HEAD` as text therefore failed a commit Git itself makes
-//!  (`doc/troubleshooting/git-policy-cli-ref-names-are-bytes.md`),
+//!  (`doc/troubleshooting/cli-git-arbitrary-bytes-in-messages-paths-and-ref-names.md`),
 //!  and writing such a spelling into a record would move a different branch after a recovery.
 //!  The name is kept as an `OsString`,
 //! which holds the operating system's own bytes on Unix,
