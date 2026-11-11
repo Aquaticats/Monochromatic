@@ -52,7 +52,7 @@ use crate::lfs_interactive::{InteractiveUpload, upload_first};
 /// planned and run inside this process.
 use crate::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
-use crate::manual_push_probe::probe_manual_push_updates;
+use crate::manual_push_probe::{PushUpdate, probe_manual_push_updates};
 /// The settled or plain run of the forwarded command.
 use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// Owned OS strings for Git arguments.
@@ -122,6 +122,20 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 }
 
 /// What:
+///  Whether one update of a re-probed push finds its destination already holding the object it sends.
+/// Why:
+///   A destination that holds the value an update sends leaves nothing to publish,
+/// so a failed push whose every update is like that delivered everything it was asked to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const alreadyHoldsItsObject = (update) => update.remoteOid === update.localOid;
+/// ```
+fn already_holds_its_object(update: &PushUpdate) -> bool {
+    return update.remote_oid == update.local_oid;
+}
+
+/// What:
 ///  Integrate the remote's new commits after an explicit push failed,
 /// or say nothing when the failure was no divergence.
 ///  `Option<i32>` is "the new exit status,
@@ -166,7 +180,7 @@ pub fn stack_failed_push(
     // Why:  the commit's own auto-push publishes the same branch while a typed push is on its way, so the origin can refuse
     //       that push for an expectation only the auto-push outran (`cannot lock ref ...: is at X but expected Y`); native
     //       Git answers "Everything up-to-date" with status zero for the same state, so this push ends that way and says why.
-    if updates.iter().all(|update| update.remote_oid == update.local_oid) {
+    if updates.iter().all(already_holds_its_object) {
         // Terminal output error: the report is advisory; the exit status already carries the result.
         let _written = writeln!(
             err,

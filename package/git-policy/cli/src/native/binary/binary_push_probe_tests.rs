@@ -86,29 +86,33 @@ fn the_ways_to_set_an_upstream_publish_and_set_it() {
     remove_settled(&fixture);
 }
 
-/// A directory of Git's own helpers whose `git-upload-pack` first publishes the branch from the fixture's
-/// repository, then answers as Git's own does.
 /// What:
-///  The one thing that can move a destination between the probe's dry run and its confirmation, deterministically:
-/// the commit's own auto-push publishing the same commit.
+///  A directory of Git's own helpers whose `git-upload-pack` first publishes the branch from the fixture's repository,
+/// then answers as Git's own does.
 /// Why:
-///   The report's refusal ("Remote ref changed during manual-push discovery") needs that ordering, and a sleep or a
-/// race decides it by luck; a replaced transport helper decides it by construction.
-/// The directory holds a link to every helper Git has, so nothing else changes about the Git the wrapper runs,
-/// and the helper publishes once, so a second read of the same remote changes nothing.
+///   The one thing that can move a destination between the probe's dry run and its confirmation,
+/// deterministically:
+/// the commit's own auto-push publishing the same commit.
+/// The refusal the report names ("Remote ref changed during manual-push discovery") needs that ordering,
+/// and a sleep or a race decides it by luck;
+/// a replaced transport helper decides it by construction.
+/// The directory holds a link to every helper Git has,
+/// so nothing else changes about the Git the wrapper runs,
+/// and the helper publishes once,
+/// so a second read of the same remote changes nothing.
 fn publish_on_the_first_read(fixture: &Fixture, repo: &Path) -> PathBuf {
     let helpers: String = String::from_utf8_lossy(&git(fixture, fixture.root.as_path(), &["--exec-path"]).stdout)
         .trim()
         .to_owned();
     let directory: PathBuf = fixture.root.join("exec");
     std::fs::create_dir_all(&directory).expect("exec directory");
-    for entry in std::fs::read_dir(&helpers).expect("Git's helpers") {
-        let entry = entry.expect("helper entry");
-        let name: OsString = entry.file_name();
+    for listed in std::fs::read_dir(&helpers).expect("Git's helpers") {
+        let helper = listed.expect("helper entry");
+        let name: OsString = helper.file_name();
         if name == "git-upload-pack" {
             continue;
         }
-        std::os::unix::fs::symlink(entry.path(), directory.join(&name)).expect("helper link");
+        std::os::unix::fs::symlink(helper.path(), directory.join(&name)).expect("helper link");
     }
     let marker: PathBuf = fixture.root.join("published-first.txt");
     executable(
@@ -130,8 +134,10 @@ fn publish_on_the_first_read(fixture: &Fixture, repo: &Path) -> PathBuf {
 }
 
 /// A commit the origin does not have yet reaches the origin by the commit's own auto-push while the person's
-/// `git push` is on its way, and that push ends with success:
-/// the origin holds what it sends, so nothing is left to publish.
+/// `git push` is on its way,
+/// and that push ends with success:
+/// the origin holds what it sends,
+/// so nothing is left to publish.
 #[test]
 fn a_push_the_auto_push_published_first_sends_nothing_and_succeeds() {
     let fixture: Fixture = fixture("push-probe-published-first");

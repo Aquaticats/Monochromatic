@@ -217,7 +217,8 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
 /// A hook that holds the first push that reaches the origin and lets every later one through:
 /// the push the person typed stands in the origin's `pre-receive` after advertising the value it sends,
 /// which is the window the commit's own auto-push lands in.
-/// `mkdir` decides which push is the first, because it is the one step two hooks cannot both win.
+/// `mkdir` decides which push is the first,
+/// because it is the one step two hooks cannot both win.
 fn install_holding_hook(origin: &Path, gate: &Path, started: &Path) {
     let hook: PathBuf = origin.join("hooks").join("pre-receive");
     std::fs::write(
@@ -238,7 +239,9 @@ fn install_holding_hook(origin: &Path, gate: &Path, started: &Path) {
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("hook mode");
 }
 
-/// Wait, bounded, until `path` exists.
+/// Wait,
+/// bounded,
+/// until `path` exists.
 fn wait_for(path: &Path) {
     let began = std::time::Instant::now();
     while !path.exists() {

@@ -14724,7 +14724,8 @@ and that update adds nothing to the scan:
 the commit's own auto-push publishes the same commit while a typed push is on its way,
 which is the one push that can change a destination between those two reads,
 and nothing is left for the typed push to publish
-(`src/native/push/manual_push_probe.rs`, `confirm_group`).
+(`src/native/push/manual_push_probe.rs`,
+`confirm_group`).
 A destination that moved to any other value stays the `remote-moved` failure below.
 The probe adds `--no-quiet` to its copy of the options,
 because `-q` empties the report,
