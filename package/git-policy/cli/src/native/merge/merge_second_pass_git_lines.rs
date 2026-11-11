@@ -32,9 +32,9 @@ use crate::merge_second_pass_line_regions::{MarkerLabels, cut, lines_before, off
 use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
 
 /// How many conflicts Git counts in its exit status at most:
-/// a merge with more exits 127 as well,
-/// so a count of 127 is "127 or more".
-const CONFLICT_STATUS_CEILING: usize = 127;
+/// a merge with more conflicts exits with this status as well,
+/// so a status of `CONFLICT_STATUS_CEILING` means that many or more.
+const CONFLICT_STATUS_CEILING: i32 = 127;
 
 /// What:
 ///  The merge of one candidate file:
@@ -103,17 +103,18 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
         // A merge with no conflict left is Git's clean answer, and there is no region to word-merge.
         Some(0) => return Ok(WordMerge::Resolved { merged: reply.stdout, parts: Vec::new() }),
         // The exit status of `git merge-file` is the number of conflicts, truncated to 127.
-        Some(count) if (1..=127).contains(&count) => usize::try_from(count).expect("a conflict count is positive"),
+        Some(count) if (1..=CONFLICT_STATUS_CEILING).contains(&count) => usize::try_from(count).expect("a conflict count is positive"),
         other => return Err(format!("git merge-file answered with {other:?}: {}", String::from_utf8_lossy(&reply.stderr).trim())),
     };
     let cut = cut(reply.stdout.as_slice(), &labels)?;
+    let ceiling: usize = usize::try_from(CONFLICT_STATUS_CEILING).expect("the conflict status ceiling is positive");
     // Git reports the number of conflicts as its exit status, so a cut that finds another number read the answer wrongly.
     // The status stops counting at its ceiling, so at that count the answer may hold more regions than Git counted, never
     // fewer.
-    if conflicts < CONFLICT_STATUS_CEILING && cut.regions.len() != conflicts {
+    if conflicts < ceiling && cut.regions.len() != conflicts {
         return Err(format!("git merge-file reported {conflicts} conflicts and its answer holds {}", cut.regions.len()));
     }
-    if conflicts == CONFLICT_STATUS_CEILING && cut.regions.len() < conflicts {
+    if conflicts == ceiling && cut.regions.len() < conflicts {
         return Err(format!("git merge-file reported {conflicts} or more conflicts and its answer holds {}", cut.regions.len()));
     }
     let mut merged: Vec<u8> = Vec::new();
