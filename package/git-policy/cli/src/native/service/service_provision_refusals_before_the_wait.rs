@@ -1,6 +1,7 @@
 //! What:
-//!  The three states in which provisioning already knows that no service can answer this command,
-//! and says so at once.
+//!  The two states in which provisioning already knows that no service can answer this command,
+//! and says so at once,
+//! with the words helper the third one (a runtime directory that cannot be written) needs.
 //! Why:
 //!  The client's wait for a start ends at `START_CEILING`,
 //! one minute,
@@ -8,12 +9,14 @@
 //! so a case that can never come right spent two minutes before the command said
 //!  "The commit service did not start" and nothing about the cause.
 //! Each fact below is known before anything is waited for:
-//! the runtime directory is this command's own (the unit its `%t` names is the manager's),
 //! the address the kernel must bind is longer than any address can be,
 //! and the manager's answer about the address it made says whether it is the one this command looks
-//!  for.
+//!  for,
+//! because the unit names its address with `%t` and `%t` is the manager's runtime directory.
 //! Every refusal names the input that has to change and every way to change it,
 //! and every check has a control that proves it lets a working arrangement through.
+//! A session bus with no user service manager behind it is the third such state,
+//! and its words live beside the mapping that chooses them (`service_provision_host_and_manager.rs`).
 
 use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_path, socket_unit_instance};
 use crate::service_messages::ClientFailure;
@@ -79,10 +82,6 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
         // A manager that holds no unit yet, or cannot read the property, proves nothing either way.
         _nothing_said => return Ok(()),
     };
-    let made: &String = match addresses.first() {
-        Some(first) => first,
-        None => return Ok(()),
-    };
     // One of the addresses the manager made is the one this command waits at, which is the arrangement every healthy commit
     //  has; the walk is written out because the closure the linter refuses would capture `looked_for` for nothing.
     for address in &addresses {
@@ -90,6 +89,7 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
             return Ok(());
         }
     }
+    let Some(made) = addresses.first() else { return Ok(()) };
     let manager_runtime: PathBuf = runtime_directory_of_an_address(Path::new(made.as_str()));
     return Err(ClientFailure::ServiceElsewhere {
         made: made.clone(),
