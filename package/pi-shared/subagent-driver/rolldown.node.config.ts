@@ -22,6 +22,7 @@ const config: NodeFlavorConfig = nodeConfig({
     'list-running-units-whose-worktree-is-gone': './src/list-running-units-whose-worktree-is-gone.ts',
     'print-the-final-report-of-the-newest-run-of-each-agent':
       './src/print-the-final-report-of-the-newest-run-of-each-agent.ts',
+    'list-launchers-whose-unit-has-ended': './src/list-launchers-whose-unit-has-ended.ts',
   },
 },);
 

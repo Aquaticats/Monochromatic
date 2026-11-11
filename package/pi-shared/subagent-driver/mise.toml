@@ -130,3 +130,13 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('print-the-final-report-of-the-newest-run-of-each-agent')
 """
+
+[tasks."list-launchers-whose-unit-has-ended"]
+description = "Name every launcher still running although its unit has ended, and with --stop end each of them, children first"
+usage = 'arg "[args]" var=#true help="[--launcher-entry=<basename>]... [--minimum-age-seconds=<n>] [--stop]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-launchers-whose-unit-has-ended')
+"""

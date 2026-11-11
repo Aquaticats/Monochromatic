@@ -197,6 +197,28 @@ export {
 } from './watch-for-overdue-runs.ts';
 
 /**
+ The launchers that outlived their units: which processes are launchers, which of them have outlived a unit that ended, and the
+ order they are ended in. The command is `list-launchers-whose-unit-has-ended.ts`.
+ */
+export {
+  LAUNCHER_MINIMUM_AGE_SECONDS,
+  type LauncherPastItsUnit,
+  type LauncherProcess,
+  type SignalProcess,
+  STOP_SIGNAL,
+  childrenOf,
+  launcherLineOf,
+  launchersIn,
+  launchersPastTheirUnits,
+  optionWordOf,
+  signalFailureLineOf,
+  stopLaunchers,
+  stopTargetsOf,
+  wordsInCommand,
+} from './launchers-whose-unit-has-ended.ts';
+export { unitStateIsRunning, } from './wait-for-a-unit-to-end.ts';
+
+/**
  The commands that read what is going on: the processes whose command line holds a text, the running units whose worktree a
  removal or a merge took away, and the final report of each agent's newest finished run.
  */

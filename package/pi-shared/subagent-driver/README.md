@@ -249,6 +249,31 @@ and `no process whose command line holds <text>` when nothing matches.
 It reads command lines and never an environment,
 and it never names its own process.
 
+### `list-launchers-whose-unit-has-ended`
+
+`--launcher-entry`,
+repeatable, the basename a launcher is run as
+(this package's launcher and the scratch one it replaced by default);
+`--minimum-age-seconds`, one hour by default;
+and `--stop`, which ends each launcher it names.
+
+```text
+# --minimum-age-seconds=3600
+copy-route: unit inactive, launcher 12 started 120 min ago, children 20:systemd-run
+```
+
+A launcher that outlived its unit makes the pool gate answer `ALREADY RUNNING` for that run's name
+and holds that run's slot,
+and it waits on a waiter that never heard the unit end.
+The age matters because a launcher makes a worktree and links dependencies before its unit exists,
+so one younger than the minimum may simply not have got there yet.
+
+`--stop` sends `SIGTERM` to each child before the launcher itself,
+because ending the launcher alone can leave its waiter holding the unit's name.
+A launcher whose unit's state could not be read is never ended:
+a manager that could not be asked says nothing about the unit,
+and it is printed only when it is listed, not acted on.
+
 ### `list-running-units-whose-worktree-is-gone`
 
 `--checkout-folder`,
