@@ -412,8 +412,11 @@ git monochromatic-git-policy-cli doctor
 
 `service`,
 `migrate-to-subvolume` and
-`convert-worktree-to-subvolume` are the other subcommands,
-each with its own `--help`.
+`convert-worktree-to-subvolume` are the other subcommands.
+The two subvolume commands each have their own `--help`,
+and `service` takes one of `status`,
+`settle-earlier-batches` or
+`stop-units-of-removed-worktrees`.
 Management parsing uses the internal argv region parser.
 Namespace help writes human-readable stdout and exits `0` before real-Git resolution,
 transaction recovery,

@@ -71,7 +71,7 @@ Shipped across three commits:
    the two Node tasks became the root `monochromatic-lint` tasks on 2026-10-06
    (`0b49ae109e`),
    and that default is now
-  `package/linter/monochromatic-lint/src/cli_options.rs`).
+  `package/linter/monochromatic-lint/src/path_inputs.rs`).
 - Root `catalog:tighten` (its entry reads `--dry-run` from argv;
    matches the
   README's documented `mise run catalog:tighten -- --dry-run`).
