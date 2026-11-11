@@ -15,9 +15,16 @@
 export const BUILD_VOLUME: string = '/var/mnt/encrypted';
 
 /**
+ How many bytes one kibibyte is, which is the unit the bigger ones are counted in.
+ */
+export const BYTES_IN_A_KIBIBYTE = 1_024;
+
+/**
  How many bytes one gibibyte is, which is the unit the room and the floor are printed in.
  */
-export const BYTES_IN_A_GIBIBYTE: number = 1024 ** 3;
+export const BYTES_IN_A_GIBIBYTE: number = BYTES_IN_A_KIBIBYTE
+  * BYTES_IN_A_KIBIBYTE
+  * BYTES_IN_A_KIBIBYTE;
 
 /**
  The room a new run needs on {@link BUILD_VOLUME}: about eleven agent builds at the 9 GB an agent that the 2026-11-11 fill
@@ -100,7 +107,9 @@ export function wholeGibibytesOf(bytes: number,): number {
 /**
  Says how much room a volume has, as the counts line and the refusal name it.
 
- @param freeSpace - the room and the volume it is on
+ @param volume - the volume the room is on
+
+ @param freeBytes - the room in bytes
 
  @returns the room in whole gibibytes, naming the volume
 
@@ -109,7 +118,10 @@ export function wholeGibibytesOf(bytes: number,): number {
  const line = freeSpaceTextOf({ volume: BUILD_VOLUME, freeBytes: FREE_SPACE_FLOOR_BYTES, },);
  ```
  */
-export function freeSpaceTextOf({ volume, freeBytes }: FreeSpace,): string {
+export function freeSpaceTextOf({
+  volume,
+  freeBytes,
+}: FreeSpace,): string {
   return `${String(wholeGibibytesOf(freeBytes,),)} GiB free on ${volume}`;
 }
 
@@ -130,15 +142,17 @@ export function freeSpaceFloorTextOf(): string {
 /**
  Says whether a volume holds less room than a new run needs.
 
- @param freeSpace - the room and the volume it is on
+ @param freeBytes - the room in bytes
 
  @returns whether the room is below {@link FREE_SPACE_FLOOR_BYTES}
 
  @example
  ```ts
- const under = freeSpaceIsUnderTheFloor({ volume: BUILD_VOLUME, freeBytes: FREE_SPACE_FLOOR_BYTES - 1, },);
+ const under = freeSpaceIsUnderTheFloor({ freeBytes: FREE_SPACE_FLOOR_BYTES - 1, },);
  ```
  */
-export function freeSpaceIsUnderTheFloor({ freeBytes }: Pick<FreeSpace, 'freeBytes'>,): boolean {
+export function freeSpaceIsUnderTheFloor({
+  freeBytes,
+}: Pick<FreeSpace, 'freeBytes'>,): boolean {
   return freeBytes < FREE_SPACE_FLOOR_BYTES;
 }

@@ -24,11 +24,20 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   ALREADY_RUNNING_EXIT_STATUS,
+  BUILD_VOLUME,
+  BYTES_IN_A_GIBIBYTE,
+  FREE_SPACE_FLOOR_BYTES,
   LAUNCHER_ENTRY_NAMES,
-  NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_STANDARD,
+  NO_POOL_HAS_ROOM,
   NO_SLOT_EXIT_STATUS,
-  OPENCODE_GO,
+  PROVIDER_POOLS,
+  type ProviderPool,
+  firstDefaultPoolWithRoom,
+  freeSpaceFloorTextOf,
+  freeSpaceTextOf,
+  poolTakesNoNewRun,
+  talliesOf,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -52,8 +61,119 @@ type BareFolder = {
   readonly runs: string;
   readonly processes: string;
   readonly log: string;
+  readonly freeSpaceBytes: string;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+/**
+ Room on the build volume of a test that lets a run start, which is above the floor.
+
+ @returns the room in bytes
+
+ @example
+ ```ts
+ const room = roomToSpareBytes();
+ ```
+ */
+function roomToSpareBytes(): string {
+  return String(FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,);
+}
+
+/**
+ Room on the build volume of a test that a run does not start in.
+
+ @returns the room in bytes
+
+ @example
+ ```ts
+ const room = roomUnderTheFloorBytes();
+ ```
+ */
+function roomUnderTheFloorBytes(): string {
+  return String(FREE_SPACE_FLOOR_BYTES - 1,);
+}
+
+/**
+ The pool a run that names no model of its own takes while every pool is empty, read from the pool table rather than written
+ down here.
+
+ @returns the pool
+
+ @throws Error when the table takes no default run at all, so the expectation built from it could not hold
+
+ @example
+ ```ts
+ const pool = theFirstDefaultPool();
+ ```
+ */
+function theFirstDefaultPool(): ProviderPool {
+  /**
+   What the pool table answers about a machine on which nothing is going.
+   */
+  const pool = firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },);
+  if (pool === NO_POOL_HAS_ROOM) {
+    throw new Error('no pool takes a default run, so this test cannot expect a pool to take one',);
+  }
+  return pool;
+}
+
+/**
+ Every pool a run that names no model of its own may take, which is every pool that takes default runs and is open.
+
+ @returns the pools, in the order such a run takes them
+
+ @example
+ ```ts
+ const pools = openDefaultPools();
+ ```
+ */
+function openDefaultPools(): readonly ProviderPool[] {
+  return PROVIDER_POOLS.filter(function takesDefaultRunsAndIsOpen(pool,) {
+    return pool.takesDefaultRuns && (!poolTakesNoNewRun({ pool, },));
+  },);
+}
+
+/**
+ Says the counts line names every pool the table ships, in the table's order, each with the count this test expects and its own
+ limit, and ends with the room the build volume has.
+
+ @param line - what the gate printed
+
+ @param counts - the count each pool is at, by the pool's name
+
+ @param freeSpaceBytes - the room the test gave the build volume
+
+ @example
+ ```ts
+ expectCountsLine({ line: ran.stdout.trim(), counts: new Map([[NEURALWATT_STANDARD.name, 1]]), freeSpaceBytes: roomToSpareBytes() });
+ ```
+ */
+function expectCountsLine({
+  line,
+  counts,
+  freeSpaceBytes,
+}: {
+  readonly line: string;
+  readonly counts: ReadonlyMap<string, number>;
+  readonly freeSpaceBytes: string;
+},): void {
+  /**
+   The pools, and the room the volume has, which the line names after a semicolon.
+   */
+  const [summary, room,] = line.split('; ',);
+  /**
+   One entry per pool, in the order the line prints them.
+   */
+  const entries = (summary ?? '').split(', ',);
+  expect(entries.length,).toBe(PROVIDER_POOLS.length,);
+  for (const [index, pool,] of PROVIDER_POOLS.entries()) {
+    expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(pool.limit,)}`,);
+  }
+  expect(room,).toBe(freeSpaceTextOf({
+    volume: BUILD_VOLUME,
+    freeBytes: Number(freeSpaceBytes,),
+  },),);
+}
 
 /**
  Makes a folder with a program folder, a runs folder and a log the stand-ins write to.
@@ -65,7 +185,11 @@ type BareFolder = {
  await using folder = await makeBareFolder();
  ```
  */
-async function makeBareFolder(): Promise<BareFolder> {
+async function makeBareFolder({
+  freeSpaceBytes = roomToSpareBytes(),
+}: {
+  readonly freeSpaceBytes?: string;
+} = {},): Promise<BareFolder> {
   /**
    The folder.
    */
@@ -91,6 +215,7 @@ async function makeBareFolder(): Promise<BareFolder> {
     runs,
     processes,
     log: join(path, 'commands.log',),
+    freeSpaceBytes,
     async [Symbol.asyncDispose]() {
       await rm(path, { recursive: true, force: true, },);
     },
@@ -276,6 +401,7 @@ async function runTheGate({
         FAKE_UNITS: '',
         FAKE_EXEC_START: '',
         PI_RUNS_PROCESS_FOLDER: folder.processes,
+        PI_RUNS_FREE_SPACE_BYTES: folder.freeSpaceBytes,
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -335,7 +461,7 @@ await describe({
   name: 'start-pi-run-when-a-pool-has-room',
   children: [
     it({
-      name: 'prints the counts and starts nothing, on a command line that names no run',
+      name: 'prints the counts with the room the build volume has, and starts nothing, on a command line that names no run',
       fn: async () => {
         await using folder = await makeBareFolder();
         /**
@@ -359,7 +485,11 @@ await describe({
           words: ['--counts-only', '--runs-folder=/nowhere',],
         },);
         expect(ran.status,).toBe(0,);
-        expect(ran.stdout.trim(),).toBe(`neuralwatt 1/${String(NEURALWATT_STANDARD.limit,)}, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22`,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map([[NEURALWATT_STANDARD.name, 1,],],),
+          freeSpaceBytes: folder.freeSpaceBytes,
+        },);
         expect(await programsAsked(folder,),).toEqual([
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
           'systemctl --user show pi-copy-route.service --property=ExecStart --value',
@@ -399,31 +529,16 @@ await describe({
           execStart: '',
         },);
         /**
-         Every pool a run that names a default model could take, filled by a launcher process of its own.
+         Every pool a run that names a default model could take, which is every pool that takes default runs and is open.
          */
-        const pools = [
-          {
-            pool: 'neuralwatt',
-            model: 'deepseek-v4.1-flash',
-            count: NEURALWATT_STANDARD.limit,
-          },
-          {
-            pool: 'neuralwatt',
-            model: 'deepseek-v4.1-flash-flex',
-            count: NEURALWATT_DEEPSEEK_FLEX.limit,
-          },
-          {
-            pool: 'opencode-go',
-            model: 'deepseek-v4.1-flash',
-            count: OPENCODE_GO.limit,
-          },
-        ];
+        const pools = openDefaultPools();
+        expect(pools.length,).toBeGreaterThan(0,);
         /**
          The process number the launchers are written under.
          */
         let pid = 100;
         for (const filled of pools) {
-          for (let index = 0; index < filled.count; index += 1) {
+          for (let index = 0; index < filled.limit; index += 1) {
             pid += 1;
             // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher process after another, each a file of its own; see doc/lint/sequential-awaits.md
             await writeProcess({
@@ -433,7 +548,7 @@ await describe({
                 '/usr/bin/node',
                 join(folder.path, LAUNCHER_ENTRY_NAMES[0] ?? '',),
                 `--name=run-${String(pid,)}`,
-                `--provider=${filled.pool}`,
+                `--provider=${filled.provider}`,
                 `--model=${filled.model}`,
               ],
             },);
@@ -486,7 +601,11 @@ await describe({
         },);
         expect(ran.status,).toBe(0,);
         expect(ran.stdout,).toContain('slot free:',);
-        expect(ran.stdout,).toContain('copy-route goes on neuralwatt',);
+        /**
+         The pool the gate's own order picks while nothing is going.
+         */
+        const chosen = theFirstDefaultPool();
+        expect(ran.stdout,).toContain(`copy-route goes on ${chosen.name}`,);
         /**
          What the stand-in programs were asked.
          */
@@ -499,8 +618,8 @@ await describe({
         },);
         expect(unit,).toContain('--unit=pi-copy-route.service',);
         expect(unit,).toContain(`--run-folder=${join(folder.runs, 'copy-route-2',)}`,);
-        expect(unit,).toContain('--provider=neuralwatt',);
-        expect(unit,).toContain('--model=deepseek-v4.1-flash',);
+        expect(unit,).toContain(`--provider=${chosen.provider}`,);
+        expect(unit,).toContain(`--model=${chosen.model}`,);
         expect(unit,).toContain('--turn-cap=50',);
         expect(asked.some(function addedAWorktree(line,) {
           return line.startsWith('git worktree add',);
@@ -508,6 +627,34 @@ await describe({
         expect(asked.some(function linkedDependencies(line,) {
           return line.startsWith('mise ') && line.includes('pnpm install --offline --frozen-lockfile',);
         },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'refuses to start a run while the build volume is under the floor, saying how much room there is and how much a run needs',
+      fn: async () => {
+        await using folder = await makeBareFolder({ freeSpaceBytes: roomUnderTheFloorBytes(), },);
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered while the volume was under the floor.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--name=copy-route', '--runs-folder=/nowhere',],
+        },);
+        expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(ran.stdout.trim(),).toBe(
+          `NO SLOT: ${freeSpaceTextOf({
+            volume: BUILD_VOLUME,
+            freeBytes: Number(roomUnderTheFloorBytes(),),
+          },)}, under the floor of ${freeSpaceFloorTextOf()}; not started: copy-route`,
+        );
+        expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
+          return line.startsWith('systemd-run',);
+        },),).toBe(false,);
       },
     },),
     it({
