@@ -45,12 +45,15 @@ pub(crate) fn git_did_not_start(error: std::io::Error) -> String {
 /// ```
 pub(crate) fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &str, expected: &str) -> Result<bool, String> {
     let scratch: String = kept_reference(held.seq);
-    let text: String = format!("start\nupdate {} {new} {expected}\ndelete {scratch}\nprepare\ncommit\n", intent.reference);
+    // The name is bytes and the rest of the line is the wrapper's own text, so a name that is not text reaches Git whole.
+    let mut text: Vec<u8> = b"start\nupdate ".to_vec();
+    text.extend_from_slice(intent.reference.bytes());
+    text.extend_from_slice(format!(" {new} {expected}\ndelete {scratch}\nprepare\ncommit\n").as_bytes());
     let mut request: GitRequest = GitRequest::new(held.repository.as_path(), &["update-ref"]);
     request.arguments.push(OsStr::new("-m").to_os_string());
     request.arguments.push(crate::path_bytes::os_from_path_bytes(held.reflog.as_slice()));
     request.arguments.push(OsStr::new("--stdin").to_os_string());
-    request.input = Some(text.into_bytes());
+    request.input = Some(text);
     let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
     if output.succeeded() {
         return Ok(true);

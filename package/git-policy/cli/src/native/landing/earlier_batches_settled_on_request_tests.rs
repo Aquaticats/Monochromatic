@@ -393,7 +393,7 @@ fn a_held_batch_the_request_finishes_is_in_the_settled_list() {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: 1,
         intent: &intent,
         locks: vec![git_dir.join("refs/heads/main.lock")],

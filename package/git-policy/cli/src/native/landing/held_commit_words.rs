@@ -41,8 +41,9 @@ pub fn counted(count: usize) -> String {
 
 /// The branch as a person reads it,
 /// without the `refs/heads/` every branch carries.
-fn branch_of(reference: &str) -> String {
-    return reference.trim_start_matches("refs/heads/").to_string();
+fn branch_of(reference: &crate::ref_name::RefName) -> String {
+    // The words name the branch as a shell word, so a name that is not text is shown in the form a person can type.
+    return reference.short().spoken();
 }
 
 /// What:
@@ -112,7 +113,7 @@ pub fn answer(held: &Held, commit: &str, waiting: usize) -> String {
         "the commit {commit} is held: {} has not moved yet, because {} stands in the way and nothing proves that a Git process still holds \
 it. The next command that finds the lock gone moves the branch. If no Git process is using this repository, remove it with `{}`; the commit \
 is kept at `{}` either way. {}",
-        branch_of(held.reference.as_str()),
+        branch_of(&held.reference),
         locks_named(held.locks.as_slice()),
         removal(held.locks.as_slice()),
         crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(held.seq),
@@ -149,7 +150,7 @@ pub fn waiting(held: &Held, commit: &str) -> String {
     return format!(
         "the commit {commit} for {} is held: the branch has not moved yet, and it waits for {}. The next command that finds the lock gone \
 moves the branch; if no Git process is using this repository, remove it with `{}`.",
-        branch_of(held.reference.as_str()),
+        branch_of(&held.reference),
         locks_named(held.locks.as_slice()),
         removal(held.locks.as_slice())
     );
@@ -174,7 +175,7 @@ pub fn conflicts(held: &Held, commit: &str, paths: &[Vec<u8>]) -> String {
     return format!(
         "the commit {commit} is held: {} moved while the lock stood, and the change does not combine with the branch as it is now on {}. \
 The commit is kept at `{}`; nothing was changed. Bring the change onto the branch yourself, then remove the record at `{}`.",
-        branch_of(held.reference.as_str()),
+        branch_of(&held.reference),
         named.join(", "),
         crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(held.seq),
         crate::held_commit_record::path_of(held.git_dir.as_path(), held.seq).display()
@@ -197,7 +198,7 @@ pub fn cannot(held: &Held, commit: &str, because: &str) -> String {
     return format!(
         "the commit {commit} is held: {} has not moved yet, and this command cannot move it, because {because}. The commit is kept at \
 `{}`; nothing was changed.",
-        branch_of(held.reference.as_str()),
+        branch_of(&held.reference),
         crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(held.seq)
     );
 }
@@ -216,7 +217,7 @@ pub fn cannot(held: &Held, commit: &str, because: &str) -> String {
 /// `the held commit ${commit} landed on ${branch}: ...`
 /// ```
 pub fn landed(held: &Held, commit: &str, the_index_waits: bool) -> String {
-    let branch: String = branch_of(held.reference.as_str());
+    let branch: String = branch_of(&held.reference);
     let index: &str = if the_index_waits { "Another program wrote the index after the landing saw it, so its entries are left as that program made them and the next commit in this worktree sets them; until then `git status` shows the commit's paths. " } else { "" };
     return format!(
         "the held commit {commit} landed on {branch}: the lock that refused its branch write is gone, so the branch has moved. {index}Its push \
@@ -239,7 +240,7 @@ was not released, because the command that made the commit had already ended and
 pub fn already_there(held: &Held, commit: &str) -> String {
     return format!(
         "the held commit {commit} for {} is already on the branch, so nothing waits any more; its record at `{}` is removed.",
-        branch_of(held.reference.as_str()),
+        branch_of(&held.reference),
         crate::held_commit_record::path_of(held.git_dir.as_path(), held.seq).display()
     );
 }

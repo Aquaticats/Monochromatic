@@ -348,7 +348,7 @@ fn a_record_of_a_detached_head_does_not_apply_after_attaching_to_a_branch() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach", base.as_str()]);
     let mut landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
-    landed.reference = String::from("HEAD");
+    landed.reference = crate::ref_name::RefName::from_text("HEAD");
     land_with_failed_index(&world, 1, &[landed]);
     assert_eq!(record_of(&world).reference, "HEAD", "the record names the detached head it landed on");
     // The worktree attaches to a branch at the landed commit, and stages that path there.
@@ -415,7 +415,7 @@ fn an_alternate_indexes_obligation_survives_attaching_a_detached_head() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach", base.as_str()]);
     let mut landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
-    landed.reference = String::from("HEAD");
+    landed.reference = crate::ref_name::RefName::from_text("HEAD");
     landed.index = world.root.join("alternate.index");
     std::fs::copy(real_index_of(&world), landed.index.as_path()).expect("the alternate index starts as the worktree's");
     land_with_failed_index(&world, 1, &[landed]);

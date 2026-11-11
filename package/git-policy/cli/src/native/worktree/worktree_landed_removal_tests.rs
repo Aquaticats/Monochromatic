@@ -188,7 +188,7 @@ fn hold_a_commit_in_the_worktree(landed: &Landed, seq: u64) -> String {
         repository: landed.worktree.clone(),
         common_dir: landed.common.clone(),
         git_dir: admin.clone(),
-        reference: String::from("refs/heads/feature"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/feature"),
         old: head_of(landed.worktree.as_path()),
         new: held.clone(),
         commits: vec![held.clone()],

@@ -49,11 +49,17 @@ use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 /// ```ts
 /// const shows = whatTheBranchShows(context, cwd, reference, prepared);
 /// ```
-pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &str, prepared: &str) -> WhatTheBranchShows {
+pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> WhatTheBranchShows {
     // Whether the branch holds the commit, which the tip itself does and so does every commit under it:
     // `merge-base --is-ancestor` answers 0 for both, 1 for a commit the branch does not hold, and anything else is a read
     // that failed (finding 5 of the third review).
-    let asked = run_git(context, &indexed_request(context, cwd, &["merge-base", "--is-ancestor", prepared, reference], None, None));
+    let words: [std::ffi::OsString; 4] = [
+        std::ffi::OsString::from("merge-base"),
+        std::ffi::OsString::from("--is-ancestor"),
+        std::ffi::OsString::from(prepared),
+        reference.as_os_str().to_os_string(),
+    ];
+    let asked = run_git(context, &indexed_request(context, cwd, words.as_slice(), None, None));
     let Ok(output) = asked else {
         return WhatTheBranchShows::Unread;
     };
@@ -66,7 +72,7 @@ pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &str, 
 
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
 pub(crate) fn branch_moved(ready: &Ready) -> TransactionStop {
-    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+    let branch: String = ready.reference.short().spoken();
     return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
 }
 
@@ -96,12 +102,12 @@ pub(crate) fn display_text(file: &Path) -> String {
 /// const stop = refusedWhenTheBranchSwitched(firstReference, reference, messageFile);
 /// ```
 pub(crate) fn refused_when_the_branch_switched(
-    first_reference: Option<&str>,
-    reference: &str,
+    first_reference: Option<&crate::ref_name::RefName>,
+    reference: &crate::ref_name::RefName,
     fixed_message: Option<&Path>,
 ) -> Option<TransactionStop> {
-    // A commit whose first preparation found this same branch has not switched anywhere.
-    let first_branch: &str = match first_reference {
+    // A commit whose first preparation found this same branch has not switched anywhere, and names are compared as bytes.
+    let first_branch: &crate::ref_name::RefName = match first_reference {
         Some(known) => known,
         None => reference,
     };
@@ -127,7 +133,7 @@ pub(crate) fn refused_when_the_branch_switched(
 /// ```ts
 /// const failure = theSilentServiceAfterAPrepare(context, cwd, reference, prepared);
 /// ```
-pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, reference: &str, prepared: Option<&str>) -> Option<ClientFailure> {
+pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: Option<&str>) -> Option<ClientFailure> {
     let shows: WhatTheBranchShows = match prepared {
         Some(made) => what_the_branch_shows(context, cwd, reference, made),
         None => WhatTheBranchShows::Unread,

@@ -741,7 +741,7 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
         seq: 1,
         repository: repo.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: "a".repeat(40),
         new: "b".repeat(40),
         ids: vec![String::from("id")],

@@ -134,6 +134,10 @@ pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
 
+/// The two command lines a landing writes for its branch:
+/// the question that reads the commit it names and the transaction that moves it.
+pub mod service_land_branch_move_transaction;
+
 /// The Git steps of a landing,
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;

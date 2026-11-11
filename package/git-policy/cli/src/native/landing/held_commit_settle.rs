@@ -239,7 +239,7 @@ fn index_lock_of(held: &Held, intent: &Intent) -> Option<crate::service_index_lo
 fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::service_index_lock::IndexLock) -> bool {
     let own_index: bool = intent.index == intent.git_dir.join("index");
     let ours: Result<bool, crate::service_protocol::FailureCode> =
-        crate::service_head::still_checked_out(git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str());
+        crate::service_head::still_checked_out(git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference);
     let installed: bool = match ours {
         Ok(false) if own_index => {
             drop(lock);

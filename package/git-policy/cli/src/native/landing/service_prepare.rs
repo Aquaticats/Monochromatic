@@ -39,8 +39,10 @@ pub use crate::service_prepare_ready_shapes::{HandedBackTree, NativeInputs, Prep
 pub(crate) use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
-use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_texts, the_pathspec_file, zero_object};
+use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, the_pathspec_file, zero_object};
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_conclusion::events_with_changed_summary;
@@ -131,9 +133,9 @@ pub fn prepare<F: RepositoryFacts>(
     };
     part.next("capture");
     let selection: Selection = decide_selection(region, layout.conclusion);
-    let reference: String = match &layout.symbolic_head {
+    let reference: RefName = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
-        SymbolicHead::Detached => String::from("HEAD"),
+        SymbolicHead::Detached => RefName::from_text("HEAD"),
     };
     let detached: bool = layout.symbolic_head == SymbolicHead::Detached;
 
@@ -205,7 +207,7 @@ pub fn prepare<F: RepositoryFacts>(
         //  abandoned the merge, the cherry-pick or the revert meanwhile leaves nothing this commit could conclude, and an
         //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
         if let Some(expected) = again.captured.conclusion.as_deref() {
-            the_same_conclusion(context, cwd, &capture, expected, reference.trim_start_matches("refs/heads/"))?;
+            the_same_conclusion(context, cwd, &capture, expected, reference.short().spoken().as_str())?;
         }
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -286,7 +288,6 @@ pub fn prepare<F: RepositoryFacts>(
     let cleanup: Option<Cleanup> = if state_present { Some(Cleanup { git_dir: capture.layout.git_dir.clone(), scratch: scratch.0.clone(), reftable }) } else { None };
     let selected_privately: bool = selection.read_only;
     let fixed_parents: bool = selection.concludes_sequencer || unborn;
-    let pathspec_texts: Vec<String> = pathspec_texts(&pathspecs);
     // What a conclusion was prepared over, read here and not when a retry needs it: another command may conclude the
     //  operation while this commit waits, and the replay must compare against the state this preparation saw.
     let conclusion_state: Option<String> = the_state_of_a_conclusion(
@@ -299,7 +300,7 @@ pub fn prepare<F: RepositoryFacts>(
     .map_err(the_state_read_failure)?;
     // What every `Ready` of this preparation shares; the closures that carried it are the methods of this record.
     let shape: ReadyShape = ReadyShape {
-        pathspecs: pathspec_texts,
+        pathspecs: pathspecs.clone(),
         mode: selection.mode,
         staged_all: selection.staged_all,
         selected_privately,
@@ -331,7 +332,7 @@ pub fn prepare<F: RepositoryFacts>(
     if candidate_paths.is_empty() && !inputs.allow_empty && !amends {
         if retry.is_some() {
             // Commits that landed meanwhile hold everything this one changes.
-            return Ok(Prepared::Ended(already_committed_result(reference.trim_start_matches("refs/heads/"))));
+            return Ok(Prepared::Ended(already_committed_result(reference.short().spoken().as_str())));
         }
         return Ok(Prepared::Ready(shape.by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
     }

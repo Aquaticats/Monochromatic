@@ -86,8 +86,11 @@ pub fn subject_of(message: &str) -> String {
 /// ```ts
 /// `[${branch}${root ? ' (root-commit)' : ''} ${name}] ${subject}`
 /// ```
-pub fn summary_line(reference: &str, first_parent: &str, name: &str, subject: &str) -> String {
-    let branch: &str = if reference == "HEAD" { "detached HEAD" } else { reference.trim_start_matches("refs/heads/") };
+pub fn summary_line(reference: &crate::ref_name::RefName, first_parent: &str, name: &str, subject: &str) -> String {
+    // A branch named by a byte that is not text is shown as the word a shell reads back, so the line stays one readable line
+    //  that names the branch the person has.
+    let shown: String = reference.short().spoken();
+    let branch: &str = if reference.is_head() { "detached HEAD" } else { shown.as_str() };
     let root: &str = if first_parent.is_empty() || is_zero_object(first_parent) { " (root-commit)" } else { "" };
     return format!("[{branch}{root} {name}] {subject}");
 }

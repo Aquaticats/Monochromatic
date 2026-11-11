@@ -84,8 +84,8 @@ pub(crate) fn land_batch_body(
         // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
         //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
         let branch_began: Instant = Instant::now();
-        let branch_commit: String = format!("{}^{{commit}}", first.reference);
-        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None) {
+        let branch_value: [std::ffi::OsString; 4] = crate::service_land_branch_move_transaction::branch_commit_question(&first.reference);
+        let old: String = match checked(&git, repository, &branch_value, None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
             Err(code) => return Err(code),
@@ -98,7 +98,7 @@ pub(crate) fn land_batch_body(
         //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
         //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
         //  again once the index lock is held, because the worktree can switch while the lock is awaited.
-        let still_ours: bool = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())?;
+        let still_ours: bool = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), &first.reference)?;
         timing.reads_split.branch += branch_began.elapsed();
         if !still_ours {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
@@ -195,7 +195,7 @@ pub(crate) fn land_batch_body(
         let hold_began: Instant = Instant::now();
         // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
         //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
-        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), &first.reference);
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             crate::service_server_land_group::forget_what_a_batch_owes(&intent);
@@ -261,7 +261,7 @@ pub(crate) fn land_batch_body(
         //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the
         //  detached new one). A head that became a branch at another value fails the compare; at the same value the branch it
         //  names takes the commit, and the head is read again below.
-        let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
+        let transaction: Vec<u8> = crate::service_land_branch_move_transaction::reference_move_transaction(&first.reference, new.as_str(), old.as_str(), removal.as_str());
         // The message is one argument of `-m`, never a line of the transaction, so no byte of the commit's message can change
         // the grammar Git reads on standard input (`AGENTS.md` rules `SYB` and `STB`).
         let moving: Vec<std::ffi::OsString> = vec![
@@ -276,11 +276,11 @@ pub(crate) fn land_batch_body(
         //  the scratch branch until the update renames the reference (`service_busy.rs`).
         let moved: GitOutput = {
             let _described = crate::service_busy_step_record_on_this_thread::detail(if first.commit.is_some() {
-                format!("it moves {} to {new}", first.reference)
+                format!("it moves {} to {new}", first.reference.spoken())
             } else {
-                format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)
+                format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference.spoken())
             });
-            match run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes())) {
+            match run_words(&git, repository, moving.as_slice(), Some(transaction)) {
                 Ok(output) => output,
                 // Git never started, so the branch did not move and nothing of this batch lands: what the batch took is given
                 //  back, so no record of a landing that did not happen outlives it. A step ended at a ceiling keeps the commit
@@ -305,7 +305,7 @@ pub(crate) fn land_batch_body(
             //  it did not move, so something else refused the write, and a reference lock is what refuses it when one stands: the
             //  wrapper clears the ones nothing live holds, waits out a live holder within one bound, holds the commit behind the
             //  rest, and names them with the command that clears them. Neither a lock nor a wait for one is a branch that changed.
-            let standing: String = checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None).unwrap_or_default();
+            let standing: String = checked(&git, repository, &branch_value, None).unwrap_or_default();
             if standing == old {
                 // The index lock is given up while the wait runs, so another program's commit is not held behind this one.
                 drop(held);
@@ -318,7 +318,7 @@ pub(crate) fn land_batch_body(
                     }
                 };
                 let within_bound: bool = Instant::now() < deadline;
-                crate::service_land_hold_a_batch::say_it_waits(seq, first.reference.as_str(), old.as_str(), within_bound);
+                crate::service_land_hold_a_batch::say_it_waits(seq, &first.reference, old.as_str(), within_bound);
                 match wait_out_the_reference_locks(lock_roots.as_slice(), &crate::stale_ref_locks::Judge::here(), deadline) {
                     // Nothing stands any more and the bound for waiting on one has not passed: the branch is where it was,
                     //  so the write may be tried again.
@@ -340,7 +340,7 @@ pub(crate) fn land_batch_body(
                             seq,
                             intent: &intent,
                             scratch: scratch.as_str(),
-                            reference: first.reference.as_str(),
+                            reference: &first.reference,
                             stderr: moved.stderr.as_slice(),
                             announce,
                         }));
@@ -388,7 +388,7 @@ pub(crate) fn land_batch_body(
         //  its own index, and the commits stay on the branch they were made for. A switch after this look is the state native
         //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
         let follow_began: Instant = Instant::now();
-        let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
+        let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), &first.reference, new.as_str());
         timing.reads_split.follow += follow_began.elapsed();
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let index_update_began: Instant = Instant::now();

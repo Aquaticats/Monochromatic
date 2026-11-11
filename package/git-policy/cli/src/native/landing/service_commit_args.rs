@@ -27,6 +27,8 @@
 //! ```
 
 pub use crate::service_commit_args_editor_opening::opens_editor;
+use crate::commit_args_token_bytes::{is_an_equals_sign, is_one_of};
+use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use std::ffi::OsString;
 
 /// What a covered command line asked for.
@@ -284,20 +286,6 @@ const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-
 const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
 
 /// What:
-///  An argument as text,
-/// with bytes that are not valid text replaced.
-/// Why:
-///  The commit options are read as text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lossyText = (token: Buffer) => token.toString('utf8');
-/// ```
-fn lossy_text(token: &OsString) -> String {
-    return token.to_string_lossy().into_owned();
-}
-
-/// What:
 ///  Whether a name is the start of one of the known long options.
 /// Why:
 ///  Git accepts an unambiguous abbreviation of a long option,
@@ -307,9 +295,9 @@ fn lossy_text(token: &OsString) -> String {
 /// ```ts
 /// known.some((option) => option.startsWith(name))
 /// ```
-fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
+fn abbreviates_a_known_option(known: &[&str], name: &[u8]) -> bool {
     for option in known {
-        if option.starts_with(name) {
+        if option.as_bytes().starts_with(name) {
             return true;
         }
     }
@@ -341,67 +329,69 @@ fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
 /// withFixedMessage(args, subcommandIndex, file) // undefined when the line cannot be rebuilt from the message alone
 /// ```
 pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
-    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
-    let region: Vec<String> = crate::commit_args::normalise_commit_args(text.get(subcommand_index + 1..)?);
+    let region: Vec<OsString> = crate::commit_args::normalise_commit_args(arguments.get(subcommand_index + 1..)?);
     let split: usize = crate::commit_args::separator_index(region.as_slice()).unwrap_or(region.len());
-    let (options, tail): (&[String], &[String]) = region.split_at(split);
+    let (options, tail): (&[OsString], &[OsString]) = region.split_at(split);
     let mut kept: Vec<OsString> = arguments[..=subcommand_index].to_vec();
     let mut index: usize = 0;
     while index < options.len() {
-        let token: &str = options[index].as_str();
+        let token: &OsString = &options[index];
         index += 1;
-        if let Some(long) = token.strip_prefix("--") {
-            let (name, attached): (String, bool) = match long.split_once('=') {
-                Some((name, _)) => (format!("--{name}"), true),
-                None => (format!("--{long}"), false),
+        let bytes: &[u8] = argument_bytes(token.as_os_str());
+        if bytes.starts_with(b"--") {
+            // The name ends where the value an `=` attached begins, and the name is the caller's bytes so a token that is
+            //  not text is never taken for one of these options.
+            let (rest, attached): (&[u8], bool) = match bytes.iter().position(is_an_equals_sign) {
+                Some(at) => (&bytes[..at], true),
+                None => (bytes, false),
             };
             let all: Vec<&str> = MESSAGE_VALUE_LONG.iter().chain(&MESSAGE_FLAG_LONG).chain(&BORROWING_LONG).copied().collect();
-            if BORROWING_LONG.contains(&name.as_str()) || (!all.contains(&name.as_str()) && abbreviates_a_known_option(all.as_slice(), name.as_str())) {
+            if is_one_of(rest, &BORROWING_LONG) || (!is_one_of(rest, all.as_slice()) && abbreviates_a_known_option(all.as_slice(), rest)) {
                 return None;
             }
-            if MESSAGE_VALUE_LONG.contains(&name.as_str()) {
+            if is_one_of(rest, &MESSAGE_VALUE_LONG) {
                 if !attached {
                     index += 1;
                 }
                 continue;
             }
-            if MESSAGE_FLAG_LONG.contains(&name.as_str()) {
+            if is_one_of(rest, &MESSAGE_FLAG_LONG) {
                 continue;
             }
-            kept.push(OsString::from(token));
+            kept.push(token.clone());
             continue;
         }
-        if token.starts_with('-') && token.len() > 1 {
-            let mut cluster: String = String::from("-");
+        if bytes.starts_with(b"-") && bytes.len() > 1 {
+            let mut cluster: Vec<u8> = vec![b'-'];
             let mut value_next: bool = false;
-            let letters: Vec<char> = token.chars().skip(1).collect();
+            let letters: &[u8] = &bytes[1..];
             for (at, letter) in letters.iter().enumerate() {
                 match letter {
-                    'c' | 'C' => return None,
-                    'm' | 'F' | 't' => value_next = true,
-                    'e' | 's' => {}
-                    'S' => {
-                        cluster.extend(letters[at..].iter());
+                    b'c' | b'C' => return None,
+                    b'm' | b'F' | b't' => value_next = true,
+                    b'e' | b's' => {}
+                    b'S' => {
+                        cluster.extend_from_slice(&letters[at..]);
                         break;
                     }
                     other => cluster.push(*other),
                 }
             }
-            if cluster != "-" {
-                kept.push(OsString::from(cluster));
+            if cluster != b"-" {
+                kept.push(os_from_path_bytes(cluster.as_slice()));
             }
             if value_next {
                 index += 1;
             }
             continue;
         }
-        kept.push(OsString::from(token));
+        kept.push(token.clone());
     }
     kept.push(OsString::from("-F"));
     kept.push(file.as_os_str().to_os_string());
     kept.push(OsString::from("--cleanup=verbatim"));
     kept.push(OsString::from("--no-edit"));
-    kept.extend(tail.iter().map(OsString::from));
+    kept.extend(tail.iter().cloned());
     return Some(kept);
 }
 

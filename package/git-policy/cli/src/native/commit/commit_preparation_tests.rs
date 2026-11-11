@@ -173,7 +173,7 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
 
 /// `prepare` with the configuration layers `context` names.
 fn prepare_with(context: &GitContext, fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
-    let commit_arguments: Vec<String> = commit_args.iter().map(|arg| { return String::from(*arg); }).collect();
+    let commit_arguments: Vec<OsString> = commit_args.iter().map(OsString::from).collect();
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
@@ -260,8 +260,8 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     let context = git_context();
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
     let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
-    let commit_arguments: Vec<String> = vec![String::from("-m"), String::from("x")];
-    let global: Vec<String> = vec![String::from("-c"), String::from("a.b=1")];
+    let commit_arguments: Vec<OsString> = vec![OsString::from("-m"), OsString::from("x")];
+    let global: Vec<OsString> = vec![OsString::from("-c"), OsString::from("a.b=1")];
     let request: PreparationRequest = PreparationRequest {
         capture: &capture,
         shadow: Path::new("/s"),
@@ -478,12 +478,12 @@ fn the_shadow_shows_head_upstream_include_and_git_dir() {
 /// // const { fixture, globalArgs, commitArgs } = aCommitWhoseSignerNeverAnswers(root);
 /// ```
 #[cfg(unix)]
-fn a_commit_whose_signer_never_answers(root: &Path) -> (Fixture, Vec<String>, Vec<String>) {
+fn a_commit_whose_signer_never_answers(root: &Path) -> (Fixture, Vec<OsString>, Vec<OsString>) {
     let fixture: Fixture = prepared_fixture(root);
     let signer: PathBuf = root.join("slow-signer");
     crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 60\n");
-    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
-    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
+    let global_args: Vec<OsString> = vec![OsString::from("-c"), OsString::from(format!("gpg.program={}", signer.display()))];
+    let commit_args: Vec<OsString> = vec![OsString::from("-S"), OsString::from("--message=x")];
     return (fixture, global_args, commit_args);
 }
 
@@ -519,7 +519,7 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
 #[test]
 fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     let root: PathBuf = fixture("commit-preparation-ceiling");
-    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
+    let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) = a_commit_whose_signer_never_answers(root.as_path());
     let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
     let index_before: Vec<u8> = std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
     let request: PreparationRequest = PreparationRequest {
@@ -758,7 +758,7 @@ fn an_x509_program_from_an_exact_gitdir_include_reaches_the_shadow() {
 #[test]
 fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() {
     let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
-    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
+    let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) = a_commit_whose_signer_never_answers(root.as_path());
     let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,

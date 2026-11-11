@@ -259,7 +259,7 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
         seq,
         repository: std::path::PathBuf::from("/repo"),
         common_dir: std::path::PathBuf::from("/repo/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: "0".repeat(40),
         new: "1".repeat(40),
         ids: vec![String::from(id)],

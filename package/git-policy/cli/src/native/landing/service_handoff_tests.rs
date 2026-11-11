@@ -24,7 +24,7 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
         },
         repository: root.join("worktree"),
         git_dir: root.join("common"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         parent: PARENT.to_string(),
     };
 }
@@ -48,7 +48,7 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let mut expected: Vec<String> = HANDED_OVER
         .iter()
         .map(|kind| {
-            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.clone(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
+            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
         })
         .collect();
     expected.sort();
@@ -192,7 +192,7 @@ fn the_wake_message_carries_the_key_to_the_service() {
 fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     let root: std::path::PathBuf = fixture("handoff-blocked-gate-earlier-name");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     std::fs::create_dir_all(pending.as_path()).expect("a state directory");
@@ -233,7 +233,7 @@ fn the_verdict_a_commit_records_flushes_nothing() {
     let root: std::path::PathBuf = fixture("handoff-verdict-no-flush");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     // The positive control: the recorders do report the flushes of the writer that keeps them.
     let probe: std::path::PathBuf = root.join("probe.json");
     std::fs::write(probe.as_path(), b"before\n").expect("a record to replace");
@@ -283,7 +283,7 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     let root: std::path::PathBuf = fixture("handoff-queued-push");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
     let now: std::time::SystemTime = std::time::SystemTime::now();
     assert!(
@@ -301,7 +301,7 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     assert!(said[0].contains("has not been made yet"), "the line claims only what is known: {}", said[0]);
     assert!(said[0].contains("needs no further commit"), "{}", said[0]);
     // A second waiting push is counted rather than named: the list of a container's unserved commits has no end.
-    let second: WorkItem = push_item(&handoff, PARENT);
+    let second: WorkItem = push_item(&handoff, PARENT, handoff.reference.text().expect("a branch name that is text"));
     crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
     age_the_pending_record(work.as_path(), &second, now);
     let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
@@ -341,7 +341,7 @@ fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
     let root: std::path::PathBuf = fixture("handoff-held-settled");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     crate::work_item::hold(work.as_path(), &item, "").expect("the push is held");
     let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
@@ -384,7 +384,7 @@ fn a_command_that_has_ended() -> String {
 /// and the next command is what
 ///  settles it.
 fn held_with_verdict(handoff: &ServiceHandoff, commit: &str, holding: &Holding) -> (WorkItem, std::path::PathBuf) {
-    let item: WorkItem = push_item(handoff, commit);
+    let item: WorkItem = push_item(handoff, commit, handoff.reference.text().expect("a branch name that is text"));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let path: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     std::fs::create_dir_all(path.parent().expect("the held directory")).expect("a state directory");
@@ -537,7 +537,7 @@ fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
     let root: std::path::PathBuf = fixture("handoff-retry-takes-over");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     let dead: String = a_command_that_has_ended();
     crate::work_item::hold(work.as_path(), &item, dead.as_str()).expect("the first try's push is held");
@@ -625,7 +625,7 @@ fn a_refusal_is_flushed_before_its_record_is_given_up() {
     let root: std::path::PathBuf = fixture("handoff-refusal-durable");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     crate::work_item::hold(work.as_path(), &item, "1/2/3").expect("the push is held while the gate decides");
     let held_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD);
     let blocked_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
@@ -661,7 +661,7 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
     use std::os::unix::fs::PermissionsExt;
     let root: std::path::PathBuf = fixture("handoff-blocked-verdict-not-written");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let item: WorkItem = push_item(&handoff, OID);
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     std::fs::create_dir_all(held.parent().expect("the held directory")).expect("the held directory");

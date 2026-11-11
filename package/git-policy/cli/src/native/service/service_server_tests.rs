@@ -192,7 +192,7 @@ fn a_restart_says_each_batch_it_settled() {
         seq: 41,
         repository: worktree.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: head,
         new: built,
         ids: vec![String::from("r")],

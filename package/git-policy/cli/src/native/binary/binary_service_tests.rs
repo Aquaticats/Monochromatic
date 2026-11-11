@@ -175,7 +175,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         repository: repo.to_path_buf(),
         common_dir: repo.join(".git"),
         git_dir: repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
         base: query(fixture, repo, &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
