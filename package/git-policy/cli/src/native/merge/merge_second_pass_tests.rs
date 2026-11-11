@@ -617,7 +617,9 @@ fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
 /// Why:
 ///  The report moved every part into its file by counting the lines from the top of the stage,
 ///  so a file of many parts cost its stage once per part:
-///  a merge of a hundred and three thousand parts against stages of 7.6 MB took about thirteen minutes
+///  the pass over a hundred and three thousand parts against stages of 7.6 MB took about seven hundred seconds
+///  of a push that took 889 seconds,
+///  whose merge-tree took about 190
 ///  (measured 2026-11-11 on this host with the release build).
 /// The count is now carried from region to region (`lines_between`),
 /// and these numbers are what tells a count carried wrongly from one that is not.

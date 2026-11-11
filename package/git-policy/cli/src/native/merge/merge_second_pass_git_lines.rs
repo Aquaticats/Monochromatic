@@ -136,8 +136,10 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
     let mut parts: Vec<MergedPart> = Vec::new();
     // What: each side's line count up to the place it reached, carried from region to region.
     // Why: a region's place never moves backwards, so counting the lines from the last place to this one costs the stage's
-    // lines once for the whole file; counting them from the top of the stage for every part cost the stage per part, and a
-    // merge of a hundred and three thousand one-line regions against stages of 7.6 MB took about thirteen minutes
+    // lines once for the whole file; counting them from the top of the stage for every part cost the stage per part, and
+    // the pass over a hundred and three thousand one-line regions against stages of 7.6 MB took about seven hundred seconds
+    // of a push that took 889 seconds,
+    // whose merge-tree took about 190
     // (measured 2026-11-11 on this host with the release build).
     let mut counted_to: [usize; 3] = [0, 0, 0];
     let mut counted_lines: [usize; 3] = [0, 0, 0];
