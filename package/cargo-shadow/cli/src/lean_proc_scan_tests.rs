@@ -201,7 +201,8 @@ fn reachability_is_read_from_the_permission_bits_above_the_root() {
 
 /// What:
 /// `fn add_visible_process(proc_root: &Path, pid: i32, namespace: &str, cwd: &Path, exe: &Path) -> PathBuf` writes one process
-/// of a fixture procfs that the scan can read: a working directory,
+/// of a fixture procfs that the scan can read:
+/// a working directory,
 /// a program and a mount namespace.
 /// Why:
 /// The spelling cases need a process whose program is a file under the root,

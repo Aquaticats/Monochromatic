@@ -112,8 +112,9 @@ fn a_unit_a_process_uses_is_kept_whole_and_the_rest_is_still_swept() {
 /// Why:
 /// `/proc` names the program a process runs with every link resolved,
 /// so a root reached through a link matched none of those names and the sweep removed the unit
-/// (measured 2026-11-11 in a throwaway build folder: a unit whose `out/` held the program a live process was running
-/// went with `0 uses under the roots`, and the same fixture named without the link kept it).
+/// (measured 2026-11-11 in a throwaway build folder:
+/// a unit whose `out/` held the program a live process was running went with `0 uses under the roots`,
+/// and the same fixture named without the link kept it).
 #[test]
 fn a_unit_a_process_runs_a_program_from_is_kept_even_through_a_link() {
     let root = scratch();

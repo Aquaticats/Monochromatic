@@ -133,7 +133,8 @@ fn a_tree_a_process_uses_is_kept() {
 /// Why:
 /// `/proc` names the program a process runs with every link resolved,
 /// so a root reached through a link matched none of those names
-/// (measured 2026-11-11 in a throwaway build folder, `lean_proc_scan_tests`).
+/// (measured 2026-11-11 in a throwaway build folder,
+/// `lean_proc_scan_tests`).
 #[test]
 fn a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link() {
     let root = scratch();
