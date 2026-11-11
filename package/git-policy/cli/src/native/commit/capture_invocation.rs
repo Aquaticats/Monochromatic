@@ -28,8 +28,9 @@ use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
 use crate::ref_files::{RefFilesLayout, read_symbolic_head};
 /// The in-process repository layout,
-/// tried before the `rev-parse` report.
-use crate::repo_read_adapter::invocation_report;
+/// tried before the `rev-parse` report,
+///  and the report shape it answers with.
+use crate::repo_read_adapter::{InvocationReport, invocation_report};
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_in;
 /// Proof that a sequencer marker names nothing,
@@ -46,6 +47,9 @@ use crate::js_text::trim_javascript;
 use crate::iso_time::now_iso;
 /// The one configuration read the invocation's consumers share.
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+/// The answers of one report,
+///  and the pathname each of them names.
+use crate::git_report_answers::{absolute_reported, answers_of, object_format_of};
 /// `PathBuf` is an owned filesystem path.
 use std::path::{Path, PathBuf};
 
@@ -190,42 +194,145 @@ fn required(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitO
     return run_git_checked(context, &transaction_request(context, cwd, arguments));
 }
 
+/// How many answers the one layout query prints:
+/// six pathnames and the object format.
+const LAYOUT_ANSWERS: usize = 6 + 1;
+
+/// The `rev-parse` options of the one layout query,
+/// in the order its answers are read.
+const LAYOUT_ARGUMENTS: [&str; 11] = [
+    "--path-format=absolute",
+    "--show-toplevel",
+    "--absolute-git-dir",
+    "--git-common-dir",
+    "--git-path",
+    "index",
+    "--git-path",
+    "objects",
+    "--git-path",
+    "cli-git-transactions",
+    "--show-object-format",
+];
+
+/// How many pathname answers the layout has.
+const LAYOUT_PATHS: usize = 6;
+
 /// What:
-///  Reads one required line of a fixed-order layout report.
+///  The pathnames of one layout asked for one at a time,
+///  in the order the shared report prints them.
 /// Why:
-///   An empty line means Git gave an incomplete layout,
-///  which must stop the transaction before any mutation.
+///   One question per pathname,
+/// so a line feed inside a name cannot end any other answer;
+///  `landing_location.rs` reads its two answers the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// requiredLine({ lines, index })
+/// const GIT_DIR_QUESTION = ['rev-parse', '--path-format=absolute', '--absolute-git-dir'];
 /// ```
-fn required_line(lines: &[&str], index: usize) -> Result<String, GitFailure> {
-    // `get` returns `None` past the end, which is the same empty answer.
-    let line: &str = lines.get(index).copied().unwrap_or("");
-    if line.is_empty() {
-        return Err(GitFailure(String::from("Git returned incomplete repository layout.")));
-    }
-    return Ok(String::from(line));
+const PATH_QUESTIONS: [&[&str]; LAYOUT_PATHS] = [
+    &["rev-parse", "--path-format=absolute", "--show-toplevel"],
+    &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
+    &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    &["rev-parse", "--path-format=absolute", "--git-path", "index"],
+    &["rev-parse", "--path-format=absolute", "--git-path", "objects"],
+    &["rev-parse", "--path-format=absolute", "--git-path", "cli-git-transactions"],
+];
+
+/// The question that prints the object format,
+///  which is text and not a pathname.
+const OBJECT_FORMAT_QUESTION: [&str; 2] = ["rev-parse", "--show-object-format"];
+
+/// What:
+///  The layout the seven answers of one report name.
+/// Why:
+///  The answers are in the order `LAYOUT_ARGUMENTS` asks for them,
+///  and each path is the bytes Git printed for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ({ topLevel: absolute(cwd, answers[0]), gitDir: absolute(cwd, answers[1]), ... })
+/// ```
+fn report_of_answers(cwd: &Path, answers: &[&[u8]; LAYOUT_ANSWERS]) -> Result<InvocationReport, GitFailure> {
+    return Ok(InvocationReport {
+        top_level: absolute_reported(cwd, answers[0])?,
+        git_dir: absolute_reported(cwd, answers[1])?,
+        common_dir: absolute_reported(cwd, answers[2])?,
+        index_path: absolute_reported(cwd, answers[3])?,
+        object_directory: absolute_reported(cwd, answers[4])?,
+        registry_root: absolute_reported(cwd, answers[5])?,
+        object_format: object_format_of(answers[6])?,
+    });
 }
 
 /// What:
-///  Resolves one reported path against the invocation directory.
+///  Every pathname of the layout asked for on its own,
+///  resolved against the invocation directory.
 /// Why:
-///   Git may report a relative path;
-/// the transaction stores absolute ones.
+///  A report that cannot be split is the only caller of this,
+/// which needs one question per pathname anyway.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isAbsolute(reported) ? reported : resolve(cwd, reported)
+/// PATH_QUESTIONS.map(async (question) => absolute(cwd, await ask(question)))
 /// ```
-fn absolute_reported(cwd: &Path, lines: &[&str], index: usize) -> Result<PathBuf, GitFailure> {
-    let reported: PathBuf = PathBuf::from(required_line(lines, index)?);
-    return Ok(if reported.is_absolute() {
-        reported
-    } else {
-        cwd.join(reported)
+fn absolute_answers(context: &GitContext, cwd: &Path) -> Result<[PathBuf; LAYOUT_PATHS], GitFailure> {
+    let mut answers: Vec<PathBuf> = Vec::with_capacity(LAYOUT_PATHS);
+    for question in PATH_QUESTIONS {
+        let output: GitOutput = required(context, cwd, question)?;
+        answers.push(absolute_reported(cwd, output.stdout.as_slice())?);
+    }
+    return match <[PathBuf; LAYOUT_PATHS]>::try_from(answers) {
+        Ok(exactly) => Ok(exactly),
+        Err(_) => Err(GitFailure(String::from("Git returned incomplete repository layout."))),
+    };
+}
+
+/// What:
+///  The layout of one repository,
+///  with every pathname asked for on its own.
+/// Why:
+///  One report cannot be split once a pathname holds a line feed,
+///  and a pathname that is not UTF-8 cannot be read out of text at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [topLevel, gitDir, commonDir, indexPath, objectDirectory, registryRoot] = await absoluteAnswers();
+/// ```
+fn layout_report_asked_for(context: &GitContext, cwd: &Path) -> Result<InvocationReport, GitFailure> {
+    let [top_level, git_dir, common_dir, index_path, object_directory, registry_root] = absolute_answers(context, cwd)?;
+    let output: GitOutput = required(context, cwd, OBJECT_FORMAT_QUESTION.as_slice())?;
+    return Ok(InvocationReport {
+        top_level,
+        git_dir,
+        common_dir,
+        index_path,
+        object_directory,
+        registry_root,
+        object_format: object_format_of(output.stdout.as_slice())?,
     });
+}
+
+/// What:
+///  The layout Git reports for the invocation directory,
+///  read as the bytes Git printed.
+/// Why:
+///  One query answers a plain layout;
+///  a report with more answers than the layout has pathnames holds a pathname that carries the line feed separating two answers,
+///  so no answer's place is known and each pathname is asked for on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = split(await ask(['rev-parse', ...LAYOUT_ARGUMENTS])); answers.length === 7 ? reportOf(answers) : askedFor()
+/// ```
+fn layout_report_from_git(context: &GitContext, cwd: &Path) -> Result<InvocationReport, GitFailure> {
+    let mut arguments: Vec<&str> = vec!["rev-parse"];
+    arguments.extend_from_slice(LAYOUT_ARGUMENTS.as_slice());
+    let output: GitOutput = required(context, cwd, arguments.as_slice())?;
+    let answers: Vec<&[u8]> = answers_of(output.stdout.as_slice());
+    return match <[&[u8]; LAYOUT_ANSWERS]>::try_from(answers.as_slice()) {
+        Ok(exactly) => report_of_answers(cwd, &exactly),
+        Err(_) => layout_report_asked_for(context, cwd),
+    };
 }
 
 /// What:
@@ -418,39 +525,18 @@ pub fn capture_invocation_layout(
     //  that names one asks Git.
     let named: bool = !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty();
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
-    let read_in_process: Option<String> = if named {
+    let read_in_process: Option<InvocationReport> = if named {
         None
     } else {
         read_layout_in(cwd, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(invocation_report)
     };
-    let text: String = match read_in_process {
+    let report: InvocationReport = match read_in_process {
         Some(read) => read,
-        None => {
-            let report: GitOutput = required(
-                context,
-                cwd,
-                &[
-                    "rev-parse",
-                    "--path-format=absolute",
-                    "--show-toplevel",
-                    "--absolute-git-dir",
-                    "--git-common-dir",
-                    "--git-path",
-                    "index",
-                    "--git-path",
-                    "objects",
-                    "--git-path",
-                    "cli-git-transactions",
-                    "--show-object-format",
-                ],
-            )?;
-            decoded_trimmed(&report)?
-        }
+        None => layout_report_from_git(context, cwd)?,
     };
-    let lines: Vec<&str> = text.split('\n').collect();
-    let git_dir: PathBuf = absolute_reported(cwd, &lines, 1)?;
-    let common_dir: PathBuf = absolute_reported(cwd, &lines, 2)?;
-    let object_format: String = required_line(&lines, 6)?;
+    let git_dir: PathBuf = report.git_dir;
+    let common_dir: PathBuf = report.common_dir;
+    let object_format: String = report.object_format;
     // The ref storage backend is read first: the `HEAD` file only answers for the files backend.
     let ref_format: RefFormat = resolve_ref_format_with(context, cwd, config_snapshot.as_ref())?;
     let ref_files: RefFilesLayout<'_> = RefFilesLayout {
@@ -465,7 +551,7 @@ pub fn capture_invocation_layout(
         SymbolicHead::Detached => String::from("HEAD"),
     };
     let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
-    let repository_root: PathBuf = match std::fs::canonicalize(absolute_reported(cwd, &lines, 0)?) {
+    let repository_root: PathBuf = match std::fs::canonicalize(report.top_level.as_path()) {
         Ok(resolved) => resolved,
         Err(error) => return Err(GitFailure(format!("repository root is unreadable: {error}"))),
     };
@@ -476,9 +562,9 @@ pub fn capture_invocation_layout(
         repository_root,
         git_dir,
         common_dir,
-        real_index_path: absolute_reported(cwd, &lines, 3)?,
-        object_directory: absolute_reported(cwd, &lines, 4)?,
-        registry_root: absolute_reported(cwd, &lines, 5)?,
+        real_index_path: report.index_path,
+        object_directory: report.object_directory,
+        registry_root: report.registry_root,
         ref_format,
         object_format,
         empty_tree_oid,

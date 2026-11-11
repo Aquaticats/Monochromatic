@@ -95,6 +95,9 @@ pub mod conclusion_cleanup;
 /// ref backend and base.
 pub mod capture_invocation;
 
+/// The answers of one `git rev-parse` report the invocation capture reads.
+pub mod git_report_answers;
+
 /// The private index and object store a commit's preparation selects,
 /// and the Git request that carries them.
 pub mod private_index_request;
