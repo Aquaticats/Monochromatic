@@ -200,7 +200,7 @@ pub async fn push_once_awaiting(
     //  not reported as a failure nor retried.
     let delivered: bool = delivered_although_git_failed_awaiting(
         git,
-        &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid },
+        &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid: sent_up_to },
     )
     .await?;
     return reported(attempt, delivered, &stop, pushed_ref.as_str(), err);
