@@ -701,6 +701,66 @@ fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
     assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
 }
 
+/// What:
+///  A tree whose only movement between two looks is what the process that holds the connection writes about its own
+///  wait is waiting,
+///  and its wait ends at the connected window.
+/// Why:
+///   `git-lfs` prints its upload meter to its standard error while it waits,
+/// and that file belongs to the wrapper,
+/// so every line it prints is a byte the tree wrote:
+/// measured on 2026-11-11 against a server that took the connection and never answered,
+/// `git-lfs` wrote fourteen bytes about every ten seconds,
+/// the meter counted them as work,
+/// and the connected window never fired in more than 260 seconds.
+///  That is the audit's F8 LFS face.
+/// The holder here does what `git-lfs` does while it waits:
+/// it holds its connection and appends one short line to a file it was given.
+#[test]
+fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
+    let root: std::path::PathBuf = fixture("progress-connected-meter");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    let meter_file: std::path::PathBuf = root.join("meter");
+    // The handler runs inside the holder's own process, so the write is the holder's: one line every fifth of a second.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args([
+            "-c",
+            format!(
+                "exec 3<>/dev/tcp/127.0.0.1/{port}; trap '' TERM; while :; do printf 'uploading 0%%\n' >> '{meter}'; sleep 0.2; done",
+                meter = meter_file.display()
+            )
+            .as_str(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_secs(4);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 3 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let metered: u64 = std::fs::metadata(meter_file.as_path()).map(|about| about.len()).unwrap_or(0);
+    assert!(metered > 0, "the holder wrote its meter, so the tree moved bytes");
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a tree whose only movement is the holder's own meter was not ended within {:?}", began.elapsed())
+    };
+    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
+    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
 /// A `/proc/<pid>/stat` line is read after its last parenthesis:
 /// the state,
 /// and the user and system ticks added.
