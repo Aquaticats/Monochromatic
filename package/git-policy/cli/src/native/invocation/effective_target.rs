@@ -287,7 +287,8 @@ pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[ToolCacheDirect
 ///  The first allowed directory that holds every one of `candidates`,
 /// with the variable that named it.
 /// Why:
-///   An exemption covers a whole repository, never one directory inside it:
+///   An exemption covers a whole repository,
+///  never one directory inside it:
 ///  a linked worktree keeps its Git directory in the main clone
 ///  (`<clone>/.git/worktrees/<name>`)
 ///  and its files wherever they were added,
@@ -306,26 +307,33 @@ pub fn matching_allowed_worktree_dir<'dirs>(
     candidates: &[&Path],
     allowed_dirs: &'dirs [ToolCacheDirectory],
 ) -> Option<&'dirs ToolCacheDirectory> {
-    // An empty question has no answer: `all` of no paths is true of every directory.
+    // An empty question has no answer: with no path to ask about, every directory would qualify.
     if candidates.is_empty() {
         return None;
     }
     // `for directory in allowed_dirs` borrows each entry in turn.
     for directory in allowed_dirs {
-        // What: `if let Ok(resolved) = ... && cond` runs only when the directory could be
-        //       resolved and every candidate lies inside it.
+        // What: `if let Ok(resolved) = ...` runs only when the directory could be resolved, and the loop
+        //       below asks whether every candidate lies inside it.
         // Why:  A tool that is not installed has no cache directory to compare with.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // let resolved; try { resolved = await realpath(directory); } catch { continue; }
         // ```
-        if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path())
-            && candidates
-                .iter()
-                .all(|candidate| return candidate.starts_with(resolved.as_path()))
-        {
-            return Some(directory);
+        if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path()) {
+            // What: every candidate is asked in turn, so the first one outside stops the question.
+            // Why:  A closure would be the same test, and this form keeps the state in the loop's own names.
+            let mut every_candidate_is_inside: bool = true;
+            for candidate in candidates {
+                if !candidate.starts_with(resolved.as_path()) {
+                    every_candidate_is_inside = false;
+                    break;
+                }
+            }
+            if every_candidate_is_inside {
+                return Some(directory);
+            }
         }
     }
     return None;

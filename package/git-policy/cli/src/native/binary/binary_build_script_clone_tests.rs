@@ -87,7 +87,8 @@ fn reset_hard_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path) 
 }
 
 /// What:
-///  A linked worktree of the build script's clone, checked out where `directory` says,
+///  A linked worktree of the build script's clone,
+///  checked out where `directory` says,
 ///  holding an edit no person made.
 /// Why:
 ///  A linked worktree keeps its Git directory inside the clone
