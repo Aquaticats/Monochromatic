@@ -118,17 +118,21 @@ It is installed through `toolchain:update`;
 the repository lock commit `68937a8e22` took 5,331 ms,
 the service upgrade included.
 
-Two defects showed on the way, both open:
+Two defects showed on the way,
+both open:
 
-- `native:release:wait` printed "RELEASE RUN FAILED: no publish was started" for run `42935168319`,
+- `native:release:wait` printed "RELEASE RUN FAILED:
+  no publish was started" for run `42935168319`,
   which had succeeded;
   the archives come from the separate `cargo-publish` workflow.
   The waiter is `package/crate-release/cli/bin/await-release.ts`.
 - After the install,
   every `git` call printed `mpm-shadow`'s older-lock warning,
   because the machine-global lock still named `0.6.1-alpha.8`.
-  Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
-  does not run: no `mpm-shadow` is on `PATH`.
+  Its printed remedy,
+  `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  does not run:
+  no `mpm-shadow` is on `PATH`.
   The coordinator ran the installed binary by its full path
   (`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.10-x86_64-unknown-linux-gnu/mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
   "updated cargo:monochromatic-git-policy-cli 0.6.1-alpha.8 -> 0.6.1-alpha.9"),
@@ -159,12 +163,18 @@ Kimi reviews each merged branch's own change on the integration branch's code (r
 At 2026-11-10T21:50-05:00 a second pass had merged five more (41 of 53),
 one more missing `holder` was fixed in `171edd1c00`,
 and Clippy is clean there.
-Both suites on `5686c7bb29`, rerunning only the failures, left 33 failing tests
-(11 in `invocation::entry` and one source guard, 8 around stage containers,
-5 in the service and landing, 6 commit budgets, the 3 host-only settle controls);
+Both suites on `5686c7bb29`,
+rerunning only the failures,
+left 33 failing tests
+(11 in `invocation::entry` and one source guard,
+8 around stage containers,
+5 in the service and landing,
+6 commit budgets,
+the 3 host-only settle controls);
 four agents on branches cut from `5686c7bb29` fix them by area
 (`fix/git-policy-cli-integration-failures-*-after-alpha-9`).
-Agent capacity that night was set by Neuralwatt, not by the session's slot numbers:
+Agent capacity that night was set by Neuralwatt,
+not by the session's slot numbers:
 6 DeepSeek requests at once while the subscription is in overage,
 7 flex requests per model,
 and Pi ends a run on either 429;
