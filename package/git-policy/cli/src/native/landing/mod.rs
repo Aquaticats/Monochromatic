@@ -365,6 +365,10 @@ pub mod service_work_drain_pending_claims;
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
 
+/// What a drained push's verdict does to its records,
+/// its retry plan and the person.
+pub mod service_work_settling_a_verdict;
+
 /// How one item whose kind answers with words is settled,
 /// with the line the person reads for it.
 pub mod service_work_settling_with_words;
