@@ -192,3 +192,78 @@ and none was built.
 Putting the repository itself on ZFS needs somewhere to hold 3,486 GiB,
 and the only other drive has 268 GiB free.
 The wrapper's snapshot route for `git worktree add` is written for btrfs subvolumes and would have to move to ZFS clones.
+
+## The jam of 2026-11-10T17:59:43-05:00
+
+Two `git worktree add` runs of the installed wrapper `0.6.1-alpha.8` had waited 15 and 17 minutes in uninterruptible sleep,
+at the kernel wait points `btrfs_sync_log`,
+`wait_log_commit`,
+`read_extent_buffer_pages` and `wait_for_commit`.
+`btrfs-transaction` and `btrfs-cleaner` were both in uninterruptible sleep,
+and so were 38 processes,
+most of them Git children of the wrapper in `wait_current_trans`,
+`wait_log_commit` or `wait_for_commit`.
+`/sys/fs/btrfs/01c308e7-06fa-4737-8a7b-3bb5fcba871d/commit_stats` gave the running commit 5,991 ms,
+the last 4,165 ms,
+and the worst since boot 517,301 ms.
+`/proc/pressure/io` read some avg60 44.02 and full avg60 27.14.
+Over 10 seconds `dm-2` was busy 100% of the time,
+reading 1,348 MiB and writing 1,503 MiB.
+A `cargo-shadow lean run` started by agent `cargo-shadow-lean-read-only-trees-and-run-deadline` was running;
+its own process read 25 MiB and wrote nothing directly in those 10 seconds,
+so most of the traffic came from btrfs's own threads and other writers.
+The sampler is `~/temp/agent/pi-runs/disk-share-of-one-process.ts`.
+
+The owner,
+2026-11-10:
+"How about making our wrapper not wait on btrfs-cleaner and btrfs-transactions?"
+and,
+of the lean run,
+"Don't stop its lean run. We want the run."
+Agent `wrapper-never-waits-on-btrfs-commits` takes every call that forces or waits for a btrfs commit off the paths a person waits on,
+and asks the owner before removing any sync that protects data.
+
+## Does ZFS have the same waits
+
+The owner,
+2026-11-10:
+"I want to once again talk about zfs, and whether it has the same problems as btrfs-cleaner and btrfs-transactions."
+and
+"What if we give both btrfs and zfs benefit of doubt and give the best possible configs they can get? For example, zfs supports ARC."
+
+What OpenZFS `zfs-2.4.4` source says,
+read 2026-11-10:
+
+- Snapshot and clone creation wait for their transaction group to reach disk,
+  as a btrfs snapshot waits for its commit:
+  `module/zfs/dsl_dataset.c:1991` runs the snapshot as `dsl_sync_task`,
+  and `module/zfs/dsl_synctask.c:101` calls `txg_wait_synced`.
+- `fsync` writes the intent log and does not wait for the transaction group,
+  except when the log has crashed or is suspended (`module/zfs/zil.c:4010-4037`)
+  or a record's data cannot be read (`module/zfs/zil.c:2484-2508`).
+  On btrfs the live jam showed `fsync` waiting in `btrfs_sync_log` and `wait_log_commit`.
+- New writes join an open transaction group without waiting for the one being written:
+  `module/zfs/txg.c:62` says "There is always a txg in the open state".
+  They wait only when dirty data reaches its limits (`doc/troubleshooting/openzfs-single-device-latency-masking.md`).
+- Freeing destroyed datasets in the background runs inside each transaction group's sync,
+  paced by `zfs_free_min_time_ms` (500) and `zfs_async_block_max_blocks` (unlimited)
+  at `module/zfs/dsl_scan.c:198-209` and `3594-3595`.
+  It competes with foreground writes for the same disk as `btrfs-cleaner` does.
+- Deleting files is slower on ZFS by design:
+  the VM run of `doc/planning/zfs-and-btrfs-delete-stalls-in-a-vm.md` (branch `docs/planning-zfs-and-btrfs-delete-stalls-in-a-vm`,
+  commit `27042ed7f2`) found ZFS file deletes waiting 98.8% of their time in `txg_wait_open` under `dmu_free_long_range`,
+  the per-group free throttle,
+  and taking 871 and 788 s where btrfs took 24 and 28 s.
+
+That VM run used default settings,
+an Ubuntu 24.04 guest (kernel 6.8,
+OpenZFS 2.2.2),
+and disk images on this busy SSD,
+so the host leaked into every arm.
+Agent `btrfs-and-zfs-each-at-its-best` repeats it on a CachyOS guest with kernel 7.2 and OpenZFS 2.4.4,
+each filesystem at the best settings its documentation and source support with durability kept equal,
+images on the NVMe both limited to the 860's measured rate and unlimited,
+and the repository's own workload of adds,
+commits,
+removals and large deletes at once.
+It writes `doc/planning/btrfs-and-zfs-each-at-its-best.md`.

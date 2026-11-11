@@ -229,6 +229,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
     put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "captured", Value::from(request.captured));
+    put(&mut fields, "holder", Value::from(request.holder.as_str()));
     put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
     return Value::Object(fields).to_string();
 }

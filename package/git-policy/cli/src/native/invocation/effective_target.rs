@@ -3,7 +3,8 @@
 //! Why:
 //!  Linked-worktree safeguards discipline a person's repositories,
 //!  not the
-//!      disposable clones a tool keeps in its own cache.
+//!      disposable clones a tool keeps in its own cache
+//!  or in the directory a build step of that tool was given.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -201,6 +202,41 @@ pub fn mise_data_dir(
 }
 
 /// What:
+///  Cargo's output directory for one build script,
+/// as the invocation's environment names it:
+///  `OUT_DIR`,
+///  which Cargo sets for every build script and passes on to what that script starts;
+///  an empty value counts as unset.
+/// Why:
+///   A crate that vendors another project clones it into this directory and runs Git there
+/// (`libghostty-vt-sys` cloned Ghostty into `OUT_DIR/ghostty-src`),
+///  and that clone belongs to the build step rather than to the person,
+///  so a guarded command inside it is exempt as one inside uv's cache or mise's data directory is.
+///  Cargo decides the directory,
+///  so the value is taken verbatim,
+/// exactly as Cargo uses it;
+///  the environment is injected so tests never read the real one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cargoBuildScriptOutputDir(environment: [string, string][]): { path: string; namedBy: string } | undefined;
+/// ```
+pub fn cargo_build_script_output_dir(
+    environment: &[(OsString, OsString)],
+) -> Option<ToolCacheDirectory> {
+    // An empty value is unset: an empty path would exempt whatever the current directory is.
+    if let Some(explicit) = environment_value(environment, "OUT_DIR")
+        && !explicit.is_empty()
+    {
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(explicit),
+            named_by: "OUT_DIR",
+        });
+    }
+    return None;
+}
+
+/// What:
 ///  The tool directories exempt from worktree enforcement on this machine.
 ///       `Vec<PathBuf>` is an owned list of owned paths.
 /// Why:
@@ -226,6 +262,10 @@ pub fn default_allowed_worktree_dirs(
     }
     if let Some(mise) = mise_data_dir(environment, home) {
         directories.push(mise);
+    }
+    // Cargo's build-script directory is the narrowest of the three: one build step's own output, not a whole cache.
+    if let Some(cargo) = cargo_build_script_output_dir(environment) {
+        directories.push(cargo);
     }
     return directories;
 }

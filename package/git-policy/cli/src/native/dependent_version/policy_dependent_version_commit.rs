@@ -73,38 +73,45 @@ use std::rc::Rc;
 pub fn noted(message: &str) -> PolicyOutcome {
     return PolicyOutcome::FindingsWithNotes {
         findings: Vec::new(),
-        notes: vec![note_of(message, None)],
+        notes: vec![note_of(message, None, Some(crate::policy_events::LEFT_ALONE_HINT))],
     };
 }
 
 /// What:
 ///  One note for the person,
-///  about `path` when one is named.
+///  about `path` when one is named,
+///  under `hint`.
 /// Why:
 ///   A note always names its file in the event's own field,
-///  never inside the message.
+///  never inside the message,
+///  and states what the person can do about it:
+/// a copy somebody holds and a read that failed need different words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noteOf = (message, path) => ({ message, path: path && eventPath(path) });
+/// const noteOf = (message, path, hint) => ({ message, path: path && eventPath(path), hint });
 /// ```
-pub fn note_of(message: &str, path: Option<&[u8]>) -> PolicyNote {
+pub fn note_of(message: &str, path: Option<&[u8]>, hint: Option<&'static str>) -> PolicyNote {
     return PolicyNote {
         message: String::from(message),
         path: path.map(EventPath::from_git_bytes),
+        hint,
     };
 }
 
 /// What:
 /// Why a commit did not add one dependent's manifest to itself.
 /// Why:
-///   A copy that holds work the commit does not carry and a copy that could not be read
-///       are both reasons to leave the file exactly as it is,
-///  and both are reported.
+///   A copy that holds work the commit does not carry,
+///  a copy that could not be read,
+///  and a real
+///       index that could not be listed are all reasons to leave the file exactly as it is,
+///  and
+///       all three are reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LeftBehind = { kind: 'holds'; reason: string } | { kind: 'unreadable'; message: string };
+/// type LeftBehind = { kind: 'holds'; reason: string } | { kind: 'unreadable'; message: string } | { kind: 'unlisted'; message: string };
 /// ```
 pub enum LeftBehind {
     /// A copy of the manifest holds what the commit does not carry.
@@ -112,6 +119,9 @@ pub enum LeftBehind {
     /// A copy of the manifest could not be read,
     ///  so nothing is known about it.
     Unreadable(String),
+    /// The real index could not be listed,
+    ///  so nothing is known about the copy either.
+    Unlisted(String),
 }
 
 /// What:
@@ -120,11 +130,17 @@ pub enum LeftBehind {
 ///  the version it keeps
 ///  and the reason.
 /// Why:
-///   The person must know which dependent stayed behind and what to do about it.
+///   The person must know which dependent stayed behind and what to do about it,
+///  and
+///       the two ways that happened need different words:
+/// a copy that holds somebody's work asks for that
+///       file to be committed or restored,
+///  while a real index that could not be listed asks for the
+///       read to answer first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const leftBehind = (bump, left) => noteOf(left.kind === 'holds' ? commitAddedPathMessage({ ...bump, reason: left.reason }) : `... ${left.message}.`, bump.path);
+/// const leftBehind = (bump, left) => noteOf(hintOf(left), messageOf(left), bump.path);
 /// ```
 pub fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
     let shown: String = display_path(bump.path.as_slice());
@@ -141,14 +157,51 @@ pub fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
              so nothing was written over it. Check that the file can be read, then commit again.",
             bump.planned.name, bump.planned.bump.from
         ),
+        LeftBehind::Unlisted(error) => format!(
+            "mono/dependent-version-bump left {} at {} and out of this commit: the real index could not be listed \
+             ({error}), so whether {shown} still holds HEAD's version is unknown. Run git ls-files --stage in that \
+             repository to see why Git cannot answer, then commit again.",
+            bump.planned.name, bump.planned.bump.from
+        ),
     };
-    return note_of(message.as_str(), Some(bump.path.as_slice()));
+    let hint: Option<&'static str> = match left {
+        LeftBehind::Unlisted(_) => Some(crate::policy_events::UNPROVEN_RIPPLE_HINT),
+        LeftBehind::Holds(_) | LeftBehind::Unreadable(_) => Some(crate::policy_events::LEFT_ALONE_HINT),
+    };
+    return note_of(message.as_str(), Some(bump.path.as_slice()), hint);
+}
+
+/// What:
+///  The real index's entries for the manifests this commit would add to itself,
+///  or why the one
+///       listing that reads them failed.
+/// Why:
+///   A commit never fails over the ripple,
+///  so a listing that could not run has to reach the
+///       report:
+///  carried beside the entries it stands for,
+///  it names every dependent it left
+///       unproved,
+///  where an empty map alone would read as an index that holds nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RealIndexListing = { kind: 'listed'; entries: Map<string, Entry> } | { kind: 'unlisted'; message: string };
+/// ```
+pub enum RealIndexListing {
+    /// The stage-0 entry of each path the real index holds;
+    ///  a path it does not hold is absent.
+    Listed(BTreeMap<Vec<u8>, Entry>),
+    /// The listing failed;
+    ///  the message is Git's own.
+    Unlisted(String),
 }
 
 /// What:
 ///  The real index's entries for the manifests this commit would add to itself,
 ///  by
-///       pathname.
+///       pathname,
+///  or why they could not be read.
 ///  Empty for every lifecycle that adds no path,
 ///  and for a
 ///       commit whose findings all name paths it selected.
@@ -159,7 +212,7 @@ pub fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function addedEntries({ plansCommit, findings, version, facts, root, realIndex }): Promise<Map<string, Entry>>;
+/// async function addedEntries({ plansCommit, findings, version, facts, root, realIndex }): Promise<RealIndexListing>;
 /// ```
 pub fn added_entries<F: RepositoryFacts>(
     plans_commit: bool,
@@ -168,7 +221,7 @@ pub fn added_entries<F: RepositoryFacts>(
     facts: &mut F,
     root: Option<&Path>,
     real_index: Option<&Path>,
-) -> Result<BTreeMap<Vec<u8>, Entry>, String> {
+) -> RealIndexListing {
     let mut paths: Vec<Vec<u8>> = Vec::new();
     if plans_commit {
         for finding in findings {
@@ -180,12 +233,15 @@ pub fn added_entries<F: RepositoryFacts>(
         }
     }
     let (Some(top_level), Some(index)) = (root, real_index) else {
-        return Ok(BTreeMap::new());
+        return RealIndexListing::Listed(BTreeMap::new());
     };
     if paths.is_empty() {
-        return Ok(BTreeMap::new());
+        return RealIndexListing::Listed(BTreeMap::new());
     }
-    return real_index_entries(&facts.transaction_context(), top_level, index, paths.as_slice());
+    return match real_index_entries(&facts.transaction_context(), top_level, index, paths.as_slice()) {
+        Ok(entries) => RealIndexListing::Listed(entries),
+        Err(message) => RealIndexListing::Unlisted(message),
+    };
 }
 
 /// What:
@@ -198,6 +254,10 @@ pub fn added_entries<F: RepositoryFacts>(
 ///       manifest it does not change is added only while every copy of it holds the file
 ///       the
 ///       bump was computed against.
+///  A listing that never ran proves none of them,
+///  so every
+///       manifest it would have proved is left behind with that reason
+///       (`RealIndexListing`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,7 +268,7 @@ pub fn committed_correction(
     selected: bool,
     workspace: &mut LifecycleWorkspace<'_>,
     root: Option<&Path>,
-    real: &BTreeMap<Vec<u8>, Entry>,
+    real: &RealIndexListing,
 ) -> Result<Correction, LeftBehind> {
     let mode: CandidateMode = if bump.mode == TrackedMode::Executable {
         CandidateMode::Executable
@@ -224,6 +284,10 @@ pub fn committed_correction(
     if selected {
         return Ok(correction);
     }
+    let entries: &BTreeMap<Vec<u8>, Entry> = match real {
+        RealIndexListing::Listed(found) => found,
+        RealIndexListing::Unlisted(message) => return Err(LeftBehind::Unlisted(message.clone())),
+    };
     // The commit index holds the bytes the bump was computed against; the other three copies must hold the same file.
     let Some(top_level) = root else {
         return Err(LeftBehind::Holds(ADDED_PATH_UNSTAGED_REASON));
@@ -241,7 +305,7 @@ pub fn committed_correction(
         path: bump.path.as_slice(),
         head,
         commit,
-        real: real.get(&bump.path).cloned(),
+        real: entries.get(&bump.path).cloned(),
         original: bump.original.as_slice(),
         root: top_level,
     };

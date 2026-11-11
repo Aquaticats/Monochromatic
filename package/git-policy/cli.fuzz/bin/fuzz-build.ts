@@ -27,7 +27,7 @@ import {
 import {
   baseImage,
   buildImage,
-  limits,
+  buildLimits,
 } from './fuzz-images.ts';
 import {
   copyInputs,
@@ -130,7 +130,7 @@ async function proveGeneratorControls(compilerMount: readonly string[]): Promise
   const prefix = [
     'run',
     '--rm',
-    ...limits,
+    ...buildLimits,
     ...compilerMount,
     buildImage,
     'cargo',
@@ -187,7 +187,7 @@ async function compileTargets({
   await using container = await createContainer({
     args: [
       'create',
-      ...limits,
+      ...buildLimits,
       ...compilerMount,
       buildImage,
       'cargo',

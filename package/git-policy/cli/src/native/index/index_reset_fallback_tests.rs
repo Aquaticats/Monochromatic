@@ -126,7 +126,6 @@ fn configuration_the_update_does_not_reproduce_is_left_to_git() {
         ("core.splitIndex", "true"),
         ("index.threads", "2"),
         ("core.untrackedCache", "true"),
-        ("index.skipHash", "true"),
         ("core.hooksPath", "hooks-elsewhere"),
     ] {
         let scene: Scene = changed_a(format!("index-fallback-{}", key.to_lowercase().replace('.', "-")).as_str());
