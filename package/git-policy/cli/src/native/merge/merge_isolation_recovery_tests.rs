@@ -2322,6 +2322,8 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
 /// its first finding).
 /// The seam is the instant between the last look and the write,
 /// which no other test can reach.
+/// The line that undo names is a command the person runs where they are,
+/// so it carries the flag this wrapper's linked-worktree policy asks for (3147d271df).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -2354,7 +2356,11 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         "it does not claim the checkout is clean: {}",
         refused.0
     );
-    assert!(refused.0.contains("git restore --staged"), "it names the way to undo the staged content: {}", refused.0);
+    assert!(
+        refused.0.contains("git restore --no-enforce-worktree --staged --worktree"),
+        "it names the way to undo the staged content, with the flag this wrapper's policy asks for: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
