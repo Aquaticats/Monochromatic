@@ -34,7 +34,7 @@
 
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
-use crate::merge_isolation_take_asides::{aside_name, are_the_file_form_of_awaiting};
+use crate::merge_isolation_take_asides::{aside_name, are_the_file_form_of_awaiting, may_remove_awaiting};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -68,12 +68,18 @@ pub(crate) struct JudgedFile {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Placed = { kind: 'written' } | { kind: 'nothing' } | { kind: 'changed'; kept?: string };
+/// type Placed = { kind: 'written'; kept?: string } | { kind: 'nothing' } | { kind: 'changed'; kept?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Placed {
-    /// The path holds what the write asked for.
-    Written,
+    /// The path holds what the write asked for;
+    /// `kept` names the entry the write replaced or deleted,
+    /// where a program could still write into it and the private name was therefore kept.
+    Written {
+        /// Where the entry this write made way for waits,
+        /// when nothing could prove that no program can still write into it.
+        kept: Option<PathBuf>,
+    },
     /// There was nothing for the write to do.
     Nothing,
     /// The path holds bytes the write did not judge,
@@ -237,21 +243,29 @@ async fn are_the_judged_bytes_awaiting(context: &GitContext, root: &Path, path: 
 }
 
 /// What:
-///  Whether the entry at `location` is the one the write judged.
+///  Whether the entry at `location` is the one the write judged,
+///  and the identity it carries there when it is.
 /// Why:
 ///   An entry that differs is the person's,
 ///  written after the write looked,
-/// so it goes back where it came from.
+/// so it goes back where it came from;
+///  the identity is answered with the answer so a later removal of the private name
+///  can prove that the bytes it reads are still those bytes
+///  (`may_remove_awaiting` in `merge_isolation_take_asides.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function isTheJudgedEntry(context, root, path, location, judged): Promise<boolean | undefined>;
+/// async function isTheJudgedEntry(context, root, path, location, judged): Promise<FileIdentity | undefined>;
 /// ```
-async fn is_the_judged_entry_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Option<bool> {
-    if judged.identity.is_none() || file_identity(location) != judged.identity {
-        return Some(false);
+async fn is_the_judged_entry_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Option<FileIdentity> {
+    let taken: FileIdentity = file_identity(location)?;
+    if judged.identity != Some(taken) {
+        return None;
     }
-    return are_the_judged_bytes_awaiting(context, root, path, location, judged).await;
+    if are_the_judged_bytes_awaiting(context, root, path, location, judged).await != Some(true) {
+        return None;
+    }
+    return Some(taken);
 }
 
 /// What:
@@ -281,11 +295,18 @@ fn put_back(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Taken = { kind: 'aside'; aside: string } | { kind: 'changed'; kept?: string };
+/// type Taken = { kind: 'aside'; aside: string; taken: FileIdentity } | { kind: 'changed'; kept?: string };
 /// ```
 enum Taken {
-    /// The entry that was judged waits at this private name.
-    Aside(PathBuf),
+    /// The entry that was judged waits at this private name,
+    /// with the identity the take proved it carries.
+    Aside {
+        /// Where the entry that was judged waits.
+        aside: PathBuf,
+        /// The identity the take read of it there,
+        /// which a later removal asks for again.
+        taken: FileIdentity,
+    },
     /// The path holds bytes the write did not judge,
     /// and nothing was taken.
     Changed {
@@ -316,12 +337,12 @@ async fn take_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be set aside: {error}", location.display()))),
     }
     match is_the_judged_entry_awaiting(context, root, path, aside.as_path(), judged).await {
-        Some(true) => return Ok(Taken::Aside(aside)),
+        Some(taken) => return Ok(Taken::Aside { aside, taken }),
         // A read that fails cannot prove the bytes, so the entry goes back rather than be replaced.
-        Some(false) | None => {
+        None => {
             return match put_back(location, aside.as_path())? {
                 Placed::Changed { kept } => Ok(Taken::Changed { kept }),
-                Placed::Written | Placed::Nothing => Ok(Taken::Changed { kept: None }),
+                Placed::Written { .. } | Placed::Nothing => Ok(Taken::Changed { kept: None }),
             };
         }
     }
@@ -334,26 +355,34 @@ async fn take_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
 ///   A removal is a write of "nothing" and is judged the same way:
 /// an entry that appeared after the judgement is the
 ///  person's and is left alone.
+///  The private name of the entry that is removed goes only once nothing can write into it any more,
+///  because the bytes a program that kept its descriptor puts there are the only copy of that write:
+///  a file that cannot be proved unwritable is kept and named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function removeJudged({ context, root, path, location, judged }): Promise<Placed>;
 /// ```
 async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Result<Placed, CarryFailure> {
-    if judged.content.is_none() {
+    let Some(expected) = judged.content.as_deref() else {
         // Nothing stood there when the write looked, so an entry that is there now came after it.
         return match std::fs::symlink_metadata(location) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Placed::Nothing),
             _ => Ok(Placed::Changed { kept: None }),
         };
-    }
+    };
     return match take_judged_awaiting(context, root, path, location, judged).await? {
-        Taken::Aside(aside) => {
-            // The entry that was judged is the one this write removes, and its bytes are in the merge's capture.
+        Taken::Aside { aside, taken } => {
+            // The entry that was judged is the one this write removes, and its bytes are in the merge's capture; a program that
+            //  kept its descriptor can still write into it, so the private name goes only on the proof that nothing can
+            //  (`merge_isolation_take_asides.rs`, `may_remove_awaiting`).
+            if !may_remove_awaiting(context, root, path, aside.as_path(), taken, expected).await {
+                return Ok(Placed::Written { kept: Some(aside) });
+            }
             if let Err(error) = std::fs::remove_file(aside.as_path()) {
                 return Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display())));
             }
-            Ok(Placed::Written)
+            Ok(Placed::Written { kept: None })
         }
         Taken::Changed { kept } => Ok(Placed::Changed { kept }),
     };
@@ -368,6 +397,9 @@ async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], 
 ///  new entry.
 /// A kill between the take and the placing leaves the judged entry under a private name beside the path,
 ///  which the next command puts back.
+///  The private name goes only once nothing can write into it any more:
+///  a program that opened the file before the take keeps a descriptor to the inode the take renamed,
+///  so removing the name after the merge's entry is placed would leave its write on a file with no name at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,26 +410,26 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
         Ok(made) => made,
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display()))),
     };
-    if judged.content.is_none() {
+    let Some(expected) = judged.content.as_deref() else {
         // Nothing stood there when the write looked, so the path is made and never replaced.
         return match rename_noreplace(private.as_path(), location) {
-            Ok(()) => Ok(Placed::Written),
+            Ok(()) => Ok(Placed::Written { kept: None }),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 let _left = std::fs::remove_file(private.as_path());
                 Ok(Placed::Changed { kept: None })
             }
             Err(error) => Err(CarryFailure::Failed(format!("{} could not be made: {error}", location.display()))),
         };
-    }
-    let aside: PathBuf = match take_judged_awaiting(context, root, path, location, judged).await? {
-        Taken::Aside(waits) => waits,
+    };
+    let (aside, taken): (PathBuf, FileIdentity) = match take_judged_awaiting(context, root, path, location, judged).await? {
+        Taken::Aside { aside, taken } => (aside, taken),
         Taken::Changed { kept } => {
             let _left = std::fs::remove_file(private.as_path());
             return Ok(Placed::Changed { kept });
         }
     };
     let placed: Placed = match rename_noreplace(private.as_path(), location) {
-        Ok(()) => Placed::Written,
+        Ok(()) => Placed::Written { kept: None },
         // Another write took the path in the gap; the entry put aside is kept and named, and the bytes this write
         //  would have placed are made again by the next command.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Placed::Changed { kept: Some(aside.clone()) },
@@ -410,13 +442,18 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
             )));
         }
     };
-    if matches!(placed, Placed::Written) {
-        // What the take holds is the entry the write replaces, whose bytes the merge's capture keeps.
-        let _removed = std::fs::remove_file(aside.as_path());
-    } else {
+    if !matches!(placed, Placed::Written { .. }) {
         let _left = std::fs::remove_file(private.as_path());
+        return Ok(placed);
     }
-    return Ok(placed);
+    // What the take holds is the entry the write replaces, whose bytes the merge's capture keeps; a program that kept its
+    //  descriptor can still write into it, so the private name goes only on the proof that nothing can
+    //  (`merge_isolation_take_asides.rs`, `may_remove_awaiting`).
+    if may_remove_awaiting(context, root, path, aside.as_path(), taken, expected).await {
+        let _removed = std::fs::remove_file(aside.as_path());
+        return Ok(Placed::Written { kept: None });
+    }
+    return Ok(Placed::Written { kept: Some(aside) });
 }
 
 /// What:
@@ -463,3 +500,8 @@ pub(crate) async fn place_file_awaiting(context: &GitContext, root: &Path, path:
 pub(crate) fn is_still_the_judged_entry(root: &Path, path: &[u8], judged: &JudgedFile) -> bool {
     return file_identity(worktree_path(root, path).as_path()) == judged.identity;
 }
+
+/// The controls of the placement stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_carry_place_tests.rs"]
+mod tests;

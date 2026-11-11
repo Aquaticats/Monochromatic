@@ -276,7 +276,8 @@ fn failure_detail(failure: &CarryFailure) -> String {
 ///  A clear checks every worktree path before its index records go,
 /// and every batch takes each path aside under a private name
 ///  before its own bytes are replaced,
-/// so a file saved in either window is kept.
+/// so a file saved in either window is kept,
+///  and the private name of a file a program can still write into is kept and said.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -343,7 +344,19 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             }
         };
         match placed {
-            Placed::Written | Placed::Nothing => {}
+            Placed::Nothing => {}
+            Placed::Written { kept: None } => {}
+            Placed::Written { kept: Some(waits) } => {
+                let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
+                let _ = out.write_all(
+                    format!(
+                        "monochromatic-git-policy-cli: {path} was written, and the file it held can still be written by a program that \
+                         opened it before this merge took it, so it is kept at {}; nothing of the person's was removed.\n",
+                        waits.display()
+                    )
+                    .as_bytes(),
+                );
+            }
             Placed::Changed { kept } => {
                 let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
                 if let Some(waits) = kept {
