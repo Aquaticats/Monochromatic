@@ -115,28 +115,37 @@ impl RepositoryFacts for ScriptedFacts {
     }
 
     /// What:
-    ///  Answer the two dry runs of one clean apart by the patterns the query carries:
-    ///  the one written with `-e`/`--exclude` names `clean_deletes`,
-    ///  and the same clean without them names `clean_deletes_without_exclusions`.
+    ///  Answer the dry runs of one clean apart by what each query carries:
+    ///  a query with `-e`/`--exclude`,
+    /// and the typed clean of a second force,
+    /// name `clean_deletes`;
+    ///  the same clean written with one force and without them names `clean_deletes_without_exclusions`.
     /// Why:
     ///   Only a path the typed dry run names and the other does not is one the patterns alone call ignored,
-    ///  and that path is what the policy still refuses.
+    ///  and that path is what the policy still refuses;
+    ///  a clean with a second force is the typed clean whether or not it carries a pattern.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// cleanDeletedPaths(arguments) {
-    ///   return arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'))
-    ///     ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
+    ///   const patterns = arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'));
+    ///   const forces = arguments.filter((one) => one === '-f' || one === '--force').length;
+    ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        // The script answers the two dry runs of one clean apart by the patterns the query carries.
+        let mut patterns: bool = false;
+        let mut forces: usize = 0;
         for argument in &arguments {
             let bytes: &[u8] = argument.as_encoded_bytes();
-            if bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude") {
-                return self.clean_deletes.clone();
+            patterns |= bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
+            if bytes == b"-f" || bytes == b"--force" {
+                forces += 1;
             }
+        }
+        if patterns || forces > 1 {
+            return self.clean_deletes.clone();
         }
         return self.clean_deletes_without_exclusions.clone();
     }

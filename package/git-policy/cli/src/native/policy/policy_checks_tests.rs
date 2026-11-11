@@ -18,6 +18,7 @@
 ///  the engine types it returns and the scripted facts.
 use super::{ShippedChecks, shipped_checks};
 use crate::candidate_prediction::CandidateRequest;
+use crate::command_clean::UNREADABLE_CLEAN_DELETION;
 use crate::command_test_support::os_arguments;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
@@ -982,6 +983,22 @@ fn a_clean_with_a_second_force_asks_which_repositories_one_force_keeps() {
     assert!(
         questions.iter().any(|question| { return question.starts_with("clean-would-keep:"); }),
         "{questions:?}"
+    );
+    // Git refuses the clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
+    let mut refused: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
+    let (refused_outcome, refused_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), refused);
+    assert_eq!(refused_outcome, clean(), "{refused_questions:?}");
+    // A reading that never answered is not a refusal: the clean stops rather than deleting a repository it could not see.
+    let mut unanswered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unanswered.clean_deletes = Err(String::from("the read of the clean's dry run was ended at its ceiling"));
+    let (unanswered_outcome, unanswered_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unanswered);
+    assert_eq!(
+        unanswered_outcome,
+        one("linked-worktree-required", "the read of the clean's dry run was ended at its ceiling"),
+        "{unanswered_questions:?}"
     );
     // One force is Git's own protection of every nested repository, so the wrapper asks nothing.
     let one_force: Vec<&str> = vec!["clean", "-f", "-d", "-X"];

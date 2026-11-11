@@ -39,6 +39,19 @@ use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
+/// The fact the reading of a clean's own dry run names when it fails.
+/// Why:
+///  A refusal means Git deleted nothing,
+/// while a reading that never answered could hide a deletion;
+/// the two fail apart because one lets the command run and the other stops it.
+pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
+
+/// The words that begin a failed reading of a clean's own dry run.
+/// Why:
+///  The message is this crate's own,
+/// so the caller that must tell Git's refusal of the clean from a reading that never answered matches its start.
+pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
+
 /// `-n`,
 ///  `--dry-run`.
 pub const DRY_RUN: u16 = 1;
@@ -360,7 +373,7 @@ fn dry_run_arguments(
 /// function cleanDeletedPathsFromAnswer(answer: MetadataOutput): Buffer[]; // throws
 /// ```
 pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
-    return dry_run_lines_from_answer(answer, "what the clean would delete");
+    return dry_run_lines_from_answer(answer, CLEAN_DELETION_FACT);
 }
 
 /// What:

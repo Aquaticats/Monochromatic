@@ -20,7 +20,9 @@
 
 /// The builders of the clean's own two dry runs,
 ///  and the parsed facts that decide whether the question applies.
-use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_keeping_nested_repositories, parse_clean_region};
+use crate::command_clean::{
+    UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, clean_dry_run_arguments_keeping_nested_repositories, parse_clean_region,
+};
 /// Which nested Git repositories those two answers say the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// The bound on the folder of saved copies applied after a save,
@@ -141,7 +143,9 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
         Ok(answer) => answer,
         // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
-        Err(_) => return NestedRepositories::Nothing,
+        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return NestedRepositories::Nothing,
+        // A reading that never answered could hide a repository, so the clean stops here.
+        Err(message) => return NestedRepositories::Refused(message),
     };
     let Some(with_one_force) = clean_dry_run_arguments_keeping_nested_repositories(prefix.as_slice(), region) else {
         return NestedRepositories::Nothing;
