@@ -40,6 +40,22 @@ struct Landed {
 /// const landed = aRepositoryWithAWorktreeWhoseBranchHasACommit(name);
 /// ```
 fn a_repository_with_a_worktree(name: &str) -> Landed {
+    return a_repository_with_a_worktree_and_ignore_rules(name, "");
+}
+
+/// What:
+///  The same repository,
+///  whose first commit also carries the ignore rules a control writes.
+/// Why:
+///   An ignored file the person wrote is the one state a landed sweep may not take,
+///  and Git only calls a file ignored where a rule says so,
+///  which both trees must carry for the worktree's own listing to see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landed = aRepositoryWithAWorktreeAndIgnoreRules(name, '.env\n');
+/// ```
+fn a_repository_with_a_worktree_and_ignore_rules(name: &str, rules: &str) -> Landed {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
     let tracked: PathBuf = main.join("README.md");
@@ -47,7 +63,16 @@ fn a_repository_with_a_worktree(name: &str) -> Landed {
     // A file as new as the index proves nothing by its stat fields, and the cleanliness proof would then refuse
     // every worktree below (`test_support::age`).
     age(tracked.as_path());
-    git(main.as_path(), &["add", "--", "README.md"]);
+    let mut committed: Vec<&str> = vec!["README.md"];
+    if !rules.is_empty() {
+        let ignored: PathBuf = main.join(".gitignore");
+        std::fs::write(ignored.as_path(), rules.as_bytes()).expect("the ignore rules");
+        age(ignored.as_path());
+        committed.push(".gitignore");
+    }
+    let mut added: Vec<&str> = vec!["add", "--"];
+    added.extend(committed);
+    git(main.as_path(), added.as_slice());
     git(main.as_path(), &["commit", "--quiet", "--message=a tracked file"]);
     let worktree: PathBuf = root.join("worktree");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
@@ -184,6 +209,75 @@ fn a_landed_worktree_with_a_process_inside_stays() {
     assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
     assert!(sweep.kept[0].why.contains(&format!("process {} is working in it", child.id())), "{}", sweep.kept[0].why);
     assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
+///  An ignored file the person wrote in the worktree after the add keeps that worktree,
+///  named in the reason the person reads.
+/// Why:
+///   This is the state Git's own removal deletes without a word,
+///  and the owner's rule is that no command of this program discards a person's data.
+#[test]
+fn a_landed_worktree_holding_an_ignored_file_the_person_wrote_stays() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-own", ".env\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let secret: PathBuf = landed.worktree.join(".env");
+    std::fs::write(secret.as_path(), b"PASSWORD=the person's own\n").expect("a file the person wrote after the add");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while the worktree holds the person's ignored file: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(sweep.kept[0].why.contains(".env"), "the reason names the file: {}", sweep.kept[0].why);
+    assert_eq!(std::fs::read(secret.as_path()).expect("the file is still there"), b"PASSWORD=the person's own\n");
+}
+
+/// What:
+///  An ignored file whose bytes this repository's own worktree holds too does not keep it.
+/// Why:
+///   The bytes are not lost with the worktree,
+///  and a sweep that kept every worktree holding an ignored file would free nothing.
+#[test]
+fn a_landed_worktree_whose_ignored_file_the_repository_also_holds_is_removed() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-shared", ".env\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    std::fs::write(landed.main.join(".env").as_path(), b"A=1\n").expect("the repository's own ignored file");
+    std::fs::write(landed.worktree.join(".env").as_path(), b"A=1\n").expect("the copy the add carries into the worktree");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the worktree is removed: {sweep:?}");
+    assert!(sweep.kept.is_empty(), "{sweep:?}");
+    assert!(!landed.worktree.exists(), "the worktree directory is gone");
+}
+
+/// What:
+///  An ignored file of the worktree the repository holds with other bytes keeps it.
+/// Why:
+///   The person edited it in the worktree,
+///  and the bytes that go with the worktree are not the ones this repository keeps.
+#[test]
+fn a_landed_worktree_whose_ignored_file_the_person_changed_stays() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-changed", ".env\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    std::fs::write(landed.main.join(".env").as_path(), b"PORT=3000\n").expect("the repository's own ignored file");
+    std::fs::write(landed.worktree.join(".env").as_path(), b"PORT=3001\n").expect("the person's own port in the worktree");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "the edited file stays with its worktree: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(sweep.kept[0].why.contains(".env"), "{}", sweep.kept[0].why);
+}
+
+/// What:
+///  An ignored directory a build wrote into the worktree alone does not keep it.
+/// Why:
+///   The ignored build state is what the sweep exists to give back,
+///  so the removal line says directories go and the space comes back.
+#[test]
+fn a_landed_worktree_holding_an_ignored_build_directory_is_removed() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-build", "build/\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    std::fs::create_dir(landed.worktree.join("build").as_path()).expect("a build directory of the worktree's own");
+    std::fs::write(landed.worktree.join("build").join("output.o").as_path(), b"build output\n").expect("a file of that directory");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the worktree is removed: {sweep:?}");
+    assert!(!landed.worktree.exists(), "the worktree directory is gone");
 }
 
 #[test]

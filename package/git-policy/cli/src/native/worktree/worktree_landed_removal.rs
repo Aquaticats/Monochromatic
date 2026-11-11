@@ -22,8 +22,16 @@
 //!  cherry-pick,
 //!  revert or bisect is in progress,
 //!  no process works inside it,
+//!  every ignored file of it is also in the worktree the merge ran in,
 //!  and Git removes it without `--force`.
-//!  That last one is Git's own decision and Git's own words:
+//!  The ignored files are the one hole Git leaves: `git worktree remove` deletes what Git ignores
+//!  without a word, and the btrfs destroy takes the whole directory,
+//!  so a file the person wrote there after the add would go with it.
+//!  The source is the proof available (`worktree_landed_ignored_files.rs`):
+//!  an ignored file this repository's worktree holds with the same kind, mode and bytes is state the repository already has,
+//!  and one it does not hold that way may be the person's, so the worktree stays and the file is named.
+//!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
+//!  What is left is Git's own decision in Git's own words:
 //!  the removal runs real `git worktree remove` unless the btrfs destroy applies,
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
 //!  and what the person reads here is Git's sentence.
@@ -39,6 +47,7 @@ use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_process_inside::process_working_inside;
+use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
@@ -279,6 +288,25 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
     }
     if let Some(pid) = process_working_inside(one.worktree.as_path(), place.proc_root) {
         return Examined::Kept(format!("process {pid} is working in it"));
+    }
+    match place.current_root {
+        Some(source) => match ignored_entries_alone_here(place.context, one.worktree.as_path(), one.admin.as_path(), source) {
+            Ok(alone) if alone.is_empty() => {}
+            Ok(alone) => {
+                return Examined::Kept(format!(
+                    "it holds ignored files that the worktree this merge ran in does not hold with the same bytes ({}), and nothing proves they are not yours",
+                    alone.list()
+                ));
+            }
+            Err(reason) => {
+                return Examined::Kept(format!("nothing proves the ignored files there are not yours, so nothing is removed: {reason}"));
+            }
+        },
+        None => {
+            return Examined::Kept(String::from(
+                "this command runs in a repository without a worktree, so nothing proves the ignored files there are not yours",
+            ));
+        }
     }
     let removal: Result<(), String> = remove(place, one);
     if removal.is_ok() {

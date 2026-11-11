@@ -436,6 +436,34 @@ Git's refusal words are what a kept worktree reports,
 The branch is kept in every case;
  only the checked-out copy goes.
 
+Those ignored files are the one hole in Git's own line,
+ and a cross-vendor review found it:
+`git worktree remove` deletes the files Git ignores without a word,
+ and the btrfs destroy takes the whole directory,
+ so a file the person wrote there after the add,
+ a `.env` covered by a committed ignore rule,
+ went with the worktree and the merge exited 0.
+The owner's rule is that no command of this program discards a person's data,
+ so the sweep now asks Git for the worktree's ignored entries (`worktree_landed_ignored_files.rs`)
+ and compares every file and link among them with the worktree the merge ran in,
+ by kind, mode and bytes (`worktree_copy_compare.rs` `entry_matches`).
+A file this repository's own worktree holds identically came from the add or from the repository,
+ and removing this worktree takes a copy and nothing else;
+ a file it does not hold,
+ or holds with other bytes,
+ may be the person's,
+ so the worktree stays and the file is named in the reason.
+Ignored directories are never read:
+ a build writes them into the worktree alone,
+ which is the state this sweep exists to give back,
+ and reading every file below them would cost the tree on every merge;
+ the removal line says the ignored files went because the merge's own worktree holds every one of them.
+The comparison is a stat and a bounded byte read per ignored file Git lists,
+ and this repository's own worktree measured 136 such files against 468 ignored directories,
+ so the sweep keeps the space it was written for.
+A query or a comparison that cannot be made keeps the worktree and says why,
+ because nothing proves the files are not the person's.
+
 Every merge that lands a branch prints one line per worktree it removed,
  left,
  or could not prove it made,
