@@ -530,6 +530,68 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
     cargo_control("repair-real-cargo-external", true);
 }
 
+/// The package whose build artifact the shared-target control builds,
+/// and which a clean through the copied link would delete.
+const SHARED_TARGET_PACKAGE: &str = "shared-target-demo";
+
+/// What:
+///  A repository whose ignored `target` is a link to a directory elsewhere,
+/// already built there.
+/// Why:
+///   That is a person's ordinary setup for sharing one build directory between checkouts,
+///  and the copy of the ignored state copies the link rather than what it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, shared, artifact } = sharedTargetRepository(fixture);
+/// ```
+fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    let shared: PathBuf = fixture.root.join("shared-target");
+    std::fs::create_dir_all(shared.as_path()).expect("the shared build directory");
+    std::fs::create_dir_all(repo.join("src")).expect("the crate's source directory");
+    std::fs::write(repo.join(".gitignore"), b"/target\n").expect("gitignore");
+    std::fs::write(repo.join("Cargo.toml"), format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the manifest");
+    std::fs::write(repo.join("src/main.rs"), b"fn main() {}\n").expect("the crate");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=the shared target"]);
+    std::os::unix::fs::symlink(shared.as_path(), repo.join("target")).expect("the person's link to one build directory");
+    // `run_tool` ends the control when the build fails, so the artifact below is the only thing checked here.
+    let _built: String = run_tool(fixture, "cargo", repo.as_path(), &["build", "--offline", "--quiet"]);
+    let artifact: PathBuf = shared.join("debug").join(SHARED_TARGET_PACKAGE);
+    assert!(artifact.exists(), "the source's build artifact is there before the add: {}", artifact.display());
+    return (repo, shared, artifact);
+}
+
+/// What:
+///  A copied `target` that is a link leaving the worktree is never cleaned,
+///  so the checkout the link names keeps its build output.
+/// Why:
+///   The worktree's `cargo clean --package` would run through the link and delete the source's built artifacts,
+/// which is a directory outside the worktree the repair serves.
+/// The add still succeeds:
+/// the worktree's own crates are cleaned only where a clean reaches nothing else.
+#[test]
+fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
+    let fixture: Fixture = fixture("repair-shared-target");
+    if !prepare_cargo(&fixture, "a_shared_target_a_link_carries_out_of_the_worktree_is_left_built") {
+        remove(&fixture);
+        return;
+    }
+    let (repo, shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let worktree: PathBuf = fixture.root.join("deeper/linked");
+    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    assert!(std::fs::symlink_metadata(worktree.join("target")).expect("the copied link").file_type().is_symlink(), "the copy carried the person's link");
+    assert!(artifact.exists(), "the source's build artifact was deleted through the copied link: {}", artifact.display());
+    // The control that proves this fixture is the hazard: the very clean the repair would have run, by hand in the
+    //  worktree, deletes the source's artifact through the link.
+    let _cleaned: String = run_tool(&fixture, "cargo", worktree.as_path(), &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE]);
+    assert!(!artifact.exists(), "a clean in the worktree reaches the source's build output through the copied link: {}", artifact.display());
+    assert!(shared.join("debug").is_dir(), "the shared build directory is the one the clean deleted from");
+}
+
 /// Cargo's default layout,
 /// where the build state lives in `target/` and arrives with the copy.
 #[test]

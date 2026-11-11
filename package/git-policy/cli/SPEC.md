@@ -3690,13 +3690,13 @@ of which the two that rewrite link layouts in place are the service's work whene
   each workspace's clone and clean in order,
   because a
   clean needs its own clone first and two workspaces share no build directory.
-  `--locked` is not passed to the clean,
+  The add's clean does not pass `--locked`,
   because a committed `Cargo.lock` that disagrees with its manifest (ten workspaces of this
   repository do) makes Cargo refuse;
   the lock is read before and put back byte for byte after,
   so the new worktree stays as
   checked out.
-  The clean runs in a worktree another command may already be working in,
+  That clean runs in a worktree another command may already be working in,
   and nothing read after it can tell Cargo's own rewrite of that lock from a command's or person's newer write,
   so the bytes standing there when the clean ends are kept whole before the checked-out ones go back:
   under the repository's Git directory,
@@ -3709,14 +3709,26 @@ of which the two that rewrite link layouts in place are the service's work whene
   is left exactly as the clean found it,
   because the checked-out bytes are in the branch and those are not;
   the worktree then shows the difference.
-  The add's Cargo finding names every kept copy;
-  the prewarm job,
-  which runs in the service and has no terminal,
-  writes the same line to its diagnostic log.
+  The add's Cargo finding names every kept copy.
+  The prewarm job's clean,
+  which runs in the service after the add returned and when the person may be working in the worktree,
+  never writes that lock:
+  it passes `--locked`,
+  a lock Cargo refuses is resolved first by `cargo metadata --offline`,
+  and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
+  so a write of the person's lands in their own file and stays there.
+  A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
+  and the job's diagnostic log says which file it was.
   Nothing is cloned or cleaned when the source and the worktree share one build directory,
   when the source has no such
   workspace,
-  or when the worktree's build directory already holds state.
+  when the worktree's build directory already holds state,
+  or when a clean would reach a directory outside the worktree:
+  a copied `target/` (or `target_directory`) that is a link to a directory elsewhere,
+  and a copied `node_modules` that is one,
+  are the person's own links,
+  and a clean or an install through them would delete or rewrite the files of the checkout they name,
+  so the repair leaves them alone and the worktree's first build recompiles what it needs.
 - Toolchain:
   when a launcher record under `.cache/toolchain-launchers` names a `toolchain.lock.json` other than the worktree's,
   `mpm-shadow install --frozen-lockfile`,
