@@ -480,7 +480,8 @@ pub(crate) struct Replanning {
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
-    /// The directory a plan is kept in,
+    /// The directory the plan's files are kept in,
+    /// which is where this drain writes the plan it promises and removes the one it forgets,
     /// or nothing for a plan kept in memory only.
     pub(crate) plans: Option<PathBuf>,
 }
