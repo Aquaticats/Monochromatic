@@ -297,6 +297,12 @@ pub mod worktree_trash_entries;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_manifest;
 
+/// The manifest a trash carries inside itself,
+/// written before the swap publishes it,
+/// so a later pass can prove what the trash is without a record.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_own_manifest;
+
 /// Removal of a directory tree beneath a held parent handle,
 /// never following a link.
 #[cfg(target_os = "linux")]
