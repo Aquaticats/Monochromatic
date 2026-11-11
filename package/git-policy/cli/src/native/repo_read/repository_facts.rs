@@ -59,6 +59,9 @@ use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
     sequencer_state, sequencer_state_when_query_fails,
 };
+/// What one abort form would discard,
+/// and the forms that ask.
+use crate::{repository_facts_abort_discard::AbortDiscard, rule_linked_worktree::GuardedCommand};
 /// The transaction Git context.
 use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
@@ -141,6 +144,12 @@ pub trait RepositoryFacts {
     /// Asked by a refusal in a linked worktree,
     ///  which must name where the setting belongs.
     fn main_worktree_root(&mut self) -> Result<PathBuf, String>;
+
+    /// What the abort form `command` would discard besides the state of the operation it undoes,
+    /// and whether that operation waits at all.
+    /// Asked before an abort form runs,
+    /// so the person's own work is saved first and the operation's own state is let go.
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -453,6 +462,10 @@ impl RepositoryFacts for GitFacts {
             main_worktree_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the worktrees of the repository")?;
         return main_worktree_from_answer(&output);
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        return crate::repository_facts_abort_discard::abort_discard(self, command);
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {

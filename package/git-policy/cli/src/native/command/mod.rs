@@ -158,6 +158,13 @@ pub mod rule_shared_remote;
 /// The rejection texts of the shared-remote-settings refusal.
 pub mod rule_shared_remote_messages;
 
+/// The operation each abort form undoes,
+/// and whether that operation waits.
+pub mod rule_abort_operation;
+
+/// The plain-language texts of the abort carve-out.
+pub mod rule_abort_messages;
+
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;
 

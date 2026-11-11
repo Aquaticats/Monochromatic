@@ -2366,6 +2366,16 @@ The rule is:
   which runs in a clean linked worktree and is rejected in the main worktree and in a linked
   worktree that holds uncommitted changes,
   because it is a stash form that changes state.
+- The abort forms of `git merge`,
+  `git rebase`,
+  `git cherry-pick`,
+  `git revert` and `git am` are decided by the operation in progress,
+  not by the status,
+  because an operation that stopped with conflicts makes the status dirty by itself:
+  in a linked worktree one that undoes the waiting operation runs
+  after the wrapper saves every change that is not the operation's own,
+  one whose operation is not waiting is left to Git (which refuses it and discards nothing),
+  and the main worktree keeps the rejection.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -2529,6 +2539,47 @@ the command is rejected and says why.
  `:/a.rs`):
  the message names the magic and the file,
  and naming the file itself is saved first and then allowed.
+The abort forms of the same operations are decided the same way.
+`git merge --abort`,
+`git rebase --abort`,
+`git cherry-pick --abort`,
+`git revert --abort` and `git am --abort` in a linked worktree run while the operation they undo waits,
+because that operation's own state is what `git status` reports and what the abort exists to let go.
+The wrapper saves the changes that are not the operation's own first,
+into the same `discarded/<UTC time>/` folder,
+and prints where each went before Git runs:
+
+```text
+monochromatic-git-policy-cli: this worktree holds changes besides the merge in progress, and git merge --abort discards them; the wrapper saved them first, so nothing you wrote is lost.
+  copies are under /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07
+  a.rs => /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07/a.rs
+  git merge --abort runs now and restores the state before the merge.
+```
+
+For a merge,
+a path that still holds the result Git recorded in `AUTO_MERGE`,
+in the file or in the index,
+is the merge's own state and is not copied;
+a resolution you wrote or staged over it is.
+A rebase,
+a cherry-pick,
+a revert and an `am` return with a hard reset that keeps nothing,
+so every uncommitted tracked change is copied.
+Where the operation's own state is all there is,
+the abort runs with no copy and no notice.
+Where no operation of that kind waits,
+Git refuses the command itself (`There is no merge to abort`),
+which discards nothing,
+so the wrapper leaves it to Git.
+Two things keep the rejection:
+the main worktree,
+where a form of this policy is always rejected (`git merge --quit` and its siblings stop the operation
+and keep the index and files),
+and an ignored file at a path the tree the abort writes back tracks,
+which is named because the abort replaces that file just as a hard reset would.
+When a copy cannot be written,
+the command is rejected and says which path and why.
+
 The folder is bounded,
 because it would otherwise grow for as long as the repository lives,
  and the copies are the only remaining content of replaced files.
@@ -2696,6 +2747,9 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git cherry-pick --abort`,
    `git revert --abort`,
    `git am --abort`:
+   in a linked worktree the abort runs while its own operation waits,
+   after the wrapper saves the work that is not the operation's own (see above),
+   and the main worktree keeps the rejection;
    the same command with `--quit` stops the operation and keeps the index and files,
    `--continue` finishes it after resolving conflicts,
    and `--skip` drops the current commit or patch.
@@ -3420,6 +3474,10 @@ so they read the `.gitattributes` of the branch tip (`GIT_ATTR_SOURCE`) unless y
  (`--attr-source`,
 `GIT_ATTR_SOURCE` or `attr.tree`),
 and the `union` line for `doc/handover/*.md` applies in them too.
+The rerere cache a conflicted merge leaves is real Git's own file:
+a merge the wrapper finishes leaves `MERGE_RR` with the bytes the same conclusion leaves with real Git,
+and a merge where `rerere.enabled` is false leaves no such file at all.
+
 Design and measurements:
 `doc/planning/cli-git-merge-auto-resolution.md`;
 the rules:

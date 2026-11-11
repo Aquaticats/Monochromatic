@@ -40,6 +40,9 @@ pub mod discarded_nested_repository;
 /// cherry-pick or revert.
 pub mod conflict_side_guard;
 
+/// The linked-worktree policy's carve-out for the abort forms during an operation.
+pub mod abort_discard_guard;
+
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 

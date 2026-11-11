@@ -13520,6 +13520,17 @@ and no commit waits for the flush of bytes that would say nothing
 The landing removes the same state from the worktree exactly as native Git removed it in the scratch repository,
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
+`MERGE_RR` is the exception among those entries:
+the landing writes the scratch repository's copy back instead of removing it,
+because `git rerere` rewrites that file while a merge waits,
+and the commit made in the scratch repository leaves it as the same commit leaves it natively.
+A linked worktree's own cache therefore ends with the bytes the same conclusion leaves with real Git,
+which `binary_merge_rr_cleanup_tests.rs` compares byte for byte,
+and a merge the word-level second pass finishes itself is compared the same way.
+Where `rerere.enabled` is false,
+`git merge` writes no cache at all
+(measured with Git 2.56.0 on a conflicted merge),
+and a merge the second pass finishes leaves none either.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
 
 The copies folder is made only when the worktree holds conclusion state:
@@ -16086,6 +16097,98 @@ what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
+#### The abort forms while their operation waits
+
+An operation that stopped with conflicts makes `git status` report its own state,
+so the rule above refused every abort form for exactly as long as it was the command a person needs:
+in a linked worktree a conflicted merge could be finished but not aborted without the hatch.
+The abort forms are decided instead by the operation's own state in the worktree's Git directory,
+read in one start of Git that asks `rev-parse --path-format=absolute --git-path` for
+`MERGE_HEAD`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD`,
+`rebase-merge`,
+`rebase-apply/rebasing`,
+`rebase-apply/applying`
+and `sequencer`
+(`repository_facts_abort_discard.rs`,
+`rule_abort_operation.rs`).
+`MERGE_HEAD` is a merge,
+`rebase-merge` or `rebase-apply/rebasing` a rebase of either backend,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD` or `sequencer` a cherry-pick or a revert,
+and `rebase-apply/applying` an `am`,
+which is read last so a rebase that applies patches is a rebase.
+An answer that is not one path per name is a `fact-unavailable` rejection,
+never "nothing waits".
+
+Three answers follow from that state.
+Where no operation of the form's kind waits,
+Git refuses the command itself
+(`There is no merge to abort (MERGE_HEAD missing)`)
+and discards nothing,
+so the command is left to Git and the record says `allowed`
+with `dirty` null,
+because no status was read.
+Where the form's own operation waits,
+the work that is not the operation's own is copied first and the command runs
+(the owner's "save,
+then allow",
+2026-11-02,
+which the conflicted-path carve-out below already follows).
+Where the answer cannot be read,
+the rejection above stands,
+which loses nothing.
+
+That work is read from Git's own listings.
+For a merge whose `AUTO_MERGE` ref resolves,
+it is the paths where the worktree differs from the result Git recorded
+(`git diff --name-only -z AUTO_MERGE`)
+or where the index does,
+unmerged entries left out
+(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`):
+an untouched conflicted path holds the recorded result and unmerged index entries,
+so it is not named,
+and a resolution written or staged over it is.
+For a merge without `AUTO_MERGE`,
+a rebase,
+a cherry-pick,
+a revert and an `am`,
+every uncommitted tracked change is named
+(`git diff --name-only -z` and `git diff --cached --name-only -z`),
+because those aborts return with a hard reset that keeps nothing.
+A listing that fails is a rejection,
+never an empty list.
+The copies are written by the same saver,
+into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
+with the same bound,
+and the notice names the command,
+the folder and each copy before Git runs;
+a path with nothing to copy is named as such,
+and a copy that cannot be written rejects the command with the reason.
+The record is `saved-abort` with the copies when something was saved,
+and `allowed` with `dirty` null when the operation's own state was all there was.
+
+The ignored-file question a hard reset gets is asked here too,
+because the abort writes a tree back over the worktree:
+the tree is `ORIG_HEAD`,
+which Git records before a merge,
+a rebase,
+a pick or an `am` stops
+(measured with Git 2.56.0 on a single conflicted cherry-pick,
+where `ORIG_HEAD` held the commit `HEAD` was at before the pick),
+and a repository whose `ORIG_HEAD` does not resolve is read as `HEAD`,
+which is the commit the operation started at until it moves `HEAD`.
+An ignored file at one of those paths keeps the rejection and is named,
+as for a forced `checkout` and a hard `reset`.
+
+The main worktree and a directory outside a worktree keep the rejection,
+because the rule above refuses a form there always;
+`git merge --quit` and its siblings stop the operation and keep the index and files,
+and the hatch runs the abort anyway.
+The check runs after the allowlisted tool cache has answered `exempt`,
+so a repository no guard reads gets no copy either.
+
 #### The window between the measurement and the command
 
 The rule above is a statement about the state the wrapper measured,
@@ -16333,8 +16436,12 @@ a branch option,
 a form without `--`
 before the paths,
 an index-only `restore --staged`,
-and any `reset`,
-`merge --abort` or other guarded command.
+and any `reset` or other guarded command
+(the abort forms of `merge`,
+`rebase`,
+`cherry-pick`,
+`revert` and `am` are decided by the carve-out above,
+which lets one run only where the operation it undoes waits).
 A path is read by its literal spelling below the working directory.
 A directory,
 a trailing slash,
@@ -16552,7 +16659,8 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict` or `saved-nested-repository`),
+`saved-conflict`,
+`saved-nested-repository` or `saved-abort`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -16565,8 +16673,9 @@ the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so does a `saved-nested-repository` line,
-whose places hold the repositories a clean would have deleted.
+and so do a `saved-nested-repository` line,
+whose places hold the repositories a clean would have deleted,
+and a `saved-abort` line.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,

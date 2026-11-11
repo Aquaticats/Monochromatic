@@ -39,6 +39,13 @@ pub mod repository_facts_ignored_files;
 ///  counted from real Git's own listings.
 pub mod repository_facts_staged_selection;
 
+/// The worktree's ignored files whose paths a revision's tree tracks,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_ignored_files;
+
+/// What one abort form would discard besides the state of the operation it undoes.
+pub mod repository_facts_abort_discard;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 
