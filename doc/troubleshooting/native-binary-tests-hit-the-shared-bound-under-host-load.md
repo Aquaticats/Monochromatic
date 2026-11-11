@@ -1640,7 +1640,11 @@ The seven `abort_during_an_operation` controls,
 which land no commit,
 passed
 `Summary [  51.541s] 7 tests run: 7 passed, 955 skipped` in the same period,
-and each of the four `merge_rr_cleanup` controls passed at least once that day.
+and each of the four `merge_rr_cleanup` controls passed at least once that day,
+the last time all four together in 45.9 s
+(`Summary [  45.916s] 4 tests run: 4 passed, 958 skipped`) at a load average of 95,
+so what ends them is how long the landing waits,
+not which control asks.
 
 The exemptions the supervisor has are for a command that *is* a commit
 (`COMMIT_BOUND_SECONDS`,
