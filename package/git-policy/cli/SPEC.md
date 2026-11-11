@@ -9752,6 +9752,15 @@ and cannot be disabled or assigned a severity through repository config.
   an explicit-path commit names a path whose deletion the real index stages while an entry still exists at that
   worktree path,
   so the pathspec cannot record the deletion.
+  The paths it names are the selection's own,
+  read from a pathspec file exactly as from the command line,
+  and the question is asked of Git under the pathspec modes the caller set,
+  so `--literal-pathspecs commit -- 'literal*.txt'` is asked about the file of that name and never about a glob,
+  and a selection of nothing but subtracting elements keeps native Git's reading of it.
+  One Git start carries at most 64 KiB of elements and every subtracting element rides in each of them,
+  so a pathspec file past one command line is answered in bounded starts
+  (`commit_staged_deletions.rs`,
+  `selection_elements`).
   The message names the paths and both ways forward
   (`commit_staged_deletions.rs`).
 - `explicit-path-commit/named-path-ignored`:
@@ -12540,6 +12549,17 @@ For injected commit-only semantics:
     native Git commits the tracked and staged paths a directory or a pattern matches,
     so a commit of `.`,
     `*` or a directory leaves every untracked file untracked.
+    The elements that subtract paths (`:(exclude)`,
+    `:!`,
+    `:^`) are part of the whole selection,
+    so they ride in the exact-file start as well:
+    native Git reads `git commit -- a.txt ':(exclude)a.txt'` as no path at all,
+    and one `git add` per element would stage the file the same selection excludes.
+    A list that holds only subtracting elements reads as every path when the caller wrote nothing else,
+    which is native Git's reading of it;
+    when the caller named exact files instead,
+    that start is left out,
+    because those elements are already the positives of the selection.
     A pathspec whose elements match no entry of the private index is refused as native Git refuses it:
     the `git add --update` start fails before anything lands,
     and its "pathspec ... did not match any files" sentence is reported as
