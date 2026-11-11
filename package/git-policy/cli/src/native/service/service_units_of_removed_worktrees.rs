@@ -33,6 +33,12 @@
 //! or whose service the manager does not yet report gone:
 //! those keep the note and the socket file too,
 //! so a later sweep finishes.
+//! A service that stops its own socket never removes its own journal,
+//! because it is still one of that journal's writers:
+//! its after-commit task and that task's jobs write the note of a repository to look at and the plan of a push to try again,
+//! and a write that lands between the listing and the removal would be taken with the whole tree.
+//! It keeps the note and the socket file instead,
+//! so the sweep that asks the manager whether its service is gone removes the journal once that is over.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -73,8 +79,8 @@ pub use crate::service_journal_folder_of_an_instance::{JOURNAL_FOLDER, journal_o
 /// read and written by the code here and by provisioning
 /// (`service_files_of_a_stopped_instance.rs`).
 pub use crate::service_files_of_a_stopped_instance::{
-    JournalAfterStop, KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, note_path, note_worktree, record_worktree,
-    remove_journal_of_a_stopped_instance,
+    JournalAfterStop, KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, journal_of_the_instance, note_path, note_worktree,
+    record_worktree, remove_journal_of_a_stopped_instance, work_a_person_may_want,
 };
 
 /// What a unit instance's worktree is,
@@ -407,21 +413,24 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 }
 
 /// What:
-/// Stops the socket unit of one instance through the manager,
-/// and removes the files that said it had units,
+/// Stops the socket unit of one instance through the manager
+/// and keeps the journal, the note and the socket file for the sweep that follows this process's end,
 /// when the worktree of that instance is gone,
 /// and nothing when it is not.
 /// Why:
 ///   This is what a service of a gone worktree does about itself:
 /// it serves nothing,
-/// and the socket,
-/// the note and the socket file go,
-/// so `doctor` counts nothing left over and the next sweep asks nothing.
+/// and no connection starts it again.
+/// `doctor` counts the instance until the sweep removes it,
+/// which is the price of never taking a record this process may still publish.
 /// Only the socket is stopped,
 /// and with the mode that leaves what requires it alone:
 /// the service's own end is what stops its service unit,
 /// and a stop of that unit from inside the service would signal this process mid-sentence.
 /// The socket goes first so no connection starts the service again.
+/// The journal is the one file this process may still write,
+/// so its removal waits for a sweep that proves the service gone,
+/// and the files that name the instance stay until then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -430,22 +439,27 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
     let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
     stop_own_socket(instance, manager)?;
-    // This process is the only writer of its own journal, and it lands nothing after this point:
-    // the loop that asked returns as soon as this answers.
-    match remove_journal_of_a_stopped_instance(folders.state_dir, instance, true) {
-        Some(JournalAfterStop::HoldsWork(kept)) => {
-            forget_stopped_instance(folders.runtime_dir, instance);
-            crate::service_warn!(
-                "the journal of this commit service is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
-                kept.journal.display(),
-                kept.entry,
-                kept.reason
-            );
-        }
-        // A client whose answer was lost may still read this journal, so the files that name the instance stay
-        //  for the sweep that removes it once that is over.
-        Some(JournalAfterStop::StillRead(_)) => {}
-        Some(JournalAfterStop::Removed) | None => forget_stopped_instance(folders.runtime_dir, instance),
+    // Nothing of the journal is removed here, because this process is one of its writers and still runs:
+    //  the task that runs the after-commit work writes the note that names a repository to look at and the plan of a push
+    //  to try again, on a thread of its own and from jobs of the blocking pool, and both may write between the listing that
+    //  says the journal holds nothing unresolved and the removal of the whole tree.
+    // Removing it there took a record published in that window: the durable record of a pending push, of a repository still
+    //  to look at, or of a batch a client whose answer was lost still reads.
+    // So the journal, the note and the socket file stay for the sweep that runs after this process has ended and the manager
+    //  reports its service gone (`stop_units_of_gone_worktrees`), and what the journal holds is still named here.
+    match work_a_person_may_want(folders.state_dir, instance) {
+        Some(kept) => crate::service_warn!(
+            "the journal of this commit service is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
+            kept.journal.display(),
+            kept.entry,
+            kept.reason
+        ),
+        // Landed records a client may still read, and the landing record of nothing in flight, ask nothing of a person:
+        //  the sweep removes them together with the files that name this instance once this process is gone.
+        None => crate::service_log!(
+            "the journal of this commit service is kept at {} for the sweep that follows this process's end, because this service is still one of its writers",
+            journal_of_the_instance(folders.state_dir, instance).map_or_else(|| String::from("a folder this process was given no state directory for"), |journal| journal.display().to_string())
+        ),
     }
     return Ok(Some(gone));
 }

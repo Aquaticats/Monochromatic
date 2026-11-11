@@ -5,6 +5,8 @@
 //! The manager is a recorder.
 
 use super::*;
+use crate::claim_time::ClaimTime;
+use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::service_commit_looking_for_what_landed::{LookForWhatLanded, looking_for_what_landed};
 use crate::service_instance::{instance_of, service_unit_instance};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, Intent, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION, intent_text};
@@ -82,13 +84,20 @@ fn the_sweep_takes_the_note_the_socket_file_and_the_journal_of_a_stopped_instanc
 }
 
 /// What:
-///  A service that finds its own worktree gone takes its own journal when nothing is unresolved,
-///  so a removal Git ran with the wrapper replaced leaves no state directory behind.
+///  A service that finds its own worktree gone stops its own socket,
+///  and keeps its journal,
+///  its note and its socket file,
+///  so a record its own after-commit task writes after the stop is still there
+///  and the sweep that follows the process's exit finds the instance.
 /// Why:
-///   The service's own stop removes the note and the socket file,
-/// so no later sweep asks about that instance at all.
+///   The process that stops its own socket is one of its journal's writers:
+/// the after-commit task writes the note that names a repository to look at and the plan of a push to try again,
+///  on a thread of its own and from jobs of the blocking pool,
+///  and both may write between the listing that says the journal holds nothing unresolved and the removal of the tree.
+///  A journal removed there takes the durable record of a pending push with it,
+///  or the record of a batch a client whose answer was lost still reads.
 #[test]
-fn the_service_takes_its_own_journal_when_nothing_is_unresolved() {
+fn the_service_keeps_its_own_journal_while_its_own_task_may_still_write_it() {
     let machine: Machine = machine("files-own");
     let gone: PathBuf = machine.linked("gone", false);
     let instance: String = instance_of(gone.as_path());
@@ -96,10 +105,16 @@ fn the_service_takes_its_own_journal_when_nothing_is_unresolved() {
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
     let mut recorder: Recorder = Recorder::default();
-    let stopped: Option<PathBuf> =
-        stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
-    assert_eq!(stopped, Some(gone));
-    assert!(!journal.exists(), "the journal of the service's own gone worktree is removed with its socket");
+    let stopped: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    assert_eq!(stopped, Some(gone.clone()));
+    assert!(journal.exists(), "a service never removes the journal its own writers may still write");
+    // The record the after-commit task writes after the socket was stopped,
+    // which the removal that ran there took with the whole tree.
+    let mut watch: ClaimWatch = ClaimWatch::restored(journal.join(WATCH_DIRECTORY).as_path(), Some(instance.as_str()));
+    watch.remember(gone.as_path());
+    assert_eq!(watch.directories(), vec![gone], "the repository the service is still to look at is written down where a restart reads it");
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep that follows the process's exit finds the instance");
+    assert!(socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file stays with the note");
     remove(machine.root.as_path());
 }
 
@@ -237,6 +252,101 @@ fn a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal() {
     );
     assert!(journal.exists(), "the records of its landed batches stay while a client of the instance may still read them");
     assert_eq!(looking_up(journal.as_path(), request), Some(commit), "the cleanup took the only record that tells a lost answer what its commit became");
+    remove(root.as_path());
+}
+
+/// A finished record's text as a release that stamps it writes it:
+/// the batch's own lines and the reading of the clocks it was written by.
+/// The key is spelled here and not read from the product,
+/// because this control has to run on the release before records carried a reading.
+fn stamped_record(batch: &Intent, written: &ClaimTime) -> String {
+    return format!("{}stamp={}\n", intent_text(batch), written.encode());
+}
+
+/// Set the modification time of one fixture path,
+/// so a control says what a wall clock that moved made a file look like
+/// without waiting for that time to pass.
+fn set_time(path: &std::path::Path, when: SystemTime) {
+    std::fs::File::open(path).expect("a fixture path whose time is set").set_modified(when).expect("a fixture time");
+}
+
+/// What:
+///  A finished record whose modification time is past the window,
+///  because the wall clock stepped forward after it was written,
+///  keeps the journal:
+///  the reading it carries says it was written a moment ago,
+///  and the client whose answer was lost still reads the commit it became.
+/// Why:
+///   A time sync, a person or a machine that resumed from sleep moves the wall clock,
+/// and the wait a client is inside is measured on the monotonic clock,
+/// which does not count a suspended host's sleep,
+/// so the cleanup judged by the modification time alone removed the only record
+/// that turns that client's failure into the commit it landed.
+#[test]
+fn a_finished_record_a_wall_clock_step_ages_keeps_the_journal() {
+    let root: PathBuf = fixture("files-wall-step");
+    let state: PathBuf = root.join("state");
+    let instance: &str = "0000000000000000000000000000000b";
+    let request: &str = "2b3c4d5e-6f70-8192-a3b4-c5d6e7f80912";
+    let commit: String = "3".repeat(40);
+    let journal: PathBuf = journal_folder(state.as_path(), instance);
+    let record: PathBuf = journal.join(format!("7.{DONE_EXTENSION}"));
+    // The reading the record carries was taken a moment ago; the step is what its modification time shows.
+    std::fs::write(&record, stamped_record(&a_landed_batch(commit.as_str(), request), &ClaimTime::read().rewound(Duration::from_secs(30)))).expect("a finished batch");
+    age_a_journal(journal.as_path());
+    assert_eq!(looking_up(journal.as_path(), request), Some(commit.clone()), "the record is there for the look a lost answer makes");
+    assert_eq!(
+        remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
+        Some(JournalAfterStop::StillRead(KeptJournal {
+            journal: journal.clone(),
+            entry: String::from("7.done"),
+            reason: String::from(A_LOST_ANSWER_MAY_READ_IT),
+        })),
+        "a record the monotonic clock says is a moment old keeps the journal however far the wall clock moved",
+    );
+    assert!(journal.exists(), "the records of its landed batches stay while a client of the instance may still read them");
+    assert_eq!(looking_up(journal.as_path(), request), Some(commit), "the cleanup took the only record that tells a lost answer what its commit became");
+    remove(root.as_path());
+}
+
+/// What:
+///  A finished record of an earlier release carries no reading,
+///  so it is judged by its modification time as every release before this one judged it:
+///  one a moment old keeps the journal,
+///  and one aged past the window is removed.
+/// Why:
+///   The reading a record carries is one more reason to keep it,
+/// and a record that has none must be neither kept for ever nor removed at once.
+/// The pair is the positive control of the reading:
+/// the same aged times keep a journal whose record carries a reading a moment old.
+#[test]
+fn a_finished_record_of_an_earlier_release_is_judged_by_its_modification_time() {
+    let root: PathBuf = fixture("files-no-reading");
+    let state: PathBuf = root.join("state");
+    let instance: &str = "0000000000000000000000000000000c";
+    let journal: PathBuf = journal_folder(state.as_path(), instance);
+    let record: PathBuf = journal.join(format!("7.{DONE_EXTENSION}"));
+    std::fs::write(&record, intent_text(&a_landed_batch("4".repeat(40).as_str(), "3c4d5e6f-7081-92a3-b4c5-d6e7f8091223"))).expect("a finished batch of an earlier release");
+    assert_eq!(
+        remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
+        Some(JournalAfterStop::StillRead(KeptJournal {
+            journal: journal.clone(),
+            entry: String::from("7.done"),
+            reason: String::from(A_LOST_ANSWER_MAY_READ_IT),
+        })),
+        "a record a moment old keeps the journal while a client may still look",
+    );
+    let long_ago: SystemTime = SystemTime::now()
+        .checked_sub(crate::wait_ceilings::A_FINISHED_RECORD_IS_READ.saturating_add(Duration::from_secs(1)))
+        .expect("a fixture time after the epoch");
+    set_time(journal.as_path(), long_ago);
+    set_time(&record, long_ago);
+    assert_eq!(
+        remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
+        Some(JournalAfterStop::Removed),
+        "a record an earlier release wrote carries no reading, so its modification time is the only witness and it goes once that is past",
+    );
+    assert!(!journal.exists());
     remove(root.as_path());
 }
 
