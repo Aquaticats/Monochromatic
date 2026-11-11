@@ -1785,3 +1785,102 @@ fn btrfs_the_stage_a_killed_snapshot_add_left_is_removed() {
     assert!(!container.exists(), "the stage stays gone");
     remove(root.as_path());
 }
+
+/// What:
+///  One ignored-state copy the add of `destination` owes,
+/// taken from the checkout beside it.
+/// Why:
+///   The record's source and selection are what a later command reads to make the copy the add owed,
+/// so a control of the record needs both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = { source: dirname(destination), selection: 'ignored' };
+/// ```
+fn owed_copy_beside(destination: &Path) -> crate::worktree_add_binding::OwedCopy {
+    return crate::worktree_add_binding::OwedCopy {
+        source: destination.parent().expect("a destination has a parent").to_path_buf(),
+        selection: crate::worktree_add_binding::OwedSelection::Ignored,
+    };
+}
+
+/// The two records of an add are published whole by their renames and flushed by nobody.
+///
+/// A loaded host made this step wait 15 to 44 seconds with nothing said (measured 2026-11-11: `recordDestination` of
+/// five concurrent adds, 9.3 s, 9.3 s and 13.9 s of adds that took 29 to 36 seconds), and one `fsync` of the claim's
+/// temporary file took 11.2 seconds on its own. A kill keeps both records in the page cache, so the flush bought nothing
+/// a kill can take away, and the next command answers an absent record at once (`settle_interrupted_add`).
+#[test]
+fn the_records_of_an_add_are_published_without_flushing() {
+    let (root, common, destination) = scene("claim-add-records-unflushed");
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    take_file_syncs();
+    take_directory_syncs();
+    let claim: StageClaim = claim_stage_for_creation(common.as_path(), Some(destination.as_path()), true, Some(&owed)).expect("claim").expect("an add that copies records one");
+    assert!(claim.path.exists(), "the claim is published");
+    assert!(claim.path.with_extension("add").exists(), "the record beside it is published");
+    let recorded: String = std::fs::read_to_string(claim.path.with_extension("add")).expect("the record");
+    assert_eq!(crate::worktree_add_binding::owed_copy_of(recorded.as_str()), Some(owed), "the record still names the copy it owes");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "neither record is flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor is the directory that holds them");
+    remove(root.as_path());
+}
+
+/// The record of the binding is published whole by one rename, and the directory that holds it is flushed once at most.
+///
+/// This is the second write of the same kind: it waited 2.7 to 3.4 seconds of a loaded add (measured 2026-11-11), and it
+/// names objects recovery only ever reports, never removes without a second proof.
+#[test]
+fn the_record_of_a_binding_is_published_without_flushing() {
+    let (root, common, destination) = scene("claim-binding-unflushed");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let admin: PathBuf = common.join("worktrees/topic");
+    std::fs::create_dir_all(admin.as_path()).expect("admin");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let binding = Binding {
+        destination: destination.clone(),
+        destination_id: crate::worktree_add_binding::path_identity(destination.as_path()).expect("the destination's identity"),
+        admin: admin.clone(),
+        admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"),
+        pointer: b"gitdir: /nowhere/worktrees/topic\n".to_vec(),
+    };
+    take_file_syncs();
+    take_directory_syncs();
+    claim.record_binding(&binding).expect("the binding is recorded");
+    let recorded: String = std::fs::read_to_string(claim.path.with_extension("add")).expect("the record");
+    assert_eq!(crate::worktree_add_binding::decode_record(recorded.as_str()), Some(Recorded::Registered(binding)), "the record holds the binding whole");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the record is not flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor is the directory that holds it");
+    remove(root.as_path());
+}
+
+/// A reaping that removed nothing flushes nothing;
+/// one that removed a dead owner's stage flushes the directory whose entries changed.
+///
+/// The flush is the directory's, so an add that found other adds' live claims paid a filesystem commit for no removal at
+/// all: measured 2026-11-11 as 4.6 to 13.9 seconds of the `recover` step of five concurrent adds.
+#[test]
+fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
+    let (root, common, destination) = scene("claim-reap-flush");
+    // A live owner's claim is the shape concurrent adds leave for each other: nothing of it is removed.
+    let live: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &current_copy_owner().expect("owner")).expect("claim");
+    assert!(!live.container().exists(), "the claim creates no container");
+    take_file_syncs();
+    take_directory_syncs();
+    let untouched: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(untouched, Vec::<String>::new(), "a live owner's claim is nobody's to settle: {untouched:?}");
+    assert!(live.path.exists(), "the claim stays for its owner");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "nothing was flushed for a removal that never happened");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "nor was the directory");
+    std::mem::forget(live);
+    remove(root.as_path());
+    // A dead owner's stage that the record of its creation proves is removed, and that removal is made durable.
+    let (dead_root, dead_common, container, _record) = killed_add_with_its_object_recorded("claim-reap-flush-dead");
+    take_file_syncs();
+    take_directory_syncs();
+    let removed: Vec<String> = reap_abandoned_stages(dead_common.as_path()).expect("reap");
+    assert!(removed.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "the dead owner's stage is removed: {removed:?}");
+    assert!(!container.exists(), "the stage is gone");
+    assert_eq!(take_directory_syncs(), vec![std::fs::canonicalize(journal_root(dead_common.as_path())).expect("canonical")], "the directory whose entries changed is flushed");
+    remove(dead_root.as_path());
+}

@@ -230,6 +230,24 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
 }
 
 /// What:
+///  Remove one file of the journal root and say whether it was there.
+/// Why:
+///   The flush of the directory follows a removal and never a look,
+/// so the sweep knows whether it changed anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = await removeFileIfPresent(path); // false when nothing stood there
+/// ```
+fn remove_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
+    if !still_there(path)? {
+        return Ok(false);
+    }
+    remove_file_if_present(path)?;
+    return Ok(true);
+}
+
+/// What:
 ///  Removes the temporaries that dead writers left in the journal root.
 /// Why:
 ///   A write cut off before its rename leaves a file nothing else names.
@@ -237,15 +255,19 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
 /// so the sweep
 ///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
 ///
+/// The answer says whether anything was removed,
+/// so the caller flushes the directory only when one was.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
 /// ```
-pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<(), WorktreeCopyError> {
+pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<bool, WorktreeCopyError> {
+    let mut removed: bool = false;
     for name in &verdicts.dead_temporaries {
-        remove_file_if_present(root.join(name).as_path())?;
+        removed |= remove_and_say(root.join(name).as_path())?;
     }
-    return Ok(());
+    return Ok(removed);
 }
 
 /// Which owners were found dead,
@@ -431,6 +453,7 @@ pub fn reap_judged_stages(
 ) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     let names: Vec<String> = claim_names(root.as_path())?;
+    let mut changed: bool = false;
     let mut notices: Vec<String> = Vec::new();
     if !names.is_empty() {
         let mut journaled: BTreeSet<PathBuf> = BTreeSet::new();
@@ -458,6 +481,7 @@ pub fn reap_judged_stages(
                     match provenance_of(claim.as_path(), container.as_path())? {
                         Provenance::Proved => {
                             remove_stage(container.as_path())?;
+                            changed = true;
                             notices.push(removed_stage_words(container.as_path()));
                         }
                         Provenance::Gone => {}
@@ -472,6 +496,7 @@ pub fn reap_judged_stages(
                     match assert_private_path(container.as_path(), Role::PrivateStage) {
                         Ok(()) => {
                             remove_stage(container.as_path())?;
+                            changed = true;
                             notices.push(removed_copy_stage_words(container.as_path()));
                         }
                         Err(_) if !still_there(container.as_path())? => {}
@@ -499,11 +524,17 @@ pub fn reap_judged_stages(
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
             remove_file_if_present(claim.as_path())?;
+            changed = true;
         }
     }
-    remove_dead_temporaries(root.as_path(), verdicts)?;
-    remove_records_nothing_claims(root.as_path())?;
-    absent_is_fine(sync_directory(root.as_path()))?;
+    changed |= remove_dead_temporaries(root.as_path(), verdicts)?;
+    changed |= remove_records_nothing_claims(root.as_path())?;
+    // The flush makes the removals durable, and nothing else: an add that found other adds' live claims removed nothing and
+    // paid a filesystem commit for it (measured 2026-11-11 as 4.6 to 13.9 seconds of the `recover` step of five
+    // concurrent adds). A removal a power cut takes back only means the next command settles the same records again.
+    if changed {
+        absent_is_fine(sync_directory(root.as_path()))?;
+    }
     return Ok(notices);
 }
 
@@ -577,15 +608,18 @@ fn copy_owed_to_another_worktree(
 ///  touched,
 /// because a write publishes its record with one rename and no temporary of that name is listed.
 ///
+/// The answer says whether anything was removed,
+/// so the caller flushes the directory only when one was.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name))) await rm(join(root, name));
 /// ```
-fn remove_records_nothing_claims(root: &Path) -> Result<(), WorktreeCopyError> {
+fn remove_records_nothing_claims(root: &Path) -> Result<bool, WorktreeCopyError> {
     // `match` treats an absent root as holding no records, and every other failure as fatal.
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(raw_failure(&error)),
     };
     let mut unclaimed: Vec<PathBuf> = Vec::new();
@@ -597,8 +631,9 @@ fn remove_records_nothing_claims(root: &Path) -> Result<(), WorktreeCopyError> {
             unclaimed.push(path);
         }
     }
+    let mut removed: bool = false;
     for path in unclaimed {
-        remove_file_if_present(path.as_path())?;
+        removed |= remove_and_say(path.as_path())?;
     }
-    return Ok(());
+    return Ok(removed);
 }
