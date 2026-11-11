@@ -216,10 +216,17 @@ const ASN_FETCH_DEADLINE_MILLISECONDS = 10 * 60 * 1000;
  @throws {@link AsnDatabaseError} when the deadline passed.
  */
 async function readOrStop(
-  reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>,
-  signal: AbortSignal,
-  deadline: number,
-  targetAsn: string,
+  {
+    reader,
+    signal,
+    deadline,
+    targetAsn,
+  }: {
+    readonly reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>;
+    readonly signal: AbortSignal;
+    readonly deadline: number;
+    readonly targetAsn: string;
+  },
 ): Promise<ReadableStreamReadResult<Uint8Array<ArrayBuffer>>> {
   if (signal.aborted) {
     throw new AsnDatabaseError(
@@ -343,7 +350,12 @@ export async function fetchAsnNetworks(
       networks,
     },);
     // oxlint-disable-next-line eslint/no-await-in-loop -- ReadableStream readers are sequential pull sources.
-    readState.current = await readOrStop(reader, signal, deadline, targetAsn,);
+    readState.current = await readOrStop({
+      reader,
+      signal,
+      deadline,
+      targetAsn,
+    },);
   }
   /**
    Final decoder flush and unterminated trailing line.
