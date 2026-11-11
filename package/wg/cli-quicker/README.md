@@ -604,6 +604,18 @@ which is where it has certainly stopped making progress;
 the error names the hook and the limit,
 so a hook that legitimately needs longer can be changed.
 
+The deadline also bounds the wait for a command's output.
+A command that exits while a process it started still holds its standard output or standard error open,
+as `sh -c 'something &'` does,
+never reports the close of its pipes,
+so the read ends are closed at the deadline and the call answers then.
+That command did exit, and its own status is what the call reports:
+a timeout is claimed only for a command the deadline ended,
+because reporting one for a hook that already succeeded would run a rollback for nothing.
+The output the command wrote before it exited is kept,
+a line says that a process it left behind held its output open,
+and anything that process writes later is not waited for.
+
 ## Taking the tunnel down
 
 `wg-quicker down` runs the steps that can fail before it removes any routing.

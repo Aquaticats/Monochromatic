@@ -1,7 +1,7 @@
 import {
   spawn as spawnChild,
 } from 'node:child_process';
-import { text, } from 'node:stream/consumers';
+import type { Readable, } from 'node:stream';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
@@ -103,6 +103,70 @@ function renderInvocation(
 }
 
 /**
+ Collects everything a stream delivers as UTF-8 text,
+ and answers what arrived even when the stream is closed early.
+
+ `text()` from `node:stream/consumers` refuses when a stream closes before its end,
+ which is what the deadline does to a pipe that a process the command left behind still holds:
+ the output the command had already written would go with it.
+ Every chunk is kept here,
+ and the answer is the text read so far,
+ whether the stream ended, failed or was closed.
+
+ @param stream - Standard output or standard error of a child that was piped.
+
+ @returns What the stream delivered, as UTF-8 text.
+
+ @example
+ ```ts
+ await collectText(child.stdout);
+ ```
+ */
+function collectText(stream: Readable,): Promise<string> {
+  /**
+   Chunks read so far, in the order they arrived.
+   */
+  const chunks: Uint8Array[] = [];
+  /**
+   The text,
+   answered by whichever of the stream's ends comes first.
+   */
+  const {
+    promise,
+    resolve,
+  } = Promise.withResolvers<string>();
+  /**
+   Answers the text read so far.
+   */
+  function answer(): void {
+    /**
+     Bytes read so far, joined.
+     */
+    const joined = Buffer.concat(chunks,);
+    resolve(joined.toString('utf8',),);
+  }
+  stream.on(
+    'data',
+    function keep(chunk: Uint8Array,): void {
+      chunks.push(chunk,);
+    },
+  );
+  stream.once(
+    'end',
+    answer,
+  );
+  stream.once(
+    'close',
+    answer,
+  );
+  stream.once(
+    'error',
+    answer,
+  );
+  return promise;
+}
+
+/**
  Runs one external command,
  waiting for it no longer than `deadlineMilliseconds`,
  and ends it when that passes.
@@ -170,9 +234,11 @@ async function execute(
    a closed pipe keeps nothing that was not read,
    and a command that ends at once would lose its output.
    */
-  const captured = Promise.allSettled([
-    child.stdout === null ? Promise.resolve('',) : text(child.stdout,),
-    child.stderr === null ? Promise.resolve('',) : text(child.stderr,),
+  const captured = Promise.all([
+    // `ChildProcess` types a stream as absent when it was not piped,
+    // and this spawn always pipes both.
+    child.stdout === null ? Promise.resolve('',) : collectText(child.stdout,),
+    child.stderr === null ? Promise.resolve('',) : collectText(child.stderr,),
   ],);
   /**
    What the close and the error events establish about the run.
@@ -206,11 +272,20 @@ async function execute(
   }
   /**
    Settled by the close of the child,
-   which follows a spawn failure as well as an ordinary end.
+   which follows a spawn failure as well as an ordinary end,
+   or by the deadline when the close does not come.
    */
   const {
     promise: closed,
     resolve: resolveClosed,
+  } = Promise.withResolvers<void>();
+  /**
+   Settled when the deadline passed,
+   whatever the child and its children were doing.
+   */
+  const {
+    promise: pastDeadline,
+    resolve: resolvePastDeadline,
   } = Promise.withResolvers<void>();
   child.once(
     'error',
@@ -226,36 +301,65 @@ async function execute(
     },
   );
   /**
-   Ends a command that outlives its deadline.
-   A child that already exited keeps its own exit code:
-   the deadline only claims what it ended.
+   Ends a command that outlives its deadline,
+   and stops waiting for its output either way.
+
+   The close of the child does not come while a process the command left behind
+   still holds its standard output or standard error,
+   so a shell that exits at once after starting a background program
+   would hold this call for as long as that program runs.
+   The read ends of those pipes are closed here,
+   which ends the capture with whatever was read,
+   and the wait ends at the deadline as it was asked to.
+
+   A child that already exited keeps its own status:
+   the deadline only claims what it ended,
+   and a command that succeeded before its bound says so.
    */
   const deadline = setTimeout(
     function end(): void {
-      if ((child.exitCode !== null) || (child.signalCode !== null))
-        return;
-      observed.endedByDeadline = true;
-      // SIGKILL, because a command that ignored the deadline would ignore a polite signal too,
-      // and every command run here is idempotent or is rolled back.
-      child.kill('SIGKILL',);
+      if ((child.exitCode === null) && (child.signalCode === null)) {
+        observed.endedByDeadline = true;
+        // SIGKILL, because a command that ignored the deadline would ignore a polite signal too,
+        // and every command run here is idempotent or is rolled back.
+        child.kill('SIGKILL',);
+      }
+      else {
+        l.warn(
+          `${command} exited ${String(child.exitCode,)} before its ${String(deadlineMilliseconds,)} ms deadline, and a process it left behind still held its output open, so the call ended at the deadline with the output read so far`,
+        );
+      }
+      /**
+       Standard output of the child, when it was piped.
+       */
+      const output = child.stdout;
+      if (output !== null)
+        output.destroy();
+      /**
+       Standard error of the child, when it was piped.
+       */
+      const errors = child.stderr;
+      if (errors !== null)
+        errors.destroy();
+      resolvePastDeadline();
     },
     deadlineMilliseconds,
   );
-  await closed;
+  await Promise.race([
+    closed,
+    pastDeadline,
+  ],);
   /**
-   Captured stdout and stderr of the closed child.
+   Captured stdout and stderr of the child,
+   closed by its own end or by the deadline.
    */
-  const [stdoutResult, stderrResult,] = await captured;
-  if (stdoutResult.status === 'rejected')
-    l.error(`${command}: its standard output could not be read: ${String(stdoutResult.reason,)}`,);
-  if (stderrResult.status === 'rejected')
-    l.error(`${command}: its standard error could not be read: ${String(stderrResult.reason,)}`,);
+  const [stdout, stderr,] = await captured;
   /**
    What the command printed.
    */
   const printed: CommandResult = {
-    stdout: stdoutResult.status === 'fulfilled' ? stdoutResult.value : '',
-    stderr: stderrResult.status === 'fulfilled' ? stderrResult.value : '',
+    stdout,
+    stderr,
   };
   if (observed.spawnFailure !== PROGRAM_STARTED)
     throw new CommandSpawnError({

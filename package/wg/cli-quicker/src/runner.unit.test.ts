@@ -116,6 +116,22 @@ await describe({
       },
     },),
     it({
+      name: 'ends the call at its deadline when the command exited but a process it left behind holds the output open, and keeps what the command wrote',
+      fn: async () => {
+        const started = performance.now();
+        const result = await runAllowingFailure({
+          command: 'sh',
+          // The shell exits at once, and the sleep it started keeps standard output and standard error open for two seconds.
+          args: ['-c', 'echo kept; sleep 2 & exit 0',],
+          deadlineMilliseconds: TEST_DEADLINE_MILLISECONDS,
+        },);
+        const elapsed = performance.now() - started;
+        expect(result.exitCode,).toBe(0,);
+        expect(result.stdout,).toBe('kept\n',);
+        expect(elapsed,).toBeLessThan(1_000,);
+      },
+    },),
+    it({
       name: 'leaves a command that finishes inside its deadline alone, with both streams and its exit code',
       fn: async () => {
         const result = await run({
