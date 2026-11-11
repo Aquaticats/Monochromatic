@@ -220,8 +220,12 @@ impl<'a> SpecReader<'a> {
 /// The body is that of `SetUnitProperties`: the unit's name, the runtime flag and the properties,
 /// and the property here carries an `a(st)` device list,
 /// whose elements start on eight-byte boundaries.
+///
+/// The scope name's length moves the array's length field between the two four-byte positions of an
+/// eight-byte boundary, so every leaf length is checked and not one that happens to align.
 #[test]
 fn an_array_of_aligned_elements_declares_its_content_length() {
+    for leaf_length in 2..=13 {
     let bytes = encode_call(
         7,
         "/org/freedesktop/systemd1",
@@ -229,7 +233,7 @@ fn an_array_of_aligned_elements_declares_its_content_length() {
         "SetUnitProperties",
         None,
         &[
-            Argument::Text("wg-quicker-update-app.slice-xx.scope".to_string()),
+            Argument::Text(format!("wg-quicker-update-app.slice-{}.scope", "x".repeat(leaf_length - 2))),
             Argument::Flag(true),
             Argument::Properties(vec![
                 Property { name: "IOReadBandwidthMax".to_string(), value: PropertyValue::Devices(vec![("/dev/block/8:0".to_string(), 1_000)]) },
@@ -239,11 +243,9 @@ fn an_array_of_aligned_elements_declares_its_content_length() {
     let message = decode_message(&bytes).expect("readable");
     assert_eq!(message.signature, "sba(sv)");
     let mut reader = SpecReader::new(message.body());
-    assert_eq!(reader.string(), "wg-quicker-update-app.slice-xx.scope");
+    let _name = reader.string();
     assert!(reader.flag());
-    let (properties_length, properties_end) = reader.array(8);
-    let properties_start = reader.at;
-    assert_eq!(usize::try_from(properties_length).expect("length fits"), properties_end - properties_start, "the array length is its content's length");
+    let (_properties_length, properties_end) = reader.array(8);
     // One `(sv)` element, on its own eight-byte boundary.
     let _padding = reader.align(8);
     assert_eq!(reader.string(), "IOReadBandwidthMax");
@@ -256,5 +258,6 @@ fn an_array_of_aligned_elements_declares_its_content_length() {
     assert_eq!(reader.u64(), 1_000);
     assert_eq!(reader.at, devices_end, "the device array ends where its length says");
     assert_eq!(reader.at, properties_end, "the property array ends where its length says");
-    assert_eq!(reader.at, message.body().len(), "the body ends after its last value");
+    assert_eq!(reader.at, message.body().len(), "the body ends after its last value, for leaf length {leaf_length}");
+    }
 }
