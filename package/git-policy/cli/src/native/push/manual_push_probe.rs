@@ -29,7 +29,7 @@ use crate::auto_push_single_flight::{PushGit, run_query};
 use crate::lfs_upload_plan::{GitQuery, resolve_push_remote};
 /// Removes userinfo from text that may name a remote,
 /// and the cause a failure carries.
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 use crate::manual_push_cause::ManualPushCause;
 pub use crate::manual_push_probe_error::{GitRefusal, ManualPushProbeError};
 use crate::manual_push_probe_error::{cause_of_query, probe_error};
@@ -198,12 +198,12 @@ pub fn confirm_group(
     }
     let output = match run_query(git, arguments.as_slice()) {
         Ok(found) => found,
-        Err(error) => return Err(probe_error(cause_of_query(&error), mask_userinfo_text(format!("ls-remote of {remote_location} failed: {error}").as_str()))),
+        Err(error) => return Err(probe_error(cause_of_query(&error), mask_url_secrets_text(format!("ls-remote of {remote_location} failed: {error}").as_str()))),
     };
     if output.code != Some(0) {
         return Err(probe_error(
             ManualPushCause::RemoteUnreachable,
-            mask_userinfo_text(
+            mask_url_secrets_text(
                 format!("ls-remote of {remote_location} failed: {}", String::from_utf8_lossy(&output.stderr).trim_end()).as_str(),
             ),
         ));
@@ -273,7 +273,7 @@ pub fn probe_manual_push_updates_on(
             return Ok(Vec::new());
         }
         let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
-        let message: String = mask_userinfo_text(format!("Git could not determine push updates: {}", said.trim_end()).as_str());
+        let message: String = mask_url_secrets_text(format!("Git could not determine push updates: {}", said.trim_end()).as_str());
         // Git ends `push --dry-run --porcelain` before any destination is reported only when it refuses the push itself
         //  (`transport_push` returns before it prints a block, and `die` and usage errors end the process); a status
         //  from a signal, or a refusal without a word, is not Git saying no.
@@ -308,7 +308,7 @@ pub fn probe_manual_push_updates_on(
     if locations.len() != blocks.len() {
         return Err(probe_error(
             ManualPushCause::SelfExplained,
-            mask_userinfo_text(
+            mask_url_secrets_text(
                 format!("Git reported {} destinations but {remote_name} has {} push locations", blocks.len(), locations.len()).as_str(),
             ),
         ));

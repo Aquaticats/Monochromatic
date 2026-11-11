@@ -53,7 +53,7 @@ use crate::lfs_upload_explanations::{
     stopped_upload_words,
 };
 /// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::mask_userinfo;
+use crate::lfs_output_mask::mask_url_secrets;
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -260,7 +260,7 @@ fn run_with_captured_stderr(
     if let Err(error) = read {
         return Err(CaptureError::Scratch(error.to_string()));
     }
-    return Ok((ended, mask_userinfo(bytes.as_slice())));
+    return Ok((ended, mask_url_secrets(bytes.as_slice())));
 }
 
 /// What:
