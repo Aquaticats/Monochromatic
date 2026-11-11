@@ -96,7 +96,8 @@ fn stage_without_a_hook(name: &str) -> Stage {
     return stage_installing(name, None);
 }
 
-/// Build the stage, installing the stalling hook `hook_name` when one is named.
+/// Build the stage,
+/// installing the stalling hook `hook_name` when one is named.
 fn stage_installing(name: &str, hook_name: Option<&str>) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -212,10 +213,12 @@ fn an_accepted_push_leaves_the_servers_own_remote_lines_for_the_person() {
 /// Why:
 ///   Git exits `0` because the commits arrived,
 /// and the refusal it printed is the only sign that the local view stayed behind:
-/// without it `git status` reports the branch ahead of a remote that already has the commits and nothing says why
+/// without it `git status` reports the branch ahead of a remote that already has the commits,
+/// and nothing says why
 /// (`SPEC.md` "Reconcile and bounds").
 /// The lock is held by this control and by nothing else,
-/// so it is still there at the end, which is what keeps the reference behind.
+/// so it is still there at the end,
+/// which is what keeps the reference behind.
 #[test]
 fn a_delivered_push_whose_tracking_reference_was_locked_tells_the_person() {
     let stage: Stage = stage_without_a_hook("push-tracking-lock");

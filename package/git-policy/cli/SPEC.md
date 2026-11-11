@@ -7403,7 +7403,8 @@ in-process reader can) gives every value of the multi-valued keys.
 - A failed push is reported with its complete output and the note
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
-  A successful push shows only the `remote:` lines, the lines of the reconcile and that refusal,
+  A successful push shows only the `remote:` lines,
+  the lines of the reconcile and that refusal,
   and the record a later command shows carries them.
 - The record a later command shows carries what the push came to,
   as the first line of the record file,
