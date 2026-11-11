@@ -195,10 +195,8 @@ pub fn install_service(repository: &Path, binary: &Path, unit_directory: &Path, 
     // The daily pass must not outlive this install, so it is stopped before anything else,
     // and nothing is removed until the file that replaces it is written.
     if enable {
-        match stop_old_timer() {
-            Ok(line) => lines.push(line),
-            Err(reason) => return Err(reason),
-        }
+        let stopped: String = stop_old_timer()?;
+        lines.push(stopped);
     }
     if let Err(error) = fs::write(&service, render_service(repository, binary)) {
         return Err(format!("{}: {error}", service.display()));
