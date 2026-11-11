@@ -530,11 +530,106 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
     cargo_control("repair-real-cargo-external", true);
 }
 
+/// The package whose build artifact the shared-target control builds,
+/// and which a clean through the copied link would delete.
+const SHARED_TARGET_PACKAGE: &str = "shared-target-demo";
+
+/// What:
+///  A repository whose ignored `target` is a link to a directory elsewhere,
+/// already built there.
+/// Why:
+///   That is a person's ordinary setup for sharing one build directory between checkouts,
+///  and the copy of the ignored state copies the link rather than what it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, shared, artifact } = sharedTargetRepository(fixture);
+/// ```
+fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    let shared: PathBuf = fixture.root.join("shared-target");
+    std::fs::create_dir_all(shared.as_path()).expect("the shared build directory");
+    std::fs::create_dir_all(repo.join("src")).expect("the crate's source directory");
+    std::fs::write(repo.join(".gitignore"), b"/target\n").expect("gitignore");
+    std::fs::write(repo.join("Cargo.toml"), format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the manifest");
+    std::fs::write(repo.join("src/main.rs"), b"fn main() {}\n").expect("the crate");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=the shared target"]);
+    std::os::unix::fs::symlink(shared.as_path(), repo.join("target")).expect("the person's link to one build directory");
+    // `run_tool` ends the control when the build fails, so the artifact below is the only thing checked here.
+    let _built: String = run_tool(fixture, "cargo", repo.as_path(), &["build", "--offline", "--quiet"]);
+    let artifact: PathBuf = shared.join("debug").join(SHARED_TARGET_PACKAGE);
+    assert!(artifact.exists(), "the source's build artifact is there before the add: {}", artifact.display());
+    return (repo, shared, artifact);
+}
+
+/// What:
+///  A copied `target` that is a link leaving the worktree is never cleaned,
+///  so the checkout the link names keeps its build output.
+/// Why:
+///   The worktree's `cargo clean --package` would run through the link and delete the source's built artifacts,
+/// which is a directory outside the worktree the repair serves.
+/// The add still succeeds:
+/// the worktree's own crates are cleaned only where a clean reaches nothing else.
+#[test]
+fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
+    let fixture: Fixture = fixture("repair-shared-target");
+    if !prepare_cargo(&fixture, "a_shared_target_a_link_carries_out_of_the_worktree_is_left_built") {
+        remove(&fixture);
+        return;
+    }
+    let (repo, shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let worktree: PathBuf = fixture.root.join("deeper/linked");
+    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    assert!(std::fs::symlink_metadata(worktree.join("target")).expect("the copied link").file_type().is_symlink(), "the copy carried the person's link");
+    assert!(artifact.exists(), "the source's build artifact was deleted through the copied link: {}", artifact.display());
+    // The control that proves this fixture is the hazard: the very clean the repair would have run, by hand in the
+    //  worktree, deletes the source's artifact through the link.
+    let _cleaned: String = run_tool(&fixture, "cargo", worktree.as_path(), &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE]);
+    assert!(!artifact.exists(), "a clean in the worktree reaches the source's build output through the copied link: {}", artifact.display());
+    assert!(shared.join("debug").is_dir(), "the shared build directory is the one the clean deleted from");
+}
+
 /// Cargo's default layout,
 /// where the build state lives in `target/` and arrives with the copy.
 #[test]
 fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
     cargo_control("repair-real-cargo-default", false);
+}
+
+/// The workspace member the committed lock lacks,
+/// which Cargo's rewrite of that lock adds.
+const LATE_MEMBER: &str = "extra";
+
+/// What:
+///  The bytes kept for each `Cargo.lock` a repair's clean displaced,
+/// under the repository's Git directory.
+/// Why:
+///   The copies sit under a directory named by the lock's own path in hexadecimal,
+/// whose names are split to fit a file system,
+///  so the control reads them by walking rather than by rebuilding that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptLockCopies = (repo) => walk(join(repo, '.git', DISPLACED_DIRECTORY)).map(readFile);
+/// ```
+fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
+    let mut found: Vec<Vec<u8>> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory) else { continue };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if let Ok(bytes) = std::fs::read(path.as_path()) {
+                found.push(bytes);
+            }
+        }
+    }
+    return found;
 }
 
 /// With real Cargo and a committed `Cargo.lock` that no longer matches a manifest (the state of several workspaces of this
@@ -543,6 +638,7 @@ fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
 /// the add must leave the tracked file as
 ///  checked out,
 /// so `git status` of the new worktree stays clean,
+/// must keep the bytes that rewrite displaced,
 /// and must not report a failure.
 #[test]
 fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
@@ -553,13 +649,13 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     }
     let repo: PathBuf = cargo_repository(&fixture, false);
     // A new member that `app` now depends on, committed without regenerating the lock.
-    std::fs::create_dir_all(repo.join("extra/src")).expect("extra");
-    std::fs::write(repo.join("extra/Cargo.toml"), b"[package]\nname = \"extra\"\nversion = \"0.1.0\"\nedition = \"2024\"\n").expect("extra manifest");
-    std::fs::write(repo.join("extra/src/lib.rs"), b"pub const EXTRA: u8 = 1;\n").expect("extra source");
-    std::fs::write(repo.join("Cargo.toml"), b"[workspace]\nmembers = [\"app\", \"lib\", \"extra\"]\nresolver = \"3\"\n").expect("workspace");
+    std::fs::create_dir_all(repo.join(LATE_MEMBER).join("src")).expect("the late member");
+    std::fs::write(repo.join(LATE_MEMBER).join("Cargo.toml"), format!("[package]\nname = \"{LATE_MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the late member's manifest");
+    std::fs::write(repo.join(LATE_MEMBER).join("src/lib.rs"), format!("pub const {}: u8 = 1;\n", LATE_MEMBER.to_uppercase())).expect("the late member's source");
+    std::fs::write(repo.join("Cargo.toml"), format!("[workspace]\nmembers = [\"app\", \"lib\", \"{LATE_MEMBER}\"]\nresolver = \"3\"\n")).expect("workspace");
     let app: String = std::fs::read_to_string(repo.join("app/Cargo.toml")).expect("app manifest");
-    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}extra = {{ path = \"../extra\" }}\n")).expect("app manifest with extra");
-    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", "extra"]);
+    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}{LATE_MEMBER} = {{ path = \"../{LATE_MEMBER}\" }}\n")).expect("app manifest with the late member");
+    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", LATE_MEMBER]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
@@ -570,5 +666,18 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
+    // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
+    // (`package_repair_cargo_lock.rs`).
+    let kept: Vec<Vec<u8>> = kept_lock_copies(repo.as_path());
+    assert_eq!(kept.len(), 1, "the bytes the clean displaced were not kept: {kept:?}");
+    let written: &[u8] = kept[0].as_slice();
+    assert_ne!(written, before.as_slice(), "the kept copy is the checked-out lock itself, so no rewrite was kept");
+    let late_member_line: String = format!("name = \"{LATE_MEMBER}\"");
+    assert!(
+        String::from_utf8_lossy(written).contains(late_member_line.as_str()),
+        "the kept copy is not the lock the clean wrote: {}",
+        String::from_utf8_lossy(written)
+    );
     remove(&fixture);
 }

@@ -2022,13 +2022,21 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
-  The clean runs in a worktree you may already be working in,
+  The add's clean runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
-   so the bytes standing there when the clean ends are kept whole under the worktree's Git directory,
+   so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
    under a directory named by the lock's path in hexadecimal,
    and the success line names each copy.
   A lock whose bytes cannot be kept there is left as the clean found it and the worktree shows the difference.
+  The clean the commit service runs after the add returned never writes your `Cargo.lock`:
+   it passes `--locked`,
+   asks Cargo for the resolution a stale lock needs as a step of its own,
+   and puts the checked-out lock back only when the file still holds exactly what that resolution wrote.
+  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it.
+  A `target` or `node_modules` you keep as a link to a directory outside the worktree is left alone:
+   a clean or an install through it would delete or rewrite the files of the checkout the link names,
+   so the repair does nothing there and your first build recompiles what it needs.
   Registry and git dependencies stay reused;
   the worktree's own crates rebuild with their own paths.
   A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
@@ -2064,7 +2072,7 @@ a lock does not match or the run exceeds its limit,
  such as `pnpm --dir <worktree> install --offline --frozen-lockfile`.
 Another process changing files while a worktree is copied or repaired is your risk and is not defended against,
 except for the `Cargo.lock` a repair's clean rewrites:
-the bytes that clean displaces are kept under the worktree's Git directory and the success line names them.
+the bytes that clean displaces are kept under the repository's Git directory and the success line names them.
 Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
  section "Package-manager state of a new worktree".
 

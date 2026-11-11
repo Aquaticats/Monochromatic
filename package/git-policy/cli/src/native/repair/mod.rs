@@ -67,6 +67,10 @@ pub mod package_repair_cargo_concurrent;
 /// The reading of `Cargo.lock` before a clean and its restoring afterwards.
 pub mod package_repair_cargo_lock;
 
+/// Whether a directory a repair deletes from or writes in is inside the worktree it serves,
+/// once its links are followed.
+pub mod package_repair_touches_only_its_own_worktree;
+
 /// The Cargo workspaces of a new worktree and the manifests that lead to them.
 pub mod package_repair_cargo_workspaces;
 
