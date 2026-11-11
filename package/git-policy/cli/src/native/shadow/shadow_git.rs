@@ -64,6 +64,25 @@ pub fn shadow_repository_path(common_dir: &Path, transaction_id: &str) -> PathBu
 }
 
 /// What:
+///  The `--git-dir=` option naming `shadow`,
+///  built from the path's own bytes.
+/// Why:
+///   A shadow lives under the repository's Git directory,
+///  whose name may hold bytes that are not UTF-8;
+///  a spelling of it names a directory that does not exist,
+///  which Git reports as "not a git repository".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([Buffer.from('--git-dir='), Buffer.from(shadow)])
+/// ```
+pub fn git_dir_option(shadow: &Path) -> OsString {
+    let mut option: OsString = OsString::from("--git-dir=");
+    option.push(shadow.as_os_str());
+    return option;
+}
+
+/// What:
 ///  A request running `arguments` against the shadow:
 ///  `--git-dir=<shadow>`,
 ///  hooks pointed
@@ -84,8 +103,7 @@ pub fn shadow_request<S: AsRef<std::ffi::OsStr>>(
     arguments: &[S],
 ) -> GitRequest {
     // `mut` allows prefixing the shadow selection.
-    let mut git_dir: OsString = OsString::from("--git-dir=");
-    git_dir.push(shadow.as_os_str());
+    let git_dir: OsString = git_dir_option(shadow);
     let mut hooks: OsString = OsString::from("core.hooksPath=");
     hooks.push(shadow.join(SHADOW_NO_HOOKS_NAME).as_os_str());
     let mut full: Vec<OsString> = vec![git_dir, OsString::from("-c"), hooks];

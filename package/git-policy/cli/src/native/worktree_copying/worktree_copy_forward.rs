@@ -169,6 +169,28 @@ pub enum ForwardedRun {
 }
 
 /// What:
+///  The repository's common Git directory,
+///  which owns the registrations a sweep reads and the record of a worktree this program made.
+/// Why:
+///   Both jobs write beside the registrations,
+///  and a bare repository has a common directory too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// identity.commonDir
+/// ```
+#[cfg(unix)]
+fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    // `match` on the repository shape: only a place outside a repository has none.
+    match identity {
+        WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
+        | WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.as_path()),
+        WorktreeIdentity::OutsideWorktree => return None,
+    }
+}
+
+/// What:
 ///  The directory the repository queries of the copy run in.
 /// Why:
 ///   Every query names absolute paths,
@@ -561,6 +583,16 @@ fn run_settled(
                 && let Some(signal) = run_git.signalled
             {
                 return ForwardedRun::Killed(signal);
+            }
+            // A worktree Git just registered is recorded as one this program made, so a later merge that lands its branch
+            // removes it by itself (`worktree_landed_removal.rs`). A record that cannot be written costs that one removal
+            // and never the add.
+            if facts.creates
+                && settlement.copy_failure.is_none()
+                && settlement.git.code == Some(0)
+                && let (Some(destination), Some(common_dir)) = (facts.destination.as_ref(), common_directory(&facts.identity))
+            {
+                crate::worktree_added_by_the_wrapper::record_or_log(common_dir, destination.as_path());
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

@@ -120,7 +120,9 @@ fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
     let trash: PathBuf = trash_of(stage.as_path()).expect("a trash directory");
     assert!(is_trash_name(trash.file_name().expect("name").to_str().expect("utf8")));
     let aside: Vec<String> = std::fs::read_dir(&trash).expect("trash listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(aside.len(), 8, "{aside:?}: the ordinary worktree, the clone, four left-out directories, the worktree folder whose stand-in went with it, and the snapshot's own .git");
+    assert!(aside.contains(&String::from(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME)), "{aside:?}: the trash says what it is");
+    let held: usize = aside.iter().filter(|name: &&String| return name.as_str() != crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME).count();
+    assert_eq!(held, 8, "{aside:?}: the ordinary worktree, the clone, four left-out directories, the worktree folder whose stand-in went with it, and the snapshot's own .git");
     // The pointer of the copied ordinary worktree is gone before anything else could use it.
     for entry in std::fs::read_dir(&trash).expect("trash listing").flatten() {
         let pointer: PathBuf = entry.path().join(".git");
@@ -471,37 +473,40 @@ fn the_trash_location_question_starts_check_ignore_without_quiet() {
 }
 
 /// What:
-///  A trash an earlier add left in the source is not carried into the new snapshot,
-/// whichever add made it.
+///  A trash an earlier add left in the source,
+/// and that says what it is,
+/// is not carried into the new snapshot:
+/// its directories are moved into this add's trash instead,
+/// so the emptying covers them.
 /// Why:
-///   An add killed before its emptying leaves `.claude/cli-git-trash` in the worktree,
-/// holding what it left out,
-///  another command's stage container with its credentials among them.
-/// The disposal is handed only the manifest of the add that
-///  runs,
-/// so a carried trash would never be emptied:
+///   An add killed after its swap and before its record leaves `.claude/cli-git-trash` in the worktree,
+/// holding what
+///  it left out,
+/// another command's stage container with its credentials among them.
+/// The disposal is handed only the manifest
+///  of the add that runs,
+/// so a carried trash would never be emptied there:
 /// the walk skipped the whole trash parent,
-/// and the copy
-///  reached the new worktree,
-/// where a target commit that stops ignoring it makes it stageable.
-/// It is moved into this
-///  add's trash instead,
-/// so the emptying that runs before this command returns covers it.
+///  and the copy reached the new worktree.
+/// The trash's own manifest is what proves the wrapper made it and says which
+///  directories are its own,
+/// so it is moved into this add's trash and emptied with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// put(repo, `${TRASH_PARENT}/${"b".repeat(40)}/d0/payload/credentials`, 'token');
+/// plantTrash(repo, inherited); writeTrashManifest(repo, inherited);
 /// const { stage, trash } = await snapshotOf(repo);
-/// expect(existsSync(join(stage, TRASH_PARENT, inherited))).toBe(false); expect(trash.count).toBeGreaterThan(0);
+/// expect(existsSync(join(stage, TRASH_PARENT, inherited))).toBe(false); expect(trash.entries.length).toBeGreaterThan(0);
 /// ```
 #[test]
 fn btrfs_a_snapshot_does_not_carry_an_inherited_trash_forward() {
     let Some(root) = btrfs_fixture("trash-inherited") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
-    let inherited: String = format!("{TRASH_PARENT}/{}", "b".repeat(40));
-    put(repo.as_path(), format!("{inherited}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    let inherited: String = "b".repeat(40);
+    let inherited_manifest: TrashManifest = plant_trash(repo.as_path(), inherited.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(repo.as_path(), &inherited_manifest).expect("the earlier trash says what it is");
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
-    assert!(std::fs::symlink_metadata(stage.join(inherited.as_str())).is_err(), "the inherited trash is not carried into the new worktree");
+    assert!(std::fs::symlink_metadata(stage.join(TRASH_PARENT).join(&inherited)).is_err(), "the inherited trash is not carried into the new worktree");
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
     assert!(!manifest.entries.is_empty(), "what the inherited trash held was moved into this add's trash, so the emptying covers it");
     remove(root.as_path());

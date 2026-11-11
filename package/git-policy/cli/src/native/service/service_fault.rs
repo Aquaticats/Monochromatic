@@ -31,6 +31,13 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 /// and it is inert unless the variable names it.
 pub const AFTER_PROMOTE: &str = "after-promote";
 
+/// The instant after a command wrote its verdict into a held push record and before it promoted or forgot that record:
+/// a kill here leaves the record saying what the command decided,
+/// so a later command settles it from those words instead of
+///  waiting for a command that is gone
+/// (`held_push_holder_and_verdict.rs`).
+pub const AFTER_THE_VERDICT: &str = "after-the-verdict";
+
 /// The instant after `index.lock` was created by exclusive creation
 /// (where the filesystem places no file whole)
 /// and before its marker is written:

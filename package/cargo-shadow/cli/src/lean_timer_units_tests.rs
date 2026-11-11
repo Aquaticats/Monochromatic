@@ -7,6 +7,7 @@
 
 use std::{fs, path::{Path, PathBuf}};
 
+use crate::lean_policy::RUN_DEADLINE_SECONDS;
 use crate::lean_timer_units::{SCHEDULE, SERVICE_NAME, TIMER_NAME, install_timer, render_service, render_timer};
 use crate::test_scratch::scratch;
 
@@ -52,4 +53,15 @@ fn installing_with_no_installed_binary_is_refused_and_writes_nothing() {
     let outcome = install_timer(root.path(), &root.path().join("missing"), &units, false);
     assert!(outcome.is_err());
     assert!(!units.exists());
+}
+
+#[test]
+fn the_service_start_timeout_is_above_the_run_s_own_deadline() {
+    let service: String = render_service(Path::new("/repo"), Path::new("/repo/.cache/toolchain-bin/cargo-shadow"));
+    let timeout: u64 = service
+        .lines()
+        .find_map(|line| { return line.strip_prefix("TimeoutStartSec=").map(|value| { return value.parse::<u64>().expect("a number of seconds"); }); })
+        .expect("a TimeoutStartSec line");
+    // The unit bounds the whole run above the run's own deadline, so a run that obeys its deadline is never killed as a timeout.
+    assert!(timeout > RUN_DEADLINE_SECONDS, "TimeoutStartSec {timeout} is not above the deadline {RUN_DEADLINE_SECONDS}");
 }

@@ -49,8 +49,8 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: "a branch base is written to the shadow branch",
     file: "src/native/shadow/shadow_refs.rs",
-    from: "if let Base::Commit(oid) = base {",
-    to: "if let Base::Commit(oid) = &Base::Unborn {",
+    from: "            if let Base::Commit(oid) = base {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;",
+    to: "            if let Base::Commit(oid) = &Base::Unborn {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;",
     failing: "shadow::shadow_refs::tests::files_shadow_snapshots_refs_and_points_head_at_the_branch",
   },
   {
@@ -83,7 +83,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "a failed interactive selection is reported",
-    file: "src/native/commit/commit_index.rs",
+    file: "src/native/commit/commit_index_selection.rs",
     from: "    if !status.success() {",
     to: "    if false {",
     failing: "commit::commit_index::tests::interactive_selection_reports_a_failed_git_add",

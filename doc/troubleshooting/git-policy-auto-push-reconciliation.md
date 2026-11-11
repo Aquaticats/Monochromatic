@@ -9,11 +9,11 @@ the behaviour this record diagnoses was replaced in release 0.2.0,
 and the constant it cited is gone.
 `UPSTREAM_PUSH_ARGUMENTS = &["push"]` appears in no tracked file now;
 `package/git-policy/cli/src/native/push/auto_push.rs` runs the push through `run_push`
-(`package/git-policy/cli/src/native/lfs_bounded_push`) and hands a rejection to the reconcile.
+(`package/git-policy/cli/src/native/lfs/lfs_bounded_push.rs`) and hands a rejection to the reconcile.
 The release-by-release narrative this record used to carry lives in the specification now:
 the reconcile,
 its bounds and the notice it prints are specified in "Reconcile and bounds" of
-`package/git-policy/cli/SPEC.md` (line 6122),
+`package/git-policy/cli/SPEC.md:6174` (at `e498914475`),
 and the algorithm itself is in `package/git-policy/cli/src/native/push/auto_push_reconcile.rs`
 and the modules beside it.
 This record holds one incident and its owned boundary.

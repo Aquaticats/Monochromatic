@@ -426,3 +426,61 @@ fn a_save_that_keeps_the_length_and_the_time_is_kept() {
     assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A path deleted between the branch move and the carry back:
+/// this merge wrote nothing to it,
+///  and the line says the path changed instead of claiming a file holds bytes that are not there.
+/// Why:
+///  A person may delete a file while a slow merge runs,
+/// and the checkout then holds nothing at that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paused = pausedAt('merge-applied'); rm('a.txt'); const ran = paused.released('merge-applied');
+/// expect(status()).toBe(' D a.txt\n'); expect(ran.stderr).toSay('changed while the merge ran'); expect(ran.stderr).not.toSay('the file holds');
+/// ```
+#[test]
+fn a_path_deleted_while_the_merge_runs_is_named_as_changed() {
+    let fixture: Fixture = fixture("carry-deleted-during");
+    let repo: PathBuf = edited(&fixture, "repo");
+    let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-applied");
+    std::fs::remove_file(repo.join("a.txt")).expect("the deletion that lands while the merge runs");
+    let output: Output = paused.released("merge-applied");
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert_eq!(output.status.code(), Some(0), "the merge exits 0: {said}");
+    assert_merged(&fixture, repo.as_path(), "deletion during the merge");
+    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the deletion stands");
+    assert_eq!(status(&fixture, repo.as_path()), " D a.txt\n", "the checkout holds the deletion the person made");
+    assert!(said.contains("changed while the merge ran"), "the line says the path changed: {said}");
+    assert!(!said.contains("the file holds"), "the line claims no file the person's bytes are in: {said}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A path the person deleted after a killed merge cleared it:
+/// the next command leaves that deletion alone,
+///  and says so without claiming a file holds their bytes.
+/// Why:
+///  The restore of a merge that did not land names every path it does not write,
+/// and the person's deletion
+///  is one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killedAt('merge-cleared'); rm('a.txt'); const ran = await wrapped(['status']);
+/// expect(ran.stderr).toSay('changed after this merge captured it'); expect(ran.stderr).not.toSay('it holds your bytes');
+/// ```
+#[test]
+fn a_kill_after_the_clear_names_a_path_deleted_since_the_capture() {
+    let fixture: Fixture = fixture("carry-kill-cleared-deleted");
+    let repo: PathBuf = edited(&fixture, "repo");
+    killed_at(&fixture, repo.as_path(), "merge-cleared");
+    std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion after the clear");
+    let observed: Observed = after_the_kill(&fixture, repo.as_path());
+    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the deletion stands");
+    let said: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+    assert!(said.contains("changed after this merge captured it"), "the line says the path changed: {said}");
+    assert!(!said.contains("it holds your bytes"), "the line claims no file that holds their bytes: {said}");
+    remove_settled(&fixture);
+}
