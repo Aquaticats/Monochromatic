@@ -282,6 +282,36 @@ pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> Str
 pub const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
+///  The one notice line for ignored entries no worktree can hold: sockets,
+///  named pipes and device nodes.
+/// Why:
+///   The new worktree lacks them,
+/// so the person sees how many and which first ones;
+/// a socket or a named pipe belongs to one running system and means nothing in a copy,
+/// so the rest of the
+///  ignored state was copied without it and nothing failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that cannot be copied into a worktree from ${source}: ${first.join(', ')}${more}. A socket, a named pipe or a device node belongs to one running system, so the rest of the ignored state was copied without it.\n`
+/// ```
+pub(crate) fn uncopiable_notice(source_root: &Path, uncopiable: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::new();
+    for path in uncopiable.iter().take(NOTICE_PATHS) {
+        named.push(quote(shown_repository_path(path.as_slice()).as_str()));
+    }
+    let rest: usize = uncopiable.len().saturating_sub(NOTICE_PATHS);
+    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
+    let noun: &str = if uncopiable.len() == 1 { "entry" } else { "entries" };
+    return format!(
+        "monochromatic-git-policy-cli: left out {} ignored {noun} that cannot be copied into a worktree from {}: {}{more}. A socket, a named pipe or a device node belongs to one running system and means nothing in a copy, so the rest of the ignored state was copied without it.\n",
+        uncopiable.len(),
+        quote(source_root.to_string_lossy().as_ref()),
+        named.join(", ")
+    );
+}
+
+/// What:
 ///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
 ///   A worktree that gets no copy must say so;
