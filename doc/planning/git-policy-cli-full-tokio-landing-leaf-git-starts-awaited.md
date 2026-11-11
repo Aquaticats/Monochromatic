@@ -486,8 +486,10 @@ so only a bounded child tells the two runners apart.
 - `native:test:host -- --no-run` on the committed tree:
   `Finished` of the `test` profile in 2.27 s,
   the target having been built by the runs below.
-- `native:test:binary:host -- --no-run`:
-  `Finished` of the `test` profile in 1m 27s.
+- `native:test:binary:host -- --no-run` at the tip:
+  `Finished` of the `test` profile in 47.13 s
+  (1m 27s the first time,
+  on the same tree).
 - `native:clippy` on every target,
   warnings denied:
   `Finished` of the `dev` profile in 39.47s.
