@@ -167,6 +167,32 @@ pub enum ClientFailure {
     ProgramMissing(String),
     /// Setting up the service failed for a reason the person can act on.
     CouldNotStart(String),
+    /// The commit service's address is longer than this system's address of that kind can be,
+    /// so no service could listen there.
+    SocketPathTooLong {
+        /// The address the service would have listened at.
+        path: String,
+        /// How many bytes that address is.
+        length: usize,
+        /// The longest address this system can hold.
+        longest: usize,
+        /// The longest runtime directory,
+        /// which is the part of the address this command's setting decides,
+        /// that still leaves room for the rest.
+        longest_runtime: usize,
+    },
+    /// The commit service was started and listens at an address this command does not look at,
+    /// because the service manager and this command use different runtime directories.
+    ServiceElsewhere {
+        /// The address the manager made the service listen at.
+        made: String,
+        /// The address this command waited at.
+        looked_for: String,
+        /// The runtime directory the manager runs with.
+        manager_runtime: String,
+        /// The runtime directory this command was given.
+        client_runtime: String,
+    },
     /// A unit file of the same name that something else wrote stands in the way.
     UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
@@ -374,6 +400,19 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::CouldNotStart(reason) => format!(
             "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \
              again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::SocketPathTooLong { path, length, longest, longest_runtime } => format!(
+            "The commit service would listen at {path}, which takes {length} bytes, and this system's addresses of that kind \
+             hold at most {longest} bytes, so this commit was not made. That address is built from this command's runtime \
+             directory, which comes from XDG_RUNTIME_DIR: set XDG_RUNTIME_DIR to a directory of at most {longest_runtime} \
+             bytes and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::ServiceElsewhere { made, looked_for, manager_runtime, client_runtime } => format!(
+            "The commit service was started, and it listens at {made}, while this command waits at {looked_for}, so this \
+             commit was not made. Your account's service manager runs with the runtime directory {manager_runtime}, and this \
+             command was given {client_runtime}, which is XDG_RUNTIME_DIR: a command reaches the service only when its \
+             runtime directory is the manager's. Run the commit from your login session, where XDG_RUNTIME_DIR is \
+             {manager_runtime}, or set XDG_RUNTIME_DIR to {manager_runtime} for it. {NOTHING_CHANGED}"
         ),
         ClientFailure::Unavailable => format!(
             "The commit service could not finish this commit, so it was not made. Run the commit again; if it fails \

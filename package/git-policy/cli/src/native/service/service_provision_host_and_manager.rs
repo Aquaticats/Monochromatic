@@ -17,7 +17,7 @@
 //! ```
 
 use crate::service_messages::{ClientFailure, Platform};
-use crate::systemd_dbus::{Bus, CallError};
+use crate::systemd_dbus::{Bus, CallError, manager_is_absent};
 use std::path::{Path, PathBuf};
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
@@ -122,6 +122,16 @@ pub trait Manager {
     /// or nothing when the
     ///  manager holds no such unit.
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
+    /// What:
+    ///  The addresses the manager made one unit listen at,
+    /// or nothing when it holds no such unit.
+    /// Why:
+    ///   A unit names its address with `%t`,
+    /// the manager's own runtime directory,
+    /// so only the manager's answer says whether the address it made is the one a client looks for.
+    /// A manager that cannot read the property answers nothing,
+    /// and a caller then has no proof either way.
+    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError>;
 }
 
 impl Manager for Bus {
@@ -152,6 +162,10 @@ impl Manager for Bus {
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         return Bus::active_state(self, unit);
     }
+
+    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+        return Bus::listen_addresses(self, unit);
+    }
 }
 
 /// The platform whose remedy applies when no user service manager answers.
@@ -179,6 +193,9 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// its error name is internal vocabulary.
 pub(crate) fn refusal(error: CallError) -> ClientFailure {
     return match error {
+        // A bus with no user manager on it cannot start anything, and the remedy is the one for an account without user
+        //  services; its own words name a bus name, which says nothing to the person.
+        CallError::Manager { name, .. } if manager_is_absent(name.as_str()) => ClientFailure::NoActivation(platform_without_manager()),
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
         CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) | CallError::TimedOut => {

@@ -164,9 +164,71 @@ pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
     };
 }
 
+/// The bytes of one socket address that hold a path name:
+/// `sun_path` of `sockaddr_un`,
+/// the zero byte that ends the name included.
+/// Why:
+///  The kernel counts this field in bytes and refuses a longer name,
+/// which no wrapper setting can raise,
+/// so a check made in the client has to count the same bytes.
+/// Linux and the BSD systems agree on 108 (`sys/un.h`);
+/// `one_socket_address_holds_a_name_of_the_longest_length_and_no_more` (`service_instance_tests.rs`) binds both sides of
+///  the boundary, so the number is the kernel's and not this doc's.
+pub const SOCKET_ADDRESS_BYTES: usize = 108;
+
+/// The longest path name one socket address can carry:
+/// the field minus the zero byte that ends the name in it.
+/// Why:
+///  A name of exactly this many bytes fills the field and ends with the kernel's own zero;
+/// one more byte has nowhere to put that zero,
+/// and the kernel refuses it at the moment the name is bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LONGEST_SOCKET_PATH = 107;
+/// ```
+pub const LONGEST_SOCKET_PATH: usize = SOCKET_ADDRESS_BYTES - 1;
+
 /// The socket of an instance under the user's runtime directory.
 pub fn socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
     return runtime_dir.join(SOCKET_DIRECTORY).join(format!("{instance}.sock"));
+}
+
+/// What:
+///  The bytes `socket_path` adds to the runtime directory it is given:
+/// the separating slash,
+/// the folder of the sockets,
+/// another slash,
+/// the instance name and `.sock`.
+/// Why:
+///   A person whose runtime directory is too long is told the longest one this program can serve,
+/// and that number comes from this shape:
+/// naming the shape once keeps the check and the longest directory from drifting apart.
+/// A control holds this to `socket_path` over several directories and instances.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// socketPathSuffixBytes('3f9a…') // 67
+/// ```
+pub fn socket_path_suffix_bytes(instance: &str) -> usize {
+    return 1 + SOCKET_DIRECTORY.len() + 1 + instance.len() + ".sock".len();
+}
+
+/// What:
+///  The longest runtime directory whose socket path still fits one socket address,
+/// in bytes.
+/// Why:
+///   The runtime directory is the part a person chooses (`XDG_RUNTIME_DIR`),
+/// so it is the part a remedy can shorten.
+/// For the instance names this program writes (32 hexadecimal digits) it is 40 bytes,
+/// which is 27 fewer than the shortest runtime directory a systemd user session has (`/run/user/1000`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// longestRuntimeDirectory('3f9a…') // 40
+/// ```
+pub fn longest_runtime_directory(instance: &str) -> usize {
+    return LONGEST_SOCKET_PATH.saturating_sub(socket_path_suffix_bytes(instance));
 }
 
 /// The socket of the worktree whose own Git directory is `git_dir`.

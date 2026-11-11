@@ -367,6 +367,22 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 }
 
 /// What:
+///  Take a directory this test thread made under the thread's own cleanup,
+/// so it is removed when the thread ends however the test ended.
+/// Why:
+///   A fixture root under the build directory is deep,
+/// and a socket name cannot be longer than a socket address holds,
+/// so a control of the wrapper's sockets keeps its runtime directory somewhere short and asks for this cleanup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trackForThisThread(runtimeDirectory) // removed with the thread's fixtures
+/// ```
+pub(crate) fn track_for_this_thread(root: &Path) {
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
+}
+
+/// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
 /// Why:
 ///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again),
