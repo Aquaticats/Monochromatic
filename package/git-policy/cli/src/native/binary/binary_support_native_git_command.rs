@@ -1,6 +1,6 @@
 //! What:
-//!  The native Git command every control starts, and its bound:
-//! the command line,
+//!  The native Git command every control starts,
+//! its bound,
 //! the read that keeps its two streams in files,
 //! and the words a failure prints.
 //! Why:
@@ -15,7 +15,8 @@
 //! and `timeout` ends Git alone,
 //! so a program that a hook of Git started keeps the pipe open past the bound
 //!  and the wait outlives it.
-//! Both are decided here so every read of native Git in this harness is bounded and says what it waited for.
+//! Both are decided here,
+//! so every read of native Git in this harness is bounded and says what it waited for.
 
 use super::support::hermetic;
 use crate::support_fixture_service::Fixture;

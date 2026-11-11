@@ -28,7 +28,9 @@ mod hold_at_prepare;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
-/// The native Git command a control starts, its bound, and the read that keeps its streams in files.
+/// The native Git command a control starts,
+/// its bound,
+/// and the read that keeps its streams in files.
 #[path = "binary_support_native_git_command.rs"]
 mod support_native_git_command;
 

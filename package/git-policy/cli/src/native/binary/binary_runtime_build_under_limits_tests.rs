@@ -91,7 +91,8 @@ fn probe_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> Observed {
 /// Real Git's `--version` under the same limit:
 /// the native control.
 /// Git completes where the system leaves it enough.
-/// Not under `timeout`, for the reason `probe_under` gives:
+/// Not under `timeout`,
+/// for the reason `probe_under` gives:
 ///  `timeout` forks,
 /// and a process limit of one refuses that fork,
 /// so the command this control limits must be Git itself.
