@@ -60,6 +60,10 @@ pub mod service_claim_watch;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The words for a start that cannot come at all,
+/// because the address cannot exist or the manager made the service listen elsewhere.
+pub mod service_messages_of_a_start_that_cannot_come;
+
 /// The commit service's serialized step.
 pub mod service_land;
 

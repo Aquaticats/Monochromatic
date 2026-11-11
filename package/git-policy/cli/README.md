@@ -845,9 +845,12 @@ Read-only commands,
   What the command no longer does itself is delete the files:
      it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
    beside the path you typed,
-     writes a record of it, tells the worktree's commit service, and returns;
+     writes a record of it,
+     tells the worktree's commit service,
+     and returns;
      that service deletes the
-   subvolume in its own time, normally within a second,
+   subvolume in its own time,
+     normally within a second,
      so a busy volume's btrfs transaction or cleaner does not hold your
    command.
      The path you named is gone the moment the command returns;
@@ -859,8 +862,10 @@ Read-only commands,
      which is every
    commit and every add,
      and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
-   (a mount without `user_subvol_rm_allowed`, for one).
-     Nothing of yours is in it: a worktree is only removed
+   (a mount without `user_subvol_rm_allowed`,
+     for one).
+     Nothing of yours is in it:
+     a worktree is only removed
    after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
@@ -2964,6 +2969,22 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
+  Two causes end the commit at once instead of after that wait,
+  because the command knows them before it waits,
+  and each message names the setting that has to change and every way to change it:
+  a runtime directory that leaves no room for the service's address
+  (that address takes at most 107 bytes,
+  so `XDG_RUNTIME_DIR` may take 40),
+  and a service the account's manager started at another address than the one this command waits at,
+  which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
+  (a unit,
+  a container or a script with one of its own):
+  run the commit from your login session,
+  or set `XDG_RUNTIME_DIR` to the manager's.
+  An account without user services is still told `loginctl enable-linger`,
+  which is also what a session bus with no user manager behind it says.
+  The commit service remains the only writer of a commit,
+  so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
   heartbeats or not):
   the client withdraws the request,

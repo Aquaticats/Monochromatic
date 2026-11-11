@@ -22,7 +22,8 @@ use std::path::{Path, PathBuf};
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 
 /// How long a refusal may take:
-/// far below the start ceiling it replaces (one minute, twice with the reload),
+/// far below the start ceiling it replaces (one minute,
+/// twice with the reload),
 /// and above any reason for a slow check.
 const AT_ONCE: std::time::Duration = std::time::Duration::from_secs(2);
 
@@ -116,22 +117,27 @@ fn short_parent() -> PathBuf {
 /// runtimeDirectoryOfLength(41, 'past') // '/home/user/temp/agent/pr4242/past/xxxxxxxxx'
 /// ```
 fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
-    let parent: PathBuf = short_parent().join(tag);
-    let padding: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
-    let runtime: PathBuf = parent.join("x".repeat(padding));
+    let parent: PathBuf = short_parent();
+    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
+    // The name holds the tag and then padding, never nothing: a path that ends in the separator has one byte less than it
+    //  says it has when anything is joined to it.
+    assert!(room > tag.len(), "the tag {tag:?} leaves room to pad a name of {room} bytes");
+    let runtime: PathBuf = parent.join(format!("{tag}{}", "x".repeat(room - tag.len())));
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
     assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
     crate::test_support::track_for_this_thread(runtime.as_path());
     return runtime;
 }
 
-/// A runtime directory of this control's own,
-/// shorter than the longest one a socket name has room for.
-fn runtime_directory(tag: &str) -> PathBuf {
-    let runtime: PathBuf = short_parent().join(tag);
-    std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    crate::test_support::track_for_this_thread(runtime.as_path());
-    return runtime;
+/// What:
+///  A runtime directory one byte shorter than the longest,
+/// which these controls can use and whose socket path still fits one address.
+/// Why:
+///   These controls are about where the manager made the service listen,
+/// not about the room the address needs,
+/// so their runtime directory is inside the longest by a byte and the address refuses nothing.
+fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
+    return runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
 }
 
 /// A host whose runtime directory is `runtime`.
@@ -198,8 +204,7 @@ fn a_runtime_directory_of_exactly_the_longest_has_room_to_the_last_byte() {
     let longest: usize = longest_runtime_directory(INSTANCE);
     let runtime: PathBuf = runtime_directory_of_length(longest, "longest");
     assert_eq!(socket_path(runtime.as_path(), INSTANCE).as_os_str().len(), LONGEST_SOCKET_PATH, "the address fills the room there is");
-    let mut manager: Addressing = Addressing::default();
-    manager.addresses = Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]);
+    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
     provision_with(&host_with(runtime.clone()), &mut manager).expect("a service with room to the last byte is set up");
     assert!(runtime.join("systemd/user").exists(), "the units were written");
     assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "the socket was started: {:?}", manager.calls);
@@ -219,10 +224,9 @@ fn a_runtime_directory_of_exactly_the_longest_has_room_to_the_last_byte() {
 /// and the message said nothing about the setting that caused it.
 #[test]
 fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
-    let runtime: PathBuf = runtime_directory("elsewhere");
+    let runtime: PathBuf = a_runtime_directory_with_room("there");
     let made: PathBuf = socket_path(Path::new("/run/user/1000"), INSTANCE);
-    let mut manager: Addressing = Addressing::default();
-    manager.addresses = Some(vec![made.display().to_string()]);
+    let mut manager: Addressing = Addressing { addresses: Some(vec![made.display().to_string()]), ..Addressing::default() };
     let began: std::time::Instant = std::time::Instant::now();
     let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("the service answers where this command does not look");
     let took: std::time::Duration = began.elapsed();
@@ -250,9 +254,8 @@ fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
 /// and a check that refused it would fail all of them.
 #[test]
 fn a_service_the_manager_made_where_this_command_waits_is_used() {
-    let runtime: PathBuf = runtime_directory("where");
-    let mut manager: Addressing = Addressing::default();
-    manager.addresses = Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]);
+    let runtime: PathBuf = a_runtime_directory_with_room("where");
+    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
     provision_with(&host_with(runtime.clone()), &mut manager).expect("the service answers where this command looks");
 }
 
@@ -267,13 +270,11 @@ fn a_service_the_manager_made_where_this_command_waits_is_used() {
 /// refusing on it would fail commits that work.
 #[test]
 fn a_manager_that_cannot_say_where_a_unit_listens_is_no_proof() {
-    let runtime: PathBuf = runtime_directory("silent");
-    let mut manager: Addressing = Addressing::default();
-    manager.refusal = Some(CallError::Malformed(String::from("no address in the answer")));
+    let runtime: PathBuf = a_runtime_directory_with_room("quiet");
+    let mut manager: Addressing = Addressing { refusal: Some(CallError::Malformed(String::from("no address in the answer"))), ..Addressing::default() };
     provision_with(&host_with(runtime), &mut manager).expect("an answer that cannot be read is not a refusal");
     let mut absent: Addressing = Addressing::default();
-    absent.addresses = None;
-    let second: PathBuf = runtime_directory("absent");
+    let second: PathBuf = a_runtime_directory_with_room("none");
     provision_with(&host_with(second), &mut absent).expect("a manager that holds no unit yet is not a refusal");
 }
 

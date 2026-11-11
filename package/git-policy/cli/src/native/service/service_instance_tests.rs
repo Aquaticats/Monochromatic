@@ -85,7 +85,8 @@ fn the_checked_name_refuses_a_directory_that_cannot_be_resolved() {
 /// Why:
 ///   The check that refuses a too-long runtime directory counts this limit from the kernel's field size,
 /// and a limit one byte wrong would either refuse a name that works or let through one that the manager cannot bind.
-/// The kernel is the only authority, so the boundary is bound here:
+/// The kernel is the only authority,
+/// so the boundary is bound here:
 /// the shorter name listens and the longer one fails.
 #[test]
 fn one_socket_address_holds_a_name_of_the_longest_length_and_no_more() {

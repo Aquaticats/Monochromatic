@@ -180,7 +180,8 @@ static RUNTIME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 ///   The socket stands at `<runtime directory>/<folder>/<instance>.sock`,
 ///   which takes 40 bytes of the runtime directory's room at most,
 ///   and the fixture root under this checkout's build directory is far longer than that.
-/// It stands in the agent scratch directory, as a fixture of the built executable's controls does,
+/// It stands in the agent scratch directory,
+/// as a fixture of the built executable's controls does,
 /// and this test thread removes it.
 ///
 /// In TS you'd write (pseudocode):

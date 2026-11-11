@@ -56,7 +56,8 @@ build trees and caches,
 and the wrapper's own records)
 the owner handed the choice to the coordinator,
 2026-11-10:
-"I think you can decide yourself on which fsync to remove and not have to ask me. Or do it with the advisor."
+"I think you can decide yourself on which fsync to remove and not have to ask me.
+Or do it with the advisor."
 The coordinator's rule,
 made with the advisor on 2026-11-10 and open to the owner's veto:
 
@@ -5685,6 +5686,26 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
+  What provisioning already knows before that wait ends it at once instead,
+  and the message names the cause and every way to change it
+  (`src/native/service/service_provision_refusals_before_the_wait.rs`):
+  an address longer than one socket address can hold
+  (the runtime directory,
+  the folder of the sockets,
+  the instance and `.sock` take at most 107 bytes,
+  so the runtime directory may take 40),
+  and a service the manager made listen at another address than the one this command waits at,
+  which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
+  because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+  The manager's answer about the address it made is the fact that decides the second;
+  an answer that cannot be read proves nothing and leaves the wait as it was,
+  so a manager of another release never fails a commit that would have landed.
+  A session bus that carries no user service manager answers with the remedy for an account without user services,
+  not with the bus's own words,
+  and a runtime directory that cannot be written loses the operating system's error number and gains that remedy.
+  None of this is a second way to commit:
+  the service is the only writer,
+  so a command that cannot reach it changes nothing and stops.
 - A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
   left to the
   service's retry plan,

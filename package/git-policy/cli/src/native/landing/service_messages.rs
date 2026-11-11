@@ -401,19 +401,12 @@ pub fn render(failure: &ClientFailure) -> String {
             "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \
              again. {NOTHING_CHANGED}"
         ),
-        ClientFailure::SocketPathTooLong { path, length, longest, longest_runtime } => format!(
-            "The commit service would listen at {path}, which takes {length} bytes, and this system's addresses of that kind \
-             hold at most {longest} bytes, so this commit was not made. That address is built from this command's runtime \
-             directory, which comes from XDG_RUNTIME_DIR: set XDG_RUNTIME_DIR to a directory of at most {longest_runtime} \
-             bytes and run the commit again. {NOTHING_CHANGED}"
-        ),
-        ClientFailure::ServiceElsewhere { made, looked_for, manager_runtime, client_runtime } => format!(
-            "The commit service was started, and it listens at {made}, while this command waits at {looked_for}, so this \
-             commit was not made. Your account's service manager runs with the runtime directory {manager_runtime}, and this \
-             command was given {client_runtime}, which is XDG_RUNTIME_DIR: a command reaches the service only when its \
-             runtime directory is the manager's. Run the commit from your login session, where XDG_RUNTIME_DIR is \
-             {manager_runtime}, or set XDG_RUNTIME_DIR to {manager_runtime} for it. {NOTHING_CHANGED}"
-        ),
+        ClientFailure::SocketPathTooLong { path, length, longest, longest_runtime } => {
+            crate::service_messages_of_a_start_that_cannot_come::socket_path_too_long(path, *length, *longest, *longest_runtime)
+        }
+        ClientFailure::ServiceElsewhere { made, looked_for, manager_runtime, client_runtime } => {
+            crate::service_messages_of_a_start_that_cannot_come::service_elsewhere(made, looked_for, manager_runtime, client_runtime)
+        }
         ClientFailure::Unavailable => format!(
             "The commit service could not finish this commit, so it was not made. Run the commit again; if it fails \
              again, look at the service's log with `{LOG_COMMAND}`. {NOTHING_CHANGED}"

@@ -173,7 +173,8 @@ pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
 /// so a check made in the client has to count the same bytes.
 /// Linux and the BSD systems agree on 108 (`sys/un.h`);
 /// `one_socket_address_holds_a_name_of_the_longest_length_and_no_more` (`service_instance_tests.rs`) binds both sides of
-///  the boundary, so the number is the kernel's and not this doc's.
+///  the boundary,
+/// so the number is the kernel's and not this doc's.
 pub const SOCKET_ADDRESS_BYTES: usize = 108;
 
 /// The longest path name one socket address can carry:

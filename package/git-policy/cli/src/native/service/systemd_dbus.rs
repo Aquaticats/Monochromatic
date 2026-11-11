@@ -470,7 +470,11 @@ impl Bus {
             Ok(read) => read,
             Err(error) => return Err(CallError::Malformed(error.to_string())),
         };
-        return Ok(Some(pairs.into_iter().map(|(_, address)| { return address; }).collect()));
+        let mut addresses: Vec<String> = Vec::new();
+        for (_kind, address) in pairs {
+            addresses.push(address);
+        }
+        return Ok(Some(addresses));
     }
 }
 

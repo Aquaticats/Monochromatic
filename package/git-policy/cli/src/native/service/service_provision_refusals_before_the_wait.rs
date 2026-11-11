@@ -79,13 +79,17 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
         // A manager that holds no unit yet, or cannot read the property, proves nothing either way.
         _nothing_said => return Ok(()),
     };
-    let made: &String = match addresses.iter().find(|address| { return Path::new(address.as_str()) == looked_for.as_path(); }) {
-        Some(_the_one) => return Ok(()),
-        None => match addresses.first() {
-            Some(first) => first,
-            None => return Ok(()),
-        },
+    let made: &String = match addresses.first() {
+        Some(first) => first,
+        None => return Ok(()),
     };
+    // One of the addresses the manager made is the one this command waits at, which is the arrangement every healthy commit
+    //  has; the walk is written out because the closure the linter refuses would capture `looked_for` for nothing.
+    for address in &addresses {
+        if Path::new(address.as_str()) == looked_for.as_path() {
+            return Ok(());
+        }
+    }
     let manager_runtime: PathBuf = runtime_directory_of_an_address(Path::new(made.as_str()));
     return Err(ClientFailure::ServiceElsewhere {
         made: made.clone(),
