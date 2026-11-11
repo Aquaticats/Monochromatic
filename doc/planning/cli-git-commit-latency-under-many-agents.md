@@ -2689,6 +2689,22 @@ Nothing in the creation can be removed without changing what a commit is allowed
   a file an earlier release left).
   The private index copies were taken out of the enumeration already,
   on the argument that no hook resolves one.
+
+  Taken on 2026-11-11,
+  by the brief on the pooled shadow's refusals:
+  the links are a named list now
+  (`SHARED_ENTRY_NAMES` in `shadow_links.rs`)
+  and a claim of the pool is judged on it,
+  so an entry no commit reads costs neither a link nor a refused member.
+  The list holds `modules`,
+  `lfs`,
+  `info`,
+  `rr-cache`,
+  `branches` and `remotes`,
+  so what it stops is a file an earlier release left,
+  which no Git reads,
+  and a member of the pool stays usable across it
+  (`shadow_pool_member.rs`).
 - The creation has to exist before the scratch `git commit` runs,
   so it is on the commit's path by construction.
   It could be made beside the preparation,
@@ -3720,6 +3736,13 @@ a creation would link the pool into every shadow,
 so one shadow could reach every other member,
 and whether the folder existed would decide what a claimed member has to hold:
 the first fill of a repository would refuse the member it had just made.
+
+An in-place note, 2026-11-11:
+`is_private_shadow_entry` no longer exists.
+A shadow links the named entries a commit reads and nothing else
+(`SHARED_ENTRY_NAMES` in `shadow_links.rs`),
+so the pool still never reaches a shadow,
+and the occasion for it is the named list rather than a denylist.
 
 ### What says it works
 

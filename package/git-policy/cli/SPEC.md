@@ -12133,13 +12133,37 @@ these private entries:
 - `monochromatic-git-policy-cli`,
   which is never linked.
 
-Every other entry of the real common Git directory,
-such as `info`,
+The entries a commit reads are symbolic links to the real ones,
+and they are named (`shadow_links.rs`,
+`SHARED_ENTRY_NAMES`):
+`info`,
 `hooks`,
-`rr-cache`,
 `lfs`,
-and `modules`,
-is a symbolic link to the real entry by default.
+`modules`,
+`rr-cache`,
+`shallow`,
+`svn`,
+`branches`,
+and `remotes`.
+`gitrepository-layout` (Git 2.56.0) names the entries Git resolves from `$GIT_COMMON_DIR`,
+which is the same question a shadow asks:
+the ones the shadow keeps its own (`config`,
+`logs`,
+`objects`,
+`packed-refs`,
+`refs`) are left out of it,
+and so is `worktrees`,
+which no commit reads and through which a shadow would claim the real repository's linked worktrees.
+`lfs` is the folder `git-lfs` keeps its objects and logs in,
+and a clean filter a commit runs writes there.
+The list is named because the rest of what a common directory collects is either the shadow's own
+or state no commit reads:
+the wrapper's own logs and folders,
+other tools' files,
+`FETCH_HEAD`,
+`ORIG_HEAD`,
+`description`,
+and `lost-found`.
 A lock,
 and the file a command stages a lock in
 (`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
@@ -12152,7 +12176,7 @@ which holds the shadow itself,
 and the pool of finished shadows beside it,
 which holds the private trees of other commits.
 A link to either would let one shadow reach another's tree,
-and whether the pool exists would decide what a member has to hold.
+and whether the pool exists would decide whether a claim trusts a member.
 A per-worktree entry that Git resolves in the owning worktree's Git directory,
 such as a linked worktree's `info/sparse-checkout`,
 is copied;
@@ -12227,10 +12251,10 @@ and neither the sweep a command that takes scratch runs
 (`prepare_repository_scratch`),
 nor the release of a commit's scratch tree after its landing,
 nor the reclamation of a removed worktree's scratch treats a pooled shadow as a leftover.
-The folder is a private shadow entry of the same kind as the scratch root,
+The folder is the wrapper's own state of the same kind as the scratch root,
 so no shadow links it
 (`shadow_links.rs`,
-`is_private_shadow_entry`).
+`is_shared_shadow_entry`).
 A member is everything the creation makes that does not depend on the commit:
 the skeleton,
 the private mode,
@@ -12252,14 +12276,26 @@ from this invocation's own capture.
   its alternates must name this invocation's object directory,
   its `HEAD` must be the creation's own placeholder,
   every directory of the skeleton must be there,
-  every shared entry must be a link to this repository's own entry,
-  it must hold no entry a creation does not make,
+  every entry a commit reads that the repository holds now must be a link to this repository's own entry,
+  every entry the member holds must be one a creation makes or a link at one of those names,
   and no pack and no ref.
+  An entry a commit reads that the repository has gained since the fill is a refusal,
+  because the member would give the commit the view of the moment it was made;
+  an entry it has lost is not,
+  because a link to a name that is no longer there resolves to nothing,
+  which is the view a creation of this moment gives.
   A member that fails the check is removed and the next one is tried,
   and a pool with none left leaves the commit making its creation.
+- A refusal is the wrapper's own cache being repaired,
+  which the person can neither cause nor fix:
+  it leaves one debug line under `MONOCHROMATIC_VERBOSE=true`
+  and one build part named `shadow pool refused` in the commit's timing record,
+  beside the creation the refusal forced,
+  and nothing on the terminal.
 - A reftable repository and a linked worktree that keeps its own `info` are never pooled:
   Git writes those shadows' own tables and entries,
-  so their commit makes its creation.
+  so their commit makes its creation,
+  and a fill makes no member either.
 - The resident service fills the pool beside the landing loop,
   never on a committing person's path:
   it reads a repository's format facts and object directory the way an invocation's capture does,
@@ -12285,7 +12321,8 @@ from this invocation's own capture.
 `buildParts` names the claim `shadow pool`:
 a build that took a member names no `shadow skeleton`,
 `shadow config` or `shadow links` stretch,
-so a reading of the record can tell the one route from the other.
+so a reading of the record can tell the one route from the other,
+and a claim that refused a member names `shadow pool refused` beside them.
 
 #### Private `HEAD` shape
 
