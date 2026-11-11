@@ -196,8 +196,13 @@ with the shipped one first.
 2. A fixed path for this host's cargo build directory.
    Rejected by the earlier session and still wrong:
    host configuration decides that path,
-   the wrapper would carry one machine's cache in its source,
-   and a different `CARGO_BUILD_BUILD_DIR` would bring the refusal back.
+   and the wrapper would carry one machine's cache in its source.
+   The variable it named,
+   `CARGO_BUILD_BUILD_DIR`,
+   is read now
+   (see the amendment "a repository under the whole Cargo build directory is exempt"),
+   so a run whose environment names the build directory keeps its exemption
+   and a run whose environment names nothing is enforced.
 3. Any repository nested inside a Git-ignored path of an enclosing repository.
    It would not have covered this case at all
    (this host's build directory is outside every repository),
@@ -209,6 +214,119 @@ with the shipped one first.
    and it exempts a whole tagged tree,
    including a person's own clone kept inside one,
    where rule 1 exempts the one directory a build step was given.
+
+## Amendment 2026-11-11T17:09:09-05:00: a repository under the whole Cargo build directory is exempt
+
+Issue `#3024` asked for the directory that holds the vendored clone,
+not only the build script's own output folder,
+and the owner answered on 2026-11-11 with "Exempt Cargo build dir (Recommended)"
+(`doc/planning/git-wrapper-open-issues-round-4.md`,
+section "`#3024` the hook rejecting a vendored Ghostty checkout",
+option 1).
+`default_allowed_worktree_dirs` has a fourth entry,
+`cargo_build_dir` in `package/git-policy/cli/src/native/invocation/effective_target.rs`,
+read from the invocation's own environment:
+
+- `CARGO_BUILD_DIR`,
+  the name that answer uses.
+  Cargo never reads it:
+  it is not in Cargo's environment reference,
+  and a code search of `rust-lang/cargo` for it returns nothing,
+  so this entry fires through it only when a person exports that name.
+- `CARGO_BUILD_BUILD_DIR`,
+  Cargo's own environment spelling of the `build.build-dir` setting
+  ([Cargo configuration reference][cargo-config-build-dir]).
+- `CARGO_TARGET_DIR`,
+  the variable Cargo documents for `build.target-dir` ([Cargo environment variables][cargo-env]),
+  and `build.build-dir` defaults to `build.target-dir`
+  (the same configuration reference,
+  the `build.build-dir` default).
+
+The first name that is set and not empty wins,
+and a value that is not an absolute path names nothing.
+Cargo resolves a relative `CARGO_TARGET_DIR` against its own working directory
+([`Ok(Some(Filesystem::new(self.cwd.join(dir))))`][cargo-target-dir]),
+and a relative configuration value against the directory of the file that set it,
+while a Git process a build script starts works in that script's package directory.
+The wrapper cannot reconstruct the directory Cargo would use,
+and a guess could exempt a directory nobody named.
+The wrapper reads no Cargo configuration file at all:
+`build.build-dir` and `build.target-dir` there may hold the `{workspace-root}`,
+`{cargo-cache-home}` and `{workspace-path-hash}` templates,
+and their values are host configuration the environment-named list keeps out of the wrapper's source.
+The entry is asked after `OUT_DIR`,
+so a clone inside a build step's own output directory reports the narrower name.
+
+The limit is the entry's width:
+every repository under the build directory is exempt,
+including one a person deliberately keeps there,
+which then gets no worktree policies at all.
+The notice on standard error names the variable that chose the directory,
+so a value that happens to cover a repository is visible to the person.
+
+### What Cargo really names, measured
+
+Cargo's environment reference lists `OUT_DIR` among the variables Cargo sets for build scripts,
+and no variable for `build.build-dir`.
+Measured 2026-11-11 on this host:
+a build script of a throwaway crate,
+built with `mise exec -- cargo build --offline`,
+printed
+
+```text
+warning: build-script-probe@0.0.0: OUT_DIR=/var/mnt/encrypted/cargo-build/1c/88d8c216e61fbb/debug/build/build-script-probe/c3d59744e45aa407/out
+warning: build-script-probe@0.0.0: no CARGO_BUILD_BUILD_DIR in the build script's environment, so there is nothing to measure
+```
+
+with `RUSTUP_TOOLCHAIN` named and with it unset.
+So a build step's own output directory is covered by `OUT_DIR` today,
+and the fourth entry fires when the invocation's environment names one of its three variables.
+This repository's `cargo-shadow` sets `CARGO_BUILD_BUILD_DIR` for the child Cargo when a toolchain is
+known (`apply_keyed_build_dir` in `package/cargo-shadow/cli/src/lean_keyed_folder.rs`);
+it did not in this probe,
+and why is not part of this record.
+
+### Measured at the user boundary
+
+With the wrapper built from the branch,
+a throwaway repository under
+`<run>/cargo-build/aa/0123456789abcd/debug/build/libghostty-vt-sys-1/out/ghostty-src`,
+its own `HOME`,
+`XDG_RUNTIME_DIR` and `PATH`,
+the per-worktree commit service started the way its socket unit starts it,
+and `OUT_DIR` unset:
+
+```text
+before (the entry is not in the list yet):
+build-directory clone, CARGO_TARGET_DIR names the build directory: refused (expected runs)
+  {"schemaVersion":1,"sequence":0,"type":"finding","trigger":"pre-forward","policyId":"linked-worktree-only","severity":"error","code":"linked-worktree-only/linked-worktree-required","message":"monochromatic-git-policy-cli: git checkout <branch> is rejected because this worktree has uncommitted changes to tracked files: ..."}
+mismatches: 1
+```
+
+```text
+after (the entry is in the list):
+build-directory clone, CARGO_TARGET_DIR names the build directory: exit 0 (expected runs)
+build-directory clone, CARGO_TARGET_DIR unset: refused (expected refused)
+clone outside the build directory, CARGO_TARGET_DIR names the build directory: refused (expected refused)
+build-directory clone, CARGO_TARGET_DIR is the relative value .: refused (expected refused)
+the build step's edit after the controls: "edited by the build step\n"
+mismatches: 0
+```
+
+The controls in the suite:
+`policy_checks_tests` `linked_worktree_exempts_a_cargo_build_directory` (the discard runs under the
+build directory,
+and the same clone is refused with the variable unset or naming a sibling),
+`effective_target_tests` `cargo_build_directory_follows_the_variable_order`,
+and four controls in `binary_build_script_clone_tests`
+(`a_checkout_in_a_clone_under_the_cargo_build_directory_runs`,
+`a_checkout_in_a_clone_beside_the_cargo_build_directory_is_refused`,
+`a_checkout_in_a_clone_under_the_cargo_build_directory_is_refused_with_the_variable_unset`,
+`a_checkout_in_a_clone_under_a_relative_cargo_build_directory_is_refused`).
+
+[cargo-config-build-dir]: https://github.com/rust-lang/cargo/blob/8f71b6c11636d6895a003e605b892831eb26d948/doc/book/src/reference/config.md#L585-L589
+[cargo-env]: https://github.com/rust-lang/cargo/blob/8f71b6c11636d6895a003e605b892831eb26d948/doc/book/src/reference/environment-variables.md#L23-L25
+[cargo-target-dir]: https://github.com/rust-lang/cargo/blob/8f71b6c11636d6895a003e605b892831eb26d948/src/context/mod.rs#L702-L711
 
 ## Upstream filing decision
 
