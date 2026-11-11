@@ -175,6 +175,9 @@ pub struct LandedSweep {
     /// The worktrees whose files went and whose registration stayed,
     /// with what finishes each.
     pub unfinished: Vec<UnfinishedWorktree>,
+    /// The worktrees whose removal refused,
+    /// with the report that says what stands in the way and what clears it.
+    pub refused: Vec<KeptWorktree>,
     /// The lines that say which commit a removal would have deleted,
     /// and the reference of this repository that now names it.
     pub kept_commits: Vec<String>,
@@ -274,6 +277,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         match examine_and_remove(place, &one) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree, branch: one.branch }),
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree, branch: one.branch, report }),
+            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree, branch: one.branch, why: report }),
             Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree, branch: one.branch, why }),
             Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree, branch: one.branch }),
         }
@@ -299,6 +303,9 @@ enum Attempt {
     /// The files are gone and the registration stayed,
     /// with what finishes it.
     Unfinished(String),
+    /// The removal refused,
+    /// so nothing changed and this says what clears the way.
+    Refused(String),
     /// Nothing was removed,
     /// for this reason.
     Kept(String),
@@ -328,7 +335,7 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
             return Attempt::Removed;
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
-        RemoveOutcome::Refused(report) => return Attempt::Kept(report),
+        RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::LeftToGit => {}
     }
     let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
@@ -347,6 +354,9 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
 enum Examined {
     /// The worktree and its registration are gone.
     Removed,
+    /// The removal refused,
+    /// so nothing there changed and the report says what clears the way.
+    Refused(String),
     /// The files are gone and the registration stayed,
     /// with what finishes it.
     Unfinished(String),
@@ -414,6 +424,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
     return match removal {
         Attempt::Removed => Examined::Removed,
         Attempt::Unfinished(report) => Examined::Unfinished(report),
+        Attempt::Refused(report) => Examined::Refused(report),
         Attempt::Kept(why) => Examined::Kept(why),
     };
 }

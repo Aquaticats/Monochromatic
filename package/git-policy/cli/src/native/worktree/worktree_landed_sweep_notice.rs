@@ -3,7 +3,8 @@
 //!  one line per worktree it removed,
 //!  left,
 //!  could not prove it made,
-//!  or removed the files of without emptying the registration,
+//!  removed the files of without emptying the registration,
+//!  or whose removal refused,
 //!  and one for each commit a removal would have deleted.
 //! Why:
 //!   A command that removed a person's worktree by itself must say so,
@@ -75,6 +76,17 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             sweep.landed_branch
         ));
         lines.push(unfinished.report.clone());
+    }
+    // A removal that refused already says what stands in the way and what clears it, so no line here adds the command that
+    // would refuse the same way again.
+    for refused in &sweep.refused {
+        lines.push(format!(
+            "{PREFIX}left the worktree {} in place, though its branch {} is now on {}, and nothing there was removed: {}",
+            refused.worktree.display(),
+            refused.branch,
+            sweep.landed_branch,
+            refused.why
+        ));
     }
     for kept in &sweep.kept {
         lines.push(format!(
