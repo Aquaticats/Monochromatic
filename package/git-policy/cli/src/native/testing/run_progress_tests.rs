@@ -164,6 +164,8 @@ fn a_thread_inside_two_waits_is_left_out_of_the_run_once() {
     // Two waits of one thread, as a wait whose event another wait reports.
     let _outer: Option<Reading> = Reading::begin();
     let _inner: Option<Reading> = Reading::begin();
+    // A fresh registration has read nothing yet, so the first look counts the thread's whole counter; the two looks
+    //  compared here come after it.
     let _primed: Look = look_now().expect("this system counts its tasks' work");
     let before: Look = look_now().expect("still readable");
     let after: Look = look_now().expect("still readable");
