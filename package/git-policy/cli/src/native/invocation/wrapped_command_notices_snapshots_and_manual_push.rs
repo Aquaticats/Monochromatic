@@ -411,6 +411,35 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 }
 
 /// What:
+///  Removes the shadow pool of every worktree Git no longer lists,
+///  before the command runs.
+/// Why:
+///  A worktree removed by a route this program cannot see
+/// (`git worktree prune`,
+/// a registration deleted by hand)
+///  leaves the pool its commits filled,
+///  and that pool is named after the worktree's own Git directory:
+///  no commit can claim a member once the directory is gone
+/// (`shadow_pool.rs`,
+/// `sweep_gone_worktrees`).
+///  The command is the named event that collects it,
+/// so the next command in the repository removes what the prune left,
+///  and no timer and no age is needed for a folder that is provably dead.
+///  It reads the common directory and the pool folder and starts no Git,
+///  so a command that has no pool pays one `read_dir` that finds nothing.
+///  A folder that cannot be removed is left for the next command:
+///  nothing here can fail the command the person asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepShadowPoolsOfGoneWorktrees(checks); // unknown folders and live worktrees stay
+/// ```
+pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
+    let Some(common_dir) = checks.facts.known_common_dir() else { return };
+    let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
+}
+
+/// What:
 ///  The directory a manual push's discovery runs Git in,
 ///  for the repository shape the invocation selects.
 /// Why:

@@ -688,6 +688,12 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
+
 /// A pooled shadow member the commit refuses:
 /// nothing on the terminal,
 /// and the refusal named in the commit's own timing record.
