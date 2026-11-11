@@ -1383,6 +1383,10 @@ gives the folder and the system's answer,
  wait for it,
 stop it,
 or run the command again after it ends.
+A word that is an absolute path to a folder that is not there is the one exception:
+ such a folder holds none of the worktree's batches,
+so the program holds nothing back unless the path names one of the worktree's earlier journals,
+ which is how a starting helper is recognised before it makes that folder.
 Its other arguments are never printed or logged,
 because any of them can be a secret.
 It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
@@ -5243,8 +5247,13 @@ scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty st
 Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one.
 In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
-`SSH_ASKPASS` at a recorder that answers a name,
-so no window opens.
+both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
+so no window opens,
+and its log answers whether the
+program asked on every host:
+naming only `SSH_ASKPASS` would leave the host's own `GIT_ASKPASS` to be the program that
+runs,
+and the recorder's empty log would then prove nothing.
 
 The wrapper adds the same pair to a forwarded command whose process has no controlling terminal
 (`invocation_overlay` in `src/native/invocation/child_environment.rs`).

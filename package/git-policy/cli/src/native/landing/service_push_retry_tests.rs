@@ -1034,9 +1034,27 @@ fn prompts_recorded(log: &Path) -> String {
     return std::fs::read_to_string(log).unwrap_or_default();
 }
 
-/// The controls that show the dialog need `GIT_ASKPASS` unset in the process whose environment the service's Git inherits.
-fn assert_askpass_is_unset_here() {
-    assert!(std::env::var_os("GIT_ASKPASS").is_none(), "this control shows what an unset GIT_ASKPASS does; run it without GIT_ASKPASS in the environment");
+/// What:
+///  The push environment that makes the recorder the program Git and git-lfs would run when neither was
+///  told not to ask:
+///  both names they try before `GIT_TERMINAL_PROMPT`,
+///  `GIT_ASKPASS` and `SSH_ASKPASS`.
+/// Why:
+///   The service's push environment inherits the whole process environment (`push_environment_of`),
+///  so a control that named only `SSH_ASKPASS` would depend on the host:
+///  on a host whose `GIT_ASKPASS` is set,
+///  that program is the one Git runs,
+///  the recorder's log stays empty,
+///  and the log would prove nothing
+///  even if the service stopped setting `GIT_ASKPASS` at all.
+/// Naming the recorder under both makes its empty log the proof on every
+///  host:
+/// the empty `GIT_ASKPASS` the service sets (`service_child_overlay`) kept every prompt program away,
+///  whichever of the two names
+///  the host itself carries.
+fn askpass_names(program: &Path) -> [(&str, &str); 2] {
+    let recorded: &str = program.to_str().expect("the recorder's path is text");
+    return [("GIT_ASKPASS", recorded), ("SSH_ASKPASS", recorded)];
 }
 
 /// A push to a server that answers 401 never starts the program the host names as its askpass helper:
@@ -1049,13 +1067,13 @@ fn assert_askpass_is_unset_here() {
 /// reached without a wait.
 #[test]
 fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
-    assert_askpass_is_unset_here();
     let stage: Stage = stage("push-never-prompts");
     let server: LoginServer = LoginServer::start();
     point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
-    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
+    let names: [(&str, &str); 2] = askpass_names(program.as_path());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&names));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let wake: Option<Duration> = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
     assert_eq!(prompts_recorded(log.as_path()), "", "nothing asked a person for a name or a password");
@@ -1079,7 +1097,6 @@ fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program()
 ///  holds the run of the real one.
 #[test]
 fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
-    assert_askpass_is_unset_here();
     let stage: Stage = stage("lfs-never-prompts");
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
@@ -1091,7 +1108,8 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         format!("#!/bin/sh\nprintf '%s' \"$GIT_TERMINAL_PROMPT\" > '{}'\nasker=\"${{GIT_ASKPASS-$SSH_ASKPASS}}\"\nif [ -n \"$asker\" ]; then \"$asker\" 'Username for \"http://127.0.0.1\"' > /dev/null; fi\nexit 2\n", seen.display()).as_bytes(),
     );
     let path: String = format!("{}:/usr/bin:/bin", bin.display());
-    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
+    let names: [(&str, &str); 2] = askpass_names(program.as_path());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&names));
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: stage.repo.to_path_buf(),
