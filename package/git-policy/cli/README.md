@@ -2404,7 +2404,7 @@ the highest is
 The rotated files are kept up to 32 MiB together,
 oldest removed first,
 and
- a rotated file with a `saved-conflict` line whose copy still exists is never removed,
+ a rotated file with a `saved-conflict` or `saved-nested-repository` line whose copy still exists is never removed,
 which can take the log past 32 MiB.
  The reading of a rotated file to see whether it names a copy happens on a thread of its own,
 never on the command's path.

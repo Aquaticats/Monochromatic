@@ -17,7 +17,7 @@
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
 use super::{
-    CLEAN_TABLE, CleanRegion, clean_changes_worktree, clean_deleted_paths_from_answer,
+    CLEAN_TABLE, CleanRegion, UNREADABLE_CLEAN_DELETION, clean_changes_worktree, clean_deleted_paths_from_answer,
     clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, parse_clean_region,
     paths_only_the_exclusions_add,
 };
@@ -295,6 +295,11 @@ fn a_silent_dry_run_deletes_nothing() {
             "Git could not read what the clean would delete: fatal: clean.requireForce is true"
         ))
     );
+    // The policy tells Git's refusal of the clean from a reading that never answered by these words,
+    //  so the sentence must begin with them.
+    assert_eq!(UNREADABLE_CLEAN_DELETION, "Git could not read what the clean would delete:");
+    let failure: String = clean_deleted_paths_from_answer(&answer(false, b"", b"fatal: refused\n")).expect_err("a refusal");
+    assert!(failure.starts_with(UNREADABLE_CLEAN_DELETION), "{failure}");
 }
 
 /// Only the paths the typed answer names and the answer without the patterns does not are what those patterns add,
