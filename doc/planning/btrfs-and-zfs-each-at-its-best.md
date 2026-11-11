@@ -432,8 +432,8 @@ against a host control probe whose own median is about 3 ms in the same windows.
 Both filesystems still produce multi-second stalls,
 and the host's own probe stalls by the same seconds in the same windows,
 so the worst-case stalls in this VM cannot be attributed to either filesystem.
-ZFS pays for its steadier latency in bytes (3.5 to 4.4 GiB written per round
-against btrfs's 2.7 to 3.0),
+ZFS pays for its steadier latency in bytes (3.5 to 4.3 GiB written per round
+against btrfs's 2.6 to 2.9),
 in clone destruction (2 to 9 seconds against 0.02
 to 0.1),
 and in a background free queue that is still working after the round

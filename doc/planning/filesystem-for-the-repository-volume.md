@@ -278,5 +278,5 @@ neither filesystem won the time twenty concurrent worktree adds took,
 and the throttled rounds differ by less than their run-to-run spread,
 but zfs kept ordinary `fsync` at 19 to 30 ms at the median where btrfs kept
 208 to 491 ms,
-paid 3.5 to 4.4 GiB written per round against btrfs's 2.7 to 3.0,
+paid 3.5 to 4.3 GiB written per round against btrfs's 2.6 to 2.9,
 and took 2 to 9 seconds to destroy a clone where btrfs took 0.02 to 0.1.
