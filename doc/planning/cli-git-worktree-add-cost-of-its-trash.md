@@ -182,8 +182,12 @@ and each entry removed must be the object moved there.
 Each removal of a trash entry,
 and the removal of the trash directory itself,
 runs inside I/O priority class `idle`
-(`src/native/worktree/idle_io_priority.rs`,
-one `ioprio_set` before the work and one after it to put the thread back).
+(`src/native/worktree/idle_io_priority.rs`:
+`LoweredIoPriority` asks the kernel for the class when the value is made,
+and puts the thread back when it is dropped,
+so a stretch is an ordinary block around the work and the restore happens however the block ends,
+panic included;
+`with_idle_io_priority` is the same value around a caller's work).
 The class is set on the thread that unlinks,
 because the service pushes a branch and reads the repository on its other threads while a trash is emptied.
 A thread whose class cannot be read or set is left as it is,
