@@ -30,6 +30,7 @@ use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
 use crate::worktree_convert_unrecorded_stage::owns_unrecorded_stage;
 use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
+use crate::worktree_copy_stages_being_filled::{FilledStage, filled_stages_below};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
 
@@ -392,7 +393,8 @@ pub fn swap_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
 /// The reasons that still bind just before the swap:
 /// a process that appeared,
 /// a lock that was taken,
-/// a file that changed.
+/// a file that changed,
+/// and another command's stage container standing inside the worktree.
 pub fn refusals_after_lock(_platform: &dyn Platform, candidate: &Candidate) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     let scan = processes_using(&UseTarget::Inside(candidate.path.as_path()));
@@ -402,7 +404,39 @@ pub fn refusals_after_lock(_platform: &dyn Platform, candidate: &Candidate) -> V
     if let Some(why) = scan.unavailable.as_ref() {
         reasons.push(format!("the process table cannot be read ({why})"));
     }
+    // A container another command is filling is that command's work, and the swap moves the whole tree it stands in, so the
+    // command filling it would lose the place it writes to. The exchange has not happened yet, so refusing here leaves that
+    // command's work where it is.
+    match filled_stages_below(candidate.common.as_path(), candidate.path.as_path(), candidate.path.as_path()) {
+        Ok(filled) => {
+            for stage in &filled {
+                reasons.push(format!(
+                    "{}; nothing is swapped, so run the command again when that command has finished",
+                    filled_stage_words(stage)
+                ));
+            }
+        }
+        Err(error) => reasons.push(format!("the stage claims of {} cannot be read ({}), so no stage another command is filling can be ruled out", candidate.common.display(), error.0)),
+    }
     return reasons;
+}
+
+/// What:
+///  The words for one stage container another command is filling.
+/// Why:
+///   The person reading a refusal has to know which container it is about and which process fills it,
+/// so both a swap refusal and a removal refusal say the same thing about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// filledStageWords({ container, owner }); // 'process 1234 is filling the stage container ... below it'
+/// ```
+fn filled_stage_words(stage: &FilledStage) -> String {
+    let filler: String = match stage.owner {
+        Some(pid) => format!("process {pid} is"),
+        None => String::from("its owner is"),
+    };
+    return format!("{filler} filling the stage container {} below it, which is another command's copy of a worktree's ignored state", stage.container.display());
 }
 
 /// The checks after the swap:
@@ -453,7 +487,10 @@ pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineS
 
 /// What:
 ///  The removal phase:
-/// keep the old tree when a process still holds it or when the installed tree does not hold all of it,
+/// keep the old tree when a process still holds it,
+/// when another command is still filling a stage container below it,
+/// or when the installed tree
+///  does not hold all of it,
 /// and
 ///  otherwise delete it,
 /// but only when it is the very directory the journal recorded.
@@ -461,7 +498,10 @@ pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineS
 ///   The old tree sits at the converting name from the exchange on,
 /// so nothing opens it by a name that anything uses;
 /// a process
-///  that already held it open is found in the process table.
+///  that already held it open is found in the process table,
+/// and another command's stage container is found by its claim,
+/// because a
+///  command that writes into one holds no descriptor there between two entries.
 /// The comparison with the installed tree is read-only and copies
 ///  nothing,
 /// so an edit made to the installed worktree is never overwritten;
@@ -487,6 +527,27 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
     }
     if !holders.is_empty() {
         return Err(MigrateError::Journal(format!("the old tree at {} is kept because {}; stop that and run the command again", job.converting.display(), holders.join("; "))));
+    }
+    // Another command's stage container below the old tree is that command's work even though no process holds the tree
+    // open: its claim's owner still runs, so nothing here deletes the tree it stands in.
+    let filled: Vec<FilledStage> = filled_stages_below(job.candidate.common.as_path(), job.candidate.path.as_path(), job.converting.as_path()).map_err(|error| {
+        return MigrateError::Journal(format!(
+            "the stage claims of {} cannot be read ({}), so no stage another command is filling can be ruled out; the old tree at {} is kept",
+            job.candidate.common.display(),
+            error.0,
+            job.converting.display()
+        ));
+    })?;
+    if !filled.is_empty() {
+        let mut filling: Vec<String> = Vec::new();
+        for stage in &filled {
+            filling.push(filled_stage_words(stage));
+        }
+        return Err(MigrateError::Journal(format!(
+            "the old tree at {} is kept: {}; nothing is deleted, so run this command again when that command has finished",
+            job.converting.display(),
+            filling.join("; ")
+        )));
     }
     match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path(), job.journal.synced_ms)? {
         Removal::Removed | Removal::Absent => {}

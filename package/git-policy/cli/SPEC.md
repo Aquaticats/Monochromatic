@@ -2004,6 +2004,12 @@ a socket that reaches the old tree after the swap is
 named with the file to delete rather than a version to choose,
 so no worktree is left in a state no
 command can finish.
+It reads the stage claims of the repository immediately before that exchange and refuses while one names a
+container still being filled below the worktree:
+the exchange moves the whole tree,
+so the command filling one would lose the place it writes to,
+and the refusal names the container,
+the process and the rerun once that command has finished.
 It exchanges the two directories (`RENAME_EXCHANGE`),
 checks that the path is a subvolume root,
 is the subvolume whose identity
@@ -2061,6 +2067,21 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
+One entry of the old tree is not demanded: another command's stage container,
+a directory whose own name begins `.cli-git-worktree-copy-`,
+which no copy carries and whose payload is that command's work rather than this tree's.
+A folder that held nothing else is not demanded either,
+because the copy left it out whole,
+and neither is a folder another command emptied by removing only its container,
+which carries nothing a copy would have carried.
+An entry of any other kind whose name merely begins the prefix is the old tree's own,
+a tracked file included,
+and is compared like any other entry:
+skipping such an entry approved deleting it.
+A container another command is still filling is not settled by this comparison at all:
+the removal phase keeps the old tree before it asks,
+and the swap phase refuses to exchange a worktree while one stands below it,
+because the exchange would move the container away from the command writing into it.
 A regular file whose size and modification time agree is also compared by contents when the change
 time of either side is at or after the instant the proving pass began,
 both sides being read because either can hold bytes the other does not,
@@ -2184,7 +2205,7 @@ and in the README;
 The guards that cost little stay:
 the claim,
 the identity checks,
-the process table read
+the process table read and the stage claims read
 before the swap and before the removal,
 and the read-only comparison before the removal.
 
@@ -3028,6 +3049,10 @@ by that name at any depth,
 because it holds the whole ignored state another worktree's copy is filling,
 credentials included,
 and nothing in the new worktree would name it.
+A file or a link whose name begins that prefix is no container and is carried like any other entry of the
+source.
+A folder that holds nothing but such containers is no state of the source either,
+so a copy leaves it out whole instead of handing the new worktree an empty folder nothing names.
 The repository root's own `.cache` is kept,
 because tasks read the tools and generated inputs it holds.
 Dependencies,
