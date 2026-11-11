@@ -34,13 +34,27 @@ fn run(root: &std::path::Path, path: &[&std::path::Path], global_prefix: &[&str]
     return run_with(root, path, global_prefix, upload, &[("XDG_STATE_HOME", root.join("state").to_str().expect("UTF-8"))]);
 }
 
-/// The same with the given environment variables besides `PATH`.
+/// The same with the given environment variables besides `PATH`,
+/// and no variable added to the child's environment.
 fn run_with(
     root: &std::path::Path,
     path: &[&std::path::Path],
     global_prefix: &[&str],
     upload: &UploadPlan,
     variables: &[(&str, &str)],
+) -> (Option<i32>, String) {
+    return run_with_overlay(root, path, global_prefix, upload, variables, &[]);
+}
+
+/// The same with the given variables added to the child's environment,
+/// which is where the wrapper puts the never-prompt pair of a command that has no controlling terminal.
+fn run_with_overlay(
+    root: &std::path::Path,
+    path: &[&std::path::Path],
+    global_prefix: &[&str],
+    upload: &UploadPlan,
+    variables: &[(&str, &str)],
+    overlay: &[(&str, &str)],
 ) -> (Option<i32>, String) {
     let real: PathBuf = root.join("real");
     std::fs::create_dir_all(&real).expect("real git directory");
@@ -51,13 +65,17 @@ fn run_with(
         return (OsString::from(name), OsString::from(value));
     }));
     let mut diagnostics: Vec<u8> = Vec::new();
+    let overlay_owned: Vec<(OsString, OsString)> = overlay
+        .iter()
+        .map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); })
+        .collect();
     let code = run_upload_interactive(
         upload,
         words(global_prefix).as_slice(),
         root,
         real.join("git").as_path(),
         environment.as_slice(),
-        &[],
+        overlay_owned.as_slice(),
         &mut diagnostics,
     );
     return (code, String::from_utf8_lossy(diagnostics.as_slice()).into_owned());
@@ -497,6 +515,10 @@ fn an_upload_that_shows_no_sign_of_work_is_stopped_at_the_stall_window() {
 /// as Git 2.56.0 writes it.
 const LOGIN_NEEDED_LINE: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address";
 
+/// The line git-lfs 3.8.1 prints when every login it was given was refused,
+/// which is a login failure too and is not the wrapper's refusal to prompt.
+const REFUSED_LOGIN_LINE: &str = "too many authentication attempts";
+
 /// A destination that carries a user and a token,
 /// as the incident's `lfs.url` did.
 const CREDENTIALED_DESTINATION: &str = "https://user:secret@lfs.example.invalid/objects";
@@ -536,10 +558,48 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, LOGIN_NEEDED_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    // The command has no controlling terminal, so the wrapper adds the never-prompt pair to its children.
+    let never_prompt: [(&str, &str); 2] = [(crate::child_environment::ASKPASS_VARIABLE, ""), (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0")];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &never_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
     assert!(diagnostics.contains("the server `lfs.example.invalid`"), "the server is named: {diagnostics}");
     assert!(diagnostics.contains("no controlling terminal"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
+    assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
+    assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A login failure at a terminal is not diagnosed as terminal-less:
+/// the wrapper added no never-prompt pair,
+/// and its words must say what it did instead of claiming a terminal and a prompt nobody had.
+/// Why:
+///   A stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
+///   rejected (`too many authentication attempts`);
+///  a refusal that says the command had no terminal sends its reader to fix a cause that was never there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('has a controlling terminal'); expect(diagnostics).not.toContain('no controlling terminal');
+/// ```
+#[test]
+fn an_upload_that_needed_a_login_at_a_terminal_is_not_told_there_was_none() {
+    let root: PathBuf = fixture("lfs-upload-login-at-terminal");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, REFUSED_LOGIN_LINE, 128);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    // No overlay: the command has a controlling terminal, so no never-prompt pair reaches the child.
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    assert_eq!(code, Some(128), "{diagnostics}");
+    assert!(diagnostics.contains("has a controlling terminal"), "the terminal this command had is stated: {diagnostics}");
+    assert!(!diagnostics.contains("no controlling terminal"), "nothing claims the command had no terminal: {diagnostics}");
+    assert!(
+        !diagnostics.contains(&format!("{}` set to the empty string", crate::child_environment::ASKPASS_VARIABLE)),
+        "nothing claims the prompt variables were set: {diagnostics}"
+    );
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
     assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");

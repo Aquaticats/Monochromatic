@@ -125,6 +125,10 @@ fn by_path(left: &Tree, right: &Tree) -> std::cmp::Ordering {
 /// a tree that was only partly removed as such,
 /// the trees the deadline left for the next run,
 /// and every kept or skipped tree by its reason.
+/// The trees before the recorded position go in as guards rather than as work:
+/// they are not judged again,
+/// and the trees this pass does judge cannot be removed while one of them records a workspace
+/// inside them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,9 +137,10 @@ fn by_path(left: &Tree, right: &Tree) -> std::cmp::Ordering {
 pub(crate) fn tree_report(trees: &[Tree], start: usize, options: &RunOptions, deadline: &Deadline, environment: &GuardEnvironment, base: &Path, pinned: &HashSet<String>) -> MechanismReport {
     let retired: HashSet<String> = retired_toolchain_names(trees, pinned);
     let policy: IdlePolicy = IdlePolicy { idle_seconds: TREE_IDLE_SECONDS, unidentified_idle_seconds: UNIDENTIFIED_TREE_IDLE_SECONDS };
+    let earlier: &[Tree] = &trees[..start];
     let chosen: &[Tree] = &trees[start..];
     let mut log: Vec<String> = Vec::new();
-    let collection = collect_idle_trees(chosen, base, &retired, &policy, environment, now_seconds(), options.dry_run, deadline, &mut log);
+    let collection = collect_idle_trees(chosen, earlier, base, &retired, &policy, environment, now_seconds(), options.dry_run, deadline, &mut log);
     let mut tally: TreeTally = TreeTally { judged: collection.judged, given: chosen.len(), ..TreeTally::default() };
     let mut skips: Vec<String> = Vec::new();
     let mut leftovers: Vec<String> = Vec::new();

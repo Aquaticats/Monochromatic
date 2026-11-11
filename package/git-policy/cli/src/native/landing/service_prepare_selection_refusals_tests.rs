@@ -2,6 +2,8 @@
 //! the codes they carry,
 //! the exit status,
 //! and the selections that end it with neither.
+//!  The pathspec Git refuses for matching nothing is decided inside the staging instead
+//! and has its own controls (`commit_pathspec_matching_nothing_tests.rs`).
 
 use super::*;
 use crate::commit_index_selection::IndexSelection;

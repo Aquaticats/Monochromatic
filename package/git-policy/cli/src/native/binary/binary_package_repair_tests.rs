@@ -1,11 +1,11 @@
 //! What:
 //!  The package-manager repair of a new worktree through the built executable:
-//! after `git worktree add` the wrapper starts
-//!  pnpm and Cargo in the new worktree (fixture tools,
+//! after `git worktree add` the commit service starts pnpm and Cargo in the new worktree (fixture tools,
 //! then the real ones),
 //! never for `--no-checkout` or the opt-out,
 //! and a
-//!  tool that fails or is missing leaves the add successful with one line naming the command to run.
+//!  tool that fails or is missing leaves the add successful,
+//! with the add naming what it handed over and a missing tool's line naming the command to run.
 //! Why:
 //!  The owner's rule is that a new worktree works under every configuration of every package manager the repository uses.
 //!  pnpm's links and Cargo's build state are wrong at a new location,
@@ -14,6 +14,10 @@
 //!  `node_modules` entry that resolves,
 //! a build that names the worktree's own paths,
 //! and the source left as it was.
+//!  Where no commit service answers,
+//! the add runs the tools itself;
+//! the lib controls of `repair` cover that arm,
+//! because the fixture of these controls starts a service for every worktree it holds.
 //!  Controls that need a real tool say so and stop with a loud line when it is missing,
 //! as the btrfs controls do.
 //!
@@ -23,12 +27,13 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, while_test_lives, wrapped};
+use super::commit::remove_settled;
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 /// The environment variable that acknowledges a real tool is absent on this machine,
 /// so its controls may be skipped.
@@ -84,6 +89,11 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
 
 /// The lines of a record file,
 /// empty when nothing was recorded.
+/// The commit service runs the tools of a new worktree,
+/// so a record read here is read after every observed wrapped command waited for the service's after-commit work to settle
+/// (`supervised_wait`):
+/// an add returns after the record and the wake,
+/// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
 }
@@ -103,6 +113,8 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
 /// with the offline and frozen-lockfile switches;
 /// the source is not a
 ///  directory it runs in.
+/// The commit service starts it once the add has returned,
+/// so the record below is read after this harness waited for that work to settle.
 #[test]
 fn pnpm_runs_in_the_new_worktree_only() {
     let fixture: Fixture = fixture("repair-pnpm-runs");
@@ -170,20 +182,31 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
     remove(&fixture);
 }
 
-/// A pnpm that fails leaves the add successful and prints one line that names the command,
-/// even under `--quiet`.
+/// A pnpm that fails leaves the add successful,
+/// and the add names the tool it handed over rather than the tool's end:
+/// the add returns after the record and the wake,
+/// and the commit service runs pnpm there
+/// (`doc/planning/cli-git-worktree-add-package-repair.md`,
+/// "The pnpm relink and the toolchain install are the service's work"),
+/// so the switches and the worktree are read from the run the service made,
+/// and a tool that fails is the service's line,
+/// not the add's.
 #[test]
 fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
     let repo: PathBuf = repository_with_node_modules(&fixture);
-    fake_pnpm(&fixture, 1);
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "one", "../one");
+    let record: PathBuf = fake_pnpm(&fixture, 1);
+    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
     let printed: String = stderr_of(&created);
-    let line: &str = printed.lines().find(|line: &&str| { return line.contains(PENDING_WORDS); }).expect("one line about the repair");
-    assert!(line.contains("pnpm --dir") && line.contains("--offline") && line.contains("--frozen-lockfile"), "{line}");
+    let line: &str = printed.lines().find(|line: &&str| { return line.contains(REPAIRED_WORDS); }).expect("one line about the repair");
+    assert!(line.contains("pnpm"), "{line}");
     assert!(line.contains(fixture.root.join("one").to_str().expect("utf8")), "{line}");
     assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the copy is kept");
-    remove(&fixture);
+    let ran: Vec<String> = recorded(record.as_path());
+    assert_eq!(ran.len(), 1, "pnpm ran once, in the new worktree: {ran:?}");
+    assert!(ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"), "{ran:?}");
+    assert!(ran[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()), "{ran:?}");
+    remove_settled(&fixture);
 }
 
 /// A missing pnpm is the same:
@@ -220,34 +243,24 @@ const HOLD_PAUSE_MILLISECONDS: u32 = 50;
 /// How long the control waits between two glances at whether the held repair has started.
 const START_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
-/// The longest the control waits for the held repair to start,
-/// which is a backstop that names the wait,
-/// not the bound that decides a healthy run:
-/// the wait ends the moment the repair starts,
-/// or the moment the first add ends.
-/// Measured on 2026-11-09 on this host with about twenty agents running:
-/// the repair of the first add started between 30 and 45 s after the add began,
-/// and the test runner's own per-test bound is 300 s
-/// (`.config/nextest.toml`,
-/// 60 s times 5),
-/// so this control reports a repair that never starts
-///  with its own words before the runner ends the whole test.
-/// A wrong guess here is a named failure,
-/// not a control that reports a lock that is not there.
-const START_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(200);
-
-/// While one add's repair runs,
+/// While the commit service runs one add's repair,
 /// another add in the same repository is not held by it:
-/// the repairs touch only their own new
-///  worktree,
-/// so the settlement lock is released before they start.
-/// The held repair ends when this control writes its release file,
+/// the add returns after the record and the wake,
+/// the tools run in the service,
+/// and they touch only their own new worktree.
+/// Both adds are waited for here rather than through `run_wrapped`,
+/// because that wait is for the service's after-commit work to settle,
+/// and the held repair is exactly the work that has not settled yet.
+/// The wait for the held repair to start ends at that start,
+/// at the end of the fixture or at this process,
+/// and it is bounded by the wait every control gives the service's after-commit work,
+/// so a repair that never starts fails with its own words instead of hanging the run.
+/// The held repair itself ends when this control writes its release file,
 /// at the end of its fixture,
 /// or with this process,
 /// so a loaded host cannot end the hold before the second add returns and make the control report a lock
 ///  that is not there;
-/// every wait of the control ends at an event of the programs it started,
-/// and the one backstop above names what it waits for.
+/// every wait of the control ends at an event of the programs it started.
 #[test]
 fn a_running_repair_does_not_hold_another_add() {
     let fixture: Fixture = fixture("repair-lock-free");
@@ -268,29 +281,27 @@ fn a_running_repair_does_not_hold_another_add() {
         )
         .as_bytes(),
     );
-    let mut first = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("start the first add");
+    let first: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).output().expect("the first add runs");
+    assert_eq!(first.status.code(), Some(0), "{}", String::from_utf8_lossy(first.stderr.as_slice()));
     let began: std::time::Instant = std::time::Instant::now();
-    let mut ended: Option<std::process::ExitStatus> = None;
-    while !started.exists() && ended.is_none() {
-        ended = first.try_wait().expect("poll the first add");
-        if !started.exists() && ended.is_none() {
-            assert!(began.elapsed() < START_BACKSTOP, "the first add's repair had not started after {} s and the first add was still running, so the add is stuck before pnpm", START_BACKSTOP.as_secs());
-            std::thread::sleep(START_PAUSE);
-        }
+    while !started.exists() {
+        assert!(
+            began.elapsed() < SERVICE_WORK_PATIENCE,
+            "the service has not started the relink of the first add after {} s; the tools it ran wrote {:?}",
+            SERVICE_WORK_PATIENCE.as_secs(),
+            recorded(record.as_path())
+        );
+        std::thread::sleep(START_PAUSE);
     }
-    if let Some(status) = ended {
-        let collected = first.wait_with_output().expect("collect the first add that ended early");
-        panic!("the first add ended ({status}) before its repair started, so its worktree was never repaired: {}", String::from_utf8_lossy(&collected.stderr));
-    }
-    let second: Observed = add(&fixture, repo.as_path(), &["--quiet"], "two", "../two");
-    assert!(first.try_wait().expect("poll the first add").is_none(), "the first add ended before the second returned, so the second waited for it: {}", stderr_of(&second));
     assert!(!release.exists());
+    let second: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "two", "../two"]).output().expect("the second add runs");
+    assert_eq!(second.status.code(), Some(0), "{}", String::from_utf8_lossy(second.stderr.as_slice()));
+    assert!(!release.exists(), "the first repair ended while the second add ran, so the control held nothing");
     assert!(fixture.root.join("two/node_modules/dep/index.js").exists(), "the second worktree is whole");
     std::fs::write(&release, b"go").expect("release the first repair");
-    let finished = first.wait_with_output().expect("wait for the first add");
-    assert_eq!(finished.status.code(), Some(0), "{}", String::from_utf8_lossy(&finished.stderr));
-    assert_eq!(recorded(record.as_path()).len(), 2, "each add repaired its own worktree: {:?}", recorded(record.as_path()));
-    remove(&fixture);
+    settle_service_work(repo.as_path());
+    assert_eq!(recorded(record.as_path()).len(), 2, "each add was repaired in its own worktree: {:?}", recorded(record.as_path()));
+    remove_settled(&fixture);
 }
 
 /// A real `pnpm` found by the test process,

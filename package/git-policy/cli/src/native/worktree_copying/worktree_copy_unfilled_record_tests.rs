@@ -253,7 +253,13 @@ fn the_pending_check_names_the_worktree() {
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
     remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
     let mut told: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), &crate::test_support::git_context(), &mut told).expect("the pass");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        crate::worktree_copy_recovery::RecoveryDestinations::NoWorktree,
+        &crate::test_support::git_context(),
+        &mut told,
+    )
+    .expect("the pass");
     let text: String = String::from_utf8(told).expect("text");
     assert!(text.contains(quote(destination.to_string_lossy().as_ref()).as_str()), "{text}");
     assert!(text.contains("holds less than"), "{text}");

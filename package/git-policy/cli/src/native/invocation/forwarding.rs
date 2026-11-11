@@ -36,6 +36,9 @@ use crate::started_as_git::{StartMode, mark_real_git_start};
 use crate::start_retry::exec_retrying;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
+/// Who a real-Git start runs for:
+/// the wrapper's own work or the command the person typed.
+use crate::hooks_off::StartOwner;
 /// `Command` builds a child process from a program and an argument list,
 ///  with no shell.
 use std::process::Command;
@@ -78,20 +81,24 @@ pub enum ChildOutcome {
 ///  uses an
 ///       argument array (no shell string) and inherits the caller's environment plus
 ///       only the overlay.
+///  `owner` says whose Git this is:
+/// one builder still serves every start,
+/// and it decides the options from the owner (`hooks_off`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function gitCommand(realGit: string, args: string[], overlay: [string, string][]): Command;
+/// function gitCommand(realGit: string, args: string[], overlay: [string, string][], owner): Command;
 /// ```
 pub fn git_command(
     real_git: &Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
+    owner: StartOwner,
 ) -> Command {
     // `mut` allows the builder to be configured step by step.
     let mut command: Command = Command::new(real_git);
-    // No hook runs through the wrapper, and the options follow the caller's globals; see `hooks_off`.
-    crate::hooks_off::add_arguments(&mut command, arguments);
+    // No hook runs through the wrapper, and the owner decides about the monitor; see `hooks_off`.
+    crate::hooks_off::add_arguments(&mut command, arguments, owner);
     // `for (name, value) in overlay` destructures each borrowed pair.
     for (name, value) in overlay {
         command.env(name, value);
@@ -198,17 +205,21 @@ pub(crate) fn outcome_of(status: std::process::ExitStatus) -> ChildOutcome {
 ///  a signal sent to the wrapper alone
 ///       does not reach Git,
 ///  exactly as with the TypeScript wrapper.
+///  `owner` says whose Git this is:
+/// the wrapper's own starts carry the monitor switch,
+/// and the person's command keeps the person's setting (`hooks_off`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runRealGit(realGit, args, overlay): Promise<ChildOutcome>;
+/// async function runRealGit(realGit, args, overlay, owner): Promise<ChildOutcome>;
 /// ```
 pub fn run_real_git(
     real_git: &Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
+    owner: StartOwner,
 ) -> std::io::Result<ChildOutcome> {
-    return run_real_git_naming(real_git, arguments, overlay, &mut NoChildRecorded);
+    return run_real_git_naming(real_git, arguments, overlay, &mut NoChildRecorded, owner);
 }
 
 /// What:
@@ -259,6 +270,8 @@ impl ChildStarted for NoChildRecorded {
 /// The child may be reported
 ///  only while it is this process's own unreaped child,
 /// which is exactly here.
+///  `owner` is passed on to the builder,
+/// so the options are decided in one place whatever the caller records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -269,6 +282,7 @@ pub fn run_real_git_naming(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
     on_started: &mut dyn ChildStarted,
+    owner: StartOwner,
 ) -> std::io::Result<ChildOutcome> {
     // What: `.status()` starts the child with inherited streams and waits for it;
     //       a trailing `?` returns a start failure to our caller.
@@ -279,7 +293,7 @@ pub fn run_real_git_naming(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    let mut child: std::process::Child = git_command(real_git, arguments, overlay).spawn_retrying()?;
+    let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
     on_started.started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     // `Ok(...)` is the success variant carrying how the child ended.
@@ -401,8 +415,9 @@ pub fn run_real_git_until(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
     ceiling: std::time::Duration,
+    owner: StartOwner,
 ) -> std::io::Result<ChildOutcome> {
-    let mut command: Command = git_command(real_git, arguments, overlay);
+    let mut command: Command = git_command(real_git, arguments, overlay, owner);
     let mut child: std::process::Child = command.spawn_retrying()?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {
@@ -559,7 +574,8 @@ pub fn replace_process_with_real_git(
 ) -> std::io::Error {
     #[cfg(unix)]
     {
-        let mut command: Command = git_command(real_git, arguments, overlay);
+        // This is the command the person typed, so the person's monitor setting stays (`hooks_off`).
+        let mut command: Command = git_command(real_git, arguments, overlay, StartOwner::Person);
         // The program replaces this very process, so the marker says "replace" instead of the builder's "child".
         mark_real_git_start(&mut command, StartMode::Replace);
         // `exec_retrying` replaces this process like `.exec()` and tries again when the start is refused.
@@ -569,7 +585,7 @@ pub fn replace_process_with_real_git(
     #[cfg(not(unix))]
     {
         // `match` unpacks the run: success exits this process with Git's code.
-        match run_real_git(real_git, arguments, overlay) {
+        match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
             Ok(outcome) => std::process::exit(exit_code(outcome)),
             Err(error) => return error,
         }

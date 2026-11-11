@@ -74,7 +74,9 @@ fn a_failure_names_a_command_that_runs_from_anywhere() {
 fn a_slow_pnpm_is_stopped_and_reported() {
     let (root, destination, bin, mut environment) = scene("pnpm-slow");
     environment.quiet_window = Duration::from_millis(300);
-    executable(bin.join("pnpm").as_path(), b"#!/bin/sh\nexec sleep 30\n");
+    // The install's own children read the search path the repair resolved it on, so the fixture names what it needs
+    //  absolutely and reaches nothing else.
+    executable(bin.join("pnpm").as_path(), b"#!/bin/sh\nexec /usr/bin/sleep 30\n");
     let finding: Finding = repair_pnpm(destination.as_path(), &environment).expect("a finding");
     let Outcome::Failed { reason, .. } = finding.outcome else { panic!("expected a failure") };
     assert!(reason.contains("no sign of work"), "{reason}");

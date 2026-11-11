@@ -22,6 +22,10 @@ import {
   loadCrateRegistry,
   registryCrateNames,
 } from './crate-registry.ts';
+import {
+  recordedReleaseRunFailed,
+  recordedReleaseRunPassed,
+} from './fixture/recorded-run-answers.ts';
 import { requestFileName } from './push-run.ts';
 import {
   createStubFixture,
@@ -754,9 +758,9 @@ await describe({
           name: 'follows the release run and the publish run it started, then checks crates.io and the release',
           fn: async () => {
             await using fixture = await createStubFixture();
-            await fixture.script({ key: 'gh.run-view', stdout: '{"createdAt":"2026-11-01T10:00:00Z"}' });
-            const unrelated = { databaseId: 901, headSha: 'a'.repeat(40), createdAt: '2026-11-01T10:04:00Z' };
-            const own = { databaseId: 902, headSha: 'b'.repeat(40), createdAt: '2026-11-01T10:05:00Z' };
+            await fixture.script({ key: 'gh.run-view', stdout: JSON.stringify(recordedReleaseRunPassed) });
+            const unrelated = { databaseId: 901, headSha: 'a'.repeat(40), createdAt: '2026-11-11T01:04:00Z' };
+            const own = { databaseId: 902, headSha: 'b'.repeat(40), createdAt: '2026-11-11T01:05:00Z' };
             await fixture.script({ key: 'gh.run-list', stdout: JSON.stringify([own, unrelated]) });
             await fixture.script({
               key: manifestStubKey(unrelated.headSha),
@@ -786,32 +790,31 @@ await describe({
               '0.6.1',
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.stderr).toBe('');
-            expect(child.stdout).toContain('PUBLISHED');
+            expect(child.stdout).toContain('PUBLISHED forbidden-strings-v0.6.1');
             expect(child.status).toBe(0);
             const calls = await fixture.calls();
             const summaries = calls.map(function argsOf(call) {
               return call.args.slice(0, call.args[0] === 'api' ? 2 : 3).join(' ');
             });
             const manifestReads = [`api ${manifestEndpoint(unrelated.headSha)}`, `api ${manifestEndpoint(own.headSha)}`];
-            expect(summaries.slice(0, 3)).toEqual([
-              'run watch 500',
+            expect(summaries.slice(0, 2)).toEqual([
               'run view 500',
               'run list --workflow=cargo-publish.yml',
             ]);
             // The manifests are read at once, so the order in which the two stubs started is not defined.
-            expect(summaries.slice(3, 3 + manifestReads.length).toSorted()).toEqual(manifestReads.toSorted());
-            expect(summaries.slice(3 + manifestReads.length)).toEqual([
-              'run watch 902',
+            expect(summaries.slice(2, 2 + manifestReads.length).toSorted()).toEqual(manifestReads.toSorted());
+            expect(summaries.slice(2 + manifestReads.length)).toEqual([
+              'run view 902',
               '--silent --show-error --max-time',
               'release view forbidden-strings-v0.6.1',
             ]);
           },
         }),
         it({
-          name: 'exits 1 without looking for a publish run when the release run failed',
+          name: 'exits 1 without looking for a publish run when the release run failed, naming the job and the step',
           fn: async () => {
             await using fixture = await createStubFixture();
-            await fixture.script({ key: 'gh.run-watch', status: 1 });
+            await fixture.script({ key: 'gh.run-view', stdout: JSON.stringify(recordedReleaseRunFailed) });
             const child = spawnSync('node', [
               awaitBin,
               '--root',
@@ -823,6 +826,9 @@ await describe({
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.status).toBe(failureExitCode);
             expect(child.stdout).toContain('RELEASE RUN FAILED');
+            expect(child.stdout).toContain(
+              'job release concluded failure at step "Install Node, pnpm and the workspace dependencies"',
+            );
             expect(await fixture.calls()).toHaveLength(1);
           },
         }),
@@ -1041,9 +1047,10 @@ await describe({
       name: 'wait executable',
       children: [
         it({
-          name: 'finds the run, watches it, checks crates.io and the release, and prints PUBLISHED',
+          name: 'finds the run, reads what it says about itself, checks crates.io and the release, and prints PUBLISHED',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await fixture.script({ key: 'gh.run-view', stdout: JSON.stringify(recordedReleaseRunPassed) });
             await fixture.script({
               key: 'gh.run-list',
               stdout: JSON.stringify([{ databaseId: 77, headSha: 'abcdef0123456789abcdef0123456789abcdef01' }]),
@@ -1059,13 +1066,13 @@ await describe({
               }),
             });
             const child = runWait({ fixture, extra: ['abcdef0', '0.4.10'] });
-            expect(child.stdout).toContain('run 77');
-            expect(child.stdout).toContain('PUBLISHED');
+            expect(child.stdout).toContain('cargo-publish.yml run 77: completed with success');
+            expect(child.stdout).toContain('PUBLISHED demo-cli-v0.4.10');
             expect(child.status).toBe(0);
             const calls = await fixture.calls();
             expect(calls.map(function argsOf(call) {
               return call.args.slice(0, 2).join(' ');
-            })).toEqual(['run list', 'run watch', '--silent --show-error', 'release view']);
+            })).toEqual(['run list', 'run view', '--silent --show-error', 'release view']);
             expect(calls[3]?.args[2]).toBe('demo-cli-v0.4.10');
           },
         }),

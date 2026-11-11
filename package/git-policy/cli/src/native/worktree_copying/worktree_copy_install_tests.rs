@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_manifest::collect_entry_manifest;
 
 /// A recorder that counts its calls and can fail one call on demand.
@@ -167,6 +168,7 @@ fn installation_copies_every_entry_and_applies_modes() {
         &BTreeSet::new(),
         &[],
         &mut recorder,
+        &CopyCeiling::unbounded(),
     )
     .expect("installed");
     assert_eq!(copied, entries.len());
@@ -211,7 +213,7 @@ fn the_install_slices_take_places_of_the_processs_bound() {
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();
-    install_snapshot(stage.as_path(), destination.as_path(), &entries, &BTreeSet::new(), &[], &mut recorder).expect("installed");
+    install_snapshot(stage.as_path(), destination.as_path(), &entries, &BTreeSet::new(), &[], &mut recorder, &CopyCeiling::unbounded()).expect("installed");
     // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
     //  install's slices reached the process's bound instead of starting at once.
     match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
@@ -257,6 +259,7 @@ fn records_grow_by_batch_not_by_entry() {
         &BTreeSet::new(),
         &[],
         &mut recorder,
+        &CopyCeiling::unbounded(),
     )
     .expect("installed");
     // The batches split the manifest at the batch size, one record per batch.
@@ -306,6 +309,7 @@ fn a_failed_parallel_batch_rolls_back_every_file_its_workers_created() {
         &BTreeSet::new(),
         &[],
         &mut recorder,
+        &CopyCeiling::unbounded(),
     )
     .expect_err("the recorder fails after the batch was created");
     assert!(
@@ -335,6 +339,7 @@ fn failed_installation_rolls_back_its_own_paths() {
         &BTreeSet::new(),
         &[],
         &mut recorder,
+        &CopyCeiling::unbounded(),
     )
     .expect_err("recorder failure");
     assert_eq!(
@@ -373,6 +378,7 @@ fn retained_paths_are_named_in_the_failure() {
         &BTreeSet::new(),
         &[],
         &mut recorder,
+        &CopyCeiling::unbounded(),
     )
     .expect_err("tampered");
     assert_eq!(

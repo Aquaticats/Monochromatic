@@ -37,7 +37,7 @@ use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktre
 use crate::merge_isolation_carry_notice::Report;
 /// The kept path's line,
 /// and what stands at it.
-use crate::merge_isolation_carry_kept_path::kept_path;
+use crate::merge_isolation_carry_kept_path::{Staged, index_after, kept_path, staged_of};
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -57,7 +57,7 @@ use crate::merge_isolation_carry_place::{explained_entries, judged_of};
 use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, worktree_path, worktree_state, worktree_state_awaiting};
 /// The entries a killed step left under a private name,
 /// which go back before a path is judged.
-use crate::merge_isolation_take_asides::put_back_stranded_takes;
+use crate::merge_isolation_take_asides::put_back_stranded_takes_awaiting;
 /// The runner the word-level pass is given,
 /// and the Git context every read and write names.
 use crate::merge_second_pass::ContextRunner;
@@ -248,7 +248,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes(root, git_dir, changes, out);
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
@@ -324,6 +324,10 @@ pub fn carry(
 ///  The same merge of every captured layer,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
+///   The copies a command that stopped left beside the merge's paths are decided by the caller before this step,
+///  by the clear that hands Git its paths or by the recovery that reads them,
+/// so this face names each copy
+///  once and not once per layer.
 ///   The word-level merge,
 /// the object writes and the index write are each a start,
 /// and a synchronous start registers the step's pipes by entering the runtime,
@@ -347,7 +351,6 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     // The merge of one layer runs from the top of the worktree, where a relative global option of the invocation does not reach.
     let rooted_context: GitContext = rooted(context);
     let runner: ContextRunner<'_> = runner_of(&rooted_context, root);
-    put_back_stranded_takes(root, git_dir, changes, out);
     let mut report: Report = Report::default();
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
@@ -381,18 +384,15 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             report.changed.push(entry.path.clone());
             continue;
         }
-        // What the index holds once this step's records are written, which the line about a path the merge deletes names:
-        //  `git rm` needs an entry and `rm` must not be given one.
-        let in_the_index: bool = match (&index, index_is_ours) {
-            (IndexWrite::Entry(_, _), true) => true,
-            (IndexWrite::Remove, true) => false,
-            _ => current.is_some(),
-        };
+        // What the index holds once this step's records are written, told apart by the bytes a command that writes the index
+        //  would replace: the line about a path the merge deletes names `git rm` only with an entry, and `git add` only where
+        //  the index holds no version of the person's.
+        let staged: Staged = staged_of(index_after(&index, index_is_ours, current.as_ref()), target.as_deref(), merged_object);
         if worktree_is_ours {
             match note {
                 Note::Merged => report.merged.push(entry.path.clone()),
                 Note::Conflict => report.conflicts.push(entry.path.clone()),
-                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, in_the_index)),
+                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, staged)),
                 Note::None => {}
             }
         } else {
@@ -409,10 +409,9 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     }
     let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Carry, out).await?;
     // A path another program wrote while this carry ran keeps its bytes, and the line says so rather than claiming the file
-    //  changed under a step that had in fact written it.
-    for path in written.changed {
-        report.changed.push(path);
-    }
+    //  changed under a step that had in fact written it; the line the path's own step built goes, because the checkout holds
+    //  the newer bytes and two lines about one path would disagree.
+    report.a_path_written_again(written.changed);
     return Ok(report);
 }
 
@@ -468,7 +467,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes(root, git_dir, changes, out);
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());

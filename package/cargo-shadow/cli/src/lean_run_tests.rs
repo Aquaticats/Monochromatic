@@ -11,7 +11,7 @@
 //! and the units pass was stopped 40 minutes in after about 700 of several thousand profile directories,
 //! which in the plan's order starved the Podman pass of the whole three-hour deadline.
 
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{collections::HashSet, fs, path::PathBuf, time::Duration};
 
 use clap::ValueEnum;
 
@@ -135,4 +135,47 @@ fn the_units_pass_continues_after_the_recorded_profile_directory() {
     let whole: MechanismReport = run_with(None, Duration::from_secs(120));
     assert!(whole.lines.iter().any(|line| { return line.contains("2 of 2 profile directories read"); }), "{:?}", whole.lines);
     assert_eq!(whole.resume_after, None, "the pass finished the list it was given");
+}
+
+/// A resumed trees pass still holds every workspace the base records as a guard,
+/// including the ones recorded by the trees before the position it starts at.
+/// Why:
+/// A tree is removed only when no other tree's workspace lies inside it,
+/// and the trees a resumed pass starts after are still other trees:
+/// losing their records with the truncated list let the pass delete a tree that holds live sources.
+#[test]
+fn a_resumed_trees_pass_keeps_a_tree_that_holds_a_workspace_recorded_before_its_position() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    // The tree that sorts second was built for a workspace that is gone, and another tree's live workspace lies inside it.
+    let later: PathBuf = make_tree(&base, "ab/00000000000002", Some(&gone));
+    let live: PathBuf = later.join("live-workspace");
+    fs::create_dir_all(&live).expect("the live workspace");
+    let important: PathBuf = live.join("important.txt");
+    fs::write(&important, b"live user source\n").expect("the live workspace's file");
+    let earlier: PathBuf = make_tree(&base, "aa/00000000000001", Some(&live));
+    for tree in [&earlier, &later] {
+        age_everything(tree, now_seconds() - 30 * DAY);
+    }
+    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let environment: GuardEnvironment = GuardEnvironment::real();
+    let pinned: HashSet<String> = HashSet::new();
+    let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];
+    let run_with = |after: Option<PathBuf>| -> MechanismReport {
+        let mut progress: Progress = Progress::default();
+        progress.set(LongPass::Trees, after);
+        let context = RunContext { options: &options, deadline: Deadline::after(options.deadline), environment: &environment, checkouts: &checkouts, pinned: &pinned, base: Some(&base), rustup_home: root.path(), progress: &progress };
+        return run_mechanism(Mechanism::Trees, &context);
+    };
+    // The positive control: from the front, the base's records keep both trees.
+    let whole: MechanismReport = run_with(None);
+    assert!(whole.lines.iter().any(|line| { return line.contains("kept 2"); }), "the guard must keep the tree the live workspace lies inside: {:?}", whole.lines);
+    assert!(important.exists(), "the live workspace's file survived a pass from the front: {:?}", whole.lines);
+    // The same base, resumed after the tree that records the live workspace.
+    let resumed: MechanismReport = run_with(Some(earlier.clone()));
+    assert!(resumed.lines.iter().any(|line| { return line.contains("this pass started after"); }), "{:?}", resumed.lines);
+    assert!(resumed.lines.iter().any(|line| { return line.contains("kept 1"); }), "the tree the earlier record guards is kept, not removed: {:?}", resumed.lines);
+    assert!(later.exists(), "a resumed pass keeps a tree another tree's workspace lies inside: {:?}", resumed.lines);
+    assert!(important.exists(), "the live workspace's file is user data and must survive a resumed pass: {:?}", resumed.lines);
 }

@@ -64,8 +64,30 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
 /// `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still waiting for ";
 
-/// How the notice that a commit's own batch is inside a write of the commit service begins (`service_busy.rs`).
-pub const INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
+/// How the commit service's shorter notice begins,
+/// the one a client whose own commit may be on the branch already reads (`service_busy.rs`).
+/// The notice goes on with the command the service is inside,
+/// after a comma,
+/// so the prefix ends where the fixed words do.
+pub const SERVICE_INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
+
+/// How the commit service's longer warning begins,
+/// the one a client queued behind that write reads after minutes (`service_busy.rs`).
+pub const SERVICE_STUCK_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: the commit service has been inside a write ";
+
+/// What:
+///  Whether a line is one of the notices a wait of the wrapper prints.
+/// Why:
+///   A control that means the wrapper's words and not the host's speed drops the same lines the three
+///  notices are written with.
+pub fn is_a_wait_notice(line: &[u8]) -> bool {
+    for prefix in [WAIT_NOTICE_PREFIX, SERVICE_INSIDE_WRITE_NOTICE_PREFIX, SERVICE_STUCK_WRITE_NOTICE_PREFIX] {
+        if line.starts_with(prefix) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /// What:
 ///  The bytes without the lines that are notices about a wait.
@@ -74,26 +96,31 @@ pub const INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: th
 /// 10 for a bulk step) prints a notice on standard
 ///  error however healthy it is,
 /// and a loaded host stretches any step past that.
-/// The same host stretches a landing's own write past the beat that says the commit is inside it,
+/// The commit service tells a client whose own commit is in its branch write that it is inside it,
 /// which the owner
 ///  asked for (2026-11-04,
 /// "Short extra wait":
 /// the commit may be on the branch already,
 /// so the client is told when the write starts),
-/// and that notice is a sign of the host's speed and not of the command's.
+/// and a beat falls inside a write a loaded host stretched past a second even when the commit lands,
+/// so a control that means the words drops that notice;
+/// it is a sign of the host's speed and not of the command's.
+/// The longer warning of the same write,
+/// which a client queued behind it reads after minutes,
+/// goes too.
 /// A control that compares the
 ///  wrapper's diagnostics with native Git's words means the words,
 /// not that the host was fast,
 /// so it compares what
 ///  is left.
-/// Only a line that starts with one of those prefixes goes;
+/// Only a line that is a wait notice goes;
 /// every other line stays,
 /// and a control that
 ///  asserts a notice reads the raw bytes.
 pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
     return bytes
         .split_inclusive(|byte| { return *byte == b'\n'; })
-        .filter(|line| { return !line.starts_with(WAIT_NOTICE_PREFIX) && !line.starts_with(INSIDE_WRITE_NOTICE_PREFIX); })
+        .filter(|line| { return !is_a_wait_notice(line); })
         .flatten()
         .copied()
         .collect();

@@ -207,11 +207,16 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 }
 
 /// What:
-///  Whether an age the metadata reported is longer than one claim lease.
+///  Whether a record's age is past the lease a claim of it would have been renewed within.
 /// Why:
-///   The comparison is the whole of the staleness rule,
-/// so it is named once beside the record it is asked of.
-fn longer_than_a_claim(age: std::time::Duration) -> bool {
+///   The lease is the drain's own (`CLAIM_LEASE`),
+/// so the age a record is judged stale at and the age the service renews a claim at are one number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPastAClaimLease = (age) => age > CLAIM_LEASE_MS;
+/// ```
+fn is_past_a_claim_lease(age: std::time::Duration) -> bool {
     return age > crate::service_work::CLAIM_LEASE;
 }
 
@@ -234,7 +239,7 @@ fn longer_than_a_claim(age: std::time::Duration) -> bool {
 fn waited_longer_than_a_claim(record: &Path) -> bool {
     let Ok(found) = std::fs::metadata(record) else { return false };
     let Ok(written) = found.modified() else { return false };
-    return written.elapsed().is_ok_and(longer_than_a_claim);
+    return written.elapsed().is_ok_and(is_past_a_claim_lease);
 }
 
 /// What:
