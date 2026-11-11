@@ -50,7 +50,9 @@ pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(item: &WorkItem, en
             entry.root.display()
         )));
     }
-    let pointer: Vec<u8> = match read_record(held.inside(".git").as_path(), "the worktree's pointer") {
+    // The pointer is read through the descriptor the run holds, while the words name the path the record carries:
+    //  `/proc/self/fd/<descriptor>` is nothing the person typed or could look for.
+    let pointer: Vec<u8> = match read_record(held.inside(".git").as_path(), &entry.root.join(".git"), "the worktree's pointer") {
         Ok(bytes) => bytes,
         Err(refusal) => return Some(verdict_for_a_refusal(refusal)),
     };

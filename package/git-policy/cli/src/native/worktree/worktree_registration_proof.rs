@@ -78,33 +78,52 @@ impl RegistrationRefusal {
 
 /// What:
 ///  The bytes of one record of a registration,
-///  read without waiting for a writer and without following a link to a record.
+///  read without waiting for a writer and without following a link to a record,
+///  with the words naming `shown` rather than the path read.
 /// Why:
 ///   A registration is a handful of small files Git writes,
 /// and a name that holds a named pipe would wait inside `open(2)` for a writer that may never come.
 /// A missing record and a record that is no regular file are this directory not being a registration Git wrote,
 /// while a read that failed another way may pass.
+/// A caller that holds a directory open reads through `/proc/self/fd/<descriptor>`,
+/// which is nothing the person typed or could look for,
+/// so the refusal names the path they know.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bytes = readRecord(path, "the worktree's pointer"); // throws the refusal
+/// const bytes = readRecord(path, shown, "the worktree's pointer"); // throws the refusal
 /// ```
-pub(crate) fn read_record(path: &Path, what: &str) -> Result<Vec<u8>, RegistrationRefusal> {
+pub(crate) fn read_record(path: &Path, shown: &Path, what: &str) -> Result<Vec<u8>, RegistrationRefusal> {
     #[cfg(test)]
     if a_control_made_the_record_unreadable() {
-        return Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read now (a control's own answer)", path.display())));
+        return Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read now (a control's own answer)", shown.display())));
     }
     return match read_regular_file(path, RECORD_LIMIT) {
         Ok(bytes) => Ok(bytes),
-        Err(ReadRefusal::Missing) => Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) does not exist", path.display()))),
+        Err(ReadRefusal::Missing) => Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) does not exist", shown.display()))),
         Err(ReadRefusal::NotRegular) => {
-            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) is no regular file, and Git writes no such record", path.display())))
+            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) is no regular file, and Git writes no such record", shown.display())))
         }
         Err(ReadRefusal::TooLarge) => {
-            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) holds more than {RECORD_LIMIT} bytes, and Git writes no such record", path.display())))
+            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) holds more than {RECORD_LIMIT} bytes, and Git writes no such record", shown.display())))
         }
-        Err(ReadRefusal::Io(error)) => Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read ({error})", path.display()))),
+        Err(ReadRefusal::Io(error)) => Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read ({error})", shown.display()))),
     };
+}
+
+/// What:
+///  `read_record` for a record read at its own path,
+///  which is also the path its words name.
+/// Why:
+///   A caller that reads by path has no second spelling to give,
+/// and a named function stands where a closure that only forwarded its argument stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = readRecordHere(path, "the worktree's pointer");
+/// ```
+pub(crate) fn read_record_here(path: &Path, what: &str) -> Result<Vec<u8>, RegistrationRefusal> {
+    return read_record(path, path, what);
 }
 
 /// What:
@@ -181,7 +200,7 @@ fn resolve(path: &Path) -> Result<PathBuf, RegistrationRefusal> {
 /// ```
 fn named_in_the_registration(admin: &Path, name: &str, what: &str) -> Result<PathBuf, RegistrationRefusal> {
     let record: PathBuf = admin.join(name);
-    let bytes: Vec<u8> = read_record(record.as_path(), what)?;
+    let bytes: Vec<u8> = read_record_here(record.as_path(), what)?;
     let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(bytes.as_slice())));
     return Ok(if named.is_absolute() { named } else { admin.join(named) });
 }
@@ -254,7 +273,7 @@ pub(crate) fn registration_of_pointer(common_dir: &Path, worktree: &Path, pointe
 /// const admin = registrationOf(commonDir, worktree); // throws the reason
 /// ```
 pub(crate) fn registration_of(common_dir: &Path, worktree: &Path) -> Result<PathBuf, RegistrationRefusal> {
-    let pointer: Vec<u8> = read_record(worktree.join(".git").as_path(), "the worktree's pointer")?;
+    let pointer: Vec<u8> = read_record_here(worktree.join(".git").as_path(), "the worktree's pointer")?;
     return registration_of_pointer(common_dir, worktree, pointer.as_slice());
 }
 

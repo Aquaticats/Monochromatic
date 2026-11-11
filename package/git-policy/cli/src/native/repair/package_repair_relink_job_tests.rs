@@ -459,3 +459,25 @@ fn a_registration_that_cannot_be_read_now_is_tried_again() {
     assert!(matches!(verdict, Verdict::Retry(_)), "a read that may pass must keep the record: {verdict:?}");
     remove(scene.root.as_path());
 }
+
+/// What:
+///  The words a refusal is settled with name the worktree the record carries,
+///  not a descriptor the run reads it through.
+/// Why:
+///  the pointer is read through the directory the run holds open,
+///  so the path inside the read is `/proc/self/fd/<descriptor>/.git`,
+///  which is nothing the person typed and nothing they could look for;
+///  the service's journal is what they read,
+///  and it has to name the directory the record names.
+#[test]
+fn a_refusal_names_the_worktree_the_record_carries() {
+    let scene: Scene = scene("relink-job-refusal-words");
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm]);
+    // A directory at the recorded path that is no Git worktree at all.
+    std::fs::remove_file(scene.worktree.join(".git")).expect("the pointer is removed");
+    let verdict: Verdict = relink(&scene, &item);
+    let Verdict::Skipped(words) = verdict else { panic!("a directory with no pointer is left as it is: {verdict:?}") };
+    assert!(words.contains(scene.worktree.to_str().expect("utf8")), "the words name the worktree the record carries: {words}");
+    assert!(!words.contains("/proc/self/fd"), "the words name no descriptor the person cannot look for: {words}");
+    remove(scene.root.as_path());
+}

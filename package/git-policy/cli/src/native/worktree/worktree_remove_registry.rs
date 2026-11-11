@@ -241,7 +241,7 @@ pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registrat
     let pointer_path: PathBuf = target.join(".git");
     // The pointer is read without waiting for a writer: a named pipe at its name would hold a removal for ever
     //  (`SPEC.md`, "Every wait has a bound").
-    let pointer: Vec<u8> = match crate::worktree_registration_proof::read_record(pointer_path.as_path(), "the worktree's pointer") {
+    let pointer: Vec<u8> = match crate::worktree_registration_proof::read_record_here(pointer_path.as_path(), "the worktree's pointer") {
         Ok(bytes) => bytes,
         Err(refusal) => return Err(format!("{}, so this is no linked worktree", refusal.into_words())),
     };
@@ -269,7 +269,7 @@ pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registrat
         return Err(format!("{} has no name", admin.display()));
     };
     let id: OsString = admin_name.to_os_string();
-    let gitdir_text: Vec<u8> = match crate::worktree_registration_proof::read_record(admin.join("gitdir").as_path(), "the registration's back-link") {
+    let gitdir_text: Vec<u8> = match crate::worktree_registration_proof::read_record_here(admin.join("gitdir").as_path(), "the registration's back-link") {
         Ok(bytes) => bytes,
         Err(refusal) => return Err(refusal.into_words()),
     };
