@@ -442,7 +442,8 @@ fn recover_transaction(
 /// a dead owner's journal is taken over by one
 ///  atomic rename,
 /// so of several commands that find it exactly one recovers it and the others move on without waiting.
-/// Every owner is judged once, before anything is changed,
+/// Every owner is judged once,
+/// before anything is changed,
 /// so the sweep acts on one answer and an item of another namespace older than the patience
 ///  stops the command with nothing changed.
 /// The copy an interrupted add owes is finished by [`recover_pending_worktree_copies`],

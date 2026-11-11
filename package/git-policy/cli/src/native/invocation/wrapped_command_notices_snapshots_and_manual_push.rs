@@ -39,7 +39,7 @@ use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
-use crate::worktree_trash_dispose::name_unaccounted_trash;
+use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
 use crate::policy_audited::record_audited;
@@ -177,11 +177,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
     // is one no service will empty, and nothing else mentions it.
+    // A record that scan writes is work only a woken service looks at, so the scan tells the service exactly as a
+    //  hand-over does, once for the command.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr, &crate::held_push_release_wakes_the_service::AskTheService { context: &context });
     }
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.

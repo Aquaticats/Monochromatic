@@ -1619,6 +1619,11 @@ the identity of the trash directory (device,
 inode and birth time,
 taken when it was
 made) and the identity of each directory moved into it.
+That file is written at a name opened without following a link and without blocking:
+a link another process put there is refused instead of written through,
+which would replace the file it points at,
+and a named pipe there is refused at once instead of waited on,
+so no add waits for a reader that may never come.
 A directory the leave-out set aside as another command's stage container is removed in the foreground,
 before the
  snapshot is installed,
@@ -1731,6 +1736,9 @@ worktree's device;
 the trash has the recorded identity (device,
 inode and birth time,
 taken when it was made);
+the file at the manifest's name is that trash's own only when the identity it records is the directory's,
+and it is unlinked only while the name still holds the object whose bytes were read there,
+so a file moved onto that name is left alone and named in the failure;
 and each
  entry removed is the recorded object (a replacement,
 a link or anything unrecorded is left alone and named in the
@@ -1797,6 +1805,10 @@ because the id of a trash's record is the trash's name,
 and one the service settled as failed is named as a trash nothing will empty,
 with the same instruction to look at it,
 so no command promises an emptying no service will claim.
+A record that command writes is work only a woken service looks at,
+so the scan tells the repository's service once,
+only when it wrote one,
+exactly as a hand-over does.
 A work item of kind `trash` that an earlier release wrote is emptied by the same handler
 (`empty_trash`),
 with the same checks and the same identities,
