@@ -9449,7 +9449,8 @@ A journal kept only for those clients,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file instead of being logged:
 nothing in it is a person's business yet,
-and the next sweep removes it when both are over.
+and the next sweep removes it when both are over,
+so until that sweep runs `doctor` counts the instance and names the command that stops it.
 A stop of a removed worktree's units answers when the manager queued the job,
 so the sweep and the removal ask for the service unit's state and wait `SERVICE_GONE_AFTER_A_STOP`
 (two seconds) for the manager to report no process,

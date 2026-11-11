@@ -5658,7 +5658,10 @@ waiting at most `SERVICE_GONE_AFTER_A_STOP` for the manager to say so,
 and both kept cases keep the note and the socket file,
 which answers the Open above:
 the next sweep finds the instance again and removes the journal
-once no client can read it and no service is left.
+once no client can read it and no service is left,
+and until a sweep runs,
+`doctor` counts the instance and names that command,
+which is the price of keeping it.
 Controls:
 `a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal`,
 `a_service_that_may_still_run_keeps_the_journal_and_the_files_that_name_it`,

@@ -1340,7 +1340,8 @@ A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
 nothing in it is the person's business,
-and the next sweep removes it once both are over.
+and the next sweep removes it once both are over,
+so until that sweep runs `git monochromatic-git-policy-cli doctor` counts the instance and names this command.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
 It starts nothing,
