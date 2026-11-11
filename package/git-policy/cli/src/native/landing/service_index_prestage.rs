@@ -122,7 +122,11 @@ static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec:
 ///  a making job and the two calls that end the keeping,
 /// and nothing of the commit's path,
 /// because the step holds a creation and its record and never a flush,
-/// so the landing thread's own takes and removals never wait for a disk.
+/// so the landing thread's own takes and removals never wait for a flush.
+/// Limits:
+///  a creation and a record are two file calls the page cache answers;
+/// a filesystem that stalls them stalls a take as well,
+/// which the flush this step replaced never did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

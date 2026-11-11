@@ -896,6 +896,18 @@ fn evicting_a_marker_that_never_got_a_thread_makes_no_file_and_waits_for_nothing
     });
 }
 
+/// Keeps the service's end that a control proves out of every later control of the same process,
+/// even when an assertion fails before the control clears it:
+/// the flag is the process's,
+/// as the list of the files is.
+struct MarkersAgainWhenDone;
+
+impl Drop for MarkersAgainWhenDone {
+    fn drop(&mut self) {
+        make_markers_again();
+    }
+}
+
 /// What:
 ///  A marker the service has stopped keeping is not made at all,
 /// even though its making was started after the last sweep,
@@ -914,6 +926,7 @@ fn evicting_a_marker_that_never_got_a_thread_makes_no_file_and_waits_for_nothing
 fn a_marker_the_service_has_stopped_keeping_is_not_made() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _markers_again = MarkersAgainWhenDone;
         let (root, index) = index_in("prestage-service-ends");
         FLUSHES.store(0, Ordering::SeqCst);
         // The service's last sweep, before this marker was even started.
@@ -923,7 +936,6 @@ fn a_marker_the_service_has_stopped_keeping_is_not_made() {
         assert_eq!(FLUSHES.load(Ordering::SeqCst), 0, "the marker was made after the service stopped keeping them");
         assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
         discard();
-        make_markers_again();
         remove(root.as_path());
     });
 }
@@ -934,13 +946,13 @@ fn a_marker_the_service_has_stopped_keeping_is_not_made() {
 fn the_last_sweep_removes_a_recorded_marker() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _markers_again = MarkersAgainWhenDone;
         let (root, index) = index_in("prestage-last-sweep");
         start_with(sync_file, &index, 35);
         until_made();
         remove_the_file_made_ahead();
         assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
         discard();
-        make_markers_again();
         remove(root.as_path());
     });
 }
