@@ -21,7 +21,8 @@
 
 use crate::diagnostic_log::debug;
 use crate::package_repair_pnpm::repair_pnpm_awaiting;
-use crate::package_repair_relink::{RelinkEntry, RelinkTool, decode};
+use crate::package_repair_relink::{RelinkEntry, RelinkTool, SearchPathOfTheAdd, decode};
+use crate::package_repair_relink_job_worktree_proof::{HeldWorktree, refusal_of_a_replaced_or_unregistered_worktree, verdict_for_a_refusal};
 use crate::package_repair_report::{Finding, Outcome};
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_toolchain::repair_toolchain_awaiting;
@@ -88,13 +89,26 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
     };
-    if let Some(refusal) = refusal_of_a_record_that_is_not_about_its_own_directory(item, &entry) {
-        return Verdict::Skipped(refusal);
+    if entry.root != item.repository {
+        return Verdict::Skipped(format!(
+            "the record names {} as its worktree and {} in its payload, so neither was touched",
+            item.repository.display(),
+            entry.root.display()
+        ));
     }
+    let held: HeldWorktree = match HeldWorktree::open(entry.root.as_path()) {
+        Ok(opened) => opened,
+        Err(refusal) => return verdict_for_a_refusal(refusal),
+    };
     let as_the_add_left_it: RepairEnvironment = environment_as_the_add_left_it(&entry, environment);
     let mut failures: Vec<String> = Vec::new();
     let mut repaired: usize = 0;
     for tool in &entry.tools {
+        // The tool before this one can take a minute, so the directory the record names is proved again here: a worktree
+        //  removed and replaced meanwhile is another directory, whatever its pointer says.
+        if let Some(verdict) = refusal_of_a_replaced_or_unregistered_worktree(item, &entry, &held) {
+            return verdict;
+        }
         match relink_one(*tool, entry.root.as_path(), &as_the_add_left_it).await {
             // The worktree no longer needs this tool, which a person's own command may have seen to.
             None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
@@ -110,41 +124,6 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
 }
 
 /// What:
-///  Why this record is not acted on:
-/// its two names of the directory disagree,
-/// or the directory is no longer this repository's worktree.
-/// Why:
-///   A record outlives the worktree it was written for:
-/// a service that died holds a claim,
-/// a claim that ran out is queued again,
-/// and a person may remove the worktree and put their own directory at that path meanwhile.
-/// The tools rewrite link layouts in place,
-/// so the directory is proved to be one of this repository's registrations before any of them starts,
-/// and the answer names what was left exactly as it is.
-/// A worktree removed and added again at the same path before this record was drained is a registration
-/// of this repository too,
-/// and each tool decides its need again from the directory it finds,
-/// so the run there is the one that worktree's own record asks for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refusal = (item, entry) => entry.root !== item.repository ? 'the record names two directories' : registrationOf(item.gitDir, entry.root).error;
-/// ```
-fn refusal_of_a_record_that_is_not_about_its_own_directory(item: &WorkItem, entry: &RelinkEntry) -> Option<String> {
-    if entry.root != item.repository {
-        return Some(format!(
-            "the record names {} as its worktree and {} in its payload, so neither was touched",
-            item.repository.display(),
-            entry.root.display()
-        ));
-    }
-    return match crate::worktree_added_by_the_wrapper::registration_admin(item.git_dir.as_path(), entry.root.as_path()) {
-        Ok(_registration) => None,
-        Err(reason) => Some(format!("this directory is no worktree of the repository any more ({reason})")),
-    };
-}
-
-/// What:
 ///  The environment the tools run in:
 /// the service's own bounds and workers,
 /// with the search path the add recorded when it recorded one.
@@ -152,17 +131,22 @@ fn refusal_of_a_record_that_is_not_about_its_own_directory(item: &WorkItem, entr
 ///   The bounds are the service's own and are not the add's to set,
 /// while the search path is the person's:
 /// it decides which pnpm and mpm-shadow run,
-/// and their own children read it too,
-/// so a record without one (written before this release carried it) keeps the service's path.
+/// and their own children read it too.
+/// The three answers a record can carry stay three here:
+/// a record written before this release carried one keeps the service's path,
+/// an add that held no path searches nowhere rather than searching the service's,
+/// and the path the add resolved on is restored whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath === undefined ? environment : { ...environment, searchPath: entry.searchPath };
+/// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath.kind === 'not-recorded' ? environment : { ...environment, searchPath: entry.searchPath.path ?? undefined };
 /// ```
 fn environment_as_the_add_left_it(entry: &RelinkEntry, environment: &RepairEnvironment) -> RepairEnvironment {
-    return match entry.search_path.as_ref() {
-        None => environment.clone(),
-        Some(search_path) => RepairEnvironment { search_path: Some(search_path.clone()), ..environment.clone() },
+    return match entry.search_path {
+        SearchPathOfTheAdd::NotRecorded => environment.clone(),
+        // No path at all, so `find_program` finds nothing and a tool with its own link in the worktree uses that one.
+        SearchPathOfTheAdd::Unset => RepairEnvironment { search_path: None, ..environment.clone() },
+        SearchPathOfTheAdd::Set(ref search_path) => RepairEnvironment { search_path: Some(search_path.clone()), ..environment.clone() },
     };
 }
 

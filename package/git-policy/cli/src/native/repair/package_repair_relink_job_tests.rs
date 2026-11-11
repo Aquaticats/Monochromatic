@@ -4,7 +4,7 @@
 //! and what a tool that fails leaves behind.
 
 use super::relink_with;
-use crate::package_repair_relink::{RelinkEntry, RelinkTool, item_of};
+use crate::package_repair_relink::{RelinkEntry, RelinkTool, SearchPathOfTheAdd, item_of};
 use crate::package_repair_request::RepairEnvironment;
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::test_support::{executable, fixture, remove};
@@ -54,6 +54,10 @@ fn scene(name: &str) -> Scene {
     let admin: PathBuf = common.join("worktrees/topic");
     std::fs::create_dir_all(admin.as_path()).expect("the worktree's administrative directory");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("the .git file");
+    // The two records Git writes beside a registration: the pointer's reciprocal back-link and the common directory
+    //  the registration belongs to. A copied pointer in a replacement directory has neither of the first.
+    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the registration's back-link");
+    std::fs::write(admin.join("commondir"), b"../..\n").expect("the registration's common directory");
     let record: PathBuf = root.join("record");
     let environment: RepairEnvironment =
         RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 1 };
@@ -106,7 +110,7 @@ fn installing_toolchain(scene: &Scene, status: u8) -> String {
 /// The record one scene's relink is queued as,
 /// naming both tools.
 fn item_of_the_scene(scene: &Scene, tools: Vec<RelinkTool>) -> WorkItem {
-    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: scene.environment.search_path.clone(), tools };
+    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Set(scene.environment.search_path.clone().expect("the scene's search path")), tools };
     return item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
 }
 
@@ -118,6 +122,32 @@ fn relink(scene: &Scene, item: &WorkItem) -> Verdict {
 /// The starts the fixture tools named.
 fn starts(scene: &Scene) -> String {
     return std::fs::read_to_string(scene.record.as_path()).unwrap_or_default();
+}
+
+/// How long a control waits for a relink that must answer without waiting for anything,
+/// before it releases whatever the relink is waiting for and reports.
+const ANSWER_BOUND: Duration = Duration::from_secs(5);
+
+/// Make a named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+fn make_a_named_pipe(path: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "mkfifo {}", path.display());
+}
+
+/// A fixture tool that names its start and then replaces the worktree directory with an unrelated one,
+/// keeping a copy of the registration's pointer so only the directory's own identity tells them apart.
+fn replacing_tool(scene: &Scene) -> String {
+    let admin: PathBuf = scene.common.join("worktrees/topic");
+    return format!(
+        "#!/bin/sh\necho \"pnpm $* in $(pwd -P)\" >> '{started}'\ncd /\n/bin/rm -rf '{worktree}' 2>>'{started}'\n/bin/mkdir -p '{worktree}/node_modules' '{worktree}/.cache/toolchain-launchers' 2>>'{started}'\nprintf \"lockfileVersion: '9.0'\\n\" > '{worktree}/pnpm-lock.yaml'\nprintf '{{\"lockFile\":\"{elsewhere}\"}}\\n' > '{worktree}/.cache/toolchain-launchers/mpm.launch'\nprintf 'gitdir: %s\\n' '{admin}' > '{worktree}/.git'\nexit 0\n",
+        started = scene.record.display(),
+        worktree = scene.worktree.display(),
+        admin = admin.display(),
+        elsewhere = ELSEWHERE,
+    );
 }
 
 /// What:
@@ -256,5 +286,174 @@ fn the_service_starts_the_program_the_add_resolved() {
     assert!(named.trim_end().ends_with(scene.worktree.to_str().expect("utf8")), "the install did not run in the worktree: {named}");
     let path: String = paths(&scene);
     assert!(path.contains(scene.bin.to_str().expect("utf8")), "the install did not see the add's search path: {path}");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A replacement directory that keeps a copy of the old pointer is left alone,
+///  because the registration it names does not point back at it.
+/// Why:
+///   A queued record outlives the worktree it was written for,
+/// and a person may put their own directory at that path with a copy of the pointer the old worktree had.
+/// The registration Git writes carries a `gitdir` back-link naming the worktree's own pointer,
+/// so a directory that has the pointer but not the back-link is no worktree of this repository,
+/// and its package state is not rewritten.
+#[test]
+fn a_replacement_carrying_the_old_pointer_is_left_alone() {
+    let scene: Scene = scene("relink-job-stale-pointer");
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
+    let old_pointer: Vec<u8> = std::fs::read(scene.worktree.join(".git")).expect("the old pointer");
+    std::fs::remove_dir_all(scene.worktree.as_path()).expect("the worktree is removed");
+    std::fs::create_dir_all(scene.worktree.join("node_modules")).expect("a replacement node_modules");
+    std::fs::write(scene.worktree.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("a replacement lockfile");
+    std::fs::write(scene.worktree.join(".git"), old_pointer.as_slice()).expect("a copy of the old pointer");
+    std::fs::remove_file(scene.common.join("worktrees/topic/gitdir")).expect("the registration points back at nothing");
+    let verdict: Verdict = relink(&scene, &item);
+    assert!(matches!(verdict, Verdict::Skipped(_)), "a copied pointer is no registration: {verdict:?}; it started {:?}", starts(&scene));
+    assert_eq!(starts(&scene), "", "a tool was started in a directory the record was not written for");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A `.git` that is a named pipe is refused instead of waited for.
+/// Why:
+///   Reading the pointer with `std::fs::read` waits inside `open(2)` for a writer of a pipe,
+/// and that read happens before any tool starts,
+/// so no quiet window and no ceiling applies to it:
+/// one malformed pointer would hold the service's round for ever
+/// (`SPEC.md`,
+/// "Every wait has a bound").
+#[test]
+fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
+    use std::io::Write as _;
+    let scene: Scene = scene("relink-job-pointer-pipe");
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm]);
+    let pointer: PathBuf = scene.worktree.join(".git");
+    let old_pointer: Vec<u8> = std::fs::read(pointer.as_path()).expect("the old pointer");
+    std::fs::remove_file(pointer.as_path()).expect("the regular pointer is removed");
+    make_a_named_pipe(pointer.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Verdict>();
+    let environment: RepairEnvironment = scene.environment.clone();
+    let worker_item: WorkItem = item.clone();
+    let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&worker_item, &environment)).expect("the relinking runs");
+        let _ = sender.send(verdict);
+    });
+    let answered: Result<Verdict, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(ANSWER_BOUND);
+    if answered.is_err() {
+        // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
+        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(pointer.as_path()).expect("release the reader");
+        writer.write_all(old_pointer.as_slice()).expect("write the pointer");
+        drop(writer);
+    }
+    let verdict: Verdict = match answered {
+        Ok(found) => found,
+        Err(_) => receiver.recv_timeout(ANSWER_BOUND).expect("the released reader lets the relinking finish"),
+    };
+    worker.join().expect("join the relinking");
+    assert!(matches!(verdict, Verdict::Skipped(_)), "a pointer that is no regular file is no registration: {verdict:?}");
+    assert_eq!(starts(&scene), "", "a tool was started for a directory whose pointer cannot be read as a file");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A worktree replaced between two tools of one record starts no further tool.
+/// Why:
+///   The tools of one record run one after another and the first can take a minute,
+/// so the directory that was proved to be the record's worktree can be gone by the time the next tool starts.
+/// The replacement keeps a copy of the pointer and the registration still points back at that path,
+/// so only the directory's own identity tells it from the worktree the run began in.
+#[test]
+fn a_worktree_replaced_between_two_tools_starts_no_further_tool() {
+    let scene: Scene = scene("relink-job-replaced-between-tools");
+    executable(scene.bin.join("pnpm").as_path(), replacing_tool(&scene).as_bytes());
+    executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
+    let verdict: Verdict = relink(&scene, &item);
+    let named: String = starts(&scene);
+    assert!(!named.contains("mpm-shadow"), "the second tool ran in a directory the record was not written for: {named}");
+    assert!(matches!(verdict, Verdict::Skipped(_)), "a worktree replaced between two tools is named as left alone: {verdict:?}");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A toolchain tool that names itself,
+///  its start,
+///  and then rewrites the launcher record as a real install does.
+/// Why:
+///   Two programs can stand for one tool,
+/// the add's own link and one the service's search path holds,
+/// and only the name each records tells which one the service started.
+fn toolchain_tool(scene: &Scene, label: &str) -> String {
+    let launcher: PathBuf = scene.worktree.join(".cache/toolchain-launchers/mpm.launch");
+    let own: PathBuf = scene.worktree.join("toolchain.lock.json");
+    return format!(
+        "#!/bin/sh\necho \"{label} $* in $(pwd -P)\" >> '{started}'\nprintf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{launcher}'\nexit 0\n",
+        started = scene.record.display(),
+        own = own.display(),
+        launcher = launcher.display()
+    );
+}
+
+/// What:
+///  An add whose environment held no search path does not let the service's own search path choose the tool.
+/// Why:
+///   With no `PATH` the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`,
+/// and the service is a resident process of another session whose own path may hold a different one.
+/// A record that cannot say "the add had no search path" makes the service start its own mpm-shadow instead
+/// of the program the add resolved.
+#[test]
+fn an_add_with_no_search_path_does_not_borrow_the_services_path() {
+    let scene: Scene = scene("relink-job-no-add-search-path");
+    let own_link: PathBuf = scene.worktree.join(".cache/toolchain-bin/mpm-shadow");
+    std::fs::create_dir_all(own_link.parent().expect("the link's directory").to_path_buf()).expect("the worktree's toolchain link directory");
+    executable(own_link.as_path(), toolchain_tool(&scene, "own-link").as_bytes());
+    let service_bin: PathBuf = scene.root.join("service-bin");
+    std::fs::create_dir_all(service_bin.as_path()).expect("the service's own search path");
+    executable(service_bin.join("mpm-shadow").as_path(), toolchain_tool(&scene, "service-path").as_bytes());
+    let add_environment: RepairEnvironment = RepairEnvironment { search_path: None, ..scene.environment.clone() };
+    let needed: crate::package_repair_toolchain::ToolchainNeed =
+        crate::lazy_runtime::run_on_runtime(crate::package_repair_toolchain::need_within_the_budget(scene.worktree.as_path(), &add_environment))
+            .expect("the need is decided")
+            .expect("the launcher records are read");
+    assert!(matches!(needed, crate::package_repair_toolchain::ToolchainNeed::Needed), "the worktree's own link is the program the add resolved");
+    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Toolchain] };
+    let item: WorkItem = item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
+    let service_environment: RepairEnvironment = RepairEnvironment { search_path: Some(service_bin.clone().into_os_string()), ..scene.environment.clone() };
+    let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&item, &service_environment)).expect("the relinking runs");
+    let named: String = starts(&scene);
+    assert!(!named.contains("service-path"), "the service started the mpm-shadow of its own search path for an add that had none: {named}");
+    assert!(named.contains("own-link"), "the worktree's own link is the program the add selected: {named}");
+    assert_eq!(verdict, Verdict::Done, "{verdict:?}");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A registration that cannot be read now keeps the record for another try.
+/// Why:
+///   A permission or an input-output error may pass,
+/// and the worktree may still need its relink,
+/// so answering "left as it is" settles a repair nobody did
+/// and no record is left to try again.
+/// The control makes the read answer the way a refused read does,
+/// because the gate runs this suite as root, where no mode makes a file unreadable.
+#[test]
+fn a_registration_that_cannot_be_read_now_is_tried_again() {
+    let scene: Scene = scene("relink-job-undecided-read");
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm]);
+    let entry: RelinkEntry = crate::package_repair_relink::decode(item.parent.as_str()).expect("the record's entry");
+    let held: crate::package_repair_relink_job_worktree_proof::HeldWorktree =
+        crate::package_repair_relink_job_worktree_proof::HeldWorktree::open(scene.worktree.as_path()).expect("the worktree is held open");
+    let answered: Option<Verdict> = {
+        crate::worktree_registration_proof::THE_RECORD_READ_ANSWERS_UNDECIDED.with(|answer| answer.set(true));
+        let refusal: Option<Verdict> = crate::package_repair_relink_job_worktree_proof::refusal_of_a_replaced_or_unregistered_worktree(&item, &entry, &held);
+        crate::worktree_registration_proof::THE_RECORD_READ_ANSWERS_UNDECIDED.with(|answer| answer.set(false));
+        refusal
+    };
+    let Some(verdict) = answered else { panic!("a registration that cannot be read is a refusal") };
+    assert!(matches!(verdict, Verdict::Retry(_)), "a read that may pass must keep the record: {verdict:?}");
     remove(scene.root.as_path());
 }

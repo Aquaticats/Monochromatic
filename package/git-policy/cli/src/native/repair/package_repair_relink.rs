@@ -93,6 +93,29 @@ impl RelinkTool {
 }
 
 /// What:
+///  The search path a record carries.
+/// Why:
+///   The record must say which programs the add resolved,
+/// and "the add held no search path" is not "this record is too old to carry one".
+/// With no path, the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`,
+/// while a record that names none makes the service search its own path and start another program;
+/// so the three answers travel as three, not as the two an optional field could carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SearchPathOfTheAdd = { kind: 'not-recorded' } | { kind: 'unset' } | { kind: 'set'; path: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SearchPathOfTheAdd {
+    /// A record written before this release carried the add's environment: the service searches its own path.
+    NotRecorded,
+    /// The add's environment held no search path, so the service's own must not stand in for one.
+    Unset,
+    /// The directories the add resolved each tool's program on.
+    Set(OsString),
+}
+
+/// What:
 ///  The work one relink record asks for:
 /// the new worktree,
 /// the search path the add resolved its programs on,
@@ -107,17 +130,15 @@ impl RelinkTool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RelinkEntry = { root: string; searchPath?: string; tools: RelinkTool[] };
+/// type RelinkEntry = { root: string; searchPath: SearchPathOfTheAdd; tools: RelinkTool[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RelinkEntry {
     /// The new worktree.
     pub root: PathBuf,
     /// The search path the add resolved each tool's program on,
-    /// and that the tools' own children inherit;
-    /// absent only in a record written before this release carried it,
-    /// where the service searches its own path.
-    pub search_path: Option<OsString>,
+    /// and that the tools' own children inherit.
+    pub search_path: SearchPathOfTheAdd,
     /// The tools the service runs there,
     /// in the order the report has always named them.
     pub tools: Vec<RelinkTool>,
@@ -159,11 +180,19 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
     };
     let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     fields.insert(String::from("root"), serde_json::Value::from(root));
-    if let Some(search_path) = entry.search_path.as_deref() {
-        let Some(text) = search_path.to_str() else {
-            return Err(String::from("the search path of the relink is not valid UTF-8, so no record can carry it"));
-        };
-        fields.insert(String::from("searchPath"), serde_json::Value::from(text));
+    // The three answers are three spellings: no field for a record written before the add's environment travelled,
+    // a null for an add that held no search path, and the text for the one it held.
+    match entry.search_path {
+        SearchPathOfTheAdd::NotRecorded => {}
+        SearchPathOfTheAdd::Unset => {
+            fields.insert(String::from("searchPath"), serde_json::Value::Null);
+        }
+        SearchPathOfTheAdd::Set(ref search_path) => {
+            let Some(text) = search_path.to_str() else {
+                return Err(String::from("the search path of the relink is not valid UTF-8, so no record can carry it"));
+            };
+            fields.insert(String::from("searchPath"), serde_json::Value::from(text));
+        }
     }
     let names: Vec<serde_json::Value> = entry.tools.iter().map(name_of_tool).collect();
     fields.insert(String::from("tools"), serde_json::Value::Array(names));
@@ -179,12 +208,15 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
 /// A record written before this release carried a search path names none,
 /// and the service then searches its own path,
 /// so such a record still relinks the worktree it was written for.
+/// A record whose search path is null names an add that held none,
+/// so the service searches nowhere rather than searching its own.
 ///
 /// # Errors
 ///
 /// Text that is not the object,
 /// a root that is not named,
-/// and a tool that cannot be read.
+/// a tool that cannot be read,
+/// and a search path that is neither text nor null.
 pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
     let parsed: serde_json::Value = match serde_json::from_str(payload) {
         Ok(value) => value,
@@ -209,7 +241,12 @@ pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
     if tools.is_empty() {
         return Err(String::from("the relink names no tools"));
     }
-    let search_path: Option<OsString> = parsed.get("searchPath").and_then(serde_json::Value::as_str).map(OsString::from);
+    let search_path: SearchPathOfTheAdd = match parsed.get("searchPath") {
+        None => SearchPathOfTheAdd::NotRecorded,
+        Some(serde_json::Value::Null) => SearchPathOfTheAdd::Unset,
+        Some(serde_json::Value::String(text)) => SearchPathOfTheAdd::Set(OsString::from(text)),
+        Some(_) => return Err(String::from("the search path of the relink is neither text nor null")),
+    };
     return Ok(RelinkEntry { root: PathBuf::from(root), search_path, tools });
 }
 
@@ -243,6 +280,42 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 }
 
 /// What:
+///  The entry with every relative directory of its search path made absolute against the add's directory.
+/// Why:
+///   `PATH=bin` names the add's own `bin`,
+/// and the service is a resident process of another session, started from another directory,
+/// so a record carrying `bin` would make it search its own `bin`,
+/// and the program the add resolved may never run.
+/// The tools' own children read the same path from the same record,
+/// so they resolve on the add's directories too.
+/// An empty entry is left as it is:
+/// it means the current directory of whoever runs, which no record can name for another process.
+///
+/// # Errors
+///
+/// A working directory this process cannot read,
+/// so no record could say what `bin` meant,
+/// and a search path that cannot be written back.
+fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry, String> {
+    let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else { return Ok(entry.clone()) };
+    let relative: bool = std::env::split_paths(search_path).any(|directory| !directory.as_os_str().is_empty() && !directory.is_absolute());
+    if !relative {
+        return Ok(entry.clone());
+    }
+    let add: PathBuf = std::env::current_dir().map_err(|error| format!("the directory this command runs in cannot be read ({error}), so a relative search path names no program it could resolve"))?;
+    let mut absolute: Vec<PathBuf> = Vec::new();
+    for directory in std::env::split_paths(search_path) {
+        if directory.as_os_str().is_empty() || directory.is_absolute() {
+            absolute.push(directory);
+            continue;
+        }
+        absolute.push(add.join(directory));
+    }
+    let joined: OsString = std::env::join_paths(absolute).map_err(|error| format!("the search path of this command cannot be recorded ({error})"))?;
+    return Ok(RelinkEntry { search_path: SearchPathOfTheAdd::Set(joined), ..entry.clone() });
+}
+
+/// What:
 ///  The record a worktree's relink is queued as.
 /// Why:
 ///   The producer and its controls both write exactly this,
@@ -257,17 +330,19 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 /// ```
 pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<WorkItem, String> {
     let created: String = now_iso();
+    let entry: RelinkEntry = entry_with_an_absolute_search_path(entry)?;
     return Ok(WorkItem {
         kind: WorkKind::Relink,
         repository: destination.to_path_buf(),
         git_dir: common_dir.to_path_buf(),
         branch_ref: String::from(RELINK_REFERENCE),
         oid: object_name_of(destination, created.as_str()),
-        parent: encode(entry)?,
+        parent: encode(&entry)?,
         created,
         tries: 0,
     });
 }
+
 
 /// What:
 ///  Write the relink's record and wake the service that runs it,
@@ -292,13 +367,13 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// Err:
 ///  No service holds the record and none can be given it,
 /// so the add relinks the worktree itself;
-/// the text says why.
+/// the answer says why, and the record it leaves is taken back after that run finishes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
-pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), String> {
+pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), NotTaken> {
     return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
@@ -314,8 +389,8 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// ```ts
 /// handOverWith({ context, commonDir, destination, entry, reach });
 /// ```
-pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<(), String> {
-    let item: WorkItem = item_of(common_dir, destination, entry)?;
+pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<(), NotTaken> {
+    let item: WorkItem = item_of(common_dir, destination, entry).map_err(not_written)?;
     let work_dir: PathBuf = work_directory(common_dir);
     let id: String = item.id();
     match enqueue(work_dir.as_path(), &item) {
@@ -327,12 +402,12 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
             return if pending_record(&work_dir, id.as_str()).exists() {
                 Ok(())
             } else {
-                Err(format!("the record {id} of this relink was already taken by a service, which holds it"))
+                Err(NotTaken { reason: format!("the record {id} of this relink was already taken by a service, which holds it"), queued: None })
             };
         }
         Err(reason) => {
             debug(TAG, format!("the work item could not be written: {reason}").as_str());
-            return Err(format!("the work item could not be written: {reason}"));
+            return Err(not_written(format!("the work item could not be written: {reason}")));
         }
     }
     let reason: String = match (reach.router)(context.real_git.as_path(), common_dir) {
@@ -353,18 +428,15 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
         }
     };
     debug(TAG, format!("{}: no service took the relink ({reason})", destination.display()).as_str());
-    return Err(match withdraw_pending(&work_dir, id.as_str()) {
-        Withdrawal::Withdrew => reason,
-        // Another party took the record between the write and the unlink: a service holds it, so its work is not lost
-        //  and the add must not run the same install beside it.
-        Withdrawal::Taken => {
-            debug(TAG, format!("{}: a service took the record {id} before it could be withdrawn", destination.display()).as_str());
-            return Ok(());
-        }
-        // The record could not be removed, so it stays and the service may run the same install again: the add relinks
-        //  the worktree too, because a worktree whose copied links were never relinked is wrong either way.
-        Withdrawal::Unremoved(error) => format!("{reason}; the record {id} stays ({error}), so the commit service may relink this worktree again"),
-    });
+    // The record stays queued until the add's own run has finished: a record taken back first would leave nothing for a
+    //  service to recover the repair from after a kill, and a record left queued only names a path the proof above
+    //  confines to the worktree the record was written for.
+    return Err(NotTaken { reason, queued: Some(QueuedRelink { work_dir, id }) });
+}
+
+/// The answer of a hand-over whose record was never written.
+fn not_written(reason: String) -> NotTaken {
+    return NotTaken { reason, queued: None };
 }
 
 /// What:
@@ -394,52 +466,77 @@ fn wake_the_service(address: Bind, host: Option<&crate::service_provision::Provi
 }
 
 /// What:
-///  What a hand-over's attempt to take its pending record back found.
+///  What a hand-over that no service took leaves the add:
+///  the words the person reads,
+///  and the record still queued.
 /// Why:
-///   The three answers differ in what the add does next:
-/// nothing took the record,
-/// another party took it,
-/// or it could not be removed and both may run.
+///   The add relinks the worktree itself,
+/// but the record may only be taken back once that run has finished:
+/// a record removed first leaves nothing for a service to recover the repair from after a kill,
+/// and the worktree then keeps copied links that name the source.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Withdrawal = 'withdrew' | 'taken' | { unremoved: string };
+/// type NotTaken = { reason: string; queued?: QueuedRelink };
 /// ```
-enum Withdrawal {
-    /// The pending record was removed,
-    /// so no service can claim it.
-    Withdrew,
-    /// The pending record was gone already,
-    /// so a claim or a settlement took it.
-    Taken,
-    /// The record is still queued and says why it could not be removed.
-    Unremoved(String),
+#[derive(Debug)]
+pub struct NotTaken {
+    /// Why no service took the record.
+    pub reason: String,
+    /// The record still queued when one was written,
+    /// taken back by the add after its own run.
+    pub queued: Option<QueuedRelink>,
+}
+
+/// What:
+///  A record still queued for a service,
+///  which the add's own run makes superfluous when it ends.
+/// Why:
+///   Taking the record back is one unlink by its own id,
+/// and the claim a service makes moves the file out of `pending` in one rename,
+/// so this either wins and the claim finds nothing,
+/// or loses and the service owns the work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type QueuedRelink = { workDir: string; id: string };
+/// ```
+#[derive(Debug)]
+pub struct QueuedRelink {
+    /// The work directory the record sits in.
+    work_dir: PathBuf,
+    /// The record's id.
+    id: String,
+}
+
+impl QueuedRelink {
+    /// What:
+    ///  Take the record back,
+    ///  now that the add's own run has finished.
+    /// Why:
+    ///   The record owes nothing from here on,
+    /// and a record that cannot be removed stays while the service may relink this worktree again,
+    /// which is said here rather than failing the add:
+    /// a worktree whose copied links were relinked twice is right either way.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const takeBack = ({ workDir, id }) => { try { unlink(pending(workDir, id)) } catch (error) { log(`the record ${id} stays: ${error.message}`) } };
+    /// ```
+    pub fn take_back(&self) {
+        match std::fs::remove_file(pending_record(self.work_dir.as_path(), self.id.as_str()).as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                debug(TAG, format!("the record {} was taken by a service, whose run this add's own run stood beside", self.id).as_str())
+            }
+            Err(error) => debug(TAG, format!("the record {} stays ({error}), so the commit service may relink this worktree again", self.id).as_str()),
+        }
+    }
 }
 
 /// The pending record of one id.
 fn pending_record(work_dir: &Path, id: &str) -> PathBuf {
     return state_directory(work_dir, PENDING).join(id);
-}
-
-/// What:
-///  Remove the pending record of one id,
-///  so no service drains work the add did itself.
-/// Why:
-///   The claim moves the file out of `pending` in one rename,
-/// so this unlink either wins and the claim finds nothing,
-/// or loses and the service owns the work;
-/// neither party runs the install for nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const withdrawPending = (workDir, id) => { try { unlink(pending(workDir, id)); return 'withdrew' } catch (error) { return error.code === 'ENOENT' ? 'taken' : { unremoved: error.message } } };
-/// ```
-fn withdraw_pending(work_dir: &Path, id: &str) -> Withdrawal {
-    return match std::fs::remove_file(pending_record(work_dir, id).as_path()) {
-        Ok(()) => Withdrawal::Withdrew,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Withdrawal::Taken,
-        Err(error) => Withdrawal::Unremoved(error.to_string()),
-    };
 }
 
 /// What:
@@ -471,7 +568,7 @@ type ClientConfig = crate::service_client::ClientConfig;
 /// ```ts
 /// const handOverInAJob = ([context, commonDir, destination, entry]) => handOverToTheService(context, commonDir, destination, entry);
 /// ```
-pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), String> {
+pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
     let (context, common_dir, destination, entry): TheHandOver = state;
     return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), &entry);
 }

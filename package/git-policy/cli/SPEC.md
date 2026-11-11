@@ -3769,9 +3769,11 @@ of which the two that rewrite link layouts in place are the service's work whene
   which runs it after the add returns,
   and runs it here when no service took the record,
   because a worktree whose copied links were never relinked resolves the source's packages without an error.
-  A hand-over no service took takes its record back:
-  the add's own run is the work that record named,
-  and a record left queued names only a path.
+  A hand-over no service took keeps its record queued until the add's own run has finished,
+  and takes it back then:
+  a record removed first would leave nothing to recover the repair from after a kill,
+  and a service that drains it meanwhile runs the same install,
+  which the proof below confines to the worktree the record names.
 - Cargo,
   for every Cargo workspace among the worktree's tracked `Cargo.toml` files (found with `git ls-files`,
   so no walk reads
@@ -3862,13 +3864,30 @@ of which the two that rewrite link layouts in place are the service's work whene
   so the service starts the program the add resolved,
   and the program's own children read the same path;
   the service's own path may hold no pnpm or another one.
+  A relative entry of that path is recorded against the directory the add ran in,
+  because the service runs in the directory of the session it was started in,
+  and an add whose environment held no path at all records that it held none,
+  so the service searches nowhere instead of searching its own:
+  with no path, the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`.
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.
 
 What the service proves before it relinks:
 the record's payload and its repository field must name one directory,
-and that directory's `.git` must name a registration under the repository's `worktrees`.
+that directory's `.git` must name a registration under the repository's `worktrees`,
+that registration's `gitdir` back-link must name the directory's own `.git` file,
+and its `commondir` must be this repository.
+The pointer is read without waiting for a writer,
+so a `.git` that is no regular file is refused at once instead of holding the round,
+and the directory is held open for the whole run,
+with the proof repeated before every tool,
+so a directory replaced at the recorded path between two tools starts no further tool there.
+A registration that cannot be read for a reason that may pass (a permission,
+  an input-output error)
+keeps the record's claim,
+which queues it again when the claim runs out,
+and a record whose last try cannot read it either is failed.
 A record outlives the worktree it was written for
 (a service that died holds a claim until the claim runs out),
 and its tools rewrite link layouts in place,

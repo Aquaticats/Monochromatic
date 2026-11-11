@@ -21,7 +21,6 @@
 //! const registration = registrationOf({ commonDir, target, operand }); // throws the reason Git must decide
 //! ```
 
-use crate::worktree_path_failure_message::path_failure;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -240,9 +239,11 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 /// ```
 pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registration, String> {
     let pointer_path: PathBuf = target.join(".git");
-    let pointer: Vec<u8> = match std::fs::read(pointer_path.as_path()) {
+    // The pointer is read without waiting for a writer: a named pipe at its name would hold a removal for ever
+    //  (`SPEC.md`, "Every wait has a bound").
+    let pointer: Vec<u8> = match crate::worktree_registration_proof::read_record(pointer_path.as_path(), "the worktree's pointer") {
         Ok(bytes) => bytes,
-        Err(error) => return Err(format!("{} cannot be read as a file ({error}), so it is not a linked worktree", pointer_path.display())),
+        Err(refusal) => return Err(format!("{}, so this is no linked worktree", refusal.into_words())),
     };
     let line: &[u8] = without_newline(pointer.as_slice());
     let Some(named) = line.strip_prefix(b"gitdir: ") else {
@@ -268,7 +269,10 @@ pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registrat
         return Err(format!("{} has no name", admin.display()));
     };
     let id: OsString = admin_name.to_os_string();
-    let gitdir_text: Vec<u8> = path_failure(std::fs::read(admin.join("gitdir")), admin.join("gitdir").as_path(), "cannot be read")?;
+    let gitdir_text: Vec<u8> = match crate::worktree_registration_proof::read_record(admin.join("gitdir").as_path(), "the registration's back-link") {
+        Ok(bytes) => bytes,
+        Err(refusal) => return Err(refusal.into_words()),
+    };
     let recorded: PathBuf = PathBuf::from(OsStr::from_bytes(without_newline(gitdir_text.as_slice())));
     // The registration may spell this worktree through a symbolic link or relative to itself; the question is which file it names.
     let recorded_pointer: PathBuf = if recorded.is_absolute() { recorded.clone() } else { admin.join(recorded.as_path()) };
