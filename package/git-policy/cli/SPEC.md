@@ -10049,7 +10049,7 @@ or the `gitdir=` records of the service's own journal,
 names that directory and hashes to the instance.
 It stops its socket unit with the job mode that leaves the units requiring it alone,
 because its own end is what stops its service unit,
-and a stop of that unit from inside the service would signal it before it could remove the note and the socket file.
+and a stop of that unit from inside the service would signal it before it could stop its own socket and leave its files as the sweep finds them.
 It never removes its own journal,
 because it is still one of that journal's writers:
 its after-commit task writes the note of a repository to look at and the plan of a push to try again,
@@ -10074,7 +10074,8 @@ while a batch that did not land,
 a batch whose objects a scratch reference may hold,
 a record that was written and not published,
 a landing or withdrawal record,
-and a file this release does not know keep the whole journal and are logged,
+the repositories a service was still to look at and the pushes it was still to try again,
+and a file or folder this release does not know keep the whole journal and are logged,
 never discarded.
 A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
 (`ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`:

@@ -1451,8 +1451,9 @@ once they are older than the longest a client that lost its answer can look,
 and an empty landing record are the memory of a service that will never run again,
 while a batch that did not land,
 a landing that was in flight,
-and a file this release does not know keep the whole journal,
-and the command names the file it kept it for.
+the repositories a service was still to look at and the pushes it was still to try again,
+and a file or folder this release does not know keep the whole journal,
+and the command names the entry it kept it for.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
