@@ -33,18 +33,22 @@ pub mod stacked_merge_push;
 
 /// The service's own retry of a push it stopped or that failed:
 /// the pauses,
-/// the waiting branches,
-/// the final failure.
+/// and the waiting branches.
 pub mod push_retry;
+
+/// What a failed push's own words mean for that retry:
+/// whether the failure is final,
+/// how many tries the one counted cause gets,
+/// and the words the person reads.
+pub mod push_retry_failure;
+
+/// The first of Git's own lines that gives a reason for a push's failure.
+pub mod push_retry_cause_line;
 
 /// The retry plan on disk,
 /// in the service instance's journal,
 /// so that a restarted service keeps trying the pushes it was trying.
 pub mod push_retry_store;
-
-/// The failures of a push that no retry can mend,
-/// their words in Git's output and the account the person gets of each.
-pub mod push_retry_final_failure;
 
 /// What a worker is handed about a branch's new try,
 /// and what it hands back to the loop that owns the plan.
@@ -84,6 +88,11 @@ pub mod bounded_query_input;
 
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
+
+/// The causes and reports of a stop,
+/// and the line a stalled push prints,
+/// which names the window that fired and a remedy that works.
+pub mod stop_cause_and_words;
 
 /// The stop of a running push and the sweep of the lock files it and what it started leave.
 pub mod stop_of_a_push_and_sweep_of_its_locks;

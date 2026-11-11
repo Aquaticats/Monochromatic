@@ -809,7 +809,7 @@ fn a_lane_read_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_
             // The round's lane read, which the round awaits no longer than this ceiling.
             let read = run_a_job_awaited_no_longer_than(THE_STEPS_CEILING, vec![git_dir], lane_keys_in_a_job).await;
             // The drain's first storage step, given the same ceiling here so the control reaches its bound in a moment.
-            let step = crate::service_work_storage_awaited::claim_all_within_awaiting(THE_STEPS_CEILING, work_dir.as_path()).await;
+            let step = crate::service_work_storage_awaited::claim_all_within_awaiting(THE_STEPS_CEILING, work_dir.as_path(), &crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS).await;
             return (read, step);
         });
         // The place the read holds cannot go back while the read waits, and a runtime's own drop waits for the job that

@@ -1,18 +1,47 @@
 //! What:
-//!  Links every non-private entry of the real common Git directory into a shadow repository,
+//!  Links the entries of the real common Git directory a commit's shadow reads into a shadow repository,
 //!       and copies the per-worktree entries (`config.worktree`,
 //! a linked worktree's sparse checkout).
 //! Why:
-//!  Shared entries such as `hooks`,
-//! `info`,
+//!  A shadow must resolve these through the real common directory:
+//! `info`
+//! (attributes,
+//! grafts,
+//! exclude,
+//! refs),
+//! `hooks`,
+//! `lfs`,
+//! `modules`,
 //! `rr-cache`,
-//! `lfs` and `modules` must be the real ones,
-//!  so hooks and native Git see them;
-//!  transaction-private entries (refs,
+//! `shallow`,
+//! `svn`,
+//! and the legacy fetch shorthands `branches` and `remotes`
+//! (`gitrepository-layout`,
+//! Git 2.56.0:
+//!  these are the entries Git shares with `$GIT_COMMON_DIR`,
+//!  and the ones that decide what a hook,
+//! a filter or native Git reading the shadow can see).
+//!  The list is named rather than enumerated,
+//! because everything else a common directory collects is either the shadow's own
+//! (refs,
 //! index,
 //! objects,
 //! conclusion state,
-//! lock files) and the repository scratch root stay the shadow's own.
+//! lock files)
+//!  or state no commit reads:
+//! the wrapper's own logs and folders,
+//! other tools' files,
+//! `FETCH_HEAD`,
+//! `ORIG_HEAD`,
+//! `description`,
+//! `lost-found`,
+//! and `worktrees`,
+//!  which a shadow must not claim to have
+//! (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+//! "The choices this leaves to the owner").
+//!  A named list is what lets a finished shadow stay usable in the pool made ahead:
+//! an entry that appears between the fill and the claim would otherwise make every member refuse
+//! (`shadow_pool_member.rs`).
 //!  On Windows the TypeScript wrapper (deleted on 2026-10-13 in `642b6d72cb`) used junctions and
 //!  copies;
 //!  this port uses directory symbolic links and copies,
@@ -23,83 +52,60 @@
 //! await linkShadowEntries({ shadowPath, commonDir, gitDir });
 //! ```
 
-/// The conclusion state names a shadow keeps privately.
-use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
-/// The name prefix of every private copy of an index the wrapper makes beside the real one.
-use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
-/// The names of the repository scratch root,
-/// which holds the shadow itself,
-/// and of the pool of finished shadows beside it.
-use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SHADOW_POOL_FOLDER};
-/// The infix of the file one of the wrapper's commands stages a lock in before it becomes the lock,
-/// so the lock's name is worked out from the name Git's lock would have.
-use crate::service_index_staging::STAGED_INFIX;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
-/// Real common-directory entries the shadow never links:
-///  its ref store,
-/// index,
-/// config,
-/// object store,
-/// message file,
-/// copied conclusion state,
-///  and the program's own state under its current name and under the name an earlier release gave it,
-/// which contains the shadow itself.
-pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
-    "HEAD",
-    "refs",
-    "packed-refs",
-    "reftable",
-    "logs",
-    "index",
-    "config",
-    "config.worktree",
-    "objects",
-    "COMMIT_EDITMSG",
-    "monochromatic-git-policy-cli",
-    "cli-git",
-    "cli-git-transactions",
-    "cli-git-transaction",
+/// What:
+///  The entries of the repository's common Git directory a commit's shadow shares,
+///  by name.
+/// Why:
+///  `gitrepository-layout` (Git 2.56.0) names the entries Git resolves from `$GIT_COMMON_DIR`:
+///  `branches`,
+/// `config`,
+/// `hooks`,
+/// `info`,
+/// `logs`,
+/// `objects`,
+/// `packed-refs`,
+/// `refs`,
+/// `remotes`,
+/// `shallow`,
+/// and `worktrees`,
+///  and `modules`,
+/// `rr-cache` and `svn` sit beside them.
+///  The shadow keeps its own `config`,
+/// `logs`,
+/// `objects`,
+/// `packed-refs` and `refs`,
+///  and a commit reads nothing of `worktrees`:
+/// what is left is this list.
+///  `lfs` is the folder `git-lfs` keeps its objects and logs in,
+///  which a clean filter of a commit in the shadow writes into.
+pub const SHARED_ENTRY_NAMES: [&str; 9] = [
+    "branches",
+    "hooks",
+    "info",
+    "lfs",
+    "modules",
+    "remotes",
+    "rr-cache",
+    "shallow",
+    "svn",
 ];
 
 /// What:
-///  Reports whether an entry must stay private to the shadow.
+///  Reports whether a common-directory entry is one a shadow shares.
 /// Why:
-///   A shadow Git that locks the same name as the real owner would collide with it,
-///  so lock files are never linked.
-///  The wrapper's own private copy of an index is private for a second reason:
-/// its directory sits beside the real index,
-///  a common directory collects one for every command that died before it removed its own,
-///  so the number of names to link grows with no limit the person chose,
-/// and no hook resolves one.
-///  The repository scratch root is private because it holds the shadow itself:
-/// a link to it points the shadow at its own directory,
-///  and every name inside it that a shadow links costs one directory-entry creation
-///  on a volume where those calls wait.
-///  The pool of finished shadows is private because it holds the shadow trees of other commits:
-/// a link to it would let a shadow reach every member,
-///  its entry set would decide whether a member is what a creation makes,
-///  and the first fill of a repository would otherwise refuse the member made a moment before it.
-///  A file a command stages a lock in is private for the same reason a lock is:
-/// it is named after the lock (`index.lock.cli-git-marker-<pid>.<namespace>-<batch>-<token>`),
-/// it belongs to one command,
-/// and every command of a repository leaves a new one while it runs.
+///   The link step,
+/// the pool's fill and the pool's check of a member read this one answer,
+///  so no two of them can disagree about what a creation makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isPrivateShadowEntry(name)
+/// isSharedShadowEntry(name)
 /// ```
-pub fn is_private_shadow_entry(name: &str) -> bool {
-    return PRIVATE_SHADOW_ENTRIES.contains(&name)
-        || name == REPOSITORY_SCRATCH.current
-        || name == REPOSITORY_SCRATCH.earlier
-        || name == SHADOW_POOL_FOLDER
-        || CONCLUSION_STATE_FILES.contains(&name)
-        || name == SEQUENCER_DIRECTORY
-        || name.starts_with(PRIVATE_INDEX_PREFIX)
-        || name.contains(STAGED_INFIX)
-        || name.ends_with(".lock");
+pub fn is_shared_shadow_entry(name: &str) -> bool {
+    return SHARED_ENTRY_NAMES.contains(&name);
 }
 
 /// What:
@@ -120,6 +126,43 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     };
+}
+
+/// What:
+///  Reports whether a regular per-worktree file exists.
+/// Why:
+///   A missing file is an answer,
+/// every other failure is an error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await regularFileExists(path);
+/// ```
+fn regular_file_exists(path: &Path) -> std::io::Result<bool> {
+    return match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    };
+}
+
+/// What:
+///  Reports whether a linked worktree keeps its own `info` directory,
+///  because it holds a sparse-checkout of its own.
+/// Why:
+///   Such a worktree's shadows are made where the commit is and never taken from the pool,
+///  and the fill must know it before it makes a member no claim can take;
+/// so the question is asked in one place.
+///  The common directory's `info` is then not shared whole:
+/// the shadow's own `info` links the common entries and copies this worktree's pattern.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await keepsItsOwnInfo({ commonDir, gitDir })
+/// ```
+pub fn keeps_its_own_info(common_dir: &Path, git_dir: &Path) -> std::io::Result<bool> {
+    let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
+    return Ok(git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?);
 }
 
 /// What:
@@ -195,41 +238,6 @@ fn share_replacing_template(source: &Path, destination: &Path, directory: bool) 
     return share_entry(source, destination, directory);
 }
 
-/// What:
-///  Which entries of a real directory are not linked into the shadow.
-///  An `enum` is a closed set of named alternatives;
-/// here each alternative may carry a value.
-/// Why:
-///   The two callers skip different entries,
-/// and a rule value stands where a closure that decided by name stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SkipRule = { kind: 'PrivateEntries'; alsoInfo: boolean } | { kind: 'Named'; name: string };
-/// ```
-#[derive(Clone, Copy)]
-enum SkipRule {
-    /// The entries a shadow keeps its own (`is_private_shadow_entry`),
-    /// and `info` too when `also_info` is set.
-    PrivateEntries {
-        /// Whether the `info` directory is kept private too,
-        /// because the shadow links a single file of it.
-        also_info: bool,
-    },
-    /// The one entry with this exact name.
-    Named(&'static str),
-}
-
-impl SkipRule {
-    /// Whether the entry called `name` is skipped.
-    fn skips(self, name: &str) -> bool {
-        return match self {
-            SkipRule::PrivateEntries { also_info } => is_private_shadow_entry(name) || (also_info && name == "info"),
-            SkipRule::Named(skipped) => name == skipped,
-        };
-    }
-}
-
 /// One entry the link step shares with a shadow:
 /// its name,
 /// the real path it links to,
@@ -251,65 +259,44 @@ pub struct SharedEntry {
 }
 
 /// What:
-///  The entries of one real directory that a shadow shares,
-/// with the path each becomes.
+///  One entry of a real directory as a shadow shares it,
+///  or nothing when it is not there.
 /// Why:
-///   Entries are typed without following links,
-///  so a link in the real directory is shared as a link.
+///   An absent entry is a shared entry no creation links,
+/// and any other failure to read it is an error the creation reports:
+/// a permission the person has since changed must not quietly remove an entry a commit reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await sharedEntries(sourceDirectory, skip);
+/// await sharedEntryAt(directory, name) // { name, source, directory } | undefined
 /// ```
-fn shared_entries(
-    source_directory: &Path,
-    skip: SkipRule,
-) -> std::io::Result<Vec<SharedEntry>> {
-    let mut shared: Vec<SharedEntry> = Vec::new();
-    for entry_result in std::fs::read_dir(source_directory)? {
-        let entry: std::fs::DirEntry = entry_result?;
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if skip.skips(name.as_str()) {
-            continue;
-        }
-        shared.push(SharedEntry {
-            source: entry.path(),
-            name: entry.file_name(),
-            directory: entry.file_type()?.is_dir(),
-        });
-    }
-    return Ok(shared);
-}
-
-/// What:
-///  Links every shared entry of one real directory into one shadow directory.
-/// Why:
-///   The entries are the ones `shared_entries` lists,
-/// so the two never disagree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await linkDirectoryEntries({ sourceDirectory, shadowDirectory, skip });
-/// ```
-fn link_directory_entries(
-    source_directory: &Path,
-    shadow_directory: &Path,
-    skip: SkipRule,
-) -> std::io::Result<()> {
-    for entry in shared_entries(source_directory, skip)? {
-        let destination: PathBuf = shadow_directory.join(&entry.name);
-        // `git init` may have created a template entry of the same name; the real one replaces it.
-        share_replacing_template(entry.source.as_path(), destination.as_path(), entry.directory)?;
-    }
-    return Ok(());
+fn shared_entry_at(directory: &Path, name: &str) -> std::io::Result<Option<SharedEntry>> {
+    let source: PathBuf = directory.join(name);
+    return match std::fs::symlink_metadata(source.as_path()) {
+        Ok(metadata) => Ok(Some(SharedEntry {
+            name: std::ffi::OsString::from(name),
+            source,
+            directory: metadata.is_dir(),
+        })),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    };
 }
 
 /// What:
 ///  The entries a shadow of this worktree shares,
-/// and whether this worktree also keeps its own `info`.
+///  and whether this worktree also keeps its own `info`.
 /// Why:
 ///   The pool fills a member once and checks it on every claim,
 /// and both need the same list the creation links.
+///  Only the named entries are shared:
+/// everything else a common directory holds is the shadow's own or state no commit reads,
+///  so an entry that appears there between a fill and a claim
+///  (`FETCH_HEAD`,
+/// a log generation,
+/// a worktree,
+/// the wrapper's own records)
+///  is no reason to refuse a member.
 ///  A worktree that keeps its own `info` builds its own `info` directory and copies a sparse checkout into it,
 /// so its shadows are made where the commit is and never taken from a pool.
 ///
@@ -321,12 +308,42 @@ pub fn shared_entries_of(
     common_dir: &Path,
     git_dir: &Path,
 ) -> std::io::Result<(Vec<SharedEntry>, bool)> {
-    let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
-    let mixed_info: bool =
-        git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?;
-    let entries: Vec<SharedEntry> =
-        shared_entries(common_dir, SkipRule::PrivateEntries { also_info: mixed_info })?;
-    return Ok((entries, mixed_info));
+    let own_info: bool = keeps_its_own_info(common_dir, git_dir)?;
+    let mut entries: Vec<SharedEntry> = Vec::with_capacity(SHARED_ENTRY_NAMES.len());
+    for name in SHARED_ENTRY_NAMES {
+        if own_info && name == "info" {
+            continue;
+        }
+        let Some(entry) = shared_entry_at(common_dir, name)? else { continue };
+        entries.push(entry);
+    }
+    return Ok((entries, own_info));
+}
+
+/// What:
+///  Links every shared entry of one real directory into one shadow directory.
+/// Why:
+///   The entries are the ones `shared_entries_of` lists,
+/// so the two never disagree.
+///  An entry that vanishes between the listing and the link is linked by no creation,
+/// so it is not an error:
+/// a removal of `lfs` or `rr-cache` while a commit runs must not fail the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await linkDirectoryEntries({ entries, shadowDirectory });
+/// ```
+fn link_directory_entries(entries: &[SharedEntry], shadow_directory: &Path) -> std::io::Result<()> {
+    for entry in entries {
+        let destination: PathBuf = shadow_directory.join(&entry.name);
+        // `git init` may have created a template entry of the same name; the real one replaces it.
+        match share_replacing_template(entry.source.as_path(), destination.as_path(), entry.directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    return Ok(());
 }
 
 /// What:
@@ -344,21 +361,50 @@ pub fn has_worktree_config(git_dir: &Path) -> std::io::Result<bool> {
 }
 
 /// What:
-///  Reports whether a regular per-worktree file exists.
+///  Whether one entry of a real `info` directory is the per-worktree pattern the shadow copies.
 /// Why:
-///   A missing file is an answer,
-/// every other failure is an error.
+///   A linked worktree's `info/sparse-checkout` is its own,
+/// and the shadow's `info` gets the copy the creation makes instead of a link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await regularFileExists(path);
+/// const isNotThePerWorktreePattern = (entry) => entry.name !== 'sparse-checkout';
 /// ```
-fn regular_file_exists(path: &Path) -> std::io::Result<bool> {
-    return match std::fs::symlink_metadata(path) {
-        Ok(metadata) => Ok(metadata.is_file()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    };
+fn is_not_the_per_worktree_pattern(entry: &std::fs::DirEntry) -> bool {
+    return entry.file_name() != std::ffi::OsStr::new("sparse-checkout");
+}
+
+/// What:
+///  Whether an entry's type,
+/// when it could be read,
+/// is a directory.
+/// Why:
+///   A type that cannot be read counts as not a directory,
+///  which only Windows tells apart:
+/// it copies a shared file and links a shared directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADirectory = (kind) => kind.isDirectory();
+/// ```
+fn is_a_directory(kind: std::fs::FileType) -> bool {
+    return kind.is_dir();
+}
+
+/// What:
+///  One entry of a real directory as the list of shared entries holds it.
+/// Why:
+///   The listing of a linked worktree's shared `info` needs the same shape the named
+///  entries of the common directory have,
+/// so both are linked by one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sharedEntryOf = (entry) => ({ name: entry.name, source: entry.path, directory: isADirectory(entry.type) });
+/// ```
+fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
+    let directory: bool = entry.file_type().is_ok_and(is_a_directory);
+    return SharedEntry { name: entry.file_name(), source: entry.path(), directory };
 }
 
 /// What:
@@ -372,10 +418,8 @@ fn regular_file_exists(path: &Path) -> std::io::Result<bool> {
 /// await linkShadowEntries({ shadowPath, commonDir, gitDir });
 /// ```
 pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> std::io::Result<()> {
-    let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
-    let mixed_info: bool =
-        git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?;
-    link_directory_entries(common_dir, shadow, SkipRule::PrivateEntries { also_info: mixed_info })?;
+    let (entries, mixed_info): (Vec<SharedEntry>, bool) = shared_entries_of(common_dir, git_dir)?;
+    link_directory_entries(entries.as_slice(), shadow)?;
     let worktree_config: PathBuf = git_dir.join("config.worktree");
     if regular_file_exists(worktree_config.as_path())? {
         std::fs::copy(&worktree_config, shadow.join("config.worktree"))?;
@@ -388,11 +432,18 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     std::fs::create_dir(&shadow_info)?;
     set_private_directory(shadow_info.as_path())?;
     let shared_info: PathBuf = common_dir.join("info");
-    match link_directory_entries(shared_info.as_path(), shadow_info.as_path(), SkipRule::Named("sparse-checkout")) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+    let shared: Vec<SharedEntry> = match std::fs::read_dir(shared_info.as_path()) {
+        Ok(listed) => listed
+            .flatten()
+            .filter(is_not_the_per_worktree_pattern)
+            .map(shared_entry_of)
+            .collect(),
+        // Only an absent shared `info` is tolerated: a per-worktree sparse checkout is then the whole of it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(error),
-    }
+    };
+    link_directory_entries(shared.as_slice(), shadow_info.as_path())?;
+    let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
     std::fs::copy(&per_worktree_sparse, shadow_info.join("sparse-checkout"))?;
     return Ok(());
 }

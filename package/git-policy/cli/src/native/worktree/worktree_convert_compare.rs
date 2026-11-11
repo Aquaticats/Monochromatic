@@ -39,6 +39,20 @@
 //!  after the copy was proved,
 //! which tells a person settling which version is wanted whether the copy or the edit came
 //!  first.
+//! Another command's stage container is not the old tree's state and is not demanded:
+//! no copy carries
+//!  one,
+//! and a folder that held nothing else is no state of it either,
+//! because the copy left it out of the
+//!  installed worktree for that same reason.
+//! A container is a directory,
+//! so an old-tree entry of another kind whose name merely begins
+//!  the stage prefix is the person's own file and is compared like any other entry.
+//! A container another command is still
+//!  filling is not covered by this comparison:
+//! the removal phase keeps the old tree before it asks,
+//!  and the swap phase refuses to exchange the worktree
+//!  (`worktree_convert_filled_stages.rs`).
 //! The
 //!  extended attributes are two `llistxattr` calls per entry on most filesystems and the rest comes from
 //!  the metadata already read.
@@ -48,8 +62,10 @@
 //! const difference = await firstDifference(oldRoot, installedRoot); // undefined when the installed tree holds all of it
 //! ```
 
+use crate::path_bytes::path_bytes_of;
 use crate::subvolume_sync_attrs::carried_attributes_equal;
 use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
+use crate::worktree_copy_prune::{holds_nothing_a_copy_carries, names_a_private_stage};
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
@@ -259,12 +275,28 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
             let entry: std::fs::DirEntry = item?;
             let inside: PathBuf = relative.join(entry.file_name());
             let before: std::fs::Metadata = std::fs::symlink_metadata(old.join(&inside))?;
+            // Another command's stage container is no state of the old tree: no copy carried it, so the installed worktree
+            //  need not hold it, and its own content is that command's work rather than this tree's. A container is a
+            //  directory, so an entry of another kind whose name merely begins the prefix is the old tree's own and is
+            //  compared like any other: skipping it would approve deleting the only copy of it.
+            if before.file_type().is_dir() && names_a_private_stage(path_bytes_of(inside.as_path())) {
+                continue;
+            }
             if before.dev() != device {
                 return Ok(Some(format!("{} is a subvolume or a mount point inside the old tree, which this command does not delete", inside.display())));
             }
             let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside)) {
                 Ok(found) => found,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside)))),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    // The folder that held nothing but a container was left out of the copy for the same reason, so its
+                    //  absence is what this comparison asked for;
+                    // a folder another command emptied by removing only its container holds nothing a copy would have
+                    //  carried either, so its absence asks for nothing.
+                    if before.file_type().is_dir() && holds_nothing_a_copy_carries(old.join(&inside).as_path()) {
+                        continue;
+                    }
+                    return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside))));
+                }
                 Err(error) => return Err(error),
             };
             if before.file_type() != after.file_type() {

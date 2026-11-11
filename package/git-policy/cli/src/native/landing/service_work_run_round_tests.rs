@@ -113,7 +113,7 @@ fn a_forget_of_an_abandoned_round_keeps_the_plan_a_later_round_wrote() {
     // The round's job holds this clone and the changes of its drain, and it is still running when the caller stops waiting.
     let abandoned: PushRetries = first.clone();
     let asked: u64 = crate::push_retry_store::micros_now();
-    let forget: RetryChange = RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), asked };
+    let forget: RetryChange = RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), only_while_unreachable: false, asked };
     assert_eq!(load(store.as_path()).len(), 1, "round one's plan is on disk");
     // A later wake drains the same branch again, its push fails retryably, and its worker writes that plan.
     let later: StoredPlan = StoredPlan { git_dir: here.clone(), item: item(main), attempt: 2 };
@@ -160,7 +160,7 @@ fn a_forget_a_round_could_not_write_is_written_by_a_later_round() {
     // The push landed, so the round's only change is the forget of its branch, and the job that applies it answers nothing:
     //  the round applies it in memory, and the plan of the push that ended is still on disk.
     let mut kept: PushRetries = first.clone();
-    kept.apply_without_writing(vec![RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), asked: micros_now() }]);
+    kept.apply_without_writing(vec![RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), only_while_unreachable: false, asked: micros_now() }]);
     assert_eq!(load(store.as_path()).len(), 1, "a write that gave no answer leaves the plan the worker wrote on disk");
     assert!(
         kept.next_wait(here.as_path(), Instant::now()).is_some(),

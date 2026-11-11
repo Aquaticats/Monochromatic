@@ -27,8 +27,16 @@
 //! ```ts
 //! const landed = landedOf(root, paths); const still = theFileGitLanded(landed, landedFileAt(location, path));
 //! ```
+//!
+//! The reading travels beside the merge's record,
+//! so the recovery of a killed command judges a path by the same entry the
+//!  apply read before its carry,
+//! and the file that carries it is written and read here beside it.
 
 use crate::merge_isolation_changes::{FileIdentity, file_identity, worktree_path};
+
+/// The version of the record of what Git's update left.
+pub const LANDED_RECORD_SCHEMA_VERSION: i64 = 1;
 use std::path::{Path, PathBuf};
 
 /// One worktree path as the file system named it when Git's update finished.
@@ -107,6 +115,232 @@ pub fn landed_of(root: &Path, paths: &[Vec<u8>]) -> Vec<LandedFile> {
 }
 
 /// What:
+///  The file that records what Git's own update left,
+///  beside the merge's intent record.
+/// Why:
+///   The record is written once and never rewritten,
+/// so what the checkout held after Git's update travels in a file of its
+///  own,
+/// and it is removed with the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// join(intentDirectory(gitDir), `${transactionId}.landed`)
+/// ```
+pub fn landed_record_path(git_dir: &Path, transaction_id: &str) -> PathBuf {
+    return crate::merge_isolation_journal::intent_directory(git_dir).join(format!("{transaction_id}.landed"));
+}
+
+/// The hex text of one path,
+/// which the record keeps so a path that is not text survives the round trip.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
+/// ```
+fn hex_of(bytes: &[u8]) -> String {
+    let mut found: String = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        found.push_str(format!("{byte:02x}").as_str());
+    }
+    return found;
+}
+
+/// Whether one byte is one of the hex digits a record is written in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAHexDigit = (byte: number) => /[0-9a-f]/i.test(String.fromCharCode(byte));
+/// ```
+fn is_a_hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
+}
+
+/// The bytes one hex text names,
+/// or nothing when the text is not an even run of hex digits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytesOfHex = (hex: string) => Buffer.from(hex, 'hex');
+/// ```
+fn bytes_of_hex(text: &str) -> Option<Vec<u8>> {
+    if text.len() % 2 != 0 || !text.bytes().all(is_a_hex_digit) {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(text.len() / 2);
+    for pair in text.as_bytes().as_chunks::<2>().0 {
+        let high: u32 = u32::from((pair[0] as char).to_digit(16)?);
+        let low: u32 = u32::from((pair[1] as char).to_digit(16)?);
+        bytes.push(u8::try_from((high << 4) | low).ok()?);
+    }
+    return Some(bytes);
+}
+
+/// The record's name for a number,
+/// which is written as text so a device number beyond a double's exact range survives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// String(value)
+/// ```
+fn number_text(value: i64) -> String {
+    return value.to_string();
+}
+
+/// Whole-number field of the landed record,
+/// or nothing when it is not one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const numberField = (map, key) => Number(map[key]);
+/// ```
+fn number_field(map: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<i64> {
+    return crate::json_record::string_field(map, key)?.parse::<i64>().ok();
+}
+
+/// One landed path as the record holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${JSON.stringify(entry)}`
+/// ```
+fn encode_one(landed: &LandedFile) -> String {
+    let mut writer: crate::json_record::ObjectWriter = crate::json_record::ObjectWriter::new();
+    writer
+        .string("pathHex", hex_of(landed.path.as_slice()).as_str())
+        .string("path", crate::path_bytes::path_message_text(landed.path.as_slice()).as_str())
+        .string("holds", if landed.identity.is_some() { "file" } else { "nothing" })
+        .string("changedSeconds", number_text(landed.changed_seconds).as_str())
+        .string("changedNanos", number_text(landed.changed_nanos).as_str());
+    if let Some(identity) = landed.identity {
+        writer
+            .string("device", number_text(i64::try_from(identity.device).unwrap_or(i64::MAX)).as_str())
+            .string("inode", number_text(i64::try_from(identity.inode).unwrap_or(i64::MAX)).as_str())
+            .string("size", number_text(i64::try_from(identity.size).unwrap_or(i64::MAX)).as_str())
+            .string("mode", number_text(i64::from(identity.mode)).as_str())
+            .string("modifiedSeconds", number_text(identity.modified_seconds).as_str())
+            .string("modifiedNanos", number_text(identity.modified_nanos).as_str());
+    }
+    return format!("{{{}}}", writer.finish().trim_start_matches('{').trim_end_matches('}'));
+}
+
+/// What:
+///  Encode what Git's update left at each path,
+///  so a recovery reads the same entries the command that moved the checkout read.
+/// Why:
+///   A killed command's recovery has no live reading of its own,
+/// and a person's save whose bytes accept
+///  every line the merge brought looks exactly like the merge's own file without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${JSON.stringify({ schemaVersion: 1, state: 'merge-landed', transactionId, paths: landed })}\n`
+/// ```
+pub fn encode_landed_record(transaction_id: &str, landed: &[LandedFile]) -> String {
+    let mut writer: crate::json_record::ObjectWriter = crate::json_record::ObjectWriter::new();
+    writer
+        .integer("schemaVersion", LANDED_RECORD_SCHEMA_VERSION)
+        .string("state", "merge-landed")
+        .string("transactionId", transaction_id);
+    let mut paths: Vec<String> = Vec::with_capacity(landed.len());
+    for entry in landed {
+        paths.push(encode_one(entry));
+    }
+    writer.raw("paths", format!("[{}]", paths.join(",")).as_str());
+    return format!("{}\n", writer.finish());
+}
+
+/// What:
+///  Parse one landed record,
+///  or nothing when it is not one.
+/// Why:
+///   A record that cannot be read proves nothing,
+/// so the recovery reads the checkout by bytes alone,
+/// which is what a
+///  command without this record has always done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseLandedRecord(bytes: Uint8Array): LandedFile[] | undefined;
+/// ```
+pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
+    let text: &str = crate::json_record::decode_fatal(bytes)?;
+    let map: serde_json::Map<String, serde_json::Value> = crate::json_record::parse_object(text)?;
+    if !crate::json_record::number_equals(&map, "schemaVersion", LANDED_RECORD_SCHEMA_VERSION)
+        || crate::json_record::string_field(&map, "state")? != "merge-landed"
+    {
+        return None;
+    }
+    let serde_json::Value::Array(listed) = map.get("paths")? else { return None };
+    let mut landed: Vec<LandedFile> = Vec::with_capacity(listed.len());
+    for value in listed {
+        let serde_json::Value::Object(entry) = value else { return None };
+        let path: Vec<u8> = bytes_of_hex(crate::json_record::string_field(entry, "pathHex")?)?;
+        let changed_seconds: i64 = number_field(entry, "changedSeconds")?;
+        let changed_nanos: i64 = number_field(entry, "changedNanos")?;
+        let identity: Option<FileIdentity> = match crate::json_record::string_field(entry, "holds")? {
+            "nothing" => None,
+            "file" => Some(FileIdentity {
+                device: u64::try_from(number_field(entry, "device")?).ok()?,
+                inode: u64::try_from(number_field(entry, "inode")?).ok()?,
+                size: u64::try_from(number_field(entry, "size")?).ok()?,
+                mode: u32::try_from(number_field(entry, "mode")?).ok()?,
+                modified_seconds: number_field(entry, "modifiedSeconds")?,
+                modified_nanos: number_field(entry, "modifiedNanos")?,
+            }),
+            _ => return None,
+        };
+        landed.push(LandedFile { path, identity, changed_seconds, changed_nanos });
+    }
+    return Some(landed);
+}
+
+/// What:
+///  Write what Git's update left,
+///  in the place the recovery of a killed merge reads it.
+/// Why:
+///   The write is the only thing between a kill and a save being read as the merge's own,
+/// so it happens
+///  after the last path Git wrote and before the carry;
+/// it is not flushed,
+///  because a kill leaves the
+///  page cache intact and a power loss is the one case this record is only a
+///  help in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(landedRecordPath(gitDir, id), encodeLandedRecord(id, landed), { flag: 'w' });
+/// ```
+pub fn write_landed_record(git_dir: &Path, transaction_id: &str, landed: &[LandedFile]) {
+    let path: PathBuf = landed_record_path(git_dir, transaction_id);
+    if let Some(parent) = path.parent() {
+        let _made = std::fs::create_dir_all(parent);
+    }
+    if let Err(error) = std::fs::write(path.as_path(), encode_landed_record(transaction_id, landed).as_bytes()) {
+        crate::diagnostic_log::warn("mergeCarry", format!("the landed reading was not written: {error}").as_str());
+    }
+}
+
+/// What:
+///  Read what the command that moved the checkout left at each path,
+///  or nothing when no command wrote it.
+/// Why:
+///   A merge killed after Git's update has no live reading,
+/// and a reading that cannot be read is the same
+///  as none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landed = readFileSync(landedRecordPath(gitDir, id)).then(parseLandedRecord) ?? [];
+/// ```
+pub fn read_landed_record(git_dir: &Path, transaction_id: &str) -> Vec<LandedFile> {
+    let Ok(bytes) = std::fs::read(landed_record_path(git_dir, transaction_id).as_path()) else {
+        return Vec::new();
+    };
+    return parse_landed_record(bytes.as_slice()).unwrap_or_default();
+}
+
+/// What:
 ///  Whether the file standing at a path is still the one Git's own update wrote there.
 /// Why:
 ///   The identity is the device,
@@ -118,8 +352,11 @@ pub fn landed_of(root: &Path, paths: &[Vec<u8>]) -> Vec<LandedFile> {
 ///  line the merge brought.
 /// A path the landed reading does not name was read by nothing,
 /// so its bytes are all the evidence
-///  there is,
-/// which is what a recovery of a killed merge has.
+///  there is:
+/// a reading the command that moved the checkout never wrote,
+/// one a power loss took before its bytes reached the disk,
+/// and a
+///  recovery of an earlier release's record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,3 +370,8 @@ pub fn the_file_git_landed(landed: &[LandedFile], standing: &LandedFile) -> bool
     }
     return true;
 }
+
+/// The record of what Git's update left.
+#[cfg(test)]
+#[path = "merge_isolation_carry_landed_tests.rs"]
+mod tests;

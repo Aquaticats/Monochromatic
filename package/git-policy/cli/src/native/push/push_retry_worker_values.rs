@@ -87,7 +87,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; asked } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable; asked } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -112,6 +112,10 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
+        /// Whether this forget rests on a reading that can go stale:
+        /// the proof that the repository is gone,
+        /// whose plans are dropped only while it still is.
+        only_while_unreachable: bool,
         /// When the worker asked for the branch's plans to end,
         /// in microseconds since the epoch.
         /// Why:

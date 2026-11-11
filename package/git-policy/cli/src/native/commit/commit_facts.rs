@@ -129,6 +129,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.clean_deleted_paths(arguments);
     }
 
+    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_dry_run_lines_with_one_force(arguments);
+    }
+
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
         return self.inner.repository_holds_a_stash();
     }
@@ -190,6 +194,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         return (**self).clean_deleted_paths(arguments);
+    }
+
+    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_dry_run_lines_with_one_force(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {

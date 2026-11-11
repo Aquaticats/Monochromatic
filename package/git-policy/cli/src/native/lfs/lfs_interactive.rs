@@ -28,6 +28,10 @@ use crate::forwarding::git_command;
 /// and its grace.
 use crate::bounded_push::STOP_GRACE;
 use crate::bounded_query::{query_window, run_bounded_query};
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
+use crate::hooks_off::StartOwner;
 /// The refusal texts.
 use crate::lfs_pre_push::plan_failed_message;
 /// The pre-check that the program can start.
@@ -101,7 +105,10 @@ impl GitQuery for InteractiveQuery<'_> {
         //  holding the push for good; the wait is the push's stall window, as it is for every query of a push. That query also
         //  starts the child through `spawn_retrying_without_blocking`, so a start the system refuses for lack of processes is
         //  tried again instead of ending the push.
-        let command: std::process::Command = git_command(self.request.real_git, arguments.as_slice(), self.request.overlay);
+        // The question is the wrapper's own read-only Git, so it runs with the monitor and the hooks off (`StartOwner::Wrapper`),
+        //  never with the person's setting.
+        let command: std::process::Command =
+            git_command(self.request.real_git, arguments.as_slice(), self.request.overlay, StartOwner::Wrapper);
         let asked: String = query_arguments.join(" ");
         let output = match run_bounded_query(command, asked.as_str(), query_window(self.request.environment), STOP_GRACE, self.request.environment) {
             Ok(done) => done,

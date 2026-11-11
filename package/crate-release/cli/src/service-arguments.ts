@@ -72,43 +72,6 @@ export function buildRunListArguments({
 }
 
 /**
- Arguments of `gh run watch` that wait for a run and exit with its result.
-
- @param runId - numeric run identifier
-
- @param repo - `owner/name`; absent to use the repository of the working directory
-
- @returns the arguments after `gh`
-
- @throws CrateReleaseError when the run identifier is not all digits
-
- @example
- ```ts
- buildRunWatchArguments({ runId: '123' });
- ```
- */
-export function buildRunWatchArguments({
-  runId,
-  repo,
-}: {
-  readonly runId: string;
-  readonly repo?: string;
-}): readonly string[] {
-  if (!usesOnly({
-    text: runId,
-    allowed: decimalDigits
-  }))
-    throw new CrateReleaseError(`A run identifier must be all digits, got ${JSON.stringify(runId)}.`);
-  return [
-    'run',
-    'watch',
-    runId,
-    '--exit-status',
-    ...repoArguments(repo),
-  ];
-}
-
-/**
  Arguments of `gh workflow run` that start the release workflow for a crate.
 
  Each input travels as one `--raw-field=<name>=<value>` argument, so a note that starts with a hyphen or holds shell
@@ -189,7 +152,12 @@ export function buildGraphqlInputArguments(requestFile: string): readonly string
 }
 
 /**
- Arguments of `gh run view` that read when a run was created and how it stands, as JSON.
+ Arguments of `gh run view` that read when a run was created, how it stands and what each of its jobs concluded, as
+ JSON.
+
+The answer of this call is the only verdict a wait accepts about a run: `gh run watch --exit-status` exits 1 both for a
+run that concluded otherwise than success and for a failure of the watcher itself, so its status cannot be read as the
+run's.
 
  @param runId - numeric run identifier
 
@@ -220,7 +188,7 @@ export function buildRunViewArguments({
     'run',
     'view',
     runId,
-    '--json=createdAt,status,conclusion,url',
+    '--json=createdAt,status,conclusion,jobs',
     ...repoArguments(repo),
   ];
 }

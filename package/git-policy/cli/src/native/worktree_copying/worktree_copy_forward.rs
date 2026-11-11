@@ -21,6 +21,10 @@
 //! ```
 
 use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
+/// Who a real-Git start runs for:
+/// the person's command,
+/// or the ladder's own step.
+use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
@@ -215,23 +219,27 @@ fn query_directory(identity: &WorktreeIdentity) -> PathBuf {
 }
 
 /// What:
-///  Runs real Git as a child with the given variables and reports how it ended.
+///  Runs real Git as a child with the given variables and reports how it ended,
+/// for `owner`.
 /// Why:
 ///   One start for the plain and the settled runs,
-/// so both report an unstartable Git the same way.
+/// so both report an unstartable Git the same way,
+/// and the caller names whose Git it runs
+///  instead of choosing the options here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await nanoSpawn(gitPath, args, { env, stdio: 'inherit' });
 /// ```
-fn run_plain(
+fn run_plain_of(
+    owner: StartOwner,
     real_git: &Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> ForwardedRun {
     // `match` on the start result: the status is Git's, the death by a signal is Git's own too, and an unstartable Git
     //  is an engine failure.
-    match run_real_git(real_git, arguments, overlay) {
+    match run_real_git(real_git, arguments, overlay, owner) {
         Ok(ChildOutcome::Exited(code)) => return ForwardedRun::Ran(code),
         // What: A Git that a signal ended stays a death by that signal.
         // Why:  This route keeps a process around Git, so the death comes back as a value; flattening it into 128 + the
@@ -312,7 +320,24 @@ pub fn run_forwarded_git_with_unit_stop(
         let _ = copy;
         let _ = stop_units;
     }
-    return run_plain(real_git, arguments, overlay);
+    return run_plain_of(StartOwner::Person, real_git, arguments, overlay);
+}
+
+/// What:
+///  Runs Git the wrapper starts for its own work,
+/// with the report a forwarded run gives.
+/// Why:
+///   A step the wrapper substitutes for part of the person's command (the fetch of a pull that merges) is still the
+/// wrapper's own Git:
+/// it takes the wrapper's options,
+/// and its failure is reported like any other run of this route.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runGitWithWrapperOptions({ args, gitPath });
+/// ```
+pub fn run_wrapper_own_git(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
+    return run_plain_of(StartOwner::Wrapper, real_git, arguments, overlay);
 }
 
 /// What:
@@ -532,10 +557,12 @@ fn run_settled(
             //  word it names, and a filter or a filesystem that never answers must not hold a ladder step (owner: nothing waits
             //  forever).
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
+            // The person's step is the person's command and keeps the person's monitor setting; a ladder step is the wrapper's own.
+            let owner: StartOwner = if ladder_started { StartOwner::Wrapper } else { StartOwner::Person };
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
-                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest),
-                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started),
+                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest, owner),
+                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),
             };
             match ran {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),

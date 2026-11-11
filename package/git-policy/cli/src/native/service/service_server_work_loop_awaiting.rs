@@ -34,8 +34,10 @@ use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most
 use crate::service_retry::RetrySchedule;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_work_run_round::run_round_awaiting;
+use crate::service_work_slow_lane::SlowLane;
 use crate::stop_of_the_service_noticed_by_its_children::is_stopping;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -251,15 +253,18 @@ fn restore_in_a_job((mut retries, directory): (PushRetries, PathBuf)) -> (PushRe
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
+/// for await (const dir of wakesOrDueRetries) { lane.ask(dir); await drainPushes(dir) }
 /// ```
 pub async fn work_loop_awaiting(
     receiver: &mut UnboundedReceiver<Wake>,
     handlers: &GitHandlers,
-    busy: &AtomicUsize,
+    busy: &Arc<AtomicUsize>,
     mut push_retries: PushRetries,
     mut watch: ClaimWatch,
 ) {
+    // The work that can take minutes runs beside this loop, so no step of it stands between a landing and its push
+    //  (`service_work_slow_lane.rs`). The lane counts itself busy, so the service does not exit while it holds a claim.
+    let slow: SlowLane = SlowLane::start(handlers, Arc::clone(busy));
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
     // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
@@ -358,6 +363,11 @@ pub async fn work_loop_awaiting(
         //  that knows where to look. This task does it, never the one that lands commits.
         for directory in &ran {
             watch = remember_awaiting(watch, directory.as_path()).await;
+        }
+        // The same repositories are looked at for the kinds that can take minutes, beside the round below: the round claims the
+        //  pushes alone, so a person's push is taken however long a trash, a prewarm, an upkeep or a review then runs.
+        for wake in &wakes {
+            slow.ask(wake.clone());
         }
         let (back, asked): (PushRetries, Vec<(PathBuf, Duration)>) = run_round_awaiting(wakes, handlers, push_retries, &ClaimTime::read()).await;
         push_retries = back;

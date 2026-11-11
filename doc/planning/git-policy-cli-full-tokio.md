@@ -10397,19 +10397,20 @@ and each shown to fail against the shape it replaces:
   so moving them would have traded a covered instruction for an uncovered one.
 - The exceptions,
   and what each one is waiting for:
-  forty-five sites are listed in `ALLOWED` by file and rule,
+  forty-eight sites are listed in `ALLOWED` by file and rule,
   each with the reason it stays and what removes it:
-  seventeen files start a thread the move has not converted (the watchers,
+  eighteen files start a thread the move has not converted (the watchers,
   the reapers,
   the guarded Markdown linter,
   the scoped runner,
   the review's contained thread,
   and the bounded runtime build of open choice 9);
-  nineteen pauses still sleep on a synchronous clock (the landing loop's waits,
+  twenty pauses still sleep on a synchronous clock (the landing loop's waits,
   the index and reference lock waits,
   the client's connects,
+  the add's wait for a snapshot made ahead,
   and the one pause the plan keeps in `push/start_retry.rs` for the forwarded command);
-  seven files of the merge's carry and second pass do one metadata look,
+  eight files of the merge's carry and second pass do one metadata look,
   read or removal of a known small file inside a task;
   and two files start a child on macOS or Windows only,
   which the owner's "Ignore Win and mac until I say so."

@@ -362,7 +362,9 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
 /// the seven-second path was missed when the write began near the ceiling):
 /// the control makes that
 /// threshold an hour,
-/// and the client still ends at its ceiling plus the extra wait.
+/// the client still ends at its ceiling plus the extra wait,
+/// and its person is told of the write once that wait has mattered,
+/// which the control's short `waiting_notice_after` reaches.
 #[test]
 fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     let world: World = world("service-hung-write-told-at-start");
@@ -371,11 +373,45 @@ fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
     let extra_wait: Duration = Duration::from_secs(1);
-    let only = submit_on_a_thread(client_with_extra_wait(&serving, Duration::from_secs(4), SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    let told_once_the_wait_matters: ClientConfig = ClientConfig { waiting_notice_after: STUCK_AFTER, ..client_with_extra_wait(&serving, Duration::from_secs(4), SECOND_WITHDRAWAL, extra_wait) };
+    let only = submit_on_a_thread(told_once_the_wait_matters, request(&world, "only", "only.txt", "only\n"));
     wait_for(entered.as_path());
     let (answer, notices) = only.join().expect("client");
     assert!(matches!(answer, Err(ClientFailure::WithdrawalUnconfirmed { .. })), "{answer:?} {notices}");
-    assert!(notices.contains("this commit is inside a write of the commit service"), "{notices}");
+    assert_eq!(notices.matches("this commit is inside a write of the commit service").count(), 1, "said once: {notices}");
+    std::fs::write(&release, b"").expect("let the write go");
+    wait_until_settled(&world);
+    remove(serving.directory.as_path());
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A commit whose own write is held says nothing of that write while the person's wait has not mattered,
+///  and still ends as the commit inside the write:
+/// the words are held,
+/// not dropped.
+/// Why:
+///  The service says it when the write begins,
+/// and a write that takes what writes take is over in milliseconds:
+/// the line reached the standard error of commits that exited 0,
+/// on a loaded disk (2026-11-11,
+/// `commit-exit-zero-prints-no-false-write-notice`).
+#[test]
+fn a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered() {
+    let world: World = world("service-hung-write-says-nothing");
+    let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    context.git.real_git = hanging;
+    let serving: Serving = serve_on_a_thread(context, "says-nothing");
+    // The wait for a notice is the longest a control waits, as the package's binary controls give a commit that must
+    // print nothing: only a wait that reaches it is worth a line.
+    let extra_wait: Duration = Duration::from_secs(1);
+    let only = submit_on_a_thread(client_with_extra_wait(&serving, SECOND_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    wait_for(entered.as_path());
+    let (answer, notices) = only.join().expect("client");
+    let Err(ClientFailure::WithdrawalUnconfirmed { blocker }) = &answer else { panic!("{answer:?} {notices}") };
+    assert!(blocker.as_deref().is_some_and(|words| { return words.contains("git update-ref --stdin"); }), "the client was told of the write: {answer:?}");
+    assert!(!notices.contains("inside a write of the commit service") && !notices.contains("has been inside a write"), "nothing of it is said this early: {notices}");
     std::fs::write(&release, b"").expect("let the write go");
     wait_until_settled(&world);
     remove(serving.directory.as_path());

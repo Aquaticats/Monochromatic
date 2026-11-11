@@ -1,9 +1,8 @@
 //! What:
 //!  The service's own retry of a push it stopped or that failed:
 //! the pause before each new try,
-//! the list of branches waiting
-//!  for one,
-//! and the test for the one failure no retry can mend.
+//! and the list of branches waiting
+//!  for one.
 //! Why:
 //!  The owner's rule is that auto-push must land (`SPEC.md`,
 //! "Merges and commits never fail").
@@ -23,14 +22,14 @@
 //! the person's failure record is not the plan,
 //! since the
 //!  person's next command shows it and removes it.
-//! A conflict,
-//! a login the service does not have and a hook on the server that
-//!  declined the push stop the retry until the next commit (owner decision,
-//! 2026-11-03).
 //! A removal the round that asked for it could not write is owed to a later round,
 //! and the branch is named until that write happens,
 //! so the plan of a push that ended never outlives the round that forgot it
 //!  (`UnwrittenForget`).
+//! What a failed push's own words mean (whether it is final,
+//! whether it is counted)
+//! and the words the person reads are in `push_retry_failure.rs`;
+//! the first of Git's own lines that gives a reason for a failure is in `push_retry_cause_line.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -63,13 +62,6 @@ use crate::push_retry_worker_values::{last_plan_after, planned_again_after};
 pub(crate) use crate::push_retry_worker_values::stop_after_in_a_control;
 #[cfg(test)]
 use crate::push_retry_worker_values::stopped_after;
-
-/// The failures no retry can mend,
-/// their words and the person's account of each,
-/// kept beside the schedule in `push_retry_final_failure.rs`.
-pub use crate::push_retry_final_failure::{
-    CONFLICT_PHRASE, FinalFailure, HOOK_DECLINED, LOGIN_PHRASES, REMOTE_REJECTED, final_failure, needs_the_person, plain_words, unrecognised_rejection,
-};
 
 /// Directory,
 /// under the service instance's journal,
@@ -506,7 +498,12 @@ impl PushRetries {
                     }
                     self.plan_writing(git_dir.as_path(), item, *attempt, *due, write)
                 }
-                RetryChange::Forget { git_dir, branch_ref, asked } => {
+                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable, asked } => {
+                    // The plan a proof of a missing repository ends was read before this change was applied, and a repository
+                    //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
+                    if *only_while_unreachable && git_dir.is_dir() {
+                        continue;
+                    }
                     let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
                     if write {
                         self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice(), *asked);

@@ -46,7 +46,8 @@ use crate::lfs_pre_push::uses_lfs;
 use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_awaiting};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
-use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejection};
+use crate::push_retry::Retrying;
+use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
 use crate::push_failure_notice::record_push_report;
 use crate::auto_push_reconcile_basics_and_limits::RECONCILE_LINE_PREFIX;
 use crate::service_claim_renewal_running::Renewal;
@@ -105,7 +106,9 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 /// Why:
 ///   Coalescing keeps a burst of commits to one push;
 /// a handler that fails leaves the items in `failed`,
-/// not in a loop.
+/// not in a loop,
+///  and one that answers `Retry` leaves its item claimed,
+/// so the lease running out queues it once more and no round spins on it.
 /// A
 ///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces,
 /// and the
@@ -119,6 +122,9 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 ///  is reported as failed,
 /// as for handlers that do not retry.
 /// The service's rounds use `drain_planned` instead.
+/// It claims every kind the service runs (`SERVICE_KINDS`),
+/// because no lane runs beside it as it does beside a round
+///  (`landing/service_work_slow_lane.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +170,7 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
 /// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
 /// ```
 pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainPlanned", format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str());
@@ -230,7 +236,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
 /// ```
 pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainCommonRecords", format!("the drain of the common records of {} was not run: {refusal}", git_dir.display()).as_str());
@@ -446,9 +452,13 @@ impl WorkHandlers for GitHandlers {
         let git: PushGit = self.push_git_awaiting(newest).await;
         // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
         //  gate refused, however far the branch has moved since.
-        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work_directory(newest.git_dir.as_path()).as_path());
+        let work: PathBuf = work_directory(newest.git_dir.as_path());
+        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
+        // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
+        //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
+        let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
         let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), &mut output).await {
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
@@ -566,6 +576,53 @@ impl WorkHandlers for GitHandlers {
     /// ```
     fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
         return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
+    /// What:
+    ///  Make one snapshot of a worktree ahead of the next add,
+    /// where the caller has no runtime to hand a job to.
+    /// Why:
+    ///   The call is one btrfs ioctl and starts no child,
+    /// so a synchronous caller blocks here itself;
+    /// the round
+    ///  awaits it on the blocking pool through `snapshot_ahead_awaiting`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAhead(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
+    }
+
+    /// What:
+    ///  Make a snapshot of a worktree ahead of the next add,
+    /// on a thread of the blocking pool.
+    /// Why:
+    ///  The ioctl waits for a btrfs transaction commit of the whole filesystem,
+    /// so a worker of the runtime must not hold it:
+    /// the
+    ///  commits queued behind this one would wait on it too.
+    /// The service's own thread is what takes the wait,
+    /// and the
+    ///  add that asked for the snapshot waits for the answer instead of for the kernel
+    /// (`worktree_snapshot_ahead.rs`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAheadAwaiting(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let held: WorkItem = item.clone();
+            return match crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+                Ok(verdict) => verdict,
+                // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
+                Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),
+            };
+        });
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {
