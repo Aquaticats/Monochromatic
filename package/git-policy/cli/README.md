@@ -6618,7 +6618,7 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   after a colon),
   `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>`
   say the other work ran,
-  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`)
+  and `settled the batch an earlier service left open in the repository at <worktree root> batch=<n> decision=finish|hold|drop` (a `warning`)
   comes for each batch a restart found open.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,
