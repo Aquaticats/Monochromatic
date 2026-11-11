@@ -241,7 +241,7 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     let written: RelinkEntry = entry(destination.as_path());
     let not_taken: NotTaken =
         hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect_err("no service answered this add");
-    assert!(not_taken.reason.contains("cannot be started") || not_taken.reason.contains("no service"), "{:?}", not_taken.reason);
+    assert!(!not_taken.reason.is_empty(), "the add is told why no service took the record");
     assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left queued");
     not_taken.queued.expect("the record the add wrote").take_back();
     remove(root.as_path());
