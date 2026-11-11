@@ -71,8 +71,12 @@ static LAST_MILLISECOND: std::sync::atomic::AtomicI64 = std::sync::atomic::Atomi
 /// (`package_repair_prewarm.rs`),
 ///   and two records asked for inside one millisecond would otherwise be named alike,
 /// so a queue that answers a name it already knows as known would drop the second one.
-///   The stamp is a moment this process asks for and never one before it,
-/// and it is at most one millisecond past the clock for each stamp the clock cannot tell apart.
+///   The stamp is a moment this process asks for and never one before it.
+/// The guarantee is this process's own:
+/// two processes that hand over one path inside one millisecond still name it alike.
+/// A stamp runs ahead of the clock only while this process writes stamps faster than the clock ticks,
+/// one millisecond per stamp,
+/// and it is the clock again as soon as the clock is ahead of the last stamp written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

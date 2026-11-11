@@ -665,3 +665,30 @@ fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
     assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
     remove(covered.as_path());
 }
+
+/// What:
+///  A clean stopped because Cargo refused the lock names the lock's own command,
+///  the workspace and the clean the add would have run,
+///  and a clean stopped for any other reason says only what the tool said.
+/// Why:
+///   The remedy is chosen from Cargo's own words,
+/// and a later Cargo that stops naming the lock there would send every lock refusal to the generic
+/// sentence without anything failing,
+/// so which words take which branch is pinned here.
+#[test]
+fn a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock() {
+    let root: PathBuf = fixture("prewarm-remedy-branches");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    // What Cargo prints for a lock it would have had to change, measured on this host.
+    let cargo_refusal: String = format!("error: cannot update the lock file {}/{LOCK_FILE} because --locked was passed to prevent this", entry.root.display());
+    let remedy: String = super::what_to_do_next(&entry, cargo_refusal.as_str());
+    let own_clean: String = manual_command(entry.root.as_path(), entry.members.as_slice());
+    assert!(remedy.contains("cargo update --offline --workspace"), "the remedy names the lock's own command: {remedy}");
+    assert!(remedy.contains(entry.root.to_string_lossy().as_ref()), "the remedy names the workspace whose lock it is: {remedy}");
+    assert!(remedy.contains(own_clean.as_str()), "the remedy names the clean the add would have run ({own_clean}): {remedy}");
+    let elsewhere: String = super::what_to_do_next(&entry, "a program that is not there");
+    assert!(!elsewhere.contains("cargo update"), "a failure that names no lock is not answered with one: {elsewhere}");
+    assert!(!elsewhere.contains(own_clean.as_str()), "a failure that names no lock is not answered with the clean: {elsewhere}");
+    assert!(elsewhere.contains("the next add fills the copy"), "a failure that names no lock still says the copy is filled next time: {elsewhere}");
+    remove(root.as_path());
+}

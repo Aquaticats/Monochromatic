@@ -453,6 +453,17 @@ so nothing here costs that today,
 and the shape that does cost it is a manifest edited ahead of its lock
 (`repair::package_repair_prewarm_job::tests::the_filling_never_writes_the_worktrees_lock`,
 `the_filling_never_writes_a_lock_a_person_updates_while_the_clean_runs`).
+A worktree whose lock is missing altogether,
+which is every worktree of a repository that commits no `Cargo.lock`,
+is the other shape this costs:
+the filling refuses there too,
+where the put-back created a lock for the clean and removed it again.
+That removal cannot be told from deleting a lock the person made in the same window,
+so every mechanism that lets the clean finish writes the person's file,
+and a repository that commits no lock pays the prewarm rather than the person's bytes.
+The refusal is one `service_warn!` line and the item settles `failed`,
+which nothing reads back (`landing/service_work_settling_with_words.rs`),
+so no later command repeats it.
 
 ### A foreign file that won the marker race was removed
 
