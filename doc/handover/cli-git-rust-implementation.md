@@ -145,9 +145,20 @@ What a restart loses:
 each launcher's after-run steps (the wake-wait resume of an agent that ended with its work still running, and the immediate worktree removal, which the 15-minute removal timer also does),
 the one launcher in its wake wait at the time (`qwen-audit-alpha-10-commit-path`, round 217),
 and the session-only crons (`36b34a30`, the hourly fill until 19:55, and `b00d10e8`, which deletes it).
-After a restart the coordinator lists `pi-*` runs that ended with no launcher outcome, resumes those that left work running, and recreates the fill cron if it is before 19:55.
-Lasting fix, open: launchers run as their own systemd user units (AGENTS.md says long background runs get their own unit),
-so a restart of the coordinator loses nothing.
+The owner restarted at about 17:31. Measured at 17:33 to 17:36:
+47 `pi-*` units still ran, every launcher but one was gone,
+and both crons were still listed (the session was resumed, so that prediction was wrong).
+Of the runs that ended between 17:00 and 17:33, none had a process left in its worktree or run folder
+(`list-runs-that-ended-since.ts`), so none was owed a wake.
+For the 46 units left without a launcher,
+`do-after-run-steps-for-runs-without-a-launcher.ts` runs as the user unit `after-run-steps-for-pi-runs-without-a-launcher`:
+when one of them ends idle with its own work still running, it waits for that work and resumes the session through `retry-start-until-a-slot-frees.ts`;
+its journal names each outcome, and it ends once every watched unit and resume is over (two days at most).
+From now on a batch starts through `start-batch-in-its-own-unit.ts <list.json>`,
+which runs `start-batch-with-retries.ts` as the user unit `launch-<list name>` (output in `<list name>.out`),
+so launchers no longer live inside the coordinator's Claude Code process
+(AGENTS.md says long background runs get their own unit).
+Both scripts are scratch in `~/temp/agent/pi-runs`; the port into `package/pi-shared/subagent-driver` is still open.
 
 ### The owner's answers of 2026-11-11T16:35-05:00, through the question tool
 
