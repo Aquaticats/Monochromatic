@@ -41,6 +41,9 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The merge messages.
 use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
+/// The ignored untracked files of the person's that stand at the paths a merge writes,
+/// which `git status` never lists.
+use crate::merge_isolation_ignored_paths::ignored_untracked_among;
 /// The word-level second pass over the conflicts of the merge tree,
 /// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
@@ -270,7 +273,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
-    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
+    let dirty: Vec<Vec<u8>> = dirty_paths(&session, root, touched.as_slice())?;
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
     // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
     //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
@@ -347,17 +350,24 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
 
 /// What:
 ///  Every path whose worktree or index differs from the branch,
-/// untracked files included.
+/// untracked files included,
+/// and the ignored untracked
+///  files of the person's that stand at the paths the merge touches.
 /// Why:
 ///   These are exactly the paths a merge that writes them would discard,
 /// and the untracked ones are why native
 ///  Git refuses a merge that adds a path a file already stands at.
+///  `git status` never lists a file an ignore rule covers,
+/// so those paths are read from Git's own list of the untracked files the
+///  rules cover (`merge_isolation_ignored_paths.rs`);
+/// the merge writes over the only copy of their bytes as it would over
+///  any other untracked file's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all']));
+/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'])).concat(ignoredUntrackedAmong(context, root, touched));
 /// ```
-fn dirty_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
+fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Bail> {
     let status: GitOutput = session.run(&[
         "--no-optional-locks",
         "status",
@@ -368,7 +378,13 @@ fn dirty_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
     if !status.succeeded() {
         return Err(Bail::from(format!("git status failed: {}", status.error_text())));
     }
-    return Ok(status_paths(status.stdout.as_slice()));
+    let mut paths: Vec<Vec<u8>> = status_paths(status.stdout.as_slice());
+    for path in ignored_untracked_among(&session.context, root, touched).map_err(Bail::from)? {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    return Ok(paths);
 }
 
 /// What:

@@ -973,9 +973,11 @@ fn an_ignored_untracked_file_where_the_merge_adds_the_path_keeps_the_persons_byt
     let repo: PathBuf = diverged_over_an_ignored_path(&fixture, "repo");
     let person: &str = "the person's ignored build output\n";
     std::fs::write(repo.join("added.txt"), person).expect("the person's ignored file");
-    let before: String =
+    let ordinary: String = status(&fixture, repo.as_path());
+    assert_eq!(ordinary, "", "ordinary status never lists the fixture's file: {ordinary:?}");
+    let ignored: String =
         git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]);
-    assert_eq!(before, "!! added.txt\0", "the fixture's file is ignored and untracked: {before:?}");
+    assert_eq!(ignored, "!! added.txt\0", "the fixture's file is ignored and untracked: {ignored:?}");
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     let words: String = said(&observed);
     assert_eq!(observed.code, Some(0), "{}", words);
