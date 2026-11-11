@@ -126,9 +126,9 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-### Prompts to Pi imply no human owner (2026-11-11T18:30:00-05:00)
+### Prompts to Pi imply no human owner (2026-11-11T18:12:12-05:00)
 
-The owner, at about 18:12:
+The owner, at about 18:07:
 "From now on, in prompts to Pi, don't imply there is a human owner."
 It covers everything the coordinator sends a Pi run: briefs, inbox notes, wake notes and the shared rules a brief points at.
 A requirement is stated as the project's own, with the path of its record when one helps,
@@ -144,7 +144,7 @@ What changed:
   A one-time job rewrites each as it appears, before its review reads it
   (`~/temp/agent/reword-round-231-review-briefs/`);
   the seven reviews that had already started read the old wording.
-- Runs briefed before 18:12 keep the briefs they have.
+- Runs briefed before 18:07 keep the briefs they have.
 - Not covered by this change, and Pi still reads them: `AGENTS.md`, this handover and other repository docs, which speak of the owner throughout.
   Whether those change is the owner's call (asked).
 - The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
@@ -171,14 +171,14 @@ First pass, with 50 `pi-*` and `launch-*` units running:
 - Reframed, round 212's driver-port agent: the pool and gate files went to round 230, by inbox note.
 - Superseded, nothing to stop: `fix/git-policy-cli-open-issues-next-batch` was ported as `fix/git-policy-cli-open-issues-fourth-pass` (merged),
   and the review starter refused it on its own ("nothing to review").
-  The coordinator first reported it as "deletable when you allow it"; the owner, at about 18:15:
+  The coordinator first reported it as "deletable when you allow it"; the owner, at about 18:08:
   "uh, I said to auto delete."
   So a superseded branch is deleted by the coordinator without asking,
   once its content is shown to live elsewhere (the earlier note that branch deletion needs permission each time was wrong).
   This one's four commits were all documentation,
   its planning file `doc/planning/git-wrapper-open-issues-round-4.md` is in the integration in a newer form (`7f84c90b1b`),
   no worktree held it,
-  and it was deleted here and on the remote at 18:20.
+  and it was deleted here and on the remote at about 18:10.
 - Superseded, already stopped: round 224 (driver-side 429 handling) and the two Kimi reviews of the launcher port (rounds 212 and 221), whose worktrees the landed sweep removed when the port was merged into its landing branch.
 - Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
 - Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
