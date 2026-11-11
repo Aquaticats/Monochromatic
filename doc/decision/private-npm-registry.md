@@ -162,11 +162,10 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     `peerDependencies`,
     or `optionalDependencies`,
    or imports it from non-test source as a bundled `devDependency`.
-   cli-git's commit transaction cannot do this today:
-    it patches only paths already staged in the commit
-    (`package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` lines 99 to 112 reject other targets),
-    and its fixes never reach the worktree.
-    Note 2026-11-10T18:32:51-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+   cli-git's TypeScript commit transaction could not do this:
+    it patched only paths already staged in the commit,
+    and its fixes never reached the worktree;
+    that engine was deleted on 2026-10-13 (`642b6d72cb`).
     Which paths a commit carries is decided in
     `package/git-policy/cli/src/native/commit/commit_selection_staging.rs`,
     and a fix installs its corrections into the worktree through
@@ -182,19 +181,14 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     and adding paths without updating the worktree (leaves reverted versions in `git status`).
 - The changesets `version` job in `npm-release.yml` runs the same ripple
   before committing the Version Packages pull request.
-   Root task `changeset:version` runs `changeset version`,
-    then `mise run //package/git-policy/repository:bump:dependents`,
-    then `pnpm install --lockfile-only`.
-   The runner (`package/git-policy/repository/src/bump-dependents.ts`)
-    compares worktree manifests with `HEAD`
-    and shares its planning module (`dependent-bump-workflow.ts`) with the cli-git policy,
-    so both apply the same edge and publishability rules.
-   It imports only Node built-ins and sibling source files,
-    so the job needs no build step.
-    Note 2026-11-10T18:32:51-05:00: the task and that runner are deleted (2026-10-13 `a2b56c548c`).
-    `changeset:version` in `mise.toml:1514` runs
+   Root task `changeset:version` (`mise.toml:1514`) runs `changeset version`,
+    then
     `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`,
-    and the edge and publishability rules it applies live under
+    then `pnpm install --lockfile-only`.
+    The separate `bump:dependents` task and its runner under `package/git-policy/repository`
+    were deleted on 2026-10-13 (`a2b56c548c`) with the authoring packages,
+    so the policy is the one implementation of the edge and publishability rules,
+    which live under
     `package/git-policy/cli/src/native/dependent_version/`.
    Evidence (2026-09-15,
   disposable clone of `main`):

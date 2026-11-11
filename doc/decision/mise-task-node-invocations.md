@@ -66,9 +66,12 @@ Shipped across three commits:
    `package/cli/{fy,git,terminal-exec,rgffplay,vmsync,git-clone-size,mvm,markdown-lint}/mise.toml`
    and `package/llm/token-count/mise.toml`.
 - Root `page:weight` (its entry validates a missing arg itself) and
-  `lint:markdown` / `format:markdown` (the `.` default already lives in
-  `package/cli/markdown-lint/src/run.ts`,
-   so the mise-body default was redundant).
+  `lint:markdown` / `format:markdown` (the `.` default already lived in the linter's own entry,
+   so the mise-body default was redundant;
+   the two Node tasks became the root `monochromatic-lint` tasks on 2026-10-06
+   (`0b49ae109e`),
+   and that default is now
+  `package/linter/monochromatic-lint/src/cli_options.rs`).
 - Root `catalog:tighten` (its entry reads `--dry-run` from argv;
    matches the
   README's documented `mise run catalog:tighten -- --dry-run`).
@@ -135,7 +138,7 @@ Against that ~18 ms per call:
    and a forgotten `await` silently
   no-ops the task rather than failing loudly.
    It would also force rewriting
-  `package/monorepo-task/core-exec/src/tsgo-filter.ts`'s working `import.meta.main`
+  `package/monorepo-task/core-exec/src/tsc-filter.ts`'s working `import.meta.main`
   guard to the `argv[1]` idiom,
    and commit the codebase to a convention ("no
   dispatched entry may use `import.meta.main`") that one entry currently violates.
