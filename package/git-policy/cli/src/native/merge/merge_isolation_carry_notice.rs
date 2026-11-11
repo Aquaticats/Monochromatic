@@ -70,10 +70,17 @@ pub struct Report {
 /// function reportLines(reference: string, report: Report): string[];
 /// ```
 pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
+    // A command that finished a merge an earlier one began is not running that merge, so its lines name the merge the person
+    //  started rather than a command they did not type.
+    let command: String = if reference.is_empty() {
+        String::from("the merge an earlier command began and this one finished")
+    } else {
+        format!("git merge {reference}")
+    };
     let mut lines: Vec<String> = Vec::new();
     for path in &report.conflicts {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: your changes to {} touch the lines the merge changes, so the file \
+            "monochromatic-git-policy-cli: {command}: your changes to {} touch the lines the merge changes, so the file \
              holds both sides between conflict markers and the merge was made. Resolve the markers in that file, then run `git add -- {}`.",
             text(path),
             text(path)
@@ -81,16 +88,16 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
     }
     for path in &report.merged {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: your changes to {} were merged with the merge's by word, and both sides are in the file.",
+            "monochromatic-git-policy-cli: {command}: your changes to {} were merged with the merge's by word, and both sides are in the file.",
             text(path)
         ));
     }
     for kept in &report.kept {
-        lines.push(kept_line(reference, kept));
+        lines.push(kept_line(command.as_str(), kept));
     }
     for path in &report.changed {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: {} changed while the merge ran, so this merge wrote nothing to it and \
+            "monochromatic-git-policy-cli: {command}: {} changed while the merge ran, so this merge wrote nothing to it and \
              left that change in place. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
             text(path),
             text(path)
