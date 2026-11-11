@@ -10633,8 +10633,13 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   "It's been a whole day and you still haven't released any of the jam fixes?"
   and "Standing rule. Alphas don't even have to resolve all flakes."
   A gate whose only failures are tests already known to fail intermittently does not hold an alpha;
-  each such failure gets its own fix as follow-up work,
-  merge to main,
+  each such failure gets its own fix as follow-up work.
+  The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
+  on nine failing tests outside its three btrfs controls;
+  since `50161f7161` it refuses only when a required control fails, is missing or did not run,
+  or the run timed out, was stopped or failed without naming a test,
+  and prints other failing tests as notices above the pass.
+  Then: merge to main,
   `native:clippy` clean on main,
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
