@@ -487,10 +487,28 @@ pub(crate) struct Replanning {
 
 /// Methods over the state.
 impl Replanning {
-    /// Ask the plan to drop the branch:
-    /// its push landed,
-    /// or the person must act.
+    /// What:
+    ///  Ask the plan to drop the branch,
+    /// and take its file out of the journal now.
+    /// Why:
+    ///   The file is what a restarted service rebuilds the plan from,
+    /// so a forget that reached only the list of this process would leave the next service trying a push that has already landed
+    ///  (finding 3 of the review of `bc3d54f9cd`).
+    /// It goes here, on the thread that decided the branch needs no new try,
+    /// as the plan a worker promises is already written here,
+    ///  and not by a round that may reach the journal later,
+    /// when a newer plan of the branch may have been written since
+    ///  (finding 4 of the same review).
+    /// A removal that fails is said, and the next start reads the file again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forget(gitDir, branch): removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
+    /// ```
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        if let Some(directory) = self.plans.as_deref() {
+            crate::push_retry_store::remove(directory, git_dir, branch_ref);
+        }
         self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
     }
 
