@@ -45,11 +45,11 @@ use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use crate::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
+use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
-use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
+use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
 use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
 use std::ffi::OsString;
@@ -233,24 +233,6 @@ fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash>
         return None;
     }
     return Some(pending);
-}
-
-/// What:
-///  The paths the source has changed since its last commit,
-/// when there are any.
-/// Why:
-///   A snapshot carries the source's uncommitted state,
-/// so the person is told which of it was left out of the new worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// source.dirty?.hasChanges() ? source.dirty : undefined
-/// ```
-fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
-    return match source.dirty.as_ref() {
-        Some(found) if found.has_changes() => Some(found),
-        _ => None,
-    };
 }
 
 /// What:

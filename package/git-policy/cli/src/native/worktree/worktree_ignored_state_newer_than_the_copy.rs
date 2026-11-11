@@ -29,6 +29,7 @@
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_ceiling::CopyCeiling;
+use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_manifest::{EntryKind, LeftOut, WorktreeCopyEntry, collect_pruned_manifest, stamp_of};
 use crate::worktree_copy_selection::{CopySelection, filesystem_path, select_roots, shown_repository_path};
 use crate::worktree_copy_stage_leaf_copying::stamp_nanos;
@@ -37,7 +38,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-/// The name of the file, in a worktree's Git directory,
+/// The name of the file,
+/// in a worktree's Git directory,
 /// that lists every ignored entry the snapshot the worktree received is behind on.
 /// Why:
 ///   The one line on standard error names the first entries and the count;
@@ -64,6 +66,23 @@ pub const LIST_NAME: &str = "monochromatic-git-policy-cli-ignored-state-after-th
 /// const NOTICE_PATHS = 3;
 /// ```
 const NOTICE_PATHS: usize = 3;
+
+/// What:
+///  The reason a copy step failed,
+/// as the one sentence it holds.
+/// Why:
+///   The two steps that answer this module hand back the copy error,
+/// and this module's caller reads a reason;
+/// a named function says so once,
+/// and a closure that captures nothing would say it twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reasonOf = (error: WorktreeCopyError) => error.message;
+/// ```
+fn reason_of(error: WorktreeCopyError) -> String {
+    return error.0;
+}
 
 /// What:
 ///  The selection the copy of a source takes,
@@ -104,16 +123,16 @@ fn selection_of(source: &SnapshotSource) -> CopySelection {
 /// ```
 pub fn entries_newer_than_the_copy(context: &GitContext, source: &SnapshotSource, destination: &Path, made_at_millis: u128) -> Result<Vec<Vec<u8>>, String> {
     let selection: CopySelection = selection_of(source);
-    let mut excluded: Vec<PathBuf> = source
-        .nested
-        .iter()
-        .filter(|root| return root.starts_with(source.root.as_path()))
-        .cloned()
-        .collect();
+    let mut excluded: Vec<PathBuf> = Vec::new();
+    for root in &source.nested {
+        if root.starts_with(source.root.as_path()) {
+            excluded.push(root.clone());
+        }
+    }
     // The worktree this add just made is not part of the source's ignored state: every file of it was written after the
     // copy, by this add, and naming a thousand of them would bury the entries the copy is really behind on.
     excluded.push(destination.to_path_buf());
-    let roots: Vec<Vec<u8>> = select_roots(context, source.root.as_path(), excluded.as_slice(), &selection).map_err(|error| return error.0)?;
+    let roots: Vec<Vec<u8>> = select_roots(context, source.root.as_path(), excluded.as_slice(), &selection).map_err(reason_of)?;
     let mut left_out: LeftOut = LeftOut::default();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source.root.as_path(),
@@ -123,7 +142,7 @@ pub fn entries_newer_than_the_copy(context: &GitContext, source: &SnapshotSource
         &mut left_out,
         &CopyCeiling::unbounded(),
     )
-    .map_err(|error| return error.0)?;
+    .map_err(reason_of)?;
     // A copy's instant is in milliseconds since the epoch, and a change time in nanoseconds since it.
     let since: i128 = i128::try_from(u128::min(made_at_millis, u128::MAX / 1_000_000)).unwrap_or(i128::MAX / 1_000_000) * 1_000_000;
     let mut newer: Vec<Vec<u8>> = Vec::new();
@@ -191,7 +210,7 @@ fn age_words(seconds: u64) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: the ignored state of ${destination} is a copy of ${source} the wrapper made ${age} before this add, so ${count} ignored ${noun} changed after it: ${first}${more}. This worktree holds what each held then, or nothing of one written later; the source keeps every one of them, and the tool that writes them makes them again here.`
+/// `monochromatic-git-policy-cli: the ignored state of ${destination} is a copy of ${source} that the wrapper made ${age} before this add, so ${count} ignored ${noun} changed after it: ${first}${more}. Every path is on its own line of ${file}. This worktree holds what each held then, or nothing of one written later; the source keeps every one of them, and the tool that writes them (a package install, a build) makes them again here.`
 /// ```
 fn notice_line(source_root: &Path, destination: &Path, age: &str, newer: &[Vec<u8>], list: Option<&Path>) -> String {
     let mut named: Vec<String> = Vec::new();
@@ -200,13 +219,13 @@ fn notice_line(source_root: &Path, destination: &Path, age: &str, newer: &[Vec<u
     }
     let rest: usize = newer.len().saturating_sub(NOTICE_PATHS);
     let noun: &str = if newer.len() == 1 { "entry" } else { "entries" };
+    let more: String = if rest == 0 { String::new() } else { format!(", and {rest} more") };
     let listed: String = match list {
-        Some(path) => format!(", and every path is on its own line of {}", quote(path.to_string_lossy().as_ref())),
-        None => String::from(", and every path is on its own line of a file this command could not write"),
+        Some(path) => format!("Every path is on its own line of {}", quote(path.to_string_lossy().as_ref())),
+        None => String::from("The paths here are every one this command found, because the file it lists them in could not be written"),
     };
-    let more: String = if rest == 0 { listed } else { format!(", and {rest} more{listed}") };
     return format!(
-        "monochromatic-git-policy-cli: the ignored state of {} is a copy of {} that the wrapper made {age} before this add, so {} ignored {noun} changed after it: {}{more}. This worktree holds what each held then, or nothing of one written later; the source keeps every one of them, and the tool that writes them (a package install, a build) makes them again here.\n",
+        "monochromatic-git-policy-cli: the ignored state of {} is a copy of {} that the wrapper made {age} before this add, so {} ignored {noun} changed after it: {}{more}. {listed}. This worktree holds what each held then, or nothing of one written later; the source keeps every one of them, and the tool that writes them (a package install, a build) makes them again here.\n",
         quote(destination.to_string_lossy().as_ref()),
         quote(source_root.to_string_lossy().as_ref()),
         newer.len(),

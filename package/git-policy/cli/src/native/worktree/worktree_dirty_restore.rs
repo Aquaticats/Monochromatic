@@ -406,6 +406,25 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     return Ok(());
 }
 
+/// What:
+///  The paths the source has changed since its last commit,
+/// when there are any.
+/// Why:
+///   A snapshot carries the source's uncommitted state,
+/// so the person is told which of it was left out of the new worktree,
+/// and the record of what was left out is written only for a source that had changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// source.dirty?.hasChanges() ? source.dirty : undefined
+/// ```
+pub fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
+    return match source.dirty.as_ref() {
+        Some(found) if found.has_changes() => Some(found),
+        _ => None,
+    };
+}
+
 /// Dirty restore controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_dirty_restore_tests.rs"]

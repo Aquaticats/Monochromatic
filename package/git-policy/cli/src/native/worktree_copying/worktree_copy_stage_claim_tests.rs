@@ -1867,8 +1867,9 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
     return Some((root, common, container, repo));
 }
 
-/// The snapshot a kill left between the wrapper's creation of the stage and the record of its object is settled by the
-/// next command, not kept for ever.
+/// The snapshot a kill left between the wrapper's creation of the stage and the record of its object is settled by
+/// the next command,
+/// not kept for ever.
 #[test]
 fn btrfs_the_snapshot_created_before_its_record_is_removed() {
     let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window") else { return };

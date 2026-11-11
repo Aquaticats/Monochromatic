@@ -101,7 +101,8 @@ struct WalkItem {
 }
 
 /// What:
-///  The ignored entries a walk left out, by why.
+///  The ignored entries a walk left out,
+/// by why.
 /// Why:
 ///   A copy cannot hold what another checkout cannot read and cannot hold a socket,
 /// a named pipe or a device node;
@@ -116,7 +117,8 @@ struct WalkItem {
 pub struct LeftOut {
     /// The entries the running user cannot read.
     pub unreadable: Vec<Vec<u8>>,
-    /// The entries of a kind no copy of a checkout can hold: sockets,
+    /// The entries of a kind no copy of a checkout can hold:
+    /// sockets,
     /// FIFOs and device nodes.
     pub uncopiable: Vec<Vec<u8>>,
 }

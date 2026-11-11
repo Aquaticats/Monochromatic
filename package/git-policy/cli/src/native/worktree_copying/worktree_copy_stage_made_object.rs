@@ -68,8 +68,8 @@ const WRITTEN_LINE_PREFIX: &str = "written=";
 /// The identity is absent only for the record a command writes before it creates the container:
 /// a kill in the
 ///  instant between that creation and the record of the object it made leaves a record that names the
-///  container and the instant, and the folder is then judged by its shape (it is a snapshot) and by what
-///  was born after the instant.
+///  container and the instant,
+/// and the folder is then judged by its shape (it is a snapshot) and by what was born after the instant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

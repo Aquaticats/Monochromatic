@@ -282,8 +282,9 @@ pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> Str
 pub const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
-///  The one notice line for ignored entries no worktree can hold: sockets,
-///  named pipes and device nodes.
+///  The one notice line for ignored entries no worktree can hold:
+/// sockets,
+/// named pipes and device nodes.
 /// Why:
 ///   The new worktree lacks them,
 /// so the person sees how many and which first ones;

@@ -549,8 +549,10 @@ fn moving_a_worktree_is_forwarded_and_prints_no_summary() {
     remove(&fixture);
 }
 
-/// A named pipe in the ignored state cannot be copied into a worktree: the copy leaves it out, says so once with the
-/// system's own name for it, and copies the rest of the ignored state.
+/// A named pipe in the ignored state cannot be copied into a worktree:
+/// the copy leaves it out,
+/// says so once with the system's own name for it,
+/// and copies the rest of the ignored state.
 #[test]
 fn a_fifo_in_the_ignored_state_is_left_out_and_the_rest_is_copied() {
     let fixture: Fixture = fixture("copy-fifo-left-out");

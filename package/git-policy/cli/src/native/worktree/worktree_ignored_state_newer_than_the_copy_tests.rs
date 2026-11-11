@@ -1,4 +1,5 @@
-//! Tests of the entries a snapshot an add installed is behind on, and of the line that says so.
+//! Tests of the entries a snapshot an add installed is behind on,
+//! and of the line that says so.
 
 use super::*;
 
@@ -40,7 +41,8 @@ fn the_entry_written_after_the_copy_is_named_and_the_older_one_is_not() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A copy newer than every entry is behind on nothing, so nothing is said.
+/// A copy newer than every entry is behind on nothing,
+/// so nothing is said.
 #[test]
 fn a_copy_newer_than_every_entry_is_behind_on_nothing() {
     let (root, repo, source, _instant) = source_with_an_entry_written_after("after-the-copy-fresh");
@@ -63,7 +65,11 @@ fn the_age_reads_in_the_words_a_person_uses() {
     assert_eq!(age_words(61), "1 minute and 1 second");
 }
 
-/// The line names the source, the destination, the age, the first paths, the count of the rest,
+/// The line names the source,
+/// the destination,
+/// the age,
+/// the first paths,
+/// the count of the rest,
 /// and the file that holds every one of them.
 #[test]
 fn the_line_names_the_copy_its_age_the_first_paths_and_the_file_of_all_of_them() {
@@ -77,7 +83,7 @@ fn the_line_names_the_copy_its_age_the_first_paths_and_the_file_of_all_of_them()
     assert!(line.contains("37 seconds"), "{line}");
     assert!(line.contains("\"node_modules/pkg0/index.js\""), "{line}");
     assert!(line.contains("and 2 more"), "{line}");
-    assert!(line.contains("every path is on its own line of \"/a/worktree/.git/ignored-state.txt\""), "{line}");
+    assert!(line.contains("Every path is on its own line of \"/a/worktree/.git/ignored-state.txt\""), "{line}");
     assert!(line.ends_with("makes them again here.\n"), "{line}");
 }
 
