@@ -297,6 +297,12 @@ mod pull_isolation;
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
 
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
+
 /// Real commits through the transaction:
 /// landing,
 /// policies,
