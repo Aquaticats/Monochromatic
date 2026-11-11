@@ -84,6 +84,7 @@ pub(crate) async fn watch_loop(
                 limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
                 repeat: marks.printed > 0,
                 ends_when_quiet: stoppable.load(Ordering::Acquire),
+                left_running_after: left_running_after(flags.left_running_after.load(Ordering::Acquire)),
             });
             marks.printed += 1;
             if let Some(sink) = notices.take() {
@@ -156,6 +157,26 @@ pub(crate) async fn watch_loop(
             }
         }
     }
+}
+
+/// What:
+///  The bound a notice names,
+/// from the microseconds the watch keeps it in.
+/// Why:
+///  Zero is the watch's "no bound of its own",
+/// and a Duration of zero microseconds would say the command stops waiting at
+///  once,
+/// which is not what a step the landing waits for as long as it lives does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftRunningAfter = (micros: number) => micros === 0 ? undefined : Duration.fromMicros(micros)
+/// ```
+fn left_running_after(micros: u64) -> Option<Duration> {
+    return match micros {
+        0 => None,
+        kept => Some(Duration::from_micros(kept)),
+    };
 }
 
 /// What:

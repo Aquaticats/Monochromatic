@@ -2370,11 +2370,9 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         "it does not claim the checkout is clean: {}",
         refused.0
     );
-    assert!(
-        refused.0.contains("git restore --no-enforce-worktree --staged --worktree"),
-        "it names the way to undo the staged content, with the flag this wrapper's policy asks for: {}",
-        refused.0
-    );
+    let undo: String = format!("`git restore {} --staged --worktree -- <path>`", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
+    assert!(refused.0.contains(undo.as_str()), "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}", refused.0);
+    assert!(!refused.0.contains(".."), "the sentence the refusal itself ends with is not followed by a second period: {}", refused.0);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");

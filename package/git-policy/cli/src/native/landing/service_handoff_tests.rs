@@ -197,7 +197,7 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     std::fs::create_dir_all(pending.as_path()).expect("a state directory");
     std::fs::write(pending.join(item.id_before_the_branch()), item.encode()).expect("a record an earlier release left");
-    forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
     assert!(!pending.join(item.id()).exists(), "no record waits under this release's name");
     assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
     assert_eq!(crate::work_item::hold(work.as_path(), &item, ""), Ok(()), "a later hold asks nothing of a blocked id");
@@ -556,6 +556,96 @@ fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
 }
 
 /// What:
+///  A refusal whose verdict cannot be written keeps the record that holds it,
+///  the next push of the branch still stops before the commit,
+///  and every command says what it kept.
+/// Why:
+///  The held record is the only copy of the gate's refusal once the durable verdict is what the next push reads;
+///  a failed write that forgot the record discarded the refusal,
+///  nothing was pending,
+///  and no line told the person why the commit stayed local:
+///  the next push of the branch then published it.
+#[test]
+fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
+    let root: std::path::PathBuf = fixture("handoff-refusal-verdict-unkept");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let holding: Holding = Holding {
+        holder: a_command_that_has_ended(),
+        verdict: Verdict::Blocked,
+        reason: String::from("final-newline: the file does not end with a newline"),
+    };
+    let (item, held) = held_with_verdict(&handoff, OID, &holding);
+    // The one place a durable verdict lives cannot be used: its name is a regular file.
+    let blocked: std::path::PathBuf = state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
+    std::fs::write(blocked.as_path(), "not a directory").expect("a file in the verdict directory's place");
+
+    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+
+    assert!(held.exists(), "the record that holds the refusal is still there");
+    // The verdict every push reads could not be written, so the refusal the record still states is what stops the next push.
+    assert_eq!(
+        crate::work_item_holding::blocked_verdicts(work.as_path()),
+        vec![crate::work_item_holding::BlockedVerdict {
+            branch_ref: String::from("refs/heads/main"),
+            commit: String::from(OID),
+            reason: String::from("final-newline: the file does not end with a newline"),
+        }],
+        "the refusal the record still states is what the next push of the branch stops before"
+    );
+    assert!(!state_directory(work.as_path(), PENDING).join(item.id()).exists(), "nothing became runnable");
+    assert_eq!(said.len(), 1, "the command says what it kept: {said:?}");
+    assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
+    assert!(said[0].contains("refused it"), "the line says the checks refused it: {}", said[0]);
+    assert!(said[0].contains("final-newline"), "the line keeps the gate's words: {}", said[0]);
+    assert!(said[0].contains("a push you make of it still sends it"), "the line names the one push that sends a refused commit: {}", said[0]);
+
+    // Once the place works, the very next command settles the refusal and gives the record up.
+    std::fs::remove_file(blocked.as_path()).expect("the obstruction goes");
+    let settled: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+    assert!(settled.is_empty(), "a kept verdict is not said as held: {settled:?}");
+    assert!(!held.exists(), "the record left the held state");
+    assert_eq!(crate::work_item_holding::blocked_verdicts(work.as_path()).len(), 1, "the verdict the next push reads is kept");
+    remove(root.as_path());
+}
+
+/// What:
+///  A refusal is flushed,
+///  with its directory,
+///  before the record that holds it is given up.
+/// Why:
+///  A machine crash loses an unflushed rename,
+///  and the record left behind would say the checks never decided,
+///  which no push reads as a stop:
+///  the refused commit would be published by the next push of its branch.
+///  The pass keeps its no-flush rule,
+///  which the control above it states.
+#[test]
+fn a_refusal_is_flushed_before_its_record_is_given_up() {
+    let root: std::path::PathBuf = fixture("handoff-refusal-durable");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID);
+    crate::work_item::hold(work.as_path(), &item, "1/2/3").expect("the push is held while the gate decides");
+    let held_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD);
+    let blocked_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
+    crate::private_storage::take_file_syncs();
+    crate::private_storage::take_directory_syncs();
+
+    let _reported = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+
+    let files: Vec<std::path::PathBuf> = crate::private_storage::take_file_syncs();
+    let directories: Vec<std::path::PathBuf> = crate::private_storage::take_directory_syncs();
+    assert!(files.contains(&held_dir.join(item.id())), "the refusal in the record is flushed: {files:?}");
+    assert!(files.contains(&blocked_dir.join(item.id())), "the verdict the next push reads is flushed: {files:?}");
+    assert!(directories.contains(&held_dir), "the record's directory is flushed: {directories:?}");
+    assert!(directories.contains(&blocked_dir), "the verdict's directory is flushed: {directories:?}");
+    assert!(!held_dir.join(item.id()).exists(), "the record went once the verdict was durable");
+    assert_eq!(crate::work_item_holding::blocked_verdicts(work.as_path()).len(), 1, "and the verdict stands");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A gate whose verdict record cannot be written keeps the held record,
 ///  and the refusal is still read from it.
 /// Why:
@@ -580,7 +670,7 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
     let blocked: std::path::PathBuf = state_directory(work.as_path(), "blocked");
     std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
     std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
-    forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
     assert!(held.exists(), "the held record stays: it is the only statement of the refusal");
     assert_eq!(
         crate::work_item_holding::blocked_verdicts(work.as_path()),

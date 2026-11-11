@@ -80,7 +80,7 @@ fn a_directory_that_is_no_worktree_gets_no_record() {
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(plain.as_path()).expect("a plain directory");
     let failure: String = record(root.as_path(), plain.as_path()).expect_err("a plain directory is no linked worktree");
-    assert!(failure.contains("cannot be read as a file"), "{failure}");
+    assert!(failure.contains("the worktree's pointer"), "{failure}");
     assert!(!plain.join(ADDED_RECORD_NAME).exists(), "nothing is written");
 }
 

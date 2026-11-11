@@ -109,6 +109,16 @@ pub mod worktree_copy_stage_claim_reaping;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_swept_files;
 
+/// Whether the copy an add's dead record still owes has a future in a worktree other than the one the command runs in,
+/// kept beside the reaping so that file stays under the line limit.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_owed_copy_elsewhere;
+
+/// The stage containers a live command is filling that stand below a tree,
+/// read from the claims beside the journals.
+#[cfg(unix)]
+pub mod worktree_copy_stages_being_filled;
+
 /// The durable record of the object one stage's creation made:
 /// its identity,
 /// and the instant the wrapper last wrote into it.
@@ -128,6 +138,12 @@ pub mod worktree_copy_stage_reaping_proof_and_words;
 /// with the proof its checkout is whole or gone.
 #[cfg(unix)]
 pub mod worktree_copy_interrupted_add_settlement;
+
+/// The add whose own snapshot was swapped into place before its command was killed:
+/// the two identities that prove it,
+/// and the settlement of its stage and records.
+#[cfg(unix)]
+pub mod worktree_copy_swapped_add_settlement;
 
 /// The registration one staged copy is bound to,
 /// recorded beside its payload and checked before every write into a worktree.
@@ -193,6 +209,11 @@ pub mod worktree_copy_interrupted_checkout;
 /// made by a command in the worktree it fills.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy;
+
+/// Whether the worktree a copy takes its state from can still be one,
+/// and the reason a copy is given up on when it cannot.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_source;
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,

@@ -566,4 +566,10 @@ pub(crate) struct WatchFlags {
     /// before the child is signalled,
     /// so the thread that its end releases reads it as true.
     pub(crate) stopped: Arc<AtomicBool>,
+    /// How long the command waits for a step it never ends before it stops waiting and leaves it running,
+    /// in microseconds,
+    /// or zero when it waits for as long as the step lives.
+    /// The watcher says it,
+    /// because that is the bound its notices name.
+    pub(crate) left_running_after: Arc<AtomicU64>,
 }

@@ -57,7 +57,7 @@ use std::fs::File;
 /// ```ts
 /// const MOST_DIRECTORIES_HELD = 32;
 /// ```
-const MOST_DIRECTORIES_HELD: usize = 32;
+pub(crate) const MOST_DIRECTORIES_HELD: usize = 32;
 
 /// What:
 ///  One directory of the chain:
@@ -212,14 +212,21 @@ impl<'root> DirectoryChain<'root> {
     /// the walk this replaced
     ///  held one directory at a time and answered the same paths,
     /// so a deep checkout is walked as it was then.
+    /// The directories a path before left are released before this walk starts:
+    /// they are descriptors the walk's
+    ///  root's clone and the directory it is opening would otherwise have to fit beside.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const directory = chain.tooDeepToKeep(names); // the same handle, one open at a time
     /// ```
     fn too_deep_to_keep(&mut self, names: &[OsString]) -> std::io::Result<&File> {
-        let found: File = open_directory_beneath(self.root, names)?;
+        // The directories this chain keeps and the answer a path too deep to keep left before are descriptors the walk
+        //  below does not use; held through it, they take the room its root's clone and the directory it is opening need.
+        let root: &'root File = self.root;
         self.opened.clear();
+        self.deep_answer = None;
+        let found: File = open_directory_beneath(root, names)?;
         self.deep_answer = Some(found);
         return Ok(self.deepest());
     }

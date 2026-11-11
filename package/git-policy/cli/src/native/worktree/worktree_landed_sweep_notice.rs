@@ -48,12 +48,28 @@ fn removal_command(worktree: &Path) -> String {
 pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     if let Some(reason) = sweep.failed.as_ref() {
+        // A commit that was kept is said even when another one stopped the sweep, so the person reading where one went is not
+        //  left believing the removal kept nothing of any of them.
+        for kept in &sweep.kept_commits {
+            lines.push(format!("{PREFIX}{kept}"));
+        }
         lines.push(format!("{PREFIX}no landed worktree was looked at after this merge, because {reason}."));
+        if sweep.refused_commits {
+            // A later merge is the one retry a person would try, and it is up to date: saying so keeps the silence that follows
+            //  from reading as a removal that happened.
+            lines.push(format!(
+                "{PREFIX}running this merge again removes nothing: a branch that already landed makes the merge up to date, so no \
+                 landed worktree is looked at. The commands above are the ones that finish it."
+            ));
+        }
         return lines;
     }
     // A held commit is said before the removal it would not survive, so a person reading the same output knows where it went.
     for kept in &sweep.kept_commits {
         lines.push(format!("{PREFIX}{kept}"));
+    }
+    for problem in &sweep.rescue_problems {
+        lines.push(format!("{PREFIX}{problem}"));
     }
     for removed in &sweep.removed {
         lines.push(format!(

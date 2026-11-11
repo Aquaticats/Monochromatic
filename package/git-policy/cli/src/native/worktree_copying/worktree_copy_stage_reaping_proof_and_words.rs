@@ -22,7 +22,6 @@
 
 use crate::json_record::quote;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
-use crate::worktree_copy_stage_claim::DESTINATION_SUFFIX;
 use crate::worktree_copy_stage_made_object::{is_the_recorded_object, made_record_beside_claim, read_made};
 use std::path::Path;
 
@@ -95,59 +94,20 @@ fn unaccounted_entry(_container: &Path, _written: std::time::SystemTime) -> Opti
 }
 
 /// What:
-///  The identity and the pointer the add's record holds for the directory Git made,
-/// or nothing when the record is not one of a bound add.
+///  Whether the folder at the container's name is a btrfs subvolume root,
+/// which is the shape the one creation the wrapper records ahead of its object makes.
 /// Why:
-///   A snapshot rung swaps its finished stage with the destination,
-/// which leaves the directory Git made at the stage name;
-/// the identity in
-///  the record is what `settle_displaced` recognises it by,
-/// so the reaping answers the same question with the same fact.
+///   A record written before the container exists names no identity,
+/// so the shape is what tells the wrapper's snapshot
+///  from a plain directory another party put at that name;
+/// a folder that cannot be examined proves nothing and is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = decode(readFile(claim.replace(/\.stage$/, '.add')))?.binding; // { destination_id, pointer } | undefined
+/// const isASnapshot = (container) => isSubvolumeRoot(container) === true;
 /// ```
-fn git_directory_of_the_add(claim: &Path) -> Option<(crate::fs_beneath::ObjectId, Vec<u8>)> {
-    let record: std::path::PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-    let text: String = std::fs::read_to_string(record).ok()?;
-    // The two halves of a bound add; a planned record names no object at all.
-    return match crate::worktree_add_binding::decode_record(text.as_str())? {
-        crate::worktree_add_binding::Recorded::Registered(binding) => Some((binding.destination_id, binding.pointer)),
-        crate::worktree_add_binding::Recorded::Planned(_) => None,
-    };
-}
-
-/// What:
-///  Whether the folder holds nothing but the pointer Git wrote into the directory it made.
-/// Why:
-///   Only then is the whole folder Git's:
-/// a directory Git made that gained a file since is somebody's,
-/// and a recursive
-///  removal would delete it.
-/// The pointer's bytes are compared with the ones the add's record holds,
-/// so a `.git` written by another program keeps
-///  the folder too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const onlyGit = (container, pointer) => { const names = readdir(container); return names.length === 0 || (names.length === 1 && names[0] === '.git' && readFile(join(container, '.git')).equals(pointer)); };
-/// ```
-fn holds_only_gits_pointer(container: &Path, pointer: &[u8]) -> bool {
-    let Ok(listing) = std::fs::read_dir(container) else { return false };
-    let mut names: Vec<std::ffi::OsString> = Vec::new();
-    for listed in listing {
-        let Ok(entry) = listed else { return false };
-        names.push(entry.file_name());
-    }
-    if names.is_empty() {
-        return true;
-    }
-    if names.len() != 1 || names[0] != std::ffi::OsStr::new(".git") {
-        return false;
-    }
-    let Ok(bytes) = std::fs::read(container.join(".git")) else { return false };
-    return bytes == pointer;
+fn is_a_snapshot(container: &Path) -> bool {
+    return crate::fs_kind::is_subvolume_root(container).unwrap_or(false);
 }
 
 /// What:
@@ -188,21 +148,15 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
             quote(made.container.to_string_lossy().as_ref())
         )));
     }
-    // The swap that publishes a snapshot leaves the directory Git made at the stage name: the add's record holds that
-    // directory's identity, and the folder holds the pointer Git wrote and nothing else. This is the rule
-    // `settle_displaced` applies, so a command killed between the swap and that removal settles here instead of keeping a
-    // folder it can account for for ever.
-    if let Some((git_made, pointer)) = git_directory_of_the_add(claim)
-        && crate::worktree_add_binding::path_identity(container) == Some(git_made)
-    {
-        // `match` on what the folder holds: Git's own pointer alone is Git's folder, and anything beside it is somebody's.
-        return match holds_only_gits_pointer(container, pointer.as_slice()) {
-            true => Ok(Provenance::Proved),
-            false => Ok(Provenance::Unproved(String::from("the directory Git made there holds something beside the pointer Git wrote into it"))),
-        };
-    }
-    if !is_the_recorded_object(container, &made) {
+    // The record a command writes before it creates the container names the container and the instant and no identity,
+    // because an object's identity cannot be read before it exists. A kill between that creation and the record of the
+    //  identity leaves the whole snapshot there, and nothing else proves the wrapper made it; so the folder is judged by
+    // what a snapshot is and by what was born after the instant, and a plain directory another party made is kept.
+    if made.object.is_some() && !is_the_recorded_object(container, &made) {
         return Ok(Provenance::Unproved(String::from("the object there now is not the one the record of its creation made")));
+    }
+    if made.object.is_none() && !is_a_snapshot(container) {
+        return Ok(Provenance::Unproved(String::from("the folder there now is not a snapshot, and the record of the object its creation made names none")));
     }
     return match unaccounted_entry(container, made.written) {
         None => Ok(Provenance::Proved),

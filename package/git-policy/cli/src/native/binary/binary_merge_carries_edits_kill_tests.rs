@@ -136,7 +136,7 @@ fn unsaved_text() -> String {
 
 /// A merge paused at one phase,
 /// with the directory its markers are written to.
-struct Paused {
+pub(super) struct Paused {
     /// The merge waiting for its release.
     child: Child,
     /// Where the marker and the release file go.
@@ -145,7 +145,7 @@ struct Paused {
 
 /// Start a merge that stops at one phase,
 /// with the marker written and the merge waiting.
-fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
+pub(super) fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}-{}", std::process::id()));
     std::fs::create_dir(&markers).expect("marker directory");
     let signal: String = format!("{phase}:pause:{}", markers.display());
@@ -174,14 +174,14 @@ impl Paused {
     }
 
     /// Let the merge go on and read everything it said.
-    fn released(self, phase: &str) -> Output {
+    pub(super) fn released(self, phase: &str) -> Output {
         std::fs::write(self.markers.join(format!("{phase}.release")), b"").expect("the release file");
         return self.child.wait_with_output().expect("the merge ends");
     }
 }
 
 /// A repository whose `a.txt` holds the person's unsaved line after `main`'s own text.
-fn edited(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn edited(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = diverged(fixture, name);
     std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's edit");
     return repo;
@@ -234,6 +234,45 @@ fn a_kill_after_the_branch_moved_carries_the_edits() {
     assert!(after.contains(FEATURE_THIRD), "the merge's line is there: {after:?}");
     assert!(after.contains(PERSON_LINE), "the person's line is there: {after:?}");
     assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A save that accepts the whole merge,
+///  made after the branch moved and a kill stopped the carry:
+/// the next command leaves the newer save as it is,
+///  says the path changed under the merge,
+///  and the older captured line does not come back.
+/// Why:
+///  The saved bytes are exactly the merge's own,
+/// so nothing but the entry Git's own update wrote tells the two apart,
+///  and a recovery makes no reading of its own:
+/// without one the next command merges the older captured layer into a file whose
+///  bytes already accept the merge
+/// (a cross-vendor review of round two,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killedAt('merge-applied'); const merged = read('a.txt'); write('a.txt', merged); await wrapped(['status']);
+/// expect(read('a.txt')).toBe(merged); expect(ran.stderr).toSay('changed while the merge ran');
+/// ```
+#[test]
+fn a_save_after_the_kill_that_accepts_the_whole_merge_stands() {
+    let fixture: Fixture = fixture("carry-kill-applied-saved");
+    let repo: PathBuf = edited(&fixture, "repo");
+    killed_at(&fixture, repo.as_path(), "merge-applied");
+    let merged: String = text_at(repo.as_path(), "a.txt").expect("a.txt holds the merge");
+    assert!(merged.contains(FEATURE_THIRD), "the fixture holds the merge's line: {merged:?}");
+    assert!(!merged.contains(PERSON_LINE), "the merge's own write is what stands before any save: {merged:?}");
+    // The editor's newer decision accepts the whole merge: exactly the bytes Git's own update left,
+    //  and the older captured line deliberately gone.
+    std::fs::write(repo.join("a.txt"), merged.as_bytes()).expect("the save that accepts the merge");
+    let recovered: Observed = after_the_kill(&fixture, repo.as_path());
+    assert_eq!(text_at(repo.as_path(), "a.txt"), Some(merged), "the newer save stands, and the older captured line does not come back");
+    assert!(said(&recovered).contains("changed while the merge ran"), "the command says the path was written under the merge: {}", said(&recovered));
+    assert_eq!(status(&fixture, repo.as_path()), "", "the checkout holds the merge's own file, with nothing left over");
+    assert_merged(&fixture, repo.as_path(), "a save that accepts the merge");
     remove_settled(&fixture);
 }
 

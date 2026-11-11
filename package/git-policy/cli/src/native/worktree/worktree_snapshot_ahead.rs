@@ -62,7 +62,7 @@ use crate::service_work::work_directory;
 use crate::subvolume_sha::sha256;
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
-use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::work_item::{Enqueued, WorkItem, WorkKind, enqueue, requeue_after_giving_up};
 use crate::worktree_remove_hand_over::DELETE_REFERENCE;
 use crate::worktree_snapshot_index_step::Proof;
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -161,15 +161,21 @@ pub(crate) const POLL: Duration = Duration::from_millis(25);
 /// so the enqueue-and-wake is injected,
 /// and the
 ///  ceiling is a value a control can shorten without changing what an add does.
+/// The ask answers the id of the record it wrote,
+/// when
+///  it wrote one,
+/// so the wait can see the service give that request up for good and stop waiting for a
+///  copy that can never come.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AheadService = { handOver: (stale: string[]) => Result<void>; ceiling: Duration };
+/// type AheadService = { handOver: (stale: string[]) => Result<void>; ask: () => Result<string | undefined>; ceiling: Duration };
 /// ```
 pub struct AheadService<'a> {
-    /// Ask the repository's commit service for one snapshot ahead;
+    /// Ask the repository's commit service for one snapshot ahead,
+    /// answering the id of the record it wrote;
     /// the error is why it could not be told.
-    pub ask: &'a dyn Fn() -> Result<(), String>,
+    pub ask: &'a dyn Fn() -> Result<Option<String>, String>,
     /// Hand the service every name this add proved stale or keeps no longer,
     /// and wake it;
     /// the error is why it
@@ -190,7 +196,7 @@ pub struct AheadService<'a> {
 /// ```ts
 /// const cannotAsk = () => err('this add asks no commit service for a snapshot ahead');
 /// ```
-fn cannot_ask() -> Result<(), String> {
+fn cannot_ask() -> Result<Option<String>, String> {
     return Err(String::from("this add asks no commit service for a snapshot ahead"));
 }
 
@@ -244,6 +250,9 @@ pub enum AheadLook {
         made: ObjectId,
         /// The walk of the claimed snapshot against the source's index.
         proof: Proof,
+        /// The millisecond its name says the copy was made in,
+        /// which is the age of the ignored state the new worktree receives.
+        copied_at_millis: u128,
     },
     /// There was nothing to claim and nothing was waited for:
     /// the add takes its own snapshot.
@@ -599,37 +608,40 @@ fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> 
 /// never the add's failure:
 /// the add takes its
 ///  own snapshot and says why.
+/// The id it answers is the record's,
+/// so the add that waits for it can see the service give it up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// askForOne({ context, source }) // enqueue(request); wake(commonDir)
+/// askForOne({ context, source }) // enqueue(request); wake(commonDir); the record's id
 /// ```
-pub fn ask_for_one(context: &GitContext, source: &SnapshotSource) -> Result<(), String> {
+pub fn ask_for_one(context: &GitContext, source: &SnapshotSource) -> Result<Option<String>, String> {
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
-    ask_with(source.git_dir.as_path(), source.root.as_path(), pool.as_path())?;
-    return wake_the_service(context, source.git_dir.as_path());
+    let asked: WorkItem = ask_with(source.git_dir.as_path(), source.root.as_path(), pool.as_path())?;
+    wake_the_service(context, source.git_dir.as_path())?;
+    return Ok(Some(asked.id()));
 }
 
 /// What:
 ///  The record of one request for a snapshot ahead,
-/// and nothing else.
+/// which the caller wakes the service for.
 /// Why:
 ///   The record is written before the service is told,
 /// so a control asserts the record without a service,
 /// and
-///  `ask_for_one` wakes the service after it.
+///  `ask_for_one` wakes the service after it and answers its id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// askWith(gitDir, root, pool) // the record only; the caller wakes the service
 /// ```
-pub fn ask_with(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<(), String> {
+pub fn ask_with(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<WorkItem, String> {
     let request: WorkItem = request_item(git_dir, source_root, pool)?;
     if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &request) {
         return Err(format!("the request of a snapshot ahead could not be written: {reason}"));
     }
     debug(TAG, format!("{}: asked for a snapshot ahead in {}", source_root.display(), pool.display()).as_str());
-    return Ok(());
+    return Ok(request);
 }
 
 /// What:
@@ -664,6 +676,12 @@ pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, s
 /// so a control asserts them without a service,
 /// and one
 ///  record that cannot be written is said and does not stop the others.
+/// A record the service already gave up on is queued again rather than left in `failed`:
+/// the id of the
+///  delete of one path is that path,
+/// so every later add names the same record,
+/// and a queue that only answers
+///  "already there" would never delete that copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -672,8 +690,15 @@ pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, s
 pub fn hand_over_with(git_dir: &Path, pool: &Path, stale: &[OsString]) -> Result<(), String> {
     let work: PathBuf = work_directory(git_dir);
     for name in stale {
-        if let Err(reason) = enqueue(work.as_path(), &deletion_item(git_dir, pool, name.as_os_str())) {
-            debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str());
+        let record: WorkItem = deletion_item(git_dir, pool, name.as_os_str());
+        match enqueue(work.as_path(), &record) {
+            Ok(Enqueued::Added) => {}
+            Ok(Enqueued::Known) => {
+                if requeue_after_giving_up(work.as_path(), record.id().as_str()) {
+                    debug(TAG, format!("the delete of {} was given up on and is queued again", pool.join(name).display()).as_str());
+                }
+            }
+            Err(reason) => debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str()),
         }
     }
     debug(TAG, format!("{} name(s) of snapshots ahead are handed to the service in {}", stale.len(), pool.display()).as_str());

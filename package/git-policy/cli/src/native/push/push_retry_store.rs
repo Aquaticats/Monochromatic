@@ -98,6 +98,27 @@ fn encode(plan: &StoredPlan) -> String {
     return format!("{}\n", Value::Object(fields));
 }
 
+/// What:
+///  What a plan directory held,
+/// and whether something in it could not be read.
+/// Why:
+///   A start that met a file it could not read knows less than the journal holds,
+/// so it reads the journal again after a pause instead of starting with what it happened to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LoadedPlans = { plans: StoredPlan[]; unread: boolean };
+/// ```
+#[derive(Debug, Default)]
+pub struct LoadedPlans {
+    /// One plan per branch,
+    /// the newest file winning.
+    pub plans: Vec<StoredPlan>,
+    /// Whether a file or the directory itself could not be read,
+    /// so the journal may hold a plan this read did not see.
+    pub unread: bool,
+}
+
 /// The plan a file's text holds,
 /// or why it holds none.
 fn decode(text: &str) -> Result<StoredPlan, String> {
@@ -159,26 +180,20 @@ pub fn name_of(plan: &StoredPlan) -> String {
     return plan_name(plan);
 }
 
-/// Removes the files of the plan of a branch;
-/// one that cannot be removed stays and is read again by the next start.
-pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
-}
-
 /// What:
-///  Removes the files of the plan of a branch except the ones named in `keep`.
+///  Removes the files of the plan of a branch;
+/// one that cannot be removed stays and is read again by the next start.
 /// Why:
-///   A forget a worker asked for is applied by the service loop after the round,
-/// so a plan another worker kept meanwhile is newer than the forget and is the statement that still counts;
-/// its file name is known before it is written,
-/// and is not removed.
+///   The worker that decided the branch needs no new try removes the file itself,
+/// so a forget travels to the journal in the round that decided it
+/// and no later round replays it onto a plan that has been planned again since.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeFilesOf(gitDir, branchRef, keys, keep)
+/// removeFilesOf(gitDir, branchRef, keys, [])
 /// ```
-pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String]) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], keep);
+pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
 }
 
 /// Removes the plan files of one branch of `git_dir`,
@@ -210,7 +225,10 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
         if !records_this_branch(path.as_path(), git_dir, branch_ref) {
             continue;
         }
-        let _removed = std::fs::remove_file(path);
+        // A plan that stays says so, so a try the person was told about is not lost in silence.
+        if let Err(error) = std::fs::remove_file(path.as_path()) {
+            crate::service_warn!("the retry plan file {} could not be removed, so the next start reads it again: {error}", path.display());
+        }
     }
 }
 
@@ -243,22 +261,53 @@ fn newest_first(left: &(SystemTime, StoredPlan), right: &(SystemTime, StoredPlan
 }
 
 /// What:
+///  The plans in the directory,
+/// for a caller that only needs them.
+/// Why:
+///   `load_reporting` says more,
+/// and a caller that has a pause to try again reads that.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plans = loadReporting(dir).plans;
+/// ```
+pub fn load(directory: &Path) -> Vec<StoredPlan> {
+    return load_reporting(directory).plans;
+}
+
+/// What:
 ///  Reads every plan in the directory,
 /// one per branch,
 /// the newest file winning;
-/// a file that holds no plan is said and removed.
+/// a file that holds no plan is said and removed,
+/// and a file that could not be read is said and kept.
 /// Why:
 ///   A restarted service rebuilds its plan from these.
 /// Older files of a branch are what a kill between a save and its cleanup
 ///  leaves,
 /// and a file that cannot be read would otherwise be said at every start.
+///  "never discard user data":
+/// a read that failed says nothing about the plan inside the file,
+/// which may schedule a push that is neither done nor cancelled,
+/// so the file stays and the caller is told the journal is not fully read,
+/// and the next read either finds the plan or says so again.
+/// Only a file that was read and holds no plan is certainly of no use.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const plans = await load(dir) // one per branch
+/// const plans = loadReporting(dir) // one per branch, and whether something was unread
 /// ```
-pub fn load(directory: &Path) -> Vec<StoredPlan> {
-    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+pub fn load_reporting(directory: &Path) -> LoadedPlans {
+    let listing = match std::fs::read_dir(directory) {
+        Ok(listing) => listing,
+        // A journal that never held a plan.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return LoadedPlans::default(),
+        Err(error) => {
+            crate::service_warn!("the retry plans in {} could not be listed, so they are read again after a pause: {error}", directory.display());
+            return LoadedPlans { plans: Vec::new(), unread: true };
+        }
+    };
+    let mut unread: bool = false;
     let mut found: Vec<(SystemTime, StoredPlan)> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
@@ -269,15 +318,18 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
             Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
             Err(_) => SystemTime::UNIX_EPOCH,
         };
-        let decoded: Result<StoredPlan, String> = match std::fs::read_to_string(path.as_path()) {
-            Ok(text) => decode(text.as_str()),
-            Err(error) => Err(error.to_string()),
-        };
-        match decoded {
-            Ok(plan) => found.push((written, plan)),
-            Err(reason) => {
-                crate::service_warn!("the retry plan file {} holds no plan and is removed: {reason}", path.display());
-                let _removed = std::fs::remove_file(path.as_path());
+        match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => match decode(text.as_str()) {
+                Ok(plan) => found.push((written, plan)),
+                Err(reason) => {
+                    crate::service_warn!("the retry plan file {} holds no plan and is removed: {reason}", path.display());
+                    let _removed = std::fs::remove_file(path.as_path());
+                }
+            },
+            // A read that failed is no proof about the plan inside the file, so the file stays for the next read.
+            Err(error) => {
+                crate::service_warn!("the retry plan file {} could not be read, so it stays and is read again after a pause: {error}", path.display());
+                unread = true;
             }
         }
     }
@@ -295,7 +347,7 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
             plans.push(plan);
         }
     }
-    return plans;
+    return LoadedPlans { plans, unread };
 }
 
 /// Plan file controls stay out of the release executable.

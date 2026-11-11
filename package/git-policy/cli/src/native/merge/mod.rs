@@ -144,6 +144,15 @@ pub mod merge_isolation_message;
 /// read as its fetch and its merge of `FETCH_HEAD`.
 pub mod pull_isolation;
 
+/// The untracked files a pull's branch move would overwrite,
+/// kept before the failure is worded,
+/// and the words that name every copy.
+pub mod pull_untracked_paths_in_the_way;
+
+/// One such file or link copied beside the Git directory,
+/// and the numbered folder a pull's copies go into.
+pub mod pull_untracked_paths_in_the_way_kept_copies;
+
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 
@@ -215,6 +224,10 @@ pub mod merge_isolation_apply;
 /// and what a clear that met newer bytes does about them.
 pub mod merge_isolation_apply_stops;
 
+/// What a landed merge does when its branch moved while its own carry ran:
+/// the person's work is merged with the branch as it is now.
+pub mod merge_isolation_apply_moved;
+
 /// The words an isolated merge prints when it could not be finished now.
 pub mod merge_isolation_apply_findings;
 
@@ -225,6 +238,10 @@ pub mod merge_isolation_merge_tree;
 
 /// The questions an isolated merge asks Git and the terminal.
 pub mod merge_isolation_git_reads;
+
+/// The ignored untracked files of the person's that stand at the paths a merge writes,
+/// which `git status` never lists.
+pub mod merge_isolation_ignored_paths;
 
 /// The editor a merge opens for its message when the checkout holds the person's own work:
 /// the file it reads,

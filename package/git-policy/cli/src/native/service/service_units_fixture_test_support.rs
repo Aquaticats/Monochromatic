@@ -20,11 +20,41 @@ use crate::service_journal::DONE_EXTENSION;
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_units_of_removed_worktrees::UnitFolders;
 use crate::test_support::fixture;
+use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::PathBuf;
 
 /// The record the journal keeps of a landing that is in flight.
 const LANDING_RECORD_DIRECTORY: &str = "busy";
+
+/// What:
+///  Makes every entry of a journal,
+/// and the folder itself,
+/// older than the longest a client of it can read it.
+/// Why:
+///   A journal whose records are younger is kept by the cleanup however long its worktree has been gone,
+/// so a control that needs a journal the cleanup may remove ages it instead of waiting.
+pub fn age_a_journal(journal: &std::path::Path) {
+    let past: std::time::Duration = A_FINISHED_RECORD_IS_READ + std::time::Duration::from_secs(1);
+    if let Ok(listing) = std::fs::read_dir(journal) {
+        for entry in listing.flatten() {
+            age_by(entry.path().as_path(), past);
+        }
+    }
+    age_by(journal, past);
+}
+
+/// What:
+///  Move a path's times `older` into the past,
+/// without following a symbolic link and without waiting for that age to pass.
+/// Why:
+///   The product decides from a file's own time,
+/// so a control that needs an old one sets that time rather than sleeping;
+/// the directory needs no write permission for this and a fixture may have none.
+fn age_by(path: &std::path::Path, older: std::time::Duration) {
+    let when: std::time::SystemTime = std::time::SystemTime::now().checked_sub(older).expect("a fixture time after the epoch");
+    std::fs::File::open(path).expect("a fixture path to age").set_modified(when).expect("a fixture time to age");
+}
 
 /// One repository and one runtime directory on disk:
 /// a checkout's Git directory with linked worktrees' administrative directories under it.
@@ -92,6 +122,16 @@ impl Machine {
         std::fs::write(journal.join(format!("1.{DONE_EXTENSION}")), b"seq=1\n").expect("a finished batch");
         std::fs::write(journal.join(format!("2.{DONE_EXTENSION}")), b"seq=2\n").expect("a finished batch");
         std::fs::create_dir_all(journal.join(LANDING_RECORD_DIRECTORY)).expect("the landing's record");
+        return journal;
+    }
+
+    /// The same journal as one of a worktree that was removed long after its last commit:
+    /// every record in it,
+    /// and the folder itself,
+    /// older than the longest a client of it can look.
+    pub fn aged_settled_journal_of(&self, instance: &str) -> PathBuf {
+        let journal: PathBuf = self.settled_journal_of(instance);
+        age_a_journal(journal.as_path());
         return journal;
     }
 }

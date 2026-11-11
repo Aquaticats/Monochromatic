@@ -23,7 +23,7 @@ use super::supervisor::{
     unclaimed_kill, watch,
 };
 use super::supervisor_pin::{Delivered, Pin, end_tree};
-use super::supervisor_proc::{Look, Sample, children, describe, look_at, note_states, parse_io, parse_stat, stat_of, task_states, tick, tree_of};
+use super::supervisor_proc::{Look, Sample, children, describe, look_at, note_states, parse_io, parse_stat, stat_of, task_states, tick, tree_of, waits_for_an_answer};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -39,7 +39,7 @@ fn judge() -> Judge {
 /// two processes,
 /// nothing runnable.
 fn still() -> Sample {
-    return Sample { cpu_ticks: 7, activity: 100, child_faults: 40, processes: vec![(10, 1), (11, 1)], runnable: false, disk_wait: false, held: false };
+    return Sample { cpu_ticks: 7, activity: 100, child_faults: 40, processes: vec![(10, 1), (11, 1)], runnable: false, disk_wait: false, answer_wait: false, held: false };
 }
 
 /// A tree that shows nothing for the window is hung,
@@ -375,6 +375,51 @@ fn a_wait_for_the_disk_longer_than_the_window_is_not_a_hang() {
     if Duration::from_millis(100) * looks < limits.no_progress * 2 {
         eprintln!("DISK-WAIT CONTROL NOT EXERCISED: the volume under {} took the fsync in {looks} looks, less than the window", made.root.display());
     }
+    remove(&made);
+}
+
+/// What:
+///  A command waiting in a Unix socket's read is not this tree's hang,
+///  and its answer ends it.
+/// Why:
+///   The wrapper waits this way for the commit service's answer,
+/// and that answer's latency is the service's own disk work,
+///  which no look of this tree sees;
+/// on 2026-11-11 six `word_merge` controls failed on the idle rule while their
+///  answers were coming
+///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+#[test]
+fn a_wait_for_an_answer_over_a_socket_is_not_a_hang() {
+    let made: Fixture = fixture("supervisor-answer-wait");
+    let (answered, waiting) = std::os::unix::net::UnixStream::pair().expect("a socket pair");
+    let child_end: std::os::fd::OwnedFd = waiting.into();
+    let raw: std::os::fd::RawFd = std::os::fd::AsRawFd::as_raw_fd(&child_end);
+    let mut command: Command = Command::new("/bin/sh");
+    command.arg("-c").arg("read line <&3; printf '%s' \"$line\" > \"$PWD/said\"").current_dir(&made.root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    // SAFETY: `dup2` only copies a descriptor of this process into the child's table, which is all a `pre_exec` closure
+    //  may do; the descriptor stays owned here until this control ends.
+    unsafe {
+        std::os::unix::process::CommandExt::pre_exec(&mut command, move || {
+            return if libc::dup2(raw, 3) == -1 { Err(std::io::Error::last_os_error()) } else { Ok(()) };
+        });
+    }
+    let mut child: Child = command.spawn().expect("the script starts");
+    // Owned, so a script that waits here does not outlive a control that failed before it ended it.
+    own_group(&child);
+    // The window is short and the whole wait is several of them, so a tree asleep in the socket read is what is judged.
+    watch(child.id(), short(Duration::from_secs(120)));
+    let pid: i32 = id_of(&child);
+    assert!(until(MONITOR_PATIENCE, || { return waits_for_an_answer(pid); }), "the command reached the socket's read");
+    std::thread::sleep(short(CPU_BUDGET).no_progress * 4);
+    assert!(!kill_recorded(pid), "a command waiting for an answer over a socket was ended");
+    // The answer arrives, and the command finishes by itself, which is the proof the wait was the only thing holding it.
+    let mut answer: std::os::unix::net::UnixStream = answered;
+    std::io::Write::write_all(&mut answer, b"go\n").expect("the answer is written");
+    let status: std::process::ExitStatus = finish(&mut child, MONITOR_PATIENCE);
+    assert!(status.success(), "{status:?}");
+    assert_eq!(take_kill(child.id()), None, "a command that was answered was ended");
+    assert_eq!(std::fs::read(made.root.join("said")).expect("the answer the command read"), b"go");
     remove(&made);
 }
 

@@ -1544,6 +1544,75 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
     remove(root.as_path());
 }
 
+/// What:
+///  A journal whose owner is dead is recovered by a command run in the worktree whose files it fills,
+///  before that command's own creation runs Git,
+///  and the state it recovers is the state that worktree's own creation copies further.
+/// Why:
+///   Recovery never makes one worktree's command pay for another worktree's copy:
+/// staging and installing a source's ignored state costs what that tree costs,
+/// so the copy belongs to the worktree that needs its files
+/// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
+/// The command that does make it makes it before anything else it does,
+/// so nothing of the recovery is left for a later command to find here.
+/// The durability writes of its two settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
+#[cfg(unix)]
+#[test]
+fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
+    keep_the_durability_writes_in_the_page_cache();
+    let root: PathBuf = fixture("lifecycle-dead-journal");
+    let (main, common) = source(root.as_path());
+    // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the .gitignore file:
+    // the copy into `older` fills it, and `older`'s own creation copies it on.
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let older: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("older");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "older", older.to_str().expect("utf8")]);
+    let dead = journal_for(main.as_path(), common.as_path(), older.as_path(), &dead_copy_owner());
+    let topic: PathBuf = root.join("topic");
+    // What stands in the worktree each time its own creation starts real Git: no journal of its own, and its ignored
+    // state installed.
+    let mut seen_by_git: Vec<(bool, bool)> = Vec::new();
+    let invocation: Invocation = Invocation {
+        identity: WorktreeIdentity::LinkedWorktree {
+            common_dir: common.clone(),
+            git_dir: common.join("worktrees").join("older"),
+            worktree_root: older.clone(),
+        },
+        effective_cwd: older.clone(),
+        creates: true,
+        destination: Some(topic.clone()),
+        opted_out: false,
+        short_circuit: false,
+        context: git_context(),
+        add_plan: None,
+        repair: crate::package_repair::RepairSwitch::default(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_step: &GitStep<'_>| {
+            seen_by_git.push((dead.path.exists(), std::fs::read(older.join("cache/data")).is_ok()));
+            return Ok(run_real(older.as_path(), add_arguments("topic", topic.as_path()).as_slice()));
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    let text: String = String::from_utf8(stderr).expect("utf8");
+    assert!(text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"), "{text}");
+    assert!(!seen_by_git.is_empty(), "the creation ran Git");
+    assert_eq!(
+        seen_by_git,
+        vec![(false, true); seen_by_git.len()],
+        "the dead journal is gone and its copy is installed in the worktree before that worktree's own creation runs Git"
+    );
+    assert!(!dead.path.exists());
+    assert_eq!(std::fs::read(older.join("cache/data")).expect("recovered copy"), b"payload", "{text}");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("own copy"), b"payload", "{text}");
+    remove(root.as_path());
+}
+
 /// A command in the main checkout names a dead journal that fills another worktree and makes no copy there;
 /// the first command run in that worktree finishes it.
 ///
@@ -1558,7 +1627,7 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
 #[test]
 fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes_it() {
     keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-dead-journal");
+    let root: PathBuf = fixture("lifecycle-dead-journal-named-in-another-worktree");
     let (main, common) = source(root.as_path());
     let older: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("older");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "older", older.to_str().expect("utf8")]);

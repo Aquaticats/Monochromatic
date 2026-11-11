@@ -169,10 +169,12 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
                     // Part of the merge is in the index or the worktree, so the command must not go on reading the checkout.
                     let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its record");
                     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
+                    // The refusal's own sentence ends with a period, and this one follows it inside a sentence of its own, so
+                    //  the period it already carries is not written twice.
+                    let said: &str = refusal.error.0.strip_suffix('.').unwrap_or(refusal.error.0.as_str());
                     return Err(RecoveryError(format!(
-                        "A merge saved on {side_ref} for {target} is partly installed in this worktree: {}. Nothing more was changed \
+                        "A merge saved on {side_ref} for {target} is partly installed in this worktree: {said}. Nothing more was changed \
                          and the record {} was kept; check `git status` and `git stash list` before you commit anything.",
-                        refusal.error.0,
                         record.display()
                     )));
                 }

@@ -343,7 +343,7 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 ///  What finishes or removes an interrupted add,
 /// with the stale lock named first when one stands in the way.
 /// Why:
-///   `git -C <destination> reset --no-enforce-worktree --hard` cannot start while that lock exists,
+///   `git -C <destination> reset --no-enforce-worktree --hard --no-recurse-submodules` cannot start while that lock exists,
 /// and Git refuses it with
 /// `fatal: Unable to create '.../index.lock': File exists`;
 /// so the report names the file and the condition for removing it;

@@ -41,6 +41,7 @@ use crate::service_work::{Verdict, work_directory};
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
+use crate::worktree_trash_hand_over::Recorded;
 use crate::worktree_trash_manifest::{TrashManifest, is_trash_name};
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries_awaiting};
@@ -259,6 +260,11 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 /// and removing it would be a guess,
 /// so it is only named,
 ///  with the advice to look at it.
+/// The id of a trash's record is the trash's name,
+/// so a trash whose record the service settled as failed is not recorded
+///  again:
+/// that record is never claimed,
+/// and only the person removes the trash.
 /// Only a directory named the way the wrapper names a trash is looked at at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -274,27 +280,50 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
             continue;
         }
         let Some(manifest) = crate::worktree_trash_own_manifest::read(worktree, name.as_str()) else {
-            let _told = writeln!(
-                notices,
-                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none, and the trash cannot say what it is), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
-                entry.path().display()
-            );
+            let _told = writeln!(notices, "{}", left_words(entry.path().as_path(), "there is no record the service still works on, and the trash cannot say what it is"));
             continue;
         };
         let pending: PendingTrash = PendingTrash { destination: worktree.to_path_buf(), common_dir: git_dir.to_path_buf(), manifest, taken_over: 0, quiet: true };
-        let _told = match crate::worktree_trash::record_the_trash(&pending) {
-            Ok(()) => writeln!(
-                notices,
+        let said: String = match crate::worktree_trash::record_the_trash(&pending) {
+            Ok(Recorded::Written) => format!(
                 "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
                 entry.path().display()
             ),
-            Err(reason) => writeln!(
-                notices,
-                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the record of the trash cannot be written: {reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+            // The queue's id is the trash's name, so a record it already holds is this trash's record: one that waits is
+            //  emptied by the service, and one it gave up on never is; only the second is news, and the words say which.
+            Ok(Recorded::There) => format!(
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the trash says what it is, and a record of it is already in the queue, so the commit service empties it when it next runs for this repository, one trash at a time.",
                 entry.path().display()
             ),
+            Ok(Recorded::GivenUp) => left_words(entry.path().as_path(), "the commit service gave up on the record of this trash and never claims it again"),
+            Err(reason) => left_words(entry.path().as_path(), format!("the record of the trash cannot be written: {reason}").as_str()),
         };
+        let _told = writeln!(notices, "{said}");
     }
+}
+
+/// What:
+///  The line that names a trash nothing will empty,
+/// with the reason it stays where it is.
+/// Why:
+///   Three reasons leave a trash alone:
+/// it cannot say the wrapper made it,
+/// the record of it cannot be written,
+/// and
+///  the service gave up on its record;
+/// the person reads the same instruction for all three,
+/// so the sentence has one shape and
+///  only the reason changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftWords = (path, reason) => `... ${path} holds directories a snapshot left out that nothing will empty now (${reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.`;
+/// ```
+fn left_words(path: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now ({reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+        path.display()
+    );
 }
 
 /// The trash's own name,

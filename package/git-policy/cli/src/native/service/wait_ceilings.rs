@@ -716,9 +716,42 @@ pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 /// so a request nothing is landing costs one look and no wait.
 pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 
+/// How long the record of a batch that landed is kept after it was written,
+/// because a client of that batch may still read it or send its request again.
+/// Why:
+///   A client whose answer was lost reads the finished record to learn which commit its request became
+/// (`service_commit_looking_for_what_landed.rs`),
+/// and it sends the same request again to be told it already landed,
+/// so the record must outlive every client that can still be inside those two steps.
+/// A client's whole wait for an answer ends at `ANSWER_CEILING`,
+/// counted from its first send and longer than any batch takes to land,
+/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that;
+/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it.
+/// A record older than the sum cannot be read by any client of it,
+/// and the cleanup that removes a removed worktree's journal may then take it.
+pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+
+/// How long a command that stopped an instance's service waits for the manager to report its processes gone
+/// before it leaves the instance's journal to a later sweep.
+/// Why:
+///   A stop call returns when the job is queued (`systemd_dbus.rs`),
+/// so the journal may still be written while the report says the stop was taken,
+/// and removing it then can delete a record the service published in between
+/// or make its next write fail.
+///  Measured:
+/// nothing measures how long a service with nothing in flight takes to end after a stop;
+/// the service's own bound on settling a stop is `SETTLE_CEILING` (tens of seconds),
+/// which a worktree removal must not wait for.
+/// Two seconds is a pick under this brief,
+/// and a service that outlasts it keeps its journal and the files that name it,
+/// which the next sweep removes once the manager reports it gone.
+/// Open to the owner's veto.
+pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
+
 /// How long a commit waits before the wrapper says where it stands:
 /// the place the service reported,
-/// or that the service has not started on it.
+/// or that the service has not started on it,
+/// and the words of a write the command's own request is inside.
 /// A notice threshold,
 /// not a bound:
 /// nothing ends at it,
@@ -738,6 +771,12 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// Ten seconds is twice the owner's 5 s bound on what a commit may add to native Git,
 /// so a commit that finishes quickly says nothing,
 /// and 97 of 100 commits say nothing.
+/// A branch write is what the words of a write inside the service are about,
+/// and it is shorter than that by far:
+/// the 6,703 landings this host's service journal recorded from 2026-11-01 to 2026-11-11 took 5 ms at the median,
+/// 601 ms at the 99th percentile and 4,785 ms at the 99.9th,
+/// and 6 of them reached 5,000 ms,
+/// so a commit whose write is a normal one lands before this wait is over and says nothing of it.
 pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
 /// The environment variable that sets how long a commit waits before the wrapper says where it stands,

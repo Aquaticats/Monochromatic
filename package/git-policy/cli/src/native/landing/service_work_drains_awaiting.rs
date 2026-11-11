@@ -25,6 +25,7 @@
 //! const drained = await drainPlannedAwaiting(dir, handlers, now, retrying)
 //! ```
 
+use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_handlers_replanning_and_acceptance::{
     Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
@@ -36,8 +37,9 @@ use crate::service_work_storage_awaited::{
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, Retrying};
+use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
 use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::work_item::WorkKind;
 use std::path::{Path, PathBuf};
@@ -115,8 +117,15 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     //  keeps a kill in between from abandoning the branch in silence.
     requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
     run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning).await;
-    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, kinds).await;
-    let wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
+    // Housekeeping this round could not start keeps its records pending, and the answer says when to look at this directory
+    //  again: the earliest of the claim a holder still has and that look.
+    let housekeeping_wait: Option<Duration> =
+        drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
+    let claim_wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
+    let wait: Option<Duration> = match (claim_wait, housekeeping_wait) {
+        (Some(claim), Some(housekeeping)) => Some(claim.min(housekeeping)),
+        (claim, housekeeping) => claim.or(housekeeping),
+    };
     return Drained { wait, changes: replanning.changes };
 }
 
@@ -173,8 +182,13 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;
-    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds).await;
-    let wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
+    let housekeeping_wait: Option<Duration> =
+        drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
+    let claim_wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
+    let wait: Option<Duration> = match (claim_wait, housekeeping_wait) {
+        (Some(claim), Some(housekeeping)) => Some(claim.min(housekeeping)),
+        (claim, housekeeping) => claim.or(housekeeping),
+    };
     return Drained { wait, changes: replanning.changes };
 }
 
@@ -218,6 +232,31 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
             }
             Verdict::Retry(text) => {
+                // What:
+                //  A push the service has given every try it gives a protected-branch refusal is reported as failed,
+                //  with what the server
+                //  said and how long the tries covered.
+                // Why:
+                //  That refusal can clear by itself, so it is retried;
+                // and a rule of the branch that refuses every push (an unsigned commit on a
+                //  branch that requires signatures) refuses every try as well,
+                // so the tries end and the branch waits for the person
+                //  instead of for ever.
+                //  The words are the same whether or not this round keeps a plan,
+                // so a drain that reports a retryable failure as failed still names what the server said.
+                if out_of_tries(text.as_str(), due.attempt + 1) {
+                    let said: String = format!("{}\n{}", out_of_tries_words(replanning.first.unwrap_or(FIRST_PAUSE)), text);
+                    crate::service_warn!(
+                        "the push of {branch:?} failed on try {} of {PROTECTED_BRANCH_TRIES} and needs you: {}",
+                        due.attempt + 1,
+                        cause_line(text.as_str()).unwrap_or_default()
+                    );
+                    replanning.forget(git_dir, branch);
+                    if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await {
+                        crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                    }
+                    continue;
+                }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
                 let (said, outcome): (String, PushOutcome) = match replanning.first {
                     Some(first) => {

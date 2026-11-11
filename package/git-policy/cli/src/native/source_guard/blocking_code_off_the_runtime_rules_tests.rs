@@ -384,6 +384,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the one pause the plan keeps: the start retry of the forwarded command, which builds no runtime",
     },
     Allowed {
+        file: "service/service_is_gone_after_a_stop.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at a stopped service's end, on the synchronous sweep and removal commands, which build no runtime",
+    },
+    Allowed {
         file: "service/service_client.rs",
         rule: "blocking-sleep",
         why: "the client's pause between connects, on the synchronous commit command",
