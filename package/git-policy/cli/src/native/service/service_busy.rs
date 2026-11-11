@@ -165,6 +165,33 @@ pub struct LandingBoard {
     pub(crate) directory: PathBuf,
 }
 
+/// What:
+///  One record of this board, read as text,
+///  and nothing when the name holds no regular file or the read fails.
+/// Why:
+///  These reads answer a waiting client's beat (`service_reply.rs`) and the connection that answers a withdrawal,
+///  where an open that waited for a writer would hold back the proof of life and no timer could end it.
+///  Nothing but this process writes these records,
+///  so a pipe or a link at one of their names is another program's,
+///  and it names no write or decision of this board.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordText = (path) => { try { return readFileSync(openRegularFile(path), 'utf8'); } catch { return undefined; } };
+/// ```
+fn record_text(path: &std::path::Path) -> Option<String> {
+    let mut file: std::fs::File = crate::private_storage::open_regular_file(path).ok()?;
+    let mut text: String = String::new();
+    std::io::Read::read_to_string(&mut file, &mut text).ok()?;
+    return Some(text);
+}
+
+/// A decision file that is not a regular file is a failure of the winner's publish,
+/// and never an evidence of a cancellation.
+fn decision_read_failure() -> std::io::Error {
+    return std::io::Error::other("the decision another program published is not a regular file");
+}
+
 impl LandingBoard {
     /// A board for the service whose journal is `journal`,
     /// where a write counts as stuck after `slow_after`.
@@ -219,7 +246,7 @@ impl LandingBoard {
         //  crate, the checked rename where the filesystem has neither that nor hard links), removed whichever way it ends.
         return match write_private_file_unsynced(decision.as_path(), outcome.as_bytes()) {
             Ok(()) => Ok(Decision::Won),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(std::fs::read_to_string(decision.as_path())?)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(record_text(decision.as_path()).ok_or_else(decision_read_failure)?)),
             Err(error) => Err(error),
         };
     }
@@ -240,7 +267,7 @@ impl LandingBoard {
                 continue;
             }
             // A record that cannot be read or parsed leaves the answer unknown.
-            let Ok(record) = std::fs::read_to_string(path.as_path()) else {
+            let Some(record) = record_text(path.as_path()) else {
                 return Naming::Unknown;
             };
             let Some(intent) = parse_intent(record.as_str()) else {
@@ -307,7 +334,7 @@ impl LandingBoard {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            if matches!(std::fs::read_to_string(self.decision_path(id.as_str())), Ok(content) if content == LANDING) {
+            if matches!(record_text(self.decision_path(id.as_str()).as_path()), Some(content) if content == LANDING) {
                 let _removed = std::fs::remove_file(self.decision_path(id.as_str()));
             }
         }
@@ -315,14 +342,14 @@ impl LandingBoard {
 
     /// Whether the request of this identity is in the group the landing thread is landing.
     pub fn is_in_flight(&self, id: &str) -> bool {
-        return is_plain(id) && matches!(std::fs::read_to_string(self.decision_path(id)), Ok(content) if content == LANDING);
+        return is_plain(id) && matches!(record_text(self.decision_path(id).as_path()), Some(content) if content == LANDING);
     }
 
     /// The write the landing thread is inside,
     /// as `(millis when it began, command, detail, millis it has run)`,
     /// when there is one.
     fn running(&self) -> Option<(u128, String, Option<String>, u128)> {
-        let text: String = std::fs::read_to_string(self.directory.join(STEP_FILE)).ok()?;
+        let text: String = record_text(self.directory.join(STEP_FILE).as_path())?;
         let mut lines = text.lines();
         let began: u128 = lines.next()?.parse().ok()?;
         let command: String = String::from(lines.next()?);
@@ -512,9 +539,9 @@ impl LandingBoard {
             let Some(name) = confirmation.file_stem().and_then(std::ffi::OsStr::to_str) else { continue };
             let Some((id, token)) = name.split_once('.') else { continue };
             let decision: PathBuf = self.decision_path(id);
-            let names_this_token: bool = match std::fs::read_to_string(decision.as_path()) {
-                Ok(content) => withdrawal_token(content.as_str()) == Some(token),
-                Err(_unreadable) => false,
+            let names_this_token: bool = match record_text(decision.as_path()) {
+                Some(content) => withdrawal_token(content.as_str()) == Some(token),
+                None => false,
             };
             if names_this_token {
                 let _forgotten = std::fs::remove_file(decision);

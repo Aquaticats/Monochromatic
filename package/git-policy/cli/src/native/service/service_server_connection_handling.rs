@@ -139,7 +139,9 @@ impl NoteSource for StuckNotice {
     async fn note(&mut self) -> Option<ServiceMessage> {
         let board: Arc<LandingBoard> = Arc::clone(&self.board);
         let request: Option<String> = self.request.clone();
-        let last: Option<String> = self.last.take();
+        // Cloned rather than taken: a beat whose wait passes leaves this note to the next beat, and the words said last are still
+        //  the words that were said, so the same notice is not written twice.
+        let last: Option<String> = self.last.clone();
         return match run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); }).await {
             Ok((message, last_said)) => {
                 self.last = last_said;
