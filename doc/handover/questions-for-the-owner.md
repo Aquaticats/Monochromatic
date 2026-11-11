@@ -105,6 +105,147 @@ Write "push it" here to overrule this.
 The same fact raises a question that does need you,
 `What should the next push do with a commit its checks blocked?`.
 
+### Should forced checkouts and resets refuse when they would replace an ignored file?
+
+The discarding-commands branch hands a `switch` over an ignored file to Git,
+which refuses.
+Force overrides that:
+the agent measured that `git checkout -f --no-overwrite-ignore other` still replaced `.env`,
+and `git reset --hard` has no such option.
+In a clean linked worktree those forms can still replace an ignored file the target tree carries.
+
+The session will build option A unless you say otherwise,
+because you wrote "never discard user data":
+read the target tree and the ignored paths,
+refuse naming the paths they share.
+The agent estimates that adds 40 to 120 ms,
+only for these forms and only in a linked worktree.
+Option B is to accept it and document it.
+Option C,
+refusing whenever any ignored file exists,
+would refuse every worktree with `node_modules`.
+Ranking:
+A > B > C,
+because A protects the file at a small cost on a rare form,
+B leaves the loss in place,
+and C blocks routine work.
+
+### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
+
+The session picked the audit's recommendation,
+extending the fixed list,
+because it starts no process and is non-destructive.
+A fix agent is queued for it.
+Write "ask Git" here to change that.
+
+The policy exists so `git add` names the paths it stages
+(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
+It reads the arguments alone and compares each positional pathspec with four
+byte strings,
+`.`,
+`./`,
+`*` and `:/`
+(`package/git-policy/cli/src/native/command/command_add.rs:113`).
+Five spellings that Git resolves to the whole tree pass that list and staged
+every file in a reproduction:
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`
+(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
+finding 2).
+`:(top)` is the one a person writes expecting a scope rather than a sweep.
+A sixth,
+`:(top)/*`,
+fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
+`content-unavailable`,
+which is Git's own failure and not this choice.
+
+Recommended:
+extend the list with those five and name them in the rejection text,
+because the decision stays argument-only and starts no process before Git
+does,
+and the accidents this policy is about are the common spellings.
+The alternative asks Git what the pathspec selects,
+which catches every form including ones added to Git later,
+at the cost of one Git start per `git add`
+and a decision that no longer follows from the arguments.
+
+### May a moved-path note be added to records in `doc/decision/`?
+
+Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
+Agents may not edit `doc/decision/` without your approval,
+so these open issues are stuck on that alone:
+4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+The note would add a line beside each stale path and change no decision.
+
+Recommended:
+yes,
+for notes of that one kind only,
+because the original words stay and the records stop pointing nowhere.
+The alternative is to leave those issues open,
+and each stays a dead reference.
+
+### Should 30 packages declare a license? (issue 2994)
+
+30 `package/*/*/package.json` files have no `license` field,
+so no license text is due for them and none ships.
+This is a legal choice about your code,
+and nothing about it can be measured.
+Name a license,
+or say these packages stay undeclared.
+
+### Who owns the repository links in `package.json`? (issue 1124)
+
+221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
+and 3 link to the current organization.
+No rule owns those fields since the TypeScript tool went away,
+so they drift.
+
+Recommended:
+add a file-enforcer rule for `repository` and `homepage`,
+matching what it already does for `Cargo.toml`,
+so one run corrects them all and they stay correct.
+The alternative is a single rewrite with nothing to keep it true.
+
+### Are the three findings left on the stat-data landing worth another round?
+
+The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
+The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
+and the coordinator landed it with them open because each needs something unusual:
+
+- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
+- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
+  which moves no timestamp.
+- A FUSE filesystem leaves a read of a regular file unanswered.
+  That one is the open question about a stalled regular-file read in this file,
+  which also covers every other read of a regular file.
+
+In the first two,
+a file can be recorded as clean when its contents differ.
+Each is reachable only by another process acting in a window of microseconds.
+Say if any of them should get another round.
+
+### Conversion: is a late change of mode or owner a defect or accepted risk?
+
+An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
+because the comparison that decides the old tree can be deleted does not look at mode,
+owner or extended attributes.
+The coordinator read this as a defect and queued a fix,
+since that comparison exists to catch a late change.
+Say if you would rather accept the risk than pay for the wider comparison.
+
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,
@@ -469,13 +610,21 @@ Try asking better." about each.
 "Allow and log (Recommended)":
 "All four are deleted,
 exit 0,
-and the audit log records the command."
-The example held `node_modules/`,
+and the audit log records the command",
+about a linked worktree holding `node_modules/`,
 `dist/`,
 a `.env` copied from main and a hand-written `notes.local.txt`,
 all ignored.
-The main checkout always refuses,
-and that stays.
+It follows the earlier "Log only" for `git worktree remove`.
+The main checkout always refuses that clean,
+and that stays:
+an untracked file still refuses a `-x` clean in a linked worktree,
+and a tracked change still refuses every clean.
+`git clean -x` counts tracked and untracked work only,
+and `git clean -X` asks nothing and runs.
+Branch `fix/git-policy-cli-git-clean-in-a-linked-worktree-allowed-and-logged`,
+documented in `package/git-policy/cli/SPEC.md`,
+section "Discarding commands".
 
 ### A `git add` that selects the whole repository
 

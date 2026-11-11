@@ -14000,18 +14000,30 @@ because the wrapper never sees that command start.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
-A `clean` counts untracked files as well,
-and a `clean` that deletes ignored files counts what it deletes:
-`git clean -x` counts tracked,
-untracked and ignored files,
-and `git clean -X` counts ignored files only.
+A `clean` counts untracked files as well.
+An ignored file is not a reason to refuse a clean in a linked worktree,
+by the owner's answer of 2026-11-10 ("All four are deleted,
+exit 0,
+and the audit log records the command",
+after the same owner's "Log only" for `git worktree remove`,
+whose reason was that a refusal only moves the same loss to `rm -rf`):
+`git clean -x` counts tracked and untracked files,
+and `git clean -X`,
+which deletes ignored files and nothing else,
+asks nothing at all,
+runs,
+and leaves one `allowed` line whose `dirty` is `null`,
+because the policy asked no question.
+The main checkout still refuses both,
+a tracked change or an untracked file still refuses the clean that deletes it,
+and `git clean -fd` keeps the ignored files as it always did.
 A `git clean -X` that carries its own exclusion patterns (`-e`,
 `--exclude`,
 in every spelling Git's table accepts,
 clustered and abbreviated included) is measured by Git itself instead:
 Git adds those patterns to the ignore rules the clean applies,
 so a file the status reports as untracked is one this clean deletes and the status cannot say so.
-The question is `git clean --dry-run` over the same facts,
+The question is two `git clean --dry-run` runs over the same facts,
 rebuilt from them and never edited from the typed region
 (`-n`,
 `-f` as often as written and at least once,
@@ -14019,12 +14031,22 @@ rebuilt from them and never edited from the typed region
 the `-X` or `-x` mode,
 each `-e` pattern,
 then `--` and the paths),
+the second one without the `-e` patterns,
 because an edited region would carry `-i`,
 whose dry run reads the terminal,
 or `-q`,
 which would silence it;
 a dry run that prints nothing deletes nothing,
-and one Git refuses is a `fact-unavailable` finding.
+and a dry run Git refuses,
+either of the two,
+is a `fact-unavailable` finding.
+Both answers name a path the same way,
+so they are compared as Git printed them:
+only a path the first answer names and the second does not is one the patterns alone call ignored,
+and that path is an untracked file this clean would lose,
+so it is still refused.
+A path both answers name is one the worktree itself ignores,
+which is no reason to refuse anything any more.
 A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
@@ -14032,6 +14054,8 @@ which the status measurement over-reports rather than under-reports.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
+A form with no question of its own asks only for the location,
+so its one audit line stands beside the exempt and hatch lines that name no measurement either.
 A `HEAD`-moving form is rejected only while tracked changes exist.
 `git stash drop` and `git stash clear` are measured against the repository instead:
 they delete entries of `refs/stash`,
@@ -14601,6 +14625,11 @@ A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
+`dirty` is whether the worktree or the repository held what the form could destroy,
+`false` when the answer was no,
+and `null` when the policy asked nothing:
+a `git clean -X` in a linked worktree deletes ignored files only,
+so it has nothing to measure.
 The wrapper appends that line before it replaces itself with Git,
 so the line cannot know whether Git ran the deletion or refused it:
 `git branch -d` of a branch nothing else contains is refused,
