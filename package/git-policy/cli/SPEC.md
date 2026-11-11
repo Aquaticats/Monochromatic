@@ -2772,9 +2772,13 @@ with the same force:
   so it is Git's,
   which applies its own setting.
   The wrapper serves the removal only when no
-  registered path other than the target ends in the operand at a directory boundary,
+  registration other than the one this removal deletes ends in the operand at a directory boundary,
   ignoring ASCII case,
   which is at least every match Git's comparison can make under either setting.
+  Git's match counts registrations,
+  not directories,
+  so a second registration that reaches the same directory through a symbolic link is a second answer to Git and the
+  name stays Git's.
   An empty operand names no worktree (Git:
   "'' is not a working tree"),
   so it is Git's too.
