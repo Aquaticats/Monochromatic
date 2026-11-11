@@ -406,7 +406,6 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
     return stop_one_alone(manager, socket_unit_instance(instance).as_str());
 }
 
-
 /// What:
 /// Stops the socket unit of one instance through the manager,
 /// and removes the files that said it had units,
