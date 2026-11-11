@@ -13,9 +13,10 @@
 //! while an ignored file changes nothing.
 
 use super::*;
+use crate::fs_beneath_directory_chain::MOST_DIRECTORIES_HELD;
 use crate::parallel_test_support::{PATIENCE, hold_the_only_place};
 use crate::subvolume_index::StatFields;
-use crate::test_support::{age, fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{age, fixture, git, git_context, git_text, open_descriptors, remove, repository, restore_limit, set_soft_limit};
 use std::path::PathBuf;
 
 /// A repository with two tracked files,
@@ -41,6 +42,60 @@ fn aged_repository(root: &Path) -> PathBuf {
 fn check(repo: &Path) -> Result<CleanSource, CleanRefusal> {
     let git_dir: PathBuf = repo.join(".git");
     return check_clean(&git_context(), repo, git_dir.as_path(), git_dir.as_path());
+}
+
+/// The deepest of `depth` directories made below `root`,
+/// the first named `top` and every one after it `d`.
+///
+/// Why:
+/// one-character components keep the whole pathname below `PATH_MAX` at a depth no descriptor limit allows,
+/// and the first name orders the index entries of two such trees.
+fn deepest_of_nested_directories(root: &Path, top: &str, depth: usize) -> PathBuf {
+    let mut deepest: PathBuf = root.join(top);
+    std::fs::create_dir(deepest.as_path()).expect("the first directory of a nested tree");
+    for _ in 1..depth {
+        let next: PathBuf = deepest.join("d");
+        std::fs::create_dir(next.as_path()).expect("a directory of a nested tree");
+        deepest = next;
+    }
+    return deepest;
+}
+
+/// A tracked file one directory past the chain's bound is proven clean at a descriptor limit that fits the walk
+/// alone, when the tracked file at the bound was walked first.
+///
+/// Why:
+/// the paths of an index come in order;
+/// a deeper path walked while the chain still holds the directories of the path before it spends descriptors its own
+/// root's clone and first directory need, and a file that is there is refused as missing.
+#[test]
+fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room() {
+    let root: PathBuf = fixture("clean-past-chain-bound");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    // The tracked file at the bound and the one past it, so the walk fills the chain and then asks for the deeper
+    //  parent.
+    let at_bound: PathBuf = deepest_of_nested_directories(repo.as_path(), "a", MOST_DIRECTORIES_HELD);
+    std::fs::write(at_bound.join("f"), b"at the bound\n").expect("the file at the bound");
+    let past_bound: PathBuf = deepest_of_nested_directories(repo.as_path(), "b", MOST_DIRECTORIES_HELD + 1);
+    std::fs::write(past_bound.join("f"), b"past the bound\n").expect("the file past the bound");
+    for file in [at_bound.join("f"), past_bound.join("f")] {
+        age(file.as_path());
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=deep paths"]);
+    let git_dir: PathBuf = repo.join(".git");
+    // A walk before this one, so whatever the reading of the index and the object database keeps open is open at the
+    //  moment the limit is measured, and the room left is the walk's own.
+    check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path()).expect("a clean worktree at the ordinary limit");
+    // The room the walk gets beyond what it already holds: filling the chain takes one descriptor per kept directory,
+    //  and the walk past the bound then needs two, its root's clone and the directory it is opening.
+    let room: u64 = u64::try_from(MOST_DIRECTORIES_HELD + 1).expect("a count of descriptors");
+    let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + room);
+    let verdict = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path());
+    restore_limit(before);
+    let clean: CleanSource = verdict.expect("a clean worktree whose deepest tracked directory is past the chain's bound");
+    assert_eq!(clean.tracked, 2, "both tracked files are proven, the one at the bound and the one past it");
+    remove(root.as_path());
 }
 
 /// A clean,
