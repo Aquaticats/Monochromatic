@@ -3049,10 +3049,11 @@ by that name at any depth,
 because it holds the whole ignored state another worktree's copy is filling,
 credentials included,
 and nothing in the new worktree would name it.
-A file or a link whose name begins that prefix is no container and is carried like any other entry of the
-source.
+The ignored-state copy a worktree-creating command makes takes that leave-out by name,
+while the copy and the comparison of a conversion ask the entry's kind as well,
+so a file or a link whose name begins that prefix is the source's own ignored state there.
 A folder that holds nothing but such containers is no state of the source either,
-so a copy leaves it out whole instead of handing the new worktree an empty folder nothing names.
+so a conversion's copy leaves it out whole instead of handing the new worktree an empty folder nothing names.
 The repository root's own `.cache` is kept,
 because tasks read the tools and generated inputs it holds.
 Dependencies,
