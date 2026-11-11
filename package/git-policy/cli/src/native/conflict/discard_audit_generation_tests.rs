@@ -82,6 +82,36 @@ fn saved_conflict_line(root: &Path, copies: &[String]) -> String {
     return line.trim_end().to_string();
 }
 
+/// The real audit line of a `saved-nested-repository` decision that moved `copies` (each `path => place`).
+fn saved_nested_repository_line(root: &Path, copies: &[String]) -> String {
+    let place: (PathBuf, &'static str) = (root.join(".git"), "main");
+    let arguments = os_arguments(&["clean", "-f", "-f", "-d", "-X"]);
+    let line: String = audit_line(&AuditRecord {
+        time_millis: 1_700_000_000_000,
+        process: 1,
+        parent: 1,
+        form: DecidedForm::Guarded(GuardedCommand::CleanIgnoredOnly),
+        outcome: AuditOutcome::SavedNestedRepository,
+        place: &place,
+        git_dir: place.0.as_path(),
+        directory: root,
+        arguments: arguments.as_slice(),
+        dirty: None,
+        copies,
+        facts: &[],
+    });
+    return line.trim_end().to_string();
+}
+
+/// A saved repository that exists on disk,
+/// and the `path => place` text an audit line names it by.
+fn existing_repository_copy(root: &Path, name: &str) -> String {
+    let place: PathBuf = root.join(name);
+    std::fs::create_dir_all(place.join(".git")).expect("a saved repository");
+    std::fs::write(place.join("tracked.txt"), b"modified user data\n").expect("its work");
+    return format!("nested => {}", place.display());
+}
+
 /// A saved copy that exists on disk,
 /// and the `path => place` text an audit line names it by.
 fn existing_copy(root: &Path, name: &str) -> String {
@@ -245,4 +275,42 @@ fn a_line_that_may_name_a_copy_keeps_its_generation() {
     assert_eq!(numbered.last(), Some(&newest));
     assert_eq!(first_line_of(target.as_path(), 1), marker("g1"), "the doubtful line is still there to read");
     remove(root.as_path());
+}
+
+/// What:
+///  A `saved-nested-repository` line pins its generation exactly like a `saved-conflict` line:
+///  while the place it names exists,
+///  and not once that place is gone.
+/// Why:
+///   The line is the only pointer to a repository the clean took out of the worktree,
+///  so dropping it while the repository is still there would leave a person a directory
+///  nothing names.
+#[test]
+fn a_saved_nested_repository_line_pins_its_generation() {
+    let root: PathBuf = fixture("generations-nested-repository-pin");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let extra: u64 = 3;
+    let saved: String = existing_repository_copy(root.as_path(), "saved-nested");
+    write_generation(target.as_path(), 1, &[marker("g1"), saved_nested_repository_line(root.as_path(), &[saved])]);
+    for number in 2..=kept_generations() + extra - 1 {
+        write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    rotate_once(target.as_path(), "newest");
+    let newest: u64 = kept_generations() + extra;
+    let numbered: Vec<u64> = generations(target.as_path());
+    assert_eq!(numbered.first(), Some(&1), "the generation that names the repository stays: {numbered:?}");
+    assert_eq!(numbered.last(), Some(&newest));
+    // Once the place is gone, the line is like any other.
+    std::fs::remove_dir_all(root.join("saved-nested")).expect("the saved repository is gone");
+    let gone: PathBuf = fixture("generations-nested-repository-unpinned");
+    let unpinned_target: PathBuf = gone.join(AUDIT_FILE);
+    let missing: String = format!("nested => {}", gone.join("never-saved").display());
+    write_generation(unpinned_target.as_path(), 1, &[marker("g1"), saved_nested_repository_line(gone.as_path(), &[missing])]);
+    for number in 2..=kept_generations() + extra - 1 {
+        write_generation(unpinned_target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    rotate_once(unpinned_target.as_path(), "newest");
+    assert_ne!(generations(unpinned_target.as_path()).first(), Some(&1), "a place nothing holds pins nothing");
+    remove(root.as_path());
+    remove(gone.as_path());
 }

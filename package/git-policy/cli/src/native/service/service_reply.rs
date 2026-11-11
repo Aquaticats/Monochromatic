@@ -192,17 +192,32 @@ impl NoteSource for NothingToSay {
 /// What:
 ///  `write_until_answered`,
 /// where `note` is asked for a message whenever the beat is due,
-/// and what it returns is written before the
+/// and what it returns is written after that
 ///  beat.
 /// Why:
 ///   A client queued behind a write that never ends is told what the service is stuck in (`service_busy.rs`);
 /// the beat is the
 ///  one moment this task has nothing queued to write,
 /// so the notice rides on it and is asked for at most once a beat.
+///  The beat is written first because it is the proof of life the client's wait rests on,
+/// and the note reads the journal,
+///  which can wait on storage:
+/// a note asked first would hold back the beat,
+/// the answer behind it,
+///  and every later beat.
+///  A note still unanswered one beat later is left for the next beat,
+/// so a read that storage holds costs a note and never a beat:
+///  the writer's slowest interval becomes two beats,
+/// which is well inside the five seconds a client allows between messages
+///  (`HEARTBEAT_SILENCE`,
+/// `service_protocol.rs`).
+///  The source keeps the read it started (`StuckNotice`),
+/// so the beat behind a slow read waits for that same read and its words are written as soon as it answers,
+///  and a read that outlives many beats is made once and never queued behind itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (m === undefined) { const n = await note(); if (n && !write(n)) return; } if (!write(m ?? heartbeat)) return; }
+/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (m === undefined) { if (!write(heartbeat)) return; const n = await withTimeout(note(), every); if (n && !write(n)) return; } if (!write(m ?? heartbeat)) return; }
 /// ```
 pub async fn write_until_answered_noting<Stream: AsyncWrite + Unpin, Notes: NoteSource>(
     stream: &mut Stream,
@@ -220,12 +235,14 @@ pub async fn write_until_answered_noting<Stream: AsyncWrite + Unpin, Notes: Note
             // The reply was dropped and everything it queued has been read.
             Ok(None) => return,
             Err(_every_passed) => {
-                if let Some(notice) = note.note().await
-                    && !write_line(stream, &notice).await
-                {
+                if !write_line(stream, &ServiceMessage::Heartbeat).await {
                     return;
                 }
-                if !write_line(stream, &ServiceMessage::Heartbeat).await {
+                // A note still unanswered one beat later is left for the next beat, which waits for that same read rather than
+                //  starting another behind a storage that is already late.
+                if let Ok(Some(notice)) = tokio::time::timeout(every, note.note()).await
+                    && !write_line(stream, &notice).await
+                {
                     return;
                 }
             }

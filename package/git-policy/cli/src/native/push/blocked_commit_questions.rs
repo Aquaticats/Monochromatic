@@ -245,9 +245,12 @@ pub fn held_back_lines(git_dir: &std::path::Path, history: &ContextHistory<'_>) 
         // The branch's own upstream decides whether Git already holds a verdict's commit, so nothing is said about a commit the
         //  remote has.
         let upstream: Option<String> = upstream_of_a_branch(history, branch_ref.as_str());
-        match where_the_push_stops(history, branch_ref.as_str(), upstream.as_deref(), verdicts.as_slice()) {
+        // A commit whose own checks still run is named by the held line of its record, which every command already prints, so
+        //  nothing here is said about it: two lines for one wait would have to agree with each other as well as with the record.
+        match where_the_push_stops(history, branch_ref.as_str(), upstream.as_deref(), verdicts.as_slice(), &[]) {
             WhereThePushStops::Nothing => {}
             WhereThePushStops::Before(stopped) => lines.push(held_back_line(branch_ref.as_str(), &stopped)),
+            WhereThePushStops::Undecided(_waiting) => {}
             WhereThePushStops::Unanswered(stopped) => lines.push(unanswered_line(branch_ref.as_str(), &stopped)),
         }
     }

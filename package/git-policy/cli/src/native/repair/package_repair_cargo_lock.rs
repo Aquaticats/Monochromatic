@@ -17,7 +17,7 @@
 //!  or a command or person's newer write,
 //! and nothing at that moment can tell the two apart.
 //! A comparison of the file with the snapshot cannot say who wrote it,
-//!  so the bytes that stand there are kept whole under the worktree's Git directory
+//!  so the bytes that stand there are kept whole under the repository's Git directory
 //!  before the checked-out ones are put back
 //! (the owner's rule "never discard user data";
 //! a review of `ee545033ad`,
@@ -105,10 +105,60 @@ pub fn read_lock(root: &Path) -> Option<Vec<u8>> {
 /// const said = restoreLock({ root, before, keptIn }); // string | undefined
 /// ```
 pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) -> Option<String> {
+    return put_the_checkout_back(root, before, kept_in, None);
+}
+
+/// What:
+///  Put `Cargo.lock` back as `before` read it only when the bytes standing there are the ones the clean's own
+/// resolution of the workspace wrote,
+/// and leave whatever else stands there exactly as it is found.
+/// Why:
+///   This face is the commit service's,
+/// and it runs after the add returned,
+/// when the person may be working in the worktree:
+/// a write standing there when the clean ends may be theirs,
+/// and replacing it would be the repair discarding what a person wrote.
+/// `cargo clean` rewrites a lock that no longer matches its manifest,
+/// so its caller asks Cargo for that resolution before the clean runs and gives the clean `--locked`,
+/// which keeps the clean itself from writing the lock at all;
+/// the bytes that resolution wrote are Cargo's,
+/// so a file equal to them is the clean's own and the checked-out bytes may go back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = restoreOnlyTheCleansOwn({ root, before, keptIn, theCleansOwn }); // string | undefined
+/// ```
+pub fn restore_only_the_cleans_own(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, the_cleans_own: &[u8]) -> Option<String> {
+    return put_the_checkout_back(root, before, kept_in, Some(the_cleans_own));
+}
+
+/// What:
+///  `restore_lock`'s work,
+/// with the write it may displace judged first when the caller knows which bytes its own clean wrote.
+/// Why:
+///   Both faces keep the bytes they displace and put the checked-out lock back;
+/// only the service can tell a clean's own write from a person's,
+///  and that answer is read before anything is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putTheCheckoutBack({ root, before, keptIn, onlyWhen }): string | undefined;
+/// ```
+fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, only_when: Option<&[u8]>) -> Option<String> {
     let path: PathBuf = root.join(LOCK_FILE);
     let after: Option<Vec<u8>> = std::fs::read(&path).ok();
     if after.as_deref() == before {
         return None;
+    }
+    // A chained condition keeps the two readings of one write together: whose bytes stand there, and whether they are ours.
+    if let Some(the_cleans_own) = only_when
+        && after.as_deref() != Some(the_cleans_own)
+    {
+        return Some(format!(
+            "the {LOCK_FILE} of {} was written while the clean ran and does not hold what that clean's own resolution wrote, so it is left exactly as \
+             it is found; `git diff -- {LOCK_FILE}` in that worktree shows it",
+            path.display()
+        ));
     }
     let kept: Option<PathBuf> = match (kept_in, after.as_deref()) {
         // Nothing stands there, so nothing is displaced and nothing has to be kept.
@@ -171,8 +221,8 @@ fn put_back(path: &Path, before: Option<&[u8]>) {
 /// Why:
 ///   The copy is outside the worktree,
 ///  so the checked-out tree stays clean,
-///  and inside its Git directory,
-///  so it belongs to the worktree that lost them.
+///  and inside the repository's Git directory,
+///  so a removal of the worktree that lost them does not take it with it.
 /// Its name is the lock's own path in hexadecimal
 ///  under a directory per path,
 ///  so two workspaces of one worktree never write over each other,

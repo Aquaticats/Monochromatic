@@ -55,9 +55,17 @@ fn a_workspace_is_listed_once_in_root_order() {
     assert_eq!(distinct.iter().map(|each| { return each.root.clone(); }).collect::<Vec<PathBuf>>(), vec![PathBuf::from("/w/a"), PathBuf::from("/w/b")]);
 }
 
-/// Facts for a source that has the counterpart workspace.
+/// Facts for a source that has the counterpart workspace,
+/// with both of the worktree's directories inside it once their links are followed.
 fn facts(source_build: &str) -> StateFacts {
-    return StateFacts { source_build: Some(PathBuf::from(source_build)), source_build_exists: true, destination_build_exists: false, destination_target_exists: true };
+    return StateFacts {
+        source_build: Some(PathBuf::from(source_build)),
+        source_build_exists: true,
+        destination_build_exists: false,
+        destination_target_exists: true,
+        destination_build_is_inside: true,
+        destination_target_is_inside: true,
+    };
 }
 
 /// An external build directory that the copy did not carry is filled by the commit service,
@@ -85,6 +93,36 @@ fn an_absent_in_tree_state_needs_nothing() {
     let mut absent: StateFacts = facts("/w/old/ws/target");
     absent.destination_target_exists = false;
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &absent), BuildStatePlan::Nothing(_)));
+}
+
+/// What:
+///  A copied `target/` that is a link to a directory outside the worktree is left alone.
+/// Why:
+///   The copy of the ignored state copies the link,
+/// so `cargo clean --package` run in the worktree would delete the files of the directory the link names,
+///  which is the source checkout's build output when both checkouts share one.
+/// A repair deletes only from directories the worktree it serves holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// planBuildState(destination, root, { ...facts, destinationBuildIsInside: false }) // Nothing
+/// ```
+#[test]
+fn a_build_directory_a_link_carries_out_of_the_worktree_is_left_alone() {
+    let destination: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
+    // Each of the two directories the clean deletes from, one at a time.
+    for outside in ["build", "target"] {
+        let mut linked: StateFacts = facts("/w/old/ws/target");
+        if outside == "build" {
+            linked.destination_build_is_inside = false;
+        } else {
+            linked.destination_target_is_inside = false;
+        }
+        assert!(
+            matches!(plan_build_state(&destination, Path::new("/w/new"), &linked), BuildStatePlan::Nothing(_)),
+            "a {outside} directory that resolves outside the worktree is not cleaned"
+        );
+    }
 }
 
 /// A build directory shared by source and worktree is never cleaned:

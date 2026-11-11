@@ -40,9 +40,9 @@ use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_cargo::{repair_cargo, repair_cargo_awaiting};
-use crate::package_repair_pnpm::{PnpmNeed, manual_command as pnpm_manual_command, repair_pnpm, repair_pnpm_awaiting};
+use crate::package_repair_pnpm::{PnpmNeed, repair_pnpm, repair_pnpm_awaiting};
 use crate::package_repair_prewarm::common_directory_awaiting;
-use crate::package_repair_relink::{RelinkEntry, RelinkTool, hand_over_in_a_job};
+use crate::package_repair_relink::{NotTaken, QueuedRelink, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
 /// What the repairs read,
 /// who asks,
 /// and the switches of the person;
@@ -172,28 +172,24 @@ fn report(destination: &Path, findings: Vec<Finding>, quiet: bool, notices: &mut
 
 /// What:
 ///  What the add tells the person about one tool it handed over:
-/// the tool's line when the record reached the service,
-/// and a line naming the command when it did not.
+/// the tool's line when the record reached the service.
 /// Why:
-///   A hand-over that could not reach the service leaves the worktree in the state the copy left it,
-/// so the person is told and given the command,
-/// and the record that stays is named in the log.
+///   The record is the service's work,
+/// so the line says the relinking happens after this command returns;
+/// a hand-over no service took is the add's own run,
+/// and each tool reports it as it always did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const handedOver = (tool, told, millis, destination) => Finding
+/// const handedOver = (tool, millis, destination) => Finding
 /// ```
-fn handed_over(tool: RelinkTool, told: &Result<Result<(), String>, BlockingJobError>, millis: u128, destination: &Path) -> Finding {
-    let (as_report, detail, manual): (Tool, &str, String) = match tool {
-        RelinkTool::Pnpm => (Tool::Pnpm, "pnpm will relink the copied node_modules here", pnpm_manual_command(destination)),
-        RelinkTool::Toolchain => (Tool::Toolchain, "mpm-shadow will rebuild the toolchain links here", String::from(TOOLCHAIN_MANUAL_COMMAND)),
+fn handed_over(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
+    let (as_report, detail): (Tool, &str) = match tool {
+        RelinkTool::Pnpm => (Tool::Pnpm, "pnpm will relink the copied node_modules here"),
+        RelinkTool::Toolchain => (Tool::Toolchain, "mpm-shadow will rebuild the toolchain links here"),
     };
-    let outcome: Outcome = match told {
-        Ok(Ok(())) => Outcome::Repaired { detail: format!("{detail}, because the commit service runs it after this command returns"), millis },
-        Ok(Err(reason)) => Outcome::Failed { reason: format!("the record that relinks {detail} stays, and it could not be handed to the commit service ({reason})"), run_instead: manual },
-        Err(refusal) => Outcome::Failed { reason: format!("the record that relinks {detail} could not be written ({refusal})"), run_instead: manual },
-    };
-    return Finding { tool: as_report, outcome };
+    debug(TAG, format!("{}: {} is the service's work", destination.display(), tool.name()).as_str());
+    return Finding { tool: as_report, outcome: Outcome::Repaired { detail: format!("{detail}, because the commit service runs it after this command returns"), millis } };
 }
 
 /// What:
@@ -206,7 +202,7 @@ fn handed_over(tool: RelinkTool, told: &Result<Result<(), String>, BlockingJobEr
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string };
+/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string; queued?: QueuedRelink };
 /// ```
 enum Told {
     /// The record reached the service,
@@ -215,8 +211,9 @@ enum Told {
     Taken(u128),
     /// No service took the record,
     /// so the add relinks the worktree here;
-    /// the text says why the hand-over failed.
-    Stays(String),
+    /// the text says why the hand-over failed,
+    /// and the record still queued is taken back after this run has finished.
+    Stays { reason: String, queued: Option<QueuedRelink> },
 }
 
 /// What:
@@ -226,8 +223,9 @@ enum Told {
 /// Why:
 ///   The record and the wake are storage and socket waits,
 /// so they run as a job of the blocking pool and never on the task that also runs the Cargo repair;
-/// a service that cannot be told leaves the record for its next round,
-/// and the add relinks the worktree itself.
+/// a hand-over no service took takes its record back,
+/// and the add relinks the worktree itself,
+/// so no record waits for a directory that may hold other work later.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -236,20 +234,20 @@ enum Told {
 async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) -> Told {
     let began: Instant = begin_work();
     let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
-    let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
+    let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
         Ok(common) => {
             let state: crate::package_repair_relink::TheHandOver =
                 (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        Err(reason) => Ok(Err(reason)),
+        Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
     };
     end_work("relinkHandOver", began);
     let millis: u128 = began.elapsed().as_millis();
     return match told {
         Ok(Ok(())) => Told::Taken(millis),
-        Ok(Err(reason)) => Told::Stays(reason),
-        Err(refusal) => Told::Stays(format!("{refusal}")),
+        Ok(Err(not_taken)) => Told::Stays { reason: not_taken.reason, queued: not_taken.queued },
+        Err(refusal) => Told::Stays { reason: format!("{refusal}"), queued: None },
     };
 }
 
@@ -260,7 +258,7 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
 /// Why:
 ///   The copied links must work at the new location before the person's next command there,
 /// so a session that cannot reach a service does what the add always did,
-/// and the record that stays only makes the service repeat a relink that changes nothing.
+/// and the record that hand-over wrote is taken back by then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -323,21 +321,32 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
     if tools.is_empty() {
         return findings;
     }
-    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), tools: tools.clone() };
+    // The add's environment travels as the three answers it can be: a path it held, no path at all, or (for a record this
+    //  release reads and writes again) none recorded.
+    let search_path: SearchPathOfTheAdd = match request.environment.search_path.as_ref() {
+        None => SearchPathOfTheAdd::Unset,
+        Some(path) => SearchPathOfTheAdd::Set(path.clone()),
+    };
+    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path, tools: tools.clone() };
     let told: Told = hand_over_the_record(request, &entry).await;
     match told {
         Told::Taken(millis) => {
             for tool in tools {
-                let finding: Finding = handed_over(tool, &Ok(Ok(())), millis, request.destination);
+                let finding: Finding = handed_over(tool, millis, request.destination);
                 match tool {
                     RelinkTool::Pnpm => findings.pnpm.push(finding),
                     RelinkTool::Toolchain => findings.toolchain.push(finding),
                 }
             }
         }
-        Told::Stays(reason) => {
+        Told::Stays { reason, queued } => {
             debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
+            // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
+            //  worktree this record names rather than nothing at all.
+            if let Some(still_queued) = queued {
+                still_queued.take_back();
+            }
             findings.pnpm.extend(here.pnpm);
             findings.toolchain.extend(here.toolchain);
         }

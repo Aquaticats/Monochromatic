@@ -25,7 +25,7 @@ const TARGET_PROVIDER = 'qwen-token-plan-individual';
 //region Types
 
 /**
- One chat model as the registry reports it.
+ One catalog model as the registry reports it.
  */
 type ProbeModel = {
   readonly id: string;
@@ -33,6 +33,18 @@ type ProbeModel = {
   readonly maxTokens: number;
   readonly reasoning: boolean;
   readonly thinkingLevelCount: number;
+};
+
+/**
+ One registry entry fields the assertions read,
+ before the thinking-level count is derived.
+ */
+type RegistryModel = {
+  readonly id: string;
+  readonly contextWindow: number;
+  readonly maxTokens: number;
+  readonly reasoning: boolean;
+  readonly thinkingLevelMap?: Readonly<Record<string, unknown>>;
 };
 
 /**
@@ -97,38 +109,43 @@ function isRecord(value: unknown,): value is Record<string, unknown> {
 }
 
 /**
- Narrow one registry entry to the fields the assertions read.
+ Test whether an unknown registry entry carries the fields the assertions
+ read.
 
  @param value - one entry of `registry.getAll()`
 
- @returns the projection, or `undefined` when the entry carries no model id
+ @returns whether the entry reads as a model
  */
-function toProbeModel(value: unknown,): ProbeModel | undefined {
-  if (!isRecord(value,))
-    return undefined;
-  if ((typeof value.id) !== 'string')
-    return undefined;
-  if ((typeof value.contextWindow) !== 'number')
-    return undefined;
-  if ((typeof value.maxTokens) !== 'number')
-    return undefined;
-  if ((typeof value.reasoning) !== 'boolean')
-    return undefined;
+function isRegistryModel(value: unknown,): value is RegistryModel {
+  return isRecord(value,)
+    && ((typeof value.id) === 'string')
+    && ((typeof value.contextWindow) === 'number')
+    && ((typeof value.maxTokens) === 'number')
+    && ((typeof value.reasoning) === 'boolean');
+}
+
+/**
+ Narrow one registry entry to the fields the assertions read.
+
+ @param model - registry entry already narrowed by `isRegistryModel`
+
+ @returns the report projection of the entry
+ */
+function toProbeModel(model: RegistryModel,): ProbeModel {
   /**
-   Thinking levels the model pins, counted for the assertions.
+   Count of thinking levels the model pins,
+   zero when it pins none.
    */
-  const thinkingLevelMap = value.thinkingLevelMap;
-  const thinkingLevelCount = ((typeof thinkingLevelMap) === 'object')
-    && (thinkingLevelMap !== null)
-    ? Object.keys(thinkingLevelMap,)
-      .length
-    : 0;
+  const pinnedThinkingLevels = model.thinkingLevelMap === undefined
+    ? 0
+    : Object.keys(model.thinkingLevelMap,)
+      .length;
   return {
-    id: value.id,
-    contextWindow: value.contextWindow,
-    maxTokens: value.maxTokens,
-    reasoning: value.reasoning,
-    thinkingLevelCount,
+    id: model.id,
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+    reasoning: model.reasoning,
+    thinkingLevelCount: pinnedThinkingLevels,
   };
 }
 
@@ -164,10 +181,8 @@ function snapshot(
       .filter(function isRouteModel(entry,) {
         return isRecord(entry,) && (entry.provider === TARGET_PROVIDER);
       },)
-      .map(toProbeModel,)
-      .filter(function keptModel(model,) {
-        return model !== undefined;
-      },),
+      .filter(isRegistryModel,)
+      .map(toProbeModel,),
   },);
 }
 

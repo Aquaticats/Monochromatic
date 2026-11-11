@@ -9,6 +9,11 @@
 //! The pass is all-or-nothing still:
 //! a file is resolved only when every region resolves,
 //! so a file Git left conflicted and this cannot settle whole stays exactly as Git left it.
+//!  The markers of the answer carry labels made unguessable for every merge,
+//! so a line of the person's file that already looks like a marker is the file's own text:
+//! the labels are what tells Git's delimiters from what the file held
+//! (cross-vendor review of round 133,
+//! finding 2).
 //! Measured on 723 files that both sides of a two-parent merge changed and that plain line merging
 //! conflicts on,
 //! from 3,194 merges of this repository,
@@ -23,8 +28,13 @@
 //! ```
 
 use crate::merge_second_pass::{Conflict, GitReply, GitRunner};
-use crate::merge_second_pass_line_regions::{cut, lines_before, offset_from_line};
+use crate::merge_second_pass_line_regions::{MarkerLabels, cut, lines_before, offset_from_line};
 use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
+
+/// How many conflicts Git counts in its exit status at most:
+/// a merge with more conflicts exits with this status as well,
+/// so a status of `CONFLICT_STATUS_CEILING` means that many or more.
+const CONFLICT_STATUS_CEILING: i32 = 127;
 
 /// What:
 ///  The merge of one candidate file:
@@ -41,6 +51,11 @@ use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
 /// (`doc/planning/cli-git-merge-auto-resolution.md`).
 /// A file is still resolved only when every region resolves,
 /// so a file Git left conflicted and the pass cannot settle whole stays exactly as Git left it.
+///  A marker line is Git's own only when it carries the label this call gave the merge,
+/// and those labels are a fresh random value per call,
+/// so a block already in the person's file that looks like a conflict is left as text:
+/// Git does not escape the markers it writes,
+/// and the count in Git's exit status cannot tell the two apart at its ceiling.
 /// `Err` means Git could not be started or answered with something that is not a merge;
 /// the caller then leaves every conflict as Git left it.
 ///
@@ -52,6 +67,17 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
     let (Some(base_stage), Some(ours_stage), Some(theirs_stage)) = (&conflict.base, &conflict.ours, &conflict.theirs) else {
         return Ok(WordMerge::Conflict { unresolved: 1 });
     };
+    // The labels are made unguessable for every merge, because Git does not escape the markers it writes: a line of the
+    // file that looks like a marker of its own cannot be told from a region by the count alone, and Git's status stops
+    // counting at `CONFLICT_STATUS_CEILING`.
+    let nonce: String = match crate::random_id::random_uuid() {
+        Ok(made) => made,
+        Err(error) => return Err(format!("no label for the line merge of this file: {}", error.0)),
+    };
+    let ours_label: String = format!("ours-{nonce}");
+    let base_label: String = format!("base-{nonce}");
+    let theirs_label: String = format!("theirs-{nonce}");
+    let labels: MarkerLabels<'_> = MarkerLabels { ours: ours_label.as_bytes(), base: base_label.as_bytes(), theirs: theirs_label.as_bytes() };
     let reply: GitReply = runner
         .run(
             &[
@@ -60,11 +86,11 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
                 "--object-id",
                 "--zdiff3",
                 "-L",
-                "ours",
+                ours_label.as_str(),
                 "-L",
-                "base",
+                base_label.as_str(),
                 "-L",
-                "theirs",
+                theirs_label.as_str(),
                 ours_stage.oid.as_str(),
                 base_stage.oid.as_str(),
                 theirs_stage.oid.as_str(),
@@ -77,14 +103,19 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
         // A merge with no conflict left is Git's clean answer, and there is no region to word-merge.
         Some(0) => return Ok(WordMerge::Resolved { merged: reply.stdout, parts: Vec::new() }),
         // The exit status of `git merge-file` is the number of conflicts, truncated to 127.
-        Some(count) if (1..=127).contains(&count) => usize::try_from(count).expect("a conflict count is positive"),
+        Some(count) if (1..=CONFLICT_STATUS_CEILING).contains(&count) => usize::try_from(count).expect("a conflict count is positive"),
         other => return Err(format!("git merge-file answered with {other:?}: {}", String::from_utf8_lossy(&reply.stderr).trim())),
     };
-    let cut = cut(reply.stdout.as_slice())?;
-    // Git reports the number of conflicts as its exit status, so a cut that finds another number read
-    // the answer wrongly. The status is truncated to 127, so the comparison is only exact below that.
-    if conflicts < 127 && cut.regions.len() != conflicts {
+    let cut = cut(reply.stdout.as_slice(), &labels)?;
+    let ceiling: usize = usize::try_from(CONFLICT_STATUS_CEILING).expect("the conflict status ceiling is positive");
+    // Git reports the number of conflicts as its exit status, so a cut that finds another number read the answer wrongly.
+    // The status stops counting at its ceiling, so at that count the answer may hold more regions than Git counted, never
+    // fewer.
+    if conflicts < ceiling && cut.regions.len() != conflicts {
         return Err(format!("git merge-file reported {conflicts} conflicts and its answer holds {}", cut.regions.len()));
+    }
+    if conflicts == ceiling && cut.regions.len() < conflicts {
+        return Err(format!("git merge-file reported {conflicts} or more conflicts and its answer holds {}", cut.regions.len()));
     }
     let mut merged: Vec<u8> = Vec::new();
     let mut parts: Vec<MergedPart> = Vec::new();

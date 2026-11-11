@@ -43,6 +43,23 @@ pub(crate) struct PushRunner<'a> {
 /// the size and the line feed.
 const CAT_FILE_HEADER_BYTES: u64 = 128;
 
+/// The most bytes one `merge-file` of the second pass may print:
+/// the three stages it is given,
+/// the text Git settled around its regions,
+/// and room for the marker lines of many regions.
+/// Why:
+///   A stage the pass takes is at most `LARGEST_STAGE_BYTES`,
+/// and its answer holds the text Git settled plus the three sides of every region,
+/// so it is at most those three stages and the settled text,
+/// four stages;
+/// each region adds four marker lines of about fifty bytes,
+/// and the push report's own cap leaves room for about twenty-six thousand of them.
+/// An answer larger than that is refused and the path stays as Git left it,
+/// for the person to resolve;
+/// the report's own cap alone refused merges the pass resolves
+/// (`merge_second_pass.rs`).
+const MERGE_FILE_ANSWER_BYTES: u64 = 4 * LARGEST_STAGE_BYTES + MAX_PUSH_OUTPUT;
+
 /// What:
 ///  The largest answer one command of the second pass may print.
 /// Why:
@@ -52,23 +69,30 @@ const CAT_FILE_HEADER_BYTES: u64 = 128;
 ///  answer for the names it asks for is bounded and a larger one would be refused after being read:
 /// the ceiling stops the command
 ///  instead of holding a blob the pass would not take.
+/// `merge-file --stdout` prints the merge of three stages,
+/// so its answer is larger than each of them
+/// and the push report's cap would refuse a merge the pass resolves.
 /// Every other command of the pass prints a line or nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const cap = (args, input) => args[0] !== 'cat-file' ? MAX_PUSH_OUTPUT : Math.max(MAX_PUSH_OUTPUT, names * (LARGEST_STAGE_BYTES + 128));
+/// const cap = (args, input) => args[0] === 'cat-file' ? Math.max(MAX_PUSH_OUTPUT, names * (LARGEST_STAGE_BYTES + 128)) : args[0] === 'merge-file' ? MERGE_FILE_ANSWER_BYTES : MAX_PUSH_OUTPUT;
 /// ```
 fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
-    if arguments.first() != Some(&"cat-file") {
-        return MAX_PUSH_OUTPUT;
-    }
-    let mut asked: u64 = 0;
-    for byte in input.unwrap_or_default() {
-        if *byte == b'\n' {
-            asked += 1;
+    match arguments.first() {
+        // The names `cat-file` asks for are counted from its input; every other command gets a fixed ceiling.
+        Some(&"cat-file") => {
+            let mut asked: u64 = 0;
+            for byte in input.unwrap_or_default() {
+                if *byte == b'\n' {
+                    asked += 1;
+                }
+            }
+            return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
         }
+        Some(&"merge-file") => return MERGE_FILE_ANSWER_BYTES,
+        _ => return MAX_PUSH_OUTPUT,
     }
-    return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
 }
 
 /// What:

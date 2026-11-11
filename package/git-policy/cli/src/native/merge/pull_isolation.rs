@@ -37,9 +37,10 @@ use crate::service_index_wait::wait_for_service_hold_here;
 /// The inherited environment,
 /// which decides whether the reflog message is already set.
 use crate::child_environment::environment_value;
-/// The one spelling of the worktree guard's hatch,
-/// which the fast-forward failure's recovery line names.
-use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
+/// The untracked files the fetch's branch move would overwrite,
+/// kept before the failure is worded,
+/// and the words that name every copy.
+use crate::pull_untracked_paths_in_the_way::{UntrackedInTheWay, keep_the_untracked_paths_in_the_way, recovery_words};
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
 /// The command a pull becomes.
@@ -175,21 +176,31 @@ pub fn plan_pull(region: &[OsString]) -> Option<PullPlan> {
 }
 
 /// What:
-///  Whether a boolean setting says "no",
-/// the way Git reads `false`,
-/// `no`,
-/// `off`,
-/// `0` and the empty value.
+///  What the rebase settings say about one pull.
 /// Why:
-///   `pull.rebase` and `branch.<name>.rebase` are booleans or one of `merges` and `interactive`;
-/// only a "no" is a merge.
+///   `pull.rebase` and `branch.<name>.rebase` are booleans or one of `merges` and `interactive`,
+/// and only a value Git reads as no is a merge.
+/// A value that is a rebase,
+/// or one Git refuses,
+/// keeps the whole pull native,
+/// which words that refusal itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isNo = (value: string) => ['false', 'no', 'off', '0', ''].includes(value.toLowerCase());
+/// type RebaseStatement = 'unstated' | 'merge' | 'notMerge';
 /// ```
-fn says_no(value: &str) -> bool {
-    return matches!(value.to_ascii_lowercase().as_str(), "false" | "no" | "off" | "0" | "");
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RebaseStatement {
+    /// Neither setting is present,
+    /// so a typed `--ff` or `--no-ff` is the only thing that states a merge.
+    Unstated,
+    /// The setting Git reads says no:
+    /// this pull merges.
+    Merge,
+    /// The setting says a rebase,
+    /// a mode this does not mirror,
+    /// or a value Git refuses.
+    NotMerge,
 }
 
 /// What:
@@ -209,47 +220,30 @@ fn says_no(value: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function mergeIsStated(plan: PullPlan, settings: Map<string, string>, branch: string): boolean;
+/// function mergeIsStated(plan: PullPlan, settings: string[], rebase: RebaseStatement): boolean;
 /// ```
-pub fn merge_is_stated(plan: &PullPlan, settings: &[(String, String)], branch: &str) -> bool {
+pub fn merge_is_stated(plan: &PullPlan, settings: &[String], rebase: RebaseStatement) -> bool {
     // The settings that add steps this does not mirror.
-    for (key, _value) in settings {
+    for key in settings {
         if NATIVE_ONLY_SETTINGS.contains(&key.as_str()) {
             return false;
         }
     }
     // `pull.ff` is Git's to combine with the rest.
     if !plan.fast_forward_stated {
-        for (key, _value) in settings {
+        for key in settings {
             if key == "pull.ff" {
                 return false;
-            }
-        }
-    }
-    // The branch's own setting wins over the general one, as in Git's `config_get_rebase`.
-    let branch_key: String = format!("branch.{branch}.rebase");
-    let mut chosen: Option<&String> = None;
-    for (key, value) in settings {
-        if *key == branch_key {
-            chosen = Some(value);
-            break;
-        }
-    }
-    // The general setting is looked at only when the branch has none, as `.or_else(...)` ran it.
-    if chosen.is_none() {
-        for (key, value) in settings {
-            if key == "pull.rebase" {
-                chosen = Some(value);
-                break;
             }
         }
     }
     if plan.merge_stated {
         return true;
     }
-    return match chosen {
-        Some(value) => says_no(value.as_str()),
-        None => plan.fast_forward_stated,
+    return match rebase {
+        RebaseStatement::Merge => true,
+        RebaseStatement::NotMerge => false,
+        RebaseStatement::Unstated => plan.fast_forward_stated,
     };
 }
 
@@ -270,39 +264,129 @@ fn ask(context: &GitContext, arguments: &[&str]) -> Option<GitOutput> {
 }
 
 /// What:
-///  The settings that decide whether a pull merges,
-/// as key and value pairs.
+///  What one query for a rebase setting answered.
 /// Why:
-///   One `git config` call reads them all;
-/// a value-less key reads as `true` like Git does.
+///   The branch's setting is looked at before the general one,
+/// and only a setting that is not there lets the next one decide.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function pullSettings(context): Promise<[string, string][] | undefined>;
+/// type SettingAnswer = { kind: 'read'; statement: RebaseStatement } | { kind: 'absent' } | { kind: 'unreadable' };
 /// ```
-fn pull_settings(context: &GitContext) -> Option<Vec<(String, String)>> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SettingAnswer {
+    /// Git read the setting.
+    Read(RebaseStatement),
+    /// The setting is not present.
+    Absent,
+    /// Git refused the value,
+    /// or the query could not start.
+    Unreadable,
+}
+
+/// What:
+///  What Git's own reading of one rebase setting says about the pull.
+/// Why:
+///   `git config --bool --get` answers with the value Git's pull reads:
+/// the last of several settings,
+/// in every boolean spelling Git accepts (`0`,
+/// `00`,
+/// `0x0`,
+/// `0k`,
+/// the empty value,
+/// `false`,
+/// `no`,
+/// `off`).
+/// A rebase mode (`merges`,
+/// `interactive`) is no boolean,
+/// so Git refuses it here and words that refusal itself when the pull runs natively.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function rebaseAnswer(context, key): Promise<SettingAnswer>;
+/// ```
+fn rebase_answer(context: &GitContext, key: &str) -> SettingAnswer {
+    // A query Git could not start states nothing this may act on.
+    let Some(found) = ask(context, &["config", "--bool", "--get", key]) else {
+        return SettingAnswer::Unreadable;
+    };
+    return match found.code {
+        // Git prints `true` or `false` for a value it reads as a boolean and nothing else.
+        Some(0) => {
+            let text: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
+            let statement: RebaseStatement = if text == "false" { RebaseStatement::Merge } else { RebaseStatement::NotMerge };
+            SettingAnswer::Read(statement)
+        }
+        // Status 1 is Git's answer for a setting that is not there.
+        Some(1) => SettingAnswer::Absent,
+        // A value Git refuses, or a query that failed: native Git runs the pull and words the refusal.
+        _ => SettingAnswer::Unreadable,
+    };
+}
+
+/// What:
+///  What the rebase settings of one branch say about a pull.
+/// Why:
+///   `config_get_rebase` reads `branch.<name>.rebase` before `pull.rebase`,
+/// so the branch's own setting decides whenever it is present;
+/// asking Git for the value keeps the last of several settings and every spelling of no,
+/// which a reader of the raw text got wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function rebaseStatement(context, branch): Promise<RebaseStatement>;
+/// ```
+fn rebase_statement(context: &GitContext, branch: &str) -> RebaseStatement {
+    let branch_key: String = format!("branch.{branch}.rebase");
+    for key in [branch_key.as_str(), "pull.rebase"] {
+        match rebase_answer(context, key) {
+            SettingAnswer::Read(statement) => return statement,
+            SettingAnswer::Absent => {}
+            SettingAnswer::Unreadable => return RebaseStatement::NotMerge,
+        }
+    }
+    return RebaseStatement::Unstated;
+}
+
+/// What:
+///  The settings that add steps the split pull does not mirror,
+/// as the keys present.
+/// Why:
+///   One `git config` call answers for all of them,
+/// and only their presence decides anything,
+/// so no value is read here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function pullSettings(context): Promise<string[] | undefined>;
+/// ```
+fn pull_settings(context: &GitContext) -> Option<Vec<String>> {
     let output: GitOutput = ask(
         context,
         &[
             "config",
             "--null",
             "--get-regexp",
-            "^(pull\\.(rebase|ff|autostash)|submodule\\.recurse|fetch\\.recursesubmodules|branch\\..*\\.rebase)$",
+            "^(pull\\.(ff|autostash)|submodule\\.recurse|fetch\\.recursesubmodules)$",
         ],
     )?;
     // Status 1 means no setting matched.
     if output.code != Some(0) && output.code != Some(1) {
         return None;
     }
-    // A list of key and value pairs, built entry by entry.
-    let mut settings: Vec<(String, String)> = Vec::new();
+    // The keys present, built entry by entry.
+    let mut settings: Vec<String> = Vec::new();
     for entry in output.stdout.split(is_nul_byte) {
         if entry.is_empty() {
             continue;
         }
         let text: String = String::from_utf8_lossy(entry).into_owned();
-        let (key, value): (&str, &str) = text.split_once('\n').unwrap_or((text.as_str(), "true"));
-        settings.push((key.to_owned(), value.to_owned()));
+        let key: &str = match text.split_once('\n') {
+            // A value-less setting is present too, and only the key is read.
+            Some((key, _value)) => key,
+            None => text.as_str(),
+        };
+        settings.push(key.to_owned());
     }
     return Some(settings);
 }
@@ -448,7 +532,10 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
         debug(TAG, "native Git runs this pull: no branch is checked out, or its head is unborn");
         return PullStep::Native;
     };
-    if !merge_is_stated(&plan, settings.as_slice(), branch.as_str()) {
+    // The rebase setting is read only when the command line does not already state a merge, because that start would
+    // change nothing then: `--no-rebase` outranks every setting.
+    let rebase: RebaseStatement = if plan.merge_stated { RebaseStatement::Unstated } else { rebase_statement(&context, branch.as_str()) };
+    if !merge_is_stated(&plan, settings.as_slice(), rebase) {
         debug(TAG, "native Git runs this pull: it is not stated to merge, or a setting adds steps this does not mirror");
         return PullStep::Native;
     }
@@ -502,12 +589,11 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
             None => true,
         };
         if move_failed {
-            return PullStep::Ended(CoordinatedRun::Failed {
-                stderr: format!(
-                    "fatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff {orig_head}\noutput, run\n$ git reset --hard\nto recover.\nmonochromatic-git-policy-cli: that reset discards whatever this worktree holds, and the wrapper's worktree guard refuses a hard reset here without {WORKTREE_ENFORCEMENT_ESCAPE_HATCH}, which is what made this fast-forward fail; run git reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard if you mean it.\n"
-                ),
-                code: 128,
-            });
+            // Git's own recovery words say to save `git diff <old head>`, which holds no untracked file, and the reset
+            // they offer deletes the untracked file that made this move fail, so the wrapper keeps those bytes itself
+            // and names every copy before it prints the words (`pull_untracked_paths_in_the_way`).
+            let in_the_way: UntrackedInTheWay = keep_the_untracked_paths_in_the_way(&context, root, git_dir, orig_head.as_str(), curr_head.as_str());
+            return PullStep::Ended(CoordinatedRun::Failed { stderr: recovery_words(orig_head.as_str(), &in_the_way), code: 128 });
         }
     }
     let fetched: String = std::fs::read_to_string(git_dir.join("FETCH_HEAD")).unwrap_or_default();
