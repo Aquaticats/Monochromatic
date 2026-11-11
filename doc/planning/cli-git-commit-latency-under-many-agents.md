@@ -4162,9 +4162,15 @@ the first pair on 2026-11-10T23:33:20Z and the rest on 2026-11-10T23:47:12Z:
   plain,
   `before`:
   commit 2,780 ms,
+  conclusion 0 ms,
+  build 9 ms,
+  submit 1,541 ms,
   one parent,
-  `landed`,
-  and its record is the one the harness did not find (see "What this could not determine").
+  `landed`.
+  The harness read this arm's record as absent;
+  the fixture's own record file holds it at
+  2026-11-10T23:49:19.635Z with `totalMs` 2,682,
+  because the read and the record's append raced.
 - `f3`,
   merge,
   `after`:
@@ -4287,9 +4293,10 @@ The change itself is the commit `75de8b98a8`.
   which is this harness starting and stopping each worktree's service between arms while a writer was
   still committing.
   A measurement of the unproven-lock refusal is not this record's subject and is not measured here.
-- Arms `e4`'s record was not found by the harness after that commit,
-  so that arm has a wall time and no breakdown.
-  The four records that bracket it show the same conclusion stretch as their own arms.
+- One arm's record was read as absent by the harness,
+  because a record is appended as the command ends and the harness read the file at that moment.
+  Every arm's record is in the fixture's own file,
+  and the figures quoted here are its own.
 - There is no native-Git arm in this measurement,
   so the bar "commits vs native git should not take 5s longer" is only answered for the wrapper
   against itself,
