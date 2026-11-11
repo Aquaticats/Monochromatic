@@ -472,6 +472,15 @@ each with its margin:
   a test marker,
   the longest any test may run (`.config/nextest.toml`).
   Built.
+- The note of a beat (`write_until_answered_noting`,
+  `service_reply.rs`):
+  one `HEARTBEAT_EVERY` (1 s),
+  and the connection keeps that read (`StuckNotice`,
+  `service_server_connection_handling.rs`),
+  so a note is at most two beats behind the beat it rides on.
+  Two seconds against the client's `HEARTBEAT_SILENCE` of 5 s,
+  which is the wait the beat exists for.
+  Built.
 
 ## Options for the coordinator to pick
 
@@ -1312,6 +1321,44 @@ and why an older client or service is unharmed:
   Tests:
   `a_client_is_told_it_is_inside_the_write_when_the_write_starts` (the threshold is an hour in the control) and
   `a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answer_ceiling_plus_the_extra_wait` (red first).
+
+#### When the person is told they are inside that write, 2026-11-11T03:40:00Z
+
+A commit that exited 0 printed "this commit is inside a write of the commit service ... begun 0 seconds ago".
+The failing controls that named it are
+`event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit`,
+`commit-held-behind-a-dead-branch-lock-4`,
+and `process-look-ceiling-under-load-1`
+(on `commit-exit-zero-prints-no-false-write-notice`).
+Measured cause:
+the service sends the line as the write begins (the fix above),
+and the client printed it at once,
+while a branch write that crossed a heartbeat took milliseconds.
+Of the 6,703 landings this host's service journal recorded from 2026-11-01 to 2026-11-11,
+the branch write took 5 ms at the median,
+601 ms at the 99th percentile and 4,785 ms at the 99.9th,
+and 6 reached 5,000 ms.
+
+What changed:
+the client holds those words and says them on standard error only once its own wait has passed
+`WAITING_NOTICE_AFTER` (10 seconds,
+the wait the place of a waiting commit waits for,
+set by `CLI_GIT_STANDING_NOTICE_SECONDS`),
+and says words that differ from the ones already said at once,
+so a write that has stayed stuck a new minute is still told at once.
+The words carry no moment of the write,
+because the moment they are read is the client's.
+The noticing at the write's start is unchanged,
+and so is the not-withdrawing it decides.
+Tests:
+`a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered`
+(at the board,
+on the client's own connection,
+and on a held write of a real landing;
+red first),
+`a_commit_inside_a_write_says_it_once_its_wait_has_mattered`,
+`the_new_words_of_a_write_that_stayed_stuck_are_said_at_once` and
+`the_words_of_the_write_a_request_is_inside_carry_no_moment` (red first).
 
 ### The factor of five, and the cold stores
 

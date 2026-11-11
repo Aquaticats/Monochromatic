@@ -1,29 +1,29 @@
 //! What:
-//!  What one verdict of a claimed item does to its record,
-//!  to the retry plan and to the person's notices:
-//! the pushes' four verdicts in one function,
-//! and the trash and review items that answer with words.
+//!  What a drained push's verdict does to its records,
+//! to the retry plan,
+//! and to the person.
 //! Why:
-//!   The drain of one work directory owns the claims,
-//! the push records and the retry plan,
-//! and this is the settling of the items it ran,
-//!  so the two live beside each other and the drain's own file stays readable
-//!  (`rust/max-lines`).
-//! The verdicts are read the same way whichever face ran the work,
-//! because both faces run the drain that calls this.
+//! A drain of work claims items,
+//! runs each kind with its awaited handler,
+//! and settles what answered:
+//! a push carries records of its own (`settle_after_the_push`),
+//! and every other kind answers in words (`service_work_settling_with_words.rs`).
+//! The push's settlement is the drain's own step and holds no state of its own,
+//! so it has a file beside the drain and the loop stays readable;
+//! the drain hands it the claim set,
+//! which travels into the storage job and back (`service_work_storage_awaited.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! settleAfterThePush(held, workDir, gitDir, members, verdict, pushingSince, replanning);
-//! settleWithTheWords(held, workDir, item, verdict, kind);
+//! await settleAfterThePush({ held, workDir, gitDir, members, verdict, pushingSince, replanning });
 //! ```
 
-use crate::push_failure_notice::PushOutcome;
+use super::service_work_handlers_replanning_and_acceptance::*;
 use crate::service_claim_renewal::HeldClaims;
-use crate::service_work_handlers_replanning_and_acceptance::{PlannedRetry, Replanning, Verdict, planned_retry};
 use crate::service_work_storage_awaited::{
     clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_skip_awaiting, settle_all_awaiting,
 };
+use crate::push_failure_notice::PushOutcome;
 use crate::work_item::{Claimed, DONE, FAILED};
 use std::path::Path;
 
@@ -42,7 +42,7 @@ use std::path::Path;
 /// ```ts
 /// await settleAfterThePush(held, workDir, gitDir, members, verdict, pushingSince, replanning)
 /// ```
-pub(crate) async fn settle_after_the_push(
+pub(super) async fn settle_after_the_push(
     held: HeldClaims,
     work_dir: &Path,
     git_dir: &Path,
@@ -120,43 +120,6 @@ pub(crate) async fn settle_after_the_push(
                 _ => true,
             };
             return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
-        }
-    }
-}
-
-/// What:
-///  Settle one item whose kind answers with words rather than a push:
-/// a skipped one is done and says why,
-/// a failed one is failed and says why.
-/// Why:
-///   A trash and a review answer the same four verdicts and leave the person the same two kinds of line,
-/// so the drain
-///  keeps one account of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await settleWithTheWords(held, workDir, item, verdict, kind)
-/// ```
-pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
-    match verdict {
-        Verdict::Done => {
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
-        }
-        Verdict::Failed(reason) | Verdict::Retry(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
-                "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
-                _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
-        }
-        Verdict::Skipped(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
-                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
-                _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
     }
 }

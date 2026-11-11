@@ -40,6 +40,49 @@ pub const SYSTEM: u16 = 2;
 ///  `--list` of the form without a subcommand word:
 ///  list every variable.
 pub const LIST: u16 = 3;
+/// `--local`:
+///  the repository's own configuration file,
+///  which every worktree of the repository shares,
+///  and the file Git reads when no scope is named.
+pub const LOCAL: u16 = 4;
+/// `--worktree`:
+///  this worktree's own configuration file,
+///  which Git reads only once `extensions.worktreeConfig` is on.
+pub const WORKTREE: u16 = 5;
+/// `--file`:
+///  a file the command names itself.
+pub const FILE: u16 = 6;
+/// `--blob`:
+///  a blob the command names itself.
+pub const BLOB: u16 = 7;
+/// `--replace-all`:
+///  replace the values a pattern selects.
+pub const REPLACE_ALL: u16 = 8;
+/// `--add`:
+///  store a value beside the existing ones.
+pub const ADD: u16 = 9;
+/// `--unset`:
+///  remove one value.
+pub const UNSET: u16 = 10;
+/// `--unset-all`:
+///  remove every value.
+pub const UNSET_ALL: u16 = 11;
+/// `--rename-section`:
+///  rename a section.
+pub const RENAME_SECTION: u16 = 12;
+/// `--remove-section`:
+///  remove a section.
+pub const REMOVE_SECTION: u16 = 13;
+/// `--edit` of the form without a subcommand word:
+///  open the file in the editor.
+pub const EDIT: u16 = 14;
+/// `--get`,
+///  `--get-all`,
+///  `--get-regexp`,
+///  `--get-urlmatch`,
+///  `--get-color` and `--get-colorbool`:
+///  read the file.
+pub const GET: u16 = 15;
 
 /// What:
 ///  `CONFIG_LOCATION_OPTIONS` (builtin/config.c:67-74).
@@ -60,10 +103,10 @@ pub const LIST: u16 = 3;
 pub const LOCATION_ROWS: &[OptionSpec] = &[
     row(GLOBAL, None, Some("global"), Arity::None, true),
     row(SYSTEM, None, Some("system"), Arity::None, true),
-    row(UNREAD, None, Some("local"), Arity::None, true),
-    row(UNREAD, None, Some("worktree"), Arity::None, true),
-    row(UNREAD, Some(b'f'), Some("file"), Arity::Required, true),
-    row(UNREAD, None, Some("blob"), Arity::Required, true),
+    row(LOCAL, None, Some("local"), Arity::None, true),
+    row(WORKTREE, None, Some("worktree"), Arity::None, true),
+    row(FILE, Some(b'f'), Some("file"), Arity::Required, true),
+    row(BLOB, None, Some("blob"), Arity::Required, true),
 ];
 
 /// What:
@@ -154,20 +197,20 @@ pub const UNSET_ROWS: &[OptionSpec] = &[
 /// export const LEGACY_ACTION_ROWS = [row(UNREAD, undefined, 'get', 'none', false), /* ... */] as const;
 /// ```
 pub const LEGACY_ACTION_ROWS: &[OptionSpec] = &[
-    row(UNREAD, None, Some("get"), Arity::None, false),
-    row(UNREAD, None, Some("get-all"), Arity::None, false),
-    row(UNREAD, None, Some("get-regexp"), Arity::None, false),
-    row(UNREAD, None, Some("get-urlmatch"), Arity::None, false),
-    row(UNREAD, None, Some("replace-all"), Arity::None, false),
-    row(UNREAD, None, Some("add"), Arity::None, false),
-    row(UNREAD, None, Some("unset"), Arity::None, false),
-    row(UNREAD, None, Some("unset-all"), Arity::None, false),
-    row(UNREAD, None, Some("rename-section"), Arity::None, false),
-    row(UNREAD, None, Some("remove-section"), Arity::None, false),
+    row(GET, None, Some("get"), Arity::None, false),
+    row(GET, None, Some("get-all"), Arity::None, false),
+    row(GET, None, Some("get-regexp"), Arity::None, false),
+    row(GET, None, Some("get-urlmatch"), Arity::None, false),
+    row(REPLACE_ALL, None, Some("replace-all"), Arity::None, false),
+    row(ADD, None, Some("add"), Arity::None, false),
+    row(UNSET, None, Some("unset"), Arity::None, false),
+    row(UNSET_ALL, None, Some("unset-all"), Arity::None, false),
+    row(RENAME_SECTION, None, Some("rename-section"), Arity::None, false),
+    row(REMOVE_SECTION, None, Some("remove-section"), Arity::None, false),
     row(LIST, Some(b'l'), Some("list"), Arity::None, false),
-    row(UNREAD, Some(b'e'), Some("edit"), Arity::None, false),
-    row(UNREAD, None, Some("get-color"), Arity::None, false),
-    row(UNREAD, None, Some("get-colorbool"), Arity::None, false),
+    row(EDIT, Some(b'e'), Some("edit"), Arity::None, false),
+    row(GET, None, Some("get-color"), Arity::None, false),
+    row(GET, None, Some("get-colorbool"), Arity::None, false),
 ];
 
 /// The form without a subcommand word:

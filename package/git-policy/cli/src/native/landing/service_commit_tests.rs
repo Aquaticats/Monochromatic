@@ -1,6 +1,7 @@
 //! Controls for the unit templates the wrapper provisions.
 
-use super::{arguments_after_subcommand, switched_branch_name};
+use super::arguments_after_subcommand;
+use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 use crate::service_provision::{OWN_MARKERS, SERVICE_UNIT, SOCKET_UNIT};
 use std::ffi::OsString;
 use crate::service_instance::SOCKET_DIRECTORY;

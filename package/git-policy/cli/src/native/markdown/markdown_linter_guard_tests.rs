@@ -318,6 +318,8 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     const WORKING_WINDOW: Duration = Duration::from_millis(1200);
     let release: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let marker: Arc<AtomicBool> = Arc::clone(&release);
+    let stopped: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let stopping: Arc<AtomicBool> = Arc::clone(&stopped);
     let scratch: std::path::PathBuf = crate::test_support::fixture("guard-ceiling");
     let progress: std::path::PathBuf = scratch.join("progress");
     let began: std::time::Instant = std::time::Instant::now();
@@ -330,6 +332,7 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
                 round += 1;
                 std::thread::sleep(Duration::from_millis(100));
             }
+            stopping.store(true, Ordering::SeqCst);
         },
         GuardLimits { window: WORKING_WINDOW, ceiling: CEILING },
         FAST,
@@ -340,6 +343,10 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     release.store(true, Ordering::SeqCst);
     assert_eq!(outcome, Err(GuardFailure::Ceiling(CEILING)));
     assert!(waited >= CEILING && waited < CEILING * 5, "the guard answered after {waited:?}");
+    // A job that read the flag just before the release writes once more,
+    //  so the fixture is removed only after the job stopped writing:
+    // a removal that raced that write failed with "Directory not empty".
+    assert!(crate::test_support::wait_until(&|| return stopped.load(Ordering::SeqCst)), "the released job stopped writing");
     crate::test_support::remove(scratch.as_path());
 }
 

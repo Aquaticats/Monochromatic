@@ -44,6 +44,11 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
 
+/// The point at which a beat's note reads the journal,
+/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+const IN_THE_NOTE_READ: &str = "in-the-note-read";
+
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
 /// the count of work in flight,
@@ -86,12 +91,42 @@ pub(crate) struct ConnectionShared {
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
 pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>) -> StuckNotice {
-    return StuckNotice { board, request, last: None };
+    return StuckNotice { board, request, last: None, still_reading: None };
 }
 
-/// The note source of a connection's beat:
+/// The answer of one read of the journal for a beat's note:
+/// what the connection has to say,
+/// and the key of the words said last.
+type NoteFromTheBoard = Result<(Option<ServiceMessage>, Option<String>), crate::blocking_job::BlockingJobError>;
+
+/// What:
+///  The read of one note while it is still running.
+/// Why:
+///  A read of the journal can outlive the beat that started it,
+/// and a source that started another read every beat would queue one read a second behind a storage that is late,
+///  each of them holding a thread of the blocking pool that the commits of every other client need;
+///  one read is kept here and the next beat waits for that same read,
+/// which is also the only way the words of a read that took several beats are ever written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NoteRead = Promise<[ServiceMessage | undefined, string | undefined]>;
+/// ```
+type NoteRead = std::pin::Pin<Box<dyn std::future::Future<Output = NoteFromTheBoard> + Send>>;
+
+/// What:
+///  The note source of a connection's beat:
 /// what the landing thread is stuck in,
-/// said again only when the words change.
+/// said again only when the words change,
+///  with the read that is still running kept for the beats behind it.
+/// Why:
+///   The note is read from the journal on every beat,
+/// and one read that storage holds must cost a read and never a beat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StuckNotice { board; request; last; stillReading; async note() { ... } }
+/// ```
 pub(crate) struct StuckNotice {
     /// What the landing thread reports about itself.
     board: Arc<LandingBoard>,
@@ -100,6 +135,9 @@ pub(crate) struct StuckNotice {
     request: Option<String>,
     /// The key of the words said last.
     last: Option<String>,
+    /// The read of this connection's note that is still running,
+    /// and nothing when no read is.
+    still_reading: Option<NoteRead>,
 }
 
 /// The note the board has for a connection and the key of the words said last after it,
@@ -108,6 +146,9 @@ pub(crate) struct StuckNotice {
 /// which can wait on storage,
 /// so the reads run on the blocking pool.
 fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
+    // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_NOTE_READ);
     // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
     // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
     let inside: Option<(String, String)> = match request {
@@ -129,10 +170,21 @@ fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option
 
 impl NoteSource for StuckNotice {
     async fn note(&mut self) -> Option<ServiceMessage> {
-        let board: Arc<LandingBoard> = Arc::clone(&self.board);
-        let request: Option<String> = self.request.clone();
-        let last: Option<String> = self.last.take();
-        return match run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); }).await {
+        if self.still_reading.is_none() {
+            let board: Arc<LandingBoard> = Arc::clone(&self.board);
+            let request: Option<String> = self.request.clone();
+            // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
+            //  ones, and a read that outlives its beat answers only beats later.
+            let last: Option<String> = self.last.clone();
+            self.still_reading = Some(Box::pin(run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); })));
+        }
+        let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
+        // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
+        //  of starting a second one behind a storage that is already late.
+        let answer: NoteFromTheBoard = running.await;
+        // This read is over, whatever it answered: the beat behind this one starts the next read.
+        self.still_reading = None;
+        return match answer {
             Ok((message, last_said)) => {
                 self.last = last_said;
                 message

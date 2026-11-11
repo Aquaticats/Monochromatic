@@ -3,10 +3,10 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, common_directory_awaiting, decode, encode, hand_over_with, item_of, object_name_of};
 use crate::service_route::Route;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git_context, remove};
+use crate::test_support::{fixture, git, git_context, remove};
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -179,6 +179,70 @@ fn a_hand_over_of_nothing_writes_no_record() {
 }
 
 /// What:
+///  The common directory of a repository whose directory name is not UTF-8 is the directory Git named.
+/// Why:
+///   The answer was read as text,
+///  so the path the record was keyed by held U+FFFD where the name held a byte,
+/// and the record's own acceptability check refused every record of such a repository.
+#[test]
+fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("prewarm-common-not-utf8");
+    let repo: PathBuf = root.join(OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let context = git_context();
+    let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
+        return common_directory_awaiting(&context, repo.as_path()).await;
+    })
+    .expect("the runtime")
+    .expect("Git names the common directory");
+    assert_eq!(named, std::fs::canonicalize(repo.join(".git")).expect("the common directory"));
+    remove(root.as_path());
+}
+
+/// What:
+///  The common directory of a repository whose directory name ends in a space is the directory Git named.
+/// Why:
+///   Every ASCII whitespace byte was taken from the answer,
+///  so the space that belongs to the name went with the terminator,
+/// and the record was written below a directory that is not the repository's,
+///  where the repository's own service never reads it.
+#[test]
+fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
+    let root: PathBuf = fixture("prewarm-common-trailing-space");
+    let repo: PathBuf = root.join("repository");
+    let administered: PathBuf = root.join("admin ");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            administered.to_str().expect("a UTF-8 fixture path"),
+            repo.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+    );
+    let context = git_context();
+    let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
+        return common_directory_awaiting(&context, linked.as_path()).await;
+    })
+    .expect("the runtime")
+    .expect("Git names the common directory");
+    assert_eq!(named, std::fs::canonicalize(administered.as_path()).expect("the directory Git made"));
+    remove(root.as_path());
+}
+
+/// What:
 ///  The names of the records a state directory holds,
 /// in the order they sort,
 /// so a control reads what the queue took without knowing an id.
@@ -197,6 +261,24 @@ fn records_in(work: &Path, state: &str) -> Vec<String> {
         .unwrap_or_default();
     names.sort();
     return names;
+}
+
+/// What:
+///  Wait,
+/// bounded,
+///  for the clock to show another millisecond.
+/// Why:
+///   A record's object name carries the moment the add asked for the work,
+/// so a control that stands for two hand-overs of one path needs two moments;
+/// a clock that did not move answers the second one as `Known`,
+/// and the control would then prove nothing
+/// (the suite run of 2026-11-11 failed this way).
+fn after_the_clock_moves(moment: &str) {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while crate::iso_time::now_iso() == moment {
+        assert!(std::time::Instant::now() < deadline, "the clock did not move past {moment}");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 }
 
 /// What:
@@ -222,6 +304,11 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
         let first: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(first.len(), 1, "the first worktree's record is queued: {first:?}");
+        let queued: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&first[0])).expect("the first record");
+        let first_item: WorkItem = WorkItem::decode(queued.as_str()).expect("the first record is a work item");
+        // The object name carries the moment the add asked, so the second hand-over needs a moment of its own: within
+        //  one millisecond it would be answered as the first record's known id, and this control proved nothing.
+        after_the_clock_moves(first_item.created.as_str());
         // The service runs the record and settles it into the state its verdict names.
         let settled_at: PathBuf = state_directory(work.as_path(), settled).join(&first[0]);
         std::fs::rename(state_directory(work.as_path(), PENDING).join(&first[0]), settled_at.as_path()).expect("the record is settled");
@@ -232,6 +319,9 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let second: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
         assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");
+        let queued_again: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&second[0])).expect("the second record");
+        let second_item: WorkItem = WorkItem::decode(queued_again.as_str()).expect("the second record is a work item");
+        assert_ne!(second_item.created, first_item.created, "the two hand-overs are two moments ({settled})");
         remove(root.as_path());
     }
 }

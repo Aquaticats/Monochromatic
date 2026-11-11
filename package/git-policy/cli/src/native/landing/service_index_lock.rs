@@ -288,8 +288,8 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, not
 /// As `acquire`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
-    // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
-    //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
+    // The whole of the preparation counts as staging time: taking the marker made ahead, removing the markers it cannot use,
+    //  and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
     let prepared: Option<Prestaged> = take(index, seq);
     notes.staging = preparing.elapsed();

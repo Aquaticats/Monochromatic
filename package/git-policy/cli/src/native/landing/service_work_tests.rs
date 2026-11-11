@@ -45,6 +45,8 @@ struct Recorder {
     upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
     trashes: RefCell<Vec<String>>,
+    deletions: RefCell<Vec<String>>,
+    aheads: RefCell<Vec<String>>,
 }
 
 impl Recorder {
@@ -55,6 +57,8 @@ impl Recorder {
             upkeeps: RefCell::new(Vec::new()),
             reviews: RefCell::new(Vec::new()),
             trashes: RefCell::new(Vec::new()),
+            deletions: RefCell::new(Vec::new()),
+            aheads: RefCell::new(Vec::new()),
         };
     }
 }
@@ -77,6 +81,20 @@ impl WorkHandlers for Recorder {
 
     fn trash(&self, item: &WorkItem) -> Verdict {
         self.trashes.borrow_mut().push(item.oid.clone());
+        return self.verdict.clone();
+    }
+
+    /// A removal hands the path it renamed out of the person's way,
+    /// so the record is that path rather than a commit id.
+    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+        self.deletions.borrow_mut().push(item.parent.clone());
+        return self.verdict.clone();
+    }
+
+    /// A snapshot ahead names the worktree root to copy,
+    /// so the record is that root rather than a commit id.
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        self.aheads.borrow_mut().push(item.repository.display().to_string());
         return self.verdict.clone();
     }
 }
@@ -872,6 +890,10 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// Git command that takes input),
 /// the loopback gateway is asked with the key from the wake,
 /// and the entry is appended.
+/// The lane is what claims a review in the service,
+/// beside the round that serves the pushes
+/// (`service_work_slow_lane.rs`),
+/// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
@@ -904,7 +926,12 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
+    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
+    let _left: Option<Duration> = crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+        common.as_path(),
+        &lane_handlers,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -1342,6 +1369,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder.pushes.borrow().is_empty() {
@@ -1381,7 +1409,8 @@ fn journal_of(body: impl FnOnce()) -> Vec<String> {
 /// What:
 ///  A round that has spent its share of housekeeping leaves the rest of it pending for a later round,
 /// names them in one journal line,
-/// and asks to be woken again.
+/// and asks to be woken again,
+/// while the first housekeeping item it found is started all the same.
 /// Why:
 ///   A trash of one removed worktree is hundreds of thousands of removals,
 /// and a service that logged 15 of them spent 1 h 37 min in one round without making the person's
@@ -1389,10 +1418,12 @@ fn journal_of(body: impl FnOnce()) -> Vec<String> {
 /// A bound makes a round say "not this round" instead of starting another trash,
 /// and the records it did not
 ///  start go back to `pending` so nothing is lost.
+/// The first item starts because a look that could spend its whole slice on the claim and the refusal that come before the
+///  housekeeping would otherwise leave every item for a later look that would spend its slice the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wait = await drainPending(dir, handlers, lease, renewal, plan, ZERO); expect(wait).toBe(LOOK_AGAIN);
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, kinds, ZERO); expect(wait).toBe(LOOK_AGAIN); expect(names(DONE)).toHaveLength(1)
 /// ```
 #[test]
 fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
@@ -1401,7 +1432,8 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    // A round whose housekeeping share is already over starts none of it, which is the state a long round reaches.
+    // A round whose housekeeping share is already over starts none of it beyond the first item, which is the state a long round
+    //  reaches.
     let mut looked_again: Option<Duration> = None;
     let said: Vec<String> = journal_of(|| {
         looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
@@ -1410,15 +1442,18 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
             CLAIM_LEASE,
             Renewal::Timed,
             &mut replanning,
+            &SERVICE_KINDS,
             Duration::ZERO,
         ))
         .expect("the process runtime runs the drain");
     });
     assert_eq!(looked_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "a round that left housekeeping for later asks to be woken again");
-    assert_eq!(names(&repo, PENDING).len(), items.len(), "the housekeeping the round did not start is pending again");
+    assert_eq!(names(&repo, DONE).len(), 1, "the first housekeeping item of the round is started, whatever its slice had spent");
+    assert!(names(&repo, FAILED).is_empty(), "the housekeeping the round did not start is not settled");
+    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start is pending again");
     assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
-    assert!(names(&repo, DONE).is_empty() && names(&repo, FAILED).is_empty(), "nothing the round did not start is settled");
-    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(items[0].id().as_str()) && line.contains(items[1].id().as_str()); }).collect();
+    let waiting: String = names(&repo, PENDING)[0].clone();
+    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(waiting.as_str()); }).collect();
     assert_eq!(named.len(), 1, "one line names the housekeeping that waits for a later round: {said:?}");
     remove(repo.root.as_path());
 }
@@ -1449,6 +1484,7 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
         CLAIM_LEASE,
         Renewal::Timed,
         &mut replanning,
+        &SERVICE_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     ))
     .expect("the process runtime runs the drain");
@@ -1456,4 +1492,124 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
     assert_eq!(names(&repo, DONE).len(), items.len(), "the housekeeping the round had room for ran");
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
+}
+
+/// A removal records the path it renamed out of the person's way and returns,
+/// so the drain is what deletes the subvolume;
+/// the step runs it through the handler of its kind and settles it as done.
+#[test]
+fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
+    let repo: Repo = repo("work-awaited-deletes-subvolume");
+    let deletion: String = String::from("/worktrees/cli-git-deleting-0123456789abcdef");
+    let mut entry: WorkItem = item(&repo, WorkKind::SubvolumeDelete, OID, BRANCH);
+    entry.parent = deletion.clone();
+    enqueue_all(&repo, &[entry.clone()]);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+        &SERVICE_KINDS,
+    ));
+    assert_eq!(recorder.deletions.borrow().as_slice(), [deletion.as_str()], "the step asks its handler for the path the record names");
+    assert_eq!(names(&repo, DONE), vec![entry.id()], "the deletion is settled as done");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no deletion is failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no deletion is left claimed");
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that deletes a subvolume plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The snapshot ahead a drain claims runs the handler of its kind and is settled by its answer.
+/// Why:
+///   It is the one kind of work a person's own add waits for,
+/// so a drain that claims the kind and forgets the step leaves the add waiting for a copy nothing makes
+///  and the claim taken,
+/// which no other control would see.
+/// The slow lane claims it beside the pushes,
+/// and a drain outside the service claims every kind
+/// (`SLOW_KINDS` and `SERVICE_KINDS` in `service_work_handlers_replanning_and_acceptance.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying, SERVICE_KINDS); expect(asked).toEqual([worktree]); expect(names(DONE)).toEqual([id])
+/// ```
+#[test]
+fn the_awaited_drain_makes_a_snapshot_ahead() {
+    let repo: Repo = repo("work-awaited-snapshot-ahead");
+    let wanted: WorkItem = item(&repo, WorkKind::SnapshotAhead, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&wanted));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+        &SERVICE_KINDS,
+    ));
+    assert_eq!(recorder.aheads.borrow().as_slice(), [repo.worktree.display().to_string()], "the step asks its handler for the worktree the record names");
+    assert_eq!(names(&repo, DONE), vec![wanted.id()], "the snapshot ahead is settled as done");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no snapshot ahead is failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no snapshot ahead is left claimed");
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that makes a snapshot ahead plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A retryable answer leaves the record where it is:
+/// the round settles nothing for it,
+/// so it keeps its lease,
+///  and the lease running out is what queues it again with one more try.
+/// Why:
+///  A copy of the source that cannot be deleted,
+/// and a snapshot ahead the service could not make,
+/// both answer
+///  `Retry` for a condition that can pass:
+/// a busy volume,
+/// a full disk,
+/// an I/O error.
+/// Failing the record drops that work for good,
+/// and a
+///  record in `failed` is never queued again under its id,
+/// so a copy that proved stale then stays on the disk for ever,
+///  pinning the source's blocks.
+#[test]
+fn a_retryable_answer_keeps_the_record_for_a_later_round() {
+    for kind in [WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
+        let repo: Repo = repo(format!("work-retryable-{}", kind.name()).as_str());
+        let wanted: WorkItem = item(&repo, kind, OID, BRANCH);
+        enqueue_all(&repo, std::slice::from_ref(&wanted));
+        let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
+        // The renewal is driven by this control and driven not at all, so no thread of the round is renaming the claim
+        //  the pass below takes: the take of a name a renewal moved is the one race the recovery leaves to the next pass.
+        let driver: DrivenRenewal = DrivenRenewal::default();
+        let wait: Option<Duration> = drain_with_renewal(repo.common.as_path(), &retrying, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Driven(&driver));
+        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
+        assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
+        assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
+        // The lease runs out, which is what the wait above asked for: the record is queued again with one more try.
+        crate::work_item_recovery::requeue_expired(
+            work_directory(repo.common.as_path()).as_path(),
+            &ClaimTime::read(),
+            Duration::ZERO,
+            crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
+        );
+        assert_eq!(names(&repo, PENDING), vec![wanted.id()], "{}: the record waits for the next round", kind.name());
+        drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+        assert_eq!(names(&repo, DONE), vec![wanted.id()], "{}: the round after it finishes the work", kind.name());
+        remove(repo.root.as_path());
+    }
 }

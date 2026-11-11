@@ -1,0 +1,116 @@
+{
+  "conclusion": "failure",
+  "createdAt": "2026-11-11T00:48:48Z",
+  "jobs": [
+    {
+      "completedAt": "2026-11-11T00:49:34Z",
+      "conclusion": "failure",
+      "databaseId": 130240342259,
+      "name": "release",
+      "startedAt": "2026-11-11T00:48:52Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T00:48:53Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T00:48:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:48:53Z",
+          "conclusion": "skipped",
+          "name": "Refuse a ref other than main",
+          "number": 2,
+          "startedAt": "2026-11-11T00:48:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:28Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 3,
+          "startedAt": "2026-11-11T00:48:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "failure",
+          "name": "Install Node, pnpm and the workspace dependencies",
+          "number": 4,
+          "startedAt": "2026-11-11T00:49:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "skipped",
+          "name": "Install Rust toolchain",
+          "number": 5,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "skipped",
+          "name": "Install the system libraries the compositor crate links",
+          "number": 6,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "skipped",
+          "name": "Set the identity of the local release commit",
+          "number": 7,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "skipped",
+          "name": "Bump, check, dry-run the publish and commit locally",
+          "number": 8,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:31Z",
+          "conclusion": "skipped",
+          "name": "Push the bump to main as a signed commit",
+          "number": 9,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:32Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-11-11T00:49:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:49:32Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-11T00:49:32Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42934268993/job/130240342259"
+    },
+    {
+      "completedAt": "2026-11-11T00:49:35Z",
+      "conclusion": "skipped",
+      "databaseId": 130240655924,
+      "name": "publish",
+      "startedAt": "2026-11-11T00:49:35Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42934268993/job/130240655924"
+    }
+  ],
+  "status": "completed"
+}

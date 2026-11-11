@@ -120,7 +120,7 @@ fn failed_installation_never_stays_pending() {
     let pending: PendingJournal =
         create_journal(common.as_path(), destination.as_path(), &snapshot).expect("journal");
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged), &crate::worktree_copy_ceiling::CopyCeiling::unbounded())
         .expect("journal fault-free");
     match outcome {
         Outcome::Ended(failure) => assert!(
@@ -189,7 +189,7 @@ fn interrupted_installation_resumes_from_its_log() {
     let rebuilt_from: PendingJournal = read_pending_journals(common.as_path())
         .expect("pending")
         .remove(0);
-    let outcome: Outcome = complete_journal(resumable, &SnapshotSource::FromJournal(&rebuilt_from))
+    let outcome: Outcome = complete_journal(resumable, &SnapshotSource::FromJournal(&rebuilt_from), &crate::worktree_copy_ceiling::CopyCeiling::unbounded())
     .expect("completed");
     match outcome {
         // The claimed directory counts as created by the interrupted owner, so all four selected entries are counted.
@@ -301,7 +301,12 @@ fn a_destination_replaced_after_the_check_is_not_installed_into() {
         Some(binding.destination_id),
         "the path holds another directory now"
     );
-    let failure: WorktreeCopyError = complete_journal(pending.clone(), &SnapshotSource::FromJournal(&pending)).expect_err("the registration is gone");
+    let failure: WorktreeCopyError = complete_journal(
+        pending.clone(),
+        &SnapshotSource::FromJournal(&pending),
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
+    )
+    .expect_err("the registration is gone");
     assert!(failure.0.contains("no longer the registration the copy was made for"), "{}", failure.0);
     assert!(!destination_canonical.join("cache").exists(), "the replacement registration received nothing");
     remove(root.as_path());

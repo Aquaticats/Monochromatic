@@ -25,6 +25,9 @@
 //! and the one place of the blocking pool this round leaves free
 //! (`places_a_round_may_take`) keeps the steps that answer a
 //!  client running while that item lasts.
+//! The first housekeeping item a round finds starts whatever its slice has already spent,
+//! so a round that spent its slice on the claim and the settling that come before the housekeeping cannot leave every item
+//!  to a later round that would spend its slice the same way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

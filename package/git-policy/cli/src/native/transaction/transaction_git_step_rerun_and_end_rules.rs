@@ -24,7 +24,7 @@ use std::ffi::OsString;
 /// they read,
 /// or they write content-addressed objects,
 ///  or they set the same value again.
-/// `symbolic-ref` is not here:
+/// `symbolic-ref` and `merge-file` are not here:
 /// only the forms the wrapper runs may be run again (`may_be_rerun`).
 ///  `init` is not run again in place at all:
 /// its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
@@ -142,6 +142,58 @@ fn symbolic_ref_may_be_rerun(words: &Words<'_>, shadow: bool) -> bool {
 }
 
 /// What:
+///  The options a `merge-file` may carry and still write nothing:
+/// the answer on standard output,
+/// the object names instead of file names,
+///  the conflict style,
+/// a marker width,
+/// the three labels and the quiet flag.
+/// Why:
+///  `merge_file_reads_only` accepts a `merge-file` only when every option is one of these;
+///  `--marker-size` is here because it changes the markers and no file,
+///  and `-L` because its value is a label.
+const MERGE_FILE_READ_OPTIONS: [&str; 12] = ["--stdout", "-p", "--object-id", "--zdiff3", "--diff3", "--ours", "--theirs", "--union", "-q", "--quiet", "-L", "--marker-size"];
+
+/// What:
+///  Whether a `merge-file` is the read form the word-level second pass runs:
+/// `--stdout` with `--object-id` over three object names,
+/// no pathspec after a `--`,
+///  and no other option than `MERGE_FILE_READ_OPTIONS` names.
+/// Why:
+///  `git merge-file` writes the merged bytes into its first file unless it is told `--stdout`,
+/// and with `--object-id` the three inputs are object names,
+///  so that form writes nothing at all and may be run twice.
+/// The second pass starts exactly it over the three stages of one conflicted path
+/// (`merge_second_pass_git_lines.rs`),
+///  and it must be a step the wrapper ends:
+/// the pass parses that answer,
+/// and the captured files of a step that is never ended keep
+///  only the last 8 MiB of it (`output_capture.rs`,
+/// `STEP_OUTPUT_LIMIT`),
+/// which is a file's beginning lost.
+///  Measured on Git 2.56.0 in a throwaway repository on 2026-11-11,
+/// under `strace --trace=openat,creat,truncate,unlink,rename,mkdir,link,symlink`:
+///  the form opens nothing for writing (only `/dev/null`),
+/// removes and renames nothing,
+/// and leaves the repository byte-identical
+///  after a second run,
+/// with the reflog,
+/// the refs,
+/// the index,
+/// the worktree,
+/// the objects and the Git directory compared;
+/// the experiment that decides a ceiling for a write in place
+///  has nothing to cut here (`doc/planning/cli-git-no-unbounded-waits.md`,
+/// "The cut experiment").
+fn merge_file_reads_only(words: &Words<'_>) -> bool {
+    if !words.only_options(&MERGE_FILE_READ_OPTIONS) {
+        return false;
+    }
+    let prints: bool = words.has("--stdout") || words.has("-p");
+    return words.after.is_none() && prints && words.has("--object-id");
+}
+
+/// What:
 ///  The arguments after the subcommand,
 /// as text.
 /// Why:
@@ -205,6 +257,7 @@ pub(crate) fn may_be_rerun(request: &GitRequest) -> bool {
         "remote" => return rest.first().map(String::as_str) == Some("get-url"),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
         "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
+        "merge-file" => return merge_file_reads_only(&Words::of(rest.as_slice())),
         other => return RERUNNABLE.contains(&other),
     }
 }
@@ -503,23 +556,27 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
 
 /// What:
 ///  Whether a word is one of the wrapper's own side refs:
-/// `refs/cli-git/kept/<number>` or `refs/worktree/cli-git-service/<number>`.
+/// `refs/cli-git/kept/<number>`,
+/// the name beside it `refs/cli-git/kept/<number>-rescue`
+///  that a worktree removal keeps a held commit on when that name cannot be written,
+/// or `refs/worktree/cli-git-service/<number>`.
 /// Why:
 ///  `is_side_ref_write` accepts an `update-ref` only for these names,
-/// and the number is all digits.
+/// and each ends in a number,
+/// with `-rescue` allowed after the kept name's number.
+///  The words are the ones
+///  `service_scratch_ref_of_a_dropped_batch.rs` writes,
+/// spelled again here because that folder uses this one and may not be used by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /^refs\/(monochromatic-git-policy-cli\/kept|worktree\/cli-git-service)\/[0-9]+$/.test(word)
+/// /^refs\/(cli-git\/kept\/[0-9]+(-rescue)?|worktree\/cli-git-service\/[0-9]+)$/.test(word)
 /// ```
 fn is_side_ref_name(word: &str) -> bool {
-    for prefix in ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"] {
-        if let Some(number) = word.strip_prefix(prefix)
-            && !number.is_empty()
-            && number.as_bytes().iter().all(u8::is_ascii_digit)
-        {
-            return true;
-        }
-    }
-    return false;
+    let number: Option<&str> = match word.strip_prefix("refs/cli-git/kept/") {
+        Some(rest) => Some(rest.strip_suffix("-rescue").unwrap_or(rest)),
+        None => word.strip_prefix("refs/worktree/cli-git-service/"),
+    };
+    let Some(digits) = number else { return false };
+    return !digits.is_empty() && digits.as_bytes().iter().all(u8::is_ascii_digit);
 }

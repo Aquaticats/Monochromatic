@@ -157,12 +157,10 @@ fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
 /// ```ts
 /// function mpmCommand(destination: string, verb: string[]): ToolCommand;
 /// ```
-fn mpm_command(destination: &Path, arguments: &[&str]) -> ToolCommand {
-    return ToolCommand {
-        arguments: arguments.iter().map(OsString::from).collect(),
-        directory: PathBuf::from(destination),
-        set: vec![(OsString::from(ROOT_VARIABLE), destination.as_os_str().to_os_string())],
-    };
+fn mpm_command(destination: &Path, arguments: &[&str], environment: &RepairEnvironment) -> ToolCommand {
+    let mut set: Vec<(OsString, OsString)> = vec![(OsString::from(ROOT_VARIABLE), destination.as_os_str().to_os_string())];
+    set.extend(crate::package_repair_request::with_the_persons_path(environment));
+    return ToolCommand { arguments: arguments.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set };
 }
 
 /// What:
@@ -335,7 +333,70 @@ fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEn
     let Some(program) = found_program else {
         return ToolchainRepair::NoProgram(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"]), destination: PathBuf::from(destination), limits: environment.limits() });
+    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"], environment), destination: PathBuf::from(destination), limits: environment.limits() });
+}
+
+/// What:
+///  What the worktree needs of the toolchain repair,
+/// decided from the launcher records and the search path alone.
+/// Why:
+///   The add no longer runs the install itself,
+/// so it asks this before it writes the record the service runs:
+/// a worktree whose launchers already name it leaves no work,
+/// and one whose mpm-shadow is missing gets the line that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolchainNeed = 'nothing' | 'needed' | { missing: Finding };
+/// ```
+pub(crate) enum ToolchainNeed {
+    /// Every launcher record names this worktree,
+    /// so no install is needed.
+    Nothing,
+    /// The install is needed and a program was found;
+    /// running it is the commit service's work.
+    Needed,
+    /// The install is needed and no mpm-shadow was found;
+    /// the finding names the command to run.
+    NoProgram(Finding),
+}
+
+/// What:
+///  What the toolchain repair is,
+/// as one of the three answers the add asks about.
+/// Why:
+///  The install carries the program and the command it built,
+/// and the add needs only which of the three states the worktree is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needOfPrepared = (prepared) => prepared.kind === 'nothing' ? 'nothing' : prepared.kind === 'install' ? 'needed' : prepared.finding;
+/// ```
+fn need_of_prepared(prepared: ToolchainRepair) -> ToolchainNeed {
+    return match prepared {
+        ToolchainRepair::NothingToDo => ToolchainNeed::Nothing,
+        ToolchainRepair::NoProgram(finding) => ToolchainNeed::NoProgram(finding),
+        ToolchainRepair::Install(_work) => ToolchainNeed::Needed,
+    };
+}
+
+/// What:
+///  `need_of_prepared` on the records of the worktree,
+/// read as a job of the process's blocking pool.
+/// Why:
+///   The add asks this on the task that also runs the Cargo repair,
+/// so the read of the launcher directory must never run there;
+/// the pool's refusal is handed back so the add can say what it could not decide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needWithinTheBudget = async (destination, environment) => needOfPrepared(await prepareInstallWithinTheBudget(destination, environment));
+/// ```
+pub(crate) async fn need_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainNeed, BlockingJobError> {
+    return match prepare_install_within_the_budget(destination, environment).await {
+        Ok(prepared) => Ok(need_of_prepared(prepared)),
+        Err(refusal) => Err(refusal),
+    };
 }
 
 /// The install,

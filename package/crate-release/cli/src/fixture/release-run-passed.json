@@ -1,0 +1,141 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-11-11T00:55:54Z",
+  "jobs": [
+    {
+      "completedAt": "2026-11-11T01:00:25Z",
+      "conclusion": "success",
+      "databaseId": 130243330083,
+      "name": "release",
+      "startedAt": "2026-11-11T00:55:58Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T00:55:59Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T00:55:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:55:59Z",
+          "conclusion": "skipped",
+          "name": "Refuse a ref other than main",
+          "number": 2,
+          "startedAt": "2026-11-11T00:55:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:56:27Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 3,
+          "startedAt": "2026-11-11T00:55:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:56:38Z",
+          "conclusion": "success",
+          "name": "Install Node, pnpm and the workspace dependencies",
+          "number": 4,
+          "startedAt": "2026-11-11T00:56:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:56:47Z",
+          "conclusion": "success",
+          "name": "Install Rust toolchain",
+          "number": 5,
+          "startedAt": "2026-11-11T00:56:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:56:47Z",
+          "conclusion": "skipped",
+          "name": "Install the system libraries the compositor crate links",
+          "number": 6,
+          "startedAt": "2026-11-11T00:56:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T00:56:47Z",
+          "conclusion": "success",
+          "name": "Set the identity of the local release commit",
+          "number": 7,
+          "startedAt": "2026-11-11T00:56:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:19Z",
+          "conclusion": "success",
+          "name": "Bump, check, dry-run the publish and commit locally",
+          "number": 8,
+          "startedAt": "2026-11-11T00:56:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:22Z",
+          "conclusion": "success",
+          "name": "Push the bump to main as a signed commit",
+          "number": 9,
+          "startedAt": "2026-11-11T01:00:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:23Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-11-11T01:00:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:23Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-11T01:00:23Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935168319/job/130243330083"
+    },
+    {
+      "completedAt": "2026-11-11T01:00:31Z",
+      "conclusion": "success",
+      "databaseId": 130245161104,
+      "name": "publish",
+      "startedAt": "2026-11-11T01:00:27Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:28Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:30Z",
+          "conclusion": "success",
+          "name": "Start cargo-publish for the crate on main",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:00:30Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 3,
+          "startedAt": "2026-11-11T01:00:30Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935168319/job/130245161104"
+    }
+  ],
+  "status": "completed"
+}

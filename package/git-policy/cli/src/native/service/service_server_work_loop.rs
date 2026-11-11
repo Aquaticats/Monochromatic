@@ -29,6 +29,7 @@ use crate::push_retry::PushRetries;
 use crate::service_claim_watch::ClaimWatch;
 use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 use crate::service_work::{GitHandlers, Wake};
+use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -46,7 +47,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 /// ```ts
 /// runOnRuntime(workLoopAwaiting(receiver, handlers, busy, retries, watch))
 /// ```
-pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, push_retries: PushRetries, watch: ClaimWatch) {
+pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers, busy: &Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
     if let Err(refusal) = crate::lazy_runtime::run_on_runtime(work_loop_awaiting(receiver, handlers, busy, push_retries, watch)) {
         crate::service_error!("the after-commit work of this service did not run: {refusal}");
     }

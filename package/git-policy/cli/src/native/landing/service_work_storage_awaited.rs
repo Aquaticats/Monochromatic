@@ -41,9 +41,9 @@ use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_handlers_replanning_and_acceptance::{
-    MAX_TRIES, SERVICE_KINDS, SkipNotice, is_acceptable, settle_all, still_held,
+    MAX_TRIES, SkipNotice, is_acceptable, settle_all, still_held,
 };
-use crate::work_item::{Claimed, claim_all_of};
+use crate::work_item::{Claimed, WorkKind, claim_all_of};
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -67,20 +67,24 @@ fn refused(step: &str, reason: &BlockingJobError) {
 }
 
 /// What:
-///  Claim every pending record of `work_dir`.
+///  Claim every pending record of `work_dir` of the kinds `kinds` names.
 /// Why:
 ///   The listing and the renames are storage,
 /// and the answer is the drain's first step of a round.
+/// The kinds are the drain's own:
+/// the round that holds the service claims the pushes alone,
+/// and the slow lane claims the rest
+///  (`landing/service_work_slow_lane.rs`).
 /// An error is the reason the directory could not be claimed,
 ///  which ends the round where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const claimed = await claimAllAwaiting(workDir)
+/// const claimed = await claimAllAwaiting(workDir, kinds)
 /// ```
-pub(crate) async fn claim_all_awaiting(work_dir: &Path) -> Result<Vec<Claimed>, String> {
+pub(crate) async fn claim_all_awaiting(work_dir: &Path, kinds: &'static [WorkKind]) -> Result<Vec<Claimed>, String> {
     let directory: PathBuf = work_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || { return claim_all_of(directory.as_path(), &SERVICE_KINDS); }).await {
+    return match run_blocking_job_within_the_budget(move || { return claim_all_of(directory.as_path(), kinds); }).await {
         Ok(taken) => taken,
         Err(reason) => Err(format!("the look for this directory's pending records did not run, so none was claimed: {reason}")),
     };

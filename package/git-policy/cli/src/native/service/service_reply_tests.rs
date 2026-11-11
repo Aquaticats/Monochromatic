@@ -189,20 +189,24 @@ fn beats_and_answers_never_interleave_their_bytes_and_keep_their_order() {
     });
 }
 
-/// The question asked at a beat may wait,
-/// and a beat that waits on it does not stop the runtime:
-/// a note source that takes a while to answer leaves the other tasks their turns.
-/// The beat itself goes first and the note follows it,
-/// because a note may wait for a place of the blocking pool that a round's removals hold,
-/// and a waiting client ends a service it has heard nothing from for `HEARTBEAT_SILENCE`.
+/// What:
+///  The beat is written before its note is asked,
+///  and a note that takes a while still follows it.
+/// Why:
+///  A note reads the journal,
+///  which can wait on storage,
+/// and the beat is the proof of life the client's wait rests on,
+///  so the beat is written first and the note rides behind it.
+///  The other tasks keep their turns throughout,
+/// which is what a note awaited on the runtime means.
 #[test]
-fn a_note_that_takes_a_while_leaves_the_other_tasks_their_turns() {
+fn a_note_that_takes_a_while_is_written_after_the_beat() {
     /// A note source that answers after a pause and says so.
     struct SlowNote;
 
     impl NoteSource for SlowNote {
         async fn note(&mut self) -> Option<ServiceMessage> {
-            tokio::time::sleep(QUICK_BEAT).await;
+            tokio::time::sleep(QUICK_BEAT / 2).await;
             return Some(ServiceMessage::Waiting { text: String::from("slow") });
         }
     }
@@ -214,8 +218,50 @@ fn a_note_that_takes_a_while_leaves_the_other_tasks_their_turns() {
         };
         let (reply, mut messages) = Reply::new();
         let writer = tokio::spawn(async move { write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut SlowNote).await; });
-        assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat, "the beat never waits for the note that rides on it");
-        assert_eq!(next(&mut client).await, ServiceMessage::Waiting { text: String::from("slow") }, "the note follows the beat that carried it");
+        assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat, "the beat is written before its note is asked");
+        assert_eq!(next(&mut client).await, ServiceMessage::Waiting { text: String::from("slow") }, "the note follows the beat it rides on");
+        drop(reply);
+        drop(client);
+        writer.await.expect("the writer ends");
+    });
+    assert!(ticks > 0, "the note's wait was awaited on the runtime");
+}
+
+/// What:
+///  A note that outlives one beat is left for the next beat,
+///  and the beats keep their pace while it waits.
+/// Why:
+///  Every beat asks the journal what the landing thread is inside,
+/// and a read that storage holds longer than one beat must not stop the beats:
+///  a client that hears nothing for five seconds reconnects,
+/// sends the commit again,
+///  and may report it failed although it landed.
+///  The note's own read is left running on the blocking pool and its answer is dropped.
+#[test]
+fn a_note_that_outlives_its_beat_is_left_for_the_next_beat() {
+    /// A note source whose answer never comes within one beat.
+    struct StuckNote;
+
+    impl NoteSource for StuckNote {
+        async fn note(&mut self) -> Option<ServiceMessage> {
+            tokio::time::sleep(QUICK_BEAT.saturating_mul(8)).await;
+            return Some(ServiceMessage::Waiting { text: String::from("stuck") });
+        }
+    }
+
+    let ((), ticks) = with_a_ticker_beside(async {
+        let (mut service, mut client) = {
+            let (service, client) = UnixStream::pair().expect("a connected pair");
+            (service, BufReader::new(client))
+        };
+        let (reply, mut messages) = Reply::new();
+        let writer = tokio::spawn(async move { write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut StuckNote).await; });
+        for _ in 0..BEATS_WANTED {
+            let heard: ServiceMessage = tokio::time::timeout(QUICK_BEAT.saturating_mul(20), next(&mut client))
+                .await
+                .expect("a beat arrives while the note waits");
+            assert_eq!(heard, ServiceMessage::Heartbeat, "only beats come while the note is held");
+        }
         drop(reply);
         drop(client);
         writer.await.expect("the writer ends");

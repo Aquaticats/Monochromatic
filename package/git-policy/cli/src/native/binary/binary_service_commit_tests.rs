@@ -164,7 +164,12 @@ fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[Pa
     let began: Instant = Instant::now();
     for socket in sockets {
         while UnixStream::connect(&socket).is_err() {
-            assert!(began.elapsed() < PATIENCE, "the service never listened");
+            assert!(
+                began.elapsed() < PATIENCE,
+                "the service never listened on {} for the worktrees under {} within {PATIENCE:?}",
+                socket.display(),
+                root.display()
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }

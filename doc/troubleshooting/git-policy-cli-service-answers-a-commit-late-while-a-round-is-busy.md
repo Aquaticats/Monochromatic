@@ -92,15 +92,34 @@ so the interval cannot be attributed to one with the records there are.
 
 ## What to do about it
 
+Two limits follow from the evidence.
+The heartbeat one landed on
+`fix/git-policy-cli-service-reads-its-socket-while-a-round-works`,
+the push-jam one on
+`fix/git-policy-cli-pushes-of-main-that-stalled-today`,
+and what neither of them bounds is the length of one trash.
 This is a defect on the commit's waiting path,
 which the agent `commit-waiting-path-with-dozens-of-agents` owns.
-Two limits follow from the evidence and neither is implemented:
 
 - the socket's read and the heartbeats must not wait on the drain's work,
-  so a round that is busy with a long removal cannot make a client call the service stopped;
-- a round's trash work needs a bound,
-  as every other wait of the service has one,
-  so pushes and upkeep are not held behind it for hours.
+  so a round that is busy with a long removal cannot make a client call the service stopped.
+  Done: the beat is written before its note,
+  a trash's entry removals take every place of the blocking pool but one (`places_a_round_may_take`),
+  and a round starts housekeeping for no longer than `HOUSEKEEPING_OF_ONE_ROUND`
+  ("Fixed, 2026-11-11" in this file).
+- the pushes of a worktree must not wait for a round's trash work.
+  Done by claiming the push on the round that answers a wake and every other
+  kind on a lane of its own task
+  (`landing/service_work_slow_lane.rs`),
+  which `a_push_is_taken_while_the_service_is_inside_a_trash` asserts.
+  The measurement of the day's late pushes,
+  and what is still unbounded,
+  is in
+  `doc/planning/git-policy-cli-push-jams-2026-11-10.md`,
+  "A round that serves a push holds no slow step".
+  The trash itself is still unbounded:
+  a worktree's `target/` still takes as long as it takes,
+  on the lane rather than on the push.
 
 Until then,
 a commit that reports the service silent has landed more often than not:
@@ -129,8 +148,8 @@ housekeeping, and the cause it removed was narrower than the inference above:
   (`service/service_server_connection_handling.rs`) waited for a place as well,
   which is what `read_ms` measured.
   The beat now goes first,
-  and the note is given `NOTE_OF_A_BEAT_CEILING` (one interval,
-  `service/wait_ceilings.rs`) before it is left out for the next beat.
+  and the note is given one beat's interval to answer (`HEARTBEAT_EVERY`,
+  `service/service_protocol.rs`) before it is left out for the next beat.
 - a trash's entry removals now take every place of that pool but one
   (`places_a_round_may_take`,
   `foundation/blocking_jobs_within_the_budget.rs`),

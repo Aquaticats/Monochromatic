@@ -121,8 +121,52 @@ fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRe
     let Some(program) = find_program(PROGRAM, environment.path()) else {
         return PnpmRepair::NoPnpm(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
     };
-    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: Vec::new() };
+    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: crate::package_repair_request::with_the_persons_path(environment) };
     return PnpmRepair::Relink(Relink { program, command, manual, limits: environment.limits() });
+}
+
+/// What:
+///  What the worktree needs of the pnpm repair,
+/// decided from the worktree and the search path alone.
+/// Why:
+///   The add no longer runs the relink itself,
+/// so it asks this before it writes the record the service runs:
+/// a worktree with no layout to relink leaves no work,
+/// and one whose pnpm is missing gets the line that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PnpmNeed = 'nothing' | 'needed' | { missing: Finding };
+/// ```
+pub(crate) enum PnpmNeed {
+    /// There is no lockfile or no `node_modules`,
+    /// so no relink is needed.
+    Nothing,
+    /// The relink is needed and the search path provides pnpm;
+    /// running it is the commit service's work.
+    Needed,
+    /// The relink is needed and the search path provides no pnpm;
+    /// the finding names the command to run.
+    NoProgram(Finding),
+}
+
+/// What:
+///  What this tool's part of a worktree's repair is,
+/// before anything is started.
+/// Why:
+///  Both faces of the repair decide it the same way,
+/// so a worktree the add hands over is one the repair would have relinked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needOf = (destination, environment) => decide(prepareRelink(destination, environment));
+/// ```
+pub(crate) fn need_of(destination: &Path, environment: &RepairEnvironment) -> PnpmNeed {
+    return match prepare_relink(destination, environment) {
+        PnpmRepair::NothingToDo => PnpmNeed::Nothing,
+        PnpmRepair::NoPnpm(finding) => PnpmNeed::NoProgram(finding),
+        PnpmRepair::Relink(_work) => PnpmNeed::Needed,
+    };
 }
 
 /// The relink,

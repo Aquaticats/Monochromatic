@@ -41,7 +41,7 @@ use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
 /// The look for the commit a request that was already sent made.
 use crate::service_commit_fitting_request::embedded_that_fits;
-use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
+use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for};
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
@@ -62,7 +62,7 @@ use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again};
 /// Provisioning the service before the first submission.
 use crate::service_provision::provision_when_needed;
-use crate::service_branch_shows::display_text;
+use crate::service_branch_shows::refused_when_the_branch_switched;
 /// The result of a commit that landed,
 /// and the work after it.
 use crate::service_landed_aftermath::{LandedAftermath, the_landed_commit};
@@ -78,8 +78,6 @@ use crate::service_commit_request_of::{RequestOf, the_request_of};
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, reach_service_phase};
 use crate::transaction_phase::Phase;
-/// The base a preparation read,
-/// which says whether the branch existed at all.
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
@@ -214,17 +212,8 @@ pub fn service_commit<F: RepositoryFacts>(
         if first_reference.is_none() {
             first_reference = Some(ready.reference.clone());
         }
-        let first_branch: String = match first_reference.as_ref() {
-            Some(known) => known.clone(),
-            None => ready.reference.clone(),
-        };
-        if first_branch != ready.reference {
-            let failure: ClientFailure = ClientFailure::BranchSwitched {
-                branch: switched_branch_name(first_branch.as_str()),
-                now: switched_branch_name(ready.reference.as_str()),
-                file: fixed_message.as_deref().map(display_text),
-            };
-            return Err(TransactionStop::Message(render(&failure)));
+        if let Some(stop) = refused_when_the_branch_switched(first_reference.as_deref(), ready.reference.as_str(), fixed_message.as_deref()) {
+            return Err(stop);
         }
         if !decided {
             decided = true;

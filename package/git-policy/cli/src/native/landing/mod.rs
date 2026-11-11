@@ -48,6 +48,10 @@ pub mod work_item_recovery;
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
+/// The ids the queue still owes work for,
+/// asked by a producer that writes a record and by a consumer that takes a name away.
+pub mod work_item_queued_ids;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 
@@ -59,6 +63,14 @@ pub mod service_claim_watch;
 
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
+
+/// The words for a start that cannot come at all,
+/// because the address cannot exist or the manager made the service listen elsewhere.
+pub mod service_messages_of_a_start_that_cannot_come;
+
+/// What a commit says while it waits for the service,
+/// and that the service is restarted or the commit built again.
+pub mod service_messages_of_a_wait_for_the_service;
 
 /// The commit service's serialized step.
 pub mod service_land;
@@ -358,20 +370,37 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
-/// How long one round may go on starting housekeeping, and what it leaves for a later round.
+/// How long one round may go on starting housekeeping,
+/// and what it leaves for a later round.
 pub mod housekeeping_of_one_round;
+
+/// The drain's step that deletes the subvolumes a removal handed over.
+pub mod service_work_drain_deletes_subvolumes;
+
+/// What a drained push's verdict does to its records,
+/// its retry plan and the person.
+pub mod service_work_settling_a_verdict;
+
+/// How one item whose kind answers with words is settled,
+/// with the line the person reads for it.
+pub mod service_work_settling_with_words;
+
+/// The drain of the snapshots the commit service makes ahead of the next add,
+/// as one step of a round.
+pub mod service_work_drains_a_snapshot_ahead;
 
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
 
-/// What one verdict of a claimed item does to its record,
-/// to the retry plan and to the person's notices.
-pub mod service_work_settles_claims;
-
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;
+
+/// The service's work that can take minutes:
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
+pub mod service_work_slow_lane;
 
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;
