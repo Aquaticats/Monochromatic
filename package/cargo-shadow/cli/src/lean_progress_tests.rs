@@ -4,53 +4,11 @@
 //! a record that is missing or unreadable means the front of the list,
 //! and neither name of the record is ever followed through a link or opened on a pipe.
 
-use std::{fs, path::{Path, PathBuf}, sync::mpsc, time::Duration};
+use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
-use rustix::fs::{CWD, FileType, Mode, mknodat};
-
-use crate::lean_progress::{LongPass, Progress, PROGRESS_FILE_NAME, STAGING_FILE_NAME, resume_index, state_directory};
+use crate::lean_progress::{HEADER, LongPass, Progress, PROGRESS_FILE_NAME, RETIRED_STAGING_FILE_NAME, resume_index, state_directory};
+use crate::lean_test_support::{make_pipe, within};
 use crate::test_scratch::scratch;
-
-/// The longest a save or a read of the record may take in these tests:
-/// a record that is a pipe must answer at once rather than wait for the other end.
-const ANSWER_WITHIN: Duration = Duration::from_secs(10);
-
-/// What:
-/// `fn make_pipe(path: &Path)` makes a named pipe with no reader and no writer.
-/// Why:
-/// A pipe at one of the record's names is the shape that holds a blocking open forever,
-/// and only a pipe tests what a symbolic link or another file cannot.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const makePipe = (path: string): void => execFileSync('mkfifo', [path]);
-/// ```
-fn make_pipe(path: &Path) {
-    mknodat(CWD, path, FileType::Fifo, Mode::from_raw_mode(0o600), 0).expect("a pipe at the record's name");
-}
-
-/// What:
-/// `fn within<F, T>(work: F) -> T` is the work's answer,
-/// and a failure when the work has not answered inside `ANSWER_WITHIN`.
-/// Why:
-/// The defect these controls guard is a call that never returns,
-/// so the control cannot wait for it in the test's own thread.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function within<T>(work: () => T, limitMs: number): Promise<T>
-/// ```
-fn within<F, T>(work: F) -> T
-where
-    F: FnOnce() -> T + Send + 'static,
-    T: Send + 'static,
-{
-    let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = sender.send(work());
-    });
-    return receiver.recv_timeout(ANSWER_WITHIN).expect("the call answered instead of waiting for the other end of a pipe");
-}
 
 /// Three keys in the order a pass walks them.
 fn keys() -> Vec<PathBuf> {
@@ -155,56 +113,68 @@ fn the_state_directory_is_the_state_home_or_the_home_for_that() {
     }
 }
 
-/// A link at the staging name is the tool's own name to use,
-/// and never a way into the file it names.
+/// A name this run did not create is neither opened nor removed:
+/// a second name someone gives one of their files at the staging name between the check and the open
+/// would otherwise be truncated through that name.
 #[test]
-fn a_link_at_the_staging_name_never_rewrites_the_file_it_names() {
+fn a_file_at_a_staging_name_this_run_did_not_create_keeps_its_bytes() {
     let root = scratch();
-    let victim: PathBuf = root.path().join("a-file-of-the-user");
-    let original: &str = "unrelated user data that must survive\n";
-    fs::write(&victim, original).expect("the user's file");
-    std::os::unix::fs::symlink(&victim, root.path().join(STAGING_FILE_NAME)).expect("a link at the staging name");
+    let retired: PathBuf = root.path().join(RETIRED_STAGING_FILE_NAME);
+    let original: &str = "bytes a killed run of another version left at a staging name\n";
+    fs::write(&retired, original).expect("a file at a staging name this run did not create");
+    let before: u64 = fs::symlink_metadata(&retired).expect("metadata of the file that was there").ino();
     let mut progress: Progress = Progress::default();
     progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
     progress.save(root.path()).expect("the position is still recorded");
-    assert_eq!(fs::read_to_string(&victim).expect("the user's file"), original, "the record is never written through a link: {}", victim.display());
-    let (read, notes) = crate::lean_progress::read(root.path());
-    assert!(notes.is_empty(), "{notes:?}");
-    assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name the link was at became the record");
-}
-
-/// A hard link at the staging name is a second name for a file this run does not own,
-/// so that name is replaced rather than the file truncated through it.
-#[test]
-fn a_hard_link_at_the_staging_name_never_rewrites_the_file_it_shares() {
-    let root = scratch();
-    let victim: PathBuf = root.path().join("a-file-of-the-user");
-    let original: &str = "unrelated user data that must survive\n";
-    fs::write(&victim, original).expect("the user's file");
-    fs::hard_link(&victim, root.path().join(STAGING_FILE_NAME)).expect("a second name for the user's file at the staging name");
-    let mut progress: Progress = Progress::default();
-    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
-    progress.save(root.path()).expect("the position is still recorded");
-    assert_eq!(fs::read_to_string(&victim).expect("the user's file"), original, "the record is never written through another name of a file: {}", victim.display());
-    let (read, notes) = crate::lean_progress::read(root.path());
-    assert!(notes.is_empty(), "{notes:?}");
-    assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name became the record");
-}
-
-/// A pipe at the staging name is removed,
-/// so the record is still written and no open waits for a reader.
-#[test]
-fn a_pipe_at_the_staging_name_does_not_wait_for_a_reader() {
-    let root = scratch();
-    make_pipe(&root.path().join(STAGING_FILE_NAME));
-    let mut progress: Progress = Progress::default();
-    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
-    let directory: PathBuf = root.path().to_path_buf();
-    let saved = within(move || { return progress.save(&directory); });
-    saved.expect("the position is still recorded");
+    assert_eq!(fs::read_to_string(&retired).expect("a file at a staging name this run did not create survives"), original);
+    let record: u64 = fs::symlink_metadata(root.path().join(PROGRESS_FILE_NAME)).expect("the record").ino();
+    assert_ne!(record, before, "the record is a file this run created, never one that was already there");
     let (read, notes) = crate::lean_progress::read(root.path());
     assert!(notes.is_empty(), "{notes:?}");
     assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")));
+}
+
+/// Two saves leave the record and nothing else,
+/// so a staging name this run made its own is consumed by the rename that publishes the record.
+#[test]
+fn a_save_leaves_only_the_record_behind() {
+    let root = scratch();
+    let mut progress: Progress = Progress::default();
+    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
+    progress.save(root.path()).expect("saved");
+    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/cccc")));
+    progress.save(root.path()).expect("saved again");
+    let names: Vec<String> = fs::read_dir(root.path()).expect("the state directory").map(|entry| { return entry.expect("entry").file_name().to_string_lossy().to_string(); }).collect();
+    assert_eq!(names, vec![String::from(PROGRESS_FILE_NAME)], "only the record is left behind");
+}
+
+/// A link at the record's name is not a file of this tool's,
+/// so the record is not read through it into whatever it names.
+#[test]
+fn a_link_at_the_record_name_is_not_followed() {
+    let root = scratch();
+    let elsewhere: PathBuf = root.path().join("a-file-of-the-user");
+    fs::write(&elsewhere, format!("{HEADER}\ntrees /base/00/bbbb\n")).expect("a record-shaped file of the user's");
+    std::os::unix::fs::symlink(&elsewhere, root.path().join(PROGRESS_FILE_NAME)).expect("a link at the record's name");
+    let (read, notes) = crate::lean_progress::read(root.path());
+    assert_eq!(read.after(LongPass::Trees), None, "a link says nothing about where a pass stopped");
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("starts at the front"), "{notes:?}");
+}
+
+/// A file larger than any record this version writes is not read at all:
+/// a device at the record's name never reaches its end,
+/// and reading one until it does is a run that never returns.
+#[test]
+fn a_file_larger_than_any_record_this_version_writes_is_not_read() {
+    let root = scratch();
+    let oversized: String = format!("{HEADER}\ntrees /base/00/bbbb\n{}", "x".repeat(1024 * 1024));
+    fs::write(root.path().join(PROGRESS_FILE_NAME), oversized).expect("a file longer than any record");
+    let directory: PathBuf = root.path().to_path_buf();
+    let (read, notes) = within(move || { return crate::lean_progress::read(&directory); });
+    assert_eq!(read.after(LongPass::Trees), None, "a file longer than any record says nothing about where a pass stopped");
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("starts at the front"), "{notes:?}");
 }
 
 /// A pipe at the record's own name is not a record this version reads,

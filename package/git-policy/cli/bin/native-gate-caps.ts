@@ -91,7 +91,7 @@ const systemdValueCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
  textCapProblem({ value: '20G', name: '--unit-memory-max' });
  ```
  */
-function textCapProblem({
+export function textCapProblem({
   value,
   name,
 }: {
@@ -125,7 +125,7 @@ function textCapProblem({
  wholeCapProblem({ value: 512, name: '--container-pids-limit' });
  ```
  */
-function wholeCapProblem({
+export function wholeCapProblem({
   value,
   name,
 }: {

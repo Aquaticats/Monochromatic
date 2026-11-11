@@ -192,6 +192,11 @@ and the work's own state arrives as a parameter,
 so a removal names a function instead of writing a closure where it is called).
 The class is set on the thread that unlinks,
 because the service pushes a branch and reads the repository on its other threads while a trash is emptied.
+The value that puts the class back belongs to the thread that lowered it:
+the compiler refuses to carry it to another thread,
+because a drop gives the priority back to the thread that drops it,
+and a value that travelled would overwrite the receiving thread's own priority while the lowered thread
+stayed at the idle class for the rest of its life.
 A thread whose class cannot be read or set is left as it is,
 and the emptying is correct either way.
 

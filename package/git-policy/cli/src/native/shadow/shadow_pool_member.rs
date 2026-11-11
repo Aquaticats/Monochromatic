@@ -1,21 +1,31 @@
 //! What:
 //!  What a finished shadow in the pool must be for this invocation to take it:
-//!  exactly what a creation would have made,
+//!  the tree a creation would have made of what a commit reads,
 //! or a refusal that names what differs.
 //! Why:
 //!  A commit takes a shadow another process made,
 //! so the one new risk is trusting a tree made earlier.
 //!  That risk has one answer a test can hold:
-//! a member is either the tree a creation makes,
+//! a member is either the tree a creation makes of what a commit reads,
 //! or it is refused
 //! (`doc/handover/questions-for-the-owner.md`,
 //! "May a commit take its private repository from a pool made ahead?").
-//!  Everything here is a read:
+//!  What a commit reads is the named set of shared entries
+//! (`shadow_links.rs`,
+//! `SHARED_ENTRY_NAMES`),
+//! so a member is judged on those and never on the rest of what a common Git directory collects:
+//!  a file another command wrote since the fill
+//!  (`FETCH_HEAD`,
+//! a log generation,
+//! a worktree)
+//!  is state no commit reads,
+//! so it neither makes a member wrong nor refuses one.
+//! Everything here is a read:
 //! the comparison costs no directory-entry creation on the volume a commit already waits on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const refusal = await resizeMember(template, member); // undefined when the member is what a creation makes
+//! const refusal = await refusalOfMember(template, member); // undefined when the member is what a creation makes
 //! ```
 
 /// The creation's own `HEAD`,
@@ -27,8 +37,9 @@ use crate::shadow_skeleton::SKELETON_DIRECTORIES;
 /// The facts a creation is made from.
 use crate::shadow_create::ShadowTemplate;
 /// The entries a creation links,
+/// the names a member may hold as links,
 /// and the per-worktree file it copies.
-use crate::shadow_links::{has_worktree_config, shared_entries_of};
+use crate::shadow_links::{has_worktree_config, is_shared_shadow_entry, shared_entries_of};
 /// The directories of a shadow that stay the creation's own,
 /// and the path each check names.
 use std::path::{Path, PathBuf};
@@ -70,7 +81,7 @@ const OWN_ENTRIES: [&str; 4] = ["HEAD", "config", "objects", "refs"];
 const WORKTREE_CONFIG: &str = "config.worktree";
 
 /// What:
-///  Why this member is not what a creation would have made,
+///  Why this member is not the tree a creation would have made,
 /// or nothing when it is.
 /// Why:
 ///   The caller refuses a named member and removes it,
@@ -78,10 +89,15 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// another object directory or another release never reaches a commit.
 ///  A reftable repository is never pooled at all,
 /// so the entries Git's own `init` adds there are not considered.
+///  An entry a commit reads that the repository has gained since the fill is refused,
+/// because the member would give the commit the view of the moment it was made;
+///  an entry it has lost is not,
+/// since a link to a name that is no longer there resolves to nothing,
+/// which is the view a creation of this moment gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
+/// await refusalOfMember(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
     if read_bytes(member.join("config").as_path())? != template.config_bytes() {
@@ -111,41 +127,40 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         return Ok(Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is")));
     }
     let copies_worktree_config: bool = has_worktree_config(template.git_dir.as_path())?;
-    // One listing of the member answers both questions the entries are asked: that each entry is one this invocation's
-    // creation makes, and that each entry the creation shares is here and is a link.
+    // One listing of the member answers both questions its entries are asked: that each is one this invocation's
+    // creation makes, or one a creation could have linked, and that every entry at a shared name is the link it made.
     // The type of each entry comes with the listing (`d_type`), so a shared entry costs the one call that reads its target:
     // `read_link` alone refuses an entry that is missing and one that is not a link.
     let listed: Vec<(std::ffi::OsString, bool)> = listing_of(member)?;
-    for (name, _is_link) in &listed {
+    for (name, is_link) in &listed {
         let spelled: String = name.to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
-        let mut linked: bool = false;
-        for candidate in &shared {
-            if candidate.name == *name {
-                linked = true;
-                break;
-            }
+        if own {
+            continue;
         }
-        if !own && !linked {
+        if !is_shared_shadow_entry(spelled.as_str()) {
             return Ok(Some(format!("it holds {spelled}, which this invocation's creation does not make")));
+        }
+        // A shared name the repository no longer holds is the view a creation gives too,
+        // but only as the link a creation made: a real directory or file there is a leftover of a use.
+        // The type of a shared entry is settled here, which leaves the loop below the presence and the target of one.
+        if !is_link {
+            return Ok(Some(format!("the shared entry {spelled} is not a link in the member")));
         }
     }
     // Every entry the creation shares is here, and links to the same real entry.
     for entry in &shared {
         let shared_named: String = entry.name.to_string_lossy().into_owned();
         let link: PathBuf = member.join(&entry.name);
-        let mut present: Option<bool> = None;
-        for (name, is_link) in &listed {
+        let mut present: bool = false;
+        for (name, _is_link) in &listed {
             if *name == entry.name {
-                present = Some(*is_link);
+                present = true;
                 break;
             }
         }
-        let Some(is_link) = present else {
+        if !present {
             return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
-        };
-        if !is_link {
-            return Ok(Some(format!("the shared entry {shared_named} is not a link in the member")));
         }
         if link_target(link.as_path())? != entry.source {
             return Ok(Some(format!("the shared entry {shared_named} links somewhere other than the repository's own entry")));

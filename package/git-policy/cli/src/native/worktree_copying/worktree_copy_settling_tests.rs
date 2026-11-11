@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_manifest::collect_pruned_manifest;
 use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, try_clone};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -70,7 +71,7 @@ fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, Path
     std::fs::create_dir_all(&stage).expect("the stage");
     let mut unreadable: Vec<Vec<u8>> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable).expect("the manifest");
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable, &CopyCeiling::unbounded()).expect("the manifest");
     assert!(unreadable.is_empty(), "{unreadable:?}");
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
@@ -177,7 +178,7 @@ fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
 /// const copied = copyManifestEntriesWith({ source, stage, entries, clone: changingClone }); return settleTheCopy({ ...copied, source, stage, entries, prune: 'never', clone: changingClone });
 /// ```
 fn copy_and_settle(source: &Path, stage: &Path, entries: Vec<WorktreeCopyEntry>) -> Result<Settled, WorktreeCopyError> {
-    let copied: CopiedManifest = copy_manifest_entries_with(source, stage, entries.as_slice(), changing_clone)?;
+    let copied: CopiedManifest = copy_manifest_entries_with(source, stage, entries.as_slice(), changing_clone, &CopyCeiling::unbounded())?;
     return settle_the_copy(SettlingRequest {
         source_root: source,
         stage_root: stage,
@@ -301,7 +302,7 @@ fn source_with_a_directory(
     std::fs::create_dir_all(&stage).expect("the stage");
     let mut unreadable: Vec<Vec<u8>> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable).expect("the manifest");
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable, &CopyCeiling::unbounded()).expect("the manifest");
     assert!(unreadable.is_empty(), "{unreadable:?}");
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
@@ -400,7 +401,7 @@ fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
     let answered: Option<Result<CopiedManifest, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
         crate::parallel_test_support::PATIENCE,
         move || {
-            return copy_manifest_entries_with(wanted.0.as_path(), wanted.1.as_path(), wanted.2.as_slice(), changing_clone);
+            return copy_manifest_entries_with(wanted.0.as_path(), wanted.1.as_path(), wanted.2.as_slice(), changing_clone, &CopyCeiling::unbounded());
         },
     );
     let Some(staged) = answered else {
