@@ -27,6 +27,8 @@ use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_toolchain::repair_toolchain_awaiting;
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::work_item::WorkItem;
+use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairRelinkJob";
@@ -157,12 +159,52 @@ fn refusal_of_a_record_that_is_not_about_its_own_directory(item: &WorkItem, entr
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath === undefined ? environment : { ...environment, searchPath: entry.searchPath };
+/// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath === undefined ? environment : { ...environment, searchPath: fromTheAdd(entry) };
 /// ```
 fn environment_as_the_add_left_it(entry: &RelinkEntry, environment: &RepairEnvironment) -> RepairEnvironment {
     return match entry.search_path.as_ref() {
         None => environment.clone(),
-        Some(search_path) => RepairEnvironment { search_path: Some(search_path.clone()), ..environment.clone() },
+        Some(search_path) => RepairEnvironment { search_path: Some(search_path_from_the_add(entry, search_path.as_os_str())), ..environment.clone() },
+    };
+}
+
+/// What:
+///  A search path a record carries,
+/// with every relative entry spelled from the directory the add resolved it in,
+/// so each entry names the directory the add's programs were found in.
+/// Why:
+///   An entry of a search path without a leading slash means a directory of the working directory,
+/// and the service works in its own:
+/// read as given,
+/// such an entry names another directory there,
+/// the program is not found,
+/// and the worktree keeps the links the copy left.
+/// Spelling each entry absolutely also makes the program's own path absolute,
+/// and a tool started in the worktree with a relative program path would name the worktree's directory instead.
+/// An empty entry stays empty:
+/// it means the working directory in a shell,
+/// and no repair runs a program found there.
+/// A record whose directory is not named keeps its entries as written,
+/// which is what a record of the release before this one has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromTheAdd = (entry, searchPath) => entry.searchFrom === undefined ? searchPath : joinPaths(splitPaths(searchPath).map((one) => one === '' || isAbsolute(one) ? one : join(entry.searchFrom, one)));
+/// ```
+fn search_path_from_the_add(entry: &RelinkEntry, search_path: &OsStr) -> OsString {
+    let Some(search_from) = entry.search_from.as_deref() else {
+        return search_path.to_os_string();
+    };
+    let mut spelled: Vec<PathBuf> = Vec::new();
+    for one in std::env::split_paths(search_path) {
+        let from_the_add: PathBuf = if one.as_os_str().is_empty() || one.is_absolute() { one } else { search_from.join(one) };
+        spelled.push(from_the_add);
+    }
+    // A path that cannot be spelled back as one search path keeps the record's own text, so nothing is lost and the
+    //  tools still start on the path the add wrote.
+    return match std::env::join_paths(spelled) {
+        Ok(joined) => joined,
+        Err(_unspellable) => search_path.to_os_string(),
     };
 }
 

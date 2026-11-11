@@ -106,7 +106,8 @@ fn installing_toolchain(scene: &Scene, status: u8) -> String {
 /// The record one scene's relink is queued as,
 /// naming both tools.
 fn item_of_the_scene(scene: &Scene, tools: Vec<RelinkTool>) -> WorkItem {
-    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: scene.environment.search_path.clone(), tools };
+    let entry: RelinkEntry =
+        RelinkEntry { root: scene.worktree.clone(), search_path: scene.environment.search_path.clone(), search_from: None, tools };
     return item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
 }
 
@@ -252,6 +253,55 @@ fn the_service_starts_the_program_the_add_resolved() {
     let service_environment: RepairEnvironment = RepairEnvironment { search_path: Some(empty.clone().into_os_string()), ..scene.environment.clone() };
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&item, &service_environment)).expect("the relinking runs");
     assert_eq!(verdict, Verdict::Done, "the service could not start the pnpm the add found");
+    let named: String = starts(&scene);
+    assert!(named.trim_end().ends_with(scene.worktree.to_str().expect("utf8")), "the install did not run in the worktree: {named}");
+    let path: String = paths(&scene);
+    assert!(path.contains(scene.bin.to_str().expect("utf8")), "the install did not see the add's search path: {path}");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A record whose search path names a directory relatively starts the program the add resolved,
+/// and the tool sees that search path spelled from the directory the add resolved it in.
+/// Why:
+///   An entry of a search path without a leading slash means a directory of the working directory,
+/// so a shell that puts `caller-bin` on `PATH` means its own `caller-bin`,
+/// and the add found the pnpm there and handed the work over.
+/// The service is a resident process of the session and works in its own directory,
+/// so the record carries the directory the add resolved it in,
+/// and the service reads the entry from that one.
+/// Without it the service finds no program,
+/// settles the record failed,
+/// and the worktree keeps the links the copy left while the add has already said the service will relink it.
+///
+/// The record here is the payload text a queue holds,
+/// so the control asks the reader the question it asks of the add's own record.
+#[test]
+fn a_relative_search_entry_starts_the_program_the_add_resolved() {
+    let scene: Scene = scene("relink-job-relative-search-entry");
+    // The add's own `PATH` names this directory relatively: `bin`, resolved from the fixture root, which is `scene.bin`.
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    let payload: String = format!(
+        r#"{{"root":"{root}","searchPath":"bin","searchFrom":"{from}","tools":["pnpm"]}}"#,
+        root = scene.worktree.display(),
+        from = scene.root.display()
+    );
+    let item: WorkItem = WorkItem {
+        kind: crate::work_item::WorkKind::Relink,
+        repository: scene.worktree.clone(),
+        git_dir: scene.common.clone(),
+        branch_ref: String::from(crate::package_repair_relink::RELINK_REFERENCE),
+        oid: String::from("0000000000000000000000000000000000000000"),
+        parent: payload,
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    // The service's own search path holds no pnpm, as a service started by the manager has none of the person's.
+    let elsewhere: PathBuf = scene.root.join("service-search-path");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("an empty search path for the service");
+    let service_environment: RepairEnvironment = RepairEnvironment { search_path: Some(elsewhere.clone().into_os_string()), ..scene.environment.clone() };
+    let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&item, &service_environment)).expect("the relinking runs");
+    assert_eq!(verdict, Verdict::Done, "the service could not start the pnpm the add found through a relative search path entry");
     let named: String = starts(&scene);
     assert!(named.trim_end().ends_with(scene.worktree.to_str().expect("utf8")), "the install did not run in the worktree: {named}");
     let path: String = paths(&scene);

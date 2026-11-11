@@ -11,6 +11,7 @@ use crate::service_server::Bind;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git_context, remove};
 use crate::work_item::{Claimed, DONE, Enqueued, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
+use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -18,7 +19,7 @@ use std::time::{Duration, Instant};
 /// One worktree that needs both tools,
 /// so the payload holds more than one name.
 fn entry(root: &Path) -> RelinkEntry {
-    return RelinkEntry { root: root.to_path_buf(), search_path: None, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
+    return RelinkEntry { root: root.to_path_buf(), search_path: None, search_from: None, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
 }
 
 /// A route finder that names no service,
@@ -41,15 +42,27 @@ fn no_reach() -> Reach<'static> {
 
 /// What:
 ///  A worktree that needs both tools round-trips through the payload,
-/// with the order the report has always named them in.
+/// with the order the report has always named them in,
+/// with the person's search path,
+/// and with the directory that search path was resolved in.
 /// Why:
 ///   The record is the only thing the service reads,
-/// so what it carries must survive being written and read back.
+/// so what it carries must survive being written and read back;
+/// a search path and the directory it was resolved in are two facts,
+/// and a reader that lost the second would read a relative entry from its own working directory.
 #[test]
 fn both_tools_round_trip_through_the_payload() {
-    let written: RelinkEntry = entry(Path::new("/w/topic"));
+    let written: RelinkEntry = RelinkEntry {
+        root: PathBuf::from("/w/topic"),
+        search_path: Some(OsString::from("bin:/usr/bin:/bin")),
+        search_from: Some(PathBuf::from("/home/someone/src/project")),
+        tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain],
+    };
     let text: String = encode(&written).expect("the payload");
+    assert!(text.contains("searchFrom"), "the record does not name the directory its search path was resolved in: {text}");
     assert_eq!(decode(text.as_str()).expect("the entry"), written);
+    let without: RelinkEntry = entry(Path::new("/w/topic"));
+    assert_eq!(decode(encode(&without).expect("the payload").as_str()).expect("the entry"), without);
 }
 
 /// What:
@@ -75,7 +88,7 @@ fn a_payload_that_names_no_known_tool_is_refused() {
         let refused: Result<RelinkEntry, String> = decode(text);
         assert!(refused.is_err(), "{text} was accepted as {refused:?}");
     }
-    assert!(encode(&RelinkEntry { root: PathBuf::from("/w"), search_path: None, tools: Vec::new() }).is_err(), "a relink of no tool is no work");
+    assert!(encode(&RelinkEntry { root: PathBuf::from("/w"), search_path: None, search_from: None, tools: Vec::new() }).is_err(), "a relink of no tool is no work");
 }
 
 /// What:

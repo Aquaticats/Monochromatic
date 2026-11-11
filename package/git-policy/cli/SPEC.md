@@ -3862,6 +3862,18 @@ of which the two that rewrite link layouts in place are the service's work whene
   so the service starts the program the add resolved,
   and the program's own children read the same path;
   the service's own path may hold no pnpm or another one.
+  The record also carries the working directory the add resolved that path in,
+  because an entry without a leading slash means a directory of the working directory,
+  and the service works in its own:
+  read from the service's directory,
+  such an entry names another directory there,
+  no program is found,
+  and the worktree keeps the links the copy left
+  while the add has already said the service will relink it.
+  The service spells every relative entry from that directory,
+  and an empty entry stays empty,
+  because it means the working directory in a shell and no repair starts a program found there.
+  A record written before this field existed names no directory and keeps its entries as written.
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.

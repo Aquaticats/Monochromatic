@@ -320,7 +320,14 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
     if tools.is_empty() {
         return findings;
     }
-    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path: request.environment.search_path.clone(), tools: tools.clone() };
+    let entry: RelinkEntry = RelinkEntry {
+        root: request.destination.to_path_buf(),
+        search_path: request.environment.search_path.clone(),
+        // The directory this process resolves a relative entry of that search path in, which is the one the need above
+        //  found the tool in. The service works in its own directory, so the record must name this one.
+        search_from: std::env::current_dir().ok(),
+        tools: tools.clone(),
+    };
     let told: Told = hand_over_the_record(request, &entry).await;
     match told {
         Told::Taken(millis) => {

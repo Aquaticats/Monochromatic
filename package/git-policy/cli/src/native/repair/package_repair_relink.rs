@@ -96,18 +96,25 @@ impl RelinkTool {
 ///  The work one relink record asks for:
 /// the new worktree,
 /// the search path the add resolved its programs on,
+/// the directory that search path was resolved from,
 /// and the tools whose state needs relinking there.
 /// Why:
-///   The first two facts are what the add already read from the worktree and the person's environment,
+///   The first three facts are what the add already read from the worktree and the person's environment,
 /// so the service repeats no decision the add made,
 /// and the record says exactly what the add would have run.
 /// The search path travels because the service is a resident process of another session:
 /// its own path may hold no pnpm or another one,
 /// and the owner decided the repair starts whatever pnpm is first on the person's path.
+/// The directory travels with it because an entry of a search path without a leading slash means
+/// a directory of the working directory the programs were found in,
+/// and a service works in its own:
+/// without that fact the record's relative entries name other directories there,
+/// the program is not found,
+/// and the worktree keeps the links the copy left.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RelinkEntry = { root: string; searchPath?: string; tools: RelinkTool[] };
+/// type RelinkEntry = { root: string; searchPath?: string; searchFrom?: string; tools: RelinkTool[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RelinkEntry {
@@ -118,6 +125,11 @@ pub struct RelinkEntry {
     /// absent only in a record written before this release carried it,
     /// where the service searches its own path.
     pub search_path: Option<OsString>,
+    /// The working directory the add resolved that search path in,
+    /// so a relative entry of it names the same directory for the service;
+    /// absent only in a record written before this release carried it,
+    /// where a relative entry was read against the service's own working directory.
+    pub search_from: Option<PathBuf>,
     /// The tools the service runs there,
     /// in the order the report has always named them.
     pub tools: Vec<RelinkTool>,
@@ -146,7 +158,9 @@ fn name_of_tool(tool: &RelinkTool) -> serde_json::Value {
 ///
 /// # Errors
 ///
-/// A path or a search path that is not UTF-8,
+/// A path,
+/// a search path,
+/// or the directory a search path was resolved in that is not UTF-8,
 /// which no record could name back,
 /// and an entry that asks for no tool,
 /// which would be a record of nothing.
@@ -165,6 +179,12 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
         };
         fields.insert(String::from("searchPath"), serde_json::Value::from(text));
     }
+    if let Some(search_from) = entry.search_from.as_deref() {
+        let Some(text) = search_from.to_str() else {
+            return Err(String::from("the directory the relink resolved its search path in is not valid UTF-8, so no record can carry it"));
+        };
+        fields.insert(String::from("searchFrom"), serde_json::Value::from(text));
+    }
     let names: Vec<serde_json::Value> = entry.tools.iter().map(name_of_tool).collect();
     fields.insert(String::from("tools"), serde_json::Value::Array(names));
     return Ok(serde_json::Value::Object(fields).to_string());
@@ -178,7 +198,9 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
 /// the service must run exactly the tools the add decided on.
 /// A record written before this release carried a search path names none,
 /// and the service then searches its own path,
-/// so such a record still relinks the worktree it was written for.
+/// so such a record still relinks the worktree it was written for;
+/// a record of that release also names no directory its search path was resolved in,
+/// and a relative entry of it therefore keeps the service's working directory.
 ///
 /// # Errors
 ///
@@ -210,7 +232,8 @@ pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
         return Err(String::from("the relink names no tools"));
     }
     let search_path: Option<OsString> = parsed.get("searchPath").and_then(serde_json::Value::as_str).map(OsString::from);
-    return Ok(RelinkEntry { root: PathBuf::from(root), search_path, tools });
+    let search_from: Option<PathBuf> = parsed.get("searchFrom").and_then(serde_json::Value::as_str).map(PathBuf::from);
+    return Ok(RelinkEntry { root: PathBuf::from(root), search_path, search_from, tools });
 }
 
 /// What:
