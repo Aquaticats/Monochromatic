@@ -129,7 +129,7 @@ fn a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk() {
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
     assert!(retries.next_wait(here, Instant::now()).is_some(), "the plan the later round wrote is what this service is trying");
     // The older round's forget reaches the journal now, after the later plan was published.
-    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false }]);
+    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false, taken: None }]);
     assert!(retries.next_wait(here, Instant::now()).is_none(), "the list of this process forgot the branch, which is the older round's statement");
     assert_eq!(load(root.as_path()), vec![later], "a plan a later round wrote is not taken away by an earlier round's forget");
     crate::test_support::remove(root.as_path());

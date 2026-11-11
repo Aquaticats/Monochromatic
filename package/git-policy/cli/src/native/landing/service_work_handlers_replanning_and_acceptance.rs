@@ -20,7 +20,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
 use crate::push_retry_cause_line::cause_line;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
@@ -558,11 +558,11 @@ impl Replanning {
     /// ```
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.take_the_plan_file(git_dir, branch_ref);
-        self.push_forget(git_dir, branch_ref, false);
+        self.push_forget(git_dir, branch_ref, false, None);
     }
 
     /// What:
-    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone,
+    ///  Ask the plan to drop the branch of a push whose repository a reading of the filesystem proved gone,
     /// and take its file out of the journal unless the repository is back.
     /// Why:
     ///   That reading is a point in time,
@@ -575,17 +575,22 @@ impl Replanning {
     /// the applier asks it once more before it drops the branch from the list
     /// (`push_retry.rs`,
     /// `PushRetries::apply`),
-    ///  which is what keeps a repository that came back during the round trying.
+    ///  which is what keeps a repository that came back during the round trying,
+    /// and the plan this reading ended travels with the ask,
+    /// so the repository that is back keeps the try the round took out of the plan
+    ///  rather than only its on-disk file.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// forgetWhenUnreachable(gitDir, branchRef): if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, branchRef); this.changes.push({ forget: { gitDir, branchRef, onlyWhileUnreachable: true } });
+    /// forgetWhenUnreachable(gitDir, due):
+    ///   if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, due.item.branchRef);
+    ///   this.changes.push({ forget: { gitDir, branchRef: due.item.branchRef, onlyWhileUnreachable: true, taken: due } });
     /// ```
-    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, branch_ref: &str) {
+    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, due: &Due) {
         if !git_dir.is_dir() {
-            self.take_the_plan_file(git_dir, branch_ref);
+            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str());
         }
-        self.push_forget(git_dir, branch_ref, true);
+        self.push_forget(git_dir, due.item.branch_ref.as_str(), true, Some(due.clone()));
     }
 
     /// Removes the plan's file of a branch from the journal,
@@ -598,8 +603,8 @@ impl Replanning {
 
     /// The one place a forget is added,
     /// so both kinds name the directory and the branch the same way.
-    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable });
+    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool, taken: Option<Due>) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable, taken });
     }
 
     /// What:
@@ -755,10 +760,11 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
             continue;
         }
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
-        replanning.forget_when_unreachable(git_dir, due.item.branch_ref.as_str());
+        replanning.forget_when_unreachable(git_dir, due);
     }
-    // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here, and the change
-    //  drops the branch from the list the loop reads.
+    // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here while its
+    //  repository is still missing, and the change drops the branch from the list the loop reads. A repository that is
+    //  back by the time the change lands keeps its file, and the change puts its plan back (`PushRetries::apply`).
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }

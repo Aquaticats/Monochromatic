@@ -16,7 +16,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, landedOid, blocked);
+//! const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, sentUpTo, blocked, undecided);
 //! ```
 
 use crate::auto_push::{
@@ -147,12 +147,12 @@ async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, landedOid);
+/// const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, sentUpTo, blocked, undecided);
 /// ```
 pub async fn push_once_awaiting(
     git: &PushGit,
     branch_ref: &str,
-    landed_oid: &str,
+    sent_up_to: &str,
     blocked: &[BlockedVerdict],
     undecided: &[String],
     err: &mut (dyn Write + Send),
@@ -165,13 +165,21 @@ pub async fn push_once_awaiting(
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
     //  and so does a commit whose own checks still run.
     let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided).await;
-    let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
+    let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
+    };
+    // Git sets a branch's upstream only from a refspec that names a branch, and a push of a commit gives the branch none
+    //  (measured with Git 2.56.0: `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves
+    //  `branch.new.merge` unset). The one push that gives a branch its upstream therefore sends the branch, and every other push
+    //  sends the commit that push was allowed to send.
+    let source: String = match set_upstream {
+        true => pushed_ref.clone(),
+        false => pinned,
     };
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
     let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
+    debug(TAG, &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
     // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
     //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
@@ -185,7 +193,7 @@ pub async fn push_once_awaiting(
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
     //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
-        attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, attempt).await?;
+        attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, sent_up_to, attempt).await?;
     }
     // Under `push.default=matching` this one push carried every branch the remote has, so Git's status is the worst of them: a
     //  sibling the remote refused makes it non-zero while this branch arrived. The remote says which, and a delivery it proves is

@@ -4,7 +4,7 @@
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
 use crate::work_item_state_directories_and_claim_names::take_listings;
-use crate::push_retry::PushRetries;
+use crate::push_retry::{Due, PushRetries};
 use crate::service_work_run_round::run_round;
 use super::*;
 use crate::push_failure_notice::{PushOutcome, push_failure_text, push_failures};
@@ -1617,7 +1617,7 @@ fn the_worker_that_forgets_a_branch_removes_its_plan_file() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await save(dir, plan); replanning.forgetWhenUnreachable(goneDir, branch); expect(await load(dir)).toEqual([]);
+/// await save(dir, plan); replanning.forgetWhenUnreachable(goneDir, due); expect(await load(dir)).toEqual([]);
 /// ```
 #[test]
 fn a_gone_repository_takes_the_file_of_its_plan() {
@@ -1629,7 +1629,7 @@ fn a_gone_repository_takes_the_file_of_its_plan() {
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    replanning.forget_when_unreachable(gone.as_path(), BRANCH);
+    replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 });
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
         "a repository the filesystem still proves gone ends its plan's file, so no later service tries it again"
@@ -1650,11 +1650,13 @@ fn a_gone_repository_takes_the_file_of_its_plan() {
 /// a repository renamed back by then is reachable,
 ///  and its plan is the only scheduled backup of its commits.
 /// The change still carries the proof it rests on,
-/// so the loop asks the filesystem once more before it drops the branch from the list it owns.
+/// so the loop asks the filesystem once more before it drops the branch from the list it owns,
+/// and it carries the plan that reading ended,
+/// so the list keeps the branch when the directory is there again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await save(dir, plan); replanning.forgetWhenUnreachable(thereDir, branch); expect(load(dir)).toHaveLength(1);
+/// await save(dir, plan); replanning.forgetWhenUnreachable(thereDir, due); expect(load(dir)).toHaveLength(1);
 /// ```
 #[test]
 fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
@@ -1665,7 +1667,7 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     // The repository is there, so the stale proof ends nothing.
-    replanning.forget_when_unreachable(back_repository.common.as_path(), BRANCH);
+    replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 });
     assert_eq!(
         crate::push_retry_store::load(plans.as_path()).len(),
         1,
@@ -1711,10 +1713,13 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
         assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
         assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
         assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
-        // The lease runs out, which is what the wait above asked for: the record is queued again with one more try.
+        // The lease runs out, which is what the wait above asked for: the record is queued again with one more try. The reading is
+        //  one millisecond past the claim's own, because a lease of zero is over only once the clock has moved past the millisecond
+        //  the claim was stamped in (`landing/claim_time.rs`, `elapsed_since`), and a reading taken at once can be the same
+        //  millisecond: this control then saw the claim keep the record, on one run of the suite and not on the next.
         crate::work_item_recovery::requeue_expired(
             work_directory(repo.common.as_path()).as_path(),
-            &ClaimTime::read(),
+            &ClaimTime::read().advanced(Duration::from_millis(1)),
             Duration::ZERO,
             crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
         );

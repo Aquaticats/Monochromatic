@@ -13,7 +13,7 @@ use crate::auto_push_reconcile_merge_commit::{common_dir_of, common_dir_of_await
 use crate::auto_push_reconcile_merge_commit::PushRunner;
 use crate::merge_second_pass::GitRunner;
 use crate::merge_second_pass::tests::await_it;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, git_output, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -102,6 +102,16 @@ fn text_of(directory: &Path, arguments: &[&str]) -> String {
     return String::from_utf8_lossy(&git(directory, arguments).stdout)
         .trim()
         .to_owned();
+}
+
+/// What:
+///  The commit the branch of the repository under test names now,
+///  which is what the service fixes before it reads the worktree's verdicts.
+/// Why:
+///  A reconcile is told the commit its push was allowed to send,
+///  so a control states that commit the way the service's push does.
+fn tip_of_local(s: &Scenario) -> String {
+    return text_of(&s.local, &["rev-parse", "HEAD"]);
 }
 
 /// Create the remote with `a.txt` and `b.txt`,
@@ -586,7 +596,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         " ! [rejected]        main -> main (non-fast-forward)"
     ));
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", refused.clone())
+        reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), refused.clone())
             .expect("reconcile"),
         refused
     );
@@ -595,7 +605,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         output: " ! [rejected] v1 -> v1".to_owned(),
     };
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/tags/v1", stale.clone())
+        reconcile_divergent_push(&push_git(&s.local), "refs/tags/v1", &tip_of_local(&s), stale.clone())
             .expect("reconcile"),
         stale,
         "a ref that is not a branch has no upstream to merge"
@@ -786,7 +796,7 @@ fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
         exit_code: 1,
         output: " ! [rejected]        main -> main (fetch first)".to_owned(),
     };
-    let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", rejected.clone())
+    let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone())
         .expect("reconcile");
     assert_eq!(returned, rejected);
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
@@ -2517,7 +2527,7 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     };
     let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
     let refused = crate::lazy_runtime::run_on_runtime(async {
-        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", rejected.clone());
+        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone());
     })
     .expect("the runtime runs the work");
     let refusal: String = match refused {
@@ -2529,6 +2539,7 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     let attempt: PushAttempt = await_it(crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting(
         &push_git(&s.local),
         "refs/heads/main",
+        &tip_of_local(&s),
         rejected,
     ))
     .expect("git");
@@ -2678,5 +2689,44 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), landed, "the branch did not move");
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the worktree was not touched");
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private fetch ref was left");
+    remove(&s.root);
+}
+
+/// Whether `ancestor` is one of `descendant`'s own commits.
+fn holds_commit(s: &Scenario, ancestor: &str, descendant: &str) -> bool {
+    return git_output(&s.local, &["merge-base", "--is-ancestor", ancestor, descendant]).status.success();
+}
+
+/// What:
+///  A merge the reconcile publishes carries the commit the push was allowed to send,
+///  and never a commit that landed after the push read the worktree's verdicts.
+/// Why:
+///   The branch can move between the reading that fixes the commit a push may send and the reconcile that publishes a
+///  merge above it,
+///  and a merge made from the branch's reference would publish the newer commit before its own gate answered,
+///  which a refusal written afterwards could not take back.
+/// The merge is made from the fixed commit,
+///  so the newer commit goes out with its own push once its gate has answered,
+///  and the branch that moved is left where it is with the report saying why.
+#[test]
+fn a_commit_that_lands_after_the_reading_is_not_published_by_the_reconcile() {
+    let s = scenario("ar-commit-after-the-reading");
+    advance_remote(&s, "a.txt", "remote\n");
+    let pinned = commit_local(&s, "b.txt", "local\n");
+    // A commit whose own gate still runs lands on the branch after the push read the worktree; it is newer than the commit that
+    //  reading fixed.
+    let racing = commit_local(&s, "b.txt", "racing\n");
+    assert_ne!(racing, pinned);
+    let rejected = PushAttempt {
+        exit_code: 1,
+        output: String::from(" ! [rejected]        main -> main (fetch first)"),
+    };
+    let attempt: PushAttempt = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", pinned.as_str(), rejected)
+        .expect("the reconcile runs");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert!(holds_commit(&s, pinned.as_str(), published.as_str()), "the commit the push was allowed to send is published: {}", attempt.output);
+    assert!(!holds_commit(&s, racing.as_str(), published.as_str()), "BUG: the merge published the commit whose own gate had not answered");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), racing, "the branch that moved is left where it is");
     remove(&s.root);
 }
