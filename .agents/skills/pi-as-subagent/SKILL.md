@@ -109,6 +109,18 @@ so prefer neuralwatt."
 New runs fill standard Neuralwatt,
 then flex with twice the wall clock,
 then `opencode-go`.
+On 2026-11-11 from 01:19Z,
+16 runs ended on Neuralwatt's 429
+"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
+Your subscription is in overage with auto-renew off,
+so pay-as-you-go limits apply until it renews."
+The rate-limit endpoint still answered `effective_concurrency` 20 then,
+so the 429 is what tells;
+Pi ends the run on it instead of retrying.
+The launcher's standard pool holds 6 runs until the owner turns auto-renew back on,
+which is the owner's billing decision.
+Restart a run that ended this way under its own name;
+its worktree keeps the work.
 The owner on 2026-11-10:
 "And you should almost always keep all slots filled."
 and
