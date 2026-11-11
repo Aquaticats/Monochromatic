@@ -51,7 +51,7 @@ use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
+use crate::worktree_trash::{PendingTrash, Recorded, TrashManifest, delete_trash, record_the_trash};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -222,8 +222,15 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// ```
 fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
     let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
-    if let Err(reason) = record_the_trash(&pending) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the record of the trash {} could not be written ({reason}), so this add empties it before it returns", shown.display()).as_str());
+    // A record that is already there is this trash's record, because the trash's name is its id; only a record the service
+    //  gave up on leaves nothing to empty the trash, and then this add empties it itself as for a record it could not write.
+    let refused: Option<String> = match record_the_trash(&pending) {
+        Ok(Recorded::Written | Recorded::There) => None,
+        Ok(Recorded::GivenUp) => Some(String::from("the commit service gave up on that record and never claims it again")),
+        Err(reason) => Some(format!("the work item could not be written: {reason}")),
+    };
+    if let Some(reason) = refused {
+        warn(TAG, format!("monochromatic-git-policy-cli: no record the service still works on holds the trash {} ({reason}), so this add empties it before it returns", shown.display()).as_str());
         if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
             warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
         }
