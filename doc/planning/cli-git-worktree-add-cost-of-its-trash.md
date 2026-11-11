@@ -185,9 +185,11 @@ runs inside I/O priority class `idle`
 (`src/native/worktree/idle_io_priority.rs`:
 `LoweredIoPriority` asks the kernel for the class when the value is made,
 and puts the thread back when it is dropped,
-so a stretch is an ordinary block around the work and the restore happens however the block ends,
+so the restore happens however the stretch ends,
 panic included;
-`with_idle_io_priority` is the same value around a caller's work).
+`with_idle_io_priority` is that value around a caller's work,
+and the work's own state arrives as a parameter,
+so a removal names a function instead of writing a closure where it is called).
 The class is set on the thread that unlinks,
 because the service pushes a branch and reads the repository on its other threads while a trash is emptied.
 A thread whose class cannot be read or set is left as it is,
