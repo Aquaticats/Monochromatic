@@ -321,7 +321,9 @@ pub fn matching_allowed_worktree_dir<'dirs>(
         // let resolved; try { resolved = await realpath(directory); } catch { continue; }
         // ```
         if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path())
-            && candidates.iter().all(|candidate| candidate.starts_with(resolved.as_path()))
+            && candidates
+                .iter()
+                .all(|candidate| return candidate.starts_with(resolved.as_path()))
         {
             return Some(directory);
         }
