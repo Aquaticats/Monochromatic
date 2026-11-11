@@ -51,6 +51,21 @@ fn ignores_look_alikes() {
     assert_eq!(RepairSwitch::from_arguments(&[]), RepairSwitch::default());
 }
 
+/// `--end-of-options` ends the switches exactly as `--` does (Git's `parse-options` ends both,
+/// and the operands of the same command are read that way in `src/native/worktree/worktree_add_plan.rs`),
+/// so a destination literally named `--no-checkout` is an operand and the worktree Git checked out is repaired.
+#[test]
+fn reads_no_switch_after_end_of_options() {
+    let quiet_before: RepairSwitch = RepairSwitch::from_arguments(&words(&["worktree", "add", "--quiet", "--end-of-options", "--no-checkout"]));
+    assert!(quiet_before.quiet, "a switch before the terminator is still read");
+    assert!(!quiet_before.no_checkout, "the destination after --end-of-options is not the --no-checkout switch");
+    assert_eq!(
+        RepairSwitch::from_arguments(&words(&["worktree", "add", "--end-of-options", "--no-checkout", "--quiet", "-b", "literal"])),
+        RepairSwitch::default(),
+        "nothing after --end-of-options is a switch"
+    );
+}
+
 /// A destination holding a lockfile and a `node_modules`,
 /// a source beside it,
 /// and a search path of one fixture directory.
