@@ -119,7 +119,7 @@ a landing or a push can wait on another command,
 wait without a bound,
 or fail where Git would succeed,
 and reported three findings from the code alone,
-reproduced there but not here
+which its own scratch folder reproduced and this branch reproduces again
 (`~/temp/agent/kimi-reviews/integration-tip-never-stuck-audit/review.md`).
 All three are reproduced here,
 each with a control that failed before its fix,
