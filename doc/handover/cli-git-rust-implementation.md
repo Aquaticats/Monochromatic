@@ -101,6 +101,44 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Pass 13 does not build, a launcher that waited on other agents, and qwen4-max-preview against Kimi and Sonnet (2026-11-11T16:45:00-05:00)
+
+Pass 13 merged 17 branches onto `3b94069dbf`, to `8d9febd625`, and 5 conflicted (round 215 re-merges them).
+`8d9febd625` does not compile (`${HOME}/temp/agent/pi-runs/pass-13-clippy.out`):
+`landed_oid` is missing in `push/auto_push.rs:484` and `push/auto_push_awaiting.rs:203`,
+and `worktree_copying/worktree_copy_swapped_add_settlement.rs` compares a snapshot record's object identity, now `Option<ObjectId>`, as if it were always known.
+What the settlement does with an unknown identity decides whether a worktree's files stay,
+so one agent owns all of it (round 216, `pass-13-tip-builds`),
+and round 215's prompts carry a note to leave those lines alone.
+No gate runs on `8d9febd625` until that branch is merged.
+Round 218 runs one fix agent per Kimi review that found something this afternoon (16 findings in seven reviews: data loss in snapshot reaping and the landed sweep, a merge concluded twice by a landing-time sweep, waits on detached descendants),
+based on `3b94069dbf`, which builds.
+
+Five round 211 launchers waited about fifty minutes with their runs ended:
+the scratch launcher's wake wait (an agent that ends its turn while its own build runs is resumed when it ends)
+found the run's processes by a substring of the run name in each process's working folder,
+so `kimi-findings-merge-asides-never-lose-a-save` matched the review worktree `pi-kimi-review-kimi-findings-merge-asides-never-lose-a-save-round-208`.
+The coordinator stopped the five by PID after checking each command,
+resumed the two whose own builds had ended (round 214),
+and `start-pi-run-in-worktree.ts` now matches whole path components;
+the driver-port agent has the same fact for the package.
+
+The owner, 2026-11-11T16:3x-05:00: "qwen-token-plan-individual  qwen4-max-preview is now available in Pi. Check if it can replace Kimi or Sonnet."
+`pi --list-models qwen4` lists it (1M context, 393.2K output, thinking, images);
+the same plan also lists `deepseek-v4.1-flash`, `deepseek-v4.1-flash-1017`, `deepseek-v4-pro`, `deepseek-v4-pro-0813` and `deepseek-v4-flash-0731`.
+A one-line `pi --print` answered `ready`.
+Round 217 runs it on three of the Kimi K3.1 Pro audits of `574063773d` (worktree remove and landed sweep, merge and pull, commit path),
+one per area the three Claude Sonnet audits of the same commit covered,
+with Kimi's prompt word for word except its own run folder (`${HOME}/temp/agent/qwen-trials/`) and the folders it may not read,
+and the sweep audit twice for the run-to-run spread.
+The scoring: which of Kimi's and Sonnet's findings in that area it finds,
+against what the fix agents since reproduced or refuted,
+what it finds that neither did (each checked),
+whether it finishes and writes its report,
+and a cheating read of each session in the shape of `${HOME}/temp/agent/kimi-trials/cheating-check.md`.
+The slot script gives it a pool of 4 (the size of the comparison, not a measured limit of the plan).
+Replacing the reviewer or the auditor changes rules `KRV` and `LHZ`, which is the owner's call.
+
 ### Integration pass 12, a landed sweep that removed fresh worktrees, and rounds 210 to 212 (2026-11-11T15:20:39-05:00)
 
 Pass 12 took every branch `list-finished-branches-not-in-the-integration.ts` showed idle at 15:13 that no pass had listed,
