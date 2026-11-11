@@ -101,6 +101,29 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Audits of what 0.6.1-alpha.10 ships, and where each finding went (2026-11-11T09:15:00-05:00)
+
+Three Claude Sonnet audits of `574063773d` ran beside eight Kimi K3.1 Pro audits (rule `LHZ`; the Kimi ones are still running).
+Reports: `${HOME}/temp/agent/sonnet-audits/alpha-10-*/report.md`.
+Findings already in code an agent was changing went to that agent's run inbox, so no two agents edit one file:
+
+- Worktree add and remove (7 findings).
+  F4 (`git merge main` in one worktree removes an unrelated fresh worktree whose branch has no commit of its own, with its ignored files), F2 (the sweep removes a nested registered worktree with uncommitted work) and F3 (the sweep skips the removal snapshot and the held-commit keep)
+  went to the round 177 sweep agent;
+  F1 with F5 (removal of a worktree holding a nested subvolume) and F8 with F6 (the add's silent 15 to 44 s durable writes; a false "may be missing" notice after a kill) to round 179;
+  F9 (a read-only command finishing a dead add's copy) is fixed by the killed-add branch merged in pass 8, which round 179 confirms.
+- Merge, LFS and package repair (8 findings).
+  F3 to F6 (a carrying merge that exits 2 and blocks the worktree; a file missing after a kill; a merge saved behind `index.lock` that never finishes; a stray carry file) went to the round 171 merge-asides agent;
+  F1 and F2 (the prewarm overwriting a `Cargo.lock` the person writes; an add cleaning the source's build output through a symlinked `target`) to the round 170 `Cargo.lock` agent;
+  F7 (secrets in an LFS URL's path or query printed) and F8 (the automatic push to a silent server running past its 150 s window) to round 180.
+  The audit left F7's scope to the owner; the owner's standing rule never to print secrets puts every secret in that URL in scope.
+- Commit, landing and push (4 findings).
+  F3 (merge, cherry-pick and revert conclusions fsync eight scratch files: 2 to 53 s over native under load) went to the round 175 commit-time agent;
+  F1, F2 and F4 (records a withdrawn commit leaves for ever; a false "did not finish updating this worktree's index" notice; a commit interrupted with Ctrl-C landing later) to round 183.
+
+The Kimi review of the coordinator's own fixes (round 168) found that `a735f75caa`'s sweep guard misses a kept-reference collision, so a held commit can be lost, and that a refused sweep cannot be retried by its own advice; round 177 fixes both.
+The Kimi audit of the wg packages (12 findings) went to round 182, on top of the wg fix branch.
+
 ### 0.6.1-alpha.10 dispatched, and the alpha.11 integration gated (2026-11-11T07:01:28-05:00)
 
 The alpha.10 gate on `b96767962c` ran 7574 tests: 7573 passed, 1 failed,
