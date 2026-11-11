@@ -38,6 +38,9 @@ pub enum WorkKind {
     /// Filling a new worktree's Cargo build directory from its source's,
     /// which the add no longer waits for.
     Prewarm,
+    /// Deleting the subvolume of a removed worktree,
+    /// which the removal no longer waits for.
+    SubvolumeDelete,
 }
 
 /// Methods over a kind.
@@ -51,12 +54,13 @@ impl WorkKind {
             WorkKind::Maintenance => "maintenance",
             WorkKind::Trash => "trash",
             WorkKind::Prewarm => "prewarm",
+            WorkKind::SubvolumeDelete => "subvolume-delete",
         };
     }
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm] {
+        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete] {
             if kind.name() == name {
                 return Some(kind);
             }

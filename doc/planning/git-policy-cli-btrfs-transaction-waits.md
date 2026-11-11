@@ -144,6 +144,39 @@ The commit timing log,
 219 commits ending 2026-11-10T18:11-05:00:
 `answerWaitMs` median 307 ms, p90 4,004 ms, max 31,008 ms.
 
+## Step 1: a worktree remove hands its subvolume to the service
+
+Built on this branch, with a test shown failing first.
+
+What it does:
+`git worktree remove` proves the worktree clean and unlocked as before,
+then, instead of the destroy ioctl,
+it renames the subvolume inside the parent directory it already holds open
+to `cli-git-deleting-<16 hex digits of the subvolume id>`
+(`src/native/worktree/worktree_remove_hand_over.rs`, `hand_over_removal`),
+writes a durable work item of the new kind `subvolume-delete` into the repository's common work directory,
+wakes that repository's commit service, and returns.
+The service deletes the subvolume in `delete_subvolume_of`,
+by id through the opened parent,
+in the round's own time (`service_work_drain_pending_claims.rs`).
+A step that fails before the rename puts nothing anywhere and the removal destroys the subvolume in place,
+exactly as it did before,
+so the hand-over is never what makes a removal fail.
+A record whose path is gone deletes nothing,
+which is why the record is written before the rename.
+
+Why it matters on this volume:
+the destroy takes `down_write(&fs_info->subvol_sem)` and joins the running transaction
+(`fs/btrfs/inode.c:4801`, `:4848` at `v7.2.15`),
+so it waits for any snapshot another add is committing,
+and the cleaner works behind every removal.
+This is the delete the wrapper's automatic removal of finished worktrees will call
+(branch `fix/git-policy-cli-cleans-up-after-its-own-worktrees`).
+
+The line the command prints now says that the service deletes the files after it returns,
+and `package/git-policy/cli/README.md` says what a stranded `cli-git-deleting-<id>` directory means
+and which command empties it.
+
 ## What was changed
 
 `sync_file` for the index lock marker,
@@ -222,6 +255,69 @@ each round an add, two commits in the fixture's own checkout and a remove:
 - An uncontended commit is not where this change shows:
   three samples per arm cannot separate 227 to 271 ms from 164 to 268 ms on this volume,
   and the concurrency the audit measured is what the s01 numbers above are for.
+
+### The numbers, alternating the two binaries on the repository's own volume
+
+The disposable fixture of `measure.ts` on `/var/mnt/encrypted` (btrfs, `dm-2`),
+each round an add, two commits in the fixture's checkout and a plain `git worktree remove`,
+the arms alternating,
+every run reported,
+the load average 111 and `/proc/pressure/io` some avg60 36.02 when the first arm began at
+2026-11-10T19:31-05:00 and some avg60 10.43 when the last ended at 2026-11-10T19:42:47-05:00
+(the coordinator's removal of 350 worktrees was running through it).
+
+- before, 19:31-19:32 (`binaries/before`, the branch before this step):
+  adds 30,982 / 1,946 / 6,234 / 13,673 / 3,666 ms,
+  commits 4,448 / 491 / 4,279 / 144 / 230 ms,
+  removes 528 / 184 / 871 / 43 / 64 ms,
+  the adds' blocked samples in `wait_for_commit`, `wait_log_commit` and `read_extent_buffer_pages`,
+  the long removes' in `btrfs_opendir`.
+- under the lighter load at 19:42, five runs each, before then after:
+  adds 408 / 224 / 389 / 409 / 225 ms before and 571 / 291 / 226 / 186 / 184 ms after,
+  commits 22 to 106 ms in both,
+  removes 42 / 43 / 42 / 42 / 42 ms before and 64 / 42 / 42 / 62 / 42 ms after.
+- Which removals the wrapper served is visible in its line:
+  3 of the before arm's 5 printed the notice of a subvolume removal,
+  and 2 of the after arm's 5 did,
+  the others being left to Git because the worktree was not proven clean at that moment
+  (the trash the add set aside is emptied by the service in its own time).
+- What this says: on a volume whose transactions are not stalling, the destroy this step moves costs
+  milliseconds, and the record and the wake add 0 to 22 ms.
+  The destroy's cost is the `down_write(&fs_info->subvol_sem)` and the transaction join behind it
+  (`fs/btrfs/inode.c:4801`, `:4848` at `v7.2.15`),
+  which the 19:31 arm never reached with a served removal,
+  so this change's worth here is that the wait cannot happen,
+  not that a measured number fell.
+
+## Step 2: snapshots made ahead, sized from measured arrivals (not built)
+
+Not built on this branch.
+What the measurement that must size it says,
+from the 404 adds of the repository's own timing log over 23.5 hours:
+
+- the busiest hour holds 53 adds, the busiest five minutes 19, the busiest minute 12;
+- the gap between two adds' starts is 20.0 s at the median, 2.8 s at the tenth percentile, and 0 s at the least;
+- one add's snapshot costs the kernel work of `snapshotIoctl`, whose median is 7,443.8 ms and worst 39,828.5 ms
+  on this volume,
+  so a pool that must never make an add wait for a snapshot needs
+  at least as many snapshots as adds can arrive in the time one snapshot takes to make:
+  at the measured worst, 39.8 s of making against one add every 2.8 s is 14 snapshots;
+  at the median cost it is 3.
+
+The pool also has to keep a stale snapshot from pinning `main`'s files:
+a snapshot that has fallen behind `main` by more than the pool needs is deleted through step 1.
+
+## Step 3: a bound on a btrfs call that has not returned (not built)
+
+Not built on this branch.
+The bound must come from the measurement beside it:
+`snapshotIoctl` costs 7,443.8 ms at the median, 18,006.2 ms at p90 and 39,828.5 ms at its worst
+(300 adds to 2026-11-10T23:09:44.166Z),
+and the owner's bound for an add is 60 s,
+which is 1.5 times the worst measured call.
+A client cannot bound the call by waiting less:
+a thread asleep in the ioctl keeps the process from exiting,
+so the call belongs to the service and the client takes the copy route when the service answers nothing in time.
 
 ## What is not changed, and why
 

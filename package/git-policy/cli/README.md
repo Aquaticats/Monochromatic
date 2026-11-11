@@ -797,13 +797,33 @@ Read-only commands,
    another repository's worktree and a name that Git resolves differently go to Git,
      which words its answer.
   A subvolume destroy cannot be undone,
-     and the command prints a line that says so each time it destroys one:
+     and the command prints a line that says so each time it removes one:
      a write,
      a
    lock or a rename that another process makes in the moments between the last check and the destroy is destroyed with the
    worktree,
      as it is when Git deletes the files one by one.
      Do not run it on a worktree something else is still using.
+  What the command no longer does itself is delete the files:
+     it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
+   beside the path you typed,
+     writes a record of it, tells the worktree's commit service, and returns;
+     that service deletes the
+   subvolume in its own time, normally within a second,
+     so a busy volume's btrfs transaction or cleaner does not hold your
+   command.
+     The path you named is gone the moment the command returns;
+     the files are gone when the service has run.
+     A
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
+   service did not delete it yet:
+     the next command of that repository wakes the service that reads the record,
+     which is every
+   commit and every add,
+     and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
+   (a mount without `user_subvol_rm_allowed`, for one).
+     Nothing of yours is in it: a worktree is only removed
+   after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
