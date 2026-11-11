@@ -48,7 +48,7 @@ fn collect_reporting(base: &Path, retired: &[&str], dry_run: bool) -> (TreeColle
     let trees: Vec<Tree> = list_trees(base);
     let retired_set: HashSet<String> = retired.iter().map(|name| { return (*name).to_string(); }).collect();
     let mut log: Vec<String> = Vec::new();
-    let collection: TreeCollection = collect_idle_trees(&trees, base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &Deadline::after(Duration::from_secs(60)), &mut log);
+    let collection: TreeCollection = collect_idle_trees(&trees, &[], base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &Deadline::after(Duration::from_secs(60)), &mut log);
     return (collection, log);
 }
 

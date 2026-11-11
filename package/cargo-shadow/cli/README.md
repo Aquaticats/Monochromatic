@@ -1148,6 +1148,8 @@ Six mechanisms
   no other tree's workspace lies inside it;
   every profile directory yields its build locks;
   and no process uses anything under it.
+  "Other tree" means every tree of the base, including the ones a pass that continues after a recorded position
+  does not judge again.
 - D,
   retention of verification run records under `target/verification`:
   records (`RECORD_PREFIXES` in `src/lean_run_records.rs` names every program of this repository that writes one,
@@ -1258,6 +1260,25 @@ and each of the two long passes continues where it stopped:
 - The file is replaced by an atomic rename and a dry run never writes it,
   so a run killed in the middle leaves the position it last recorded,
   and `lean run --dry-run` never moves it.
+- Neither name of the record is ever opened through a link or waited on as a pipe.
+  A symbolic link or a pipe at `lean-progress.new` is removed and this run writes its own file there,
+  so the text never lands in the file a link names and no open waits for the other end of a pipe;
+  a pipe at `lean-progress` itself is read for what it already holds,
+  which is not this version's header,
+  so the run starts at the front and says so.
+  Both files are created readable and writable by this user alone (`0600`).
+  A name that cannot be used after that is reported once and costs the run its position,
+  never the run itself.
+- A resumed idle-trees pass still holds the whole base's workspaces as guards.
+  The trees before the recorded position are not judged again,
+  but their ledgers are read, because a tree this pass judges may hold the workspace one of them records:
+  without them a resumed pass removed a tree that a pass from the front keeps,
+  and the live sources inside it with it.
+  Only the ledger is read for those trees, never the dependency information,
+  so the guard costs one small file read each:
+  measured 2026-11-11 in a fixture base on this host, 4,000 trees with a ledger on every one took 62 ms
+  against 33 ms for the same base with no ledger (best of seven alternating runs),
+  which is 29 ms for 4,000 reads and about a second for the 33,804 trees of the real base.
 
 The bound is set from what each mechanism costs,
 measured 2026-11-10 on this machine:
