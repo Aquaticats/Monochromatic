@@ -3927,7 +3927,7 @@ A record says `outcome` and `exitCode`,
 and nothing names which `ClientFailure` ended it nor its words,
 so the six-send silence above had to be read from the counts and from the service's journal rather than
 stated by the record.
-## What the installed release's commits spent over their own Git steps, and the two lock markers made ahead (2026-11-10T18:45:00-05:00)
+## What the installed release spent over its Git steps, and the two lock markers (2026-11-10T18:45:00-05:00)
 
 What this answers:
 which commits of the installed `0.6.1-alpha.8` took more than five seconds beyond their own Git steps,
@@ -3966,7 +3966,9 @@ Where a record holds only a total for its answer wait,
 the service's `answered` line for the same `requestId` names the part of it,
 and that line is matched by identity rather than by the second:
 both records carry the request's identity.
-One of the 86 (`e86d4d58`, outcome `stopped`, no send) has no landing and no journal line,
+One of the 86 (`e86d4d58`,
+outcome `stopped`,
+no send) has no landing and no journal line,
 so its own `answerWaitMs` stands for its answer wait.
 
 ### The commits over the bar, grouped by the one step that took the most of each
@@ -3975,202 +3977,513 @@ Each line names the commit by the time its record was written and its `requestId
 the time beyond its own Git steps and its whole time,
 the one recorded step or service figure that took the most of that time,
 and the next largest when a second cause is close.
-`preparation` names a `prepareParts` stretch, `build` a `buildParts` stretch,
+Each figure after a cause is that cause's milliseconds.
+`preparation` names a `prepareParts` stretch,
+`build` a `buildParts` stretch,
 and the rest are the service's own figures from its `answered` journal line for the same request,
 which answers at the same second the record was written.
 
-#### `shadow conclusion` in the build: 20 commits, 547542 ms in it
+#### `shadow conclusion`: 20 commits, 547542 ms in it
 
-- `2026-11-10T19:25:21.335Z` `383fcf50`: 83507 ms over its Git steps of 86623 ms; `shadow conclusion` in the build 70564 ms, next the hand-off of the push 5527 ms.
-- `2026-11-10T17:50:19.213Z` `c2b378d0`: 80246 ms over its Git steps of 83451 ms; `shadow conclusion` in the build 47953 ms, next the connection reading the request 11443 ms.
-- `2026-11-10T18:11:31.508Z` `812246c4`: 66471 ms over its Git steps of 72463 ms; `shadow conclusion` in the build 17513 ms, next the hand-off of the push 7567 ms.
-- `2026-11-10T18:09:03.861Z` `ad60e7e7`: 65981 ms over its Git steps of 69467 ms; `shadow conclusion` in the build 54411 ms, next `index` in the preparation 4686 ms.
-- `2026-11-10T21:01:23.753Z` `cdc53264`: 54466 ms over its Git steps of 55489 ms; `shadow conclusion` in the build 50888 ms, next the connection reading the request 1739 ms.
-- `2026-11-10T18:06:25.844Z` `810de44d`: 52556 ms over its Git steps of 53121 ms; `shadow conclusion` in the build 39360 ms, next the hand-off of the push 5322 ms.
-- `2026-11-10T17:38:51.720Z` `dda2498e`: 46550 ms over its Git steps of 49714 ms; `shadow conclusion` in the build 37816 ms, next the queue 3232 ms.
-- `2026-11-10T17:35:50.633Z` `685515f4`: 44305 ms over its Git steps of 49848 ms; `shadow conclusion` in the build 37883 ms, next the wait for what an earlier batch owes 1862 ms.
-- `2026-11-10T18:02:25.717Z` `e99a9c8a`: 42867 ms over its Git steps of 43107 ms; `shadow conclusion` in the build 32988 ms, next the hand-off of the push 5484 ms.
-- `2026-11-10T21:06:47.943Z` `84bc92a6`: 35290 ms over its Git steps of 36651 ms; `shadow conclusion` in the build 30012 ms, next `scratch` in the preparation 2117 ms.
-- `2026-11-10T18:06:01.269Z` `e4109b88`: 30843 ms over its Git steps of 31293 ms; `shadow conclusion` in the build 15520 ms, next the hand-off of the push 5455 ms.
-- `2026-11-10T19:17:10.311Z` `3cfe9606`: 29019 ms over its Git steps of 29222 ms; `shadow conclusion` in the build 25365 ms, next `shadow refs` in the build 2780 ms.
-- `2026-11-10T18:32:02.802Z` `a03e858d`: 25760 ms over its Git steps of 29672 ms; `shadow conclusion` in the build 24707 ms, next `index` in the preparation 607 ms.
-- `2026-11-10T22:29:17.766Z` `b11661bc`: 16036 ms over its Git steps of 16638 ms; `shadow conclusion` in the build 12173 ms, next writing the answer 3215 ms.
-- `2026-11-10T20:33:13.520Z` `f8f1490e`: 14909 ms over its Git steps of 17391 ms; `shadow conclusion` in the build 11929 ms, next the post-commit gate 1926 ms.
-- `2026-11-10T21:22:21.263Z` `e3d2690c`: 14509 ms over its Git steps of 14672 ms; `shadow conclusion` in the build 13296 ms, next `policies` in the preparation 517 ms.
-- `2026-11-10T18:01:32.620Z` `d935dac7`: 13006 ms over its Git steps of 13190 ms; `shadow conclusion` in the build 11916 ms, next the index install under the index lock 323 ms.
-- `2026-11-10T21:45:41.258Z` `2955ff64`: 9830 ms over its Git steps of 10014 ms; `shadow conclusion` in the build 5799 ms, next the hand-off of the push 3722 ms.
-- `2026-11-10T17:50:46.708Z` `e86d4d58`: 6033 ms over its Git steps of 7460 ms; `shadow conclusion` in the build 4635 ms, next `shadow refs` in the build 1050 ms.
-- `2026-11-10T19:41:55.217Z` `5794f1dd`: 5358 ms over its Git steps of 8141 ms; `shadow conclusion` in the build 2814 ms, next time no phase covers 2698 ms.
+- 2026-11-10T19:25:21.335Z `383fcf50`:
+  83507 ms over its Git steps of 86623 ms,
+  the time of `shadow conclusion` 70564 ms,
+  then the hand-off of the push.
+- 2026-11-10T17:50:19.213Z `c2b378d0`:
+  80246 ms over its Git steps of 83451 ms,
+  the time of `shadow conclusion` 47953 ms,
+  then the connection reading the request.
+- 2026-11-10T18:11:31.508Z `812246c4`:
+  66471 ms over its Git steps of 72463 ms,
+  the time of `shadow conclusion` 17513 ms,
+  then the hand-off of the push.
+- 2026-11-10T18:09:03.861Z `ad60e7e7`:
+  65981 ms over its Git steps of 69467 ms,
+  the time of `shadow conclusion` 54411 ms,
+  then `index` in the preparation.
+- 2026-11-10T21:01:23.753Z `cdc53264`:
+  54466 ms over its Git steps of 55489 ms,
+  the time of `shadow conclusion` 50888 ms,
+  then the connection reading the request.
+- 2026-11-10T18:06:25.844Z `810de44d`:
+  52556 ms over its Git steps of 53121 ms,
+  the time of `shadow conclusion` 39360 ms,
+  then the hand-off of the push.
+- 2026-11-10T17:38:51.720Z `dda2498e`:
+  46550 ms over its Git steps of 49714 ms,
+  the time of `shadow conclusion` 37816 ms,
+  then the queue.
+- 2026-11-10T17:35:50.633Z `685515f4`:
+  44305 ms over its Git steps of 49848 ms,
+  the time of `shadow conclusion` 37883 ms,
+  then the wait for what an earlier batch owes.
+- 2026-11-10T18:02:25.717Z `e99a9c8a`:
+  42867 ms over its Git steps of 43107 ms,
+  the time of `shadow conclusion` 32988 ms,
+  then the hand-off of the push.
+- 2026-11-10T21:06:47.943Z `84bc92a6`:
+  35290 ms over its Git steps of 36651 ms,
+  the time of `shadow conclusion` 30012 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:06:01.269Z `e4109b88`:
+  30843 ms over its Git steps of 31293 ms,
+  the time of `shadow conclusion` 15520 ms,
+  then the hand-off of the push.
+- 2026-11-10T19:17:10.311Z `3cfe9606`:
+  29019 ms over its Git steps of 29222 ms,
+  the time of `shadow conclusion` 25365 ms,
+  then `shadow refs` in the build.
+- 2026-11-10T18:32:02.802Z `a03e858d`:
+  25760 ms over its Git steps of 29672 ms,
+  the time of `shadow conclusion` 24707 ms,
+  then `index` in the preparation.
+- 2026-11-10T22:29:17.766Z `b11661bc`:
+  16036 ms over its Git steps of 16638 ms,
+  the time of `shadow conclusion` 12173 ms,
+  then writing the answer.
+- 2026-11-10T20:33:13.520Z `f8f1490e`:
+  14909 ms over its Git steps of 17391 ms,
+  the time of `shadow conclusion` 11929 ms,
+  then the post-commit gate.
+- 2026-11-10T21:22:21.263Z `e3d2690c`:
+  14509 ms over its Git steps of 14672 ms,
+  the time of `shadow conclusion` 13296 ms,
+  then `policies` in the preparation.
+- 2026-11-10T18:01:32.620Z `d935dac7`:
+  13006 ms over its Git steps of 13190 ms,
+  the time of `shadow conclusion` 11916 ms,
+  then the index install under the index lock.
+- 2026-11-10T21:45:41.258Z `2955ff64`:
+  9830 ms over its Git steps of 10014 ms,
+  the time of `shadow conclusion` 5799 ms,
+  then the hand-off of the push.
+- 2026-11-10T17:50:46.708Z `e86d4d58`:
+  6033 ms over its Git steps of 7460 ms,
+  the time of `shadow conclusion` 4635 ms,
+  then `shadow refs` in the build.
+- 2026-11-10T19:41:55.217Z `5794f1dd`:
+  5358 ms over its Git steps of 8141 ms,
+  the time of `shadow conclusion` 2814 ms,
+  then time no phase covers.
 
 #### `scratch` in the preparation: 10 commits, 52344 ms in it
 
-- `2026-11-10T20:07:16.049Z` `f707e4e4`: 16368 ms over its Git steps of 17275 ms; `scratch` in the preparation 10434 ms, next the index install under the index lock 3661 ms.
-- `2026-11-10T19:43:30.468Z` `4db4193d`: 10771 ms over its Git steps of 12916 ms; `scratch` in the preparation 6663 ms, next `index` in the preparation 2313 ms.
-- `2026-11-10T20:16:37.996Z` `504b2e2e`: 10747 ms over its Git steps of 10972 ms; `scratch` in the preparation 5096 ms, next the wait to place the lock 3775 ms.
-- `2026-11-10T19:10:02.133Z` `26d8f380`: 9741 ms over its Git steps of 12531 ms; `scratch` in the preparation 5090 ms, next `index` in the preparation 3798 ms.
-- `2026-11-10T20:08:47.826Z` `f8624b05`: 7912 ms over its Git steps of 14311 ms; `scratch` in the preparation 4599 ms, next `shadow skeleton` in the build 2447 ms.
-- `2026-11-10T19:52:46.086Z` `b9c8bddf`: 6729 ms over its Git steps of 7047 ms; `scratch` in the preparation 6326 ms, next the index install under the index lock 127 ms.
-- `2026-11-10T17:58:14.491Z` `839bfe71`: 5755 ms over its Git steps of 6034 ms; `scratch` in the preparation 5346 ms, next the index install under the index lock 118 ms.
-- `2026-11-10T20:10:35.365Z` `7205bcd4`: 5721 ms over its Git steps of 6531 ms; `scratch` in the preparation 2472 ms, next the wait for what an earlier batch owes 1453 ms.
-- `2026-11-10T17:52:28.267Z` `22ebb3f7`: 5524 ms over its Git steps of 5741 ms; `scratch` in the preparation 2547 ms, next time no phase covers 1453 ms.
-- `2026-11-10T19:52:46.455Z` `287c0dd8`: 5008 ms over its Git steps of 5299 ms; `scratch` in the preparation 3771 ms, next `index` in the preparation 480 ms.
+- 2026-11-10T20:07:16.049Z `f707e4e4`:
+  16368 ms over its Git steps of 17275 ms,
+  the time of `scratch` in the preparation 10434 ms,
+  then the index install under the index lock.
+- 2026-11-10T19:43:30.468Z `4db4193d`:
+  10771 ms over its Git steps of 12916 ms,
+  the time of `scratch` in the preparation 6663 ms,
+  then `index` in the preparation.
+- 2026-11-10T20:16:37.996Z `504b2e2e`:
+  10747 ms over its Git steps of 10972 ms,
+  the time of `scratch` in the preparation 5096 ms,
+  then the wait to place the lock.
+- 2026-11-10T19:10:02.133Z `26d8f380`:
+  9741 ms over its Git steps of 12531 ms,
+  the time of `scratch` in the preparation 5090 ms,
+  then `index` in the preparation.
+- 2026-11-10T20:08:47.826Z `f8624b05`:
+  7912 ms over its Git steps of 14311 ms,
+  the time of `scratch` in the preparation 4599 ms,
+  then `shadow skeleton` in the build.
+- 2026-11-10T19:52:46.086Z `b9c8bddf`:
+  6729 ms over its Git steps of 7047 ms,
+  the time of `scratch` in the preparation 6326 ms,
+  then the index install under the index lock.
+- 2026-11-10T17:58:14.491Z `839bfe71`:
+  5755 ms over its Git steps of 6034 ms,
+  the time of `scratch` in the preparation 5346 ms,
+  then the index install under the index lock.
+- 2026-11-10T20:10:35.365Z `7205bcd4`:
+  5721 ms over its Git steps of 6531 ms,
+  the time of `scratch` in the preparation 2472 ms,
+  then the wait for what an earlier batch owes.
+- 2026-11-10T17:52:28.267Z `22ebb3f7`:
+  5524 ms over its Git steps of 5741 ms,
+  the time of `scratch` in the preparation 2547 ms,
+  then time no phase covers.
+- 2026-11-10T19:52:46.455Z `287c0dd8`:
+  5008 ms over its Git steps of 5299 ms,
+  the time of `scratch` in the preparation 3771 ms,
+  then `index` in the preparation.
 
 #### the wait for the lock marker to be flushed: 10 commits, 51188 ms in it
 
-- `2026-11-10T20:55:08.392Z` `06afcc81`: 13552 ms over its Git steps of 13705 ms; the wait for the lock marker to be flushed 12338 ms, next the wait to place the lock 885 ms.
-- `2026-11-10T17:58:59.534Z` `681701c2`: 11991 ms over its Git steps of 12151 ms; the wait for the lock marker to be flushed 9246 ms, next the wait to place the lock 2288 ms.
-- `2026-11-10T20:44:29.852Z` `a040f016`: 9071 ms over its Git steps of 10009 ms; the wait for the lock marker to be flushed 3109 ms, next `shadow skeleton` in the build 2916 ms.
-- `2026-11-10T18:26:39.698Z` `4ed3ec00`: 7717 ms over its Git steps of 8004 ms; the wait for the lock marker to be flushed 4329 ms, next the wait to place the lock 2687 ms.
-- `2026-11-10T18:58:55.424Z` `5331dfaf`: 7438 ms over its Git steps of 7678 ms; the wait for the lock marker to be flushed 5600 ms, next `index` in the preparation 803 ms.
-- `2026-11-10T18:15:17.440Z` `db37994f`: 6930 ms over its Git steps of 7145 ms; the wait for the lock marker to be flushed 3823 ms, next the branch move under the index lock 2667 ms.
-- `2026-11-10T18:13:16.362Z` `5c193238`: 6495 ms over its Git steps of 6905 ms; the wait for the lock marker to be flushed 4515 ms, next the wait to place the lock 664 ms.
-- `2026-11-10T18:06:08.705Z` `d785da4e`: 6270 ms over its Git steps of 6478 ms; the wait for the lock marker to be flushed 3479 ms, next the wait to place the lock 2368 ms.
-- `2026-11-10T18:22:35.399Z` `a95e9799`: 5588 ms over its Git steps of 5828 ms; the wait for the lock marker to be flushed 2110 ms, next the wait to place the lock 1701 ms.
-- `2026-11-10T17:52:20.878Z` `eb9705ad`: 5058 ms over its Git steps of 5306 ms; the wait for the lock marker to be flushed 2639 ms, next the index install under the index lock 2165 ms.
+- 2026-11-10T20:55:08.392Z `06afcc81`:
+  13552 ms over its Git steps of 13705 ms,
+  the time of the wait for the lock marker to be flushed 12338 ms,
+  then the wait to place the lock.
+- 2026-11-10T17:58:59.534Z `681701c2`:
+  11991 ms over its Git steps of 12151 ms,
+  the time of the wait for the lock marker to be flushed 9246 ms,
+  then the wait to place the lock.
+- 2026-11-10T20:44:29.852Z `a040f016`:
+  9071 ms over its Git steps of 10009 ms,
+  the time of the wait for the lock marker to be flushed 3109 ms,
+  then `shadow skeleton` in the build.
+- 2026-11-10T18:26:39.698Z `4ed3ec00`:
+  7717 ms over its Git steps of 8004 ms,
+  the time of the wait for the lock marker to be flushed 4329 ms,
+  then the wait to place the lock.
+- 2026-11-10T18:58:55.424Z `5331dfaf`:
+  7438 ms over its Git steps of 7678 ms,
+  the time of the wait for the lock marker to be flushed 5600 ms,
+  then `index` in the preparation.
+- 2026-11-10T18:15:17.440Z `db37994f`:
+  6930 ms over its Git steps of 7145 ms,
+  the time of the wait for the lock marker to be flushed 3823 ms,
+  then the branch move under the index lock.
+- 2026-11-10T18:13:16.362Z `5c193238`:
+  6495 ms over its Git steps of 6905 ms,
+  the time of the wait for the lock marker to be flushed 4515 ms,
+  then the wait to place the lock.
+- 2026-11-10T18:06:08.705Z `d785da4e`:
+  6270 ms over its Git steps of 6478 ms,
+  the time of the wait for the lock marker to be flushed 3479 ms,
+  then the wait to place the lock.
+- 2026-11-10T18:22:35.399Z `a95e9799`:
+  5588 ms over its Git steps of 5828 ms,
+  the time of the wait for the lock marker to be flushed 2110 ms,
+  then the wait to place the lock.
+- 2026-11-10T17:52:20.878Z `eb9705ad`:
+  5058 ms over its Git steps of 5306 ms,
+  the time of the wait for the lock marker to be flushed 2639 ms,
+  then the index install under the index lock.
 
 #### the index install under the index lock: 7 commits, 50099 ms in it
 
-- `2026-11-10T20:01:15.205Z` `deea5210`: 21936 ms over its Git steps of 23081 ms; the index install under the index lock 11935 ms, next the landing's other reads 8306 ms.
-- `2026-11-10T18:10:58.799Z` `ce01f8ab`: 16073 ms over its Git steps of 22595 ms; the index install under the index lock 6207 ms, next the wait for what an earlier batch owes 4663 ms.
-- `2026-11-10T18:31:25.302Z` `ad71026a`: 12424 ms over its Git steps of 12798 ms; the index install under the index lock 4826 ms, next the branch move under the index lock 3386 ms.
-- `2026-11-10T20:04:13.592Z` `02fb7b5c`: 11652 ms over its Git steps of 12409 ms; the index install under the index lock 9275 ms, next `index` in the preparation 1270 ms.
-- `2026-11-10T19:45:39.648Z` `c87115d7`: 9813 ms over its Git steps of 12699 ms; the index install under the index lock 6676 ms, next `index` in the preparation 1279 ms.
-- `2026-11-10T18:09:48.690Z` `0473add4`: 9543 ms over its Git steps of 15339 ms; the index install under the index lock 5112 ms, next the branch move under the index lock 1256 ms.
-- `2026-11-10T18:30:48.616Z` `9ae253bd`: 7922 ms over its Git steps of 11184 ms; the index install under the index lock 6068 ms, next `changedPaths` in the preparation 609 ms.
+- 2026-11-10T20:01:15.205Z `deea5210`:
+  21936 ms over its Git steps of 23081 ms,
+  the time of the index install under the index lock 11935 ms,
+  then the landing's other reads.
+- 2026-11-10T18:10:58.799Z `ce01f8ab`:
+  16073 ms over its Git steps of 22595 ms,
+  the time of the index install under the index lock 6207 ms,
+  then the wait for what an earlier batch owes.
+- 2026-11-10T18:31:25.302Z `ad71026a`:
+  12424 ms over its Git steps of 12798 ms,
+  the time of the index install under the index lock 4826 ms,
+  then the branch move under the index lock.
+- 2026-11-10T20:04:13.592Z `02fb7b5c`:
+  11652 ms over its Git steps of 12409 ms,
+  the time of the index install under the index lock 9275 ms,
+  then `index` in the preparation.
+- 2026-11-10T19:45:39.648Z `c87115d7`:
+  9813 ms over its Git steps of 12699 ms,
+  the time of the index install under the index lock 6676 ms,
+  then `index` in the preparation.
+- 2026-11-10T18:09:48.690Z `0473add4`:
+  9543 ms over its Git steps of 15339 ms,
+  the time of the index install under the index lock 5112 ms,
+  then the branch move under the index lock.
+- 2026-11-10T18:30:48.616Z `9ae253bd`:
+  7922 ms over its Git steps of 11184 ms,
+  the time of the index install under the index lock 6068 ms,
+  then `changedPaths` in the preparation.
 
 #### time no phase covers: 9 commits, 41362 ms in it
 
-- `2026-11-10T19:44:46.421Z` `dd4500fd`: 12599 ms over its Git steps of 13213 ms; time no phase covers 6135 ms, next `scratch` in the preparation 5402 ms.
-- `2026-11-10T20:26:07.287Z` `27e9b872`: 12004 ms over its Git steps of 12415 ms; time no phase covers 6578 ms, next the wait for the lock marker to be flushed 3312 ms.
-- `2026-11-10T19:44:38.658Z` `3cf34123`: 7448 ms over its Git steps of 8408 ms; time no phase covers 5821 ms, next `index` in the preparation 653 ms.
-- `2026-11-10T18:15:29.605Z` `4f86553d`: 7040 ms over its Git steps of 7221 ms; time no phase covers 3399 ms, next the wait for the lock marker to be flushed 1902 ms.
-- `2026-11-10T21:21:34.609Z` `333d2ec1`: 6846 ms over its Git steps of 7253 ms; time no phase covers 6463 ms, next the index install under the index lock 105 ms.
-- `2026-11-10T20:21:05.489Z` `1deab5d4`: 6735 ms over its Git steps of 8851 ms; time no phase covers 5670 ms, next the index install under the index lock 381 ms.
-- `2026-11-10T18:09:01.237Z` `152219c9`: 5764 ms over its Git steps of 6742 ms; time no phase covers 2214 ms, next `scratch` in the preparation 2173 ms.
-- `2026-11-10T18:09:22.313Z` `b79a1142`: 5344 ms over its Git steps of 10598 ms; time no phase covers 2089 ms, next `scratch` in the preparation 1578 ms.
-- `2026-11-10T18:09:09.120Z` `a3cfb7ff`: 5172 ms over its Git steps of 6186 ms; time no phase covers 2993 ms, next `scratch` in the preparation 853 ms.
+- 2026-11-10T19:44:46.421Z `dd4500fd`:
+  12599 ms over its Git steps of 13213 ms,
+  the time of time no phase covers 6135 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T20:26:07.287Z `27e9b872`:
+  12004 ms over its Git steps of 12415 ms,
+  the time of time no phase covers 6578 ms,
+  then the wait for the lock marker to be flushed.
+- 2026-11-10T19:44:38.658Z `3cf34123`:
+  7448 ms over its Git steps of 8408 ms,
+  the time of time no phase covers 5821 ms,
+  then `index` in the preparation.
+- 2026-11-10T18:15:29.605Z `4f86553d`:
+  7040 ms over its Git steps of 7221 ms,
+  the time of time no phase covers 3399 ms,
+  then the wait for the lock marker to be flushed.
+- 2026-11-10T21:21:34.609Z `333d2ec1`:
+  6846 ms over its Git steps of 7253 ms,
+  the time of time no phase covers 6463 ms,
+  then the index install under the index lock.
+- 2026-11-10T20:21:05.489Z `1deab5d4`:
+  6735 ms over its Git steps of 8851 ms,
+  the time of time no phase covers 5670 ms,
+  then the index install under the index lock.
+- 2026-11-10T18:09:01.237Z `152219c9`:
+  5764 ms over its Git steps of 6742 ms,
+  the time of time no phase covers 2214 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:09:22.313Z `b79a1142`:
+  5344 ms over its Git steps of 10598 ms,
+  the time of time no phase covers 2089 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:09:09.120Z `a3cfb7ff`:
+  5172 ms over its Git steps of 6186 ms,
+  the time of time no phase covers 2993 ms,
+  then `scratch` in the preparation.
 
 #### the wait for what an earlier batch owes: 6 commits, 36815 ms in it
 
-- `2026-11-10T20:00:50.351Z` `ed491398`: 15765 ms over its Git steps of 16400 ms; the wait for what an earlier batch owes 13631 ms, next time no phase covers 497 ms.
-- `2026-11-10T18:48:15.208Z` `5287d111`: 12122 ms over its Git steps of 16365 ms; the wait for what an earlier batch owes 6266 ms, next `index` in the preparation 3194 ms.
-- `2026-11-10T18:25:29.861Z` `b8d4b6ee`: 10736 ms over its Git steps of 11131 ms; the wait for what an earlier batch owes 4656 ms, next `shadow skeleton` in the build 3302 ms.
-- `2026-11-10T18:32:24.318Z` `950ff124`: 7376 ms over its Git steps of 7860 ms; the wait for what an earlier batch owes 4673 ms, next `scratch` in the preparation 1075 ms.
-- `2026-11-10T18:12:03.752Z` `223263ab`: 5535 ms over its Git steps of 6952 ms; the wait for what an earlier batch owes 3394 ms, next `scratch` in the preparation 834 ms.
-- `2026-11-10T20:28:53.795Z` `c60f2672`: 5277 ms over its Git steps of 6199 ms; the wait for what an earlier batch owes 4195 ms, next `index` in the preparation 464 ms.
+- 2026-11-10T20:00:50.351Z `ed491398`:
+  15765 ms over its Git steps of 16400 ms,
+  the time of the wait for what an earlier batch owes 13631 ms,
+  then time no phase covers.
+- 2026-11-10T18:48:15.208Z `5287d111`:
+  12122 ms over its Git steps of 16365 ms,
+  the time of the wait for what an earlier batch owes 6266 ms,
+  then `index` in the preparation.
+- 2026-11-10T18:25:29.861Z `b8d4b6ee`:
+  10736 ms over its Git steps of 11131 ms,
+  the time of the wait for what an earlier batch owes 4656 ms,
+  then `shadow skeleton` in the build.
+- 2026-11-10T18:32:24.318Z `950ff124`:
+  7376 ms over its Git steps of 7860 ms,
+  the time of the wait for what an earlier batch owes 4673 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:12:03.752Z `223263ab`:
+  5535 ms over its Git steps of 6952 ms,
+  the time of the wait for what an earlier batch owes 3394 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T20:28:53.795Z `c60f2672`:
+  5277 ms over its Git steps of 6199 ms,
+  the time of the wait for what an earlier batch owes 4195 ms,
+  then `index` in the preparation.
 
 #### `index` in the preparation: 5 commits, 26488 ms in it
 
-- `2026-11-10T21:57:12.820Z` `836fdd96`: 8472 ms over its Git steps of 8887 ms; `index` in the preparation 6913 ms, next `scratch` in the preparation 1128 ms.
-- `2026-11-10T20:14:24.670Z` `707b10e7`: 7830 ms over its Git steps of 8079 ms; `index` in the preparation 7279 ms, next `scratch` in the preparation 234 ms.
-- `2026-11-10T18:33:40.151Z` `33169ce5`: 6878 ms over its Git steps of 9538 ms; `index` in the preparation 3282 ms, next `shadow links` in the build 2376 ms.
-- `2026-11-10T19:00:46.327Z` `dac4d29c`: 6452 ms over its Git steps of 6711 ms; `index` in the preparation 3726 ms, next `shadow refs` in the build 1514 ms.
-- `2026-11-10T20:14:09.337Z` `acd4259d`: 6237 ms over its Git steps of 13688 ms; `index` in the preparation 5288 ms, next `scratch` in the preparation 354 ms.
+- 2026-11-10T21:57:12.820Z `836fdd96`:
+  8472 ms over its Git steps of 8887 ms,
+  the time of `index` in the preparation 6913 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T20:14:24.670Z `707b10e7`:
+  7830 ms over its Git steps of 8079 ms,
+  the time of `index` in the preparation 7279 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:33:40.151Z `33169ce5`:
+  6878 ms over its Git steps of 9538 ms,
+  the time of `index` in the preparation 3282 ms,
+  then `shadow links` in the build.
+- 2026-11-10T19:00:46.327Z `dac4d29c`:
+  6452 ms over its Git steps of 6711 ms,
+  the time of `index` in the preparation 3726 ms,
+  then `shadow refs` in the build.
+- 2026-11-10T20:14:09.337Z `acd4259d`:
+  6237 ms over its Git steps of 13688 ms,
+  the time of `index` in the preparation 5288 ms,
+  then `scratch` in the preparation.
 
 #### writing the answer: 3 commits, 25348 ms in it
 
-- `2026-11-10T19:40:58.215Z` `1f58e671`: 21685 ms over its Git steps of 23603 ms; writing the answer 20487 ms, next the index install under the index lock 289 ms.
-- `2026-11-10T20:11:06.009Z` `776171c5`: 6289 ms over its Git steps of 9213 ms; writing the answer 2792 ms, next the landing's other reads 1227 ms.
-- `2026-11-10T17:49:14.152Z` `14893143`: 6252 ms over its Git steps of 8054 ms; writing the answer 2069 ms, next `index` in the preparation 1236 ms.
+- 2026-11-10T19:40:58.215Z `1f58e671`:
+  21685 ms over its Git steps of 23603 ms,
+  the time of writing the answer 20487 ms,
+  then the index install under the index lock.
+- 2026-11-10T20:11:06.009Z `776171c5`:
+  6289 ms over its Git steps of 9213 ms,
+  the time of writing the answer 2792 ms,
+  then the landing's other reads.
+- 2026-11-10T17:49:14.152Z `14893143`:
+  6252 ms over its Git steps of 8054 ms,
+  the time of writing the answer 2069 ms,
+  then `index` in the preparation.
 
 #### the queue: 2 commits, 22133 ms in it
 
-- `2026-11-10T21:31:27.806Z` `879c1d02`: 17459 ms over its Git steps of 18877 ms; the queue 15782 ms, next `policies` in the preparation 1035 ms.
-- `2026-11-10T18:15:07.224Z` `4758bdd2`: 13603 ms over its Git steps of 14002 ms; the queue 6351 ms, next `scratch` in the preparation 3754 ms.
+- 2026-11-10T21:31:27.806Z `879c1d02`:
+  17459 ms over its Git steps of 18877 ms,
+  the time of the queue 15782 ms,
+  then `policies` in the preparation.
+- 2026-11-10T18:15:07.224Z `4758bdd2`:
+  13603 ms over its Git steps of 14002 ms,
+  the time of the queue 6351 ms,
+  then `scratch` in the preparation.
 
 #### the connection reading the request: 1 commits, 21763 ms in it
 
-- `2026-11-10T20:14:19.701Z` `ea66d582`: 38437 ms over its Git steps of 39283 ms; the connection reading the request 21763 ms, next the hand-off of the push 5302 ms.
+- 2026-11-10T20:14:19.701Z `ea66d582`:
+  38437 ms over its Git steps of 39283 ms,
+  the time of the connection reading the request 21763 ms,
+  then the hand-off of the push.
 
 #### the landing's other reads: 2 commits, 20071 ms in it
 
-- `2026-11-10T18:07:59.480Z` `1903b2d2`: 21365 ms over its Git steps of 24295 ms; the landing's other reads 8411 ms, next `shadow skeleton` in the build 5755 ms.
-- `2026-11-10T20:01:39.328Z` `4f24fe1d`: 14602 ms over its Git steps of 15997 ms; the landing's other reads 11660 ms, next `index` in the preparation 1649 ms.
+- 2026-11-10T18:07:59.480Z `1903b2d2`:
+  21365 ms over its Git steps of 24295 ms,
+  the time of the landing's other reads 8411 ms,
+  then `shadow skeleton` in the build.
+- 2026-11-10T20:01:39.328Z `4f24fe1d`:
+  14602 ms over its Git steps of 15997 ms,
+  the time of the landing's other reads 11660 ms,
+  then `index` in the preparation.
 
-#### `shadow skeleton` in the build: 3 commits, 15052 ms in it
+#### `shadow skeleton`: 3 commits, 15052 ms in it
 
-- `2026-11-10T19:53:50.148Z` `0682e732`: 11572 ms over its Git steps of 20910 ms; `shadow skeleton` in the build 7164 ms, next the objects 1717 ms.
-- `2026-11-10T18:18:01.255Z` `d45bfa85`: 11460 ms over its Git steps of 12081 ms; `shadow skeleton` in the build 5388 ms, next the hand-off of the push 3271 ms.
-- `2026-11-10T20:01:42.002Z` `8848ca3a`: 5182 ms over its Git steps of 6015 ms; `shadow skeleton` in the build 2500 ms, next writing the answer 1672 ms.
+- 2026-11-10T19:53:50.148Z `0682e732`:
+  11572 ms over its Git steps of 20910 ms,
+  the time of `shadow skeleton` 7164 ms,
+  then the objects.
+- 2026-11-10T18:18:01.255Z `d45bfa85`:
+  11460 ms over its Git steps of 12081 ms,
+  the time of `shadow skeleton` 5388 ms,
+  then the hand-off of the push.
+- 2026-11-10T20:01:42.002Z `8848ca3a`:
+  5182 ms over its Git steps of 6015 ms,
+  the time of `shadow skeleton` 2500 ms,
+  then writing the answer.
 
 #### the branch move under the index lock: 3 commits, 14193 ms in it
 
-- `2026-11-10T20:04:59.133Z` `b0014a55`: 9910 ms over its Git steps of 10714 ms; the branch move under the index lock 8747 ms, next the post-commit gate 372 ms.
-- `2026-11-10T18:09:55.157Z` `641619da`: 6002 ms over its Git steps of 13400 ms; the branch move under the index lock 2932 ms, next `scratch` in the preparation 848 ms.
-- `2026-11-10T18:22:27.620Z` `98a7a3b9`: 5866 ms over its Git steps of 8978 ms; the branch move under the index lock 2514 ms, next the wait for the lock marker to be flushed 1846 ms.
+- 2026-11-10T20:04:59.133Z `b0014a55`:
+  9910 ms over its Git steps of 10714 ms,
+  the time of the branch move under the index lock 8747 ms,
+  then the post-commit gate.
+- 2026-11-10T18:09:55.157Z `641619da`:
+  6002 ms over its Git steps of 13400 ms,
+  the time of the branch move under the index lock 2932 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:22:27.620Z `98a7a3b9`:
+  5866 ms over its Git steps of 8978 ms,
+  the time of the branch move under the index lock 2514 ms,
+  then the wait for the lock marker to be flushed.
 
-#### `shadow refs` in the build: 2 commits, 9700 ms in it
+#### `shadow refs`: 2 commits, 9700 ms in it
 
-- `2026-11-10T18:11:04.206Z` `58cf9aa1`: 13594 ms over its Git steps of 20676 ms; `shadow refs` in the build 5915 ms, next `scratch` in the preparation 3173 ms.
-- `2026-11-10T18:42:27.093Z` `644c37e0`: 12459 ms over its Git steps of 15237 ms; `shadow refs` in the build 3785 ms, next writing the answer 2640 ms.
+- 2026-11-10T18:11:04.206Z `58cf9aa1`:
+  13594 ms over its Git steps of 20676 ms,
+  the time of `shadow refs` 5915 ms,
+  then `scratch` in the preparation.
+- 2026-11-10T18:42:27.093Z `644c37e0`:
+  12459 ms over its Git steps of 15237 ms,
+  the time of `shadow refs` 3785 ms,
+  then writing the answer.
 
 #### the wait to place the lock: 2 commits, 6085 ms in it
 
-- `2026-11-10T20:11:59.323Z` `94de50c5`: 6815 ms over its Git steps of 7040 ms; the wait to place the lock 3784 ms, next the wait for the lock marker to be flushed 2712 ms.
-- `2026-11-10T20:09:08.776Z` `4d82868d`: 5812 ms over its Git steps of 9740 ms; the wait to place the lock 2301 ms, next `scratch` in the preparation 2212 ms.
+- 2026-11-10T20:11:59.323Z `94de50c5`:
+  6815 ms over its Git steps of 7040 ms,
+  the time of the wait to place the lock 3784 ms,
+  then the wait for the lock marker to be flushed.
+- 2026-11-10T20:09:08.776Z `4d82868d`:
+  5812 ms over its Git steps of 9740 ms,
+  the time of the wait to place the lock 2301 ms,
+  then `scratch` in the preparation.
 
 #### `stagedDeletions` in the preparation: 1 commits, 5921 ms in it
 
-- `2026-11-10T18:38:12.392Z` `028c40e8`: 13060 ms over its Git steps of 16475 ms; `stagedDeletions` in the preparation 5921 ms, next `index` in the preparation 4228 ms.
+- 2026-11-10T18:38:12.392Z `028c40e8`:
+  13060 ms over its Git steps of 16475 ms,
+  the time of `stagedDeletions` in the preparation 5921 ms,
+  then `index` in the preparation.
 
 ### The causes, ranked by the time they cost over those 86 commits
 
-- `shadow conclusion` in the build: 548909 ms.
-- `scratch` in the preparation: 99671 ms.
-- the index install under the index lock: 81394 ms.
-- `index` in the preparation: 68549 ms.
-- the wait for the lock marker to be flushed: 63413 ms.
-- time no phase covers: 56966 ms.
-- the wait for what an earlier batch owes: 53138 ms.
-- the hand-off of the push: 47329 ms.
-- the connection reading the request: 45455 ms.
-- `shadow skeleton` in the build: 39050 ms.
-- writing the answer: 35071 ms.
-- the queue: 33883 ms.
-- the landing's other reads: 31189 ms.
-- the branch move under the index lock: 28364 ms.
-- the post-commit gate: 22574 ms.
-- the wait to place the lock: 21043 ms.
-- `shadow refs` in the build: 16872 ms.
-- the objects: 15075 ms.
-- `stagedDeletions` in the preparation: 12839 ms.
-- `policies` in the preparation: 12231 ms.
-- `shadow links` in the build: 4388 ms.
-- `changedPaths` in the preparation: 3805 ms.
-- waiting for a service to start: 3199 ms.
-- `shadow config` in the build: 2608 ms.
-- `layout` in the preparation: 1039 ms.
-- `unmergedFiles` in the preparation: 687 ms.
-- `capture` in the preparation: 622 ms.
-- `changes` in the preparation: 158 ms.
-- `client build` in the build: 114 ms.
-- `conclusionState` in the preparation: 46 ms.
-- removing scratch: 25 ms.
-- `commit read back` in the build: 16 ms.
-- `amend tree` in the build: 11 ms.
-- `amend fields` in the build: 1 ms.
+- `shadow conclusion` in the build:
+  548909 ms.
+- `scratch` in the preparation:
+  99671 ms.
+- the index install under the index lock:
+  81394 ms.
+- `index` in the preparation:
+  68549 ms.
+- the wait for the lock marker to be flushed:
+  63413 ms.
+- time no phase covers:
+  56966 ms.
+- the wait for what an earlier batch owes:
+  53138 ms.
+- the hand-off of the push:
+  47329 ms.
+- the connection reading the request:
+  45455 ms.
+- `shadow skeleton` in the build:
+  39050 ms.
+- writing the answer:
+  35071 ms.
+- the queue:
+  33883 ms.
+- the landing's other reads:
+  31189 ms.
+- the branch move under the index lock:
+  28364 ms.
+- the post-commit gate:
+  22574 ms.
+- the wait to place the lock:
+  21043 ms.
+- `shadow refs` in the build:
+  16872 ms.
+- the objects:
+  15075 ms.
+- `stagedDeletions` in the preparation:
+  12839 ms.
+- `policies` in the preparation:
+  12231 ms.
+- `shadow links` in the build:
+  4388 ms.
+- `changedPaths` in the preparation:
+  3805 ms.
+- waiting for a service to start:
+  3199 ms.
+- `shadow config` in the build:
+  2608 ms.
+- `layout` in the preparation:
+  1039 ms.
+- `unmergedFiles` in the preparation:
+  687 ms.
+- `capture` in the preparation:
+  622 ms.
+- `changes` in the preparation:
+  158 ms.
+- `client build` in the build:
+  114 ms.
+- `conclusionState` in the preparation:
+  46 ms.
+- removing scratch:
+  25 ms.
+- `commit read back` in the build:
+  16 ms.
+- `amend tree` in the build:
+  11 ms.
+- `amend fields` in the build:
+  1 ms.
 
 ### What `main` keeps
 
-The causes over 40,000 ms in that window, and what each is:
+The causes over 40,000 ms in that window,
+and what each is:
 
-- `scratch` in the preparation, 99,671 ms:
-  `prepare_commit_scratch` makes the commit's tree and, before it, sweeps the repository scratch directory
-  (a listing, one `lstat` per entry, and a removal of what is older than a day) on the commit's path.
-- the index install under the index lock, 81,394 ms:
+- `scratch` in the preparation,
+  99,671 ms:
+  `prepare_commit_scratch` makes the commit's tree and,
+  before it,
+  sweeps the repository scratch directory
+  (a listing,
+  one `lstat` per entry,
+  and a removal of what is older than a day) on the commit's path.
+- the index install under the index lock,
+  81,394 ms:
   the service builds the new index beside the real one and installs it while it holds the index lock,
   and every other commit of that worktree waits there.
-- `index` in the preparation, 68,549 ms:
+- `index` in the preparation,
+  68,549 ms:
   the private copies of the live index that the commit's policies and its shadow commit read.
-- the wait for the lock marker to be flushed, 63,413 ms:
-  `lock_stage_ms` with `lock_stage_kind=pre`, which is the whole of `take` in `service_index_prestage.rs`.
-- time no phase covers, 56,966 ms:
+- the wait for the lock marker to be flushed,
+  63,413 ms:
+  `lock_stage_ms` with `lock_stage_kind=pre`,
+  which is the whole of `take` in `service_index_prestage.rs`.
+- time no phase covers,
+  56,966 ms:
   the record cannot say.
-  `stderrMs` is 0 in all 86, `scratchRemovalMs` is 25 and `routeMs` is 160,
+  `stderrMs` is 0 in all 86,
+  `scratchRemovalMs` is 25 and `routeMs` is 160,
   so what is left lies outside every phase the record names.
-- the wait for what an earlier batch owes, 53,138 ms:
-  `reads_owed_ms`, the index update and the held push a batch owes before its branch moves.
-- the hand-off of the push, 47,329 ms, and the connection reading the request, 45,455 ms.
+- the wait for what an earlier batch owes,
+  53,138 ms:
+  `reads_owed_ms`,
+  the index update and the held push a batch owes before its branch moves.
+- the hand-off of the push,
+  47,329 ms,
+  and the connection reading the request,
+  45,455 ms.
 
 The three above the marker wait are work and writes a landing or a preparation must make,
 and each needs a decision this record does not take:
@@ -4181,7 +4494,9 @@ the two lock-hold parts are what native Git writes under the same lock;
 and the sweep is the guarantee that a tree a killed command left is collected.
 
 The marker wait is different:
-nothing is read, written or decided while a commit waits, and the file it waits for is the service's own.
+nothing is read,
+written or decided while a commit waits,
+and the file it waits for is the service's own.
 Before this change the service made the next batch's marker only after a landing had been answered,
 so its flush was the next commit's wait.
 
@@ -4190,20 +4505,27 @@ so its flush was the next commit's wait.
 `take_index_lock` now starts the markers of batches `n + 1` and `n + 2` as soon as a landing takes the lock for
 batch `n`.
 The first overlaps the branch move and the index build that follow;
-the second is the spare, so that one marker is finished while another is being made,
+the second is the spare,
+so that one marker is finished while another is being made,
 and the next landing takes a file that has had a whole landing of its own to reach the disk.
 `service_index_prestage.rs` keeps two files at most:
-`start` adds a marker for a batch it is not making, drops a marker for another index,
+`start` adds a marker for a batch it is not making,
+drops a marker for another index,
 and keeps at most `MARKERS_MADE_AHEAD` of them;
 `take` keeps the spare and removes only a marker of a passed batch or another index.
-The `start_prestage` after the landing stays, and is a no-op when its marker is already being made.
+The `start_prestage` after the landing stays,
+and is a no-op when its marker is already being made.
 The shutdown removal iterates both files.
 
-What it costs: one more flush per landing, and two small files in the Git directory instead of one,
+What it costs:
+one more flush per landing,
+and two small files in the Git directory instead of one,
 both of them off the commit's path.
 
-The control failed first, twice.
-With only the next batch's marker started at the lock, on `native:test:host`:
+The control failed first,
+twice.
+With only the next batch's marker started at the lock,
+on `native:test:host`:
 
 ```text
 FAIL [  72.910s] (1/1) landing::service_land_take_index_lock::tests::the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock
@@ -4211,7 +4533,8 @@ FAIL [  72.910s] (1/1) landing::service_land_take_index_lock::tests::the_batch_a
   no marker of the batch after this one was started while the landing held the lock
 ```
 
-With the spare removed again, after the control was widened to the two markers:
+With the spare removed again,
+after the control was widened to the two markers:
 
 ```text
 FAIL [  63.745s] (1/1) landing::service_land_take_index_lock::tests::the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock
@@ -4232,16 +4555,21 @@ one disposable copy of a repository with 300 tracked files,
 4 linked worktrees on 4 branches,
 one service per worktree at a socket of its own under a private runtime directory,
 and every commit made through plain `git` with that arm's program first in its `PATH`.
-The fixture sets `commit.cleanup = strip`, so Git builds every commit and each one needs the private repository.
-4 commits per worktree in a row, the worktrees starting together, and the arms alternating within one run.
+The fixture sets `commit.cleanup = strip`,
+so Git builds every commit and each one needs the private repository.
+4 commits per worktree in a row,
+the worktrees starting together,
+and the arms alternating within one run.
 The host was not idle:
 load average 94 to 134 on 8 CPUs,
 and `/proc/pressure/io` reporting `full` at 27 to 33 percent over ten seconds.
-No synthetic load was generated, and every probe ran in its own `systemd-run --user --scope`.
+No synthetic load was generated,
+and every probe ran in its own `systemd-run --user --scope`.
 
 #### What `main` removes, counted in the records
 
-16 commits through each program, from the records the commits left in the fixture's common Git directory:
+16 commits through each program,
+from the records the commits left in the fixture's common Git directory:
 
 - the installed `0.6.1-alpha.8`:
   `shadow conclusion` in 6 records (20 ms in all),
@@ -4262,14 +4590,18 @@ So the two build causes `main` removes are gone as causes:
 no commit of `main` makes a conclusion copies directory,
 and 12 of 16 take a member of the pool instead of creating one,
 while the 4 that still create one are the fixture's first fill and the members a first claim refuses
-(the section "The probe's own records, and what they named" has the same finding from its own probe).
-`shadow refs` stays, as its code says.
+(the section "The probe's own records,
+and what they named" has the same finding from its own probe).
+`shadow refs` stays,
+as its code says.
 The seconds the conclusion copies cost in this window are the volume's stalls on one `mkdir`
 (548,909 ms over 86 commits);
 32 shadow commits through two programs did not hit one,
 which is why this run states the cause by its presence in the records and the window states its cost.
 
-`ef43a5353e` needed no arm: none of the 382 records holds a `check-ignore` step, so there was nothing for it to remove.
+`ef43a5353e` needed no arm:
+none of the 382 records holds a `check-ignore` step,
+so there was nothing for it to remove.
 
 #### The marker started earlier
 
@@ -4277,8 +4609,10 @@ The same method with two wrappers that differ only in this change,
 `main` without it and `main` with it,
 16 commits each over 3 rounds:
 
-The wait for the lock marker, `lock_stage_ms` with `lock_stage_kind=pre`,
-per landing of each arm, in whole milliseconds:
+The wait for the lock marker,
+`lock_stage_ms` with `lock_stage_kind=pre`,
+per landing of each arm,
+in whole milliseconds:
 
 - `main` without this change:
   36 pre landings,
@@ -4293,34 +4627,45 @@ per landing of each arm, in whole milliseconds:
   median 0,
   largest 8,782.
 
-The whole commit, per round and arm, median and largest:
+The whole commit,
+per round and arm,
+median and largest:
 
-- without the change: 1,940 and 3,313,
+- without the change:
+  1,940 and 3,313,
   8,053 and 24,341,
   10,535 and 19,210.
-- with it: 2,257 and 9,455,
+- with it:
+  2,257 and 9,455,
   364 and 9,887,
   361 and 5,117.
 
 The first round of the two arms says nothing (the change is in none of its numbers),
 and the two later rounds differ by 22 and 29 times at the median,
 which is far outside the spread the unchanged arm showed here (1,940 to 10,535).
-An earlier, narrower change started only the next batch's marker at the lock:
+An earlier,
+narrower change started only the next batch's marker at the lock:
 its 36 pre landings held 125,729 ms against the 141,633 ms of the arm without it,
-which this host's spread cannot resolve, and that is why the spare was added.
+which this host's spread cannot resolve,
+and that is why the spare was added.
 
-The controls that hold the mechanism, from `native:test:host`:
+The controls that hold the mechanism,
+from `native:test:host`:
 
-- `landing::service_land_take_index_lock::tests::the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock`:
+- the control `the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock`
+  (in `landing::service_land_take_index_lock::tests`):
   FAILED before the change after its 60 s bound with
   "no marker of the batch after this one was started while the landing held the lock",
-  PASS after it.
-- `landing::service_index_prestage::tests` (the module's own 14 controls):
-  14 passed.
+  and passes after it.
+- the prestage module's own controls (`landing::service_index_prestage::tests`)
+  and `landing_state_carried_by_its_task`'s:
+  `Summary [ 1.514s] 22 tests run: 22 passed, 6268 skipped`.
 
 What these arms can and cannot say is the same limit the section
-"What the pool removes from a commit, counted in calls" recorded for its own arms:
+"What the pool removes from a commit,
+counted in calls" recorded for its own arms:
 two rounds of one program on this host differ by more than the change does,
 so the wall times of the whole command do not resolve it.
-What they do show is the wait's own figure, which the service states per landing,
+What they do show is the wait's own figure,
+which the service states per landing,
 and that figure falls by 78 percent.
