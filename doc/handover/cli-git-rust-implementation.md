@@ -101,6 +101,50 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Integration pass 12, a landed sweep that removed fresh worktrees, and rounds 210 to 212 (2026-11-11T15:20:39-05:00)
+
+Pass 12 took every branch `list-finished-branches-not-in-the-integration.ts` showed idle at 15:13 that no pass had listed,
+and skipped the branches whose agent still runs (the pass script now takes `--skip=<file>`).
+It merged 25 to `3b94069dbf`; `native:clippy` there is clean (all targets, warnings denied, 1m 41s),
+and the gate `gpc-gate-pass-12-on-3b94069dbf-20261111T153251-0500` runs on it.
+The three regressions of the `fc9f7f5f4b` gate are not in it: round 201's `pass-11-gate-failures` is still working (no commit yet at 15:32).
+Twelve branches conflicted, and round 211 runs a re-merge agent for each:
+service-lines, worktree-trash hand-over, package-repair findings, tokio-next-step findings, merge asides, the service of a gone worktree,
+removal with a nested subvolume, round 187's documented behaviors, a commit not made owes nothing, blocked commits,
+the shadow pool and index commit-time change, and package-repair relink records.
+
+Two of pass 12's merges, run with the installed 0.6.1-alpha.10, printed
+"still waiting for git worktree remove .../pi-kimi-review-...-round-210, a bulk step (process 253135) after 20 seconds;
+it is a step that may not be run twice, so it is waited for as long as it lives":
+the merge's landed sweep removed a review worktree added seconds earlier at the tip of the branch being merged,
+and the merge waited on that removal (records at 20:19:13Z and 20:20:06Z in `integrate-jam-fixes-after-alpha-9.jsonl`).
+Every agent worktree starts at a landed commit,
+so until its first commit any fresh worktree is one merge away from removal;
+no running unit lost its worktree in the checks at 15:2x (40 running, none missing).
+Round 212's `landed-sweep-spares-a-new-worktree-and-never-holds-the-merge` owns both defects.
+
+The old-branch triage (`doc/planning/git-policy-cli-old-branches-judged-2026-11-11.md`, merged in pass 12):
+`fix/git-policy-cli-commits-never-fail` and `feat/git-policy-cli-commit-protocol-models` are kept, unmerged,
+because they hold the commit protocol's design record, five owner decisions and its implementation,
+which the owner ordered resumed after the tokio commit-path step;
+`refactor/git-policy-cli-source-layout` is superseded by the owner's recorded decision and can go once the owner allows branch deletion;
+`fix/git-policy-cli-open-issues-next-batch` was ported as `fix/git-policy-cli-open-issues-fourth-pass` (merged).
+Of the open wrapper issues that pass judged, all but the fixed ones wait on an owner choice
+(`doc/planning/git-wrapper-open-issues-round-4.md`, "Verdicts").
+
+Round 210 runs Kimi reviews of 27 finished branches that had none (queued for Kimi slots);
+two were refused as "nothing to review" because their branches change only tests and docs
+(`kimi-findings-commit-at-the-descriptor-ceiling-lands`, `alpha-10-audit-sweep-keeps-an-unmerged-held-commit`).
+Round 212 runs ten agents on `3b94069dbf`:
+the gate's three suite-only failures (rule `SUF`),
+the landed sweep above,
+four disjoint slices of the next full-tokio step (the landing's leaf Git starts; the owed index and replay; the message and prepare; the batch body and its storage steps),
+the landing's object write on the commit's wait (`objects_ms` 9,915 and 12,831 ms of two landings that breached the 5 s bound),
+worktree adds against "60s is fine for adding worktrees",
+a proposal for the owner on the shadow pool claim's rename (1,678 ms of a 3,126 ms claim; both ways off the path change the recorded guarantee),
+and the scratch scripts still to fold into `package/pi-shared/subagent-driver`.
+`feat/pi-shared-subagent-driver-takes-the-launcher-fixes` (the launcher port, not on `main`) is under a Kimi review (round 212).
+
 ### The build volume filled and every agent died at once; the alpha.11 gate's seven failures (2026-11-11T13:31:32-05:00)
 
 At 13:13:51 to 13:13:59 every Pi driver exited with status 1 and wrote no summary, mid-step.
@@ -146,9 +190,6 @@ so a dozen finished fixes (the kimi-findings fixers that ended between 04:50 and
 `${HOME}/temp/agent/pi-runs/list-finished-branches-not-in-the-integration.ts` now lists every wrapper branch with commits the integration lacks,
 with how its newest run ended,
 and pass 11 took every finished one.
-Not taken, and not yet judged:
-`fix/git-policy-cli-commits-never-fail`, `feat/git-policy-cli-commit-protocol-models` and `refactor/git-policy-cli-source-layout` (2026-11-04),
-and `fix/git-policy-cli-open-issues-next-batch` (2026-11-10, documentation).
 `fix/git-policy-cli-merge-abort-is-allowed-during-a-merge` had four runs end on the provider errors of 2026-11-10 evening;
 round 196 starts it again on its branch.
 
@@ -8564,6 +8605,12 @@ whose newest revision asks the owner for the measured span values of its decisio
 The 2026-11-04 pause was never lifted for it;
 `### Open: decisions a read-only audit of all recorded work found`
 in `doc/handover/questions-for-the-owner.md` asks whether it still covers it.
+- `feat/git-policy-cli-commit-protocol-models` `11829f62e5`,
+the commit protocol's implementation (lane service, spool, flusher, drain and the model files),
+none of it in the integration;
+kept for the comparison the owner ordered after the tokio commit-path step,
+which then ports it step by step
+(`doc/planning/git-policy-cli-old-branches-judged-2026-11-11.md`, added 2026-11-11).
 - `worktree-agent-ab3dd6294f9d91284` `fe2081f2a1`,
 the copy-in-service design that was never merged.
 - `e2e-trace-diagnosis-20261101` `a0126e571c`,
@@ -8573,7 +8620,9 @@ Stale,
 and deletable once the owner agrees to branch deletions:
 `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` `2ac6da873e`,
 the stopped first 0.5.21 candidate,
-both of whose parts shipped by other routes.
+both of whose parts shipped by other routes;
+and `refactor/git-policy-cli-source-layout` `671eb1c6d1`,
+superseded by the owner's recorded decision in `doc/planning/cli-git-source-layout.md` (added 2026-11-11).
 
 Detached worktrees under `.claude/worktrees/` from merged work remain,
 their files and mutation evidence kept deliberately;
