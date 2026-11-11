@@ -40,7 +40,8 @@ use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_cop
 use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
 use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, stale_carry_names_of};
 /// Reading the bytes of a file through Git.
-use crate::merge_isolation_take_asides::{may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
+use crate::merge_isolation_changes::{FileIdentity, file_identity};
+use crate::merge_isolation_take_asides::{CopyRemoval, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
 /// The person's own work a merge captured,
 /// which holds the bytes of a path the take of a carry moved aside.
 use crate::merge_isolation_carry_parts::Capture;
@@ -255,9 +256,18 @@ fn the_permissions_are_the_copies(location: &Path, aside: &Path) -> bool {
 }
 
 /// The permission bits a copy carries,
-/// which are every bit a person can see and set on an entry.
+/// which are every bit a person can see and set on an entry:
+/// the read,
+/// write and execute bits of each of the owner,
+/// the group and everyone,
+/// and the setuid,
+/// setgid and sticky bits above them.
+/// A copy that carries setuid where its path does not is the only entry with that bit,
+/// and Git records none of these but the execute bits,
+/// so removing it would lose a mode the person set (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its sixth finding).
 #[cfg(unix)]
-const PERMISSION_BITS: u32 = 0o777;
+const PERMISSION_BITS: u32 = 0o7777;
 
 /// What one decision about a kept copy came to.
 ///
@@ -330,13 +340,21 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         // One run of bytes is not one file: the entries differ in their permissions, which Git does not record outside the
         //  executable bit, or a program still holds the copy open, and a write through that descriptor lands in the file an
         //  unlink would leave with no name at all. Both are the person's, so the copy goes only when neither holds.
+        // The entry at the path is read before the comparison ends, and the removal asks for it again as its last look: a save
+        //  or a chmod that arrives after the comparison leaves the copy the only name of the older bytes or the older mode.
+        let the_file: Option<FileIdentity> = file_identity(copy.location.as_path());
         let permissions_differ: bool = !the_permissions_are_the_copies(copy.location.as_path(), copy.aside.as_path());
-        if !permissions_differ && may_remove_the_copy_awaiting(context, root, copy.aside.as_path()).await {
-            Fate::TheFileHoldsThem
-        } else if permissions_differ {
+        if permissions_differ {
             Fate::KeptBecause("the two entries do not have the same permissions")
         } else {
-            Fate::KeptBecause("a program still holds the copy open")
+            match the_file {
+                Some(standing) => match may_remove_the_copy_awaiting(context, root, copy.aside.as_path(), copy.location.as_path(), standing).await {
+                    CopyRemoval::Proven => Fate::TheFileHoldsThem,
+                    CopyRemoval::HeldOpen => Fate::KeptBecause("a program still holds the copy open"),
+                    CopyRemoval::Changed => Fate::KeptBecause("the file at its path or the copy changed after they were compared"),
+                },
+                None => Fate::KeptBecause("the file at its path changed after they were compared"),
+            }
         }
     } else if let Some(Held::BranchCommit(object)) = held {
         Fate::GitHoldsThem(object)
