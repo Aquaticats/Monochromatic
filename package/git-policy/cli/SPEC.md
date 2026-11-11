@@ -4570,13 +4570,16 @@ and nothing here reads a number
 (the wait that owns the step ends it instead,
 below);
 and a step the kernel has not released is said,
-once,
+once and again for as long as the wait lasts,
 in a line of its own:
 a process in uninterruptible sleep (`D`) cannot act on `SIGKILL` until the call it is inside returns,
 so the commit waits the kernel's time,
-and the line names the step and its process,
+and the line names the commit that was stopped and the process the kernel is holding
+(the step itself,
+or a program it started,
+which the line says in its own words),
 says the stop was sent and the kernel has not released it,
-says what state the kernel reports for it,
+says what state the kernel reports for that process,
 and says that nothing was committed and that the person's index and files are as they were
 (owner,
 2026-11-10,
@@ -4584,11 +4587,20 @@ and says that nothing was committed and that the person's index and files are as
 chosen over leaving after a bound and failing the commit;
 the wait is an exception to his rule that nothing waits for ever,
 and `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` holds the kernel behaviour behind it and the options he did not choose);
-the line names only a step that two looks,
+the line names only a process that two looks,
 one look interval apart after the signal,
 both find in uninterruptible sleep,
-so a step that acts on its stop in that interval is never said to be held,
-and a reader that stopped reading holds the writer thread and drops that line as it drops every other;
+so a process that acts on its stop in that interval is never said to be held;
+the wait that owns the step says that line and not the notice's thread,
+which a process at its thread limit never started,
+and it says the line again at every notice interval until the step is reaped;
+a look that could not be made decides nothing and is made again,
+so a `/proc` that refused one read never silences the explanation of a wait that lasts;
+a line the writer could not take is handed over again as soon as it can take one,
+so a reader that stopped reading delays that line and never loses it;
+and that reader holds the writer thread,
+which every line of this notice goes through,
+and never the wait;
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
@@ -5088,7 +5100,9 @@ so that wait ends when the kernel releases the step and never before.
 The owner chose it (2026-11-10,
 "Keep waiting and say so")
 over leaving after a bound and failing the commit,
-and one line says the stop was sent and the kernel has not released the step,
+and the wait says once and again,
+for as long as it lasts,
+that the stop was sent and the kernel has not released the step,
 so the wait is never silent
 (`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`).
 

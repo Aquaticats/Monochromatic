@@ -546,7 +546,7 @@ impl SignalGuard {
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None };
+        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, while_held: None };
         let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
         return Ok(outcome);
     }
@@ -603,6 +603,10 @@ pub struct CeilingDuty<'a> {
     /// counted from its start;
     /// nothing when a message may be typed into an editor in it.
     pub bound: Option<std::time::Duration>,
+    /// Where the command says that the kernel has not released the step it stopped,
+    /// and how often it says it again while this wait lasts;
+    /// nothing when the command has no line to say.
+    pub while_held: Option<crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords<'a>>,
 }
 
 /// What:
@@ -682,6 +686,7 @@ async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_
             stop,
             ceiling,
             "a Git step of a commit",
+            duty.while_held,
         )
         .await?,
         None => (

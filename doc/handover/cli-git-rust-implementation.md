@@ -189,6 +189,48 @@ then the loop that lands (`serve_in_a_landing`),
 then the commit path.
 The whole commit under dozens of agents is measured by the agent `commit-waiting-path-with-dozens-of-agents`,
 not here.
+### The held-step line is the wait's, said again while the wait lasts (2026-11-10T15:30:41-05:00)
+
+Branch `fix/git-policy-cli-stuck-step-notice-review-findings`,
+off `main` at `62994776ec` (the merge the Kimi K3.1 Pro review read,
+`/var/home/user/temp/agent/kimi-reviews/stuck-step-kernel-notice-1/review.md`).
+
+The review named four defects in the held-step notice,
+all found by reading and none reproduced by its author.
+Each is reproduced here by a control committed beside its fix,
+with a test seam that states the kernel's answer where no host process can be put into
+uninterruptible sleep (`BOX`):
+
+- A commit whose notice thread the system refused at its thread limit printed nothing at all,
+  and its wait on the kernel-held step was silent.
+  The wait that owns the child says the line now,
+  through the notice's writer thread,
+  which is started whether or not the notice thread is
+  (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+- One failed read of `/proc` was read as "the step is not held",
+  and the report ended for good.
+  A look that failed now states nothing and is made again,
+  and each held look says the line again at the notice interval,
+  which is also what keeps a long wait explained.
+- A full one-line queue refused the held-step line while an older advisory line sat in it,
+  and the line was never handed over.
+  A hand-off the writer refused is retried at the quarter second the first look uses,
+  so the line lands within that much of the reader taking lines again.
+- A look reports the step first and every program below it after,
+  and any process in `D` made the line say the step itself was in that state.
+  The line names the process the kernel is actually holding,
+  and says so in its own words when that process is a program the step started.
+
+The words,
+the look and the writer thread stay with the commit step
+(`commit/scratch_step_held_by_the_kernel.rs`,
+`commit/scratch_step_look_below.rs`,
+`commit/native_commit_waiting_notice.rs`);
+the timing of the repetition is the wait's.
+SPEC.md,
+README.md and
+`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`
+say what the command says now.
 
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
@@ -7003,6 +7045,20 @@ are in append mode now).
   The same variable set on the command alone passed in 4 s with no notice and no positive control,
   so the notice hypothesis is still untested.
   Open until a failure keeps its output.
+  The assertion it failed on is recorded 2026-11-10T15:30:41-05:00,
+  on branch `fix/git-policy-cli-stuck-step-notice-review-findings`,
+  by a run of the `native_binary` root filtered to `lfs_hang::`:
+  `other: the new commit, not the earlier one, reached the origin`
+  (`binary_lfs_hang_tests.rs:102`).
+  It is a contention defect and not that branch's change:
+  alone it passed 3 of 3 runs (48 s at the slowest),
+  and with `--test-threads 1` both `lfs_hang` controls passed,
+  while it failed twice of four runs beside another test
+  (once inside a 249-test filtered run at 7.0 s,
+  once beside `a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit` at 31.5 s),
+  and two later parallel runs of the same pair passed in 6 s.
+  The branch changes the wait after a ceiling's stop and nothing on the push path,
+  and no commit there stops at a ceiling.
 - Closed 2026-11-08T15:41:28-05:00:
   `package/nested-wayland-session/cli` compiles on the pinned `nightly-2026-11-08`
   (`rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`),
