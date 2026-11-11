@@ -1193,6 +1193,20 @@ btrfs filesystem du --summarize .git/monochromatic-git-policy-cli/ahead/<name>
 A copy that waits here pins the source's rewritten blocks the way a worktree's own snapshot does,
  which is why it is
  removed after ten minutes and why a repository keeps three at most.
+A copy can be up to ten minutes older than the add that takes it,
+ so the new worktree's ignored files are the source's as of the moment the copy was made.
+An add that takes one says so on standard error,
+ with the copy's age,
+ how many ignored files the source wrote after it,
+ and the first three of them,
+ and it lists every one of them,
+ one path per line,
+ in `.git/worktrees/<name>/monochromatic-git-policy-cli-ignored-state-after-the-copy.txt`.
+The source keeps all of them,
+ so a package that is missing in the new worktree is one its own
+ package install or build makes again there:
+ nothing was deleted,
+ and the copy was only older.
 Removing one by hand is safe:
  it is a copy,
  and
@@ -5010,6 +5024,17 @@ is left out of any copy instead of
 and one stderr line says how many and which first paths:
 `monochromatic-git-policy-cli: left out 2 unreadable ignored entries from
  "/path/to/source": "a/b", "c"`.
+An ignored socket,
+named pipe or device node,
+such as the socket a dev server leaves in `node_modules`,
+cannot be copied into
+ another worktree and means nothing there,
+so it is left out of the copy instead of failing it,
+and one stderr line
+ says which ones:
+`monochromatic-git-policy-cli: left out 1 ignored entry that cannot be copied into a worktree from
+ "/path/to/source": "node_modules/dev.sock"`.
+The rest of the ignored state is copied.
 The copy clones files with a copy-on-write request,
 in parallel on a large tree,
 and trusts the clone:

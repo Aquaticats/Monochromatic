@@ -1417,7 +1417,7 @@ fn a_pointer_that_cannot_be_examined_keeps_the_record() {
     remove(root.as_path());
 }
 
-use crate::worktree_copy_stage_made_object::{made_record_beside_claim, read_made, record_made, record_made_at};
+use crate::worktree_copy_stage_made_object::{MadeObject, made_record_beside_claim, read_made, record_creating_at, record_made, record_made_at};
 
 /// What:
 ///  Give the read-only directory of an abandoned stage its owner's write permission back,
@@ -1691,13 +1691,13 @@ fn recording_the_object_writes_the_container_the_identity_and_the_instant() {
     assert!(record.exists(), "the record stands beside the claim");
     assert_eq!(
         read_made(claim.path.as_path()),
-        Some(crate::worktree_copy_stage_made_object::MadeObject { container: container.clone(), object, written }),
+        Some(crate::worktree_copy_stage_made_object::MadeObject { container: container.clone(), object: Some(object), written }),
         "the record reads back whole"
     );
     record_made_at(common.as_path(), container.as_path(), object, written + std::time::Duration::from_secs(1)).expect("a raised cut-off");
     assert_eq!(
         read_made(claim.path.as_path()).map(|made| { return made.object; }),
-        Some(object),
+        Some(Some(object)),
         "a raised cut-off keeps the object the record proves"
     );
     claim.release().expect("release");
@@ -1783,5 +1783,142 @@ fn btrfs_the_stage_a_killed_snapshot_add_left_is_removed() {
     let again: Vec<String> = reap_abandoned_stages(common.as_path()).expect("a second sweep");
     assert!(again.iter().all(|notice: &String| { return !notice.contains("removed the stage"); }), "nothing is removed twice: {again:?}");
     assert!(!container.exists(), "the stage stays gone");
+    remove(root.as_path());
+}
+
+/// The record a command writes before it creates the container names the container and the instant and no identity,
+/// and a release reads it back as that shape.
+#[test]
+fn a_record_written_before_the_container_exists_names_no_object() {
+    let (root, common, destination) = scene("claim-made-creation-record");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let written: std::time::SystemTime = std::time::SystemTime::now();
+    record_creating_at(common.as_path(), container.as_path(), written).expect("the record of the creation");
+    assert_eq!(
+        read_made(claim.path.as_path()),
+        Some(MadeObject { container: container.clone(), object: None, written }),
+        "the record names the container and the instant, and no object"
+    );
+    let record: PathBuf = made_record_beside_claim(claim.path.as_path());
+    claim.release().expect("release");
+    assert!(!record.exists(), "the release takes the record with the claim");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// A record whose lines are not the shape this release writes proves nothing,
+/// so a folder it names is kept.
+#[test]
+fn a_record_with_a_repeated_or_unknown_line_proves_nothing() {
+    let (root, common, destination) = scene("claim-made-damaged");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let record: PathBuf = made_record_beside_claim(claim.path.as_path());
+    let stage_line: String = format!("stage={}\n", crate::path_bytes_in_records::hex_of_path(container.as_path()));
+    for text in [
+        format!("{stage_line}{stage_line}written=1.0\n"),
+        format!("{stage_line}written=1.0\nunknown=1\n"),
+        format!("{stage_line}object=not-an-object\nwritten=1.0\n"),
+        format!("{stage_line}"),
+    ] {
+        std::fs::write(record.as_path(), text.as_bytes()).expect("a damaged record");
+        assert_eq!(read_made(claim.path.as_path()), None, "a record this release does not write proves nothing: {text}");
+    }
+    std::mem::forget(claim);
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  A stage a kill left in the instant between the wrapper's creation of it and the record of the object it made:
+///  a claim,
+/// the record of the destination,
+/// a whole snapshot at the stage name,
+/// and the record of the creation with no object in it.
+/// Why:
+///   This is the state the kill matrix found at point 13
+/// (`snapshot_stage_window.sh`),
+/// and nothing but the shape of
+///  the folder and the instant the record holds can prove the wrapper made it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, common, repo, claim } = await killedSnapshotAddBeforeItsRecord(name); expect(isSubvolume(claim.container)).toBe(true);
+/// ```
+fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf, PathBuf, PathBuf)> {
+    let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
+    let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    let destination: PathBuf = root.join("topic");
+    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &crate::worktree_ladder_test_support::main_identity(repo.as_path())).expect("source");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
+    let container: PathBuf = claim.container().to_path_buf();
+    // The record comes first, and then the creation: the kill follows the ioctl and comes before the identity is read.
+    record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now()).expect("the record of the creation");
+    crate::fs_btrfs_ioctl::snapshot_create_at(source.root.as_path(), container.as_path()).expect("the snapshot the killed command made");
+    assert!(crate::fs_kind::is_subvolume_root(container.as_path()).expect("probe"), "the stage is a snapshot");
+    assert!(container.join("ignored/pkg/index.js").is_file(), "the stage holds the source's ignored state");
+    // The process dies here: neither the claim nor its records are released, and no object was ever recorded.
+    std::mem::forget(claim);
+    return Some((root, common, container, repo));
+}
+
+/// The snapshot a kill left between the wrapper's creation of the stage and the record of its object is settled by
+/// the next command,
+/// not kept for ever.
+#[test]
+fn btrfs_the_snapshot_created_before_its_record_is_removed() {
+    let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window") else { return };
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "the whole snapshot is gone, and no command waits for a person's rm");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("removed the stage") && notice.contains("`git worktree add`"); }),
+        "{notices:?}"
+    );
+    let again: Vec<String> = reap_abandoned_stages(common.as_path()).expect("a second sweep");
+    assert!(again.iter().all(|notice: &String| { return !notice.contains("removed the stage"); }), "nothing is removed twice: {again:?}");
+    remove(root.as_path());
+}
+
+/// A plain directory at the stage name of a record that names no object is kept and named:
+/// the shape is what proves the wrapper made the folder.
+#[test]
+fn a_plain_directory_is_not_taken_for_the_snapshot_a_kill_left() {
+    let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window-plain") else { return };
+    // Another party's own directory at the name the record holds.
+    crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the snapshot goes");
+    crate::private_storage::create_private_directory(container.as_path()).expect("a person's directory");
+    std::fs::write(container.join("notes.txt"), b"a person's only copy").expect("a person's file");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.join("notes.txt").exists(), "nothing of the person's is removed");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("is not a snapshot"); }),
+        "{notices:?}"
+    );
+    std::fs::remove_dir_all(container.as_path()).expect("the control's directory");
+    remove(root.as_path());
+}
+
+/// A snapshot that holds an entry born after the instant the record names is kept and named:
+/// what a person wrote there after the wrapper died exists nowhere else.
+#[test]
+fn a_snapshot_holding_a_newer_entry_is_kept() {
+    let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window-newer") else { return };
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(container.join("mine.txt"), b"a person's only copy").expect("a person's file");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.join("mine.txt").exists(), "nothing of the person's is removed");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("mine.txt"); }),
+        "{notices:?}"
+    );
+    std::fs::remove_file(container.join("mine.txt")).expect("the control's file");
+    let settled: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap again");
+    assert!(!container.exists(), "the snapshot is settled once the person's entry is gone");
+    assert!(settled.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "{settled:?}");
     remove(root.as_path());
 }

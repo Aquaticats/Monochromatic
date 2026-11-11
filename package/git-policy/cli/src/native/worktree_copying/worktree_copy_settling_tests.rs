@@ -6,7 +6,7 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_manifest::collect_pruned_manifest;
+use crate::worktree_copy_manifest::{LeftOut, collect_pruned_manifest};
 use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, try_clone};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -69,10 +69,11 @@ fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, Path
     std::fs::write(source.join("cache/b.txt"), b"the second one\n").expect("b");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(&stage).expect("the stage");
-    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let mut left_out: LeftOut = LeftOut::default();
     let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable, &CopyCeiling::unbounded()).expect("the manifest");
-    assert!(unreadable.is_empty(), "{unreadable:?}");
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
+    assert!(left_out.uncopiable.is_empty(), "{:?}", left_out.uncopiable);
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
     COPIES.store(0, Ordering::SeqCst);
@@ -300,10 +301,10 @@ fn source_with_a_directory(
     std::fs::write(source.join("cache/deep/file.txt"), b"the deep one\n").expect("deep file");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(&stage).expect("the stage");
-    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let mut left_out: LeftOut = LeftOut::default();
     let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable, &CopyCeiling::unbounded()).expect("the manifest");
-    assert!(unreadable.is_empty(), "{unreadable:?}");
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
     COPIES.store(0, Ordering::SeqCst);
@@ -416,30 +417,28 @@ fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
 }
 
 /// What:
-///  A named pipe that replaced a source file before its copy is named by the staging pass that follows,
-/// and the staging
-///  answers instead of waiting for a writer that never comes.
+///  A named pipe that replaced a source file before its copy leaves the settled copy,
+/// and the neighbours
+///  of the entry are installed as they were.
 /// Why:
-///   The manifest walk refuses a named pipe,
-/// a socket and a device node before any of them is opened (SPEC,
-///  "Linked-worktree ignored-state synchronization"),
-/// because none of the three can be copied into a worktree;
+///   A socket,
+/// a named pipe and a device node cannot be copied into a worktree,
+/// so the walk leaves
+///  each of them out and nothing fails over one (SPEC,
+/// "Linked-worktree ignored-state synchronization");
 /// a name
-///  that became one between the listing and the copy is the same entry,
+///  that became one between the listing and its copy is the same entry,
 /// so the pass that settles the stage
-///  reports it by its path rather than the copy waiting on an open.
-/// The add is refused with the entry named,
-/// which
-///  is the sentence a pipe in the source produced before this copy learned to skip the entry it
-///  cannot read.
+///  drops it by its path rather than failing an add whose worktree Git already made.
+/// The settling answers instead of waiting for a writer that never comes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const settled = await finishedWithinAt(PATIENCE, () => copyAndSettle(...A_PIPE_REPLACES_A_FILE)); expect(settled.unwrapErr().message).toContain('cache/b.txt'); expect(settled.unwrapErr().message).toContain('has unsupported filesystem type');
+/// const settled = await finishedWithinAt(PATIENCE, () => copyAndSettle(...A_PIPE_REPLACES_A_FILE)); expect(settled.entries.map((e) => e.relativePath)).toEqual(['cache/a.txt']); expect(existsSync(join(stage, 'cache/b.txt'))).toBe(false);
 /// ```
 #[cfg(unix)]
 #[test]
-fn staging_names_a_pipe_that_replaced_a_file_instead_of_waiting() {
+fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
     let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
     let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
     let answered: Option<Result<Settled, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
@@ -451,19 +450,20 @@ fn staging_names_a_pipe_that_replaced_a_file_instead_of_waiting() {
     let Some(outcome) = answered else {
         panic!("the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came");
     };
-    let failure: WorktreeCopyError = match outcome {
-        Ok(settled) => panic!(
-            "an entry no worktree can hold is named by the staging, and the staging answered with {} entries instead",
-            settled.entries.len()
-        ),
-        Err(failure) => failure,
-    };
-    assert!(
-        failure.0.contains("cache/b.txt") && failure.0.ends_with(" has unsupported filesystem type."),
-        "the refusal names the entry the pipe replaced: {}",
-        failure.0
+    let settled: Settled = outcome.expect("an entry no worktree can hold is left out of the settled copy, never fatal");
+    let kept: Vec<&[u8]> = settled
+        .entries
+        .iter()
+        .map(|entry| return entry.relative_path.as_slice())
+        .collect();
+    assert_eq!(
+        kept,
+        vec![b"cache".as_slice(), b"cache/a.txt".as_slice()],
+        "the entry the pipe replaced is gone, and the directory that held it and its neighbour stay"
     );
+    assert!(settled.unsettled.is_empty(), "the pipe is no entry that would not settle: {}", settled.unsettled.len());
     assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour was staged before the pass answered");
+    assert!(!stage.join("cache/b.txt").exists(), "nothing of the entry that became a pipe is installed");
     drop(held);
     remove(root.as_path());
 }

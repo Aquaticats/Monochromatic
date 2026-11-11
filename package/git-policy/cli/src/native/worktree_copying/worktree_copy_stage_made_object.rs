@@ -65,17 +65,23 @@ const WRITTEN_LINE_PREFIX: &str = "written=";
 /// and asks the
 ///  accounting (`worktree_copy_stage_entries_the_record_accounts_for.rs`) what the folder holds,
 /// counting every entry born after `written` as one the record cannot account for.
+/// The identity is absent only for the record a command writes before it creates the container:
+/// a kill in the
+///  instant between that creation and the record of the object it made leaves a record that names the
+///  container and the instant,
+/// and the folder is then judged by its shape (it is a snapshot) and by what was born after the instant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MadeObject = { container: string; object: ObjectId; written: number };
+/// type MadeObject = { container: string; object?: ObjectId; written: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MadeObject {
     /// The stage container the wrapper made.
     pub container: PathBuf,
-    /// The identity of that container at the moment it was recorded.
-    pub object: ObjectId,
+    /// The identity of that container at the moment it was recorded,
+    /// or nothing while the record names only the creation the command is about to make.
+    pub object: Option<ObjectId>,
     /// The instant after which nothing of the wrapper's was written into the container.
     pub written: SystemTime,
 }
@@ -99,7 +105,7 @@ pub fn made_record_beside_claim(claim: &Path) -> PathBuf {
 /// What:
 ///  The text of a record:
 /// the container's bytes,
-/// the object's identity,
+/// the object's identity when there is one,
 /// and the instant,
 /// one field per line.
 /// Why:
@@ -107,17 +113,21 @@ pub fn made_record_beside_claim(claim: &Path) -> PathBuf {
 /// so a container whose name is not text is recorded whole,
 /// and each line is
 ///  read by its own key rather than by its position.
+/// The identity line is left out only where the command records the creation before the container exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${STAGE_LINE}${hex(container)}\n${OBJECT_LINE}${object}\n${WRITTEN_LINE}${seconds}.${nanos}\n`
+/// `${STAGE_LINE}${hex(container)}\n${object === undefined ? '' : `${OBJECT_LINE}${object}\n`}${WRITTEN_LINE}${seconds}.${nanos}\n`
 /// ```
-fn made_text(container: &Path, object: ObjectId, written: SystemTime) -> String {
+fn made_text(container: &Path, object: Option<ObjectId>, written: SystemTime) -> String {
     let since: Duration = written.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
+    let identity: String = match object {
+        Some(named) => format!("{OBJECT_LINE_PREFIX}{}\n", named.encode()),
+        None => String::new(),
+    };
     return format!(
-        "{STAGE_LINE_PREFIX}{}\n{OBJECT_LINE_PREFIX}{}\n{WRITTEN_LINE_PREFIX}{}.{}\n",
+        "{STAGE_LINE_PREFIX}{}\n{identity}{WRITTEN_LINE_PREFIX}{}.{}\n",
         hex_of_path(container),
-        object.encode(),
         since.as_secs(),
         since.subsec_nanos()
     );
@@ -131,23 +141,29 @@ fn made_text(container: &Path, object: ObjectId, written: SystemTime) -> String 
 /// so anything unexpected is answered as "nothing proved"
 /// instead of
 ///  failing a command that was only looking.
+/// The identity line may be absent,
+/// and no line may repeat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = readMadeText(text); // undefined unless all three lines parse and nothing follows them
+/// const made = readMadeText(text); // undefined unless the lines parse and nothing else follows them
 /// ```
 fn read_made_text(text: &str) -> Option<MadeObject> {
     let mut lines: std::str::Lines<'_> = text.lines();
-    let container_line: &str = lines.next()?;
-    let object_line: &str = lines.next()?;
-    let written_line: &str = lines.next()?;
+    let container: PathBuf = path_of_hex(lines.next()?.strip_prefix(STAGE_LINE_PREFIX)?)?;
+    // The identity line is the one a record written before the container exists leaves out, so the line after the container
+    // is the instant when it is not that line.
+    let second: &str = lines.next()?;
+    let (object, instant): (Option<ObjectId>, &str) = match second.strip_prefix(OBJECT_LINE_PREFIX) {
+        Some(identity) => (Some(ObjectId::decode(identity)?), lines.next()?),
+        None => (None, second),
+    };
+    let (seconds, nanos) = instant.strip_prefix(WRITTEN_LINE_PREFIX)?.split_once('.')?;
+    let written: SystemTime = UNIX_EPOCH + Duration::new(seconds.parse().ok()?, nanos.parse().ok()?);
+    // Nothing follows the instant: a line a reader does not know could be another field, and this record has none.
     if lines.next().is_some() {
         return None;
     }
-    let container: PathBuf = path_of_hex(container_line.strip_prefix(STAGE_LINE_PREFIX)?)?;
-    let object: ObjectId = ObjectId::decode(object_line.strip_prefix(OBJECT_LINE_PREFIX)?)?;
-    let (seconds, nanos) = written_line.strip_prefix(WRITTEN_LINE_PREFIX)?.split_once('.')?;
-    let written: SystemTime = UNIX_EPOCH + Duration::new(seconds.parse().ok()?, nanos.parse().ok()?);
     return Some(MadeObject { container, object, written });
 }
 
@@ -208,6 +224,47 @@ pub fn record_made(common_dir: &Path, container: &Path, object: ObjectId) -> Res
 /// await recordStageMadeObjectAt({ commonDir, container, object, written });
 /// ```
 pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, written: SystemTime) -> Result<(), WorktreeCopyError> {
+    return record_at(common_dir, container, Some(object), written);
+}
+
+/// What:
+///  Records the creation a command is about to make,
+/// before the container exists,
+/// with the instant after which nothing of the wrapper's is written into it.
+/// Why:
+///   The identity of an object cannot be read before it exists,
+/// and a kill in the instant between creating it and
+///  recording its identity left a whole snapshot of the checkout that nothing could prove the wrapper
+///  made (`worktree_copy_stage_reaping_proof_and_words.rs`).
+/// This record names the container and the instant first,
+/// so the next command judges such a
+///  folder by its shape and by what was born after that instant,
+/// and settles it instead of keeping it for
+///  ever.
+/// It flushes nothing,
+/// for the reason [`record_made`] gives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordCreatingAt({ commonDir, container, written }); // no identity: the container does not exist yet
+/// ```
+pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTime) -> Result<(), WorktreeCopyError> {
+    return record_at(common_dir, container, None, written);
+}
+
+/// What:
+///  `record_made_at` and `record_creating_at`:
+/// the one write of a stage's record,
+/// with the identity when the caller has one.
+/// Why:
+///   One writer keeps the record's shape in one place,
+/// so a reader never meets a record the writer does not make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordAt({ commonDir, container, object, written });
+/// ```
+fn record_at(common_dir: &Path, container: &Path, object: Option<ObjectId>, written: SystemTime) -> Result<(), WorktreeCopyError> {
     let Some(path) = made_record_path(common_dir, container) else {
         // A stage name is reserved by the claim naming rule; a name outside it has no claim to record for.
         return Ok(());
@@ -271,5 +328,6 @@ pub fn remove_made(claim: &Path) -> Result<(), WorktreeCopyError> {
 /// identityOfName(container) === made.object
 /// ```
 pub fn is_the_recorded_object(container: &Path, made: &MadeObject) -> bool {
-    return crate::worktree_add_binding::path_identity(container) == Some(made.object);
+    let Some(recorded) = made.object else { return false };
+    return crate::worktree_add_binding::path_identity(container) == Some(recorded);
 }

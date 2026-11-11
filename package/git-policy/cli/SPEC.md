@@ -958,8 +958,10 @@ The source set includes ignored regular files,
 directories,
 and symbolic links.
 Ignored sockets,
-FIFOs,
-and device nodes are selected only to produce a copy failure without opening them.
+FIFOs and device nodes cannot be copied into another worktree and mean nothing there,
+so the walk leaves each of them out before anything is opened,
+one stderr line names them,
+and the rest of the ignored state is copied.
 The traversal that finds those entries never enters a directory whose name begins `.cli-git-worktree-copy-`,
 because that directory is another command's stage container:
 its payload is another worktree's ignored state,
@@ -1386,6 +1388,36 @@ and the timing record's `snapshotAhead` note says `no-service`.
 The ignored files the new worktree carries are the source's as of the moment the service made the copy,
 which is what a snapshot has always meant,
 and the source keeps every file written after it.
+A copy may be up to ten minutes older than the add that takes it (`AHEAD_OLDEST`),
+so an add that installs one asks the source once which of its ignored files are newer than the copy
+(`src/native/worktree/worktree_ignored_state_newer_than_the_copy.rs`).
+It names on standard error every file and symbolic link whose change time is later than the instant the copy's name
+holds,
+and lists all of them,
+one quoted path per line,
+in `<admin>/monochromatic-git-policy-cli-ignored-state-after-the-copy.txt`.
+A directory is not named:
+it holds no bytes of its own,
+and what changed inside it is told by the files below it.
+The worktree the add itself made is left out,
+because every file of it was written after the copy.
+The line gives the copy's age,
+the count,
+and the first three paths,
+and the sentence that says the new worktree holds what each entry held then,
+or nothing of one written later,
+that the source keeps every one of them,
+and that the tool that writes them makes them again there.
+Nothing here fails an add:
+the worktree is whole,
+and a list the command cannot write is said on the line instead of the file it names.
+A change time is the whole test,
+because no program can set one,
+so a file restored with an old modification time is still named.
+What this cannot name:
+a file the source removed after the copy,
+because the walk lists what stands there now,
+so the new worktree keeps that entry's earlier copy.
 The service's own step is one work item of kind `snapshot-ahead`
 (`src/native/worktree/worktree_snapshot_ahead_job.rs`):
 its `repository` is the worktree root to copy,
@@ -3253,6 +3285,13 @@ A linked or bare source copies everything it ignores except its nested registere
 A file or directory the running user cannot read is left out of every source's copy instead of failing the copy,
 and one stderr line names the count and the first three paths:
 `monochromatic-git-policy-cli: left out <n> unreadable ignored entries from <source>: <paths>`.
+A socket,
+a named pipe or a device node is left out of every source's copy instead of failing it,
+and one stderr line names the count and the first three paths:
+`monochromatic-git-policy-cli: left out <n> ignored entries that cannot be copied into a worktree from <source>: <paths>`,
+followed by the one sentence that says a socket,
+a named pipe or a device node belongs to one running system and means nothing in a copy,
+so the rest of the ignored state was copied without it.
 Private stage names are reserved and excluded at every path component.
 Stage each destination separately in a mode-`0700` sibling directory so file cloning stays
  on the destination filesystem.
@@ -3264,7 +3303,8 @@ a name the walk listed as a file that a build replaced with a named pipe between
 never by an open that waits for a writer that may never come.
 Open both sides of a byte comparison and the destination directory an entry is installed into the same way.
 A source entry that is no longer the file its manifest entry recorded leaves the manifest as a gone entry does,
-and the settling pass that follows reports the entry by its path as an unsupported filesystem type.
+and the settling pass that follows leaves it out by its path,
+so a dev server's socket or named pipe never fails an add.
 A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
 blocking pool,
 bounded by the CPUs the process may use,
@@ -3428,6 +3468,17 @@ one `key=value` field per line,
 written atomically like a claim.
 A record of any other shape proves nothing,
 and a folder it names is kept and reported rather than removed.
+The identity field is left out of the record a command writes before the container exists,
+because an object's identity cannot be read before the object does;
+such a record names the container and the instant,
+and it is the whole evidence a kill in the instant between the creation of a snapshot and the record of its identity
+leaves.
+A later command removes that folder only when it is a btrfs subvolume root,
+which is the shape that creation makes,
+and holds no entry born after the instant,
+so a plain directory another party put at that name,
+and anything a person wrote there after the wrapper died,
+is kept and named.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.

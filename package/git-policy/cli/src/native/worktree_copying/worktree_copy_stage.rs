@@ -23,7 +23,7 @@ use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entr
 use crate::worktree_copy_settling::{Settled, SettlingRequest, settle_the_copy};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of, wrap_raw};
 use crate::worktree_copy_manifest::{
-    FileStamp, WorktreeCopyEntry, collect_pruned_manifest,
+    FileStamp, LeftOut, WorktreeCopyEntry, collect_pruned_manifest,
 };
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, is_separator_byte, select_roots, shown_repository_path};
@@ -70,6 +70,11 @@ pub struct StagedSnapshot {
     /// left out of the stage;
     ///  empty for a stage rebuilt from a journal.
     pub unreadable: Vec<Vec<u8>>,
+    /// Repository paths no worktree can hold (sockets,
+    /// named pipes and device nodes),
+    /// left out of the stage;
+    ///  empty for a stage rebuilt from a journal.
+    pub uncopiable: Vec<Vec<u8>>,
     /// Repository paths that kept changing under the copy and were left in their source;
     ///  empty for a stage rebuilt from a journal.
     pub unsettled: Vec<Vec<u8>>,
@@ -343,13 +348,13 @@ fn stage_into(
         candidate_roots.push(repository_path);
     }
     let started: std::time::Instant = std::time::Instant::now();
-    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let mut left_out: LeftOut = LeftOut::default();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
         candidate_roots.as_slice(),
         excluded_source_roots.as_slice(),
         prune,
-        &mut unreadable,
+        &mut left_out,
         ceiling,
     )?;
     // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
@@ -364,15 +369,28 @@ fn stage_into(
         }
     }
     drop(staged_paths);
-    if !unreadable.is_empty() {
+    if !left_out.unreadable.is_empty() {
         // The person gets the count and the first paths in one notice line; the verbose log keeps the whole list.
         debug(
             "worktreeCopyStage",
             format!(
                 "{} unreadable ignored entries are left out of the copy from {}: {}",
-                unreadable.len(),
+                left_out.unreadable.len(),
                 source_root.display(),
-                shown_unreadable(unreadable.as_slice())
+                shown_unreadable(left_out.unreadable.as_slice())
+            )
+            .as_str(),
+        );
+    }
+    if !left_out.uncopiable.is_empty() {
+        // The same one notice line for the entries a worktree cannot hold, so a dev server's socket never fails an add.
+        debug(
+            "worktreeCopyStage",
+            format!(
+                "{} ignored entries that cannot be copied into a worktree are left out of the copy from {}: {}",
+                left_out.uncopiable.len(),
+                source_root.display(),
+                shown_unreadable(left_out.uncopiable.as_slice())
             )
             .as_str(),
         );
@@ -418,7 +436,8 @@ fn stage_into(
         source_root: source_root.to_path_buf(),
         stage_container: stage_container.to_path_buf(),
         stage_root: stage_root.to_path_buf(),
-        unreadable,
+        unreadable: left_out.unreadable,
+        uncopiable: left_out.uncopiable,
         unsettled: settled.unsettled,
     });
 }

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::parallel_budget::HostResources;
+use crate::worktree_copy_ceiling::a_shorter_ceiling_for_this_thread;
 use crate::worktree_copy_manifest::{EntryKind, stamp_of};
 use crate::worktree_copy_stage_leaf_copying::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
@@ -159,11 +160,44 @@ fn nested_registered_worktree_is_not_copied() {
     remove(root.as_path());
 }
 
-/// A source with an ignored FIFO fails the copy,
+/// A source with an ignored FIFO stages the rest of its ignored state,
+/// names the FIFO it left out,
+/// and fails nothing.
+#[cfg(unix)]
+#[test]
+fn a_fifo_is_left_out_of_the_stage_and_the_rest_is_staged() {
+    let root: PathBuf = fixture("stage-fifo-left-out");
+    let source: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"pipe\nkept\n").expect("gitignore");
+    let status = std::process::Command::new("mkfifo")
+        .arg(source.join("pipe"))
+        .status()
+        .expect("mkfifo");
+    assert!(status.success());
+    std::fs::write(source.join("kept"), b"kept").expect("kept");
+    let staged: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        std::fs::canonicalize(source.as_path())
+            .expect("canonical source")
+            .as_path(),
+        new_stage_container(root.join("topic").as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("a socket, a FIFO and a device node are left out of a copy, never opened");
+    assert_eq!(staged.uncopiable, vec![b"pipe".to_vec()]);
+    assert!(staged.unreadable.is_empty());
+    assert_eq!(std::fs::read(staged.stage_root.join("kept")).expect("kept is staged"), b"kept");
+    assert!(!staged.stage_root.join("pipe").exists());
+    std::fs::remove_dir_all(staged.stage_container.as_path()).expect("stage removed");
+    remove(root.as_path());
+}
+
+/// A copy that stops at the ceiling one command holds for a copy it did not start fails,
 /// and the private stage is removed so nothing is left beside the destination.
 #[cfg(unix)]
 #[test]
-fn failed_copy_removes_its_stage() {
+fn a_copy_stopped_at_the_ceiling_removes_its_stage() {
     let root: PathBuf = fixture("stage-failure");
     let source: PathBuf = repository(root.as_path(), "source");
     std::fs::write(source.join(".gitignore"), b"pipe\n").expect("gitignore");
@@ -173,7 +207,8 @@ fn failed_copy_removes_its_stage() {
         .expect("mkfifo");
     assert!(status.success());
     let destination: PathBuf = root.join("topic");
-    let failure: WorktreeCopyError = stage_ignored_snapshot(
+    let _stopped_at_once = a_shorter_ceiling_for_this_thread(std::time::Duration::ZERO);
+    let failure: WorktreeCopyError = stage_ignored_snapshot_for(
         &git_context(),
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
@@ -181,10 +216,12 @@ fn failed_copy_removes_its_stage() {
         new_stage_container(destination.as_path()).expect("container").as_path(),
         &[],
         &CopySelection::Ignored,
+        None,
+        &CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING),
     )
-    .expect_err("fifo");
+    .expect_err("ceiling");
     assert!(
-        failure.0.ends_with(" has unsupported filesystem type."),
+        failure.0.contains("did not finish within the 0-second ceiling one command holds for a copy it did not start"),
         "{}",
         failure.0
     );

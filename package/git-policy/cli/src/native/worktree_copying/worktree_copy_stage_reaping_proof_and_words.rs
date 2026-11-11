@@ -94,6 +94,23 @@ fn unaccounted_entry(_container: &Path, _written: std::time::SystemTime) -> Opti
 }
 
 /// What:
+///  Whether the folder at the container's name is a btrfs subvolume root,
+/// which is the shape the one creation the wrapper records ahead of its object makes.
+/// Why:
+///   A record written before the container exists names no identity,
+/// so the shape is what tells the wrapper's snapshot
+///  from a plain directory another party put at that name;
+/// a folder that cannot be examined proves nothing and is kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isASnapshot = (container) => isSubvolumeRoot(container) === true;
+/// ```
+fn is_a_snapshot(container: &Path) -> bool {
+    return crate::fs_kind::is_subvolume_root(container).unwrap_or(false);
+}
+
+/// What:
 ///  Whether the record beside a claim proves the object at the container's name is the one the wrapper made,
 /// and that
 ///  the folder holds only what that record accounts for.
@@ -131,8 +148,15 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
             quote(made.container.to_string_lossy().as_ref())
         )));
     }
-    if !is_the_recorded_object(container, &made) {
+    // The record a command writes before it creates the container names the container and the instant and no identity,
+    // because an object's identity cannot be read before it exists. A kill between that creation and the record of the
+    //  identity leaves the whole snapshot there, and nothing else proves the wrapper made it; so the folder is judged by
+    // what a snapshot is and by what was born after the instant, and a plain directory another party made is kept.
+    if made.object.is_some() && !is_the_recorded_object(container, &made) {
         return Ok(Provenance::Unproved(String::from("the object there now is not the one the record of its creation made")));
+    }
+    if made.object.is_none() && !is_a_snapshot(container) {
+        return Ok(Provenance::Unproved(String::from("the folder there now is not a snapshot, and the record of the object its creation made names none")));
     }
     return match unaccounted_entry(container, made.written) {
         None => Ok(Provenance::Proved),
