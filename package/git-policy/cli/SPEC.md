@@ -13238,8 +13238,15 @@ one file per copy under `monochromatic-git-policy-cli-kept-copies/`,
 naming the copy and the path it belongs to,
 and every command that runs the recovery decides every recorded copy again,
 so a copy no later merge touches is not a file no command ever ends:
-a copy whose path is empty and whose own merge is unfinished goes back,
-a copy whose bytes the file at its path holds again is removed,
+a copy whose merge still runs is left for that merge to finish,
+because a command beside a live merge that put the copy back under it would make Git refuse the checkout the
+merge was part way through making,
+a copy whose path is empty and whose merge stopped without finishing goes back,
+a copy whose bytes the file at its path holds again, and whose permissions that file has too, is removed only on the
+proof its own removal asks for:
+the identity and the bytes it read are still its own, and no process this command can read holds it open,
+a copy whose bytes that file holds but whose permissions it does not keeps its bytes and is named with that reason,
+and so does a copy a program still holds open,
 a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
 `git restore` command that reaches those bytes,
 and any other copy stays,
@@ -13290,17 +13297,27 @@ not by which step refused,
 so a foreign file or a staged entry met after the install began stops the command too.
 What Git's own update left at each path the merge writes is read once,
 after the checkout moved and before the carry,
-and written beside the record as `<transaction id>.landed`;
+and written beside the record as `<transaction id>.landed`,
+under a private name that is renamed onto its own,
+so a kill inside the write leaves no reading rather than half of one;
 the recovery of a merge whose branch already names it judges each path against that reading rather than against its bytes
 alone,
 so a save that arrives after a kill and holds the merge's own bytes is a different entry from the one Git wrote,
 stands,
-and is named,
-where without the reading its bytes would be the merge's own and the person's older layer would be written over them.
+and is named.
 The reading is not flushed:
 a kill leaves the page cache intact and a power loss leaves it absent;
 the reading goes with the record it belongs to,
-and one that cannot be read leaves the recovery reading by bytes as it did before.
+and the record is removed before it,
+so a kill inside that removal leaves a reading no command reads rather than a record whose reading is gone.
+A path the reading does not name is one nothing proves Git's update wrote:
+where the file there holds exactly the merge's own bytes, which is also what a save made after a kill holds,
+the merge finishes and the file stays as it is,
+the bytes the carry would have written are kept beside it under a private name,
+and that copy is recorded and named.
+A path whose entry is neither a regular file nor a symbolic link is never read for its bytes:
+a pipe has none, and asking Git to hash one waits for a writer that may never come,
+so such a path proves nothing and every copy beside it stays.
 The line a recovery writes about a path it carried says which merge it is finishing,
 never a repository ref of the branch it lands on.
 The line about a path the merge writes and the person's side of which holds nothing says that nothing stood there when

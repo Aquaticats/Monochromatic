@@ -19,7 +19,7 @@
 //! await writeSteps({ context, root, gitDir, steps, out }); // one update-index call, then one file at a time
 //! ```
 
-use crate::merge_isolation_carry_place::{JudgedFile, Placed, is_still_the_judged_entry, place_file_awaiting};
+use crate::merge_isolation_carry_place::{JudgedFile, Placed, SetAsides, is_still_the_judged_entry, place_file_awaiting};
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_kept_copies::keep_the_copy;
 use crate::merge_isolation_changes::worktree_path;
@@ -73,6 +73,9 @@ pub(crate) struct Step {
     /// What stood at its worktree path when the step was judged,
     /// which the write checks before it replaces anything.
     pub(crate) judged: JudgedFile,
+    /// Whether the bytes this step would write stay beside the path instead,
+    /// because nothing proves the file standing there is Git's own write.
+    pub(crate) keep_the_planned_bytes: bool,
 }
 
 /// Which wait for the index lock a step makes.
@@ -337,7 +340,10 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         //  A deletion keeps such a name too, which is why the notice below says the write happened and not that a file was
         //  replaced.
         let mut held: Vec<PathBuf> = Vec::new();
-        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut held).await {
+        // The private names this write leaves because nothing proves they are Git's own entries, which stay beside the path.
+        let mut unproven: Vec<PathBuf> = Vec::new();
+        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: step.keep_the_planned_bytes };
+        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut set_asides).await {
             Ok(found) => found,
             Err(failure) => {
                 let _ = out.write_all(
@@ -360,6 +366,22 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
                      by a program that opened it, so it is kept at {}; nothing of the person's was removed. `mv -- {} {path}` puts the copy back over what is \
                      there, `rm -- {}` drops the copy, and a later command removes the copy by itself once {path} holds its bytes \
                      again.\n",
+                    aside.display(),
+                    aside.display(),
+                    aside.display()
+                )
+                .as_bytes(),
+            );
+        }
+        for aside in &unproven {
+            // The copy is recorded, so a later command ends it even when no merge touches this path again.
+            keep_the_copy(git_dir, location.as_path(), aside.as_path());
+            let _ = out.write_all(
+                format!(
+                    "monochromatic-git-policy-cli: {path} holds bytes nothing proves are the ones Git's update wrote, so this merge \
+                     wrote nothing there and left the file as it is; the bytes this merge carries for it are kept at {}, and nothing of \
+                     the person's was removed. `mv -- {} {path}` puts them back over what is there, `rm -- {}` drops the copy, and a later \
+                     command removes the copy by itself once {path} holds its bytes again.\n",
                     aside.display(),
                     aside.display(),
                     aside.display()

@@ -35,7 +35,7 @@ use crate::merge_isolation_recovery_carry::{
 /// on the runtime the caller runs on.
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitRequest;
-use crate::transaction_git_awaiting::run_git_checked_awaiting;
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
 use crate::merge_isolation_recovery_steps::{
@@ -50,7 +50,7 @@ use crate::recovery_error::RecoveryError;
 /// Writing the notices of what recovery did.
 use std::io::Write;
 /// `Path` is a borrowed filesystem path.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Settle a merge that is known not to be running:
@@ -128,8 +128,29 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             //  once every byte of theirs is back in the checkout.
             // What the command that moved the checkout read is what this carry judges the paths against, so a save that
             //  arrived after a kill is left alone instead of being replaced by the person's older layer.
-            let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
+            let mut landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
                 crate::merge_isolation_carry_landed::read_landed_record(place.git_dir.as_path(), intent.owner.transaction_id.as_str());
+            // A file a command that stopped left under its private name is put back before the carry judges the path: the take
+            //  that moved it aside registers nothing until its placement returns, so a kill in that window leaves a copy no
+            //  record names, and the path is empty while it waits beside it. The carry would read the empty path as somebody
+            //  else's write, leave it, and the record would then go with the person's file still absent.
+            let changes: Vec<Change> = match merge_changes_awaiting(place, root, intent).await {
+                Ok(found) => found,
+                // The branch already names this merge, so a read that fails cannot prove the checkout untouched.
+                Err(error) => return Err(MergeRefusal { error, began: true }),
+            };
+            let put_back: Vec<PathBuf> =
+                put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
+            // A file this command put back is the entry the merge judged at that path: the rename left its identity as it was and
+            //  changed only its change time, so the reading is taken again there and the carry writes over the file it put back.
+            for location in &put_back {
+                for entry in landed.iter_mut() {
+                    if crate::merge_isolation_changes::worktree_path(root, entry.path.as_slice()) == *location {
+                        let path: Vec<u8> = entry.path.clone();
+                        *entry = crate::merge_isolation_carry_landed::landed_file_at(location.as_path(), path.as_slice());
+                    }
+                }
+            }
             if !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
                 return Ok(MergeRecoveryAction::IndexHeld);
             }
@@ -338,8 +359,14 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes. The
-    //  checkout was written by this command, so no earlier reading describes it.
-    if !carry_the_capture_awaiting(place, root, intent, &[], out).await? {
+    //  checkout was written by this command, so no earlier reading describes it: the reading of what it left is taken now, and a
+    //  file written between this look and the carry's own take is caught by that take's check of the entry it removes.
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(changes.len());
+    for change in &changes {
+        written_paths.push(change.path.clone());
+    }
+    let written: Vec<crate::merge_isolation_carry_landed::LandedFile> = crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
+    if !carry_the_capture_awaiting(place, root, intent, written.as_slice(), out).await? {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     drop_record_and_side_ref_awaiting(place, root, record, intent).await.map_err(partly_installed)?;
@@ -362,10 +389,15 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
 /// ```
 async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
     let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
-    return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
-        Ok(_) => Ok(true),
-        // `git merge-base --is-ancestor` answers 1 for "no" and anything else is a failure to read.
-        Err(error) if error.to_string().contains("exit") => Ok(false),
+    // The status is read from the start itself: `git merge-base --is-ancestor` answers "no" with status 1 and nothing on standard
+    //  error, and a failure message carries only what Git printed, so a "no" read from that text was a refusal that stopped every
+    //  command in the worktree (a cross-vendor audit of alpha.10, its third finding).
+    return match run_git_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        Ok(found) if found.succeeded() => Ok(true),
+        // The one answer `--is-ancestor` gives for "no".
+        Ok(found) if found.code == Some(1) => Ok(false),
+        // Any other status is a failure to read, and the words name what Git said.
+        Ok(found) => Err(MergeRefusal { error: RecoveryError(found.error_text()), began: true }),
         Err(error) => Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true }),
     };
 }

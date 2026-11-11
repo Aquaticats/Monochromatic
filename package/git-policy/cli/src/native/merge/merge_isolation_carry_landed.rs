@@ -304,16 +304,53 @@ pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeFileSync(landedRecordPath(gitDir, id), encodeLandedRecord(id, landed), { flag: 'w' });
+/// writeFileExclusiveSynced(partial, encodeLandedRecord(id, landed)); rename(partial, landedRecordPath(gitDir, id));
 /// ```
+///  The record is made under a private name beside its own and renamed onto it,
+/// so a kill inside the write leaves either no record
+///  at all, which is the state a power loss leaves and the recovery reads by bytes,
+/// or the whole record;
+///  a record
+///  a kill cut in half names paths whose entries it never finished writing,
+/// and a reading that cannot be read is the same
+///  as none.
+/// The private name carries the record's own name,
+/// so the removal of the record removes it too.
 pub fn write_landed_record(git_dir: &Path, transaction_id: &str, landed: &[LandedFile]) {
     let path: PathBuf = landed_record_path(git_dir, transaction_id);
     if let Some(parent) = path.parent() {
         let _made = std::fs::create_dir_all(parent);
     }
-    if let Err(error) = std::fs::write(path.as_path(), encode_landed_record(transaction_id, landed).as_bytes()) {
+    let bytes: String = encode_landed_record(transaction_id, landed);
+    let partial: PathBuf = partial_landed_record_path(git_dir, transaction_id);
+    // A kill inside an earlier write of this same record leaves its private name; it holds no reading this command wants.
+    let _stale = std::fs::remove_file(partial.as_path());
+    if let Err(error) = crate::private_storage::write_exclusive_synced(partial.as_path(), bytes.as_bytes()) {
+        crate::diagnostic_log::warn("mergeCarry", format!("the landed reading was not written: {error}").as_str());
+        return;
+    }
+    if let Err(error) = std::fs::rename(partial.as_path(), path.as_path()) {
+        let _unwritten = std::fs::remove_file(partial.as_path());
         crate::diagnostic_log::warn("mergeCarry", format!("the landed reading was not written: {error}").as_str());
     }
+}
+
+/// What:
+///  The private name the record is made under before it takes its own,
+///  beside it.
+/// Why:
+///  A rename inside one directory is one step on whatever file system the Git directory is on,
+/// so a kill
+///  leaves either the old record or the whole new one;
+/// the name it is made under is the record's own name with a suffix,
+///  so the removal of the record removes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// join(intentDirectory(gitDir), `${transactionId}.landed.writing`)
+/// ```
+pub fn partial_landed_record_path(git_dir: &Path, transaction_id: &str) -> PathBuf {
+    return crate::merge_isolation_journal::intent_directory(git_dir).join(format!("{transaction_id}.landed.writing"));
 }
 
 /// What:
@@ -333,6 +370,30 @@ pub fn read_landed_record(git_dir: &Path, transaction_id: &str) -> Vec<LandedFil
         return Vec::new();
     };
     return parse_landed_record(bytes.as_slice()).unwrap_or_default();
+}
+
+/// What:
+///  Whether the reading names this path,
+///  which is what makes the entry standing there provable.
+/// Why:
+///   An entry the reading does not name was read by nothing,
+/// so its bytes are all the evidence there is;
+///  a byte
+///  comparison cannot tell Git's own write from a save whose bytes are the same,
+/// and the caller that must keep both
+///  needs the difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theReadingNamesThePath = (landed, path) => landed.some((one) => sameBytes(one.path, path));
+/// ```
+pub fn the_reading_names_the_path(landed: &[LandedFile], path: &[u8]) -> bool {
+    for left in landed {
+        if left.path == path {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

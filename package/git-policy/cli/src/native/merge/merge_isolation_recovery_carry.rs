@@ -94,7 +94,12 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
             changes.push(change.clone());
         }
     }
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    // What Git's update left when the merge landed is the only thing that proves a file standing at a captured path is that
+    //  update's own write rather than a save made after a kill, so the carry onto the moved head reads it too: a path it names
+    //  and the file still matches is written, and one nothing proves is left as it is with the carried bytes beside it.
+    let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
+        crate::merge_isolation_carry_landed::read_landed_record(place.git_dir.as_path(), intent.owner.transaction_id.as_str());
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());

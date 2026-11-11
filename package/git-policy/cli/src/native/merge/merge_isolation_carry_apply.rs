@@ -276,7 +276,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
             Some(oid) => FileWrite::Bytes(file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?, change.old_mode.clone()),
             None => FileWrite::Remove,
         };
-        steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity) });
+        steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity), keep_the_planned_bytes: false });
     }
     let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Clear, out).await?;
     // A path the write step found newer than its judgement stops the clear: the merge must not run over a checkout this step
@@ -373,6 +373,20 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  person's newer decision, not this carry's own write.
         let worktree_is_ours: bool =
             explained(&state, &[captured_object, merged_object, target.as_deref()]) && the_file_git_landed(landed, &standing);
+        // The reading is the only thing that proves the file standing at the path is the one Git's own update wrote. Without an
+        //  entry for this path the bytes are all there is, and a save that arrived after a kill and holds exactly the merge's
+        //  bytes reads as the merge's own file. The merge still finishes, and the bytes it would have written stay beside the
+        //  path, recorded and named, so the file keeps whatever the person's newest bytes were
+        //  (`merge_isolation_carry_landed.rs`).
+        let the_entry_is_proven: bool = crate::merge_isolation_carry_landed::the_reading_names_the_path(landed, entry.path.as_slice());
+        let holds_the_merges_own_bytes: bool = match (&state, merged_object) {
+            (WorktreeState::Content { object, .. }, Some(merged)) => object == merged,
+            _ => false,
+        };
+        // The bytes are only kept beside the path when this carry would have written some there: a path the merge's own bytes
+        //  already explain needs nothing written, so its layer is not lost by leaving it.
+        let keep_the_planned_bytes: bool =
+            worktree_is_ours && !the_entry_is_proven && holds_the_merges_own_bytes && matches!(&worktree, FileWrite::Bytes(_, _));
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
@@ -391,7 +405,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             (IndexWrite::Remove, true) => false,
             _ => current.is_some(),
         };
-        if worktree_is_ours {
+        if worktree_is_ours && !keep_the_planned_bytes {
             match note {
                 Note::Merged => report.merged.push(entry.path.clone()),
                 Note::Conflict => report.conflicts.push(entry.path.clone()),
@@ -399,7 +413,8 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
                 Note::None => {}
             }
         } else {
-            // This layer is someone else's, and the other one is still carried.
+            // This layer is someone else's, or the file is one nothing proves is Git's own write; either way nothing is written
+            //  over it, and the line about it says so.
             report.changed.push(entry.path.clone());
         }
         let written: Step = Step {
@@ -407,6 +422,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             index: if index_is_ours { index } else { IndexWrite::Leave },
             worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
             judged: judged_of(&state, identity),
+            keep_the_planned_bytes,
         };
         steps.push(written);
     }
@@ -511,6 +527,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
             index: if index_is_ours { index } else { IndexWrite::Leave },
             worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
             judged: judged_of(&state, identity),
+            keep_the_planned_bytes: false,
         };
         steps.push(put_back);
     }

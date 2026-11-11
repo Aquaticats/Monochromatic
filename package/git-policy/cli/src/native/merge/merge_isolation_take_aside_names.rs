@@ -223,6 +223,22 @@ pub(crate) fn asides_of(location: &Path) -> Vec<Aside> {
 }
 
 /// What:
+///  The key a merge's record carries,
+///  which the private name of a copy the merge took holds.
+/// Why:
+///   A recovery judges a copy by the record its name names,
+/// and the key has to be derived in one place
+///  or the two readings name different merges.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mergeKeyOfARecord = (record: string) => nameKey(stem(record));
+/// ```
+pub(crate) fn merge_key_of_a_record(record: &Path) -> String {
+    return name_key(record.file_stem().map(name_of).unwrap_or_default().as_str());
+}
+
+/// What:
 ///  The keys of the merges whose records are still there,
 ///  which are the only ones that may put a file back.
 /// Why:
@@ -243,7 +259,7 @@ pub(crate) fn live_merge_keys(git_dir: &Path) -> Vec<String> {
     };
     let mut keys: Vec<String> = Vec::with_capacity(records.len());
     for record in records {
-        keys.push(name_key(record.file_stem().map(name_of).unwrap_or_default().as_str()));
+        keys.push(merge_key_of_a_record(record.as_path()));
     }
     return keys;
 }
