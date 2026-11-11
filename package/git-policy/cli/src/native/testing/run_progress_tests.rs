@@ -197,21 +197,23 @@ fn child_path(name: &str) -> String {
 }
 
 /// What:
-///  Run the child test `name` in a process of its own and give back what it said and how it ended.
+///  Run the child test `name` in a process of its own,
+///  bounded by `CHILD_DEADLINE`,
+///  and give back what it said and how it ended,
+///  or nothing where it outlived the deadline,
+/// in which case it is killed first.
 /// Why:
 ///   A watchdog ends its whole process,
-/// so what it does can only be seen from outside it.
+/// so what it does can only be seen from outside it;
+/// and a child a watcher never ends would hold the run it is checking,
+/// which the deadline turns into a failed control that names what did not happen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const output = spawnSync(process.execPath, ['--exact', path, '--ignored', '--nocapture', '--test-threads=1']);
 /// ```
-fn run_child(name: &str) -> std::process::Output {
-    return std::process::Command::new(this_test_binary().expect("the test binary"))
-        .args(["--exact", child_path(name).as_str(), "--ignored", "--nocapture", "--test-threads=1"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
+fn run_child(name: &str) -> Option<std::process::Output> {
+    return run_child_with_stderr_until(name, std::process::Stdio::piped());
 }
 
 /// How long a child a watcher must end is given before the control counts it as a run that never ended.
@@ -291,7 +293,8 @@ fn child_that_keeps_moving() {
 /// and the line it leaves names the window and the signs.
 #[test]
 fn a_stuck_run_ends_its_process() {
-    let output: std::process::Output = run_child("child_that_stops_moving");
+    let ended: Option<std::process::Output> = run_child("child_that_stops_moving");
+    let output: std::process::Output = ended.expect("the watchdog ended the child that stopped moving");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_stops_moving").as_str()), "the child ran the test named, not nothing:\n{ran}");
@@ -464,7 +467,8 @@ fn a_readers_own_stat_line_is_not_the_runs_work() {
 /// which is the failure this watchdog had with a wall clock.
 #[test]
 fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
-    let output: std::process::Output = run_child("child_that_keeps_moving");
+    let ended: Option<std::process::Output> = run_child("child_that_keeps_moving");
+    let output: std::process::Output = ended.expect("the moving child ended on its own inside the deadline");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(output.status.success(), "the moving child ended on its own:\n{ran}\n{said}");
