@@ -705,7 +705,24 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     ] {
         assert!(!ends(differs), "{differs:?} came out different after a second run and has no ceiling");
     }
+    // What:
+    //  The word-level second pass's line merge keeps its ceiling,
+    //  and the form that writes a file has none.
+    // Why:
+    //  `git merge-file --stdout --object-id` reads three object names and answers on standard output,
+    //  so it changes nothing and may be run twice;
+    //  `git merge-file` without `--stdout` writes the merged bytes into the first file it was given,
+    //  a file of the person's,
+    //  and is not a read.
+    //  The pass needs the first form to end at a ceiling:
+    //  a line merge that is never ended and cannot be ended answers nothing at all,
+    //  and it is the answer the pass parses
+    //  (`doc/planning/cli-git-no-unbounded-waits.md`,
+    //  "The cut experiment",
+    //  and "Stop only on no progress").
     // The same index changes on a private index, the readers and the object writers are not in question.
+    assert!(ends(&["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"]));
+    assert!(!ends(&["merge-file", "a.md", "base.md", "theirs.md"]), "the in-place form writes the first file, so it has no ceiling");
     assert_eq!(bound(&["add", "--all"], true), StepBound::EndAt(OBJECT_STEP_CEILING));
     assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
     assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
@@ -742,6 +759,18 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
         crate::service_busy_step_record_on_this_thread::use_on_this_thread(board);
         assert_eq!(step_bound(&reference), StepBound::Unbounded);
         assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
+        // What:
+        //  The second pass's line merge ends at its class ceiling on the landing thread too.
+        // Why:
+        //  The commit replay reaches the pass inside the landing's own scope,
+        //  and a `merge-file` that is neither rerunnable nor endable is waited for
+        //  without a bound there,
+        //  so every landing job behind it stays queued for good.
+        let line_merge: GitRequest = GitRequest::new(
+            Path::new("/repo"),
+            &["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"],
+        );
+        assert_eq!(step_bound(&line_merge), StepBound::EndAt(OBJECT_STEP_CEILING));
     });
 }
 

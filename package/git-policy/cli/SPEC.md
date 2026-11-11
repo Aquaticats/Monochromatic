@@ -4323,13 +4323,31 @@ of the review call and of the whole review).
   a person's command that started it stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT` (7 seconds,
   the owner's
   "Class ceiling + 7 s (Recommended)") and says the result is not known.
-  `RERUNNABLE` names neither `symbolic-ref` nor `init`:
+  `RERUNNABLE` names neither `symbolic-ref`,
+  `merge-file` nor `init`:
   `symbolic-ref` may be run again as a read (`--quiet`,
   `--short`,
   one name) or,
   on a shadow repository the wrapper made,
   as a write
   of one name to one target with no option (identical in the experiment).
+  `merge-file` may be run again and ended only in the form the second pass runs it,
+  `--stdout --object-id` over three object names with the conflict style,
+  the labels,
+  the marker width and the quiet flag:
+  that form writes nothing,
+  while `merge-file` without `--stdout` writes the merged bytes into its first file,
+  a file of the person's.
+  Measured on Git 2.56.0 in a throwaway repository on 2026-11-11 under
+  `strace --trace=openat,creat,truncate,unlink,rename,mkdir,link,symlink`:
+  it opens nothing for writing (only `/dev/null`),
+  removes and renames nothing,
+  and leaves the repository byte-identical after a second run
+  (reflog,
+  refs,
+  index,
+  worktree,
+  objects and the Git directory compared).
   `init` is never run again in place (a cut leaves reftable
   tables the second run does not replace:
   50 of 104 cuts differed);
@@ -12126,6 +12144,12 @@ and `src/native/merge/word_merge.rs`
 the line merge is Git's own,
 `git merge-file --stdout --object-id --zdiff3` over the three stages,
 whose exit status is the number of conflicts;
+the line merge is a read:
+it writes nothing
+(`src/native/transaction/transaction_git_step_rerun_and_end_rules.rs`,
+`merge_file_reads_only`),
+so the wrapper may run it again after a refusal and end it at the ceiling of its class,
+and its whole answer is read rather than the tail a step that is never ended keeps;
 the regions it leaves are then diffed by word
 and by the bytes between words (the `similar` crate,
 Myers algorithm,
