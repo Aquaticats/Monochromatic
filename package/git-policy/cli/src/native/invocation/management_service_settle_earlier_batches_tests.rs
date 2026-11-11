@@ -609,7 +609,8 @@ fn the_doctor_note_counts_the_batches_names_the_command_and_is_empty_otherwise()
 ///  here the person would read the safety condition,
 ///  then nothing at all,
 ///  and exit 0 after their held commit was moved onto the branch and the index was updated.
-///  A retry cannot supply the missing line, because no batch stays open
+///  A retry cannot supply the missing line,
+///  because no batch stays open
 ///  (a Kimi K3.1 Pro review of the jam-fix integration,
 /// its finding that a fully settled held batch is omitted from the recovery report).
 ///

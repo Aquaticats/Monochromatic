@@ -596,12 +596,7 @@ settled from the worktree's own record of it, and the file may be removed once t
                 Some(Some(fresh)) => intent = fresh,
                 // A record this build cannot read is kept and named rather than dropped, as above.
                 Some(None) => {
-                    crate::service_error!(
-                        "batch {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is \
-settled; its owed index update is settled from the worktree's own record of it",
-                        intent.seq,
-                        path.display()
-                    );
+                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(&intent, path.as_path());
                     continue;
                 }
             }
