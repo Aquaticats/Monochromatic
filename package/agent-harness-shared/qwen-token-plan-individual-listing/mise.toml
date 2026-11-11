@@ -84,6 +84,12 @@ try {
       console.log(`drift: models.dev slice carries no ${MODELS_DEV_PROVIDER_ID} provider`)
     } else {
       for (const row of qwenTokenPlanIndividualFacts) {
+        // Media rows never serve and carry no chat facts, so their placeholder
+        // fields say nothing worth comparing against models.dev's generation
+        // modalities.
+        if (row.kind !== 'chat') {
+          continue
+        }
         const theirs = slice[row.id]
         if (theirs === undefined || theirs === null) {
           console.log(`drift: facts row ${row.id} absent from the models.dev slice`)
