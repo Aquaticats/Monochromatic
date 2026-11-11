@@ -804,6 +804,11 @@ fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_direc
     let oracle: PathBuf = selected_shape(&fixture, "oracle");
     let nested: PathBuf = first.join("nested");
     std::fs::create_dir(&nested).expect("nested");
+    // An ignore rule of the selected worktree, so one arm refuses a file and the other commits one.
+    std::fs::write(second.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, second.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, second.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    std::fs::write(second.join("ignored.js"), b"ignored\n").expect("the ignored file of the selected worktree");
     let oracle_nested: PathBuf = oracle_holder.join("nested");
     std::fs::create_dir(&oracle_nested).expect("the oracle's own outside directory");
     // Native Git, of the same start and the same variables, reads the name in the selected worktree.
@@ -822,6 +827,18 @@ fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_direc
         "the entry native Git staged is the selected worktree's top-level file"
     );
     let commits_before: String = git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]);
+    // An ignored path of the selected worktree is refused as one, not failed as a pathspec that matches nothing.
+    let refused: Observed = observe(
+        wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=ignored", "--", "ignored.js"])
+            .env("GIT_DIR", second.join(".git"))
+            .env("GIT_WORK_TREE", second.as_path()),
+        b"",
+    );
+    let refusal: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{refusal}");
+    assert!(refusal.contains("explicit-path-commit/named-path-ignored"), "the ignored file is named as ignored: {refusal}");
+    assert!(refusal.contains("ignored.js"), "{refusal}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]).trim_end(), commits_before.trim_end(), "the refused commit landed nothing");
     let served: Observed = observe(
         wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=plain", "--", "plain.txt"])
             .env("GIT_DIR", second.join(".git"))
@@ -833,13 +850,18 @@ fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_direc
     assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain untracked\n");
     assert_eq!(
         git_text(&fixture, second.as_path(), &["ls-tree", "--name-only", "-r", "HEAD"]),
-        "build/keep.txt\nkeep.txt\nplain.txt\n",
+        ".gitignore\nbuild/keep.txt\nkeep.txt\nplain.txt\n",
         "the commit holds the file it named and the base it shares"
     );
     assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:build/keep.txt"]), "build base\n", "no unselected edit is recorded");
     let moved: u32 = commits_before.trim_end().parse::<u32>().expect("a commit count") + 1;
     assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]).trim_end(), moved.to_string(), "the branch moved once");
-    assert_eq!(porcelain(&fixture, second.as_path()), " M build/keep.txt\n?? build/scratch.txt\n", "the worktree keeps the edit and the untracked files it had");
+    assert_eq!(
+        porcelain(&fixture, second.as_path()),
+        " M build/keep.txt\n?? build/scratch.txt\n",
+        "the worktree keeps the edit and the untracked files it had"
+    );
+    assert!(second.join("ignored.js").is_file(), "the ignored file the refused commit named is still there");
     assert_nothing_left(&fixture, second.as_path());
     remove_settled(&fixture);
 }
