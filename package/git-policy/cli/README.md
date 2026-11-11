@@ -592,7 +592,10 @@ Read-only commands,
   the destination comes from the command line,
   the copy is a transaction of its own whose journal and
   stage claim name the process that owns them,
-  and a copy a dead process left is recovered by the next command.
+  and a copy a dead process left is recovered by the next command run in the worktree the copy fills,
+  because staging that state costs what the source's ignored tree costs and a command in another worktree gains nothing
+  from it;
+  such a command names the worktree whose files are missing instead.
   A destination,
   source or stage whose path holds bytes that are not text is named in every record by those bytes,
   so recovery fills and reaps exactly that directory and no other,
@@ -4647,10 +4650,14 @@ so a credential is never readable at a wider mode than its source,
 not even while the copy runs,
 and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
 
-A worktree whose ignored-state copy ended before it finished is filled by the next command in the repository,
+A worktree whose ignored-state copy ended before it finished is filled by the next command run in that worktree,
 from the source its add recorded,
 and only a copy that truly cannot be made leaves the worktree named,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+A command in another worktree never pays for that copy:
+it names the worktree whose files are missing,
+that the first command run there makes the copy,
+and that it does not wait for it.
 Nothing the worktree gained since the add is ever replaced:
 an entry whose bytes differ from the source's is left alone and named,
 and the same line comes again from every later command.
@@ -4664,13 +4671,15 @@ The add's own record is written before real Git runs and is handed to the copy r
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
 The copy writes its own record before its first entry and removes it when it completes,
-so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
+so a copy killed at any moment is resumed by the next command run in that worktree and a copy that truly cannot
+finish leaves the worktree
 named instead of forgetting what is missing there,
 with what ended it in that record,
 so the later lines say which entry differs,
 not only that files are missing.
 An add records the worktree its ignored state comes from and which of that worktree's ignored paths it takes,
-so a command killed after the checkout and before the copy's own records leaves enough for the next command to make
+so a command killed after the checkout and before the copy's own records leaves enough for the next command run in that
+worktree to make
 that copy itself;
 a record written by an earlier release names no source and its worktree is named rather than filled.
 The line goes when the worktree is removed or is replaced by another one at the same path.

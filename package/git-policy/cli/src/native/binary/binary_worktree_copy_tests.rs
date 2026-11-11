@@ -469,12 +469,22 @@ fn a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself() {
     remove(&fixture);
 }
 
-/// A copy interrupted from the main checkout is recovered by the next worktree creation from the main checkout,
-/// before Git creates the next worktree.
+/// What:
+///  A copy interrupted from the main checkout is made by the first command run in the worktree whose files it fills,
+///  and a command in another worktree leaves it there and says which worktree makes it.
+/// Why:
+///  The copy is that worktree's own work:
+/// staging and installing the main checkout's ignored state costs what that tree costs,
+/// and a command in another worktree gains nothing from it
+/// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
+/// The copy must still be made,
+/// and the first command run in the worktree is what makes it.
 #[test]
-fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
+fn an_interrupted_main_checkout_copy_is_made_by_the_first_command_in_its_worktree() {
     let fixture: Fixture = fixture("copy-recovery-main");
     let repo: PathBuf = repository_with_rules(&fixture, true);
+    // `one` stands as a kill between Git's checkout and the copy leaves it: registered, with a whole checkout and no
+    // ignored state of its own.
     assert_eq!(
         run_wrapped(
             &fixture,
@@ -501,22 +511,42 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
     )
     .expect("staged");
     create_journal_for(common.as_path(), one.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
-    let next: Observed = run_wrapped(
+    // A creation in the main checkout is a command in another worktree: it names the worktree whose files are missing,
+    // writes nothing there, and copies the main checkout's state into its own new worktree only.
+    let elsewhere: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
         &["worktree", "add", "--quiet", "-b", "two", "../two"],
     );
-    assert_eq!(next.code, Some(0), "{}", stderr_of(&next));
+    assert_eq!(elsewhere.code, Some(0), "{}", stderr_of(&elsewhere));
+    assert!(!one.join(RULES_FILE).exists(), "no command in another worktree fills it: {}", stderr_of(&elsewhere));
+    assert!(!one.join("heavy/data").exists(), "{}", stderr_of(&elsewhere));
     assert!(
-        stderr_of(&next).starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
-        "{}",
-        stderr_of(&next)
+        stderr_of(&elsewhere).contains("the first command run in that worktree makes it, and this command does not wait for it"),
+        "the line says which worktree makes it and that nothing waits here: {}",
+        stderr_of(&elsewhere)
     );
-    assert!(one.join(RULES_FILE).exists());
-    assert!(one.join("heavy/data").exists(), "the recovered copy carries the whole ignored state of the main checkout");
-    assert!(fixture.root.join("two").join(RULES_FILE).exists());
+    assert_eq!(
+        read_pending_journals(common.as_path()).expect("pending").len(),
+        1,
+        "the journal stays for the worktree whose command makes the copy"
+    );
+    assert!(fixture.root.join("two").join(RULES_FILE).exists(), "the creating command still copies into its own worktree");
     assert!(fixture.root.join("two").join("heavy/data").exists());
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    // The first command run in `one` makes the copy that worktree owes, before it does anything of its own.
+    let made: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    assert_eq!(made.code, Some(0), "{}", stderr_of(&made));
+    assert!(
+        stderr_of(&made).starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
+        "{}",
+        stderr_of(&made)
+    );
+    assert_eq!(
+        std::fs::read(one.join(RULES_FILE)).expect("the recovered copy carries the rules file"),
+        format!("{}\n", needle()).into_bytes()
+    );
+    assert!(one.join("heavy/data").exists(), "the recovered copy carries the whole ignored state of the main checkout");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty(), "a finished copy takes its journal with it");
     remove(&fixture);
 }
 
