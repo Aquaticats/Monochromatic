@@ -11797,8 +11797,12 @@ and that the wrapper's own unattended merges
 (the auto-push reconcile merge,
 the commit replay merge) and the isolated merge use the same pass.
 
-The merge is `src/native/merge/merge_second_pass_line_regions.rs` and
-`src/native/merge/word_merge.rs`:
+The merge is `src/native/merge/merge_second_pass_git_lines.rs`
+(Git's line merge and the word pass over the regions it leaves),
+`src/native/merge/merge_second_pass_line_regions.rs`
+(that answer cut into the text Git settled and the regions it left)
+and `src/native/merge/word_merge.rs`
+(the word pass):
 the line merge is Git's own,
 `git merge-file --stdout --object-id --zdiff3` over the three stages,
 whose exit status is the number of conflicts;
@@ -11853,7 +11857,7 @@ a word written twice in a row that none of the three texts writes twice in a row
 and,
 in a region that spans more than one line on some side,
 a line that none of the three texts holds
-(`refuses_word_merge` in `src/native/merge/word_merge.rs`).
+(`refuses_word_merge` in `src/native/merge/word_merge_invented_text.rs`).
 A refused region keeps both sides,
 so its file stays exactly as Git left it and the person resolves it.
 A resolved file therefore holds only lines one of the three texts holds,
