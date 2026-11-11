@@ -155,6 +155,8 @@ the notice comes after the destroy,
 which cannot be undone,
 and that command's `--help` is Git's own (`DESTROY_NOTICE`,
 `src/native/worktree/worktree_remove.rs`).
+A removal the person forced words its own line (`DESTROY_FORCED_NOTICE` in the same module),
+because nothing was checked for changes before that destroy.
 
 The sections that describe those commands carry the same statement beside their guards:
 "Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
@@ -2591,10 +2593,10 @@ an interrupted or failed add keeps naming the same worktree and stage in every c
 runs the recovery,
 until the person finishes or removes it.
 
-`git worktree remove <directory>` with no option and a non-empty directory name,
-for a clean,
-unlocked linked worktree
+`git worktree remove <directory>` with at most one `-f`/`--force` and a non-empty directory name,
+for an unlocked linked worktree
 that is a subvolume root,
+clean unless the person forced the removal,
 on a mount that lists `user_subvol_rm_allowed`,
 destroys the subvolume and deletes the
 administrative directory.
@@ -2608,7 +2610,8 @@ and a refusal by the kernel,
 is Git's own removal,
 which words its own refusal.
 
-The wrapper serves the removal only when real Git would remove the same directory without `--force`:
+The wrapper serves the removal only when real Git would remove the same directory,
+with the same force:
 - The worktree is registered in the repository the command runs in:
   its administrative directory is one of that
   repository's `worktrees/<id>`,
@@ -2637,7 +2640,25 @@ The wrapper serves the removal only when real Git would remove the same director
   an entry,
   or any other result of the lookup,
   leaves the removal to Git.
-- The worktree is clean by the proof of `worktree_clean.rs`.
+- The worktree is clean by the proof of `worktree_clean.rs`,
+  unless the person passed `-f` or `--force`.
+  Git's own removal makes that proof only when the force is zero
+  (`builtin/worktree.c`,
+  `remove_worktree`:
+  `if (!force) check_clean_worktree(wt, av[0])`),
+  and a forced removal deletes the worktree it was given whatever it
+  holds,
+  so the destroy answers for the same set of files.
+  The proof is also the only place Git refuses a populated submodule
+  (`validate_no_submodules`,
+  called from
+  `check_clean_worktree`),
+  so a forced removal leaves a populated submodule to the destroy exactly as Git leaves it to
+  `remove_dir_recursively`.
+  A second force stays Git's own:
+  `if (force < 2) reason = worktree_lock_reason(wt)` is what lets `-f -f` remove a locked worktree,
+  and the wrapper
+  reads one force only.
 
 Accepted risk,
 stated to the person who runs the command:
@@ -2710,9 +2731,12 @@ and gives both commands
 `convert-worktree-to-subvolume --abandon <path>` to
 discard the copy),
 because the removal deletes the registration and the journal in it is what names that copy.
-`git worktree remove --force` and `git worktree prune` are not seen by the wrapper,
-so they still remove the
+`git worktree prune` is not seen by the wrapper,
+and neither is a `git worktree remove --force` of a worktree that is not a subvolume or whose mount lacks the option,
+so those still remove the
 worktree and leave the copy behind;
+a forced removal the wrapper serves refuses like the option-free one,
+because the destroy deletes the registration that names the copy;
 `--abandon` reaches such a copy at its recorded identity,
 and a copy whose
 conversion left no record is kept and named.
@@ -3428,6 +3452,7 @@ place they were installed or built at.
 After every rung has filled a new worktree and the ignored files are in place,
 the wrapper starts each such tool's own offline
 repair in the new worktree,
+or writes the record that has the commit service run it there after this command returns,
 with no lock around it (the repairs touch only the new worktree and read
 the source,
 so another add never waits for them),
@@ -3448,7 +3473,7 @@ for a bare repository (nothing was copied),
 or after a copy that failed.
 
 The repairs,
-which run side by side:
+of which the two that rewrite link layouts in place are the service's work whenever a service answers:
 
 - pnpm,
   when the worktree holds `pnpm-lock.yaml` and a copied `node_modules`:
@@ -3462,6 +3487,10 @@ which run side by side:
   captured and shown only inside a failure.
   Scripts are not suppressed:
   the repository's own `allowBuilds` decides.
+  The add writes this tool in the `relink` record it hands to the commit service,
+  which runs it after the add returns,
+  and runs it here when no service took the record,
+  because a worktree whose copied links were never relinked resolves the source's packages without an error.
 - Cargo,
   for every Cargo workspace among the worktree's tracked `Cargo.toml` files (found with `git ls-files`,
   so no walk reads
@@ -3517,10 +3546,16 @@ which run side by side:
   copies another checkout still links;
   both are accepted consequences.
   The success line keeps mpm-shadow's own summary of what was installed.
+  The add writes this tool in the same `relink` record,
+  so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
   a timeout or a missing `mpm-shadow` never fails the add:
   the line names the reason and
   `mise run toolchain:install`.
+  A service that fails the install leaves the record failed,
+  and its journal names the worktree and the reason.
+  The worktree keeps the copied launchers until the install runs,
+  which is what the add itself left between the copy and the install.
 - The `pnpm` the repair starts is the first one on the person's `PATH`,
   which in this repository is the pnpm-shadow.
   The owner decided this on 2026-11-03:
@@ -3557,6 +3592,8 @@ The three repairs are waits of one task of the runtime,
 and neither the type check of each tracked manifest nor the read of the launcher records runs there:
 both are jobs of the process's blocking pool,
 so a filesystem that stops answering them holds no tool's quiet window or ceiling.
+The record that hands the relink over is written and woken by a job of that pool for the same reason:
+the task that polls the Cargo repair never waits on a socket or on a write.
 That has one limit:
 where the system refuses to start a pool thread (`ulimit -u`,
 the control group's `pids.max`),
@@ -3757,6 +3794,10 @@ an empty message,
 a named path an ignore rule matches while no index entry tracks it
 (the `explicit-path-commit/named-path-ignored` finding,
 "Core finding event"),
+a pathspec Git itself refuses for matching nothing
+(the `explicit-path-commit/pathspec-matches-nothing` finding,
+"Core finding event",
+issue 6283),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -6415,7 +6456,7 @@ in-process reader can) gives every value of the multi-valued keys.
   (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
   so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
-  (`src/native/push/auto_push_reconcile.rs`).
+  (`wording_of` in `src/native/push/auto_push_reconcile_plan.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
@@ -6472,6 +6513,24 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+- The reconcile is one loop,
+  and it is awaited
+  (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);
+  the plan it integrates and every word of its report are read once
+  (`src/native/push/auto_push_reconcile_plan.rs`).
+  A command that is not a task of the runtime reaches that one loop by running it on the runtime
+  (`integrate_and_push` in `src/native/push/auto_push_reconcile.rs`),
+  and the merge push such a command supplies runs on a plain thread of its own beside the loop.
+  That push plans and runs a real `git push` synchronously
+  (`gated_merge_push`,
+  the merge push of a person's explicit `git push`),
+  and a start of Git from inside the runtime is refused;
+  the thread is a plain one and never a job of the blocking pool,
+  which is inside the runtime and would refuse the same start.
+  A thread the system refuses is not worked around:
+  no merge is published,
+  the branch and the worktree stay as the failed push left them,
+  and the push's own report is what the person reads.
 - No push without a connection waits without a bound,
   and no push with an open connection is stopped for time.
   The push is stopped on no progress and no open connection,
@@ -9136,7 +9195,8 @@ export type CoreFindingEvent = EventBase & {
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
     | 'concurrent-commit/already-committed'
-    | 'explicit-path-commit/named-path-ignored';
+    | 'explicit-path-commit/named-path-ignored'
+    | 'explicit-path-commit/pathspec-matches-nothing';
   readonly message: string;
 };
 ```
@@ -9178,6 +9238,22 @@ and cannot be disabled or assigned a severity through repository config.
   or stage it with `git add --force -- <path>` when it is meant to become tracked
   (`commit_named_ignored_files.rs`;
   issue 6278).
+- `explicit-path-commit/pathspec-matches-nothing`:
+  a pathspec the command line names matches no path Git can stage,
+  so the private staging's own `git add` refused it.
+  Native Git keeps deciding which pathspecs are valid,
+  so this classification reports its refusal instead of predicting a match:
+  a directory,
+  a pattern,
+  a magic selector and a literal name behave exactly as they did before.
+  The commit is not made,
+  nothing is staged by it,
+  and the message names every refused token as Git named it;
+  a token that begins with a hyphen also says that options belong before `--`
+  (`git commit --message <text> -- <paths>`).
+  Every other failure of that staging start keeps its engine-failure report
+  (`commit_pathspec_matching_nothing.rs`;
+  issue 6283).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -10435,20 +10511,33 @@ not by the age of the lock file:
 
 #### Removing the lock and what is made durable
 
-The marker of the next batch is made ahead.
-When a batch has been landed and answered,
-the service makes the marker of the batch after it,
-which is numbered one more and lands on the same index:
-it creates the file,
-writes the marker and flushes it to storage,
-on a thread of its own while the service is idle.
-The next commit then only places that file (a rename that does not replace),
+The markers of the next batches are made ahead.
+A batch that takes the index lock for batch `n` starts the markers of batches `n + 1` and `n + 2`,
+which land on the same index:
+it creates each file and writes the marker there,
+and the flush is the service's background task's,
+while that landing moves the branch and builds the index.
+Started there rather than after the landing ended,
+a flush overlaps a landing's own work instead of being the next commit's wait,
+and the second marker is the spare that leaves one finished while another is being made.
+The next commit then only places the file for its own batch (a rename that does not replace),
 so the flush is not on its path.
-The file is the service's one:
-it is kept for the service thread,
+Starting them there matters because the flush is seconds long on a loaded disk:
+a measured landing waited 9 to 13 seconds for a marker whose flush was still running
+(`lock_stage_kind=pre`,
+2026-11-10),
+against the owner's rule that a commit through the wrapper is not five seconds slower than native Git.
+A landing that finds a marker still being made never waits for it:
+it stages its own marker the ordinary way,
+as one does when nothing was made ahead,
+and the markers that were still being made finish beside it and are removed once they are finished,
+by the batch that follows or by the service's end.
+Two files at most are the service's:
+they are kept for the service thread,
 named with this process and the batch number,
-and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
-It is removed when the service ends,
+and a marker is replaced or removed (waiting for a flush that is still running)
+when its making has finished and its batch is passed or the index is not the one it was made for.
+They are removed when the service ends,
 whichever way its loop ends,
 and what a killed service leaves is removed by the next acquisition,
 by these rules:
@@ -10474,7 +10563,7 @@ The file's pathname is checked before it is placed:
 it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
 A pathname that names another file is that file's,
 and is not removed.
-A commit that arrives while the flush is still running waits for it and starts no second.
+A commit that arrives while the flush is still running starts no second flush of its own and waits for none.
 The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
@@ -11869,7 +11958,15 @@ For injected commit-only semantics:
     native Git commits the tracked and staged paths a directory or a pattern matches,
     so a commit of `.`,
     `*` or a directory leaves every untracked file untracked.
-    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    A pathspec whose elements match no entry of the private index is refused as native Git refuses it:
+    the `git add --update` start fails before anything lands,
+    and its "pathspec ... did not match any files" sentence is reported as
+    the `explicit-path-commit/pathspec-matches-nothing` finding (see "Core finding event"),
+    which names the token the caller wrote and,
+    when that token begins with a hyphen,
+    says that options belong before `--` (`git commit --message <text> -- <paths>`).
+    Every other failure of that start stays an engine failure (`commit_pathspec_matching_nothing.rs`;
+    issue 6283).
     An empty pathspec file stages nothing,
     as native Git commits nothing for one.
     A pathspec file with more bytes than one command line may carry is passed as a file with
@@ -11996,8 +12093,8 @@ not only the first:
 a branch that moves again while the new commit is being made makes that commit again on the branch as it is now,
 and the rebuilding ceiling is what ends an amend whose branch never stops moving,
 naming the builds it made and landing nothing
-(`service_commit.rs`,
-the arm for a branch that moved).
+(`after_a_moved_branch` in `src/native/landing/service_commit_after_a_moved_branch.rs`,
+which decides what each kind of commit the service answered `Moved` becomes).
 Nothing waits for another command and nothing is refused for it.
 The person is told what the amend became after it lands:
 a line naming the branch,
@@ -13998,18 +14095,30 @@ because the wrapper never sees that command start.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
-A `clean` counts untracked files as well,
-and a `clean` that deletes ignored files counts what it deletes:
-`git clean -x` counts tracked,
-untracked and ignored files,
-and `git clean -X` counts ignored files only.
+A `clean` counts untracked files as well.
+An ignored file is not a reason to refuse a clean in a linked worktree,
+by the owner's answer of 2026-11-10 ("All four are deleted,
+exit 0,
+and the audit log records the command",
+after the same owner's "Log only" for `git worktree remove`,
+whose reason was that a refusal only moves the same loss to `rm -rf`):
+`git clean -x` counts tracked and untracked files,
+and `git clean -X`,
+which deletes ignored files and nothing else,
+asks nothing at all,
+runs,
+and leaves one `allowed` line whose `dirty` is `null`,
+because the policy asked no question.
+The main checkout still refuses both,
+a tracked change or an untracked file still refuses the clean that deletes it,
+and `git clean -fd` keeps the ignored files as it always did.
 A `git clean -X` that carries its own exclusion patterns (`-e`,
 `--exclude`,
 in every spelling Git's table accepts,
 clustered and abbreviated included) is measured by Git itself instead:
 Git adds those patterns to the ignore rules the clean applies,
 so a file the status reports as untracked is one this clean deletes and the status cannot say so.
-The question is `git clean --dry-run` over the same facts,
+The question is two `git clean --dry-run` runs over the same facts,
 rebuilt from them and never edited from the typed region
 (`-n`,
 `-f` as often as written and at least once,
@@ -14017,12 +14126,22 @@ rebuilt from them and never edited from the typed region
 the `-X` or `-x` mode,
 each `-e` pattern,
 then `--` and the paths),
+the second one without the `-e` patterns,
 because an edited region would carry `-i`,
 whose dry run reads the terminal,
 or `-q`,
 which would silence it;
 a dry run that prints nothing deletes nothing,
-and one Git refuses is a `fact-unavailable` finding.
+and a dry run Git refuses,
+either of the two,
+is a `fact-unavailable` finding.
+Both answers name a path the same way,
+so they are compared as Git printed them:
+only a path the first answer names and the second does not is one the patterns alone call ignored,
+and that path is an untracked file this clean would lose,
+so it is still refused.
+A path both answers name is one the worktree itself ignores,
+which is no reason to refuse anything any more.
 A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
@@ -14030,6 +14149,8 @@ which the status measurement over-reports rather than under-reports.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
+A form with no question of its own asks only for the location,
+so its one audit line stands beside the exempt and hatch lines that name no measurement either.
 A `HEAD`-moving form is rejected only while tracked changes exist.
 `git stash drop` and `git stash clear` are measured against the repository instead:
 they delete entries of `refs/stash`,
@@ -14599,6 +14720,11 @@ A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
+`dirty` is whether the worktree or the repository held what the form could destroy,
+`false` when the answer was no,
+and `null` when the policy asked nothing:
+a `git clean -X` in a linked worktree deletes ignored files only,
+so it has nothing to measure.
 The wrapper appends that line before it replaces itself with Git,
 so the line cannot know whether Git ran the deletion or refused it:
 `git branch -d` of a branch nothing else contains is refused,

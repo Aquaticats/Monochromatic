@@ -23,6 +23,7 @@
 use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
@@ -299,6 +300,8 @@ pub fn run_forwarded_git_with_unit_stop(
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
                 stop_units(gone);
+                // The pool of a worktree is named from the same registration the removal deleted, and nothing of the repository looks at it again once the worktree is gone.
+                clear_the_pool_of_a_removed_worktree(gone.common_dir.as_path(), gone.git_dir.as_path());
             }
             return finished;
         }
@@ -326,12 +329,7 @@ pub fn run_forwarded_git_with_unit_stop(
 #[cfg(unix)]
 fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo> {
     let plan = facts.remove_plan.as_ref()?;
-    let common_dir: &Path = match &facts.identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
-        WorktreeIdentity::OutsideWorktree => return None,
-    };
+    let common_dir: &Path = common_directory(&facts.identity)?;
     return before_removal(common_dir, plan);
 }
 
@@ -376,14 +374,8 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
 fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
     use std::io::Write;
     use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
-    use crate::worktree_identity::WorktreeIdentity;
     let plan = facts.remove_plan.as_ref()?;
-    let common_dir: &Path = match &facts.identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
-        WorktreeIdentity::OutsideWorktree => return None,
-    };
+    let common_dir: &Path = common_directory(&facts.identity)?;
     let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -393,8 +385,12 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
-            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
-            let _closed = writeln!(std::io::stderr(), "{}", crate::worktree_remove::DESTROY_NOTICE);
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
+            let notice: &str = match plan.force {
+                true => crate::worktree_remove::DESTROY_FORCED_NOTICE,
+                false => crate::worktree_remove::DESTROY_NOTICE,
+            };
+            let _closed = writeln!(std::io::stderr(), "{notice}");
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {

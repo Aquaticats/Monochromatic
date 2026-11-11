@@ -4,7 +4,7 @@ use super::*;
 use crate::service_client::Activation;
 use crate::service_messages::Platform;
 use crate::service_server::Bind;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, spawn_owned};
 use crate::work_item::{PENDING, state_directory};
 use std::time::Duration;
 
@@ -302,10 +302,14 @@ fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
 /// and a process a control starts and waits for is the one holder it can
 ///  make without a race.
 fn a_command_that_has_ended() -> String {
-    let mut child = std::process::Command::new("true").spawn().expect("a child starts");
+    // Only a child that outlives the read of its identity has one: a child that has already ended, or a zombie the
+    // parent has not reaped yet, answers "gone" (`process_identity.rs`), and a `true` raced this read in about one
+    // run in ten.
+    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
     let pid: u32 = child.id();
     let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
-    let _ended = child.wait();
+    let _ended = child.kill();
+    let _reaped = child.wait();
     return format!("{}/{pid}/{birth}", crate::claim_time::current_boot_id());
 }
 

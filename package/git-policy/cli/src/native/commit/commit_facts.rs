@@ -125,8 +125,8 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return self.inner.clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_deleted_paths(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -184,8 +184,8 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return (**self).clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_deleted_paths(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
