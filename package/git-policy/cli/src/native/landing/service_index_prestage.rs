@@ -291,7 +291,8 @@ fn remove_unused(slot: Slot) {
 /// or nothing when none was made for exactly that.
 /// Why:
 ///   A marker made for another batch or index is removed and the commit stages its own.
-/// A marker still being flushed is waited for.
+/// A marker still being made is waited for,
+/// and its flush never is.
 /// A file that is no longer the file that was flushed (the Git directory was replaced,
 /// or the pathname now names another file)
 /// is no marker,

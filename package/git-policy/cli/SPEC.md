@@ -10392,15 +10392,15 @@ The marker of the next batch is made ahead.
 When a batch has been landed and answered,
 the service makes the marker of the batch after it,
 which is numbered one more and lands on the same index:
-it creates the file,
-writes the marker and flushes it to storage,
-on a thread of its own while the service is idle.
+it creates the file and writes the marker on a thread of its own while the service is idle,
+and hands the flush of that file to the service's background task.
 The next commit then only places that file (a rename that does not replace),
-so the flush is not on its path.
+so neither part is on its path.
 The file is the service's one:
 it is kept for the service thread,
 named with this process and the batch number,
-and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
+and replaced or removed (waiting for the making of a file still being written,
+never for its flush) when the batch or the index is not the one it was made for.
 It is removed when the service ends,
 whichever way its loop ends,
 and what a killed service leaves is removed by the next acquisition,
@@ -10427,15 +10427,19 @@ The file's pathname is checked before it is placed:
 it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
 A pathname that names another file is that file's,
 and is not removed.
-A commit that arrives while the flush is still running waits for it and starts no second.
+A commit that arrives while the marker is still being made waits for the making,
+never for its flush,
+and starts no second.
 The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
 measured over the whole of it:
 near zero when the marker was ready,
-the rest of the flush when it was not,
-a wait for a flush that failed or was for another batch plus the cold staging that followed,
-the whole creation and flush when it staged its own;
+the rest of the making when it was not,
+a making that failed or was for another batch plus the cold staging that followed,
+the whole creation when it staged its own,
+and never the flush of a marker,
+which the background task makes;
 `lock_stage_kind` says `pre` or `cold`.
 
 A lock the holder owns is removed by the release after the index is installed,
@@ -13435,7 +13439,7 @@ an `answered` line for every request with the phases of its stay
 `queued_ms`,
 `settle_ms`,
 `lock_wait_ms` and the holder when one is named,
-the split of the lock wait into the flush of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
+the split of the lock wait into the making of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
 and when the lock was found held `lock_looks`,
 `lock_found` and `lock_last`,
 `reads_ms`,
