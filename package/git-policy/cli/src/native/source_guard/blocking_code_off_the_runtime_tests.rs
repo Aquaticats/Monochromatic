@@ -35,11 +35,11 @@
 //!  bodies of functions that build a `Command`,
 //!  and the bodies of `async fn`s outside the closures that hand their work to the
 //!  blocking pool.
-//!  Braces are counted outside comments,
-//!  strings,
-//!  character literals and raw strings,
+//!  Comments and the characters inside string,
+//!  character and raw string literals are replaced by spaces before any rule reads a line,
 //!  so a `"{{"` in a format
 //!  text neither opens a block nor hides one,
+//!  a storage call a literal or a comment names is never a finding,
 //!  and a file whose braces still do not balance is an error rather than a file the scan skips.
 //!
 //! In TS you'd write (pseudocode):
@@ -115,15 +115,15 @@ fn release_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, S
 
 /// The lines of a source file that are code,
 /// with the following line joined so a call split over two lines still reads.
-fn code_lines(text: &str) -> BodyLines {
-    let lines: Vec<&str> = text.lines().collect();
+fn code_lines(read: &ReadCode) -> BodyLines {
     let mut code: BodyLines = Vec::new();
-    for (index, line) in lines.iter().enumerate() {
+    for (index, line) in read.masked.iter().enumerate() {
         let trimmed: &str = line.trim_start();
-        if trimmed.starts_with("//") {
+        // A line that is only a comment or the inside of a literal runs nothing.
+        if trimmed.is_empty() {
             continue;
         }
-        let next: &str = lines.get(index + 1).map_or("", |following| {
+        let next: &str = read.masked.get(index + 1).map_or("", |following| {
             return following.trim_start();
         });
         code.push((index + 1, trimmed.to_owned(), format!("{trimmed} {next}")));
@@ -153,9 +153,32 @@ enum Scanner {
 }
 
 /// What:
-///  `fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String>` counts,
-///  for each line,
-///  the `{` and `}` that are code rather than comment or literal text.
+///  One source file read as code:
+///  its lines with every comment and every character inside a literal replaced by spaces,
+///  and the braces each line opens and closes.
+/// Why:
+///  A rule that asks whether a line runs a call must read the code of that line:
+///  a storage call a string literal or a comment names is text,
+///  and reporting it rejects release source that runs nothing.
+///  A replaced character keeps its place,
+///  so every line number and every column stays where the file put it and a finding still names the line a person
+///  reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReadCode = { masked: string[], braces: [number, number][] }
+/// ```
+struct ReadCode {
+    /// One entry per line of the file: the line's code, with a space wherever a comment or a literal put a character.
+    masked: Vec<String>,
+    /// For each line, the `{` and `}` that are code rather than comment or literal text.
+    braces: Vec<(usize, usize)>,
+}
+
+/// What:
+///  `fn read_the_code_of(text: &str) -> Result<ReadCode, String>` reads one source file once:
+///  its code without comments or literal characters,
+///  and the braces that code holds.
 /// Why:
 ///  A function's body is found by its braces,
 /// and the crate writes `format!("{{\"schemaVersion\":{SCHEMA_VERSION}")`,
@@ -163,16 +186,25 @@ enum Scanner {
 ///  `'\u{8}'`,
 ///  whose braces close nothing;
 ///  counting them would end a body early or lose the end of the file.
+///  The same reading decides what a rule may match,
+///  so the two can never disagree about where a literal ends.
 ///  An unterminated literal or block comment means the file cannot be read,
 /// which is an error and not a file
 ///  the scan skips.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function bracesOutsideLiterals(text: string): [number, number][]  // throws Error
+/// function readTheCodeOf(text: string): ReadCode  // throws Error
 /// ```
-fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
+fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
     let characters: Vec<char> = text.chars().collect();
+    let mut masked: Vec<char> = Vec::with_capacity(characters.len());
+    // Every character the reader passes over keeps its place in its line.
+    fn blank(masked: &mut Vec<char>, count: usize) {
+        for _ in 0..count {
+            masked.push(' ');
+        }
+    }
     let mut counts: Vec<(usize, usize)> = vec![(0, 0)];
     let mut scanner: Scanner = Scanner::Code;
     let mut index: usize = 0;
@@ -180,6 +212,7 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
         let character: char = characters[index];
         let next: Option<char> = characters.get(index + 1).copied();
         if character == '\n' {
+            masked.push('\n');
             counts.push((0, 0));
             if scanner == Scanner::LineComment {
                 scanner = Scanner::Code;
@@ -191,14 +224,17 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
             Scanner::Code => match character {
                 '/' if next == Some('/') => {
                     scanner = Scanner::LineComment;
+                    blank(&mut masked, 2);
                     index += 2;
                 }
                 '/' if next == Some('*') => {
                     scanner = Scanner::BlockComment(1);
+                    blank(&mut masked, 2);
                     index += 2;
                 }
                 '"' => {
                     scanner = Scanner::Text;
+                    blank(&mut masked, 1);
                     index += 1;
                 }
                 'r' | 'b' => {
@@ -211,13 +247,18 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
                     match characters.get(cursor) {
                         Some('"') => {
                             scanner = if character == 'r' { Scanner::Raw(hashes) } else { Scanner::Text };
+                            blank(&mut masked, cursor + 1 - index);
                             index = cursor + 1;
                         }
                         Some('\'') if character == 'b' => {
                             scanner = Scanner::Character;
+                            blank(&mut masked, cursor + 1 - index);
                             index = cursor + 1;
                         }
-                        _ => index += 1,
+                        _ => {
+                            masked.push(character);
+                            index += 1;
+                        }
                     }
                 }
                 '\'' => {
@@ -230,18 +271,18 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
                         closed = true;
                     } else if characters.get(cursor) == Some(&'\\') {
                         cursor += 1;
-                        let mut braces: usize = 0;
+                        let mut inner_braces: usize = 0;
                         while let Some(inner) = characters.get(cursor).copied() {
                             if inner == '\n' {
                                 break;
                             }
                             if inner == '{' {
-                                braces += 1;
+                                inner_braces += 1;
                             }
                             if inner == '}' {
-                                braces = braces.saturating_sub(1);
+                                inner_braces = inner_braces.saturating_sub(1);
                             }
-                            if inner == '\'' && braces == 0 {
+                            if inner == '\'' && inner_braces == 0 {
                                 cursor += 1;
                                 closed = true;
                                 break;
@@ -249,67 +290,101 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
                             cursor += 1;
                         }
                     }
-                    index = if closed { cursor } else { index + 1 };
+                    let consumed: usize = if closed { cursor - index } else { 1 };
+                    blank(&mut masked, consumed);
+                    index += consumed;
                 }
                 '{' => {
                     if let Some(line) = counts.last_mut() {
                         line.0 += 1;
                     }
+                    masked.push(character);
                     index += 1;
                 }
                 '}' => {
                     if let Some(line) = counts.last_mut() {
                         line.1 += 1;
                     }
+                    masked.push(character);
                     index += 1;
                 }
-                _ => index += 1,
+                _ => {
+                    masked.push(character);
+                    index += 1;
+                }
             },
             Scanner::Text => match character {
                 // A line continuation keeps the string open across the line break, and the break still starts a line.
-                '\\' if next == Some('\n') => index += 1,
-                '\\' => index += 2,
+                '\\' if next == Some('\n') => {
+                    blank(&mut masked, 1);
+                    index += 1;
+                }
+                '\\' => {
+                    blank(&mut masked, 2);
+                    index += 2;
+                }
                 '"' => {
                     scanner = Scanner::Code;
+                    blank(&mut masked, 1);
                     index += 1;
                 }
-                _ => index += 1,
+                _ => {
+                    blank(&mut masked, 1);
+                    index += 1;
+                }
             },
             Scanner::Character => match character {
-                '\\' => index += 2,
+                '\\' => {
+                    blank(&mut masked, 2);
+                    index += 2;
+                }
                 '\'' => {
                     scanner = Scanner::Code;
+                    blank(&mut masked, 1);
                     index += 1;
                 }
-                _ => index += 1,
+                _ => {
+                    blank(&mut masked, 1);
+                    index += 1;
+                }
             },
             Scanner::Raw(hashes) => {
-                if character != '"' {
-                    index += 1;
-                    continue;
-                }
-                let mut cursor: usize = index + 1;
-                let mut seen: usize = 0;
-                while seen < hashes && characters.get(cursor) == Some(&'#') {
-                    seen += 1;
-                    cursor += 1;
-                }
-                if seen == hashes {
-                    scanner = Scanner::Code;
-                    index = cursor;
-                } else {
+                let closing: bool = character == '"' && {
+                    let mut cursor: usize = index + 1;
+                    let mut seen: usize = 0;
+                    while seen < hashes && characters.get(cursor) == Some(&'#') {
+                        seen += 1;
+                        cursor += 1;
+                    }
+                    if seen == hashes {
+                        scanner = Scanner::Code;
+                        blank(&mut masked, cursor - index);
+                        index = cursor;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if !closing {
+                    blank(&mut masked, 1);
                     index += 1;
                 }
             }
-            Scanner::LineComment => index += 1,
+            Scanner::LineComment => {
+                blank(&mut masked, 1);
+                index += 1;
+            }
             Scanner::BlockComment(depth) => {
                 if character == '*' && next == Some('/') {
                     scanner = if depth <= 1 { Scanner::Code } else { Scanner::BlockComment(depth - 1) };
+                    blank(&mut masked, 2);
                     index += 2;
                 } else if character == '/' && next == Some('*') {
                     scanner = Scanner::BlockComment(depth + 1);
+                    blank(&mut masked, 2);
                     index += 2;
                 } else {
+                    blank(&mut masked, 1);
                     index += 1;
                 }
             }
@@ -318,7 +393,14 @@ fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
     if scanner != Scanner::Code && scanner != Scanner::LineComment {
         return Err(String::from("a literal or a block comment is not closed, so this file cannot be read"));
     }
-    return Ok(counts);
+    let read_text: String = masked.into_iter().collect();
+    let masked_lines: Vec<String> = read_text.split('\n').map(String::from).collect();
+    return Ok(ReadCode { masked: masked_lines, braces: counts });
+}
+
+/// The braces of each line of `text` that are code rather than comment or literal text.
+fn braces_outside_literals(text: &str) -> Result<Vec<(usize, usize)>, String> {
+    return Ok(read_the_code_of(text)?.braces);
 }
 
 /// The `async` flag of a line that starts a function signature,
@@ -379,15 +461,18 @@ fn opens_a_pool_body(line: &str) -> bool {
 /// function functionsIn(text: string): Function[]  // throws Error
 /// ```
 fn functions_in(text: &str) -> Result<Vec<Function>, String> {
-    let counts: Vec<(usize, usize)> = braces_outside_literals(text)?;
-    let lines: Vec<&str> = text.lines().collect();
-    let code: BodyLines = code_lines(text);
+    let read: ReadCode = read_the_code_of(text)?;
+    let code: BodyLines = code_lines(&read);
+    let counts: Vec<(usize, usize)> = read.braces;
     let mut found: Vec<Function> = Vec::new();
     let mut depth: usize = 0;
     let mut building: Option<(String, bool, usize, bool, usize)> = None;
     for (index, (opened, closed)) in counts.iter().enumerate() {
         let number: usize = index + 1;
-        let line: &str = lines.get(index).copied().unwrap_or("");
+        // A signature is code, so a line that only a comment or a literal holds is never one.
+        let line: &str = read.masked.get(index).map_or("", |masked| {
+            return masked.as_str();
+        });
         let signature: Option<(String, bool)> = if building.is_none() { signature_of(line) } else { None };
         if let Some((name, is_async)) = signature {
             building = Some((name, is_async, depth, false, number));
@@ -479,9 +564,10 @@ fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String>
     for name in release_sources_in(root, roots)? {
         let text: String = std::fs::read_to_string(root.join(name.as_str()))
             .map_err(|error| return format!("cannot read {name}: {error}"))?;
+        let read: ReadCode = read_the_code_of(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
         let functions: Vec<Function> = functions_in(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
         let mut places: Vec<(Place, BodyLines)> = Vec::new();
-        places.push((Place::Everywhere, code_lines(text.as_str())));
+        places.push((Place::Everywhere, code_lines(&read)));
         let command_lines: BodyLines = functions
             .iter()
             .filter(|function| {

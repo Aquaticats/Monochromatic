@@ -95,11 +95,9 @@ fn a_start_beside_a_command_is_a_finding_and_a_look_alike_is_not() {
         ],
     )
     .expect("a resolvable layout");
-    // The line above the start is joined to it, so both lines answer for the one call.
-    assert_eq!(
-        found,
-        vec![(String::from("editors.rs"), "unretried-start", 3), (String::from("editors.rs"), "unretried-start", 4)]
-    );
+    // One finding: a blank line is joined to the start, but the scan reads code, so the line the start is on answers
+    //  for it alone.
+    assert_eq!(found, vec![(String::from("editors.rs"), "unretried-start", 4)]);
 }
 
 /// The retried start is not a finding,
