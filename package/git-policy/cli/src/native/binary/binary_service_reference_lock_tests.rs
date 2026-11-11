@@ -412,10 +412,14 @@ fn the_words_for_a_commit_a_lock_holds_never_call_it_refused() {
     let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
     assert_eq!(code, Some(0), "the commit is made and held: {said}");
     let logged: String = service_log(fixture.root.as_path());
-    assert!(logged.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
-    assert!(!logged.contains("refused"), "a commit that is kept and lands is not one that was refused: {logged}");
-    assert!(logged.contains("is kept"), "the line says the commit is kept: {logged}");
-    assert!(logged.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
+    // The lines about the batch itself, which are the ones that word what became of the commit: a wait for another program's
+    //  index lock says `result=refused` and is about the lock, not about the commit.
+    let about_a_batch: String = logged.lines().filter(|line| { return line.contains("batch "); }).collect::<Vec<&str>>().join("\n");
+    assert!(about_a_batch.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
+    assert!(!about_a_batch.contains("refus"), "a commit that is kept and lands is not one that was refused: {logged}");
+    assert!(about_a_batch.contains("the commit ") && about_a_batch.contains("is kept"), "the line says the commit is kept: {logged}");
+    assert!(about_a_batch.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
+    assert!(about_a_batch.contains("removing the lock") && about_a_batch.contains("rm -- "), "the line says what the person may do and gives the command: {logged}");
     drop(service);
     remove_settled(&fixture);
 }
