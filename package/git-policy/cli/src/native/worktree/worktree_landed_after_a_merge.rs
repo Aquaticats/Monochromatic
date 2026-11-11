@@ -27,6 +27,7 @@ use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use crate::worktree_landed_removal::{LandedPlace, LandedSweep, sweep_landed_worktrees};
 use crate::worktree_landed_sweep_notice::landed_sweep_lines;
+use crate::worktree_remove_hand_over::wake_the_service;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -55,6 +56,28 @@ fn working_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
     }
 }
 
+/// What:
+///  The Git directory of the worktree the command runs in,
+///  whose commit service performs every removal the sweep hands over.
+/// Why:
+///   A record is enqueued in the queue of the Git directory it names,
+///  and `is_acceptable` refuses a record another instance reads,
+///  so the removal is handed to the instance whose command found the worktrees landed.
+///  A bare repository has one too,
+///  and the sweep of a bare repository looks at worktrees it will not remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownGitDirectory = (identity) => identity.gitDir;
+/// ```
+fn own_git_directory(identity: &WorktreeIdentity) -> PathBuf {
+    // `match` on the repository shape: each one names the Git directory of the invocation.
+    match identity {
+        WorktreeIdentity::MainWorktree { git_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, .. } | WorktreeIdentity::BareRepository { git_dir, .. } => return git_dir.clone(),
+        WorktreeIdentity::OutsideWorktree => return PathBuf::new(),
+    }
+}
+
 /// The root of the worktree the command runs in,
 /// which the sweep never removes.
 fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
@@ -68,7 +91,6 @@ fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
 /// The repository's common Git directory,
 /// which owns every registration.
 fn common_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
-    // `match` on the repository shape: a bare repository has one too.
     match identity {
         WorktreeIdentity::MainWorktree { common_dir, .. }
         | WorktreeIdentity::LinkedWorktree { common_dir, .. }
@@ -190,6 +212,7 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
     let directory: PathBuf = working_directory(identity)?;
     let common_dir: PathBuf = common_directory(identity)?;
     let root: Option<PathBuf> = current_root(identity);
+    let git_dir: PathBuf = own_git_directory(identity);
     let branch: String = match current_branch(context, directory.as_path()) {
         Some(found) => found,
         None => String::from("a head with no branch"),
@@ -213,6 +236,10 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
         current_root: root.as_deref(),
         proc_root: Path::new(PROCESS_TABLE),
         registered_before: registered,
+        // The removals this sweep hands over are the commit service's of the worktree the merge ran in: its instance just
+        //  served the merge, and its own queue is where this record is read from.
+        git_dir: git_dir.as_path(),
+        told: &wake_the_service,
     };
     let sweep: LandedSweep = sweep_landed_worktrees(&place, window.before.as_str(), now.as_str(), branch.as_str());
     let mut stderr: std::io::Stderr = std::io::stderr();

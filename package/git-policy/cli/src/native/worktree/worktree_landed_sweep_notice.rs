@@ -23,7 +23,7 @@
 //! ```
 
 use crate::shell_quote::shell_quote;
-use crate::worktree_landed_removal::LandedSweep;
+use crate::worktree_landed_removal::{HandedOverWorktree, LandedSweep};
 use std::path::Path;
 
 /// The prefix every line of this program carries.
@@ -33,6 +33,22 @@ const PREFIX: &str = "monochromatic-git-policy-cli: ";
 fn removal_command(worktree: &Path) -> String {
     let quoted: String = shell_quote(worktree.as_os_str().as_encoded_bytes().as_ref());
     return format!("git worktree remove {quoted}");
+}
+
+/// What:
+///  Where the wrapper keeps what became of a handed-over removal,
+///  as the person reads it.
+/// Why:
+///  The record moves from `pending` to `done` or `failed` under the work directory named here,
+///  and a person whose worktree is still there needs a place to look that is not this program's own words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordPlace = (record) => `${workDir(record.gitDir)}/${record.id}`;
+/// ```
+fn record_place(one: &HandedOverWorktree) -> String {
+    let work: std::path::PathBuf = crate::service_work::work_directory(one.record.git_dir.as_path());
+    return work.join(one.record.id()).display().to_string();
 }
 
 /// What:
@@ -77,6 +93,18 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             removed.worktree.display(),
             removed.branch,
             sweep.landed_branch
+        ));
+    }
+    // A removal that is Git's own reading of every file there is recorded for the commit service before this line is printed:
+    //  the merge waits for none of it, so the person reads where its outcome is and what stands until then.
+    for handed in &sweep.handed_over {
+        lines.push(format!(
+            "{PREFIX}handed the removal of the worktree {} to the commit service, though its branch {} is now on {}: removing it is Git's own reading of every tracked file there, and no merge waits for that. The branch stays. What became of it is the record {}: `done` there means the worktree is gone, and `failed`, with Git's own sentence in the service's journal, means Git kept it. If nothing there is yours and you want it gone now, `{}` removes it.",
+            handed.worktree.display(),
+            handed.branch,
+            sweep.landed_branch,
+            record_place(handed),
+            removal_command(handed.worktree.as_path())
         ));
     }
     for kept in &sweep.kept {

@@ -67,6 +67,15 @@
 //!  so every held commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before a candidate is examined
 //!  (`worktree_removal_held_commits.rs`),
 //!  and the person reads where the commit is before reading that the worktree went.
+//!  A removal that the fast destroy cannot take is handed to the commit service instead of run here:
+//!  removing a worktree Git removes file by file reads every tracked file of it and can take minutes,
+//!  and it is a step that may not be run twice,
+//!  so a merge that ran it kept the person's command open for as long as the deletion took
+//!  (the coordinator's integration passes on 2026-11-11 waited more than twenty seconds on one,
+//!  `still waiting for git worktree remove ..., a bulk step ..., it is a step that may not be run twice`).
+//!  The record that names the removal outlives the command,
+//!  the service of the worktree the merge ran in performs it,
+//!  and Git's own words for a refusal settle there as the record's outcome.
 //!  Nothing here can fail the merge that woke it.
 //!
 //! In TS you'd write (pseudocode):
@@ -83,8 +92,10 @@ use crate::worktree_landed_registrations::{RegisteredBefore, Registration, regis
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
+use crate::worktree_remove_hand_over::hand_over_worktree_removal;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
+use crate::work_item::WorkItem;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -137,6 +148,14 @@ pub struct LandedPlace<'a> {
     /// is not in it,
     /// and it did not exist when the merge did.
     pub(crate) registered_before: &'a RegisteredBefore,
+    /// The Git directory of the worktree the merge ran in,
+    /// whose commit service performs every removal this sweep hands over:
+    /// its work queue is the one that this record is read from,
+    /// and its instance is the one the record names.
+    pub git_dir: &'a Path,
+    /// How a handed-over removal tells that service a record waits,
+    /// which a control replaces with its own answer so no test reaches a service.
+    pub told: &'a dyn Fn(&GitContext, &Path) -> Result<(), String>,
 }
 
 /// A worktree this sweep removed.
@@ -162,6 +181,21 @@ pub struct KeptWorktree {
     pub why: String,
 }
 
+/// A worktree whose branch landed and whose removal the commit service performs,
+/// with the record that names it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HandedOverWorktree {
+    /// The worktree directory,
+    /// which is still there when the merge ends.
+    pub worktree: PathBuf,
+    /// The branch it has checked out,
+    /// which is kept.
+    pub branch: String,
+    /// The record the service reads,
+    /// whose id is the name this wrapper keeps what became of the removal under.
+    pub record: WorkItem,
+}
+
 /// A worktree whose branch landed and which nothing proves the wrapper made.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnprovenWorktree {
@@ -180,6 +214,9 @@ pub struct LandedSweep {
     pub landed_branch: String,
     /// What it removed.
     pub removed: Vec<RemovedWorktree>,
+    /// What it handed to the commit service to remove,
+    /// because that removal is Git's own read of every tracked file and may not be run twice.
+    pub handed_over: Vec<HandedOverWorktree>,
     /// What it left,
     /// with the reason.
     pub kept: Vec<KeptWorktree>,
@@ -386,6 +423,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         match examine_and_remove(place, one, registered.as_slice()) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
             Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
             Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
         }
@@ -394,41 +432,47 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 }
 
 /// What:
-///  Remove one worktree,
-/// by one subvolume destroy when the filesystem allows it and by Git otherwise.
+///  Remove one worktree here when the fast destroy can take it,
+///  and hand it to the commit service when Git must remove it.
 /// Why:
-///  On btrfs the destroy is what gives the snapshot's space back;
+///  On btrfs the destroy is what gives the snapshot's space back,
+///  and it is one kernel call behind a rename the person does not wait for;
 ///  Git's own removal is the line every other case keeps,
 ///  and it is also the answer when the mount forbids the destroy:
 ///  it deletes what Git ignores and refuses what it would keep,
 ///  so nothing a person wrote that Git keeps is lost,
 ///  and its own words say why when it refuses.
+///  That read of every tracked file is the step a merge may not run:
+///  it can take minutes,
+///  and the wrapper never ends a step that may not be run twice,
+///  so it is recorded for the service and this command returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// remove(place, registration) // throws Git's refusal, in Git's words
+/// removeHereOrHandOver(place, registration) // removed | handed(record) | throws the refusal in words
 /// ```
-fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
+fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Result<Removed, String> {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
-            return Ok(());
+            return Ok(Removed::Here);
         }
         RemoveOutcome::Refused(report) | RemoveOutcome::Incomplete(report) => return Err(report),
         RemoveOutcome::LeftToGit => {}
     }
-    let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
-    let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
-        Ok(finished) => finished,
-        Err(error) => return Err(format!("Git could not be started to remove it ({error})")),
-    };
-    if output.code == Some(0) {
-        return Ok(());
-    }
-    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-    return Err(format!("Git refused to remove it: {words}"));
+    let record: WorkItem = hand_over_worktree_removal(place.context, place.git_dir, place.cwd, one.worktree.as_path(), place.told)?;
+    return Ok(Removed::ByTheService(record));
+}
+
+/// What one removal came to.
+enum Removed {
+    /// The worktree and its registration are gone now.
+    Here,
+    /// The commit service holds a record that names it,
+    /// and performs the removal on its own.
+    ByTheService(WorkItem),
 }
 
 /// What:
@@ -511,6 +555,9 @@ fn unfinished_operation_reason(marker: &str) -> String {
 enum Examined {
     /// The worktree and its registration are gone.
     Removed,
+    /// The removal is recorded for the commit service,
+    /// which performs it on its own.
+    Handed(WorkItem),
     /// It stays,
     /// for this reason.
     Kept(String),
@@ -573,14 +620,15 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
             ));
         }
     }
-    let removal: Result<(), String> = remove(place, one);
-    if removal.is_ok() {
+    let removal: Result<Removed, String> = remove_here_or_hand_over(place, one);
+    if let Ok(Removed::Here) = removal {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
         clear_the_pool_of_a_removed_worktree(place.common_dir, one.admin.as_path());
     }
     return match removal {
-        Ok(()) => Examined::Removed,
+        Ok(Removed::Here) => Examined::Removed,
+        Ok(Removed::ByTheService(record)) => Examined::Handed(record),
         Err(reason) => Examined::Kept(reason),
     };
 }
