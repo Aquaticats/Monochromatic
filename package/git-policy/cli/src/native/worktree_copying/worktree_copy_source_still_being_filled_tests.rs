@@ -247,9 +247,9 @@ fn a_moved_source_a_copy_ended_in_is_not_staged_from() {
             moved.to_str().expect("utf8 moved"),
         ],
     );
-    let moved: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
+    let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
     assert_eq!(
-        source_is_still_being_filled(common.as_path(), moved.as_path()).expect("judged"),
+        source_is_still_being_filled(common.as_path(), moved_root.as_path()).expect("judged"),
         Some(UnfinishedCopy::LeftUnfilled),
         "the record still names the worktree Git moved"
     );

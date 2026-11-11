@@ -113,30 +113,30 @@ fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     let source: PathBuf = root.join("source");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8 source")]);
-    let source: PathBuf = std::fs::canonicalize(source).expect("canonical source");
-    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("identity");
+    let source_root: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
+    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(journal.as_path(), source_root.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
     let moved: PathBuf = root.join("moved");
     git(
         main.as_path(),
         &[
             "worktree",
             "move",
-            source.to_str().expect("utf8 source"),
+            source_root.to_str().expect("utf8 source"),
             moved.to_str().expect("utf8 moved"),
         ],
     );
-    let moved: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
+    let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
     let named: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
     assert_eq!(named.len(), 1, "the worktree still stands, so its record names it: {named:?}");
     assert!(
-        named[0].contains(quote(moved.to_string_lossy().as_ref()).as_str()),
+        named[0].contains(quote(moved_root.to_string_lossy().as_ref()).as_str()),
         "the line names where the worktree stands now: {}",
         named[0]
     );
     assert!(
-        !named[0].contains(quote(source.to_string_lossy().as_ref()).as_str()),
+        !named[0].contains(quote(source_root.to_string_lossy().as_ref()).as_str()),
         "the line names no path the worktree has left: {}",
         named[0]
     );

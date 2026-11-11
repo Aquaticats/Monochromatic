@@ -20,6 +20,7 @@
 //! const naming = registrationNaming(commonDir, destination); // { named } | none | unknown
 //! ```
 
+use crate::fs_beneath::ObjectId;
 use crate::plain_file::SMALL_FILE_LIMIT;
 use crate::plain_file::read_plain_file;
 use crate::worktree_add_binding::resolve_lexically;
@@ -123,6 +124,77 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 }
 
 /// What:
+///  The root of the registration of this repository whose worktree is the object `identity` names.
+/// Why:
+///   Git renames a worktree's directory when it moves it and keeps the object,
+/// so the identity a record captured still names that worktree while its recorded path no longer does;
+/// the registration's `gitdir` gives the path the worktree stands at now,
+/// which is the path every line and command about it must name.
+///   A registration that cannot be read names nothing:
+/// a `gitdir` is unreadable for a moment for reasons other than a move,
+/// and no record is held back or settled by a guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registeredRoot = (commonDir, identity) => readdir(join(commonDir, 'worktrees')).map(registrationRoot).find((root) => identityAt(root) === identity);
+/// ```
+pub(crate) fn registered_root_with_identity(common_dir: &Path, identity: ObjectId) -> Option<PathBuf> {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let listing = match std::fs::read_dir(worktrees.as_path()) {
+        Ok(listing) => listing,
+        // No `worktrees` directory is a repository with no linked worktree, so no registration names any object.
+        Err(_unreadable) => return None,
+    };
+    for listed in listing.flatten() {
+        let Some(root) = registration_root(listed.path().as_path()) else {
+            continue;
+        };
+        if crate::worktree_add_binding::path_identity(root.as_path()) == Some(identity) {
+            return Some(root);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The worktree root one registration's `gitdir` file names.
+/// Why:
+///  `gitdir` holds the path of the worktree's `.git` file,
+/// absolute or relative to the administrative directory,
+/// and the directory that holds it is the worktree;
+/// a file that is gone,
+/// empty or unreadable names no root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registrationRoot = (admin) => canonicalize(dirname(resolveLexically(admin, recordedLine(read('gitdir')))));
+/// ```
+fn registration_root(admin: &Path) -> Option<PathBuf> {
+    let recorded: Vec<u8> = read_plain_file(admin.join("gitdir").as_path(), SMALL_FILE_LIMIT).ok()?;
+    let line: &[u8] = recorded_line(recorded.as_slice());
+    if line.is_empty() {
+        return None;
+    }
+    let marker: PathBuf = resolve_lexically(admin, line).ok()?;
+    return std::fs::canonicalize(marker.parent()?).ok();
+}
+
+/// What:
+///  The path bytes a registration's `gitdir` file holds,
+/// with Git's one line feed removed.
+/// Why:
+///   Git ends the file with one line feed and writes the path as it is (`write_file` in its `worktree.c`),
+/// and trimming every space around it would rename a worktree whose path begins or ends with one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordedLine = (recorded) => recorded.endsWith('\n') ? recorded.slice(0, -1) : recorded;
+/// ```
+fn recorded_line(recorded: &[u8]) -> &[u8] {
+    return recorded.strip_suffix(b"\n").unwrap_or(recorded);
+}
+
+/// What:
 ///  What one registration's `gitdir` says about `destination`.
 /// Why:
 ///  `gitdir` holds the path of the worktree's `.git` file,
@@ -137,10 +209,7 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 /// const line = read('gitdir').replace(/\n$/, ''); const marker = resolveLexically(admin, line); return namingOf(canonicalize(dirname(marker)), destination)
 /// ```
 fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
-    // Git ends the file with one line feed and writes the path as it is (`write_file` in its `worktree.c`),
-    // and `bind_registration` removes that one line feed alone:
-    // trimming every space around it would rename a worktree whose path begins or ends with one.
-    let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded);
+    let line: &[u8] = recorded_line(recorded);
     if line.is_empty() {
         return Naming::Unproven;
     }
