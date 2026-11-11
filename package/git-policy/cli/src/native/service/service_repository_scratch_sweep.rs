@@ -20,9 +20,12 @@
 //!  the work is one thread of its own,
 //!  never the runtime's blocking pool,
 //!  because a sweep may hold a place there for a recursive removal the landing itself would wait for.
-//!  One collection runs at a time:
-//!  a second landing that begins meanwhile leaves the collection to the first,
-//!  which covers the same directory.
+//!  One collection runs at a time for each repository scratch directory:
+//!  a second landing of the same directory that begins meanwhile leaves the collection to the first,
+//!  and a landing of another directory that begins meanwhile collects its own,
+//!  because nothing would collect that one after the first ends
+//!  (the development service serves several common Git directories at once,
+//!  and two linked worktrees are two services over one scratch directory each).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,9 +39,9 @@ use crate::scoped_start::{refused_thread_sentence, spawn_named};
 /// and the rules it applies.
 use crate::scratch_location::sweep_repository_scratch;
 /// A path,
-/// and the flag that keeps one collection at a time.
+/// and what keeps one collection at a time for each directory.
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 /// The point at which a collection begins,
 /// for a control that holds one repository's collection open while another repository's is asked for
@@ -51,17 +54,53 @@ pub(crate) fn collection_point(common_dir: &Path) -> String {
 }
 
 /// Lock kept:
-///  whether this service is already collecting,
-///  which it sets and clears and nothing else touches:
+///  the common directories whose collection this service has started and not finished,
+///  which it adds to and removes from and nothing else touches:
 /// one collection at a time is all a repository scratch directory needs,
-/// and a landing never waits for this flag,
-/// because a landing that finds it set leaves the collection to the run already under way.
-static COLLECTING: AtomicBool = AtomicBool::new(false);
+/// and a landing of another directory never waits for more than the search, the addition and the removal of one entry,
+/// because a landing that finds its own directory here leaves the collection to the run already under way.
+static COLLECTING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// What:
+///  Claims the collection of `common_dir` for this caller,
+///  and answers whether it is this caller's to run.
+/// Why:
+///   A landing that finds its own directory already being collected starts nothing,
+///  and one of another directory starts its own collection:
+///  the entries of one scratch directory say nothing about another's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim(commonDir) // whether this caller runs the collection
+/// ```
+fn claim(common_dir: &Path) -> bool {
+    let mut collecting = COLLECTING.lock().expect("the collections this service runs");
+    if collecting.iter().any(|held| held.as_path() == common_dir) {
+        return false;
+    }
+    collecting.push(common_dir.to_path_buf());
+    return true;
+}
+
+/// What:
+///  Gives the collection of `common_dir` back,
+///  so the next landing of that repository starts one.
+/// Why:
+///   A directory whose collection ended is one no thread of this service is listing,
+///  and a reference that stayed would leave every later landing of that repository without a collection.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// release(commonDir) // void
+/// ```
+fn release(common_dir: &Path) {
+    COLLECTING.lock().expect("the collections this service runs").retain(|held| held.as_path() != common_dir);
+}
 
 /// What:
 ///  Starts the collection of one repository's scratch directory,
 ///  beside the landing loop,
-///  unless one is already running in this service.
+///  unless that same directory is already being collected by this service.
 /// Why:
 ///   Every answer the service gives is a commit the person waits for,
 ///  so the collection is started beside the loop and never inside it.
@@ -75,7 +114,7 @@ static COLLECTING: AtomicBool = AtomicBool::new(false);
 /// start(commonDir) // void
 /// ```
 pub fn start(common_dir: &Path) {
-    if COLLECTING.swap(true, Ordering::AcqRel) {
+    if !claim(common_dir) {
         return;
     }
     let owned: PathBuf = common_dir.to_path_buf();
@@ -85,21 +124,21 @@ pub fn start(common_dir: &Path) {
         //  and not a duration.
         #[cfg(test)]
         crate::service_fault::hooks::run_on_any_thread(collection_point(owned.as_path()).as_str());
-        // The flag is cleared however the collection ends, so one refused listing does not stop every later one.
+        // The directory is given back however the collection ends, so one refused listing does not stop every later one.
         let removed: usize = sweep_repository_scratch(owned.as_path());
-        COLLECTING.store(false, Ordering::Release);
+        release(owned.as_path());
         crate::diagnostic_log::debug(
             "repositoryScratchSweep",
             format!("collected {} stale entries of the repository scratch directory of {named}", removed).as_str(),
         );
     });
     if let Err(error) = started {
-        COLLECTING.store(false, Ordering::Release);
+        release(common_dir);
         crate::service_warn!("{}", refused_thread_sentence("collect the repository scratch directory", &error));
     }
 }
 
-/// The collection and its flag are controlled in the test module.
+/// The collection, the directories it holds and the point a control holds it at are controlled in the test module.
 #[cfg(test)]
 #[path = "service_repository_scratch_sweep_tests.rs"]
 mod tests;

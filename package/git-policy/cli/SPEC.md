@@ -12060,6 +12060,14 @@ which a preparation of a commit now is.
 Who removes it,
 and how long anyone waits:
 
+- The service collects the repository scratch directory when it begins a landing,
+  on a thread of its own beside the landing loop and never on a commit's path
+  (`src/native/service/service_repository_scratch_sweep.rs`).
+  One collection runs at a time for each directory:
+  a second landing of the same directory starts nothing and leaves the collection to the run already under way,
+  and a landing of another directory starts its own,
+  because the development service serves several common Git directories at once
+  and nothing retries a collection one directory's run skipped.
 - A request names its tree in the request's own `scratch` field,
   which the decoder refuses unless it is one of the wrapper's trees of that worktree,
   so the service never works the tree out from another path the request carries
