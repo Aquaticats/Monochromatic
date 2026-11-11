@@ -29,7 +29,7 @@ run = [
 ]
 
 [tasks.build]
-description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"
+description = "Build AddressSanitizer targets in a 2 CPU container, with the memory `buildMemory` in `bin/fuzz-images.ts` sizes to the instrumented compile"
 # Mechanism D: a build-only run writes a campaign- record of its own, so it sweeps the run records first too.
 run = ["cargo-shadow lean records target/verification", "node bin/container.ts --build-only"]
 

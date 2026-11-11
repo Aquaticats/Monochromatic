@@ -166,6 +166,11 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     it patches only paths already staged in the commit
     (`package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` lines 99 to 112 reject other targets),
     and its fixes never reach the worktree.
+    Note 2026-11-10T18:32:51-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+    Which paths a commit carries is decided in
+    `package/git-policy/cli/src/native/commit/commit_selection_staging.rs`,
+    and a fix installs its corrections into the worktree through
+    `package/git-policy/cli/src/native/policy/direct_fix_install.rs`.
    Owner decision (2026-09-15):
     extend the engine so a policy pass can add paths to the commit
     and write those fixes to the worktree when the worktree copy still matches `HEAD`,
@@ -186,6 +191,11 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     so both apply the same edge and publishability rules.
    It imports only Node built-ins and sibling source files,
     so the job needs no build step.
+    Note 2026-11-10T18:32:51-05:00: the task and that runner are deleted (2026-10-13 `a2b56c548c`).
+    `changeset:version` in `mise.toml:1514` runs
+    `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`,
+    and the edge and publishability rules it applies live under
+    `package/git-policy/cli/src/native/dependent_version/`.
    Evidence (2026-09-15,
   disposable clone of `main`):
     hand-bumping `@monochromatic-dev/or-throw-core` and running the runner planned 19 dependent bumps,
