@@ -375,7 +375,9 @@ fn is_not_the_per_worktree_pattern(entry: &std::fs::DirEntry) -> bool {
 }
 
 /// What:
-///  Whether an entry's type, when it could be read, is a directory.
+///  Whether an entry's type,
+/// when it could be read,
+/// is a directory.
 /// Why:
 ///   A type that cannot be read counts as not a directory,
 ///  which only Windows tells apart:
