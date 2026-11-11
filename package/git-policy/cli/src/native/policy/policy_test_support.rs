@@ -59,9 +59,6 @@ pub(crate) struct ScriptedFacts {
     /// The paths the same clean names without those patterns;
     ///  the whole answer is the same when the query carries none.
     pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
-    /// The lines of the same clean's dry run written with one force,
-    ///  which name the nested repositories that force keeps.
-    pub(crate) clean_keeps_with_one_force: Result<Vec<Vec<u8>>, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -148,11 +145,6 @@ impl RepositoryFacts for ScriptedFacts {
             return self.clean_deletes.clone();
         }
         return self.clean_deletes_without_exclusions.clone();
-    }
-
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        self.asked.push(format!("clean-would-keep:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        return self.clean_keeps_with_one_force.clone();
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
@@ -290,7 +282,6 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         ignored_and_tracked: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
-        clean_keeps_with_one_force: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

@@ -181,6 +181,29 @@ pub fn read_stopped_text(fact: &str, error: &std::io::Error) -> Option<String> {
 /// ```ts
 /// async function runMetadataGit(realGit, args, overlay): Promise<MetadataOutput>;
 /// ```
+/// The locale variable every read the wrapper parses is pinned with.
+/// Why:
+///  Git writes its own words in the locale it is given,
+///  and the wrapper matches those words;
+///  pinning the one variable overrides every other locale setting the person's command carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const QUERY_LOCALE_VARIABLE = 'LC_ALL';
+/// ```
+pub const QUERY_LOCALE_VARIABLE: &str = "LC_ALL";
+
+/// The locale every read the wrapper parses runs in.
+/// Why:
+///  The C locale is the untranslated one,
+///  so a printed message is the message the wrapper matches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const QUERY_LOCALE = 'C';
+/// ```
+pub const QUERY_LOCALE: &str = "C";
+
 pub fn run_metadata_git(
     real_git: &Path,
     arguments: &[OsString],
@@ -270,6 +293,17 @@ pub fn run_metadata_git_without_within(
     for name in remove {
         command.env_remove(name);
     }
+    // What: Every read the wrapper parses runs in the C locale, whatever locale the person's command carries.
+    // Why:  The words the wrapper matches are Git's own (`Would remove <path>` in `builtin/clean.c`), and Git translates
+    //       them: under `fr_FR` the same answer reads `Supprimerait nested/`, which matched no prefix, so a nested
+    //       repository below that name was deleted unsaved. Messages are the only thing a locale changes in these
+    //       answers (paths stay bytes), and a message the wrapper reports is English already.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // command.env('LC_ALL', 'C');
+    // ```
+    command.env(QUERY_LOCALE_VARIABLE, QUERY_LOCALE);
     // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
     //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
     //  (`started_as_git.rs`).
