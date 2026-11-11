@@ -4425,7 +4425,7 @@ The change itself is the commit `75de8b98a8`.
   which is where the conclusion copies lived.
   The bar against native Git is measured by
   `mise run //package/git-policy/cli:native:perf`.
-- Two samples per cell were planned and three were taken,
+- Three samples per cell,
   which is enough to show a 7 s cost disappearing and not enough to state a percentile.
   The percentile of this cost comes from the installed wrapper's own 55 records,
   which is where 70,564 ms comes from.
