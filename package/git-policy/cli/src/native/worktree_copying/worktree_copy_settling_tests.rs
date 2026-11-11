@@ -462,7 +462,40 @@ fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
         "the entry the pipe replaced is gone, and the directory that held it and its neighbour stay"
     );
     assert!(settled.unsettled.is_empty(), "the pipe is no entry that would not settle: {}", settled.unsettled.len());
+    assert_eq!(settled.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as one no worktree can hold");
     assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour was staged before the pass answered");
+    assert!(!stage.join("cache/b.txt").exists(), "nothing of the entry that became a pipe is installed");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// A named pipe that replaced a source file after the copy ran is named by the comparison's own pass,
+/// so the entry a worktree cannot hold is said even when no copy ever met it.
+/// Why:
+///  the comparison's walks leave a named pipe out of the source's manifest,
+/// so the entry answers as gone,
+/// and only the look at the name tells the two answers apart.
+#[cfg(unix)]
+#[test]
+fn a_pipe_that_replaces_a_file_after_the_copy_is_named_by_the_settling_pass() {
+    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-after-copy", UNCHANGED);
+    let copied: CopiedManifest = copy_manifest_entries_with(source.as_path(), stage.as_path(), entries.as_slice(), changing_clone, &CopyCeiling::unbounded()).expect("both entries are copied");
+    assert!(copied.gone.is_empty(), "both files were there for their copy");
+    std::fs::remove_file(source.join("cache/b.txt")).expect("the file goes away");
+    make_pipe(source.join("cache/b.txt").as_path());
+    let settled: Settled = settle_the_copy(SettlingRequest {
+        source_root: source.as_path(),
+        stage_root: stage.as_path(),
+        selected_roots: [b"cache".to_vec()].as_slice(),
+        excluded_source_roots: &[],
+        prune: Prune::Never,
+        entries,
+        stamps: copied.stamps,
+        clone: changing_clone,
+        gone: copied.gone,
+    })
+    .expect("a pipe that replaced a file is no failure of the settling");
+    assert_eq!(settled.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as one no worktree can hold");
     assert!(!stage.join("cache/b.txt").exists(), "nothing of the entry that became a pipe is installed");
     drop(held);
     remove(root.as_path());

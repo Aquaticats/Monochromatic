@@ -114,7 +114,8 @@ pub struct SettlingRequest<'a> {
 /// What:
 ///  The manifest the stage now holds,
 /// its stamps,
-/// and the entries left in their source because they would not settle.
+/// the entries left in their source because they would not settle,
+/// and the names that hold something a worktree cannot copy.
 /// Why:
 ///   The caller installs exactly these entries and tells the person about the others;
 /// nothing left out is
@@ -122,7 +123,7 @@ pub struct SettlingRequest<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: Uint8Array[] };
+/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: Uint8Array[]; uncopiable: Uint8Array[] };
 /// ```
 pub struct Settled {
     /// The entries the stage holds.
@@ -133,8 +134,51 @@ pub struct Settled {
     /// The entries left in the source because they kept changing under the copy,
     /// as the bytes of each name.
     pub unsettled: Vec<Vec<u8>>,
+    /// The names that hold a socket,
+    /// a named pipe or a device node now,
+    /// left out of the stage and named with the entries the walk itself left out,
+    /// as the bytes of each name.
+    pub uncopiable: Vec<Vec<u8>>,
     /// How many manifest entries the source no longer held when their turn came.
     pub gone: usize,
+}
+
+/// What:
+///  The manifest entries the source no longer holds, apart from the names that hold something a worktree cannot copy.
+/// Why:
+///   An entry that went away has nothing left to install and nothing to tell;
+/// a name a build replaced with a named pipe,
+///  a socket or a device node holds none of the bytes the listing promised,
+/// and the new worktree lacks it,
+/// so it is
+///  named with the entries the walk itself left out.
+/// The look is asked after the copy answered,
+/// because only the filesystem knows whether the
+///  entry went away or became something else;
+/// it reads the name and never opens it,
+/// so a named pipe no process
+///  writes to answers at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function splitGone(sourceRoot, paths) { const absent = [], replaced = []; for (const path of paths) { (lstatOrAbsent(join(sourceRoot, path)) === undefined ? absent : replaced).push(path); } return [absent, replaced]; }
+/// ```
+fn split_gone(source_root: &Path, paths: &[Vec<u8>]) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+    let mut absent: Vec<Vec<u8>> = Vec::new();
+    let mut replaced: Vec<Vec<u8>> = Vec::new();
+    for path in paths {
+        let Ok(source_path) = filesystem_path(source_root, path.as_slice()) else {
+            replaced.push(path.clone());
+            continue;
+        };
+        // A name that cannot be examined is no proven absence, so it is named rather than passed over in silence.
+        if matches!(lstat_or_absent(source_path.as_path()), Ok(None)) {
+            absent.push(path.clone());
+            continue;
+        }
+        replaced.push(path.clone());
+    }
+    return (absent, replaced);
 }
 
 /// What:
@@ -149,18 +193,27 @@ pub struct Settled {
 ///  source,
 /// named,
 /// rather than failing an add whose worktree Git already made.
+/// A name that now holds a socket,
+/// a named pipe or a device node is named with the entries no worktree can hold,
+/// because
+///  the new worktree lacks it and nothing else says which entry became one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function settleTheCopy(request) { for (let pass = 0; ; pass += 1) { const d = differences(request); if (!d.gone.length && !d.changed.length) return { entries, stamps, unsettled }; dropGone(d.gone); if (d.changed.length) { if (pass < SETTLING_RETRIES && pass < MOST_PASSES) copyAgain(d.changed) else { leave(d.changed); unsettled.push(...d.changed) } } else if (pass > MOST_PASSES) return failure } }
+/// function settleTheCopy(request) { for (let pass = 0; ; pass += 1) { const d = differences(request); if (!d.gone.length && !d.changed.length) return { entries, stamps, unsettled, uncopiable }; splitGone(d.gone); if (d.changed.length) { if (pass < SETTLING_RETRIES && pass < MOST_PASSES) copyAgain(d.changed) else { leave(d.changed); unsettled.push(...d.changed) } } else if (pass > MOST_PASSES) return failure } }
 /// ```
 pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, WorktreeCopyError> {
     let mut entries: Vec<WorktreeCopyEntry> = request.entries;
     let mut stamps: Vec<Option<FileStamp>> = request.stamps;
     let mut unsettled: Vec<Vec<u8>> = Vec::new();
-    let gone_count: usize = request.gone.len();
-    // An entry the copy found gone has no stage file, so it leaves the manifest before the modes are applied.
-    leave_out(&mut entries, &mut stamps, request.gone.as_slice(), request.stage_root)?;
+    let mut uncopiable: Vec<Vec<u8>> = Vec::new();
+    // An entry the copy found gone has no stage file, so it leaves the manifest before the modes are applied. A name that
+    // now holds something a worktree cannot copy leaves it too, and is named for the person.
+    let (absent, replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) = split_gone(request.source_root, request.gone.as_slice());
+    let gone_count: usize = absent.len();
+    let dropped: Vec<Vec<u8>> = absent.iter().chain(replaced.iter()).cloned().collect();
+    uncopiable.extend(replaced);
+    leave_out(&mut entries, &mut stamps, dropped.as_slice(), request.stage_root)?;
     // The comparison compares modes, and a copy makes its own entries private, so the source's modes are applied first.
     apply_entry_modes(request.stage_root, entries.as_slice())?;
     let mut pass: usize = 0;
@@ -174,12 +227,16 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
             &FinalCheck { prune: request.prune, stamps: stamps.as_slice() },
         )?;
         if differences.gone.is_empty() && differences.changed.is_empty() {
-            return Ok(Settled { entries, stamps, unsettled, gone: gone_count });
+            return Ok(Settled { entries, stamps, unsettled, uncopiable, gone: gone_count });
         }
-        // An entry the source removed has no stage file to keep and nothing to install.
-        leave_out(&mut entries, &mut stamps, differences.gone.as_slice(), request.stage_root)?;
+        // An entry the source removed has no stage file to keep and nothing to install; a name that now holds a socket,
+        // a named pipe or a device node is the entry the person is told a worktree cannot hold.
+        let (later_away, later_replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) = split_gone(request.source_root, differences.gone.as_slice());
+        let dropped_now: Vec<Vec<u8>> = later_away.iter().chain(later_replaced.iter()).cloned().collect();
+        uncopiable.extend(later_replaced);
+        leave_out(&mut entries, &mut stamps, dropped_now.as_slice(), request.stage_root)?;
         if differences.changed.is_empty() {
-            pass = next_pass(pass, differences.gone.as_slice())?;
+            pass = next_pass(pass, later_away.as_slice())?;
             continue;
         }
         if pass < SETTLING_RETRIES {
