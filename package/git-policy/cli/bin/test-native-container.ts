@@ -24,7 +24,10 @@ import {
   nativeTestImageRepository,
 } from './native-gate-image-tag.ts';
 import { runGateChecks, } from './native-gate-checks.ts';
-import { gateContainerLimitOptions, } from './native-gate-container-limits.ts';
+import {
+  gateContainerLimitOptions,
+  gateLimitsFrom,
+} from './native-gate-container-limits.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
@@ -72,12 +75,14 @@ async function localImageNames(): Promise<readonly ImageName[]> {
   return imageNames({ output: listing.stdout, },);
 }
 
-// Resource limits default to the repository's test-container bounds; `--memory`, `--cpus` and `--pids-limit` override them.
+// Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
+// and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
+// test threads need (bin/native-gate-container-limits.ts).
 /**
- Container limits of this gate, and the arguments left over, which are a usage error.
+ The limits the parser read, and the arguments left over, which are a usage error.
  */
 const {
-  limits: containerLimits,
+  limits: givenLimits,
   rest: unknownOptions,
 } = parseContainerLimitOptions({
   // The gate's own bounds come first, so a person's option after them wins: the parser keeps the last repeat.
@@ -90,6 +95,15 @@ const {
 });
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
+/**
+ The limits this gate's containers run under, with the process bound raised to what its test threads need.
+ */
+const {
+  limits: containerLimits,
+  raised: raisedProcessBound,
+} = gateLimitsFrom({ given: givenLimits, });
+if (raisedProcessBound !== undefined)
+  console.log(raisedProcessBound);
 
 // The gate is this package's authority, so it reads the sidecars' locks before it builds anything: a dependency this
 // package gained, dropped or moved makes a sidecar's lock stale, and the sidecar's own build only finds that later.

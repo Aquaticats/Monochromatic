@@ -4,19 +4,24 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { parseContainerLimitOptions, } from './container-limits.ts';
+import {
+  defaultContainerLimits,
+  parseContainerLimitOptions,
+} from './container-limits.ts';
 import {
   gateContainerCpus,
   gateContainerLimitOptions,
+  gateLimitsFrom,
+  processesForTestThreads,
 } from './native-gate-container-limits.ts';
 
 /**
  The limits the gate reads when a person passes nothing after the task name.
  */
-const gateLimitsWithNothingGiven = parseContainerLimitOptions({
+const limitsWithNothingGiven = parseContainerLimitOptions({
   options: [...gateContainerLimitOptions],
   acceptPidsLimit: true,
-});
+}).limits;
 
 await describe({
   name: 'the gate\'s own container limits',
@@ -24,13 +29,12 @@ await describe({
     it({
       name: 'size the gate\'s container at the gate\'s CPU count when a person names none',
       fn: async () => {
-        expect(gateLimitsWithNothingGiven.limits.cpus).toBe(gateContainerCpus);
-        expect(gateLimitsWithNothingGiven.rest).toEqual([]);
+        expect(limitsWithNothingGiven.cpus).toBe(gateContainerCpus);
       },
       timeout: 10_000,
     }),
     it({
-      name: 'keep a person\'s own --cpus over the gate\'s, because the later repeat wins',
+      name: 'read the gate\'s own CPU count as the first repeat, so a person\'s --cpus after it wins',
       fn: async () => {
         /**
          CPU count a person passed after the task name, smaller than the gate's own.
@@ -39,7 +43,7 @@ await describe({
         /**
          The limits the gate reads when that option follows its own.
          */
-        const { limits: gateLimits } = parseContainerLimitOptions({
+        const { limits: given } = parseContainerLimitOptions({
           options: [
             ...gateContainerLimitOptions,
             '--cpus',
@@ -47,22 +51,88 @@ await describe({
           ],
           acceptPidsLimit: true,
         });
-        expect(gateLimits.cpus).toBe(cpus);
+        expect(given.cpus).toBe(cpus);
       },
       timeout: 10_000,
     }),
     it({
-      name: 'leave the memory and process bounds at the repository defaults',
+      name: 'raise the process bound to what the test threads need, and say so',
       fn: async () => {
         /**
-         The limits the gate does not size itself, which must stay the repository's own.
+         Processes the repository default gives a container, which is below what four test threads need.
          */
-        const repositoryDefaults = parseContainerLimitOptions({
-          options: [],
-          acceptPidsLimit: true,
+        const tooFew = defaultContainerLimits.pidsLimit;
+        /**
+         The limits and the line the gate runs and prints.
+         */
+        const { limits, raised } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
         });
-        expect(gateLimitsWithNothingGiven.limits.memory).toBe(repositoryDefaults.limits.memory);
-        expect(gateLimitsWithNothingGiven.limits.pidsLimit).toBe(repositoryDefaults.limits.pidsLimit);
+        expect(limits.pidsLimit).toBe(processesForTestThreads(gateContainerCpus));
+        expect(limits.pidsLimit).toBeGreaterThan(tooFew);
+        expect(raised).toContain(String(tooFew));
+        expect(raised).toContain(String(limits.pidsLimit));
+        expect(raised).toContain('--pids-limit');
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'keep a process bound a person raised themselves, and say nothing',
+      fn: async () => {
+        /**
+         A process bound a person set above the gate's own floor.
+         */
+        const generous = processesForTestThreads(gateContainerCpus) * 2;
+        /**
+         The limits and the line the gate runs and prints.
+         */
+        const { limits, raised } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+            pidsLimit: generous,
+          },
+        });
+        expect(limits.pidsLimit).toBe(generous);
+        expect(raised).toBeUndefined();
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'leave a container the repository default already suits unchanged, which is two test threads',
+      fn: async () => {
+        /**
+         The limits and the line the gate runs and prints for a two-CPU container, as the mutation campaigns and the
+         planted controls still start.
+         */
+        const { limits, raised } = gateLimitsFrom({ given: defaultContainerLimits });
+        expect(limits).toEqual(defaultContainerLimits);
+        expect(raised).toBeUndefined();
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'leave the memory and CPU bounds a person asked for exactly as given',
+      fn: async () => {
+        /**
+         Memory a person asked for.
+         */
+        const memory = '1g';
+        /**
+         The limits and the line the gate runs and prints.
+         */
+        const { limits } = gateLimitsFrom({
+          given: {
+            memory,
+            cpus: gateContainerCpus,
+            pidsLimit: defaultContainerLimits.pidsLimit,
+          },
+        });
+        expect(limits.memory).toBe(memory);
+        expect(limits.cpus).toBe(gateContainerCpus);
       },
       timeout: 10_000,
     }),
