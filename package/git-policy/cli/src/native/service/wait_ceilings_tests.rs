@@ -185,6 +185,30 @@ fn a_running_unit_that_greets_nothing_is_restarted_within_the_start_ceiling() {
 }
 
 /// What:
+///  The wait a landing grants one record of its batch's journal is five times the longest journal write the service's log holds,
+///  in whole minutes,
+///  and every face that waits for such a record takes it.
+/// Why:
+///   The intent is what a person's commit waits for,
+/// and a write that waits in the kernel with no end is the owner's "nothing should ever wait forever or indefinitely";
+/// a ceiling that drifted below the measured writes would fail commits that land today,
+/// and one that no face takes would leave the wait unbounded.
+#[test]
+fn a_journal_record_waits_five_times_the_longest_write_measured() {
+    assert_eq!(LONGEST_JOURNAL_WRITE, Duration::from_millis(40_188), "the longest `journal_ms` of 1,302 landings");
+    assert_eq!(JOURNAL_WRITE_CEILING, derived(LONGEST_JOURNAL_WRITE), "five times the longest, in whole minutes");
+    assert!(JOURNAL_WRITE_CEILING > LONGEST_JOURNAL_WRITE, "a write the log recorded ends inside the ceiling");
+    let stating: [(&str, &str); 3] = [
+        ("landing/conclusion_state_copy.rs", include_str!("../landing/conclusion_state_copy.rs")),
+        ("landing/service_scratch_ref_marker_of_a_batch.rs", include_str!("../landing/service_scratch_ref_marker_of_a_batch.rs")),
+        ("service/service_journal.rs", include_str!("service_journal.rs")),
+    ];
+    for (path, source) in stating {
+        assert!(source.contains("JOURNAL_WRITE_CEILING"), "{path} waits for its own record within this ceiling");
+    }
+}
+
+/// What:
 ///  A repair tool is announced before either of the two bounds that end it,
 /// and long after a tool that works quickly has finished.
 /// Why:

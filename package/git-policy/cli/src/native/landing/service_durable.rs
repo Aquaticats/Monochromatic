@@ -396,6 +396,98 @@ pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
     return Ok(());
 }
 
+/// What a landing's syncs became while one piece of code ran:
+/// the figures its answer states,
+/// and the flushes the landing settles at its end.
+///  Why:
+///   A step of a landing that runs as a job of the blocking pool has no landing's state to record either in
+/// (`landing_state_carried_by_its_task.rs`,
+/// a `tokio::task_local!` the pool's threads are outside),
+/// so the job answers what its syncs became and the caller records it in the landing it runs in.
+/// The sync faces answer in this value too,
+/// and record it themselves,
+/// so both faces read one implementation of each flush.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const became = new WhatTheSyncsBecame(); flushFileCarrying(file, 'intent-file', deferring, became); became.keep();
+/// ```
+#[derive(Default)]
+pub(crate) struct WhatTheSyncsBecame {
+    /// What each sync was for and how long it took,
+    /// in the order it was asked for.
+    figures: Vec<SyncFigure>,
+    /// The flushes a deferring landing settles at its end.
+    queued: Vec<Pending>,
+}
+
+impl WhatTheSyncsBecame {
+    /// What:
+    ///  Records them in the landing this code runs in.
+    /// Why:
+    ///   The caller of a job of the pool is the landing's task,
+    /// which is the one owner of the landing's state.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// became.keep()
+    /// ```
+    pub(crate) fn keep(self) {
+        for figure in self.figures {
+            on_the_landing_state(figure, record_a_sync);
+        }
+        for pending in self.queued {
+            on_the_landing_state(pending, queue_a_sync);
+        }
+    }
+}
+
+/// Whether the syncs of the code running here are deferred:
+/// the landing's own answer,
+/// which a job of the pool carries because it has no landing's state to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeIntentAwaiting(dir, intent) // the task reads this and the job takes it
+/// ```
+pub(crate) fn syncs_are_deferred_here() -> bool {
+    return on_the_landing_state((), is_deferring);
+}
+
+/// Flushes a file that is a landing's record:
+/// queued while a landing defers,
+/// made now otherwise,
+/// with what became of it left in `became` for the caller to record.
+///
+/// # Errors
+///
+/// The error of the flush when it is made now.
+pub(crate) fn flush_file_carrying(file: &File, what: &'static str, deferring: bool, became: &mut WhatTheSyncsBecame) -> std::io::Result<()> {
+    if deferring {
+        crate::service_fault::note(format!("sync-queued:{what}").as_str());
+        became.figures.push(SyncFigure { what, waited: false, took: Duration::ZERO });
+        let handle: File = file.try_clone()?;
+        became.queued.push(Pending { handle, what });
+        return Ok(());
+    }
+    let began: Instant = Instant::now();
+    let synced: std::io::Result<()> = file.sync_all();
+    became.figures.push(SyncFigure { what, waited: true, took: began.elapsed() });
+    crate::service_fault::note(format!("sync-waited:{what}").as_str());
+    return synced;
+}
+
+/// Flushes a directory whose entries are a landing's records,
+/// as `flush_file_carrying` does for a file.
+///
+/// # Errors
+///
+/// The error of opening the directory,
+/// or of the flush when it is made now.
+pub(crate) fn flush_directory_carrying(directory: &std::path::Path, what: &'static str, deferring: bool, became: &mut WhatTheSyncsBecame) -> std::io::Result<()> {
+    return flush_file_carrying(&File::open(directory)?, what, deferring, became);
+}
+
 /// Flushes a file that is a landing's record:
 /// queued while a landing defers,
 /// made now otherwise.
@@ -404,18 +496,10 @@ pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
 ///
 /// The error of the flush when it is made now.
 pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
-    if on_the_landing_state((), is_deferring) {
-        crate::service_fault::note(format!("sync-queued:{what}").as_str());
-        note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
-        let handle: File = file.try_clone()?;
-        on_the_landing_state(Pending { handle, what }, queue_a_sync);
-        return Ok(());
-    }
-    let began: Instant = Instant::now();
-    let synced: std::io::Result<()> = file.sync_all();
-    note_a_sync(SyncFigure { what, waited: true, took: began.elapsed() });
-    crate::service_fault::note(format!("sync-waited:{what}").as_str());
-    return synced;
+    let mut became: WhatTheSyncsBecame = WhatTheSyncsBecame::default();
+    let flushed: std::io::Result<()> = flush_file_carrying(file, what, syncs_are_deferred_here(), &mut became);
+    became.keep();
+    return flushed;
 }
 
 /// Flushes a directory whose entries are a landing's records,
