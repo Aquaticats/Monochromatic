@@ -1947,10 +1947,11 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// because the command reports what it kept and that promise must survive a power cut.
 /// The index lock's marker is not one of those records:
 /// it names the holder and nothing else,
-/// so 322079b2f0 handed its flush to the service's background task,
-/// which `sync_file` in `service_index_placement.rs` does,
+/// so `322079b2f0` handed its flush to the service's background task,
+/// which `sync_file` in `service_index_placement.rs` does through `service_durable::defer_file`,
 /// and no commit waits for it,
-/// a withdrawal included
+/// a withdrawal included;
+/// a torn marker is judged stale and removed by the next command
 /// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
 /// "What was changed").
 #[test]

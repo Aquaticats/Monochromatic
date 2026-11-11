@@ -108,6 +108,95 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### An add's clean leaves a stale `Cargo.lock` rewritten (2026-11-11T15:30:00-05:00)
+
+Branch `fix/git-policy-cli-suite-failures-on-main-tip`,
+merged into `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`.
+`package_repair::real_cargo_leaves_a_stale_lockfile_as_checked_out` fails there,
+and every file the control exercises is byte-identical to the integration tip's,
+so the merge neither caused it nor changed which bytes run:
+`git diff --no-index` of each against `fc9f7f5f4b` is empty
+(`binary_package_repair_tests.rs`,
+`package_repair*.rs`,
+`package_repair_cargo_lock.rs`,
+`worktree_copying/worktree_copy_after_lock.rs`,
+`worktree_copying/worktree_copy_forward.rs`).
+Root cause,
+read from that code:
+the add's ladder builds its own `GitContext` with `common_dir: None`
+(`worktree_copy_forward.rs`,
+"The copy queries send no input,
+so no scratch directory is needed"),
+and `package_repair_cargo.rs` hands `request.git.common_dir` to `restore_lock` as `kept_in`.
+`restore_lock` answers with the line about no Git directory being named and writes nothing,
+which is the rule this page records under the displaced-lock change,
+so Cargo's rewrite of a lock that no longer matches its manifest stands in the new worktree and
+`git status` is dirty.
+The commit that brought the rule in listed only `package_repair_cargo_lock_tests.rs` as its evidence,
+so this control was not run with it.
+Open:
+the branch that owns `package_repair_cargo_lock.rs` decides whether the add hands its repair the
+common directory,
+or whether a lock left as found is what the add wants and the control's expectation moves.
+Evidence:
+`~/temp/agent/merge-jam-fixes/test-stale-lock-1.log` and
+`~/temp/agent/merge-jam-fixes/test-binary.log`.
+
+### Both suites on the integration, run whole, and the controls they left (2026-11-11T12:40:00+00:00)
+
+Branch `fix/git-policy-cli-suite-failures-on-main-tip`,
+which carries the jam-fix integration and `main` at `637a834afd`.
+Both suites were run whole once on that tree.
+
+- The unit suite ran 6,451 tests,
+  passed 6,428 and failed 23
+  (`~/temp/agent/wrapper-suite-5/unit-suite-failures-2026-11-11.log`).
+  All 23 are controls whose expected words,
+  overlay or owner had moved under a landing;
+  each now reads its owner,
+  and 187 controls of the groups touched pass.
+  The one unit failure this page recorded before,
+  `worktree_copy_stage_claim::tests::a_record_whose_named_git_still_runs_is_kept_while_its_destination_is_absent`,
+  passes (5.041 s).
+- The binary suite ran 949 tests,
+  passed 941 and failed 8
+  (`~/temp/agent/wrapper-suite-5/binary-suite-failures-2026-11-11.log`).
+  The 17 controls this page named from the earlier gate pass today in their seven groups
+  (`budget` 8,
+  `service_lane` 2,
+  `service_native` 12,
+  `service_replay` 8,
+  `service_provision` 13,
+  `dependent_version` 14,
+  `option_order_guard` 3,
+  no failure).
+  Of today's eight:
+  the prewarm now makes the folder Cargo's external build directory sits in,
+  the ladder's control reads `DESTROY_NOTICE`,
+  and six merges killed by the harness supervisor are covered by its answer-wait rule
+  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
+  "A merge that waited for the commit service's answer,
+  2026-11-11").
+- The three settle controls failed once in an earlier whole run and pass now;
+  the residual hold they can meet is a program whose `--journal` folder cannot be resolved yet,
+  which `doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md` records.
+
+Still open,
+and not this branch's:
+the package lint with `--max-warnings 0` reports 30 findings in files no commit here touched
+(`README.md` 5,
+`service_server_connection_handling_tests.rs` 5,
+`worktree_remove_hand_over.rs` 4,
+`idle_io_priority.rs` 2,
+`test_support.rs` 3,
+`test_support_tests.rs` 2,
+and one each in `service_durable.rs`,
+`worktree_trash_hand_over.rs`,
+`worktree_trash_hand_over_tests.rs`,
+`worktree_remove_hand_over_tests.rs`,
+`worktree_copy_source_still_being_filled_tests.rs`,
+and `service_work_drain_pending_claims.rs`).
+
 ### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings`,

@@ -520,18 +520,18 @@ fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() 
     let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
     assert_eq!(first.len(), 1, "{first:?}");
-    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     // The two commands are the ones a report of an interrupted add names everywhere, and they are the ones
     //  `worktree_finish_commands.rs` owns, so the expected words come from there: the finish command carries the
     //  worktree guard's hatch, which a checkout that never ran needs.
-    let (finish, remove_it): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
-    assert!(first[0].contains(finish.as_str()) && first[0].contains(remove_it.as_str()), "the report names what finishes or removes it: {}", first[0]);
+    let (finish, remove_command): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
+    assert!(first[0].contains(finish.as_str()) && first[0].contains(remove_command.as_str()), "the report names what finishes or removes it: {}", first[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
     // The person finishes the checkout the report names.
     crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
     let finished: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing");
     assert_eq!(finished.len(), 1, "{finished:?}");
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(
         finished[0].contains("the copy of its source's ignored state never finished") && finished[0].contains(shown.as_str()),
         "the worktree that is whole is named for the copy it never received: {}",
@@ -556,8 +556,8 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
-    let (finish, remove_it): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
-    assert!(notices[0].contains(finish.as_str()) && notices[0].contains(remove_it.as_str()), "{}", notices[0]);
+    let (finish, remove_command): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
+    assert!(notices[0].contains(finish.as_str()) && notices[0].contains(remove_command.as_str()), "{}", notices[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records stay while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), notices, "the next command says the same");
     remove(root.as_path());

@@ -104,6 +104,33 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
 }
 
 /// What:
+///  A build directory whose own folder is not there yet is still filled:
+/// the folder Cargo's layout names before the hash is made before the marker and the staging copy beside it.
+/// Why:
+///  `build.build-dir` writes an external build directory as `<root>/<two characters>/<hash>`,
+/// and a worktree that has
+///  never been built has neither,
+/// so the marker the filling writes first was refused with `No such file or directory` and
+///  nothing of the workspace was filled
+///  (the binary suite's `package_repair::real_cargo_rebuilds_own_crates_with_an_external_build_directory`,
+/// 2026-11-11).
+#[test]
+fn a_build_directory_beside_a_folder_that_is_not_there_yet_is_still_filled() {
+    let root: PathBuf = fixture("prewarm-missing-folder");
+    let mut entry: PrewarmEntry = entry_of(root.as_path());
+    // The two characters Cargo's own layout puts above the hash.
+    entry.to = root.join("worktree-build/6f/0123456789abcd");
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
+    let Err(reason) = filled else { panic!("a clean that cannot run is reported: {filled:?}") };
+    assert!(reason.starts_with("the copy of"), "the filing got as far as the clean, so the marker and the staging copy were made: {reason}");
+    assert!(!entry.to.exists(), "a clean that failed publishes nothing");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A staging copy is published under the build directory's name when nothing is there,
 /// and a second publish over an existing directory answers that it was not published.
 /// Why:

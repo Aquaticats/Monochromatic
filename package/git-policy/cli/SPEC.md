@@ -3238,7 +3238,13 @@ The ignored-state copy a worktree-creating command makes takes that leave-out by
 while the copy and the comparison of a conversion ask the entry's kind as well,
 so a file or a link whose name begins that prefix is the source's own ignored state there.
 A folder that holds nothing but such containers is no state of the source either,
-so a conversion's copy leaves it out whole instead of handing the new worktree an empty folder nothing names.
+so a conversion's copy leaves it out whole instead of handing the new worktree an empty folder nothing names,
+and neither is a folder above it that holds nothing else made,
+so a conversion of a worktree that holds a stage container and no other ignored state leaves no `.claude/worktrees`
+behind for state it never carried;
+a folder of the source that holds no entry at all is still copied as it is.
+A deletion pass leaves a stage container in the destination where it stands,
+because it belongs to the command filling it.
 The repository root's own `.cache` is kept,
 because tasks read the tools and generated inputs it holds.
 Dependencies,
