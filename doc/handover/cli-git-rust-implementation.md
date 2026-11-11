@@ -47,6 +47,9 @@ and on the driver-port review's 429 both layers retried (Pi at 1, 2 and 4 s, the
 Round 225 (`fix/pi-shared-subagent-driver-leaves-429s-to-pis-native-retry`) takes 429s out of the driver's retry;
 `fix/pi-shared-subagent-driver-runs-survive-a-concurrency-429` (driver-side 429 handling, unmerged since 2026-11-10) does not land,
 and round 224, briefed to bring it onto `main`, was stopped before its agent started.
+Pi's native retry had `retry.maxRetries` unset (Pi 1.5.2's default 3) with `retry.baseDelayMs` 1000, so it gave up after about 7 s;
+asked through the question tool, the owner picked "Raise maxRetries to 8 (Recommended)",
+and `~/.pi/agent/settings.json` now carries `retry.maxRetries` 8 (waits of 1 to 60 s, about 3 minutes in all, under `retry.maxAgentDelayMs`' 60 s default), every other key unchanged.
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
