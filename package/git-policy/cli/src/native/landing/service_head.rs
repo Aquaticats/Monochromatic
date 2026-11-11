@@ -13,15 +13,32 @@
 //! The answer is read from the worktree's `HEAD` file when that file can be
 //!  trusted and from Git otherwise,
 //! so an ordinary landing starts no extra Git.
+//! Each question has two faces:
+//! the synchronous one a caller on a thread asks,
+//! and
+//!  the awaited one a task of the runtime asks
+//! (`follows_move_awaiting`,
+//! `head_names_awaiting`,
+//! `still_checked_out_awaiting`).
+//! The awaited face reads the files
+//!  as a job of the blocking pool,
+//! awaited no longer than `LANDING_STATE_CEILING`,
+//! and awaits its Git child on the
+//!  runtime,
+//! so neither a mount that stopped answering nor a Git that never ends holds a worker.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const names = await headNames({ repository, index, commonDir, reference }) // false after a switch or a detach
 //! ```
 
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::service_protocol::FailureCode;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::path::Path;
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::LANDING_STATE_CEILING;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// What a `HEAD` file says on its own.
 #[derive(Debug, Eq, PartialEq)]
@@ -84,6 +101,58 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
     };
 }
 
+/// The two directories one head-file question names,
+/// owned so that a job of the blocking pool can take them.
+struct HeadFileQuestion {
+    /// The Git directory of the worktree that asked.
+    git_dir: PathBuf,
+    /// The common Git directory it must belong to.
+    common_dir: PathBuf,
+}
+
+/// The reading one job of the pool does:
+/// `head_file` over the question's own two directories.
+fn read_the_head_file(question: HeadFileQuestion) -> HeadFile {
+    return head_file(question.git_dir.as_path(), question.common_dir.as_path());
+}
+
+/// What:
+///  `head_file` as a job of the blocking pool,
+/// awaited no longer than `ceiling`.
+/// Why:
+///   A task of the runtime may not wait on a filesystem:
+/// `canonicalize` of the two directories and
+///  the reads of `commondir` and `HEAD` wait in the kernel on a mount that stopped answering,
+/// which would hold a
+///  worker the runtime needs,
+/// and no timer on that worker can end it.
+/// A question the ceiling or a refused thread leaves without an
+///  answer is answered `Unreadable`,
+/// which is what a file that cannot be read answers already,
+/// so the caller asks Git and
+///  the person reads Git's own answer:
+/// nothing waits on the read for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function headFileWithin(ceilingMs: number, gitDir: string, commonDir: string): Promise<HeadFile>;
+/// ```
+async fn head_file_within(ceiling: Duration, git_dir: &Path, common_dir: &Path) -> HeadFile {
+    let question: HeadFileQuestion = HeadFileQuestion { git_dir: git_dir.to_path_buf(), common_dir: common_dir.to_path_buf() };
+    return match run_a_job_awaited_no_longer_than(ceiling, question, read_the_head_file).await {
+        TheAnswerOfAJobAwaited::Ran(answer) => answer,
+        // No thread was given, or the job outlasted its ceiling: the file said nothing this task may wait for.
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => HeadFile::Unreadable,
+    };
+}
+
+/// `head_file_within` with the wait a landing's own state step is granted
+/// (`wait_ceilings.rs`,
+/// `LANDING_STATE_CEILING`).
+async fn head_file_awaiting(git_dir: &Path, common_dir: &Path) -> HeadFile {
+    return head_file_within(LANDING_STATE_CEILING, git_dir, common_dir).await;
+}
+
 /// What:
 ///  The reference `HEAD` names when Git is asked in `repository`,
 /// and nothing when `HEAD` is detached.
@@ -105,7 +174,44 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
 ///
 /// `Unavailable` when Git cannot be started or ends with a status other than 0 and 1.
 fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
-    let output = match run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])) {
+    return named_of(run_git(git, &symbolic_head_request(repository)));
+}
+
+/// What:
+///  The question `symbolic_head` asks Git.
+/// Why:
+///   Both faces ask the one question,
+/// so neither can ask a different one,
+/// and the in-process reader answers both the
+///  same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = { cwd: repository, arguments: ['symbolic-ref', '--quiet', 'HEAD'] };
+/// ```
+fn symbolic_head_request(repository: &Path) -> GitRequest {
+    return GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"]);
+}
+
+/// What:
+///  The reference Git's answer to `symbolic_head_request` names,
+/// or nothing for a detached head.
+/// Why:
+///  Both faces turn Git's answer into the answer through this one function,
+/// so only status 1 is read as a detached
+///  head and any other failure is no answer,
+/// whichever face asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namedOf(answered: GitOutput | Error): string | undefined; // throws when Git could not answer
+/// ```
+///
+/// # Errors
+///
+/// `Unavailable` when Git could not be started or ended with a status other than 0 and 1.
+fn named_of(answered: std::io::Result<GitOutput>) -> Result<Option<String>, FailureCode> {
+    let output: GitOutput = match answered {
         Ok(finished) => finished,
         Err(_unstartable) => return Err(FailureCode::Unavailable),
     };
@@ -114,6 +220,25 @@ fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<String>, 
         Some(1) => Ok(None),
         _ => Err(FailureCode::Unavailable),
     };
+}
+
+/// What:
+///  `symbolic_head` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+/// and the
+///  question is asked from the landing once that landing is a task.
+/// The child's own bound and quiet window are the synchronous
+///  face's,
+/// so the two cannot differ in what they wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function symbolicHeadAwaiting(git: GitContext, repository: string): Promise<string | undefined>;
+/// ```
+async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
+    return named_of(run_git_awaiting(git, &symbolic_head_request(repository)).await);
 }
 
 /// What:
@@ -148,12 +273,51 @@ pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_
     if let HeadFile::Detached(value) = head_file(git_dir, common_dir) {
         return Ok(value == new);
     }
-    let output = match run_git(git, &GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"])) {
+    return shows_the_commit(run_git(git, &head_commit_request(repository)), new);
+}
+
+/// `follows_move` with the reads and the Git child awaited on the runtime.
+///
+/// # Errors
+///
+/// As `follows_move`.
+pub async fn follows_move_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str, new: &str) -> Result<bool, FailureCode> {
+    if reference != "HEAD" {
+        return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
+    }
+    if let HeadFile::Detached(value) = head_file_awaiting(git_dir, common_dir).await {
+        return Ok(value == new);
+    }
+    return shows_the_commit(run_git_awaiting(git, &head_commit_request(repository)).await, new);
+}
+
+/// The question `follows_move` asks Git for a `HEAD` whose file cannot answer.
+fn head_commit_request(repository: &Path) -> GitRequest {
+    return GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
+}
+
+/// What:
+///  Whether Git's answer to `head_commit_request` is the commit `moved_to`.
+/// Why:
+///  Both faces read the answer through this one function,
+/// so status 1 is a head that names no commit for both of them,
+///  and any other failure is no answer for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function showsTheCommit(answered: GitOutput | Error, movedTo: string): boolean; // throws when Git could not answer
+/// ```
+///
+/// # Errors
+///
+/// `Unavailable` when Git could not be started or ended with a status other than 0 and 1.
+fn shows_the_commit(answered: std::io::Result<GitOutput>, moved_to: &str) -> Result<bool, FailureCode> {
+    let output: GitOutput = match answered {
         Ok(finished) => finished,
         Err(_unstartable) => return Err(FailureCode::Unavailable),
     };
     return match output.code {
-        Some(0) => Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == new),
+        Some(0) => Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == moved_to),
         Some(1) => Ok(false),
         _ => Err(FailureCode::Unavailable),
     };
@@ -176,8 +340,37 @@ pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_di
         HeadFile::Detached(_) => return Ok(false),
         HeadFile::Unreadable => {}
     }
-    return match symbolic_head(git, repository)? {
-        Some(named) => Ok(named == reference),
+    return names_of(symbolic_head(git, repository)?, reference);
+}
+
+/// `head_names` with the reads and the Git child awaited on the runtime.
+///
+/// # Errors
+///
+/// As `head_names`.
+pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+    match head_file_awaiting(git_dir, common_dir).await {
+        HeadFile::Branch(named) => return Ok(named == reference),
+        HeadFile::Detached(_) => return Ok(false),
+        HeadFile::Unreadable => {}
+    }
+    return names_of(symbolic_head_awaiting(git, repository).await?, reference);
+}
+
+/// What:
+///  Whether the reference `HEAD` named is `wanted`.
+/// Why:
+///  Both faces answer this through one function,
+/// so a detached head is `false` for both and a head that names another branch is
+///  `false` for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesOf(named: string | undefined, wanted: string): boolean;
+/// ```
+fn names_of(named: Option<String>, wanted: &str) -> Result<bool, FailureCode> {
+    return match named {
+        Some(found) => Ok(found == wanted),
         None => Ok(false),
     };
 }
@@ -216,7 +409,29 @@ pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, co
     return Ok(symbolic_head(git, repository)?.is_none());
 }
 
+/// `still_checked_out` with the reads and the Git child awaited on the runtime.
+///
+/// # Errors
+///
+/// As `still_checked_out`.
+pub async fn still_checked_out_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+    if reference != "HEAD" {
+        return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
+    }
+    match head_file_awaiting(git_dir, common_dir).await {
+        HeadFile::Branch(_) => return Ok(false),
+        HeadFile::Detached(_) => return Ok(true),
+        HeadFile::Unreadable => {}
+    }
+    return Ok(symbolic_head_awaiting(git, repository).await?.is_none());
+}
+
 /// Head controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_head_tests.rs"]
 mod tests;
+
+/// Controls for the awaited faces of the head questions stay out of the release executable.
+#[cfg(test)]
+#[path = "service_head_awaiting_tests.rs"]
+mod awaiting_tests;

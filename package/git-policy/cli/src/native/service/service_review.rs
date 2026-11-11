@@ -7,7 +7,7 @@
 //! every step ending on no progress and none on the clock.
 //! Why:
 //!  This replaces the repository's post-commit hook that ran `mise run shadow-review` (`doc/runbook/standards-review-gate.md`).
-//!  The review shares the service's work thread with pushes and upkeep,
+//!  The review shares the after-commit work with pushes and upkeep,
 //! so every step ends by itself:
 //! the gateway call on the
 //!  idle timeouts of its transport,
@@ -261,7 +261,7 @@ pub fn review_item_within(context: &GitContext, item: &WorkItem, options: Review
 /// it reads the worktree,
 /// which can stall like any other
 ///  read,
-/// and nothing that can block runs on the service's work thread outside the ceiling (sol-2 round 2).
+/// and nothing that can block runs in the after-commit work outside the ceiling (sol-2 round 2).
 /// Controls give each its
 ///  own runner,
 /// so they do not see one another's reviews.

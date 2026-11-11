@@ -214,137 +214,129 @@ function renderRule({ rule, }: { readonly rule: RawRule; },): string {
 }
 
 /**
- Entry point. Reads the upstream TOML, extracts rules via {@link parseRules},
- and writes each kept rule through {@link renderRule}.
+ Directory holding this script, used as the anchor for path resolution.
  */
-async function main(): Promise<void> {
-  /**
-   Directory holding this script, used as the anchor for path resolution.
-   */
-  const here = import.meta.dirname;
-  /**
-   Path to the verbatim upstream TOML; input to the port.
-   */
-  const tomlPath = join(
-    here,
-    '..',
-    'data',
-    'betterleaks-default-config.toml',
-  );
-  /**
-   Path to the repo-root `.cache` scratch directory holding the stage-one
-   intermediate; gitignored wholesale, shared with the file-enforcer
-   generated rules file.
-   */
-  const cacheDir = join(
-    here,
-    '..',
-    '..',
-    '..',
-    '..',
-    '.cache',
-  );
-  /**
-   Path to the stage-one intermediate: tail-format sections whose bodies are
-   still PCRE. The dialectport bin (stage two) reads exactly this path and
-   writes the final embedded baseline into the package `data/` directory.
-   */
-  const outPath = join(
-    cacheDir,
-    'forbidden-strings-builtin-stage1.txt',
-  );
+const here = import.meta.dirname;
+/**
+ Path to the verbatim upstream TOML; input to the port.
+ */
+const tomlPath = join(
+  here,
+  '..',
+  'data',
+  'betterleaks-default-config.toml',
+);
+/**
+ Path to the repo-root `.cache` scratch directory holding the stage-one
+ intermediate; gitignored wholesale, shared with the file-enforcer
+ generated rules file.
+ */
+const cacheDir = join(
+  here,
+  '..',
+  '..',
+  '..',
+  '..',
+  '.cache',
+);
+/**
+ Path to the stage-one intermediate: tail-format sections whose bodies are
+ still PCRE. The dialectport bin (stage two) reads exactly this path and
+ writes the final embedded baseline into the package `data/` directory.
+ */
+const outPath = join(
+  cacheDir,
+  'forbidden-strings-builtin-stage1.txt',
+);
 
-  /**
-   Verbatim upstream TOML contents read from disk.
-   */
-  const toml = await readFile(
-    tomlPath,
-    'utf8',
-  );
-  /**
-   Every rule parsed from the TOML, pre-filter.
-   */
-  const all = parseRules({ toml, },);
+/**
+ Verbatim upstream TOML contents read from disk.
+ */
+const toml = await readFile(
+  tomlPath,
+  'utf8',
+);
+/**
+ Every rule parsed from the TOML, pre-filter.
+ */
+const all = parseRules({ toml, },);
 
-  /**
-   Rules that survive the drop filter and will be rendered into the output.
-   */
-  const kept: RawRule[] = [];
-  /**
-   Rules excluded from output, paired with the reason for the exclusion.
-   */
-  const dropped: {
-    rule: RawRule;
-    reason: string;
-  }[] = [];
-  for (const rule of all) {
-    if (rule.skipReport) {
-      dropped.push({
-        rule,
-        reason: 'skipReport',
-      },);
-      continue;
-    }
-    /**
-     Lookup of the rule id against {@link DROPPED_BY_ID}; non-undefined means dropped.
-     */
-    const dropReason = DROPPED_BY_ID.get(rule.id,);
-    if (dropReason !== undefined) {
-      dropped.push({
-        rule,
-        reason: dropReason,
-      },);
-      continue;
-    }
-    kept.push(rule,);
-  }
-
-  /**
-   Every kept id, used for the duplicate check below; duplicate section
-   names are a fail-closed load error in the scanner, so catch them here.
-   */
-  const seenIds = new Set<string>();
-  for (const rule of kept) {
-    if (seenIds.has(rule.id,))
-      throw new Error(`duplicate betterleaks id '${rule.id}' would collide as a section name`,);
-    seenIds.add(rule.id,);
-  }
-
-  /**
-   Concatenated rule blocks rendered between the header and footer.
-   */
-  const body = kept
-    .map(function rulePass(rule,): string {
-      return renderRule({ rule, },);
-    },)
-    .join('',);
-
-  /**
-   Full output file contents written to disk.
-   */
-  const content = `${HEADER}${body}${FOOTER}`;
-  await mkdir(
-    cacheDir,
-    { recursive: true, },
-  );
-  await writeFile(
-    outPath,
-    content,
-    'utf8',
-  );
-  console.log(
-    `wrote ${outPath} (${kept.length} rules kept, ${dropped.length} dropped)`,
-  );
-  if (dropped.length
-    > 0) {
-    console.log('  dropped:',);
-    for (const {
+/**
+ Rules that survive the drop filter and will be rendered into the output.
+ */
+const kept: RawRule[] = [];
+/**
+ Rules excluded from output, paired with the reason for the exclusion.
+ */
+const dropped: {
+  rule: RawRule;
+  reason: string;
+}[] = [];
+for (const rule of all) {
+  if (rule.skipReport) {
+    dropped.push({
       rule,
-      reason,
-    } of dropped) {
-      console.log(`    ${rule.id} (${reason})`,);
-    }
+      reason: 'skipReport',
+    },);
+    continue;
   }
+  /**
+   Lookup of the rule id against {@link DROPPED_BY_ID}; non-undefined means dropped.
+   */
+  const dropReason = DROPPED_BY_ID.get(rule.id,);
+  if (dropReason !== undefined) {
+    dropped.push({
+      rule,
+      reason: dropReason,
+    },);
+    continue;
+  }
+  kept.push(rule,);
 }
 
-await main();
+/**
+ Every kept id, used for the duplicate check below; duplicate section
+ names are a fail-closed load error in the scanner, so catch them here.
+ */
+const seenIds = new Set<string>();
+for (const rule of kept) {
+  if (seenIds.has(rule.id,))
+    throw new Error(`duplicate betterleaks id '${rule.id}' would collide as a section name`,);
+  seenIds.add(rule.id,);
+}
+
+/**
+ Concatenated rule blocks rendered between the header and footer.
+ */
+const body = kept
+  .map(function rulePass(rule,): string {
+    return renderRule({ rule, },);
+  },)
+  .join('',);
+
+/**
+ Full output file contents written to disk.
+ */
+const content = `${HEADER}${body}${FOOTER}`;
+await mkdir(
+  cacheDir,
+  { recursive: true, },
+);
+await writeFile(
+  outPath,
+  content,
+  'utf8',
+);
+console.log(
+  `wrote ${outPath} (${kept.length} rules kept, ${dropped.length} dropped)`,
+);
+if (dropped.length
+  > 0) {
+  console.log('  dropped:',);
+  for (const {
+    rule,
+    reason,
+  } of dropped) {
+    console.log(`    ${rule.id} (${reason})`,);
+  }
+}

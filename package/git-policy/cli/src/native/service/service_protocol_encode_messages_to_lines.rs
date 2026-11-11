@@ -229,6 +229,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
     put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "captured", Value::from(request.captured));
+    put(&mut fields, "holder", Value::from(request.holder.as_str()));
     put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
     return Value::Object(fields).to_string();
 }
@@ -280,6 +281,12 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             }
             object(entries)
         }
+        ServiceMessage::Held { id, commit, words } => object(vec![
+            ("type", Value::from("held")),
+            ("id", Value::from(id.as_str())),
+            ("commit", Value::from(commit.as_str())),
+            ("words", Value::from(words.as_str())),
+        ]),
         ServiceMessage::RetryPrepare { id, base, landed } => object(vec![
             ("type", Value::from("retry-prepare")),
             ("id", Value::from(id.as_str())),

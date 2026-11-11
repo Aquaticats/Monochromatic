@@ -93,15 +93,13 @@ pub(super) struct RepairWorkspaceJob {
     pub(super) destination_root: PathBuf,
     /// The checkout the build state is carried from.
     pub(super) source: PathBuf,
-    /// How many jobs one build-state clone may use.
-    pub(super) clone_workers: usize,
 }
 
 impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
     fn run<'a>(&'a self, workspace: &'a Workspace) -> Pin<Box<dyn Future<Output = Done> + Send + 'a>> {
         return Box::pin(async move {
             let began: Instant = begin_work();
-            let done: Done = repair_workspace_awaiting(&self.tool, workspace, self.destination_root.as_path(), self.source.as_path(), self.clone_workers).await;
+            let done: Done = repair_workspace_awaiting(&self.tool, workspace, self.destination_root.as_path(), self.source.as_path()).await;
             end_work("cargoRepairWorkspace", began);
             return done;
         });

@@ -29,6 +29,9 @@
 //! ```
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
+/// Why this commit did not land,
+/// which the record states beside how it went and what it exited with.
+use crate::commit_stop_reason::{CommitStopReason, stop_json};
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
 /// The preparation's own work,
 /// by name,
@@ -45,7 +48,8 @@ use crate::common_directory_of_a_git_directory::common_directory_of;
 /// one entry per build.
 use crate::scratch_commit_step::{ScratchStepFacts, drain_scratch_steps, scratch_steps_json};
 use crate::diagnostic_log::debug;
-use crate::discard_audit::append_line;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::{quote, string_array};
 use crate::quiet_ledger::{drain, longest_healthy, object_json};
@@ -56,11 +60,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
-/// It moves
-///  aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1`,
-/// replacing the older one (a timing log keeps one generation),
-/// at the size limit
-///  `discard_audit::append_line` applies.
+/// A full file moves aside to the next free generation
+/// (`monochromatic-git-policy-cli-commit-timing.jsonl.<number>`),
+/// and the generations are kept up to `LOG_HISTORY_BYTES`.
 pub const TIMING_FILE: &str = COMMIT_TIMING_LOG.current;
 
 /// The version of the record's fields;
@@ -303,6 +305,20 @@ pub struct CommitTiming {
     /// `ended` (blocked or declined,
     /// nothing landed) or `stopped` (a failure).
     pub outcome: &'static str,
+    /// What:
+    ///  Why the commit did not land,
+    ///  by the route that stopped it:
+    /// the policy that refused the content,
+    /// the transform that rejected the command,
+    /// the engine failure,
+    /// the Git step and its status,
+    /// or real Git's own exit.
+    /// Why:
+    ///  `outcome` and `exitCode` say that nothing landed and what the process returned,
+    ///  never whether a policy correctly refused content or a machine failed,
+    ///  and the stopped records of the live log could not be told apart for exactly that reason.
+    /// `None` for a commit that landed.
+    pub stop: Option<CommitStopReason>,
     /// Preparations made:
     /// one,
     /// and one more for each time the service sent the commit back or Git built it again.
@@ -435,6 +451,7 @@ impl CommitTiming {
             reference: None,
             request: None,
             outcome: "stopped",
+            stop: None,
             attempts: 0,
             index_builds: Vec::new(),
             prepare_spans: Vec::new(),
@@ -561,7 +578,7 @@ impl CommitTiming {
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
-             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
+             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"stop\":{},\"totalMs\":{},\
              \"routeMs\":{},\"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\
              \"buildMs\":{},\"buildParts\":{},\"buildPartsDropped\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
@@ -578,6 +595,7 @@ impl CommitTiming {
             place.map_or_else(null_word, Place::instance_json),
             place.map_or_else(null_word, Place::git_dir_json),
             quote(self.outcome),
+            stop_json(self.stop.as_ref()),
             total.as_millis(),
             self.route.as_millis(),
             self.prepare.as_millis(),
@@ -651,7 +669,7 @@ impl CommitTiming {
         (with_quiet.build_parts, with_quiet.build_parts_dropped) = drain_build_parts();
         with_quiet.scratch_steps = drain_scratch_steps();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
-        if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
+        if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));
         }
     }

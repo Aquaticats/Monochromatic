@@ -25,7 +25,8 @@ fn hook_switches() -> String {
 #[test]
 fn the_shadow_config_switches_every_hook_event_off_after_the_include() {
     let format: RepositoryFormat = RepositoryFormat { version: String::from("0"), extensions: Vec::new() };
-    let text: String = format_shadow_config(&format, Path::new("/r/.git"), Path::new("/r"));
+    let text: String = String::from_utf8(format_shadow_config(&format, Path::new("/r/.git"), Path::new("/r")))
+        .expect("the fixture paths are text");
     let include: usize = text.find("[include]").expect("include");
     for event in HOOK_EVENTS {
         let section: String = format!("[hook \"{event}\"]\n\tenabled = false\n");
@@ -41,28 +42,52 @@ fn config_without_extensions_has_the_fixed_layout() {
         version: String::from("0"),
         extensions: Vec::new(),
     };
-    let text: String = format_shadow_config(
+    let text: Vec<u8> = format_shadow_config(
         &format,
         Path::new("/r/.git"),
         Path::new("/r"),
     );
-    assert_eq!(
-        text,
-        concat!(
-            "[core]\n",
-            "\trepositoryformatversion = \"0\"\n",
-            "[include]\n",
-            "\tpath = \"/r/.git/config\"\n",
-            "[core]\n",
-            "\tworktree = \"/r\"\n",
-            "[gc]\n",
-            "\tauto = 0\n",
-            "[maintenance]\n",
-            "\tauto = false\n",
-        )
-        .to_string()
-            + hook_switches().as_str()
-    );
+    let mut expected: Vec<u8> = concat!(
+        "[core]\n",
+        "\trepositoryformatversion = \"0\"\n",
+        "[include]\n",
+        "\tpath = \"/r/.git/config\"\n",
+        "[core]\n",
+        "\tworktree = \"/r\"\n",
+        "[gc]\n",
+        "\tauto = 0\n",
+        "[maintenance]\n",
+        "\tauto = false\n",
+    )
+    .as_bytes()
+    .to_vec();
+    expected.extend_from_slice(hook_switches().as_bytes());
+    assert_eq!(text, expected);
+}
+
+/// What:
+///  The included path and the worktree are the bytes the layout holds,
+///  whatever those bytes are.
+/// Why:
+///   Both are pathnames,
+///  and a name that is not UTF-8 spelled through `display()` became U+FFFD,
+///  so the shadow included a configuration file that does not exist and named a worktree that does not exist.
+///  A line feed is expressible in a quoted value,
+///  so it is escaped and kept.
+#[test]
+fn the_config_keeps_a_path_that_is_not_text() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let common: &Path = Path::new(OsStr::from_bytes(b"/repos/na\xefve/a\nb/.git"));
+    let worktree: &Path = Path::new(OsStr::from_bytes(b"/repos/na\xefve/a\nb"));
+    let format: RepositoryFormat = RepositoryFormat { version: String::from("0"), extensions: Vec::new() };
+    let text: Vec<u8> = format_shadow_config(&format, common, worktree);
+    let mut expected: Vec<u8> = Vec::new();
+    expected.extend_from_slice(b"[core]\n\trepositoryformatversion = \"0\"\n[include]\n\tpath = \"");
+    expected.extend_from_slice(b"/repos/na\xefve/a\\nb/.git/config\"\n[core]\n\tworktree = \"");
+    expected.extend_from_slice(b"/repos/na\xefve/a\\nb\"\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n");
+    expected.extend_from_slice(hook_switches().as_bytes());
+    assert_eq!(text, expected, "the paths keep their bytes and the line feeds are escaped");
 }
 
 /// Extensions are copied under their own section,
@@ -73,7 +98,8 @@ fn config_copies_extensions_before_the_include() {
         version: String::from("1"),
         extensions: vec![(String::from("objectformat"), String::from("sha256"))],
     };
-    let text: String = format_shadow_config(&format, Path::new("/r/.git"), Path::new("/r"));
+    let text: String = String::from_utf8(format_shadow_config(&format, Path::new("/r/.git"), Path::new("/r")))
+        .expect("the fixture paths are text");
     assert!(text.contains("[extensions]\n\tobjectformat = \"sha256\"\n[include]\n"), "{text}");
 }
 

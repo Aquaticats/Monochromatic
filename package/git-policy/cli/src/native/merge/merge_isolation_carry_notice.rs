@@ -13,13 +13,20 @@
 //!  names the path and says what stands there now
 //! (`SPEC.md`,
 //! "Merges and commits never fail").
+//!  A line about a path the carry kept whole names what stands at it of the person's work and what
+//!  the merge made of it,
+//! so a deleted path,
+//! a symbolic link and a mode the word pass could not take are each named
+//!  for what they are (`merge_isolation_carry_kept_path.rs`).
 //! The words live in a file of their own so the
 //!  file that writes the checkout stays readable.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! for (const line of reportLines('git merge feature', report)) stderr.write(`${line}\n`);
+//! for (const line of reportLines('feature', report)) stderr.write(`${line}\n`);
 //! ```
+
+use crate::merge_isolation_carry_kept_path::{Kept, kept_line};
 
 /// What:
 ///  Everything one carry did,
@@ -32,7 +39,7 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Report = { merged: Uint8Array[]; conflicts: Uint8Array[]; kept: [Uint8Array, string][]; changed: Uint8Array[] };
+/// type Report = { merged: Uint8Array[]; conflicts: Uint8Array[]; kept: Kept[]; changed: Uint8Array[] };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Report {
@@ -42,8 +49,8 @@ pub struct Report {
     /// Paths that hold both sides between conflict markers.
     pub conflicts: Vec<Vec<u8>>,
     /// Paths left whole,
-    /// with the reason the merge could not take them.
-    pub kept: Vec<(Vec<u8>, &'static str)>,
+    /// with the reason the merge could not take them and what stands at each of them now.
+    pub kept: Vec<Kept>,
     /// Paths that changed after the merge captured them,
     /// which nothing was written to.
     pub changed: Vec<Vec<u8>>,
@@ -78,23 +85,44 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
             text(path)
         ));
     }
-    for (path, why) in &report.kept {
-        lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: your bytes are kept at {} and the merge's version is in the merge commit, because {why}. \
-             The file holds what you wrote; take the merge's version with `git restore -- {}` when you have read it.",
-            text(path),
-            text(path)
-        ));
+    for kept in &report.kept {
+        lines.push(kept_line(reference, kept));
     }
     for path in &report.changed {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: {} changed again while the merge ran, so nothing was written to it and what \
-             is in it is yours. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
+            "monochromatic-git-policy-cli: git merge {reference}: {} changed while the merge ran, so this merge wrote nothing to it and \
+             left that change in place. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
             text(path),
             text(path)
         ));
     }
     return lines;
+}
+
+/// What:
+///  Say that a path the captured work does not explain was left as it is,
+/// with no claim about what stands there.
+/// Why:
+///   A merge that does not land puts the person's own layers back,
+/// and a path written after the capture
+///  holds bytes newer than those,
+/// so nothing is written there and the person is told which file was left alone.
+///  What that path holds now is theirs to see:
+/// a deletion made after the capture leaves nothing there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// say(`${path} changed after this merge captured it, so it was left as it is and the change that came after stands`);
+/// ```
+pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(out: &mut W, path: &[u8]) {
+    let named: String = text(path);
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: {named} changed after this merge captured it, so it was left as it is and the change that \
+             came after stands; the merge wrote nothing to it.\n"
+        )
+        .as_bytes(),
+    );
 }
 
 /// The text of one path for a line the person reads.

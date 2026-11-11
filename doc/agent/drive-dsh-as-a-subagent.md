@@ -54,7 +54,7 @@ Not run.
 ```sh
 # run from the directory that becomes the default workspace, inside a capped unit
 systemd-run --user --unit=dsh-web-trial --collect \
-  --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=400 --property=IOWeight=10 \
+  --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=400 --property=IOWeight=1 \
   --property=StandardOutput=file:/path/to/server.log --property=StandardError=file:/path/to/server.err \
   --setenv=PATH="$PATH" --setenv=HOME="$HOME" \
   dsh --profile web --no-open --port 0

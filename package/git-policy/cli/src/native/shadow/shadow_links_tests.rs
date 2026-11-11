@@ -5,7 +5,7 @@
 use super::*;
 use crate::candidate_private_index::{PRIVATE_INDEX_PREFIX, STAGING_SUFFIX};
 use crate::test_support::{fixture, git, remove, repository};
-use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
+use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SHADOW_POOL_FOLDER};
 
 /// Shared entries of a plain repository become links to the real entries,
 ///  and private entries stay absent from the shadow.
@@ -285,5 +285,72 @@ fn a_shared_info_that_is_not_a_directory_is_an_error() {
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(&shadow).expect("shadow");
     assert!(link_shadow_entries(shadow.as_path(), common.as_path(), git_dir.as_path()).is_err());
+    remove(root.as_path());
+}
+
+/// What:
+///  A file one command stages a lock in never reaches a shadow,
+///  under any name the lock it belongs to has.
+/// Why:
+///   Every command of a repository leaves one of these while it runs,
+///  so a shadow that linked one held an entry a creation made a moment ago and no other creation would make,
+///  which is exactly what the pool refuses a member for.
+///  The name is `<lock>.cli-git-marker-<pid>.<namespace>-<batch>-<token>`,
+///  and the lock can be a ref's,
+/// not only the index's.
+#[test]
+fn a_staged_lock_marker_never_reaches_the_shadow() {
+    let root: PathBuf = fixture("shadow-links-lock-marker");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    for name in [
+        "index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d-d336-4336-b19e-d9e64c8c9d9e",
+        "refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef",
+        "HEAD.lock",
+    ] {
+        std::fs::write(common.join(name), b"marker").expect("marker");
+    }
+    assert!(
+        is_private_shadow_entry("index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d"),
+        "the index's staged marker is private"
+    );
+    assert!(
+        is_private_shadow_entry("refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef"),
+        "a ref's staged marker is private"
+    );
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    for entry in std::fs::read_dir(shadow.as_path()).expect("shadow entries").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        assert!(!name.contains("cli-git-marker"), "a staged marker reached the shadow as {name}");
+        assert!(!name.ends_with(".lock"), "a lock reached the shadow as {name}");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The folder of finished shadows beside the scratch root never reaches a shadow.
+/// Why:
+///   A link to the pool would let a shadow reach every member,
+///   and whether the folder exists would decide what a member has to hold:
+///   the first fill of a repository would then refuse the member it had just made.
+///  It is the wrapper's own state that holds shadow trees,
+///  like the scratch root beside it,
+///  and not an entry a hook resolves.
+#[test]
+fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
+    let root: PathBuf = fixture("shadow-links-pool");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let pool: PathBuf = common.join(SHADOW_POOL_FOLDER);
+    std::fs::create_dir_all(pool.join("main").join("member-x")).expect("the pool and one member");
+    assert!(is_private_shadow_entry(SHADOW_POOL_FOLDER), "the pool's own name is never linked");
+    assert!(!is_private_shadow_entry("hooks"), "a shared entry of the repository is linked");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    assert!(std::fs::symlink_metadata(shadow.join(SHADOW_POOL_FOLDER).as_path()).is_err(), "the pool is not in the shadow");
+    assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "a real shared entry is");
     remove(root.as_path());
 }

@@ -115,12 +115,100 @@ configuration switch or detection of third-party directories was added.
   were proposed for `package/terminal/app/mise.toml` and not applied:
   the first routes every command a build script runs past the guard.
   The second remains the fallback if the wrapper fix is not installed.
-- An allowlist of cargo build directories in `effective_target.rs` (as for mise's data directory and uv's cache):
-  it would name a path,
-  while the defect is the reading of a missing index.
+- An allowlist entry naming a cargo build directory as a fixed path,
+  as for mise's data directory and uv's cache:
+  it would hard-code a path that host configuration decides,
+  while the defect of the fresh clone is the reading of a missing index.
+  The environment-named form of that entry,
+  `OUT_DIR`,
+  is implemented;
+  see "Amendment" below.
 - Pre-fetching Ghostty as a tarball into `GHOSTTY_SOURCE_DIR`:
   Ghostty's `zig build` still fetches Zig packages from the network,
   and the commit would be a second copy of the constant in the pinned `build.rs`.
+
+## Amendment 2026-11-10T17:10:28-05:00: the build step's own directory is an allowlisted tool cache
+
+The fix above covers the fresh clone,
+because that clone has no index file yet.
+It does not cover the same clone once it holds an index and looks dirty,
+which is the state a second build step,
+an interrupted first one,
+or a build script that edits what it vendored leaves.
+There the wrapper still refused every guarded form,
+including the `git checkout <commit>` of a vendoring build script,
+with `linked-worktree-only/linked-worktree-required`.
+
+Measured 2026-11-10 on the host with the wrapper built from `main`,
+in a throwaway crate whose build script made the source repository and the clone
+and then ran the two checkouts
+(`OUT_DIR` was `/var/mnt/encrypted/cargo-build/f0/d1b89a91519410/debug/build/out-dir-probe/32314d0e1bec2cbd/out`):
+
+- the build script's own step,
+  `git clone --filter=blob:none --no-checkout <source> ghostty-src` then `git checkout <commit>` there:
+  exit `0`;
+- the same checkout after one edit in that clone:
+  exit `1`,
+  `code` `linked-worktree-only/linked-worktree-required`,
+  message `monochromatic-git-policy-cli: git checkout <branch> is rejected because this worktree has uncommitted changes to tracked files: ...`.
+
+The rule that applies is already in `package/git-policy/cli/SPEC.md`,
+"Discarding commands":
+"Repositories under an allowlisted tool cache are exempt.
+The list is chosen by the invocation's own environment".
+Cargo's build-script output directory is such a tool cache,
+and Cargo names it in the environment of exactly the process that runs that Git:
+`OUT_DIR` is set for every build script and passed on to what the script starts.
+So the list gained a third entry read from `OUT_DIR`
+(`cargo_build_script_output_dir` in `src/native/invocation/effective_target.rs`),
+with the same notice on standard error that names the variable.
+
+What that entry does not do:
+
+- It names no path of this host,
+  so `build.build-dir` in a person's `~/.cargo/config.toml` stays host configuration the wrapper never reads.
+- It exempts the directory one build step was given and nothing wider:
+  a clone beside it,
+  and the person's own repositories and worktrees,
+  keep every rule they had.
+- A form that only moves `HEAD` never reaches the exemption branch,
+  so no notice is printed for it;
+  the command runs unguarded because such a form asks no measurement at all.
+  The same is true today for uv's cache and mise's data directory.
+
+### The rules this case could have taken, and what each would have done
+
+The case:
+a Git command whose repository is a clone inside a directory a tool made for itself.
+Four rules were considered,
+with the shipped one first.
+
+1. An environment-named tool cache,
+   which is what the SPEC rule above already says:
+   the invocation's own environment names the directory,
+   and the repository inside it is exempt.
+   It reads no path of this host,
+   it covers both Cargo layouts (the host's relocated build directory and the default `<workspace>/target`),
+   and it narrows to one build step's own directory.
+   Its trust is the environment,
+   with the notice on standard error as the mitigation,
+   exactly as uv's cache and mise's data directory already work.
+2. A fixed path for this host's cargo build directory.
+   Rejected by the earlier session and still wrong:
+   host configuration decides that path,
+   the wrapper would carry one machine's cache in its source,
+   and a different `CARGO_BUILD_BUILD_DIR` would bring the refusal back.
+3. Any repository nested inside a Git-ignored path of an enclosing repository.
+   It would not have covered this case at all
+   (this host's build directory is outside every repository),
+   it costs an extra Git start to find the enclosing repository,
+   and it exempts a clone a person made deliberately inside an ignored folder.
+4. Any repository under a directory that carries a `CACHEDIR.TAG`.
+   It needs no environment trust,
+   but it adds a second reading of a tag file,
+   and it exempts a whole tagged tree,
+   including a person's own clone kept inside one,
+   where rule 1 exempts the one directory a build step was given.
 
 ## Upstream filing decision
 

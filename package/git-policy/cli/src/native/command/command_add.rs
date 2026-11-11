@@ -112,33 +112,247 @@ pub const ADD_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("pathspec-file-nul"), Arity::None, true),
 ];
 
-/// Pathspecs Git resolves to the whole worktree,
-///       or to every changed path below the working directory.
+/// What:
+///  The characters Git's pathspec matcher reads as wildcards rather than as part of a name.
+///  `&[u8]` is borrowed bytes baked into the program.
 /// Why:
-///   Pathspec grammar has magic and globs,
-/// so a fixed list cannot be complete;
-///  it names every
-///       spelling Git 2.56.0 resolves to the whole tree that a person is likely to write.
-///  `:(top)/*`
-///       selects the same set but is absent because Git 2.56.0 fails in its own `prep_exclude`
-/// for it,
-/// so it never reaches this list.
-const BULK_PATHSPECS: &[&[u8]] = &[
-    // The working directory, absolute and with a trailing slash.
-    b".",
-    b"./",
-    // A bare star matches across `/`, so it reaches every depth.
-    b"*",
-    // The top of the worktree with no pattern, then with a pattern the default glob reads across `/`.
-    b":/",
-    b":/*",
-    b":/**",
-    // Pathspec magic with no pattern names the place it anchors at; the top is the whole repository.
-    b":(top)",
-    // A bare double star, then the same pattern under explicit glob magic.
-    b"**",
-    b":(glob)**",
-];
+///  A spelling that holds none of them names one path,
+///  so the policy lets it through and starts no process,
+///  while every other spelling may reach further than the caller meant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GLOB_CHARACTERS = new Uint8Array([42, 63, 91, 93, 92]); // * ? [ ] \\
+/// ```
+const GLOB_CHARACTERS: &[u8] = b"*?[]\\";
+
+/// What:
+///  Whether one byte separates path segments.
+///  `&u8` borrows one byte.
+/// Why:
+///  A named function keeps the pass free of a closure that captures nothing,
+///  and every pass here splits on the same byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSeparator = (byte: number) => byte === 0x2f;
+/// ```
+fn is_separator(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
+///  Whether one byte closes the parentheses of longhand pathspec magic.
+/// Why:
+///  A named function keeps the pass free of a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isCloseParenthesis = (byte: number) => byte === 0x29;
+/// ```
+fn is_close_parenthesis(byte: &u8) -> bool {
+    return *byte == b')';
+}
+
+/// What:
+///  Whether one byte separates two magic parameters.
+/// Why:
+///  A named function keeps the pass free of a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isComma = (byte: number) => byte === 0x2c;
+/// ```
+fn is_comma(byte: &u8) -> bool {
+    return *byte == b',';
+}
+
+/// What:
+///  Whether one positional pathspec names one path and nothing else:
+/// no pathspec magic,
+/// no glob character and no `.` or `..` segment.
+/// Why:
+///  `git add file.ts` and `git add dir/` stage what their names hold,
+///  so the policy lets them through without asking Git what they select,
+///  and keeps the guard free of a process for the commands people run most.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isOrdinaryNamedPath = (spelling: Uint8Array) => spelling[0] !== 0x3a && !spelling.some((b) => GLOB_CHARACTERS.includes(b)) && !spelling.split('/').some((s) => s === '.' || s === '..');
+/// ```
+pub fn is_ordinary_named_path(spelling: &[u8]) -> bool {
+    // Magic is a leading colon; a colon anywhere else is part of a name.
+    if spelling.first() == Some(&b':') {
+        return false;
+    }
+    // `for byte in spelling` visits every byte, so one wildcard is enough to make it a pattern.
+    for byte in spelling {
+        if GLOB_CHARACTERS.contains(byte) {
+            return false;
+        }
+    }
+    // `split` gives each path segment: the working directory and its parent reach beyond one name.
+    for segment in spelling.split(is_separator) {
+        if segment == b"." || segment == b".." {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  What one pathspec spelling leaves Git's matcher,
+/// read from its magic.
+///  A `struct` is a record with named fields.
+/// Why:
+///  A spelling names no character of a name when its pattern is wildcards only,
+///  so one reading answers "is this reach-only" for the shorthand forms,
+///  the longhand forms and a caller that reads pathspecs literally.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reading = { pattern: Uint8Array; excludes: boolean; patternIsAName: boolean };
+/// ```
+struct Reading<'pattern> {
+    /// The pattern Git matches after the magic.
+    pattern: &'pattern [u8],
+    /// The magic negates the pattern:
+    ///  everything the pattern leaves is selected.
+    excludes: bool,
+    /// Pathspec magic makes the pattern a name,
+    ///  so no character of it is a wildcard.
+    pattern_is_a_name: bool,
+}
+
+/// What:
+///  Read the magic of one pathspec spelling.
+///  `Option<Reading<'_>>` is "the reading,
+///  or nothing for a longhand form with no closing parenthesis".
+/// Why:
+///  Git reads pathspec magic only before the pattern,
+///  and the wrapper must read the same grammar:
+///  `:` starts it,
+///  `/` anchors at the top of the worktree,
+///  and `!` and `^` negate the pattern.
+///  Git strips a leading colon even when no magic letter follows it,
+///  which is why `:**` selects what `**` selects and not a file named `:**`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reading(spelling: Uint8Array, literal: boolean): Reading | undefined;
+/// ```
+fn reading(spelling: &[u8], literal: bool) -> Option<Reading<'_>> {
+    // A caller that reads pathspecs literally has no magic at all: every character is a name's.
+    if literal {
+        return Some(Reading {
+            pattern: spelling,
+            excludes: false,
+            pattern_is_a_name: true,
+        });
+    }
+    if spelling.first() != Some(&b':') {
+        return Some(Reading {
+            pattern: spelling,
+            excludes: false,
+            pattern_is_a_name: false,
+        });
+    }
+    // The longhand form names its magic in a parenthesised list; Git reads up to the first `)`.
+    if spelling.get(1) == Some(&b'(') {
+        let close: usize = spelling.iter().position(is_close_parenthesis)?;
+        let mut excludes: bool = false;
+        let mut pattern_is_a_name: bool = false;
+        for parameter in spelling[2..close].split(is_comma) {
+            excludes = excludes || parameter == b"exclude" || parameter == b"!";
+            pattern_is_a_name = pattern_is_a_name || parameter == b"literal";
+        }
+        return Some(Reading {
+            pattern: spelling.get(close + 1..).unwrap_or_default(),
+            excludes,
+            pattern_is_a_name,
+        });
+    }
+    // The shorthand form is a run of `/`, `!` and `^`, then at most one colon, then the pattern.
+    let mut position: usize = 1;
+    let mut excludes: bool = false;
+    while position < spelling.len() && matches!(spelling[position], b'/' | b'!' | b'^') {
+        excludes = excludes || spelling[position] != b'/';
+        position += 1;
+    }
+    if spelling.get(position) == Some(&b':') {
+        position += 1;
+    }
+    return Some(Reading {
+        pattern: spelling.get(position..).unwrap_or_default(),
+        excludes,
+        pattern_is_a_name: false,
+    });
+}
+
+/// What:
+///  The path segments a pattern leaves once `.` and `..` are applied,
+/// each as the bytes the pattern wrote.
+///  `Vec<&[u8]>` is an owned list of borrowed slices.
+/// Why:
+///  `sub/..` reaches the working directory and names nothing on the way,
+///  so the segments that remain are what a person would call the name in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const resolvedSegments = (pattern: Uint8Array) => pattern.split('/').reduce((kept, s) => s === '..' ? kept.slice(0, -1) : s === '.' || s === '' ? kept : [...kept, s], []);
+/// ```
+fn resolved_segments(pattern: &[u8]) -> Vec<&[u8]> {
+    let mut kept: Vec<&[u8]> = Vec::<&[u8]>::new();
+    for segment in pattern.split(is_separator) {
+        if segment.is_empty() || segment == b"." {
+            continue;
+        }
+        if segment == b".." {
+            // The parent segment is left out of the name, exactly as a shell resolves it.
+            kept.pop();
+            continue;
+        }
+        kept.push(segment);
+    }
+    return kept;
+}
+
+/// What:
+///  Whether one pathspec spelling names no character of a name,
+///  so it selects by reach alone and everything it stages is whatever it reaches.
+/// Why:
+///  A spelling that names a character of a name,
+/// such as `*.txt`,
+///  stages everything only because the tree happens to fit that name,
+///  and refusing it would block a caller who named what they meant.
+///  A spelling that names nothing cannot tell one path from another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesNoLiteralCharacter = (spelling, literal) => { const read = reading(spelling, literal); if (!read) return false; if (read.excludes) return true; const segments = resolvedSegments(read.pattern); if (read.patternIsAName) return segments.length === 0; return segments.every((s) => [...s].every((b) => GLOB_CHARACTERS.includes(b))); };
+/// ```
+pub fn names_no_literal_character(spelling: &[u8], literal: bool) -> bool {
+    let Some(read) = reading(spelling, literal) else {
+        return false;
+    };
+    // A negated spelling selects everything its pattern leaves, whatever that pattern names.
+    if read.excludes {
+        return true;
+    }
+    let segments: Vec<&[u8]> = resolved_segments(read.pattern);
+    // A name's own characters are no wildcards, so only a spelling that resolves to a directory is reach-only.
+    if read.pattern_is_a_name {
+        return segments.is_empty();
+    }
+    for segment in segments {
+        for byte in segment {
+            if !GLOB_CHARACTERS.contains(byte) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 /// The variable that makes Git read every pathspec of the caller's own command literally.
 pub const LITERAL_VARIABLE: &str = "GIT_LITERAL_PATHSPECS";
@@ -146,34 +360,6 @@ pub const LITERAL_VARIABLE: &str = "GIT_LITERAL_PATHSPECS";
 /// The global options that set that mode,
 /// in the order the caller wrote them.
 const LITERAL_OPTIONS: [&[u8]; 2] = [b"--literal-pathspecs", b"--no-literal-pathspecs"];
-
-/// What:
-///  The spellings that still stage the whole working directory when pathspec magic is literal.
-/// Why:
-///   Literal mode turns `*`,
-/// `**` and every `:` form into a plain name,
-///  but a pathspec that names a directory takes everything below it in any mode,
-///  and `.` and `./` name the working directory itself.
-///  Measured against Git 2.56.0:
-/// `git --literal-pathspecs add -- .` stages every file of the tree.
-const WORKTREE_ROOT_DIRECTORY_PATHSPECS: &[&[u8]] = &[b".", b"./"];
-
-/// What:
-///  Whether one positional token stages in bulk for a caller whose pathspec mode is `literal`.
-/// Why:
-///  The policy judges what a token selects,
-/// so the same spelling is bulk for one caller and one literal file name for another.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stagesInBulk = (spelling: Uint8Array, literal: boolean) => BULK_PATHSPECS.some((bulk) => equal(bulk, spelling)) && (!literal || WORKTREE_ROOT_DIRECTORY_PATHSPECS.some((dir) => equal(dir, spelling)));
-/// ```
-pub fn stages_in_bulk(spelling: &[u8], literal: bool) -> bool {
-    if !BULK_PATHSPECS.contains(&spelling) {
-        return false;
-    }
-    return !literal || WORKTREE_ROOT_DIRECTORY_PATHSPECS.contains(&spelling);
-}
 
 /// What:
 ///  Whether the caller's own command reads pathspecs literally:
@@ -235,82 +421,31 @@ pub fn caller_global_prefix(arguments: &[OsString]) -> &[OsString] {
 }
 
 /// What:
-///  Why a token stages in bulk.
-///  An `enum` is a closed set of named alternatives.
+///  The facts one `git add` region gives about staging in bulk.
+///  `Option<usize>` is "the token index,
+///  or nothing".
 /// Why:
-///   The policy names the matched tokens;
-///  the kind says which Git meaning matched.
+///  `-A` and `-u` stage every changed path whatever the tree holds,
+///  so they are rejected without asking Git anything;
+///  a pathspec stages what Git says it selects,
+///  which only the repository can answer.
+///  Every list is in argument order,
+///  so the diagnostic quotes the caller's own tokens.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type BulkKind = 'all-flag' | 'update-flag' | 'pathspec';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BulkKind {
-    /// `-A`/`--all` is on after every option was applied.
-    AllFlag,
-    /// `-u`/`--update` is on after every option was applied.
-    UpdateFlag,
-    /// A positional pathspec naming the whole worktree,
-    ///  or every changed path below the working directory:
-    ///  the `BULK_PATHSPECS` spellings.
-    Pathspec,
-}
-
-/// What:
-///  One bulk-staging match.
-///  `usize` is the list index type.
-/// Why:
-///   The token index lets the diagnostic quote the caller's exact spelling.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type BulkMatch = { kind: BulkKind; token: number };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct BulkMatch {
-    /// Which Git meaning matched.
-    pub kind: BulkKind,
-    /// Region token index of the token that turned the meaning on.
-    pub token: usize,
-}
-
-/// What:
-///  The bulk matches a caller's own pathspec mode leaves standing:
-/// every flag match,
-/// and a pathspec match only while its spelling still selects the whole worktree.
-/// Why:
-///  The policy rejects on this list,
-/// and what a spelling selects depends on the mode its caller set.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const bulkMatchesUnder = (region, matches, literal) => matches.filter((m) => m.kind !== 'pathspec' || stagesInBulk(region[m.token], literal));
-/// ```
-pub fn bulk_matches_under(region: &[OsString], matches: &[BulkMatch], literal: bool) -> Vec<BulkMatch> {
-    let mut kept: Vec<BulkMatch> = Vec::with_capacity(matches.len());
-    for found in matches {
-        if found.kind != BulkKind::Pathspec || stages_in_bulk(region[found.token].as_encoded_bytes(), literal) {
-            kept.push(*found);
-        }
-    }
-    return kept;
-}
-
-/// What:
-///  Facts of one `git add` region.
-///  `Vec<BulkMatch>` is an owned list in argument order.
-/// Why:
-///   The add-explicit policy rejects when the list is non-empty and no hatch is given.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AddRegion = { bulkMatches: string[]; hasEscapeHatch: boolean };
+/// type AddRegion = { allToken?: number; updateToken?: number; pathspecTokens: number[]; resolved: boolean; wrapper: WrapperFlags };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddRegion {
-    /// Bulk-staging matches in argument order.
-    pub bulk_matches: Vec<BulkMatch>,
+    /// The token that left `-A`,
+    ///  `--all` or `--no-ignore-removal` on.
+    pub all_token: Option<usize>,
+    /// The token that left `-u` or `--update` on.
+    pub update_token: Option<usize>,
+    /// Token index of each positional pathspec that is no ordinary named path;
+    ///  Git must be asked what it selects.
+    pub pathspec_tokens: Vec<usize>,
     /// `--resolved` is on.
     ///  Not a bulk match in the shipped policy;
     ///  reported for its owner.
@@ -377,26 +512,13 @@ fn update_token(parsed: &ParsedOptions) -> Option<usize> {
 }
 
 /// What:
-///  The sort key of a match:
-///  its token index.
-///  `&BulkMatch` borrows one match.
-/// Why:
-///   Matches are reported in the order the caller wrote them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// matches.sort((a, b) => a.token - b.token);
-/// ```
-fn match_token(found: &BulkMatch) -> usize {
-    return found.token;
-}
-
-/// What:
-///  Parse the region after `add`.
+///  Parse the region after `add` for what it says about staging in bulk.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:
 ///   A region Git itself would refuse yields the refusal,
-///  never a guessed fact set.
+///  never a guessed fact set,
+///  and the caller's pathspec mode changes only what a spelling names,
+///  which `names_no_literal_character` reads where that matters.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -415,41 +537,27 @@ pub fn parse_add_region(
     }
     // `?` returns Git's refusal to our caller, or unwraps the tokenized region.
     let parsed: ParsedOptions = parse_options(region, ADD_TABLE, DEFAULT_MODE, flags.as_slice())?;
-    let mut bulk_matches: Vec<BulkMatch> = Vec::<BulkMatch>::new();
-    // `if let Some(token) = ...` runs only when `-A` is on.
-    if let Some(token) = all_token(&parsed) {
-        bulk_matches.push(BulkMatch {
-            kind: BulkKind::AllFlag,
-            token,
-        });
-    }
-    if let Some(token) = update_token(&parsed) {
-        bulk_matches.push(BulkMatch {
-            kind: BulkKind::UpdateFlag,
-            token,
-        });
-    }
+    let mut pathspec_tokens: Vec<usize> = Vec::<usize>::new();
     for token in positional_tokens(&parsed, region.len()) {
         // `.as_encoded_bytes()` lends the raw bytes; nothing is decoded or copied.
-        if BULK_PATHSPECS.contains(&region[token].as_encoded_bytes()) {
-            bulk_matches.push(BulkMatch {
-                kind: BulkKind::Pathspec,
-                token,
-            });
+        // An ordinary name stages what it names, so the policy starts no process for it.
+        if is_ordinary_named_path(region[token].as_encoded_bytes()) {
+            continue;
         }
+        pathspec_tokens.push(token);
     }
-    // `sort_by_key` orders the list by the value `match_token` returns for each item.
-    bulk_matches.sort_by_key(match_token);
     // `Ok(x)` is the success case of `Result`.
     return Ok(AddRegion {
-        bulk_matches,
+        all_token: all_token(&parsed),
+        update_token: update_token(&parsed),
+        pathspec_tokens,
         resolved: is_enabled(&parsed, RESOLVED),
         wrapper: split_wrapper_flags(parsed.wrapper.as_slice()),
     });
 }
 
-/// Bulk matches in every accepted spelling,
-///  and real-Git controls of the table.
+/// Bulk forms in every accepted spelling,
+///  and real-Git controls of the table and of the paths that stage everything.
 #[cfg(test)]
 #[path = "command_add_tests.rs"]
 mod tests;

@@ -393,22 +393,22 @@ unless the user asks otherwise.
 
 ### Immediate next steps (in order)
 
-1. **Full workspace lint sanity check**:
-    `mise run //:lint > /tmp/full-lint-final.log 2>&1; tail -5 /tmp/full-lint-final.log; grep -E 'ERROR task failed' /tmp/full-lint-final.log`.
-   If clean,
-    the no-regex sweep is done.
-    If new packages surface,
-   they'll need the same treatment (refactor where feasible,
-    scoped
-   disable with the four-part justification — why regex,
-    input bounds,
-   backtracking safety,
-    why no string-API alternative — otherwise).
+1.  **Full workspace lint sanity check**:
+     `mise run //:lint > /tmp/full-lint-final.log 2>&1; tail -5 /tmp/full-lint-final.log; grep -E 'ERROR task failed' /tmp/full-lint-final.log`.
+    If clean,
+     the no-regex sweep is done.
+     If new packages surface,
+    they'll need the same treatment (refactor where feasible,
+     scoped
+    disable with the four-part justification — why regex,
+     input bounds,
+    backtracking safety,
+     why no string-API alternative — otherwise).
 
-2. **Closing out**:
-    when `mise run //:lint` is fully clean,
-    delete this
-   `HANDOVER.*` file (the user reviews and decides whether to keep it).
+2.  **Closing out**:
+     when `mise run //:lint` is fully clean,
+     delete this
+    `HANDOVER.*` file (the user reviews and decides whether to keep it).
 
 ### Justification template for new disables
 

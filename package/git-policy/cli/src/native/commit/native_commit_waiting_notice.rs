@@ -28,6 +28,23 @@
 //! the step runs in a scratch repository on a private copy of the index,
 //! and the objects it wrote are content-addressed files the next build writes again,
 //! so nothing of the person's is in the step.
+//!  A step the kernel has not released cannot act on that signal,
+//!  and the command waits for the kernel rather than for its ceiling:
+//!  the owner chose that wait and asked for it to be said
+//!  (2026-11-10,
+//!  "Keep waiting and say so"),
+//!  so the wait that keeps waiting says it,
+//!  once and again for as long as the wait lasts,
+//!  in a line that names the process the kernel is holding,
+//!  says the stop was sent and the kernel has not released it,
+//!  and says nothing of the person's is at risk
+//!  (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`,
+//!  `scratch_step_held_by_the_kernel.rs`).
+//!  That line is the wait's because the wait is the one that lasts:
+//!  a notice thread the system refused at its thread limit cannot say anything,
+//!  and this notice's thread ends at the stop.
+//!  What this notice keeps for it is the writer thread and the single queue every line goes through,
+//!  so the line is written by one thread and never by a reader a stopped terminal holds.
 //!  It ends nothing else:
 //! the landing service runs landings of different repositories on worker threads of one process,
 //! so another landing's Git is a child of the same process at the same moment,
@@ -84,9 +101,6 @@ pub fn scratch_ceiling() -> Duration {
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The step the notice watches,
-/// and the processes it started.
-use crate::process_tree::descendants_of_read;
 /// What the ceiling does when it comes.
 use crate::scratch_step_ceiling_stop::{CeilingCame, TheCeiling, ceiling_came};
 /// The line the notice prints,
@@ -95,6 +109,9 @@ use crate::scratch_step_notice_line::{notice_line, other_programs};
 /// The programs a look saw below the step,
 /// and the time each was credited with.
 use crate::scratch_step_programs_below::{SeenBelow, credit_between_looks, seen_below};
+/// One look at the step and the programs below it,
+/// and what a look answers about one of them.
+use crate::scratch_step_look_below::{look_below, process_cpu, process_is_blocked};
 /// The number of the step,
 /// published the moment it starts.
 use crate::child_number_told_at_start::ChildNumber;
@@ -107,12 +124,11 @@ use std::io::Write;
 /// The writer thread's own time,
 /// kept where the notice thread can read it.
 use std::sync::Mutex;
-/// The channel that ends the notice thread.
-use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
+/// The channel that ends the notice thread,
+/// and the queue its writer thread takes whole lines from.
+use std::sync::mpsc::{Sender, RecvTimeoutError, SyncSender, channel, sync_channel};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
-/// One member of a process tree.
-use crate::process_tree::TreeMember;
 
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
@@ -272,15 +288,6 @@ use crate::scratch_commit_step::ScratchStepFacts;
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
-/// What:
-///   the process numbers below this one,
-/// from the kernel's per-thread child lists.
-use crate::process_tree::descendant_numbers_from_thread_lists;
-/// What:
-///   one process's name,
-/// state and processor time,
-/// from one `/proc/<pid>/stat`.
-use crate::process_tree::use_of;
 
 /// The running notice:
 /// the thread that watches the step,
@@ -305,6 +312,11 @@ pub struct NativeCommitNotice {
     unarmed: ScratchStepFacts,
     /// The step the thread watches.
     step: ChildNumber,
+    /// Where a wait that must say why it still lasts hands its line,
+    /// and nothing when no writer thread runs;
+    /// it is the same queue every other line of this notice goes through,
+    /// so one thread writes and two lines never come inside one another.
+    said: Option<SyncSender<String>>,
 }
 
 /// Whether the commit is signed:
@@ -327,72 +339,6 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
     return asked;
 }
 
-/// What:
-///  The step and every living process below it,
-/// with their names,
-/// states and processor times.
-/// Why:
-///   The step's own read comes first,
-/// so a look that finds it and nothing else still arms the ceiling.
-///  One read of one small file per process,
-/// from the kernel's per-thread child lists,
-/// so a notice that looks many times stays cheap:
-/// a walk costs 19.6 microseconds and a pass over `/proc` 17.6 ms on 2026-11-09 (`process_tree.rs`).
-///  `/proc` itself is read only where the kernel has no child lists.
-///  A process the kernel holds as a zombie is not below the step any more,
-/// as `descendants_of` counts it.
-///  Nothing is answered when `/proc` could not be read at all:
-/// that is a look that failed,
-/// never a step that ended.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const below = lookBelow(step); // [{ pid, name, state, cpu }], undefined when the look failed
-/// ```
-fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
-    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(step) {
-        Some(found) => found,
-        None => descendants_of_read(step)?.iter().map(member_number).collect(),
-    };
-    let mut found: Vec<(i32, ProcessUse)> = Vec::new();
-    // The step itself, so a look that finds it and nothing else still arms the ceiling.
-    if let Some(used) = use_of(step)
-        && used.state != 'Z'
-    {
-        found.push((step, used));
-    }
-    let mut read_below: bool = false;
-    for pid in numbers.iter().copied() {
-        if let Some(used) = use_of(pid) {
-            read_below = true;
-            if used.state != 'Z' {
-                found.push((pid, used));
-            }
-        }
-    }
-    // A walk that named processes and let none of them be read is a look that failed,
-    // never a step with nothing below it.
-    if !numbers.is_empty() && !read_below {
-        return None;
-    }
-    return Some(found);
-}
-
-/// The number of one member of a tree.
-fn member_number(member: &TreeMember) -> i32 {
-    return member.pid;
-}
-
-/// The processor time one process below the step has used.
-fn process_cpu(entry: &(i32, ProcessUse)) -> Duration {
-    return entry.1.cpu;
-}
-
-/// Whether one process below the step is in uninterruptible sleep.
-fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
-    return entry.1.state == 'D';
-}
-
 impl NativeCommitNotice {
     /// A notice that prints nothing:
     /// the commit opens an editor,
@@ -408,6 +354,7 @@ impl NativeCommitNotice {
             abandoned: std::sync::Arc::default(),
             unarmed: ScratchStepFacts::unarmed(ceiling),
             step: ChildNumber::not_started(),
+            said: None,
         };
     }
 
@@ -461,12 +408,28 @@ impl NativeCommitNotice {
     }
 
     /// What:
+    ///  Where a wait that must say why it still lasts hands its line.
+    /// Why:
+    ///   The wait that stops a step the kernel then holds is the only code that keeps waiting,
+    /// and the line that explains that wait must reach the person even when no notice thread was started.
+    ///  The writer thread is this notice's,
+    ///  and this is the queue it takes whole lines from.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.linesForTheWait(); // SyncSender<string> | undefined
+    /// ```
+    pub fn lines_for_the_wait(&self) -> Option<&SyncSender<String>> {
+        return self.said.as_ref();
+    }
+
+    /// What:
     ///  Starts the notice for a `git commit` that is about to run.
     /// Why:
     ///   A commit that opens the editor gets none;
     /// a failure to start the thread leaves the step to the wait that owns it,
     /// which ends the child at this ceiling itself,
-    /// and prints no line,
+    /// and prints no line of its own,
     /// because there is no thread to print one.
     ///
     /// In TS you'd write (pseudocode):
@@ -486,17 +449,8 @@ impl NativeCommitNotice {
             return Self::silent(None);
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
-        // What: A control refuses the thread here, as a process at its thread limit answers `pthread_create` with `EAGAIN`.
-        // Why:  The refusal cannot be produced on demand,
-        //       and a notice with no thread answers exactly what it answers when the system refuses one:
-        //       it enforces nothing,
-        //       so the wait that owns the step ends it at the ceiling
-        //       (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
-        if a_thread_is_refused_now().is_some() {
-            return Self::silent(Some(ceiling));
-        }
         let (stop, ended) = channel::<()>();
-        let (lines, waiting) = std::sync::mpsc::sync_channel::<String>(LINE_QUEUE);
+        let (lines, waiting) = sync_channel::<String>(LINE_QUEUE);
         let (told_written, written) = channel::<()>();
         let (told_answers, answers) = channel::<ScratchStepFacts>();
         let wrote: std::sync::Arc<Mutex<Duration>> = std::sync::Arc::default();
@@ -509,7 +463,7 @@ impl NativeCommitNotice {
         let watched: ChildNumber = step.clone();
         // The lines are written here and never on the thread that enforces the ceiling:
         // a reader that stopped reading then holds this thread, and the commit does not wait for it.
-        let _writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
+        let writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
             let mut to_write: Box<dyn Write + Send> = sink;
             for line in waiting {
                 // The command is over: the line it was handed and every line behind it say nothing a reader can act on.
@@ -524,7 +478,20 @@ impl NativeCommitNotice {
             }
             let _told = told_written.send(());
         });
-        let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
+        // What: A control refuses the notice thread here, as a process at its thread limit answers `pthread_create` with `EAGAIN`.
+        // Why:  The refusal cannot be produced on demand,
+        //       and a notice with no thread answers exactly what it answers when the system refuses one:
+        //       it enforces nothing,
+        //       so the wait that owns the step ends it at the ceiling
+        //       (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+        //       The writer thread is made either way, so the wait that keeps waiting can still say why it does.
+        let no_notice_thread: bool = if a_thread_is_refused_now().is_some() {
+            // No thread kept this sender, and a wait that ends the step itself answers what it saw.
+            drop(told_answers);
+            true
+        } else {
+            let sending: SyncSender<String> = lines.clone();
+            let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
             let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(ceiling));
@@ -586,6 +553,10 @@ impl NativeCommitNotice {
                     match the_ceiling.came {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
+                            // What: The step was sent the stop.
+                            // Why:  Whether the kernel has released it is said by the wait that keeps waiting for it, and not
+                            //       from this thread, which the system may never have started
+                            //       (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
                             break 'notice;
                         }
                         CeilingCame::TheStepEnded => break 'notice,
@@ -600,7 +571,7 @@ impl NativeCommitNotice {
                     first = false;
                     // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
                     // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.
-                    if lines.try_send(line).is_err() {
+                    if sending.try_send(line).is_err() {
                         facts.lines_dropped = facts.lines_dropped.saturating_add(1);
                     }
                 }
@@ -621,21 +592,25 @@ impl NativeCommitNotice {
             // The facts leave through the channel `finish` waits on, so a thread that cannot answer never holds the commit:
             // returning them through the join would make the join the wait.
             let _answered = told_answers.send(facts);
-        });
-        return match spawned {
-            Ok(_thread) => Self {
-                stop: Some(stop),
-                answers,
-                written,
-                wrote,
-                abandoned,
-                unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
-                step,
-            },
-            // The system refused the thread: this notice enforces nothing,
-            // so the wait that owns the step ends it at the ceiling
-            // (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
-            Err(_) => Self::silent(Some(ceiling)),
+            });
+            spawned.is_err()
+        };
+        // The writer runs either way: the wait that keeps waiting says why through it, and a notice thread the system refused
+        //  leaves that wait as the only voice left (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+        let said: Option<SyncSender<String>> = match writer {
+            Ok(_writes) => Some(lines),
+            // The system refused the writer too, so no line of this notice can be written and none is handed over.
+            Err(_refused) => None,
+        };
+        return Self {
+            stop: if no_notice_thread { None } else { Some(stop) },
+            answers,
+            written,
+            wrote,
+            abandoned,
+            unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
+            step,
+            said,
         };
     }
 
@@ -674,6 +649,8 @@ impl NativeCommitNotice {
             }
         };
         // The line already handed to the writer is written if the reader takes it within the same bound, and no longer.
+        // The wait's own sender goes here too, so the writer's queue ends with the command rather than with the last field of this value.
+        drop(self.said.take());
         let _written = self.written.recv_timeout(NOTICE_BOUND);
         // The command is over, so the writer prints nothing more: a line it still holds is dropped when its write returns,
         // and the thread ends with it instead of living on beside a reader that stopped reading.

@@ -140,6 +140,31 @@ fn preparation_fixture_with(context: &GitContext, root: &Path, repo: PathBuf) ->
     };
 }
 
+/// What:
+///  A commit is built in the shadow of a repository whose directory name is not UTF-8.
+/// Why:
+///   The shadow lives under that Git directory,
+///  and its name reached Git through `display()`,
+///  which spelled the byte as U+FFFD and named a directory that does not exist:
+///  Git answered "not a git repository" and the commit was not made.
+#[test]
+fn a_commit_names_the_shadow_by_its_bytes() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("commit-preparation-not-utf8");
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let prepared: Fixture = preparation_fixture(root.as_path(), repo.clone());
+    let commit: PreparedCommit = prepare(&prepared, &["--message=prepared"])
+        .expect("the shadow builds the commit for a repository whose name is not UTF-8");
+    assert!(!commit.oid.is_empty(), "the commit names an object");
+    remove(root.as_path());
+}
+
 /// Runs the preparation of a fixture.
 fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
     let context: GitContext = git_context();

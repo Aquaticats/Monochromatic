@@ -21,6 +21,7 @@ import {
   CheckFailureError,
   expect,
 } from './errors.ts';
+import { numbersBelow, } from './numbers-below.ts';
 import type { Session, } from './session.ts';
 import type { UiState, } from './ui-state.ts';
 
@@ -339,7 +340,7 @@ export async function selectFolderByName(
     act: keyStep(letter,),
     session,
   },);
-  for (let step = 0; step < stepLimit; step += 1) {
+  for (const _step of numbersBelow(stepLimit,)) {
     /**
      What this row of the walk found: the showing state when the ring stood on the name, else that it stood elsewhere.
      */

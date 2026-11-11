@@ -258,6 +258,34 @@ fn index_without_staging_matches_the_real_index() {
     remove(root.as_path());
 }
 
+/// What:
+///  A repository whose index file does not exist yet is prepared without writing one.
+/// Why:
+///  The preparation ran `read-tree --empty` against the real index when the file was absent,
+///  so it took the real index's lock and created the person's index before any landing;
+///  two commits in such a repository therefore failed each other with `index.lock` `file exists`,
+///  and the decision record says every commit prepares without the real index lock
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+///  "Parallel preparation").
+///  A process for another program's hold on that lock is what a second commit is,
+/// so the lock is held here while the preparation runs.
+#[test]
+fn a_repository_with_no_index_file_is_prepared_without_taking_the_real_index() {
+    let root: PathBuf = fixture("commit-index-no-index-file");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    let real: PathBuf = repo.join(".git").join("index");
+    std::fs::remove_file(&real).expect("remove the real index");
+    // Another command of the same repository, staging something at this instant.
+    let held: PathBuf = repo.join(".git").join("index.lock");
+    std::fs::write(&held, "held by another command\n").expect("hold the index lock");
+    let pathspecs: Vec<OsString> = Vec::new();
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    assert!(!real.exists(), "the preparation wrote the person's index");
+    assert!(indexes.commit_index.exists(), "the commit's own copy is built");
+    std::fs::remove_file(&held).expect("release the index lock");
+    remove(root.as_path());
+}
+
 /// `commit -a` staging stages every tracked change and leaves untracked files out.
 #[test]
 fn index_with_tracked_staging_stages_only_tracked_changes() {
@@ -377,7 +405,9 @@ fn unmerged_paths_are_listed_once() {
     let (repo, indexes, _base) = committed_repository(root.as_path());
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
     let info: String = format!("100644 {blob} 1\ta.txt\n100644 {blob} 2\ta.txt\n100644 {blob} 3\ta.txt\n");
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "--index-info"],
         Some(indexes.commit_index.as_path()),
@@ -403,7 +433,9 @@ fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
     std::fs::write(repo.join("sub/f"), b"conflict\n").expect("write sub/f");
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "sub/f"]);
     let info: String = format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "--index-info"],
         Some(indexes.commit_index.as_path()),
@@ -633,7 +665,9 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
     initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
     assert_eq!(changed(&repo, &indexes, &base), vec![b"caf\xe9.txt".to_vec()]);
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
+        &context,
         repo.as_path(),
         &["update-index", "-z", "--index-info"],
         Some(indexes.commit_index.as_path()),

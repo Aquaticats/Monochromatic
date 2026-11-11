@@ -191,6 +191,7 @@ fn drop_intent_to_add(
         input.push(0);
     }
     let mut request: GitRequest = indexed_request(
+        context,
         cwd,
         &["update-index", "-z", "--index-info"],
         Some(private_index),

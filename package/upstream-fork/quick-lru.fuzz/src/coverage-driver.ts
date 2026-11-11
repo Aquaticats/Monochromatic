@@ -230,93 +230,83 @@ function exerciseScenario(options: {
 }
 
 /**
- Drives the fixed scenarios over caches with and without `onEviction`, over
- the counter branches, and over every configuration failure.
+ Clock controlling time for every scenario below.
  */
-function main(): void {
-  /**
-   Clock controlling time for every scenario below.
-   */
-  const clock = installFakeClock({
-    startMilliseconds: CLOCK_START,
+const clock = installFakeClock({
+  startMilliseconds: CLOCK_START,
+},);
+/**
+ Notified cache whose evictions land in {@link evicted}.
+ */
+const notified = createQuickLru<string, string>({
+  maxSize: 2,
+  maxAge: 500,
+  onEviction: createEvictionRecorder(),
+},);
+exerciseScenario({
+  lru: notified,
+  clock,
+},);
+/**
+ Unnotified cache exercising the absent-callback gates.
+ */
+const unnotified = createQuickLru<string, string>({
+  maxSize: 2,
+  maxAge: 500,
+},);
+exerciseScenario({
+  lru: unnotified,
+  clock,
+},);
+/**
+ Duplicate-key cache exercising the size tally branch and the stale
+ duplicate eviction notification.
+ */
+const duplicate = createQuickLru<string, string>({
+  maxSize: 3,
+  onEviction: createEvictionRecorder(),
+},);
+for (const key of [
+  'a',
+  'b',
+  'c',
+  'a',
+  'd',
+]) {
+  duplicate.set({
+    key,
+    value: key,
   },);
-  /**
-   Notified cache whose evictions land in {@link evicted}.
-   */
-  const notified = createQuickLru<string, string>({
-    maxSize: 2,
-    maxAge: 500,
-    onEviction: createEvictionRecorder(),
-  },);
-  exerciseScenario({
-    lru: notified,
-    clock,
-  },);
-  /**
-   Unnotified cache exercising the absent-callback gates.
-   */
-  const unnotified = createQuickLru<string, string>({
-    maxSize: 2,
-    maxAge: 500,
-  },);
-  exerciseScenario({
-    lru: unnotified,
-    clock,
-  },);
-  /**
-   Duplicate-key cache exercising the size tally branch and the stale
-   duplicate eviction notification.
-   */
-  const duplicate = createQuickLru<string, string>({
-    maxSize: 3,
-    onEviction: createEvictionRecorder(),
-  },);
-  for (const key of [
-    'a',
-    'b',
-    'c',
-    'a',
-    'd',
-  ]) {
-    duplicate.set({
-      key,
-      value: key,
-    },);
-  }
-  void duplicate.size;
-  void duplicate.__oldCache;
-  /**
-   NaN-lifetime cache exercising upstream's falsy-stamp rewrite.
-   */
-  const nanLifetime = createQuickLru<string, string>({
-    maxSize: 2,
-    maxAge: Number.NaN,
-  },);
-  nanLifetime.set({
-    key: 'a',
-    value: 'alpha',
-    maxAge: -5,
-  },);
-  void nanLifetime.get('a',);
-  nanLifetime.evict(100,);
-  swallow(function rejectZeroMaxSize(): void {
-    createQuickLru<string, string>({
-      maxSize: 0,
-    },);
-  },);
-  swallow(function rejectZeroMaxAge(): void {
-    createQuickLru<string, string>({
-      maxSize: 1,
-      maxAge: 0,
-    },);
-  },);
-  swallow(function rejectZeroResize(): void {
-    notified.resize(0,);
-  },);
-  clock.restore();
-  void evicted;
 }
-
-main();
-
-//endregion Driver
+void duplicate.size;
+void duplicate.__oldCache;
+/**
+ NaN-lifetime cache exercising upstream's falsy-stamp rewrite.
+ */
+const nanLifetime = createQuickLru<string, string>({
+  maxSize: 2,
+  maxAge: Number.NaN,
+},);
+nanLifetime.set({
+  key: 'a',
+  value: 'alpha',
+  maxAge: -5,
+},);
+void nanLifetime.get('a',);
+nanLifetime.evict(100,);
+swallow(function rejectZeroMaxSize(): void {
+  createQuickLru<string, string>({
+    maxSize: 0,
+  },);
+},);
+swallow(function rejectZeroMaxAge(): void {
+  createQuickLru<string, string>({
+    maxSize: 1,
+    maxAge: 0,
+  },);
+},);
+swallow(function rejectZeroResize(): void {
+  notified.resize(0,);
+},);
+clock.restore();
+void evicted;

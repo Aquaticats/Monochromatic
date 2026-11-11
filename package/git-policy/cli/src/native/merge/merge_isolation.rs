@@ -49,7 +49,12 @@ use crate::merge_isolation_recovery::recover_interrupted_merges;
 /// The person's own work in the paths the merge changes,
 /// and the durable ref that keeps it.
 use crate::merge_isolation_carry::{capture_work, keep_capture};
+/// The directory a merge would replace with a file,
+/// and the sentence that stops the merge instead.
+use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
 use crate::merge_isolation_carry_parts::Capture;
+/// The editor a merge opens for its message when the checkout holds the person's own work.
+use crate::merge_isolation_editor::{EditorPlace, EditorRefusal, asked_once};
 /// The command-line reading.
 use crate::merge_options::{FastForwardChoice, MergeShape, ParsedMerge, parse_merge_shape};
 /// The place recovery runs in.
@@ -84,7 +89,10 @@ use std::path::{Path, PathBuf};
 /// async function runIsolatedMerge(input: IsolatedMergeInput): Promise<IsolatedMerge>;
 /// ```
 pub fn run_isolated_merge(input: &IsolatedMergeInput<'_>) -> IsolatedMerge {
-    match attempt(input) {
+    // What the person wrote in the editor, kept across the rounds a moved branch makes again, so their message is
+    //  never asked for twice.
+    let mut edited: Option<Vec<u8>> = None;
+    match attempt(input, &mut edited) {
         Ok(done) | Err(Bail::Done(done)) => return done,
         Err(Bail::Forward(notice)) => return IsolatedMerge::Forward { notice },
         // `attempt` makes the rounds itself and never lets one escape; native Git is the safe answer to a bug here.
@@ -106,9 +114,9 @@ pub fn run_isolated_merge(input: &IsolatedMergeInput<'_>) -> IsolatedMerge {
 /// ```ts
 /// async function attempt(input): Promise<IsolatedMerge>; // throws Bail
 /// ```
-fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
+fn attempt(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -> Result<IsolatedMerge, Bail> {
     for round in 1..=MAX_ROUNDS {
-        match attempt_round(input) {
+        match attempt_round(input, edited) {
             Err(Bail::Again(reason)) => {
                 debug(TAG, format!("round {round} of {MAX_ROUNDS}: {reason}").as_str());
                 let _noted = std::io::stderr().write_all(format!("monochromatic-git-policy-cli: git merge: {reason}; merging again on the current branch.\n").as_bytes());
@@ -119,8 +127,8 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
     return Err(refused(
         2,
         format!(
-            "monochromatic-git-policy-cli: git merge: the branch moved or the index lock was taken in {MAX_ROUNDS} merges in a row, so the wrapper \
-             stopped; nothing was changed. Run the merge again.\n"
+            "monochromatic-git-policy-cli: git merge: the branch moved, a file the merge carries was saved again, or the index lock was \
+             taken in {MAX_ROUNDS} merges in a row, so the wrapper stopped; nothing of yours was changed. Run the merge again.\n"
         ),
     ));
 }
@@ -138,7 +146,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
 /// ```ts
 /// async function attemptRound(input): Promise<IsolatedMerge>; // throws Bail
 /// ```
-fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
+fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -> Result<IsolatedMerge, Bail> {
     if !input.command.is_builtin() || input.command.word() != b"merge" {
         return Err(Bail::Forward(None));
     }
@@ -189,18 +197,11 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         .as_deref()
         .map(std::ffi::OsStr::to_string_lossy)
         .map(std::borrow::Cow::into_owned);
-    let opens_editor: bool = !shape.no_edit
+    // `-m` gives the message and `--no-edit` declines the editor; without either a terminal opens one. The decision is
+    //  only taken here: a merge whose paths hold the person's own work is this command's, whether an editor opens or not.
+    let opens_editor: bool = shape.message.is_none()
+        && !shape.no_edit
         && editor_would_open(auto_edit.as_deref(), stdin_and_stdout_are_one_terminal()).unwrap_or(true);
-    if opens_editor && !staged_work {
-        return Err(Bail::Forward(None));
-    }
-    if opens_editor {
-        return Err(Bail::Forward(Some(String::from(
-            "monochromatic-git-policy-cli: this merge would open an editor, so the wrapper does not complete it in isolation while the \
-             index holds staged changes; native Git refuses it. Run `git merge --no-edit` (or set \
-             GIT_MERGE_AUTOEDIT=no) and the wrapper completes the merge without touching the staged changes.\n",
-        ))));
-    }
     let config: MergeConfig = read_config(&session)?;
     if config.deferred {
         return Err(Bail::Forward(None));
@@ -234,6 +235,22 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         FastForwardChoice::Allowed => false,
         FastForwardChoice::Default => config.fast_forward == Some(false),
     };
+    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
+    let touched: Vec<Vec<u8>> = diff_paths(
+        session
+            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
+            .stdout
+            .as_slice(),
+    );
+    // A directory standing where the merge writes a file is the person's own work, and Git's update of the checkout deletes
+    //  everything in it: measured, an untracked `a.txt/nested/file.txt` and a staged one both went with the directory, the
+    //  staged one with its index entry. No layer of the carry can hold a directory, so the merge stops here, before the
+    //  first byte of the worktree, the index or the branch changes (`SPEC.md`, "A directory that stands where the merge puts a file").
+    if let Some(found) = a_directory_the_merge_would_replace(&session.context, root, head, target, touched.as_slice())
+        .map_err(Bail::from)?
+    {
+        return Err(refused(1, the_line(reference.as_str(), &found)));
+    }
     if config.fast_forward_only && shape.fast_forward == FastForwardChoice::Default {
         return Err(Bail::Forward(None));
     }
@@ -254,15 +271,15 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
     let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
-    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
-    let touched: Vec<Vec<u8>> = diff_paths(
-        session
-            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
-            .stdout
-            .as_slice(),
-    );
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
-
+    // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
+    //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
+    //  it refuses such a checkout before the editor opens (`doc/planning/cli-git-merge-with-staged-index.md`), so the
+    //  merge is completed here and the editor is opened here, on the message the merge would carry (`SPEC.md`, "A merge
+    //  whose paths hold the person's own work carries it forward").
+    if opens_editor && !staged_work && !carrying {
+        return Err(Bail::Forward(None));
+    }
     let (tree, second_pass_files): (String, Vec<Merged>) = merge_tree(
         &session,
         &shape,
@@ -278,6 +295,24 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
             .as_slice(),
     );
     let overlap: Vec<Vec<u8>> = overlapping_paths(dirty.as_slice(), incoming.as_slice());
+    let written: Vec<u8> = match (&shape.message, description) {
+        (Some(given), _) => given.clone(),
+        (None, Some(line)) => default_merge_message(&session.context, line.as_str(), shape.log)?,
+        (None, None) => return Err(Bail::Forward(None)),
+    };
+    // The message a merge that opens an editor is committed with is the person's: their editor reads the merge's own
+    //  message in `<git-dir>/MERGE_MSG`, as native Git writes it, and its cleanup is the one an edited commit gets. The
+    //  editor runs before the capture, so a message that is never written leaves no object and no ref behind.
+    let message: Vec<u8> = if opens_editor {
+        let place: EditorPlace<'_> = EditorPlace { session: &session, git_dir };
+        match asked_once(edited, &place, written.as_slice()) {
+            Ok(found) => found,
+            Err(EditorRefusal::NoEditor) => return Err(Bail::Forward(None)),
+            Err(refusal) => return Err(refused(1, editor_stopped(reference.as_str(), &refusal))),
+        }
+    } else {
+        clean_message(&session.context, written.as_slice())?
+    };
     // The bytes are written and kept on a ref of their own before the record exists and before the first byte of the checkout
     //  changes, so a kill at any instant leaves them where recovery finds them. A capture that cannot be made is native Git's
     //  command, which refuses such a checkout with its own words and changes nothing.
@@ -287,14 +322,6 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
             debug(TAG, format!("native Git runs this merge: its paths hold work this command cannot carry: {reason}").as_str());
             return Err(Bail::Forward(None));
         }
-    };
-    let message: Vec<u8> = match (&shape.message, description) {
-        (Some(given), _) => clean_message(&session.context, given.as_slice())?,
-        (None, Some(line)) => {
-            let subject: Vec<u8> = default_merge_message(&session.context, line.as_str(), shape.log)?;
-            clean_message(&session.context, subject.as_slice())?
-        }
-        (None, None) => return Err(Bail::Forward(None)),
     };
     let new_oid: String = match commit_merge(&session, &shape, &config, (head, target, tree.as_str()), message) {
         Ok(created) => created,
@@ -362,6 +389,29 @@ fn capture_for(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<O
     }
     let capture: Capture = capture_work(context, root, paths)?;
     return Ok(Some(keep_capture(context, root, &capture)?));
+}
+
+/// What:
+///  The words for a merge whose editor left no message.
+/// Why:
+///   Everything the command would have changed is still as it was,
+/// so the outcome is the person's message to rewrite,
+///  and the sentence says both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function editorStopped(reference: string, refusal: EditorRefusal): string;
+/// ```
+fn editor_stopped(reference: &str, refusal: &EditorRefusal) -> String {
+    let reason: &str = match refusal {
+        EditorRefusal::Stopped(detail) => detail.as_str(),
+        EditorRefusal::Empty => "the editor left an empty message",
+        EditorRefusal::NoEditor => "Git resolved no editor for this environment",
+    };
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: {reason}, so the merge was not made and nothing in the repository changed. \
+         Run the merge again to write the message.\n"
+    );
 }
 
 /// What:

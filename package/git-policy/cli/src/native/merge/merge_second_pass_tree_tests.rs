@@ -114,7 +114,7 @@ fn probed_repository(name: &str) -> (PathBuf, PathBuf) {
 ///  global options.
 fn tip_variables(repo: &Path, prefix: &[OsString], variables: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let context: GitContext = git_context();
-    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: repo, without_prefix: false, object_directory: None, environment: Vec::new() };
+    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: repo, without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
     let probe = AttributeProbe { directory: repo, global_prefix: prefix, variables, runner: &runner };
     return await_it(attribute_tree_variables("tip123", &probe));
 }

@@ -18,6 +18,10 @@
 /// beside the landing loop.
 pub mod service_scratch_release_removal;
 
+/// The fill of the shadow pool a commit takes its private repository from,
+/// beside the landing loop.
+pub mod service_shadow_pool_fill;
+
 /// Whether a socket of an earlier release's unit listens,
 /// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;
@@ -82,11 +86,19 @@ pub mod service_signal;
 /// and ends the process by the signal.
 pub mod service_server_shutdown_after_a_stop;
 
+/// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
+/// read at a service's start on a thread of its own.
+pub mod service_journal_restored_at_start;
+
 /// The commit service's loop.
 pub mod service_server;
 
-/// The loop of the commit service's work thread.
+/// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
+
+/// The same loop as a task of the runtime,
+/// with the two storage steps only it makes.
+pub mod service_server_work_loop_awaiting;
 
 /// The wait of a thread on a queue the runtime owns:
 /// an item,
@@ -173,6 +185,12 @@ pub mod systemd_dbus_wire_format;
 /// socket and unit instances.
 pub mod service_instance;
 
+/// The files an instance of the commit service keeps between runs:
+/// the note beside its socket,
+/// the note and socket file that say it has units,
+/// and the journal that remembers its batches.
+pub mod service_files_of_a_stopped_instance;
+
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,
 /// whether it is gone,
@@ -187,6 +205,10 @@ pub mod service_journal_folder_of_an_instance;
 /// for the controls of the units of removed worktrees.
 #[cfg(test)]
 pub mod service_unit_manager_recorder_test_support;
+
+/// One disposable machine for the controls of the units of removed worktrees and of the files an instance keeps.
+#[cfg(test)]
+pub mod service_units_fixture_test_support;
 
 /// One entry from the wrapper a person ran to the journal,
 /// sent without waiting.

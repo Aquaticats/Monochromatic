@@ -83,6 +83,20 @@ async function run(call: ProgramCall): Promise<ProgramResult> {
 }
 
 /**
+ Run one program call with this command's own streams, so a step that takes an hour stays visible while it runs.
+
+ @param call - program, arguments and working directory
+
+ @returns the exit status, with no captured output because the streams went to the terminal
+ */
+async function runStreaming(call: ProgramCall): Promise<ProgramResult> {
+  return await spawnProgram({
+    ...call,
+    capture: false,
+  });
+}
+
+/**
  Run the dispatch command on its arguments.
 
  @param argv - arguments after the script path
@@ -120,6 +134,7 @@ async function execute(argv: readonly string[]): Promise<number> {
   return await dispatchRelease({
     options,
     run,
+    runGate: runStreaming,
     print: console.log,
   });
 }

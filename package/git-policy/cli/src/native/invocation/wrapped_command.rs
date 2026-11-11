@@ -34,7 +34,7 @@
 /// ```ts
 /// import { runPolicyPass } from './policy_pass.ts';
 /// ```
-use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_push_failures, snapshot_before_worktree_removal};
+use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_held_commits, show_push_failures, snapshot_before_worktree_removal};
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::repository_link_answer::EXIT_GIT_FATAL;
 /// `git add` asks for what it would stage.
@@ -457,6 +457,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     // After the configuration step, so a command that had Git answer the repository location shows from that answer, and
     //  before the commit, so a failure shows ahead of the commit's own output.
     show_push_failures(stripped, checks);
+    show_held_commits(stripped, checks);
     snapshot_before_worktree_removal(stripped, checks);
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)

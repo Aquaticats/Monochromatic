@@ -440,12 +440,17 @@ fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_re
 /// so it needs no cell and no lock;
 /// workers get what is due
 ///  as owned values (`Retrying`) and hand their changes back (`RetryChange`).
+/// The list is cloned into a job of the blocking pool when the loop that owns it is a task,
+///  because a job may not borrow it;
+/// the job hands the changed list back and the clone is dropped,
+/// so only one list is ever the
+///  owner's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class PushRetries { schedule(); forget(); takeDue(); nextWait(); apply(changes); }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PushRetries {
     /// The pause before the first new try.
     first: Duration,
@@ -594,6 +599,27 @@ impl PushRetries {
                 }
             }
         }
+    }
+
+    /// What:
+    ///  Apply what the workers of a round asked,
+    /// without writing the plan's own files:
+    /// the list changes here and the journal keeps what it holds.
+    /// Why:
+    ///   A caller that polls the runtime may not write storage itself,
+    /// and a job the system gave no thread for wrote nothing,
+    ///  while the worker of each plan already wrote the file it promised:
+    /// the list is what this call must keep,
+    /// and the next round writes the plan's files again when a thread can start.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// applyWithoutWriting(changes) // the store is out of the way for the length of the apply
+    /// ```
+    pub fn apply_without_writing(&mut self, changes: Vec<RetryChange>) {
+        let store: Option<PathBuf> = self.store.take();
+        self.apply(changes);
+        self.store = store;
     }
 
     /// Remove and return the plans of this Git directory that are due at `now`.

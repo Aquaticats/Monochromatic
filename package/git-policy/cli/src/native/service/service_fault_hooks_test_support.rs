@@ -11,7 +11,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // a module that exists only in test builds
-//! export const hooks = { failAt, clearFailures, set, takeEvents };
+//! export const hooks = { failAt, clearFailures, set, takeEvents, holdOnAnyThread };
 //! ```
 use std::cell::RefCell;
 
@@ -67,4 +67,68 @@ pub(super) fn run(point: &str) {
     if let Some(hook) = found {
         hook();
     }
+}
+
+/// What:
+///  A point a control holds on whichever thread reaches it,
+/// with the end that says the point was reached and the end that lets it go.
+/// Why:
+///  The hooks above belong to one thread,
+/// which suits a landing that lives on one thread;
+///  the check that decides whose a request is runs inside a job of the blocking pool
+/// (`is_foreign` in `service_server_connection_handling.rs`),
+///  so a control cannot reach it with `set`.
+///  A hold from the test's own thread blocks no worker of the runtime,
+/// and the connection it holds is watched from the client.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdOnAnyThread({ point: 'in-the-instance-read', reached, letGo })
+/// ```
+pub(crate) struct HoldOnAnyThread {
+    /// The point this hold is for.
+    pub(crate) point: String,
+    /// Where the thread that reached the point says so.
+    pub(crate) reached: tokio::sync::oneshot::Sender<()>,
+    /// The end that lets the held thread go on.
+    pub(crate) let_go: std::sync::mpsc::Receiver<()>,
+}
+
+/// The hold a control set,
+/// if any,
+/// taken by the thread that reaches it so a second reach passes.
+static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync::Mutex::new(None);
+
+/// What:
+///  Holds `point` on whichever thread reaches it,
+/// until the caller sends on the end that lets it go.
+/// Why:
+///   The caller learns the point was reached from `reached`,
+/// so "while the point waits" is a state and not a duration,
+///  and the thread that waits is let go by the sender the caller keeps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [reached, reachedWait] = channel(); const [letGo, held] = channel(); holdOnAnyThread({ point, reached, letGo: held });
+/// ```
+pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
+    *HELD_ON_ANY_THREAD.lock().expect("the hold registry") = Some(held);
+}
+
+/// What:
+///  Holds the thread that reaches `point` while a control asked for it,
+/// and says the point was reached.
+/// Why:
+///   A hold is taken when it is reached,
+/// so a later reach of the same point passes and a control cannot block a second request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = take(); if (held?.point !== point) return; held.reached.send(); held.letGo.recv();
+/// ```
+pub(crate) fn run_on_any_thread(point: &str) {
+    let taken: Option<HoldOnAnyThread> = HELD_ON_ANY_THREAD.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let Some(held) = taken else { return };
+    let _said = held.reached.send(());
+    let _let_go = held.let_go.recv();
 }

@@ -4,6 +4,7 @@
 
  The scanner bakes its sources into one image that runs the campaign itself, so it keeps its own snapshot flow; the
  mutant kinds no campaign tries come from the shared package.
+ Throws `ScannerVerificationError` when the options are not at most one scope, optionally with `--list`, or the campaign fails
  */
 import {
   rm,
@@ -112,99 +113,87 @@ async function listMutants(fixture: Snapshot): Promise<void> {
 }
 
 /**
- Scoped mutations retain the baseline, all policy branches and the complete scanner consumer suite.
-
- @throws ScannerVerificationError when the options are not at most one scope, optionally with `--list`, or the campaign fails
- 
- @example
- ```ts
- await main();
- ```
+ Arguments after the script path.
  */
-async function main(): Promise<void> {
-  /**
-   Arguments after the script path.
-   */
-  const options = process.argv
-    .slice(2);
-  // `--list` combines with any scope: it appends cargo-mutants' own `--list` to the unchanged campaign arguments.
-  /**
-   The `--list` arguments, of which at most one is accepted.
-   */
-  const listing = options.filter(function isList(option) {
-    return option === '--list';
-  });
-  /**
-   Arguments that are not `--list`, which must be at most one scope.
-   */
-  const chosen = options.filter(function isScope(option) {
-    return option !== '--list';
-  });
-  if ((listing.length > 1) || (chosen.length > 1)
-    || ((chosen.length === 1) && (!Object.hasOwn(
-      scopeTable,
-      chosen[0] ?? '',
-    ))))
-    throw new ScannerVerificationError(`Accepted: at most one of ${Object.keys(scopeTable)
-      .join(', ')}, optionally with --list.`);
-  /**
-   The chosen scope, or none for the whole scanner.
-   */
-  const scope = chosen.length === 1 ? scopeTable[chosen[0] ?? ''] : undefined;
-  /**
-   Whether only the mutants are listed.
-   */
-  const list = listing.length === 1;
-  /**
-   The cargo-mutants command the snapshot image runs.
-   */
-  const command: string[] = [
-    'cargo',
-    'mutants',
-    '--in-place',
-    '--all-features',
-    '--baseline',
-    'run',
-    '--no-config',
-    '--no-shuffle',
-    '--colors=never',
-    '--build-timeout',
-    '300',
-    '--timeout',
-    '120',
-    '--output',
-    '/work/mutation-report',
-    '--cargo-arg=--offline',
-    '--cargo-arg=--locked',
-    '--cargo-test-arg=--',
-    '--cargo-test-arg=--test-threads=1',
-    '--cargo-test-arg=--skip=rule::frx::compile_tests::builtin_ported_all_compile',
-    '--cargo-test-arg=--skip=rule::frx::compile_tests::append_ported_compiles_end_to_end',
-    ...exclusionArguments([]),
-    ...(scope?.files ?? allFiles).flatMap(function fileArguments(file) {
-      return [
-        '--file',
-        `src/${file}`
-      ];
-    }),
-    ...(list ? ['--list'] : []),
-  ];
-  /**
-   Name of the scope for the evidence directory.
-   */
-  const name = scope ? scope.name : 'mutation';
-  /**
-   The snapshot image and its evidence directory.
-   */
-  const fixture = await snapshot({
-    command,
-    name: list ? `${name}-list` : name,
-    tool: 'cargo-mutants',
-  });
-  if (list) {
-    await listMutants(fixture);
-    return;
-  }
+const options = process.argv
+  .slice(2);
+// `--list` combines with any scope: it appends cargo-mutants' own `--list` to the unchanged campaign arguments.
+/**
+ The `--list` arguments, of which at most one is accepted.
+ */
+const listing = options.filter(function isList(option) {
+  return option === '--list';
+});
+/**
+ Arguments that are not `--list`, which must be at most one scope.
+ */
+const chosen = options.filter(function isScope(option) {
+  return option !== '--list';
+});
+if ((listing.length > 1) || (chosen.length > 1)
+  || ((chosen.length === 1) && (!Object.hasOwn(
+    scopeTable,
+    chosen[0] ?? '',
+  ))))
+  throw new ScannerVerificationError(`Accepted: at most one of ${Object.keys(scopeTable)
+    .join(', ')}, optionally with --list.`);
+/**
+ The chosen scope, or none for the whole scanner.
+ */
+const scope = chosen.length === 1 ? scopeTable[chosen[0] ?? ''] : undefined;
+/**
+ Whether only the mutants are listed.
+ */
+const list = listing.length === 1;
+/**
+ The cargo-mutants command the snapshot image runs.
+ */
+const command: string[] = [
+  'cargo',
+  'mutants',
+  '--in-place',
+  '--all-features',
+  '--baseline',
+  'run',
+  '--no-config',
+  '--no-shuffle',
+  '--colors=never',
+  '--build-timeout',
+  '300',
+  '--timeout',
+  '120',
+  '--output',
+  '/work/mutation-report',
+  '--cargo-arg=--offline',
+  '--cargo-arg=--locked',
+  '--cargo-test-arg=--',
+  '--cargo-test-arg=--test-threads=1',
+  '--cargo-test-arg=--skip=rule::frx::compile_tests::builtin_ported_all_compile',
+  '--cargo-test-arg=--skip=rule::frx::compile_tests::append_ported_compiles_end_to_end',
+  ...exclusionArguments([]),
+  ...(scope?.files ?? allFiles).flatMap(function fileArguments(file) {
+    return [
+      '--file',
+      `src/${file}`
+    ];
+  }),
+  ...(list ? ['--list'] : []),
+];
+/**
+ Name of the scope for the evidence directory.
+ */
+const name = scope ? scope.name : 'mutation';
+/**
+ The snapshot image and its evidence directory.
+ */
+const fixture = await snapshot({
+  command,
+  name: list ? `${name}-list` : name,
+  tool: 'cargo-mutants',
+});
+if (list)
+  await listMutants(fixture);
+else {
   /**
    The container once it exists, and whether its report was kept; removed (or reported) with the build context when the
    campaign ends.
@@ -301,5 +290,3 @@ async function main(): Promise<void> {
   if ((result.status !== 0) || (report.status !== 0))
     throw new ScannerVerificationError(`Mutation exited ${result.status ?? 'no status'}; report-copy status ${report.status ?? 'no status'}; inspect ${fixture.evidence}.`);
 }
-
-await main();

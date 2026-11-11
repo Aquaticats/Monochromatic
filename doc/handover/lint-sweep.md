@@ -143,24 +143,24 @@ Three reusable findings came out of the two stubborn `prefer-readonly-parameter-
 remaining" count was an undercount;
  see "Lessons for future sweeps"):
 
-1. **h3 `app: H3` exposed a native-rule symbol-name mismatch.**
-   h3's dist declared `class H3$1` and re-exported `type H3 = H3$1`,
-   so the retired native allowlist could miss the surface name.
-   Do not recreate that allowlist entry.
-   The replacement uses exact declaration provenance and caller effects.
+1.  **h3 `app: H3` exposed a native-rule symbol-name mismatch.**
+    h3's dist declared `class H3$1` and re-exported `type H3 = H3$1`,
+    so the retired native allowlist could miss the surface name.
+    Do not recreate that allowlist entry.
+    The replacement uses exact declaration provenance and caller effects.
 
-2. **`focusOutline({ offset?: CssValue })` exposed a native-rule nested-brand limitation.**
-   The semantic replacement classifies the primitive and readonly brand constituents directly.
-   A 2026-07-13 package run produced no `focusOutline` or `CssValue` diagnostic while preserving unrelated findings.
-   See
-   [oxlint-prefer-readonly-branded-nesting.md](../troubleshooting/oxlint-prefer-readonly-branded-nesting.md).
+2.  **`focusOutline({ offset?: CssValue })` exposed a native-rule nested-brand limitation.**
+    The semantic replacement classifies the primitive and readonly brand constituents directly.
+    A 2026-07-13 package run produced no `focusOutline` or `CssValue` diagnostic while preserving unrelated findings.
+    See
+    [oxlint-prefer-readonly-branded-nesting.md](../troubleshooting/oxlint-prefer-readonly-branded-nesting.md).
 
-3. **Readonly diagnostics must remain authoritative.**
-   Do not add output filtering for the replacement rule.
-   Resolve exact external effects in the tested catalogue,
-   propagate real ownership through `ForeignBorrowed` boundaries,
-   or add an honest `@mutates` contract for caller-observable effects.
-   Oxlint reports unnecessary disable directives itself.
+3.  **Readonly diagnostics must remain authoritative.**
+    Do not add output filtering for the replacement rule.
+    Resolve exact external effects in the tested catalogue,
+    propagate real ownership through `ForeignBorrowed` boundaries,
+    or add an honest `@mutates` contract for caller-observable effects.
+    Oxlint reports unnecessary disable directives itself.
 
 Lessons for future sweeps:
 

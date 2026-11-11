@@ -46,6 +46,10 @@ pub mod lfs_object_plan;
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
 
+/// The words a person reads about an upload,
+/// beside the run of it so that each file passes the package's length limit.
+pub mod lfs_upload_explanations;
+
 /// The Git LFS step before a push the caller typed:
 /// pre-check,
 /// plan and upload with the caller's streams.

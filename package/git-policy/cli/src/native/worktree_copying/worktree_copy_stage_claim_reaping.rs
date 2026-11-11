@@ -5,11 +5,14 @@
 //!  A claim is the record that a stage may exist.
 //! A claim whose owner is dead and whose stage no journal adopted is reaped;
 //! a
-//!  claim of an add names a stage by path alone,
-//! which proves nothing,
-//! so that stage is reported and never removed,
-//! and the claim stays so that the
-//!  next command reports it again.
+//!  stage a copy left is a private directory this wrapper made,
+//! while a stage an add left is removed only when the record of
+//!  the object its creation made proves that object still stands there and holds nothing the record cannot account for
+//!  (`worktree_copy_stage_made_object.rs`,
+//! `worktree_copy_stage_entries_the_record_accounts_for.rs`);
+//! a stage that record does
+//!  not prove is reported and never removed,
+//! and the claim stays so that the next command reports it again.
 //! What an interrupted `git worktree add` settles to lives beside this file,
 //! and is named here so one import path reaches both.
 //!
@@ -29,6 +32,8 @@ use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage}
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
+use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, remove_made};
+use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -399,12 +404,13 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 ///  a claimed container no journal names,
 /// whose owner is dead,
 /// was abandoned by a process that died.
-/// A stage an add left is never removed,
-/// and its claim stays while it stands,
-/// so every command that runs the
-///  recovery names it again instead of leaving the name in one command's output;
-/// the claim goes when the person
-///  has removed the stage.
+/// A stage a copy left is removed whenever it is a private directory;
+/// a stage an add left is removed only when the
+///  record of the object its creation made proves that object stands there and holds nothing the record cannot account
+///  for (`worktree_copy_stage_made_object.rs`),
+/// and is otherwise reported and kept,
+/// so nothing a person added there
+///  after the kill is lost and the claim goes on naming the folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -435,46 +441,97 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
             if !verdicts.dead_claims.contains(name.as_str()) {
                 continue;
             }
-            let present: bool = match std::fs::symlink_metadata(container.as_path()) {
-                Ok(_) => true,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-                Err(error) => return Err(raw_failure(&error)),
-            };
+            let present: bool = still_there(container.as_path())?;
             let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-            // The claim of a worktree add names a stage by its path alone, which proves nothing about what stands there now
-            // (a snapshot, a directory another process put there, or nothing): such a stage is reported and never removed.
             // A record that cannot be looked up counts as one: when in doubt the stage is kept.
             let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
             let mut stage_stays: bool = false;
-            if present && !journaled.contains(&container) && of_an_add {
-                notices.push(format!(
-                    "monochromatic-git-policy-cli: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
-                    quote(container.to_string_lossy().as_ref())
-                ));
-                stage_stays = true;
-            } else if present && !journaled.contains(&container) {
-                assert_private_path(container.as_path(), Role::PrivateStage)?;
-                remove_stage(container.as_path())?;
-                notices.push(format!(
-                    "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
-                    quote(container.to_string_lossy().as_ref())
-                ));
+            if present && !journaled.contains(&container) {
+                if of_an_add {
+                    // Both proofs, or nothing is removed: the record of the object the creation made names the object
+                    // standing there, and that object holds nothing the record cannot account for.
+                    match provenance_of(claim.as_path(), container.as_path())? {
+                        Provenance::Proved => {
+                            remove_stage(container.as_path())?;
+                            notices.push(removed_stage_words(container.as_path()));
+                        }
+                        Provenance::Gone => {}
+                        Provenance::Unproved(reason) => {
+                            notices.push(kept_stage_words(container.as_path(), reason.as_str()));
+                            stage_stays = true;
+                        }
+                    }
+                } else {
+                    // A copy's stage is a private directory this wrapper made; one another command removed in between is
+                    // nobody's failure.
+                    match assert_private_path(container.as_path(), Role::PrivateStage) {
+                        Ok(()) => {
+                            remove_stage(container.as_path())?;
+                            notices.push(removed_copy_stage_words(container.as_path()));
+                        }
+                        Err(_) if !still_there(container.as_path())? => {}
+                        Err(error) => return Err(error),
+                    }
+                }
             }
             let settled: Settlement = settle_interrupted_add(record.as_path());
             if let Some(notice) = settled.notice {
                 notices.push(notice);
             }
-            // A stage of an add is never removed, so its claim is what names it: the record, the marker and the claim stay while
-            //  the stage or the incomplete worktree is still there, and the next command reports them again.
+            // While the stage stands its claim is what names it, so the record, the marker and the claim stay and the next
+            //  command reports them again; a settled worktree keeps its records for the same reason.
             if settled.keep || stage_stays {
                 continue;
             }
+            remove_made(claim.as_path())?;
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
             remove_file_if_present(claim.as_path())?;
         }
     }
     remove_dead_temporaries(root.as_path(), verdicts)?;
+    remove_records_nothing_claims(root.as_path())?;
     absent_is_fine(sync_directory(root.as_path()))?;
     return Ok(notices);
+}
+
+/// What:
+///  Removes every record of a stage's object that no claim beside it names.
+/// Why:
+///   A claim is released with its record,
+/// but a kill between the two removals leaves the record,
+/// and so does a claim another command
+///  reaped;
+/// a record nothing claims proves nothing about any folder and no later command reads it,
+/// so it would stay for ever.
+/// The sweep names only records,
+/// leaves every other file of the journal root alone,
+/// and a file a live writer is renaming is never
+///  touched,
+/// because a write publishes its record with one rename and no temporary of that name is listed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name))) await rm(join(root, name));
+/// ```
+fn remove_records_nothing_claims(root: &Path) -> Result<(), WorktreeCopyError> {
+    // `match` treats an absent root as holding no records, and every other failure as fatal.
+    let listing = match std::fs::read_dir(root) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(raw_failure(&error)),
+    };
+    let mut unclaimed: Vec<PathBuf> = Vec::new();
+    for listed in listing {
+        let path: PathBuf = listed.map_err(raw_failure_of)?.path();
+        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
+        if !root.join(format!("{identifier}.stage")).exists() {
+            unclaimed.push(path);
+        }
+    }
+    for path in unclaimed {
+        remove_file_if_present(path.as_path())?;
+    }
+    return Ok(());
 }
