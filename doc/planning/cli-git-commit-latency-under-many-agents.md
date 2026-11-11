@@ -4240,12 +4240,14 @@ plain arms over the same 300 paths:
 
 Read as four cells:
 
-- The copies cost a merge commit 7,022 to 19,706 ms before the change and 0 to 17 ms after it.
-  The 19,706 ms is a warm-up arm over 20 paths,
-  2026-11-11T00:34:21.872Z,
-  whose commit took 21,813 ms:
-  the number of flushes per merge is what fixes its cost,
-  not the size of the merge.
+- The copies cost a merge commit 7,022,
+  7,442 and 15,565 ms before the change,
+  and 0,
+  0 and 17 ms after it.
+  A warm-up over 20 paths spent 19,706 ms in the copies
+  (2026-11-11T00:34:21.872Z,
+  its commit 21,813 ms),
+  which is what says the number of flushes per merge fixes this cost and the size of the merge does not.
 - A merge commit went from 13,094 ms at the median to 3,733 ms,
   and a plain commit of the same paths,
   signed and built in the same kind of shadow,
