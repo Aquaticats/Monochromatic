@@ -554,9 +554,9 @@ The controls and the traced commits are in
 and the checkout it lands in".
 
 What it costs a control:
-the conclusion control of `service_landing_state`
-(before `4bf304b393` split it into one control per state,
-seven tests at 17.2 s to 63.1 s each in the module's runs)
+the conclusion control of `service_landing_state`,
+which was one test over the seven states
+(the seven now take 17.2 s to 63.1 s each in the module's runs),
 landed 28 conclusion commits in one test,
 took 284.9 s alone on 2026-11-11 with other sessions loading the host,
 15 s under the runner's five-minute stop,
