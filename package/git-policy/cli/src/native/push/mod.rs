@@ -37,6 +37,9 @@ pub mod stacked_merge_push;
 /// the final failure.
 pub mod push_retry;
 
+/// The first of Git's own lines that gives a reason for a push's failure.
+pub mod push_retry_cause_line;
+
 /// The retry plan on disk,
 /// in the service instance's journal,
 /// so that a restarted service keeps trying the pushes it was trying.

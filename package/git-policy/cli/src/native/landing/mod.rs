@@ -385,6 +385,11 @@ pub mod service_work_storage_awaited;
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;
 
+/// The service's work that can take minutes:
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
+pub mod service_work_slow_lane;
+
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;
 
