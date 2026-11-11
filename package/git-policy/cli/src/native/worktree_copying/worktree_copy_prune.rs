@@ -315,8 +315,9 @@ impl Prune {
         let Prune::MainCheckout { run_records } = self else {
             return false;
         };
+        // The component before this one, which the two nested names below are judged by; nothing at the first.
+        let mut parent: Option<&[u8]> = None;
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&[u8]> = index.checked_sub(1).map(|before| { return components[before]; });
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
@@ -330,6 +331,7 @@ impl Prune {
             if cache || (record && !run_records) {
                 return true;
             }
+            parent = Some(component);
         }
         return false;
     }

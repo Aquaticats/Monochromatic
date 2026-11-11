@@ -285,15 +285,20 @@ fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person()
         "the refusal was given every try the service gives it, and no more"
     );
     let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
-    assert!(record.contains("GH006"), "the person is shown what GitHub said: {record}");
-    assert!(record.contains("stopped trying this branch"), "the person is told the service has stopped: {record}");
+    assert!(record.contains("GH006"), "the stored record keeps what GitHub said: {record}");
+    // What the person reads at the next command, which is the record through the words the notice gives it.
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the refusal: {shown:?}");
+    let shown_record: &str = shown[0].as_str();
+    assert!(shown_record.contains("GH006"), "the person is shown what GitHub said: {shown_record}");
+    assert!(shown_record.contains("stopped trying this branch"), "the person is told the service has stopped: {shown_record}");
     assert!(
-        record.contains(&format!("tried it {PROTECTED_BRANCH_TRIES} times")),
-        "the person is told how many tries the service gave it: {record}"
+        shown_record.contains(&format!("tried it {PROTECTED_BRANCH_TRIES} times")),
+        "the person is told how many tries the service gave it: {shown_record}"
     );
     let span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, COUNTED_PAUSE).as_secs(); }).sum();
-    assert!(record.contains(&format!("{span} seconds")), "the person is told how long the tries covered: {record}");
-    assert!(!record.contains("tries this push again"), "the record promises no try that is not coming: {record}");
+    assert!(shown_record.contains(&format!("{span} seconds")), "the person is told how long the tries covered: {shown_record}");
+    assert!(!shown_record.contains("tries this push again"), "the record promises no try that is not coming: {shown_record}");
     remove(root.as_path());
 }
 
@@ -929,6 +934,14 @@ fn a_push_a_server_refuses_with_gh006_is_tried_again_and_lands_without_a_new_com
     assert!(
         record.contains("tries this push again by itself") && record.contains("GH006"),
         "the person is told GitHub's words and that the service tries again: {record}"
+    );
+    assert!(
+        record.contains(&format!("(try 2 of {PROTECTED_BRANCH_TRIES})")),
+        "the record names the try and the last one: {record}"
+    );
+    assert!(
+        !record.contains("keeps trying with longer pauses"),
+        "the record promises no tries until the push lands, because this cause stops after its last: {record}"
     );
     let wait: Duration = first.expect("the service says when to look at the repository again");
     assert!(wait <= PAUSE + Duration::from_secs(5), "the wake is for the retry: {wait:?}");

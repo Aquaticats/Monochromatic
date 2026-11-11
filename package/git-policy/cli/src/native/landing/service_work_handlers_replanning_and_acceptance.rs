@@ -587,7 +587,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     //  untrue for the one cause that stops on its own; its words name the last try instead.
     let plan: String = match protected_branch_refusal(text) {
         Some(_) => format!(
-            "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {} of {}), because the server's refusal of an update to a protected branch can clear by itself. If the server refuses that try too it tells you what the server said, and after try {} it stops trying this branch.",
+            "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {} of {}). The server's refusal of an update to a protected branch can clear by itself; if the server refuses try {} as well, the service stops trying this branch and tells you what the server said.",
             pause.as_secs(),
             attempt + 1,
             PROTECTED_BRANCH_TRIES,
