@@ -400,6 +400,14 @@ The set of candidates is the branches this merge brought in:
 That keeps a worktree whose branch merely sat on an older commit of the landed branch,
  which is not work this merge brought in,
  and it never considers a branch with no commits of its own.
+The candidates are also limited to the worktrees the repository registered before the merge ran,
+ which `window` reads in one directory read beside the branch it already reads before Git starts.
+Another cross-vendor review found the hole:
+the registrations were read after the merge commit existed,
+ so a worktree a command added in that window was in the candidate set
+ and a merge that landed before it existed removed it.
+A registration that was not there when the merge started is no work this merge ended,
+ so the sweep does not examine it at all.
 
 A candidate is removed only when all of these hold,
 each one a control:
@@ -413,9 +421,12 @@ each one a control:
   `rebase-merge`,
   `rebase-apply` or `sequencer`
    stands in its administrative directory;
-- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it.
+- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it;
+- every ignored file and link it holds is also in the worktree this merge ran in,
+  by kind,
+  mode and bytes (the paragraph below).
 
-The last condition,
+Cleanliness,
 that Git would remove the worktree without `--force`,
 is Git's own to decide.
 The sweep does not pre-judge cleanliness:

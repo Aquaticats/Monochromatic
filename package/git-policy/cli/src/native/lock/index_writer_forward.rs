@@ -218,7 +218,7 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // What: The branch as the merge found it, read before Git moves it.
     // Why:  The worktrees whose branches the merge lands are those new to the landed branch, and only this reading says
     //       which commits the landed branch did not hold before (`worktree_landed_after_a_merge.rs`).
-    let merge_window: Option<(GitContext, String)> = if forward.command.word() == b"merge" {
+    let merge_window: Option<(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)> = if forward.command.word() == b"merge" {
         let sweep_context: GitContext = GitContext {
             real_git: forward.real_git.clone(),
             overlay: forward.overlay.clone(),
@@ -311,11 +311,11 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
 /// ```ts
 /// sweptAfterAMerge(window, identity, code); // nothing when this command was no merge
 /// ```
-fn swept_after_a_merge(window: Option<&(GitContext, String)>, identity: &WorktreeIdentity, code: i32) {
-    let Some((context, before)) = window else {
+fn swept_after_a_merge(window: Option<&(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)>, identity: &WorktreeIdentity, code: i32) {
+    let Some((context, window)) = window else {
         return;
     };
-    let _swept = crate::worktree_landed_after_a_merge::after_a_merge(context, identity, before.as_str(), code);
+    let _swept = crate::worktree_landed_after_a_merge::after_a_merge(context, identity, window, code);
 }
 
 /// What:

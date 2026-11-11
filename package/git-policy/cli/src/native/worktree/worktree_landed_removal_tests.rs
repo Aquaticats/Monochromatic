@@ -15,6 +15,7 @@ use crate::held_commit_record::{Held, write};
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, spawn_owned};
 use crate::worktree_added_by_the_wrapper::record;
+use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use std::path::{Path, PathBuf};
 
 /// A repository with one linked worktree whose branch holds a commit of its own.
@@ -84,14 +85,20 @@ fn a_repository_with_a_worktree_and_ignore_rules(name: &str, rules: &str) -> Lan
 
 /// The place one control sweeps,
 /// with the real process table.
-fn place_of<'a>(landed: &'a Landed, context: &'a crate::transaction_git::GitContext) -> LandedPlace<'a> {
+fn place_of<'a>(landed: &'a Landed, context: &'a crate::transaction_git::GitContext, registered_before: &'a RegisteredBefore) -> LandedPlace<'a> {
     return LandedPlace {
         context,
         cwd: landed.main.as_path(),
         common_dir: landed.common.as_path(),
         current_root: Some(landed.main.as_path()),
         proc_root: Path::new("/proc"),
+        registered_before,
     };
+}
+
+/// The registrations the fixture's repository has now.
+fn registrations_now(landed: &Landed) -> RegisteredBefore {
+    return registered_before(landed.common.as_path()).expect("the registrations of the fixture");
 }
 
 /// The head of the main checkout now.
@@ -182,10 +189,13 @@ fn planted_pool(landed: &Landed) -> PathBuf {
 /// ```
 fn land_feature(landed: &Landed) -> LandedSweep {
     let before: String = head_of(landed.main.as_path());
+    // Taken before the merge starts, as the command that runs a merge takes it: a worktree added while the merge runs is
+    // not one this merge ends.
+    let registered_before: RegisteredBefore = registrations_now(landed);
     git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
     let after: String = head_of(landed.main.as_path());
     let context: crate::transaction_git::GitContext = git_context();
-    let place: LandedPlace<'_> = place_of(landed, &context);
+    let place: LandedPlace<'_> = place_of(landed, &context, &registered_before);
     return sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
 }
 
@@ -354,6 +364,35 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
     assert_eq!(git_text(landed.main.as_path(), &["rev-parse", kept.as_str()]), held, "the kept reference names the held commit");
     git(landed.main.as_path(), &["gc", "--prune=now"]);
     assert_eq!(git_text(landed.main.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is not lost with the worktree");
+}
+
+/// What:
+///  A worktree a command adds for the branch a merge just landed,
+///  after that merge ended,
+///  is not the sweep's to remove.
+/// Why:
+///   The sweep reads the registrations after the merge commit exists,
+///  so a registration that was not there when the merge landed was in its candidate set
+///  and the worktree it names went with a merge that could not have landed it
+///  (a cross-vendor review of the landed sweep).
+#[test]
+fn a_worktree_added_after_the_merge_is_not_removed_by_its_sweep() {
+    let landed: Landed = a_repository_with_a_worktree("landed-late-add");
+    // The branch must be free for the late add, so the worktree the fixture made goes before the merge.
+    git(landed.main.as_path(), &["worktree", "remove", landed.worktree.to_str().expect("a UTF-8 fixture path")]);
+    let before: String = head_of(landed.main.as_path());
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let now: String = head_of(landed.main.as_path());
+    let late: PathBuf = landed.root.join("late");
+    git(landed.main.as_path(), &["worktree", "add", "--quiet", late.to_str().expect("a UTF-8 fixture path"), "feature"]);
+    record(landed.common.as_path(), late.as_path()).expect("the record of a worktree this program made");
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before);
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "main");
+    assert!(sweep.removed.is_empty(), "a worktree added after the merge landed is not removed: {sweep:?}");
+    assert!(sweep.kept.is_empty() && sweep.unproven.is_empty(), "it was no candidate at all: {sweep:?}");
+    assert!(late.exists(), "the worktree the late add made is still there");
 }
 
 #[test]

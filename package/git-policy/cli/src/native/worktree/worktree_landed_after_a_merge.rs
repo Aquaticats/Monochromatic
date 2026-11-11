@@ -4,7 +4,10 @@
 //!   The sweep needs the branch as it was before the merge and as it is after,
 //!  and only the command that ran the merge knows both.
 //!  It also needs the directory to start Git in and the root of the worktree it must not remove,
-//!  which come from the repository shape the command ran with.
+//!  which come from the repository shape the command ran with,
+//!  and the worktrees the repository registered before the merge ran,
+//!  which is what keeps a worktree another command added while the merge ran, or after it landed,
+//!  out of the sweep.
 //!  A merge that ended with a nonzero status,
 //!  or one that moved nothing,
 //!  sweeps nothing:
@@ -15,12 +18,13 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const before = headOf(context, identity);            // one Git start, before the merge
-//! afterAMerge(context, identity, before, code);        // after it ended; prints one line per worktree
+//! const window = mergeWindow(context, identity);          // one Git start and one directory read, before the merge
+//! afterAMerge(context, identity, window, code);           // after it ended; prints one line per worktree
 //! ```
 
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use crate::worktree_landed_removal::{LandedPlace, LandedSweep, sweep_landed_worktrees};
 use crate::worktree_landed_sweep_notice::landed_sweep_lines;
 use std::ffi::OsString;
@@ -98,20 +102,51 @@ pub fn head_of(context: &GitContext, identity: &WorktreeIdentity) -> Option<Stri
 
 /// What:
 ///  The branch as the merge finds it,
-///  with the context any later reading of it needs,
+///  the registrations the repository has then,
+///  and the context any later reading of them needs,
 ///  or nothing when the branch has no commit yet.
 /// Why:
 ///   The sweep compares the landed branch before and after the merge,
-///  so the reading has to be taken before Git moves the branch,
-///  and the pair is what a caller keeps until the merge ends.
+///  so the branch has to be read before Git moves it,
+///  and it removes only the worktrees that were registered then:
+///  a worktree a command adds while the merge runs,
+///  or after it lands,
+///  did not exist when the merge did,
+///  and a registration read after the merge would otherwise be taken for one of them
+///  (a cross-vendor review of the landed sweep).
+///  Both readings are taken before Git starts,
+///  and the pair is what the caller keeps until the merge ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// window(context, identity) // [context, before] | undefined
+/// window(context, identity) // [context, { before, registered }] | undefined
 /// ```
-pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitContext, String)> {
+pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitContext, LandedWindow)> {
     let before: String = head_of(&context, identity)?;
-    return Some((context, before));
+    let common_dir: PathBuf = common_directory(identity)?;
+    return Some((context, LandedWindow { before, registered: registered_before(common_dir.as_path()) }));
+}
+
+/// What:
+///  What a merge that will run found before it did:
+///  the branch,
+///  and the registrations the repository had.
+/// Why:
+///   Only the command that ran the merge knows this,
+///  and every sweep after it reads both.
+///  A registry that could not be read is kept as the reason,
+///  because a sweep without it must not remove anything: nothing would prove a worktree existed when the merge landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LandedWindow = { before: string; registered: { admins } | string };
+/// ```
+pub struct LandedWindow {
+    /// The branch as the merge found it.
+    pub(crate) before: String,
+    /// The registrations the repository had then,
+    /// or why they could not be listed.
+    pub(crate) registered: Result<RegisteredBefore, String>,
 }
 
 /// The branch this worktree has checked out,
@@ -142,14 +177,14 @@ fn current_branch(context: &GitContext, directory: &Path) -> Option<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// afterAMerge(context, identity, before, code) // LandedSweep | undefined
+/// afterAMerge(context, identity, window, code) // LandedSweep | undefined
 /// ```
-pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, before: &str, code: i32) -> Option<LandedSweep> {
+pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: &LandedWindow, code: i32) -> Option<LandedSweep> {
     if code != 0 {
         return None;
     }
     let now: String = head_of(context, identity)?;
-    if now == before {
+    if now == window.before {
         return None;
     }
     let directory: PathBuf = working_directory(identity)?;
@@ -159,14 +194,27 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, before: 
         Some(found) => found,
         None => String::from("a head with no branch"),
     };
+    let registered: &RegisteredBefore = match window.registered.as_ref() {
+        Ok(found) => found,
+        // Nothing proves which worktrees existed when the merge landed, so this merge removes none of them and says why.
+        Err(reason) => {
+            let sweep: LandedSweep = LandedSweep { landed_branch: branch.clone(), failed: Some(reason.clone()), ..LandedSweep::default() };
+            let mut stderr: std::io::Stderr = std::io::stderr();
+            for line in landed_sweep_lines(&sweep) {
+                let _written = writeln!(stderr, "{line}");
+            }
+            return Some(sweep);
+        }
+    };
     let place: LandedPlace<'_> = LandedPlace {
         context,
         cwd: directory.as_path(),
         common_dir: common_dir.as_path(),
         current_root: root.as_deref(),
         proc_root: Path::new(PROCESS_TABLE),
+        registered_before: registered,
     };
-    let sweep: LandedSweep = sweep_landed_worktrees(&place, before, now.as_str(), branch.as_str());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, window.before.as_str(), now.as_str(), branch.as_str());
     let mut stderr: std::io::Stderr = std::io::stderr();
     for line in landed_sweep_lines(&sweep) {
         let _written = writeln!(stderr, "{line}");

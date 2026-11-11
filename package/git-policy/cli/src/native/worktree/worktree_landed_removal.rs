@@ -53,7 +53,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::keep_held_commits;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
@@ -85,6 +85,13 @@ pub struct LandedPlace<'a> {
     /// The process table to read,
     /// which a control replaces with a fixture listing.
     pub proc_root: &'a Path,
+    /// The registrations the repository had before the merge ran.
+    ///
+    /// A worktree a command added while the merge ran,
+    /// or after it landed,
+    /// is not in it,
+    /// and it did not exist when the merge did.
+    pub(crate) registered_before: &'a RegisteredBefore,
 }
 
 /// A worktree this sweep removed.
@@ -215,6 +222,11 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     };
     for one in registered {
         if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
+            continue;
+        }
+        // A registration that was not there when the merge started belongs to work that began after it, so this merge is
+        // not the event that ended it, and it is not examined at all.
+        if !place.registered_before.holds(&one) {
             continue;
         }
         match examine_and_remove(place, &one) {
