@@ -80,7 +80,7 @@ fn a_reference_that_is_missing_still_drops_the_intent() {
     let landed: CommitRequest = request(&world, "gone", "gone.txt", "gone\n");
     land_with_failed_index(&world, 1, &[landed]);
     let mut intent: Intent = open_intent(&world, 1);
-    intent.reference = String::from("refs/heads/no-such-branch");
+    intent.reference = crate::ref_name::RefName::from_text("refs/heads/no-such-branch");
     write_intent(world.context.journal.as_path(), &intent).expect("rewritten intent");
     assert_eq!(decisions(&recover(&world.context)), vec![(1, Recovery::Drop)]);
     assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists());

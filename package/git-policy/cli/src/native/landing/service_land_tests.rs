@@ -73,7 +73,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
@@ -357,7 +357,7 @@ fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     git(world.repo.as_path(), &["checkout", "--quiet", "--orphan", "fresh"]);
     git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=orphan root"]);
     let mut amend: CommitRequest = amend_request(&world, "root", "r.txt", "r\n");
-    amend.reference = String::from("refs/heads/fresh");
+    amend.reference = crate::ref_name::RefName::from_text("refs/heads/fresh");
     let outcomes = land_batch(&world.context, 1, &[amend]).expect("landed");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
     assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "fresh"]).split_whitespace().count(), 1, "still a root commit");
@@ -908,7 +908,7 @@ fn a_mixed_batch_is_refused() {
     let world: World = world("service-land-mixed");
     let one: CommitRequest = request(&world, "one", "one.txt", "1\n");
     let mut other: CommitRequest = request(&world, "two", "two.txt", "2\n");
-    other.reference = String::from("refs/heads/other");
+    other.reference = crate::ref_name::RefName::from_text("refs/heads/other");
     assert_eq!(land_batch(&world.context, 1, &[one, other]), Err(FailureCode::Rejected));
     assert_eq!(land_batch(&world.context, 2, &[]), Err(FailureCode::Rejected));
     remove(world.root.as_path());
@@ -1169,7 +1169,7 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     let world: World = world("service-land-unborn");
     let zero: String = "0".repeat(40);
     let mut first: CommitRequest = built_request(&world, "root", "root.txt", &[]);
-    first.reference = String::from("refs/heads/fresh");
+    first.reference = crate::ref_name::RefName::from_text("refs/heads/fresh");
     first.base = zero;
     let commit: String = first.commit.clone().unwrap_or_default();
     let mut raced: CommitRequest = first.clone();
@@ -1195,7 +1195,7 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let mut built: CommitRequest = built_request(&world, "loose", "loose.txt", &[base.as_str()]);
-    built.reference = String::from("HEAD");
+    built.reference = crate::ref_name::RefName::from_text("HEAD");
     let commit: String = built.commit.clone().unwrap_or_default();
     // The head became a branch after the commit was prepared: the compare fails and the branch stays where it was.
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
@@ -1275,7 +1275,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
         let blob: String = git_text(linked.as_path(), &["hash-object", "-w", "--", format!("{id}.txt").as_str()]);
         return CommitRequest {
             repository: linked.clone(),
-            reference: String::from("refs/heads/wt"),
+            reference: crate::ref_name::RefName::from_text("refs/heads/wt"),
             base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
             changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
             git_dir: git_dir.clone(),
@@ -1490,7 +1490,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(object) }],
         message: format!("message of {id}\n"),

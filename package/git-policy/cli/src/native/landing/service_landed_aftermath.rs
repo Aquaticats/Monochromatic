@@ -192,7 +192,7 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
     }
     let worded: Option<ClientFailure> = match failure {
         // The one silence that could not state a fact reads the branch once and states what it shows.
-        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, placed.ready.reference.as_str(), placed.commit),
+        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, &placed.ready.reference, placed.commit),
         other => Some(other),
     };
     let Some(reported) = worded else {

@@ -465,10 +465,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
-                    let queue_reference: String = if request.reference == "HEAD" {
+                    // The key is exact for a name that is not text too, so two branches never share a group.
+                    let queue_reference: String = if request.reference.is_head() {
                         format!("HEAD@{}", request.repository.display())
                     } else {
-                        request.reference.clone()
+                        request.reference.hex()
                     };
                     let key: GroupKey = (request.common_dir.clone(), queue_reference, request.lands_alone());
                     place_in_groups(&mut groups, key, (request, stream, arrival));

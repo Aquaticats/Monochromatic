@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 /// The branch as a person reads it,
 /// without the `refs/heads/` every branch carries.
 fn branch_of(held: &Held) -> String {
-    return held.reference.trim_start_matches("refs/heads/").to_string();
+    return held.reference.short().spoken();
 }
 
 /// The conflict sentence:

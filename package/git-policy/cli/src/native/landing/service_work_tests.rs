@@ -1249,7 +1249,7 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
         },
         repository: repository.clone(),
         git_dir: common.clone(),
-        reference: BRANCH.to_string(),
+        reference: crate::ref_name::RefName::from_text(BRANCH),
         parent: String::new(),
     };
     let mut notices: Vec<u8> = Vec::new();

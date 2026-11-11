@@ -290,7 +290,7 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
                 commit_index: index.as_path(),
                 scratch: scratch.as_path(),
                 global_args: &[],
-                commit_args: &[String::from("-m"), String::from("message")],
+                commit_args: &[OsString::from("-m"), OsString::from("message")],
                 object_directory: None,
             };
             let code: i32 = run_native_commit(&context, repo.as_path(), &request).expect("git commit");

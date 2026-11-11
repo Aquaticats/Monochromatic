@@ -150,7 +150,7 @@ fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequ
         repository: PathBuf::from("/nowhere"),
         common_dir: PathBuf::from("/nowhere/.git"),
         git_dir: git_dir.to_path_buf(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: Vec::new(),
         message: String::from("m\n"),

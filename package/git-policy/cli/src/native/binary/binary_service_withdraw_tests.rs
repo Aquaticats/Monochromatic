@@ -70,7 +70,7 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         repository: repo.to_path_buf(),
         common_dir: git_dir.clone(),
         git_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_string(),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),

@@ -98,7 +98,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         repository: path_bytes::read_field(&value, "repository")?,
         common_dir: path_bytes::read_field(&value, "commonDir")?,
         git_dir: path_bytes::read_field(&value, "gitDir")?,
-        reference: field(&value, "reference")?.to_string(),
+        reference: match value.get("referenceHex").and_then(serde_json::Value::as_str) {
+            Some(hexadecimal) => crate::ref_name::RefName::from_hex(hexadecimal).ok_or("the referenceHex field is not the bytes of a name")?,
+            None => crate::ref_name::RefName::from_text(field(&value, "reference")?),
+        },
         base: field(&value, "base")?.to_string(),
         changes,
         message: field(&value, "message")?.to_string(),
@@ -142,8 +145,8 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     let well_formed: bool = !request.id.is_empty()
         && request.id.as_bytes().iter().all(is_identity_byte)
         // A detached head is moved as `HEAD` itself.
-        && (request.reference.starts_with("refs/") || request.reference == "HEAD")
-        && !request.reference.contains(['\0', '\n', ' '])
+        && (request.reference.bytes().starts_with(b"refs/") || request.reference.is_head())
+        && !request.reference.bytes().iter().any(|byte| [0_u8, b'\n', b' '].contains(byte))
         && is_object_name(&request.base)
         // A branch that does not exist yet has no commit to build the tree from, so only a commit built elsewhere names it.
         && (!is_zero_object(&request.base) || request.commit.is_some())

@@ -105,7 +105,7 @@ fn a_request(id: &str) -> CommitRequest {
         repository: std::path::PathBuf::from("/nowhere"),
         common_dir: std::path::PathBuf::from("/nowhere/.git"),
         git_dir: std::path::PathBuf::from("/nowhere/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: Vec::new(),
         message: String::from("m\n"),

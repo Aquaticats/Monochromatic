@@ -228,7 +228,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     // A worktree that has since left the batch's branch has a default index that describes another branch: it is not updated.
     //  Skipping the index is safe whatever the head does next, so this look needs no lock. A head that cannot be read stops here.
     if own_index {
-        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) {
+        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference) {
             Ok(false) => return settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal)),
             Ok(true) => {}
             Err(code) => {
@@ -259,7 +259,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     crate::service_fault::reach("restart-locked");
     // Everything the replay depends on is judged again under the lock this restart holds: the head, then the index file.
     if own_index {
-        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) {
+        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference) {
             Ok(true) => {}
             Ok(false) => {
                 drop(held);
@@ -456,7 +456,13 @@ const NOT_AN_ANCESTOR: i32 = 1;
 /// async function currentValue(git, intent): Promise<string | undefined> // '' for a missing reference
 /// ```
 fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
-    let request: GitRequest = GitRequest::new(intent.repository.as_path(), &["rev-parse", "--verify", "--quiet", intent.reference.as_str()]);
+    let words: [std::ffi::OsString; 4] = [
+        std::ffi::OsString::from("rev-parse"),
+        std::ffi::OsString::from("--verify"),
+        std::ffi::OsString::from("--quiet"),
+        intent.reference.as_os_str().to_os_string(),
+    ];
+    let request: GitRequest = GitRequest::new(intent.repository.as_path(), words.as_slice());
     let Ok(output) = run_git(git, &request) else {
         return None;
     };

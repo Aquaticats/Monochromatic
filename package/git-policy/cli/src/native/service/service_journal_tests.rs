@@ -12,7 +12,7 @@ fn intent(seq: u64) -> Intent {
         seq,
         repository: PathBuf::from("/work/repo"),
         common_dir: PathBuf::from("/work/repo/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: String::from("a".repeat(40)),
         new: String::from("b".repeat(40)),
         ids: vec![String::from("id-1"), String::from("id-2")],
@@ -83,7 +83,7 @@ fn an_intent_of_an_earlier_release_is_still_read() {
     assert_eq!(read.index, PathBuf::from("/srv/repo/.git/index"));
     assert_eq!(read.git_dir, PathBuf::from("/srv/repo/.git"));
     assert!(read.cleanup.is_none(), "an empty cleanup field names none");
-    assert_eq!(read.reference, "refs/heads/main");
+    assert_eq!(read.reference, crate::ref_name::RefName::from_text("refs/heads/main"));
 }
 
 /// What:
@@ -100,7 +100,7 @@ fn a_path_that_holds_a_line_break_cannot_add_a_line() {
     let text: String = intent_text(&sent);
     assert_eq!(text.lines().filter(|line| { return line.starts_with("ref="); }).count(), 1, "the intent has one branch line: {text}");
     let read: Intent = parse_intent(text.as_str()).expect("reads");
-    assert_eq!(read.reference, "refs/heads/main");
+    assert_eq!(read.reference, crate::ref_name::RefName::from_text("refs/heads/main"));
     assert_eq!(read.repository, sent.repository);
 }
 

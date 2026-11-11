@@ -77,7 +77,8 @@ pub struct Owed {
     /// The index file the update belongs to.
     pub index: PathBuf,
     /// The branch,
-    /// for a message that names it.
+    /// for a message that names it,
+    /// in the form a person can type.
     pub reference: String,
     /// The branch before the batch.
     pub old: String,
@@ -108,7 +109,7 @@ pub fn of_intent(intent: &Intent) -> Owed {
         repository: intent.repository.clone(),
         git_dir: intent.git_dir.clone(),
         index: intent.index.clone(),
-        reference: intent.reference.clone(),
+        reference: intent.reference.spoken(),
         old: intent.old.clone(),
         new: intent.new.clone(),
         paths: intent.paths.clone(),

@@ -125,8 +125,8 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: 
     );
 }
 
-pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
-    let words: Vec<std::ffi::OsString> = arguments.iter().map(std::ffi::OsString::from).collect();
+pub(crate) fn run<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+    let words: Vec<std::ffi::OsString> = arguments.iter().map(|word| { return word.as_ref().to_os_string(); }).collect();
     return run_words(git, repository, words.as_slice(), input);
 }
 
@@ -175,7 +175,7 @@ pub(crate) fn take_ceiling_step() -> Option<String> {
     return on_the_landing_state((), take_the_ceiling_step);
 }
 
-pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
+pub(crate) fn checked<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
     let output: GitOutput = run(git, repository, arguments, input)?;
     if !output.succeeded() {
         return Err(classify(&output));
@@ -190,7 +190,7 @@ pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], i
 ///   `checked` answers with trimmed text,
 /// which is right for an object name and wrong for a listing of paths:
 /// a listing with a name that is not text has to reach the caller as the name Git wrote.
-pub(crate) fn checked_bytes(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+pub(crate) fn checked_bytes<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
     let output: GitOutput = run(git, repository, arguments, input)?;
     if !output.succeeded() {
         return Err(classify(&output));

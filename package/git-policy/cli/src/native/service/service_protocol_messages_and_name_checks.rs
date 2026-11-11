@@ -198,8 +198,9 @@ pub struct CommitRequest {
     ///  service instance that lands the commit,
     /// which refuses a request that names another worktree's.
     pub git_dir: PathBuf,
-    /// Full name of the branch the commit goes on.
-    pub reference: String,
+    /// Full name of the branch the commit goes on,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The commit the client prepared against.
     pub base: String,
     /// The paths to change.

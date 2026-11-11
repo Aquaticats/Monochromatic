@@ -127,7 +127,7 @@ fn a_held_commit(label: &str) -> HeldScene {
         repository: linked.clone(),
         common_dir: common.clone(),
         git_dir: worktree_git_dir.clone(),
-        reference: format!("refs/heads/{BRANCH}"),
+        reference: git_policy_cli::ref_name::RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
         old: git_said(&fixture, &linked, &["rev-parse", "HEAD"]).trim().to_string(),
         new: held.clone(),
         commits: vec![held.clone()],

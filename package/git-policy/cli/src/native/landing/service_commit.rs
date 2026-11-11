@@ -146,7 +146,7 @@ pub fn service_commit<F: RepositoryFacts>(
     //  preparation merges it onto the branch as it is and never reads the worktree again.
     let mut retry: Option<Captured> = None;
     // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
-    let mut first_reference: Option<String> = None;
+    let mut first_reference: Option<crate::ref_name::RefName> = None;
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
@@ -206,13 +206,13 @@ pub fn service_commit<F: RepositoryFacts>(
         // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
         //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
         if timing.reference.is_none() {
-            timing.reference = Some(ready.reference.clone());
+            timing.reference = Some(ready.reference.spoken());
         }
         // The branch of the first preparation is the one every later preparation must be on.
         if first_reference.is_none() {
             first_reference = Some(ready.reference.clone());
         }
-        if let Some(stop) = refused_when_the_branch_switched(first_reference.as_deref(), ready.reference.as_str(), fixed_message.as_deref()) {
+        if let Some(stop) = refused_when_the_branch_switched(first_reference.as_ref(), &ready.reference, fixed_message.as_deref()) {
             return Err(stop);
         }
         if !decided {

@@ -104,7 +104,7 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
         common_dir: refused.first.common_dir.as_path(),
         git_dir: refused.first.git_dir.as_path(),
         index: refused.first.index.as_path(),
-        reference: refused.first.reference.as_str(),
+        reference: &refused.first.reference,
         seq: refused.seq,
         intent: refused.intent,
         locks: refused.locks,
@@ -157,12 +157,13 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
 /// ```ts
 /// warn(`batch ${seq} was refused the write of ${ref} while the branch still names ${old}, so a reference lock stands in the way; the landing waits for it until ${REFERENCE_LOCK_WAIT}s after the first refusal`)
 /// ```
-pub(crate) fn say_it_waits(seq: u64, reference: &str, old: &str, within_bound: bool) {
+pub(crate) fn say_it_waits(seq: u64, reference: &crate::ref_name::RefName, old: &str, within_bound: bool) {
     if !within_bound {
         return;
     }
     crate::service_warn!(
-        "batch {seq} was refused the write of {reference} while the branch still names {old}, so a reference lock stands in the way; the landing waits for it until {} seconds after the first refusal",
+        "batch {seq} was refused the write of {} while the branch still names {old}, so a reference lock stands in the way; the landing waits for it until {} seconds after the first refusal",
+        reference.spoken(),
         crate::wait_ceilings::REFERENCE_LOCK_WAIT.as_secs()
     );
 }
@@ -182,8 +183,9 @@ pub struct GivenUp<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
-    /// The branch.
-    pub reference: &'a str,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: &'a crate::ref_name::RefName,
     /// What Git said when it refused the write.
     pub stderr: &'a [u8],
     /// The clients of the batch.

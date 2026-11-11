@@ -100,15 +100,15 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
         FailureCode::PermissionDenied => ClientFailure::PermissionDenied(repository),
         FailureCode::IndexInUse => ClientFailure::IndexInUse(String::from("Another program")),
         FailureCode::ReferenceLocked => ClientFailure::ReferenceLocked {
-            branch: request.reference.trim_start_matches("refs/heads/").to_string(),
+            branch: request.reference.short().spoken(),
             words: String::new(),
         },
         FailureCode::Rejected => ClientFailure::Refused,
         FailureCode::BranchKeepsChanging => ClientFailure::BranchKeepsChanging {
-            branch: request.reference.trim_start_matches("refs/heads/").to_string(),
+            branch: request.reference.short().spoken(),
             times: crate::service_land::LANDING_ATTEMPTS,
         },
-        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
+        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.short().spoken() },
         FailureCode::StepTooSlow => ClientFailure::StepTooSlow,
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
@@ -379,7 +379,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                         Some(who) => who,
                         None => format!("The reference lock of {} stands in the way, and nothing proves that a Git process still holds it.", request.reference),
                     };
-                    break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.trim_start_matches("refs/heads/").to_string(), words }));
+                    break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.short().spoken(), words }));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Heard::Message(ServiceMessage::Waiting { text }) => {

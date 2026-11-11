@@ -100,7 +100,7 @@ fn request() -> CommitRequest {
         repository: PathBuf::from("/nowhere"),
         common_dir: PathBuf::from("/nowhere/.git"),
         git_dir: PathBuf::from("/nowhere/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some("b".repeat(40)) }],
         message: String::from("m\n"),

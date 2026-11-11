@@ -49,8 +49,9 @@ pub struct Intent {
     pub repository: PathBuf,
     /// Common git directory.
     pub common_dir: PathBuf,
-    /// The branch.
-    pub reference: String,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The branch before the batch.
     pub old: String,
     /// The branch after the batch.
@@ -129,6 +130,47 @@ fn cleanup_lines(cleanup: Option<&Cleanup>) -> Vec<String> {
     return lines;
 }
 
+/// What:
+///  The reference name of an intent,
+///  as the one line a reader takes it from.
+/// Why:
+///   A recovery moves this branch,
+/// so the plain `ref=` field is written only when text spells every byte of the name,
+/// which is the field a release before this one reads,
+///  and `refHex=` always holds the whole name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const referenceField = (name) => name.isText ? `ref=${name}\nrefHex=${name.hex}` : `refHex=${name.hex}`
+/// ```
+fn reference_field(reference: &crate::ref_name::RefName) -> String {
+    return match reference.is_text() {
+        true => format!("ref={reference}\nref{HEX_SUFFIX}={}", reference.hex()),
+        false => format!("ref{HEX_SUFFIX}={}", reference.hex()),
+    };
+}
+
+/// What:
+///  The reference name an intent holds,
+///  from its bytes field when it has one,
+///  and from its text otherwise.
+/// Why:
+///   An intent written before the bytes field existed holds text,
+/// and an intent whose bytes do not decode is damage,
+///  which its reader rejects:
+/// a name read wrongly moves another branch at recovery.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readReference = (text) => text.refHex !== undefined ? refNameOfHex(text.refHex) : refNameOf(text.ref)
+/// ```
+fn read_reference(text: &str) -> Option<crate::ref_name::RefName> {
+    if let Some(hexadecimal) = intent_value(text, "refHex") {
+        return crate::ref_name::RefName::from_hex(hexadecimal);
+    }
+    return Some(crate::ref_name::RefName::from_text(intent_value(text, "ref")?));
+}
+
 /// The text of an intent:
 /// `key=value` lines,
 /// tabs between list items.
@@ -137,7 +179,7 @@ pub fn intent_text(intent: &Intent) -> String {
     lines.extend(path_lines("repository", intent.repository.as_path()));
     lines.extend(path_lines("common", intent.common_dir.as_path()));
     lines.extend([
-        format!("ref={}", intent.reference),
+        reference_field(&intent.reference),
         format!("old={}", intent.old),
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
@@ -343,7 +385,7 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
         common_dir: intent_path(text, "common").ok().flatten()?,
-        reference: intent_value(text, "ref")?.to_string(),
+        reference: read_reference(text)?,
         old: intent_value(text, "old")?.to_string(),
         new: intent_value(text, "new")?.to_string(),
         ids: intent_list(text, "ids")?,
