@@ -17,6 +17,7 @@ use crate::private_storage::create_private_directory;
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::diagnostic_log::debug;
+use crate::worktree_copy_ceiling::CopyCeiling;
 pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, copy_worker_count, create_private_tree, try_clone};
 use crate::worktree_copy_settling::{Settled, SettlingRequest, settle_the_copy};
@@ -224,7 +225,7 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
-    return stage_ignored_snapshot_for(context, source_root, stage_container, registered_roots, selection, None);
+    return stage_ignored_snapshot_for(context, source_root, stage_container, registered_roots, selection, None, &CopyCeiling::unbounded());
 }
 
 /// What:
@@ -248,6 +249,7 @@ pub fn stage_ignored_snapshot_for(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
     binding: Option<&crate::worktree_add_binding::Binding>,
+    ceiling: &CopyCeiling,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
@@ -275,6 +277,7 @@ pub fn stage_ignored_snapshot_for(
         git_selected,
         selection.prune(),
         try_clone,
+        ceiling,
     );
     // Any failure removes the whole container, so no partial stage survives the attempt.
     match staged {
@@ -322,6 +325,7 @@ fn stage_into(
     git_selected: Vec<Vec<u8>>,
     prune: Prune,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
+    ceiling: &CopyCeiling,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
@@ -346,6 +350,7 @@ fn stage_into(
         excluded_source_roots.as_slice(),
         prune,
         &mut unreadable,
+        ceiling,
     )?;
     // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
     let mut staged_paths: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
@@ -374,7 +379,7 @@ fn stage_into(
     }
     let walked: std::time::Duration = started.elapsed();
     let copied_manifest: CopiedManifest =
-        copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone)?;
+        copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone, ceiling)?;
     let copied: std::time::Duration = started.elapsed();
     // The copy settles the stage against the source: what went away is dropped, what changed is copied again,
     //  and what will not hold still stays in its source and is named rather than failing an add Git already made.
