@@ -172,8 +172,9 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
     // What:
     //  Whether the configuration asks for the set of defaults Git's `feature.manyFiles` is.
     // Why:
-    //  `prepare_repo_settings` sets those three defaults only where nothing set the value,
-    //  so an explicit key beside it wins,
+    //  `prepare_repo_settings` sets those three defaults before it reads the keys that can replace them,
+    //  so a boolean key beside it wins,
+    //  a key whose value Git's own boolean reader refuses leaves the default,
     //  and a value Git dies on is left to Git.
     //
     // In TS you'd write (pseudocode):
@@ -184,11 +185,25 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
         None => false,
         Some(entry) => parse_bool(entry.value.as_deref())?,
     };
+    // What:
+    //  What the update does with the untracked cache.
+    // Why:
+    //  Git's `feature.manyFiles` default is to add a cache,
+    //  and `core.untrackedCache` replaces it only when its value reads as a boolean: `keep`,
+    //  and every value `git_parse_maybe_bool` refuses,
+    //  leaves the default alone (`repo-settings.c` of Git 2.56.0).
+    //  Reading `keep` as "leave the file as it is" made the landing install an index without the cache Git adds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const untrackedDefault = manyFiles ? Write : Keep;
+    // const untracked = boolean(last('core.untrackedCache')) ?? untrackedDefault;
+    // ```
+    let untracked_default: UntrackedMode = if many_files { UntrackedMode::Write } else { UntrackedMode::Keep };
     let untracked: UntrackedMode = match last_entry(listed, "core.untrackedcache") {
-        None if many_files => UntrackedMode::Write,
-        None => UntrackedMode::Keep,
+        None => untracked_default,
         Some(entry) => match entry.value.as_deref() {
-            Some(text) if text.eq_ignore_ascii_case(b"keep") => UntrackedMode::Keep,
+            Some(text) if text.eq_ignore_ascii_case(b"keep") => untracked_default,
             other => match parse_bool(other)? {
                 true => UntrackedMode::Write,
                 false => UntrackedMode::Remove,
