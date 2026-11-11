@@ -83,6 +83,13 @@ fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
     return found;
 }
 
+/// The audit lines of a common Git directory,
+///  newest last.
+fn audit_lines(common_dir: &Path) -> Vec<String> {
+    let text: String = std::fs::read_to_string(common_dir.join("monochromatic-git-policy-cli-audit.jsonl")).unwrap_or_default();
+    return text.lines().map(str::to_owned).collect();
+}
+
 /// A repository whose `side` branch and `main` branch both changed `a.txt`,
 ///  with a linked worktree on a new branch `work` checked out at `../work`,
 ///  which holds both edits and no merge yet.
@@ -132,6 +139,12 @@ fn a_merge_abort_runs_when_the_merge_s_own_changes_are_all_there_is() {
     assert!(!merge_head.exists(), "the merge state is gone: {said}");
     assert_eq!(contents, "main\n", "the file holds the branch's own content again: {said}");
     assert!(copies.is_empty(), "the merge's own state needs no copy: {copies:?}");
+    let common: PathBuf = common_dir(&fixture, linked.as_path());
+    let audit: Vec<String> = audit_lines(common.as_path());
+    let last: &String = audit.last().expect("one audit line");
+    assert!(last.contains("\"outcome\":\"allowed\""), "{last}");
+    assert!(last.contains("\"form\":\"AbortMerge\""), "{last}");
+    assert!(last.contains("\"dirty\":null"), "no status was read: {last}");
     remove(&fixture);
 }
 
@@ -153,6 +166,16 @@ fn a_merge_abort_saves_a_hand_resolution_before_it_runs() {
     assert_eq!(copies[0].0.rsplit('/').next(), Some("a.txt"), "{copies:?}");
     assert_eq!(copies[0].1, b"resolved by hand\n", "the copy holds the resolution");
     assert!(said.contains("a.txt"), "the notice names the file: {said}");
+    let common: PathBuf = common_dir(&fixture, linked.as_path());
+    let audit: Vec<String> = audit_lines(common.as_path());
+    let last: &String = audit.last().expect("one audit line");
+    assert!(last.contains("\"outcome\":\"saved-abort\""), "{last}");
+    assert!(last.contains("\"form\":\"AbortMerge\""), "{last}");
+    assert!(last.contains("\"dirty\":null"), "no status was read: {last}");
+    assert!(
+        last.contains("a.txt => ") && last.contains("discarded/"),
+        "the record names where the copy went: {last}"
+    );
     remove(&fixture);
 }
 
@@ -214,6 +237,23 @@ fn every_abort_form_is_left_to_git_where_nothing_is_in_progress() {
         b"the person's own work\n"
     );
     assert!(saved_copies(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing to save");
+    let audit: Vec<String> = audit_lines(common_dir(&fixture, linked.as_path()).as_path());
+    let left: Vec<&String> = audit.iter().rev().take(5).collect();
+    let forms: Vec<String> = [
+        "AbortAm",
+        "AbortPick",
+        "AbortPick",
+        "AbortRebase",
+        "AbortMerge",
+    ]
+    .iter()
+    .map(|form| { return format!("\"form\":\"{form}\""); })
+    .collect();
+    for (line, form) in left.iter().zip(forms.iter()) {
+        assert!(line.contains("\"outcome\":\"allowed\""), "{line}");
+        assert!(line.contains(form.as_str()), "the record names {form}: {line}");
+        assert!(line.contains("\"dirty\":null"), "no status was read: {line}");
+    }
     remove(&fixture);
 }
 
