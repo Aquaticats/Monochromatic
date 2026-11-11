@@ -3,15 +3,19 @@
 //! refuses and hands back the one that fell behind it,
 //! waits no longer than its ceiling,
 //! and never claims one for a source with changes;
-//! with the service's own making of one, and the two names it writes.
+//! with the service's own making of one,
+//! and the two names it writes.
 
 use super::*;
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_snapshot_ahead_claim::{identity_of_name, look_for_a_snapshot_ahead};
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{git_context, remove};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use crate::worktree_snapshot_source::choose_snapshot_source;
 use std::cell::RefCell;
+use std::time::Instant;
 
 /// What:
 ///  The fixture of these controls:
@@ -42,7 +46,8 @@ struct Fixture {
     pool: PathBuf,
 }
 
-/// Make the fixture; nothing is made when this host has no btrfs fixture root.
+/// Make the fixture;
+/// nothing is made when this host has no btrfs fixture root.
 fn fixture_of(name: &str) -> Option<Fixture> {
     let root: PathBuf = btrfs_fixture(name)?;
     let repo: PathBuf = subvolume_repository(root.as_path());
@@ -59,7 +64,8 @@ fn stage_of(fixture: &Fixture, name: &str) -> PathBuf {
     return fixture.repo.join(format!("{}{name}", crate::worktree_copy_selection::STAGE_PREFIX));
 }
 
-/// Make one snapshot ahead the way the service does, in the pool folder.
+/// Make one snapshot ahead the way the service does,
+/// in the pool folder.
 fn make_one_ahead(fixture: &Fixture) -> OsString {
     let item: WorkItem = request_item(fixture.repo.join(".git").as_path(), fixture.repo.as_path(), fixture.pool.as_path()).expect("a request");
     let verdict = crate::worktree_snapshot_ahead_job::snapshot_ahead(&item);
@@ -103,7 +109,7 @@ fn btrfs_an_add_claims_the_snapshot_the_wrapper_made_ahead() {
 #[test]
 fn btrfs_a_snapshot_ahead_that_fell_behind_the_index_is_refused_and_handed_over() {
     let Some(fixture) = fixture_of("ahead-stale") else { return };
-    let stale: OsString = make_one_ahead(&fixture);
+    let fell_behind: OsString = make_one_ahead(&fixture);
     // A commit after the snapshot moves the index on, so the copy no longer names what the source's index does.
     tracked(fixture.repo.as_path(), "later.txt", b"added after the snapshot\n");
     commit_all(fixture.repo.as_path(), "later");
@@ -117,7 +123,7 @@ fn btrfs_a_snapshot_ahead_that_fell_behind_the_index_is_refused_and_handed_over(
     };
     let look: AheadLook = look_for_a_snapshot_ahead(&source, &fixture.plan, stage.as_path(), &crate::fixture_content_decision::content_environment(), &service);
     assert!(matches!(look, AheadLook::TimedOut(_)), "nothing proved equal to the source's index, so the add waits out its ceiling and answers why: {look:?}");
-    assert_eq!(handed.borrow().as_slice(), std::slice::from_ref(&stale), "the entry that fell behind is handed to the service");
+    assert_eq!(handed.borrow().as_slice(), std::slice::from_ref(&fell_behind), "the entry that fell behind is handed to the service");
     assert!(!stage.exists(), "nothing was renamed into the stage name");
     remove(fixture.root.as_path());
 }
@@ -202,7 +208,7 @@ fn btrfs_a_record_that_names_another_tree_makes_no_snapshot() {
 /// and another source's names are none of them.
 #[test]
 fn a_snapshots_name_carries_its_source_and_the_millisecond_it_was_made_in() {
-    let first: PathBuf = std::env::temp_dir();
+    let first: PathBuf = PathBuf::from("/a/repo");
     let older: OsString = ahead_name(first.as_path(), SystemTime::UNIX_EPOCH + Duration::from_millis(1_000)).expect("a name");
     let newer: OsString = ahead_name(first.as_path(), SystemTime::UNIX_EPOCH + Duration::from_millis(2_000)).expect("a name");
     assert!(older.to_string_lossy().starts_with(AHEAD_PREFIX), "{older:?}");
@@ -219,7 +225,7 @@ fn a_snapshots_name_carries_its_source_and_the_millisecond_it_was_made_in() {
 /// The pool keeps what an add keeps and turns everything older than its age into names the service deletes.
 #[test]
 fn the_snapshots_ahead_kept_are_the_newest_few_and_the_young() {
-    let root: PathBuf = std::env::temp_dir();
+    let root: PathBuf = PathBuf::from("/a/repo");
     let name_at = |milliseconds: u64| { return ahead_name(root.as_path(), SystemTime::UNIX_EPOCH + Duration::from_millis(milliseconds)).expect("a name"); };
     let now: u128 = AHEAD_OLDEST.as_millis() * 2;
     let young: Vec<OsString> = (0..AHEAD_KEPT as u64).map(|index| { return name_at(now as u64 - index); }).collect();
@@ -242,7 +248,7 @@ fn the_snapshots_ahead_kept_are_the_newest_few_and_the_young() {
 ///  kind of work reads the record and no push is made for it.
 #[test]
 fn a_request_names_the_source_and_the_folder_and_no_branch() {
-    let root: PathBuf = std::env::temp_dir();
+    let root: PathBuf = PathBuf::from("/a/repo");
     let item: WorkItem = request_item(root.join(".git").as_path(), root.as_path(), root.as_path()).expect("a request");
     assert_eq!(item.kind, WorkKind::SnapshotAhead);
     assert_eq!(item.kind.name(), "snapshot-ahead");
@@ -260,7 +266,7 @@ fn a_request_names_the_source_and_the_folder_and_no_branch() {
 /// by its own path.
 #[test]
 fn a_stale_snapshot_is_deleted_by_the_path_the_service_is_given() {
-    let root: PathBuf = std::env::temp_dir();
+    let root: PathBuf = PathBuf::from("/a/repo");
     let name: OsString = ahead_name(root.as_path(), SystemTime::UNIX_EPOCH).expect("a name");
     let item: WorkItem = deletion_item(root.join(".git").as_path(), root.as_path(), name.as_os_str());
     assert_eq!(item.kind, WorkKind::SubvolumeDelete);

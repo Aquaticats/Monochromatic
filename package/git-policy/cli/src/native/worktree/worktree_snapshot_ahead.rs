@@ -2,27 +2,43 @@
 //!  The snapshots the wrapper makes ahead of an add,
 //! and the add's claim of one instead of a snapshot of its own.
 //! Why:
-//!  One `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the caller's thread, and waits for the
-//!  source's writeback first (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, "A worktree add"):
-//! on this volume it took 7,443.8 ms at the median, 18,006.2 ms at the ninetieth percentile and 39,828.5 ms at its
-//!  worst, while an add that finds a snapshot ready only renames one directory there ("Step 2: snapshots made
+//!  One `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the caller's thread,
+//! and waits for the
+//!  source's writeback first (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+//! "A worktree add"):
+//! on this volume it took 7,443.8 ms at the median,
+//! 18,006.2 ms at the ninetieth percentile and 39,828.5 ms at its
+//!  worst,
+//! while an add that finds a snapshot ready only renames one directory there ("Step 2:
+//! snapshots made
 //!  ahead").
-//! The commit service of the repository makes them on its own time, from a work item the add writes
-//! (`worktree_snapshot_ahead_job.rs`), so it is the service's thread that waits for the commit and not the
+//! The commit service of the repository makes them on its own time,
+//! from a work item the add writes
+//! (`worktree_snapshot_ahead_job.rs`),
+//! so it is the service's thread that waits for the commit and not the
 //!  person's.
-//! The owner's bound for an add is 60 s ("60s is fine for adding worktrees") and nothing may wait indefinitely, so
+//! The owner's bound for an add is 60 s ("60s is fine for adding worktrees") and nothing may wait indefinitely,
+//! so
 //!  the add waits for one no longer than `SNAPSHOT_AHEAD_CEILING` and then makes the worktree the way Git does,
 //!  naming why.
 //!
-//! A snapshot made ahead is a copy of the source as it was when the service made it, so an add may not trust it: the
-//!  files the new worktree receives must equal the source's index, and an entry that fell behind it would give a
-//!  worktree whose tracked files carry an older state beside freshly recorded stat data, which Git would then report
+//! A snapshot made ahead is a copy of the source as it was when the service made it,
+//! so an add may not trust it:
+//! the
+//!  files the new worktree receives must equal the source's index,
+//! and an entry that fell behind it would give a
+//!  worktree whose tracked files carry an older state beside freshly recorded stat data,
+//! which Git would then report
 //!  as clean.
 //! Every candidate is therefore proven by the same walk the add makes over its own snapshot
-//! (`worktree_snapshot_index_step.rs`, `prove_the_copy`) before it is renamed into the stage name; one that fails the
+//! (`worktree_snapshot_index_step.rs`,
+//! `prove_the_copy`) before it is renamed into the stage name;
+//! one that fails the
 //!  proof is handed to the service for deletion and the next candidate is tried.
-//! A source with uncommitted changes is not served this way at all: its snapshot's own index is one instant with its
-//!  files, so that snapshot has to be taken on the add's own path.
+//! A source with uncommitted changes is not served this way at all:
+//! its snapshot's own index is one instant with its
+//!  files,
+//! so that snapshot has to be taken on the add's own path.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,9 +46,8 @@
 //! // 'claimed' with the proof, 'none' (take one here), or 'timedOut' with the words for the person
 //! ```
 
-use crate::add_timing::{begin_step, end_step, note as note_timing};
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, entry_metadata_at, handle_path, identity_at, open_root, rename_at};
+use crate::fs_beneath::{ObjectId, handle_path, open_root};
 use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;
 use crate::iso_time::now_iso;
 use crate::path_bytes::path_bytes_of;
@@ -48,16 +63,13 @@ use crate::subvolume_sha::sha256;
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
-use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_remove_hand_over::DELETE_REFERENCE;
-use crate::worktree_snapshot_index_step::{Proof, prove_the_copy};
+use crate::worktree_snapshot_index_step::Proof;
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSnapshotAhead";
@@ -82,12 +94,17 @@ pub const AHEAD_PREFIX: &str = ".cli-git-worktree-ahead-";
 /// What:
 ///  How many snapshots ahead one source keeps.
 /// Why:
-///  Three is what the measured cost and the measured arrivals need at the median: one snapshot took 7,443.8 ms at
+///  Three is what the measured cost and the measured arrivals need at the median:
+/// one snapshot took 7,443.8 ms at
 ///  the median while adds started 2.8 s apart at the tenth percentile of the gap between two
-/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, "Step 2"), so 2.7 snapshots' worth of adds can arrive
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+/// "Step 2"),
+/// so 2.7 snapshots' worth of adds can arrive
 ///  inside one snapshot's cost.
-/// The fourteen the worst measured call would need are not kept, because
-///  every entry pins the blocks of each file the source rewrites after it, on a volume that is 95 percent full;
+/// The fourteen the worst measured call would need are not kept,
+/// because
+///  every entry pins the blocks of each file the source rewrites after it,
+/// on a volume that is 95 percent full;
 /// the
 ///  ceiling and the rung after the snapshot are what covers that case instead.
 ///
@@ -134,7 +151,7 @@ pub const AHEAD_REFERENCE: &str = "refs/worktree/cli-git-service/snapshot-ahead"
 /// ```ts
 /// const POLL = 25;
 /// ```
-const POLL: Duration = Duration::from_millis(25);
+pub(crate) const POLL: Duration = Duration::from_millis(25);
 
 /// What:
 ///  How the add reaches the service that makes the snapshots ahead,
@@ -199,7 +216,8 @@ impl AheadService<'_> {
     /// Why:
     ///   A control must take a snapshot with no service and no session bus,
     /// and that is also what an add does where no
-    ///  service can be started (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, "Step 3").
+    ///  service can be started (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+    /// "Step 3").
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -256,7 +274,7 @@ pub enum AheadLook {
 /// ```ts
 /// const key = (root: string) => createHash('sha256').update(root).digest('hex').slice(0, 16);
 /// ```
-fn ahead_key(root: &Path) -> String {
+pub(crate) fn ahead_key(root: &Path) -> String {
     let digest: String = hexadecimal_of_bytes(&sha256(path_bytes_of(root)));
     return digest.chars().take(16).collect();
 }
@@ -294,11 +312,11 @@ pub fn ahead_name(source_root: &Path, at: SystemTime) -> Result<OsString, String
 /// ```ts
 /// const madeAt = (name: string) => BigInt('0x' + name.slice(AHEAD_PREFIX.length).split('-')[1]);
 /// ```
-fn made_at(name: &OsStr) -> Option<u128> {
+pub(crate) fn made_at(name: &OsStr) -> Option<u128> {
     let text: &str = name.to_str()?;
-    let rest: &str = text.strip_prefix(AHEAD_PREFIX)?;
-    let (_key, rest) = rest.split_once('-')?;
-    let (milliseconds, unique) = rest.split_once('-')?;
+    let after_prefix: &str = text.strip_prefix(AHEAD_PREFIX)?;
+    let (_key, after_key) = after_prefix.split_once('-')?;
+    let (milliseconds, unique) = after_key.split_once('-')?;
     if unique.is_empty() {
         return None;
     }
@@ -323,6 +341,21 @@ fn is_of_this_source(name: &OsStr, key: &str) -> bool {
 }
 
 /// What:
+///  The order of two entries by the millisecond each was made in,
+/// newest first.
+/// Why:
+///   The newest candidate is the one most likely to still equal the source's index,
+/// so it is proven first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const newestFirst = (left, right) => right.made - left.made;
+/// ```
+fn newest_first(left: &(u128, OsString), right: &(u128, OsString)) -> std::cmp::Ordering {
+    return right.0.cmp(&left.0);
+}
+
+/// What:
 ///  The names of `key`'s snapshots ahead in the held folder,
 /// newest first.
 /// Why:
@@ -335,7 +368,7 @@ fn is_of_this_source(name: &OsStr, key: &str) -> bool {
 /// ```ts
 /// const candidates = (dir, key) => readdirSync(handlePath(dir)).filter((name) => isOfThisSource(name, key)).sort((left, right) => madeAt(right) - madeAt(left));
 /// ```
-fn candidates(folder: &File, key: &str) -> Vec<OsString> {
+pub(crate) fn candidates(folder: &File, key: &str) -> Vec<OsString> {
     let Ok(listing) = std::fs::read_dir(handle_path(folder)) else { return Vec::new() };
     let mut found: Vec<(u128, OsString)> = Vec::new();
     for entry in listing.flatten() {
@@ -346,8 +379,12 @@ fn candidates(folder: &File, key: &str) -> Vec<OsString> {
         let Some(at) = made_at(name.as_os_str()) else { continue };
         found.push((at, name));
     }
-    found.sort_by(|left, right| { return right.0.cmp(&left.0); });
-    return found.into_iter().map(|(_at, name)| { return name; }).collect();
+    found.sort_by(newest_first);
+    let mut names: Vec<OsString> = Vec::with_capacity(found.len());
+    for (_at, name) in found {
+        names.push(name);
+    }
+    return names;
 }
 
 /// What:
@@ -379,125 +416,9 @@ pub fn pool_folder(git_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  The identity of what a path's name leads to now,
-/// or nothing when its parent cannot be opened or the name cannot be looked up.
-/// Why:
-///   The claimed snapshot's identity is what the add records for a later removal to check.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// identityAt(openRoot(dirname(path)), basename(path)) ?? undefined
-/// ```
-fn identity_of_name(path: &Path) -> Option<ObjectId> {
-    let parent: File = open_root(path.parent().unwrap_or(path)).ok()?;
-    return identity_at(&parent, path.file_name()?).ok();
-}
-
-/// What:
-///  Whether the entry `name` below `folder` is a directory,
-/// which is the only thing that can hold a copy of a source.
-/// Why:
-///   The proof opens the entry as a tree,
-/// and an entry that is a link is refused rather than renamed,
-/// because the rename
-///  would move whatever stands at the link's target.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isADirectory = (dir, name) => lstatSync(join(handlePath(dir), name)).isDirectory();
-/// ```
-fn is_a_directory(folder: &File, name: &OsStr) -> bool {
-    return match entry_metadata_at(folder, name) {
-        Ok(found) => found.is_dir(),
-        Err(_unreadable) => false,
-    };
-}
-
-/// What:
-///  Claim the newest snapshot ahead whose files equal the source's index,
-/// by renaming it into the stage name.
-/// Why:
-///   The proof runs first,
-/// because an unproven snapshot must never reach the stage:
-/// the add would install the
-///  source's index over that snapshot's files and Git would report the difference as clean.
-/// The rename is what makes one
-///  claim out of racing adds:
-/// the loser finds the name gone and tries the next candidate,
-/// and the winner's stage
-///  name holds the object this process proved.
-/// Every candidate the proof refused is answered so the caller hands it to
-///  the service.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const claim = (source, stage, environment, folder, key) => { for (const name of candidates(folder, key)) { if (!isADirectory(folder, name)) continue; if (!prove(source, join(folderPath, name))) { stale.push(name); continue; } if (rename(folder, name, folder, stageName)) return proof; } };
-/// ```
-fn claim_the_newest_proven(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, folder: &File, folder_path: &Path, key: &str, stale: &mut Vec<OsString>, stages: &File) -> Option<Proof> {
-    let Some(stage_name) = stage.file_name() else { return None };
-    for name in candidates(folder, key) {
-        if !is_a_directory(folder, name.as_os_str()) {
-            continue;
-        }
-        let entry: PathBuf = folder_path.join(&name);
-        let proving: bool = begin_step("snapshotAheadProof");
-        let proven: Result<Proof, String> = prove_the_copy(source, entry.as_path(), environment);
-        end_step(proving);
-        match proven {
-            Err(refusal) => {
-                debug(TAG, format!("{} does not equal the source's index ({refusal}), so it goes to the service and the next name is tried", entry.display()).as_str());
-                // The wait looks again every `POLL`, so one name is proven stale once per pass: it is handed over once.
-                if !stale.contains(&name) {
-                    stale.push(name);
-                }
-            }
-            // The pool is inside the Git directory and the stage is beside the destination, so the claim is one rename across two
-            //  folders of one filesystem.
-            Ok(proof) => match rename_at(folder, name.as_os_str(), stages, stage_name, false) {
-                Ok(()) => {
-                    debug(TAG, format!("{} was claimed as {} after proving it equal to the source's index", entry.display(), stage.display()).as_str());
-                    return Some(proof);
-                }
-                // Another add claimed it between the proof and the rename; the next candidate is this add's chance.
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    debug(TAG, format!("{} was claimed by another add ({error})", entry.display()).as_str());
-                }
-                Err(error) => {
-                    debug(TAG, format!("{} proved equal to the source's index and cannot be claimed ({error})", entry.display()).as_str());
-                    return None;
-                }
-            },
-        }
-    }
-    return None;
-}
-
-/// What:
-///  Claim whatever a warm pool offers this add right now,
-/// answering the names it proved stale.
-/// Why:
-///   This is the whole saving when the service is ahead:
-/// one listing,
-/// one proof and one rename,
-/// and no btrfs
-///  commit on the person's thread.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const claimNow = (source, stage, environment, stale) => claimed ?? undefined;
-/// ```
-fn claim_now(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, stale: &mut Vec<OsString>) -> Option<(ObjectId, Proof)> {
-    let folder_path: PathBuf = pool_folder(source.git_dir.as_path());
-    let folder: File = open_root(folder_path.as_path()).ok()?;
-    let stages: File = open_root(stage.parent()?).ok()?;
-    let key: String = ahead_key(source.root.as_path());
-    let proof: Proof = claim_the_newest_proven(source, stage, environment, &folder, folder_path.as_path(), key.as_str(), stale, &stages)?;
-    return identity_of_name(stage).map(|made| { return (made, proof); });
-}
-
-/// What:
 ///  The names of the snapshots ahead in `folder` this add keeps no longer:
-/// everything after the newest `AHEAD_KEPT`, and everything older than
+/// everything after the newest `AHEAD_KEPT`,
+/// and everything older than
 ///  `AHEAD_OLDEST`.
 /// Why:
 ///   Every add leaves the pool no larger,
@@ -509,15 +430,33 @@ fn claim_now(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvi
 /// ```ts
 /// const overKept = (names, now) => names.filter((name, index) => index >= AHEAD_KEPT || now - madeAt(name) > AHEAD_OLDEST);
 /// ```
-fn over_kept(names: &[OsString], now: u128) -> Vec<OsString> {
+pub(crate) fn over_kept(names: &[OsString], now: u128) -> Vec<OsString> {
     let mut over: Vec<OsString> = Vec::new();
     for (index, name) in names.iter().enumerate() {
-        let too_old: bool = made_at(name.as_os_str()).is_none_or(|made| { return now.saturating_sub(made) > AHEAD_OLDEST.as_millis(); });
+        let too_old: bool = match made_at(name.as_os_str()) {
+            Some(made) => older_than_kept(made, now),
+            None => true,
+        };
         if index >= AHEAD_KEPT || too_old {
             over.push(name.clone());
         }
     }
     return over;
+}
+
+/// What:
+///  Whether a copy made `made` milliseconds after the epoch is older than an add keeps.
+/// Why:
+///   The age is the one number that decides whether a copy a repository is not adding to stays,
+/// and one named
+///  relation keeps the rule in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const olderThanKept = (made, now) => now - made > AHEAD_OLDEST;
+/// ```
+fn older_than_kept(made: u128, now: u128) -> bool {
+    return now.saturating_sub(made) > AHEAD_OLDEST.as_millis();
 }
 
 /// What:
@@ -602,9 +541,14 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
 }
 
 /// What:
-///  Wake the commit service of the repository whose common directory is `common_dir`,
+///  Wake the commit service of the worktree whose own Git directory is `git_dir`,
 /// saying nothing of its own,
 /// as an add wakes it for its trash.
+/// Why:
+///   The route and the records must name one worktree:
+/// the service that answers a worktree drains that worktree's own
+///  work directory,
+/// so a record written under another directory is refused there.
 /// Why:
 ///   A wake that cannot be made leaves the records for the next command of the repository,
 /// which is every commit
@@ -615,8 +559,8 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
 /// ```ts
 /// wakeService({ context, commonDir });
 /// ```
-fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), String> {
-    let Some(Route { address, provision: host }) = route_from_environment(context.real_git.as_path(), common_dir) else {
+fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> {
+    let Some(Route { address, provision: host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
         return Err(String::from("no commit service can be started from this session"));
     };
     if let Some(setup) = host.as_ref()
@@ -639,7 +583,7 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
         units_record_dir: host.as_ref().map(units_record_dir_of),
     };
     let mut silent: std::io::Sink = std::io::sink();
-    return match wake(&config, common_dir, None, &mut silent) {
+    return match wake(&config, git_dir, None, &mut silent) {
         Ok(()) => Ok(()),
         Err(failure) => Err(render(&failure)),
     };
@@ -662,29 +606,30 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 /// ```
 pub fn ask_for_one(context: &GitContext, source: &SnapshotSource) -> Result<(), String> {
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
-    return ask_with(source.common_dir.as_path(), source.git_dir.as_path(), source.root.as_path(), pool.as_path(), &|wake_at: &Path| {
-        return wake_the_service(context, wake_at);
-    });
+    ask_with(source.git_dir.as_path(), source.root.as_path(), pool.as_path())?;
+    return wake_the_service(context, source.git_dir.as_path());
 }
 
 /// What:
-///  `ask_for_one` with the wake injected,
-/// so a control reaches no service and no session bus.
+///  The record of one request for a snapshot ahead,
+/// and nothing else.
 /// Why:
 ///   The record is written before the service is told,
-/// so a control can assert both without a service.
+/// so a control asserts the record without a service,
+/// and
+///  `ask_for_one` wakes the service after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// askWith(commonDir, gitDir, root, pool, told)
+/// askWith(gitDir, root, pool) // the record only; the caller wakes the service
 /// ```
-pub fn ask_with(common_dir: &Path, git_dir: &Path, source_root: &Path, pool: &Path, told: &dyn Fn(&Path) -> Result<(), String>) -> Result<(), String> {
+pub fn ask_with(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<(), String> {
     let request: WorkItem = request_item(git_dir, source_root, pool)?;
-    if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &request) {
+    if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &request) {
         return Err(format!("the request of a snapshot ahead could not be written: {reason}"));
     }
     debug(TAG, format!("{}: asked for a snapshot ahead in {}", source_root.display(), pool.display()).as_str());
-    return told(common_dir);
+    return Ok(());
 }
 
 /// What:
@@ -707,191 +652,39 @@ pub fn ask_with(common_dir: &Path, git_dir: &Path, source_root: &Path, pool: &Pa
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, stale: &[OsString]) -> Result<(), String> {
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
-    return hand_over_with(source.common_dir.as_path(), source.git_dir.as_path(), pool.as_path(), stale, &|wake_at: &Path| {
-        return wake_the_service(context, wake_at);
-    });
+    hand_over_with(source.git_dir.as_path(), pool.as_path(), stale)?;
+    return wake_the_service(context, source.git_dir.as_path());
 }
 
 /// What:
-///  `hand_over_to_the_service` with the wake injected,
-/// so a control reaches no service and no session bus.
+///  One record per stale name,
+/// and nothing else.
 /// Why:
 ///   The records are written before the service is told,
-/// so a control asserts both without a service,
+/// so a control asserts them without a service,
 /// and one
 ///  record that cannot be written is said and does not stop the others.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// handOverWith(commonDir, gitDir, pool, stale, told)
+/// handOverWith(gitDir, pool, stale) // the records only; the caller wakes the service
 /// ```
-pub fn hand_over_with(common_dir: &Path, git_dir: &Path, pool: &Path, stale: &[OsString], told: &dyn Fn(&Path) -> Result<(), String>) -> Result<(), String> {
-    let work: PathBuf = work_directory(common_dir);
+pub fn hand_over_with(git_dir: &Path, pool: &Path, stale: &[OsString]) -> Result<(), String> {
+    let work: PathBuf = work_directory(git_dir);
     for name in stale {
         if let Err(reason) = enqueue(work.as_path(), &deletion_item(git_dir, pool, name.as_os_str())) {
             debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str());
         }
     }
     debug(TAG, format!("{} name(s) of snapshots ahead are handed to the service in {}", stale.len(), pool.display()).as_str());
-    return told(common_dir);
+    return Ok(());
 }
 
-/// What:
-///  Hand the names this add settled to the service,
-/// and forget them,
-/// so no name is handed over twice.
-/// Why:
-///   The wait looks again and again,
-/// so one name is settled once per pass,
-/// and every hand-over is a wake and a
-///  record;
-/// `handed` is what this add already said.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const handOver = (service, stale) => { if (stale.length === 0) return; service.handOver(stale); stale.length = 0; };
-/// ```
-fn hand_over(service: &AheadService<'_>, stale: &mut Vec<OsString>, handed: &mut Vec<OsString>) {
-    stale.retain(|name: &OsString| { return !handed.contains(name); });
-    if stale.is_empty() {
-        return;
-    }
-    let _told = (service.hand_over)(stale.as_slice());
-    handed.extend_from_slice(stale.as_slice());
-    stale.clear();
-}
-
-/// What:
-///  A wait in the unit a person reads it in:
-/// whole seconds from one second up,
-/// milliseconds below that.
-/// Why:
-///   A control shortens the ceiling to milliseconds,
-/// and a person's sentence must state the bound it actually
-///  reached rather than rounding it to "0 s".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const inWords = (d: number) => d >= 1000 ? `${Math.round(d / 1000)} s` : `${d} ms`;
-/// ```
-fn in_words(ceiling: Duration) -> String {
-    return if ceiling.as_secs() >= 1 { format!("{} s", ceiling.as_secs()) } else { format!("{} ms", ceiling.as_millis()) };
-}
-
-/// What:
-///  Wait, bounded, for a snapshot ahead this add can claim.
-/// Why:
-///   The service takes the btrfs commit on its own thread,
-/// so the add waits for an answer instead of for the kernel,
-/// and
-///  the ceiling is what keeps that wait finite when the service is busy or stopped.
-/// A wait longer than
-///  `waiting_notice_after` says on standard error what it waits for and until when,
-/// so a person who sees a
-///  slow add learns which step it is on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// while (Date.now() < deadline) { const claim = claimNow(); if (claim) return claim; await sleep(POLL); } return undefined;
-/// ```
-fn wait_for_one(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, stale: &mut Vec<OsString>, ceiling: Duration) -> Option<(ObjectId, Proof)> {
-    let began: Instant = Instant::now();
-    let notice_after: Duration = waiting_notice_after();
-    let mut noticed: bool = false;
-    loop {
-        if let Some(claimed) = claim_now(source, stage, environment, stale) {
-            return Some(claimed);
-        }
-        let spent: Duration = began.elapsed();
-        let left: Duration = ceiling.saturating_sub(spent);
-        if left.is_zero() {
-            return None;
-        }
-        if !noticed && spent >= notice_after {
-            noticed = true;
-            // A closed standard error leaves nowhere to print; the timing record below still says how the wait ended.
-            let _told = writeln!(
-                std::io::stderr(),
-                "monochromatic-git-policy-cli: still waiting for the commit service to make a snapshot ahead for this add ({} s so far, at most {}, after which Git's own checkout makes the worktree)",
-                spent.as_secs(),
-                in_words(ceiling)
-            );
-        }
-        std::thread::sleep(POLL.min(left));
-    }
-}
-
-/// What:
-///  Look for a snapshot the wrapper made ahead of this add,
-/// ask the service for one when there is none,
-/// wait for it no longer than the ceiling,
-/// and hand the service everything this add proved stale and keeps no longer.
-/// Why:
-///   The add's own snapshot forces a commit on the person's thread,
-/// so it is taken only when nothing came;
-/// a
-///  ceiling that passed ends the snapshot rung with the reason,
-/// and the caller makes the worktree the way Git does and tells
-///  the person why.
-/// The request goes out before the wait,
-/// so the wait is for work this add asked for,
-/// and never
-///  for whatever a busy service happened to be doing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const look = ({ source, stage, environment, service }) => { if (source.dirty) return none; const warm = claimNow(); if (warm) { handOver(stale); return claimed(warm); } if (handOver(stale) is err) return none; const waited = waitForOne(); handOver(stale + overKept(keptIn(pool, source.root))); return waited ? claimed(waited) : timedOut; };
-/// ```
-pub fn look_for_a_snapshot_ahead(source: &SnapshotSource, plan: &AddPlan, stage: &Path, environment: &ConversionEnvironment, service: &AheadService<'_>) -> AheadLook {
-    // A source with uncommitted changes carries its own index, which is one instant with its files, so its snapshot has to be
-    //  taken on this add's own path: nothing proves a copy of an earlier instant equal to what the add must carry.
-    if source.dirty.is_some() {
-        note_timing("snapshotAhead", "not-for-a-source-with-changes");
-        return AheadLook::None;
-    }
-    let pool: PathBuf = pool_folder(source.git_dir.as_path());
-    let mut stale: Vec<OsString> = Vec::new();
-    let mut handed: Vec<OsString> = Vec::new();
-    if let Some((made, proof)) = claim_now(source, stage, environment, &mut stale) {
-        note_timing("snapshotAhead", "claimed");
-        // The add after this one needs one, and whatever this look proved stale goes with the same wake.
-        hand_over(service, &mut stale, &mut handed);
-        let _asked = (service.ask)();
-        return AheadLook::Claimed { made, proof };
-    }
-    if let Err(reason) = (service.ask)() {
-        debug(TAG, format!("{}: no snapshot ahead was asked for ({reason}), so this add takes its own", plan.destination.display()).as_str());
-        note_timing("snapshotAhead", "no-service");
-        hand_over(service, &mut stale, &mut handed);
-        return AheadLook::None;
-    }
-    hand_over(service, &mut stale, &mut handed);
-    let waiting: bool = begin_step("snapshotAheadWait");
-    let claimed: Option<(ObjectId, Proof)> = wait_for_one(source, stage, environment, &mut stale, service.ceiling);
-    end_step(waiting);
-    // What this add proved stale while it waited, and what it keeps no longer, goes to the service in its own time.
-    let now: u128 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis();
-    for name in over_kept(kept_in(pool.as_path(), source.root.as_path()).as_slice(), now) {
-        // A name the wait already proved stale is handed over once.
-        if !stale.contains(&name) {
-            stale.push(name);
-        }
-    }
-    hand_over(service, &mut stale, &mut handed);
-    return match claimed {
-        Some((made, proof)) => {
-            note_timing("snapshotAhead", "waited");
-            AheadLook::Claimed { made, proof }
-        }
-        None => {
-            note_timing("snapshotAhead", "timed-out");
-            AheadLook::TimedOut(format!(
-                "no snapshot the wrapper makes ahead of an add came within {}, and nothing here waits on one indefinitely",
-                in_words(service.ceiling)
-            ))
-        }
-    };
-}
+/// The add's own look for a snapshot the service made ahead of it:
+/// the proof,
+/// the claim,
+/// the bounded wait and the sweep.
+pub use crate::worktree_snapshot_ahead_claim::look_for_a_snapshot_ahead;
 
 /// Controls of the snapshots made ahead stay out of the release executable.
 #[cfg(test)]

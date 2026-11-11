@@ -551,6 +551,24 @@ impl WorkHandlers for GitHandlers {
     }
 
     /// What:
+    ///  Make one snapshot of a worktree ahead of the next add,
+    /// where the caller has no runtime to hand a job to.
+    /// Why:
+    ///   The call is one btrfs ioctl and starts no child,
+    /// so a synchronous caller blocks here itself;
+    /// the round
+    ///  awaits it on the blocking pool through `snapshot_ahead_awaiting`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAhead(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
+    }
+
+    /// What:
     ///  Make a snapshot of a worktree ahead of the next add,
     /// on a thread of the blocking pool.
     /// Why:

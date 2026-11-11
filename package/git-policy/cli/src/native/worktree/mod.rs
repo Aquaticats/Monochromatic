@@ -156,6 +156,13 @@ pub mod worktree_snapshot_index_step;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead;
 
+/// What one add does with the snapshots the service made ahead of it:
+/// the proof,
+/// the claim,
+/// the bounded wait and the sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim;
+
 /// The commit service's own snapshot of a worktree,
 /// made for the add after the one that asked for it.
 #[cfg(target_os = "linux")]

@@ -127,6 +127,7 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
+#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the two seams of the snapshot ahead are kept past this call with the context and the source a named function would have to be handed through signatures that do not carry them"))]
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
@@ -136,6 +137,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
     // The service that makes the snapshots ahead is this repository's commit service, and the add asks it for one only when
     //  it can reach it: a control hands in a service that reaches nothing, and then the add takes its own snapshot.
+    // The rung keeps both seams for as long as it runs, with the context and the source this call cannot pass on.
     let ask = || { return crate::worktree_snapshot_ahead::ask_for_one(context, source); };
     let hand_over = |stale: &[std::ffi::OsString]| { return crate::worktree_snapshot_ahead::hand_over_to_the_service(context, source, stale); };
     let service: crate::worktree_snapshot_ahead::AheadService<'_> =

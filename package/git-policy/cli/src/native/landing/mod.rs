@@ -358,6 +358,10 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// The drain of the snapshots the commit service makes ahead of the next add,
+/// as one step of a round.
+pub mod service_work_drains_a_snapshot_ahead;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;

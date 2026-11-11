@@ -4,15 +4,26 @@
 //! for the add after this one to claim.
 //! Why:
 //!  An add's own `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the person's thread and waits for the
-//!  source's writeback first, which took 7,443.8 ms at the median and 39,828.5 ms at its worst on this volume
-//! (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, "A worktree add").
-//! A client cannot bound that call, because a thread asleep in the ioctl
-//!  keeps the process from exiting, so the call lives here, in the service, and the add waits for the answer
-//!  instead (`worktree_snapshot_ahead.rs`, `SNAPSHOT_AHEAD_CEILING`).
+//!  source's writeback first,
+//! which took 7,443.8 ms at the median and 39,828.5 ms at its worst on this volume
+//! (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+//! "A worktree add").
+//! A client cannot bound that call,
+//! because a thread asleep in the ioctl
+//!  keeps the process from exiting,
+//! so the call lives here,
+//! in the service,
+//! and the add waits for the answer
+//!  instead (`worktree_snapshot_ahead.rs`,
+//! `SNAPSHOT_AHEAD_CEILING`).
 //! The service makes one entry at a time and stops when the folder already
-//!  holds what an add keeps (`AHEAD_KEPT`), so a burst of requests cannot fill the volume with copies of one tree.
-//! Nothing here proves the copy: the add that claims one walks it against its own source's index before it installs
-//!  that index over it (`worktree_snapshot_index_step.rs`, `prove_the_copy`), so a stale copy is refused there and
+//!  holds what an add keeps (`AHEAD_KEPT`),
+//! so a burst of requests cannot fill the volume with copies of one tree.
+//! Nothing here proves the copy:
+//! the add that claims one walks it against its own source's index before it installs
+//!  that index over it (`worktree_snapshot_index_step.rs`,
+//! `prove_the_copy`),
+//! so a stale copy is refused there and
 //!  handed back here for deletion.
 //!
 //! In TS you'd write (pseudocode):
@@ -108,8 +119,10 @@ fn planned(item: &WorkItem) -> Result<(PathBuf, PathBuf), String> {
 /// A folder that already holds `AHEAD_KEPT` entries is the answer to the requests of the adds that came
 ///  before this one,
 /// so nothing more is made and the record is done.
-/// The ioctl runs where the person is not waiting: this is
-///  the service's own thread, taken from its blocking pool.
+/// The ioctl runs where the person is not waiting:
+/// this is
+///  the service's own thread,
+/// taken from its blocking pool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
