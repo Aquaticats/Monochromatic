@@ -536,3 +536,35 @@ The four runs below were made against the committed code with
    Those need retention numbers nobody has picked yet.
 - It does not remove any worktree that already existed when it landed,
    because none of them carries the record.
+
+## The merge of main, and the final run
+
+`main` was merged into this branch at 2026-11-10T19:58:00-05:00 in merge commit `b4e1da36ac`,
+ which brought `AGENTS.md`,
+ `CLAUDE.md`,
+ the wrapper handover,
+ `package/crate-release/cli/bin/native-release-host-controls.ts` and its unit test,
+ and a `pnpm-lock.yaml` catalog refresh.
+Nothing in the crate's Rust changed in that merge,
+ so the only risk to this change was a semantic one,
+ and the suites were run again after it:
+
+- `native:clippy` (the gate's Clippy flags, warnings denied): clean.
+- `test(/worktree_landed|worktree_added_by_the_wrapper|worktree_process_inside/)`:
+   `20 tests run: 20 passed, 6289 skipped`.
+- `test(/worktree_add|worktree_remove/)`: `67 tests run: 67 passed, 6242 skipped`.
+- `test(/worktree_copying/)`: `384 tests run: 384 passed, 5925 skipped`.
+- `test(/landing::/)`: `850 tests run: 850 passed, 5459 skipped`.
+
+The package's `lint` task is red on this branch for findings this work did not add.
+Every one of them is in a file whose diff against `main` is empty,
+ which was checked file by file:
+ `package/git-policy/cli/SPEC.md`,
+ `src/native/service/service_server_connection_handling_tests.rs`,
+ `src/native/worktree/idle_io_priority.rs`,
+ `src/native/worktree/worktree_trash_hand_over.rs`,
+ `src/native/worktree/worktree_trash_dispose.rs` and
+ `src/native/worktree/worktree_trash_entries.rs`.
+The `lint:oxlint` and `lint:types` children of the same task also fail;
+ this change holds no TypeScript and no generated file,
+ so neither failure can be this branch's.

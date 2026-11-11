@@ -890,8 +890,7 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and it is not locked;
 - no merge,
    rebase,
-   cherry-pick,
-   revert or bisect is in progress in it;
+   cherry-pick or revert is in progress in it;
 - no process is working in it or in a folder below it;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
