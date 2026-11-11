@@ -448,7 +448,7 @@ fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRa
     // SAFETY: the descriptor belongs to `pipe`, which outlives both calls, and neither takes a pointer.
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
     if flags < 0 {
-        eprintln!("skipped: this system would not say how the child's output pipe is read (errno {flags})");
+        eprintln!("the child's output pipe could not be read without waiting for its end (errno {flags}): nothing of it is collected");
         return Vec::new();
     }
     // The flag is set on this copy of the descriptor only, and its read end is closed with the child that held it.
@@ -464,7 +464,10 @@ fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRa
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             // Nothing is there now, and the child has ended, so nothing of the child's will come later.
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return collected,
-            Err(_) => return collected,
+            Err(error) => {
+                eprintln!("the child's output pipe ended in an error ({error}): what is collected is what came before it");
+                return collected;
+            }
         }
     }
 }

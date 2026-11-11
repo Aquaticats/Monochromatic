@@ -23,12 +23,12 @@
 //!  no processor time and no bytes moved,
 //!  and no process or task started.
 //! A figure that fell says a task ended or could not be read,
-//! and neither is the run working,
-//!  so only a
-//!  figure that grew counts.
-//! A task that ends takes every byte and tick it moved out of the totals,
-//! so the totals can fall while a task that stayed moved:
-//! each task's own figures are compared with the ones it showed before,
+//! and neither is the run working:
+//! a look adds up the tasks it found,
+//! and a task that ends takes every byte and tick it moved out of those totals,
+//! so the totals can fall while a task that stayed moved.
+//! Each task's figures are therefore compared with the ones that task showed before,
+//! so a task whose own figures grew is work,
 //! and a task a look finds where the look before found none is a task that started.
 //!  Those are the signs the wrapper's own wait for a child process reads (`push_progress.rs`),
 //! so a test run
