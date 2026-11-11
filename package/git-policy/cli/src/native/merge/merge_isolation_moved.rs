@@ -85,7 +85,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
-    put_back_stranded_takes(root, changes.as_slice(), out);
+    put_back_stranded_takes(root, place.git_dir.as_path(), changes.as_slice(), out);
     // The installed state is read once here too,
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what
@@ -224,7 +224,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
             began,
         });
     }
-    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, out).await? == Installed::IndexHeld {
+    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, intent.owner.transaction_id.as_str(), out).await? == Installed::IndexHeld {
         // A settling that had already begun has nothing to defer: the command is stopped rather than read the merge as
         //  another session's staged work.
         if began {

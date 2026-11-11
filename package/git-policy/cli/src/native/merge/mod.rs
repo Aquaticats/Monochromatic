@@ -109,6 +109,10 @@ pub mod merge_isolation_recovery_notice;
 /// The index read the way a merge's recovery needs it.
 pub mod merge_isolation_index_reading;
 
+/// The private name a take gives a file it moves aside,
+/// and the merge record that name is tied to.
+pub mod merge_isolation_take_aside_names;
+
 /// The take of a worktree file a merge must replace or delete,
 /// and the private names it leaves behind.
 pub mod merge_isolation_take_asides;
@@ -146,6 +150,10 @@ pub mod merge_isolation_carry_apply;
 /// one path's index entry,
 /// and the raw changes between two commits.
 pub mod merge_isolation_carry_reads;
+
+/// What Git's own update left at each path of a merge,
+/// which tells its own file from a save that accepts it.
+pub mod merge_isolation_carry_landed;
 
 /// What a carry writes:
 /// the index records of a batch,
