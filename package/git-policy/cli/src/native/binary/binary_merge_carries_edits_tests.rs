@@ -837,6 +837,158 @@ fn a_mode_change_on_a_path_the_merge_changes_is_kept() {
 }
 
 /// What:
+///  The same change of the executable bit alone,
+/// on a path the merge deletes:
+/// the person's file stays with their mode and the line
+///  names the modify/delete decision.
+/// Why:
+///   The entry rules read a mode the person set alone as no change at all,
+/// because a path the merge keeps takes the
+///  merge's bytes with that mode;
+/// a path the merge deletes has none of the merge's bytes to take it,
+///  so the mode was all that stood of their work and the deletion took it
+/// (owner's rule "never discard user data";
+///  `SPEC.md`,
+/// "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o755); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(read('gone.txt')).toBe('gone base\n'); expect(mode('gone.txt')).toBe(0o755);
+/// ```
+#[test]
+fn a_mode_change_on_a_path_the_merge_deletes_is_kept() {
+    let fixture: Fixture = fixture("carry-mode-only-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o755)).expect("the person's mode");
+    }
+    assert_eq!(status(&fixture, repo.as_path()), " M gone.txt\n", "the fixture's mode change is unsaved work");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "mode change on a deleted path");
+    assert_eq!(text_at(repo.as_path(), "gone.txt").as_deref(), Some("gone base\n"), "the person's bytes are kept: {words}");
+    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert!(words.contains("gone.txt"), "the line names the path: {words}");
+    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The person staged the same mode change alone:
+/// the file and the `100755` entry they staged both stand after the
+///  merge deletes the path on its own side.
+/// Why:
+///  A staged mode is theirs as a staged edit is,
+/// so dropping the entry reports the merge as made while the index
+///  quietly loses the only record of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o755); git(['add', '--', 'gone.txt']); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(indexEntry('gone.txt')).toStartWith('100755 '); expect(mode('gone.txt')).toBe(0o755);
+/// ```
+#[test]
+fn a_staged_mode_change_on_a_path_the_merge_deletes_keeps_its_entry() {
+    let fixture: Fixture = fixture("carry-staged-mode-only-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o755)).expect("the person's mode");
+    }
+    git(&fixture, repo.as_path(), &["add", "--", "gone.txt"]);
+    assert_eq!(status(&fixture, repo.as_path()), "M  gone.txt\n", "the fixture's mode change is staged work");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "staged mode change on a deleted path");
+    assert_eq!(text_at(repo.as_path(), "gone.txt").as_deref(), Some("gone base\n"), "the person's bytes are kept: {words}");
+    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
+    let staged: String = index_entry(&fixture, repo.as_path(), "gone.txt");
+    assert!(staged.starts_with("100755 "), "the index holds the mode they staged, not {staged:?}: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert!(words.contains("gone.txt"), "the line names the path: {words}");
+    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository where `feature` adds a path the base's ignore rules cover,
+/// and `main` diverges elsewhere.
+/// Why:
+///   Such a path is invisible to `git status`,
+/// so it never reached the capture set,
+/// and the merge wrote the branch's
+///  bytes over the only copy of the person's file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// base({ '.gitignore': 'added.txt\n', 'base.txt': 'base\n' }); branch('feature', { 'added.txt': 'added by feature\n' }, { forceAdd: true });
+/// ```
+fn diverged_over_an_ignored_path(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join(".gitignore"), b"added.txt\n").expect(".gitignore");
+    std::fs::write(repo.join("base.txt"), b"base\n").expect("base.txt");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "base.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("added.txt"), b"added by feature\n").expect("added.txt");
+    // A branch can track a path its own ignore rules cover; `--force` is how one commits it.
+    git(fixture, repo.as_path(), &["add", "--force", "--", "added.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature adds an ignored path"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("base.txt"), b"base changed on main\n").expect("base.txt");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    return repo;
+}
+
+/// What:
+///  An ignored untracked file where the merge adds that path:
+/// the person's bytes stay in the file,
+/// the merge
+///  lands,
+/// and the command names the file.
+/// Why:
+///   `git status` never lists an ignored untracked file,
+/// so the capture heard nothing of the only copy of it and the
+///  merge wrote the branch's bytes over it
+/// (owner's rule "never discard user data";
+/// `SPEC.md`,
+/// "A merge
+///  whose paths hold the person's own work carries it forward"
+/// names untracked files the merge adds without excluding the
+///  ignored ones).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('added.txt', 'the person\'s ignored build output\n'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(ran.code).toBe(0); expect(read('added.txt')).toContain('the person\'s ignored build output');
+/// ```
+#[test]
+fn an_ignored_untracked_file_where_the_merge_adds_the_path_keeps_the_persons_bytes() {
+    let fixture: Fixture = fixture("carry-ignored-untracked-add");
+    let repo: PathBuf = diverged_over_an_ignored_path(&fixture, "repo");
+    let person: &str = "the person's ignored build output\n";
+    std::fs::write(repo.join("added.txt"), person).expect("the person's ignored file");
+    let before: String =
+        git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]);
+    assert_eq!(before, "!! added.txt\0", "the fixture's file is ignored and untracked: {before:?}");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "ignored untracked add");
+    let after: String = text_at(repo.as_path(), "added.txt").expect("added.txt is there");
+    assert!(after.contains("the person's ignored build output"), "the person's ignored bytes are kept: {after:?}");
+    assert!(after.contains("added by feature"), "the merge's bytes are kept: {after:?}");
+    assert!(!head_object(&fixture, repo.as_path(), "added.txt").is_empty(), "the merge's version is in the merge commit");
+    assert!(words.contains("added.txt"), "the command names the file: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
 ///  The same deletion in a linked worktree:
 /// the line names the same command,
 /// and that command runs there too.
