@@ -17,7 +17,7 @@ use super::commit::{
     COMMIT_BOUND_SECONDS, assert_nothing_left, git_text, keep_maintenance_in_the_foreground,
     remove_settled,
 };
-use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, stderr_without_wait_notices, wrapper_first_path};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -107,7 +107,7 @@ fn a_commit_of_a_name_that_is_not_utf8_lands_with_its_exact_bytes() {
     std::fs::write(repo.join(bad_name()), b"fine\n").expect("file");
     let landed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=bad"], bad_name().as_os_str()));
     assert_eq!(
-        (landed.code, stderr_of(&landed)),
+        (landed.code, stderr_without_wait_notices(&landed)),
         (Some(0), String::new())
     );
     assert_eq!(committed_names(&fixture, repo.as_path()), vec![BAD_NAME.to_vec()]);
@@ -116,7 +116,7 @@ fn a_commit_of_a_name_that_is_not_utf8_lands_with_its_exact_bytes() {
     // The name is now tracked in the base; a commit of another file must still land.
     std::fs::write(repo.join("other.txt"), b"fine\n").expect("other");
     let other: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=other"], OsStr::new("other.txt")));
-    assert_eq!((other.code, stderr_of(&other)), (Some(0), String::new()));
+    assert_eq!((other.code, stderr_without_wait_notices(&other)), (Some(0), String::new()));
     assert_eq!(
         committed_names(&fixture, repo.as_path()),
         vec![BAD_NAME.to_vec(), b"other.txt".to_vec()]
@@ -133,7 +133,7 @@ fn an_untracked_name_that_is_not_utf8_does_not_stop_a_commit() {
     std::fs::write(repo.join(bad_name()), b"left alone\n").expect("untracked file");
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
     let landed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=a"], OsStr::new("a.txt")));
-    assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
+    assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
     assert_eq!(committed_names(&fixture, repo.as_path()), vec![b"a.txt".to_vec()]);
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
@@ -148,7 +148,7 @@ fn a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes() {
     std::fs::write(repo.join(bad_name()), b"no newline").expect("file");
     let landed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=bad"], bad_name().as_os_str()));
     assert_eq!(
-        (landed.code, stderr_of(&landed)),
+        (landed.code, stderr_without_wait_notices(&landed)),
         (
             Some(0),
             format!(
@@ -182,7 +182,7 @@ fn a_blocking_commit_finding_names_the_exact_bytes() {
         &commit_arguments(&["--include", "--message=bad"], bad_name().as_os_str()),
     );
     assert_eq!(
-        (blocked.code, stderr_of(&blocked)),
+        (blocked.code, stderr_without_wait_notices(&blocked)),
         (
             Some(1),
             format!(
@@ -210,7 +210,7 @@ fn an_add_blocked_at_error_severity_names_the_exact_bytes() {
         &[OsString::from("add"), OsString::from("--"), bad_name()],
     );
     assert_eq!(
-        (blocked.code, stderr_of(&blocked)),
+        (blocked.code, stderr_without_wait_notices(&blocked)),
         (
             Some(1),
             format!(
@@ -254,7 +254,7 @@ fn names_that_are_utf8_keep_the_old_shape() {
         );
     };
     assert_eq!(
-        (added.code, stderr_of(&added)),
+        (added.code, stderr_without_wait_notices(&added)),
         (Some(0), format!("{}{}", line("a\\\\b.txt", 0), line("caf\u{fffd}.txt", 1)))
     );
     git(&fixture, repo.as_path(), &["reset", "--quiet"]);
@@ -270,7 +270,7 @@ fn names_that_are_utf8_keep_the_old_shape() {
         ],
     );
     assert_eq!(
-        (committed.code, stderr_of(&committed)),
+        (committed.code, stderr_without_wait_notices(&committed)),
         (
             Some(0),
             "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"fix-summary\",\"trigger\":\"pre-forward\",\"passes\":1,\
@@ -311,11 +311,11 @@ fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes(
          \"message\":\"Forbidden string matched at line 1 (rule 0).\",\"path\":\"bad\\\\xff.txt\",\"fix\":\"none\"}\n"
         .to_string();
     let added: Observed = run_os(&fixture, repo.as_path(), &[OsString::from("add"), OsString::from("--"), bad_name()]);
-    assert_eq!((added.code, stderr_of(&added)), (Some(1), expected.clone()));
+    assert_eq!((added.code, stderr_without_wait_notices(&added)), (Some(1), expected.clone()));
     git(&fixture, repo.as_path(), &["add", "--", "monochromatic-git-policy-cli.config.jsonc", "rules/private.txt"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=configuration"]);
     let committed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--include", "--message=bad"], bad_name().as_os_str()));
-    assert_eq!((committed.code, stderr_of(&committed)), (Some(1), expected));
+    assert_eq!((committed.code, stderr_without_wait_notices(&committed)), (Some(1), expected));
     remove_settled(&fixture);
 }
 
@@ -336,7 +336,7 @@ fn a_commit_of_all_tracked_changes_lands_a_name_that_is_not_utf8() {
         &[OsString::from("commit"), OsString::from("-a"), OsString::from("--no-only"), OsString::from("--message=all")],
     );
     assert_eq!(
-        (landed.code, stderr_of(&landed)),
+        (landed.code, stderr_without_wait_notices(&landed)),
         (
             Some(0),
             format!(
@@ -376,7 +376,7 @@ fn a_staged_name_that_is_not_utf8_commits_in_index_mode() {
         repo.as_path(),
         &[OsString::from("commit"), OsString::from("--no-only"), OsString::from("--message=staged")],
     );
-    assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
+    assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
     assert_eq!(committed_names(&fixture, repo.as_path()), vec![BAD_NAME.to_vec()]);
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
@@ -390,7 +390,7 @@ fn a_no_change_normalization_of_a_name_that_is_not_utf8_reports_the_exact_bytes(
     let repo: PathBuf = tracked(&fixture, bad_name().as_os_str(), b"one");
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let result: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=x"], bad_name().as_os_str()));
-    let stderr: String = stderr_of(&result);
+    let stderr: String = stderr_without_wait_notices(&result);
     assert_eq!(result.code, Some(1), "{stderr}");
     assert!(
         stderr.starts_with(
@@ -419,7 +419,7 @@ fn an_amend_of_a_name_that_is_not_utf8_lands_it() {
         repo.as_path(),
         &commit_arguments(&["--amend", "--message=amended"], bad_name().as_os_str()),
     );
-    assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
+    assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
     assert_eq!(head_blob(&fixture, repo.as_path()), b"one\ntwo\n");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
     assert_nothing_left(&fixture, repo.as_path());

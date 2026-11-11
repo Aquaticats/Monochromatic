@@ -40,6 +40,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
@@ -219,7 +220,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 /// remove(place, registration) // throws Git's refusal, in Git's words
 /// ```
 fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
-    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()) };
+    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
         RemoveOutcome::Removed => {
@@ -279,7 +280,13 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
     if let Some(pid) = process_working_inside(one.worktree.as_path(), place.proc_root) {
         return Examined::Kept(format!("process {pid} is working in it"));
     }
-    return match remove(place, one) {
+    let removal: Result<(), String> = remove(place, one);
+    if removal.is_ok() {
+        // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
+        // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
+        clear_the_pool_of_a_removed_worktree(place.common_dir, one.admin.as_path());
+    }
+    return match removal {
         Ok(()) => Examined::Removed,
         Err(reason) => Examined::Kept(reason),
     };

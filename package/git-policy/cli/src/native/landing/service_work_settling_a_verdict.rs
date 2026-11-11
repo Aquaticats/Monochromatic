@@ -1,22 +1,21 @@
 //! What:
-//!  What a work item's verdict does to its records,
+//!  What a drained push's verdict does to its records,
 //! to the retry plan,
 //! and to the person.
 //! Why:
 //! A drain of work claims items,
 //! runs each kind with its awaited handler,
-//! and then has two ways to settle what answered:
+//! and settles what answered:
 //! a push carries records of its own (`settle_after_the_push`),
-//! and everything else answers in words (`settle_with_the_words`).
-//! Both are the drain's own steps and hold no state of their own,
-//! so they have a file beside it and the drain's loop stays readable;
-//! the drain hands each one the claim set,
+//! and every other kind answers in words (`service_work_settling_with_words.rs`).
+//! The push's settlement is the drain's own step and holds no state of its own,
+//! so it has a file beside the drain and the loop stays readable;
+//! the drain hands it the claim set,
 //! which travels into the storage job and back (`service_work_storage_awaited.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await settleAfterThePush({ held, workDir, gitDir, members, verdict, pushingSince, replanning });
-//! await settleWithTheWords({ held, workDir, item, verdict, kind });
 //! ```
 
 use super::service_work_handlers_replanning_and_acceptance::*;
@@ -121,43 +120,6 @@ pub(super) async fn settle_after_the_push(
                 _ => true,
             };
             return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
-        }
-    }
-}
-
-/// What:
-///  Settle one item whose kind answers with words rather than a push:
-/// a skipped one is done and says why,
-/// a failed one is failed and says why.
-/// Why:
-///   A trash and a review answer the same four verdicts and leave the person the same two kinds of line,
-/// so the drain
-///  keeps one account of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await settleWithTheWords(held, workDir, item, verdict, kind)
-/// ```
-pub(super) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
-    match verdict {
-        Verdict::Done => {
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
-        }
-        Verdict::Failed(reason) | Verdict::Retry(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
-                "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
-                _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
-        }
-        Verdict::Skipped(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
-                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
-                _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
     }
 }

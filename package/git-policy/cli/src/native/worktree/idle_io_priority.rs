@@ -28,7 +28,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! withIdleIoPriority(() => removeTree(...)); // ioprio_set(thread, IDLE) ... ioprio_set(thread, before)
+//! withIdleIoPriority(state, removeTree); // ioprio_set(thread, IDLE) ... ioprio_set(thread, before)
 //! ```
 
 /// The `ioprio_set(2)` selector for one thread:
@@ -177,14 +177,21 @@ impl Drop for LoweredIoPriority {
 /// a review reading a commit) at the priority it expects.
 /// The restore is the lowered value's own (`LoweredIoPriority`),
 /// dropped when this call returns or unwinds.
+/// A value that cannot be read or set leaves the thread alone in that direction:
+/// no write without a
+///  reading to restore,
+/// and no promise that the class changed.
+/// The work's own state arrives as `state`,
+/// so the removal it runs is a function a reader can look up
+///  instead of a closure written where it is called.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function withIdleIoPriority(work) { const lowered = LoweredIoPriority.lower(); try { return work(); } finally { lowered[Symbol.dispose](); } }
+/// function withIdleIoPriority(state, work) { const lowered = LoweredIoPriority.lower(); try { return work(state); } finally { lowered[Symbol.dispose](); } }
 /// ```
-pub fn with_idle_io_priority<T>(work: impl FnOnce() -> T) -> T {
+pub fn with_idle_io_priority<S, T>(state: S, work: fn(S) -> T) -> T {
     let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
-    return work();
+    return work(state);
 }
 
 /// The class this thread's I/O priority names,

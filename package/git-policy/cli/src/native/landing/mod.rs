@@ -358,9 +358,16 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
-/// What a drained item's verdict does to its records,
+/// The drain's step that deletes the subvolumes a removal handed over.
+pub mod service_work_drain_deletes_subvolumes;
+
+/// What a drained push's verdict does to its records,
 /// its retry plan and the person.
 pub mod service_work_settling_a_verdict;
+
+/// How one item whose kind answers with words is settled,
+/// with the line the person reads for it.
+pub mod service_work_settling_with_words;
 
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.

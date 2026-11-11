@@ -208,6 +208,45 @@ pub fn parse_clean_region(
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, true);
+}
+
+/// What:
+///  The same dry run without the patterns the clean's own `-e`/`--exclude` tokens add to its ignore rules.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+/// Why:
+///  A pattern can pull into a clean a path the worktree itself does not ignore,
+///  and the difference between
+///  this answer and the typed clean's is exactly what the patterns add
+///  (`paths_only_the_exclusions_add`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
+/// ```
+pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, false);
+}
+
+/// What:
+///  The dry-run arguments of one clean,
+/// with or without its own exclusion patterns.
+///  `bool` says whether they are written.
+/// Why:
+///  Both readings are the same command,
+///  so they share one builder and differ in one step;
+///  a second copy of the
+///  rebuild would drift from this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean): string[] | undefined;
+/// ```
+fn dry_run_arguments(
+    global_prefix: &[OsString],
+    region: &[OsString],
+    with_exclusions: bool,
+) -> Option<Vec<OsString>> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
@@ -219,7 +258,8 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
         if occurrence.id == FORCE && !occurrence.negated {
             forces += 1;
         }
-        if occurrence.id == EXCLUDE
+        if with_exclusions
+            && occurrence.id == EXCLUDE
             && let Some(value) = occurrence.value
         {
             exclusions.push(value_bytes(region, value));
@@ -254,20 +294,24 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 }
 
 /// What:
-///  Whether a `git clean --dry-run` answer lists files it would delete.
-///  `Result<bool, String>` is "the answer,
+///  The paths a `git clean --dry-run` answer says it would delete,
+/// each exactly as Git printed it.
+///  `Result<Vec<Vec<u8>>, String>` is "the paths,
 /// or why Git could not give one".
 /// Why:
-///   A dry run prints one line per file it would remove and nothing at all when it would remove nothing,
+///   A dry run prints one line per path it would remove and nothing at all when it would remove nothing,
 /// and a clean Git
 ///  refuses says nothing either,
 ///  so a failure is an error and never "nothing to delete".
+///  Two dry runs of the same clean name a path the same way,
+///  which is what makes
+///       their two answers comparable line by line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cleanWouldDeleteFromAnswer(answer: MetadataOutput): boolean; // throws
+/// function cleanDeletedPathsFromAnswer(answer: MetadataOutput): Buffer[]; // throws
 /// ```
-pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, String> {
+pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
     if !answer.success {
         let detail: String = String::from_utf8_lossy(&answer.stderr)
             .lines()
@@ -277,7 +321,43 @@ pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, S
             .to_string();
         return Err(format!("Git could not read what the clean would delete: {detail}"));
     }
-    return Ok(!answer.stdout.iter().all(is_ascii_whitespace));
+    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for line in answer.stdout.split(is_newline) {
+        // A dry run that would delete nothing prints nothing, and a line of whitespace alone names no path.
+        if line.iter().all(is_ascii_whitespace) {
+            continue;
+        }
+        paths.push(line.to_vec());
+    }
+    return Ok(paths);
+}
+
+/// What:
+///  The paths one dry-run answer names that the same clean without its exclusion patterns would not delete.
+///  `deleted` and `otherwise_deleted` borrow both answers as Git printed them.
+/// Why:
+///   Git adds the `-e`/`--exclude` patterns to the ignore rules the clean applies,
+///  so a path only the first
+///  answer names is one those patterns call ignored and the worktree does not:
+///  an untracked
+///  file this clean would lose.
+///  A set keeps the comparison linear in the larger answer,
+///  because a
+///  worktree can ignore millions of paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pathsOnlyTheExclusionsAdd(deleted: Buffer[], otherwiseDeleted: Buffer[]): Buffer[];
+/// ```
+pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let known: std::collections::BTreeSet<&[u8]> = otherwise_deleted.iter().map(Vec::as_slice).collect();
+    let mut added: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in deleted {
+        if !known.contains(path.as_slice()) {
+            added.push(path.clone());
+        }
+    }
+    return added;
 }
 
 /// What:
@@ -293,6 +373,20 @@ pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, S
 /// ```
 fn is_ascii_whitespace(byte: &u8) -> bool {
     return byte.is_ascii_whitespace();
+}
+
+/// What:
+///  Whether a byte of the dry run's answer ends a line.
+/// Why:
+///   The dry run answers one path per line,
+/// and a named function keeps that pass free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x0a
+/// ```
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
 /// What:

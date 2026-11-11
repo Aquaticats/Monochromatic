@@ -134,7 +134,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     crate::test_support::git(target.as_path(), &["update-index", "--refresh"]);
     let stand = HandingOverStand { target: target.clone(), handed: std::cell::Cell::new(false), destroyed: std::cell::Cell::new(false) };
     let context = crate::test_support::git_context();
-    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string() };
+    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path() });
     assert!(stand.handed.get(), "the removal handed the subvolume over");

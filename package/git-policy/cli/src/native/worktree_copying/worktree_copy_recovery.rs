@@ -23,9 +23,8 @@ use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_registration_naming::{NamedRegistration, absent_path, registration_naming};
-use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_copy_stage_binding::{stage_binding, verify_stage_binding};
-use crate::worktree_copy_stage_claim_reaping::{judge_stage_owners, reap_judged_stages};
+use crate::worktree_copy_stage_claim_reaping::{StageVerdicts, judge_stage_owners, reap_judged_stages};
 use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
 use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
 use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase};
@@ -357,6 +356,12 @@ fn recover_transaction(
 /// a dead owner's journal is taken over by one
 ///  atomic rename,
 /// so of several commands that find it exactly one recovers it and the others move on without waiting.
+/// Every owner is judged once, before anything is changed,
+/// so the sweep acts on one answer and an item of another namespace older than the patience
+///  stops the command with nothing changed.
+/// The copy an interrupted add owes is finished by [`recover_pending_worktree_copies`],
+/// which holds the real Git that
+///  staging needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,19 +370,34 @@ fn recover_transaction(
 pub fn recover_worktree_copy_transactions(
     common_dir: &Path,
 ) -> Result<RecoveryReport, WorktreeCopyError> {
+    let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    return recover_judged_transactions(common_dir, &verdicts);
+}
+
+/// What:
+///  The part of the recovery that follows the judgement of every owner:
+/// the journals,
+/// then the stages and records a dead owner left.
+/// Why:
+///   The judgement must be taken before the first change,
+/// so the caller that also finishes an owed copy judges once and passes the
+///  same verdicts here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = await recoverJudgedTransactions(commonDir, verdicts);
+/// ```
+fn recover_judged_transactions(common_dir: &Path, verdicts: &StageVerdicts) -> Result<RecoveryReport, WorktreeCopyError> {
     let pending: Vec<PendingJournal> = read_pending_journals(common_dir)?;
     let owner = current_copy_owner()?;
     let mut recovered: usize = 0;
     let mut notices: Vec<String> = Vec::new();
-    // Every owner is judged before anything is taken over, finished or removed: an item of another namespace older than the patience
-    //  stops the command here (owner, 2026-11-04, "Refuse and name it (Recommended)"), with nothing changed (sol-1 round 3, P1 C).
     let mut dead: Vec<PendingJournal> = Vec::new();
     for journal in pending {
         if journal_owner_is_dead(&journal)? {
             dead.push(journal);
         }
     }
-    let stages = judge_stage_owners(common_dir)?;
     for journal in dead {
         // `match` on the take-over: another command already took this journal, and it recovers it.
         let Some(mine) = adopt_journal(&journal, &owner)? else {
@@ -391,7 +411,7 @@ pub fn recover_worktree_copy_transactions(
             notices.push(line);
         }
     }
-    notices.extend(reap_judged_stages(common_dir, &stages)?);
+    notices.extend(reap_judged_stages(common_dir, verdicts)?);
     // A worktree a copy gave up on stays named until it is gone or replaced, so every command says what is missing
     // there and what settles it; a copy still running wrote its record first and is left without a word.
     notices.extend(crate::worktree_copy_unfilled_record::report_unfilled_records(common_dir)?);
@@ -448,15 +468,22 @@ pub fn report_recovered(
 /// ```
 pub fn recover_pending_worktree_copies(
     common_dir: &Path,
+    context: &crate::transaction_git::GitContext,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
-    if read_pending_journals(common_dir)?.is_empty()
-        && !stage_claims_exist(common_dir)?
-        && !crate::worktree_copy_unfilled_record::unfilled_records_exist(common_dir)?
-    {
+    // Any item at all is work: a journal to resume, a claim or a record to settle, a stage to reap, or a temporary a
+    // killed write never renamed. An empty root costs this one listing and nothing else.
+    if !crate::worktree_copy_journal::journal_items_exist(common_dir)? {
         return Ok(());
     }
-    return report_recovered(&recover_worktree_copy_transactions(common_dir)?, stderr);
+    // One judgement of every owner, before anything is changed: the copy an interrupted add owes is finished first,
+    // with the same verdicts the sweep below settles its claims on.
+    let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    let mut finished: Vec<String> = crate::worktree_copy_owed_copy::finish_owed_worktree_copies(common_dir, &verdicts, context, stderr)?;
+    let mut report: RecoveryReport = recover_judged_transactions(common_dir, &verdicts)?;
+    finished.append(&mut report.notices);
+    report.notices = finished;
+    return report_recovered(&report, stderr);
 }
 
 /// Recovery controls stay out of the release executable.

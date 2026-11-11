@@ -36,7 +36,7 @@
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
-use crate::idle_io_priority::LoweredIoPriority;
+use crate::idle_io_priority::with_idle_io_priority;
 use crate::service_work::{Verdict, work_directory};
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
@@ -545,6 +545,17 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 }
 
 /// What:
+///  Remove the trash's own directory,
+/// which only its permissions kept.
+/// Why:
+///   The name inside its parent is the trash's name,
+/// so the removal deletes exactly what the snapshot made and nothing beside it.
+fn remove_the_trash_parent(state: (&File, &Path)) -> std::io::Result<()> {
+    let (parent, inside) = state;
+    return remove_at(parent, std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true);
+}
+
+/// What:
 ///  Remove the trash directory itself once its entries are gone,
 /// and the parent above it when nothing else is in it.
 /// Why:
@@ -582,11 +593,7 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    let removal: std::io::Result<()> = {
-        let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
-        remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)
-    };
-    path_failure(removal, inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    path_failure(with_idle_io_priority((parent.as_ref(), inside.as_path()), remove_the_trash_parent), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()
