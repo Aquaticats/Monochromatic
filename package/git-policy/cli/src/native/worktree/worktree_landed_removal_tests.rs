@@ -317,7 +317,7 @@ fn a_worktree_whose_branch_holds_no_commit_of_its_own_is_not_removed_by_another_
 ///  so the arm that keeps the worktree needs the arm that removes one beside it in the same control.
 #[test]
 fn a_branch_that_has_moved_since_it_was_made_holds_a_commit_of_its_own() {
-    let (root, main, merged_in, fresh) = a_fresh_worktree_beside_the_one_a_merge_runs_in("landed-branch-own-commits");
+    let (root, main, _merged_in, fresh) = a_fresh_worktree_beside_the_one_a_merge_runs_in("landed-branch-own-commits");
     let common: PathBuf = main.join(".git");
     let task: &str = "refs/heads/task-z";
     assert!(
@@ -337,6 +337,40 @@ fn a_branch_that_has_moved_since_it_was_made_holds_a_commit_of_its_own() {
         "without a reflog nothing proves the branch never moved, so it is examined as it was before"
     );
     drop(root);
+}
+
+/// What:
+///  A landed worktree that holds another registered worktree is kept,
+///  and the worktree inside it keeps its uncommitted work.
+/// Why:
+///  A worktree can be added from inside another one,
+///  and the nested checkout is a directory of the outer worktree under an ignored name,
+///  so the removal took its modified tracked file and its untracked file with it and left its registration naming a path
+///  that was gone
+///  (a cross-vendor audit of `574063773d`,
+///  finding F2).
+#[test]
+fn a_landed_worktree_holding_another_registered_worktree_stays() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-worktree", ".claude/\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let inside: PathBuf = landed.worktree.join(".claude/worktrees/b");
+    git(
+        landed.worktree.as_path(),
+        &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("a UTF-8 fixture path")],
+    );
+    record(landed.common.as_path(), inside.as_path()).expect("the record of a worktree this program made");
+    let changed: PathBuf = inside.join("README.md");
+    std::fs::write(changed.as_path(), b"# the fixture, edited in the nested worktree\n").expect("a tracked file the person changed there");
+    let notes: PathBuf = inside.join("notes.txt");
+    std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while a registered worktree is inside the one that landed: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "the worktree that holds it is named as kept: {sweep:?}");
+    assert!(sweep.kept[0].why.contains("inside it"), "the reason says what is inside it: {}", sweep.kept[0].why);
+    assert!(sweep.kept[0].why.contains(inside.to_str().expect("a UTF-8 fixture path")), "the reason names the worktree inside: {}", sweep.kept[0].why);
+    assert_eq!(std::fs::read(changed.as_path()).expect("the changed file is still there"), b"# the fixture, edited in the nested worktree\n");
+    assert_eq!(std::fs::read(notes.as_path()).expect("the untracked file is still there"), b"work the person has not committed\n");
+    assert!(inside.exists(), "the nested worktree is where it was");
 }
 
 #[test]

@@ -311,19 +311,19 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             return sweep;
         }
     };
-    for one in registered {
+    for one in &registered {
         if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
             continue;
         }
         // A registration that was not there when the merge started belongs to work that began after it, so this merge is
         // not the event that ended it, and it is not examined at all.
-        if !place.registered_before.holds(&one) {
+        if !place.registered_before.holds(one) {
             continue;
         }
-        match examine_and_remove(place, &one) {
-            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree, branch: one.branch }),
-            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree, branch: one.branch, why }),
-            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree, branch: one.branch }),
+        match examine_and_remove(place, one, registered.as_slice()) {
+            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
+            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
         }
     }
     return sweep;
@@ -367,6 +367,55 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
     return Err(format!("Git refused to remove it: {words}"));
 }
 
+/// What:
+///  The other worktrees this repository registers whose checkout lies inside `one`,
+///  which a removal of `one` would take with it.
+/// Why:
+///  A worktree can be added from inside another one, and this repository's own agents do it:
+///  the nested checkout is a directory of the outer worktree,
+///  usually under an ignored name.
+///  Removing the outer one took the nested worktree's files,
+///  a modified tracked file and an untracked file among them,
+///  and left its registration naming a path that is gone,
+///  so `git worktree prune` could then delete the nested worktree's own record,
+///  its reflog and the commits held in it
+///  (a cross-vendor audit of `574063773d`,
+///  finding F2).
+///  The paths compared are the canonical ones Git's own registration names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreesInside(one, registered) // the registrations whose worktree starts with one.worktree
+/// ```
+fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> Vec<&'a Registration> {
+    return registered
+        .iter()
+        .filter(|other| other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()))
+        .collect();
+}
+
+/// What:
+///  The paths of the worktrees found inside, as the person reads them,
+///  a few named and the rest counted.
+/// Why:
+///  A person decides about their own worktrees,
+///  so the ones that keep this one are named,
+///  and a list longer than a few would bury the sentence it sits in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesOf(inside) // '`a` and 2 more'
+/// ```
+fn names_of(inside: &[&Registration]) -> String {
+    const SHOWN: usize = 2;
+    let mut parts: Vec<String> = inside.iter().take(SHOWN).map(|other| format!("`{}`", other.worktree.display())).collect();
+    let rest: usize = inside.len().saturating_sub(parts.len());
+    if rest > 0 {
+        parts.push(format!("and {rest} more"));
+    }
+    return parts.join(", ");
+}
+
 /// What one candidate came to.
 enum Examined {
     /// The worktree and its registration are gone.
@@ -388,11 +437,18 @@ enum Examined {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// examineAndRemove(place, registration)
+/// examineAndRemove(place, registration, registered)
 /// ```
-fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
+fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &[Registration]) -> Examined {
     if !added_by_the_wrapper(one.admin.as_path(), one.worktree.as_path()) {
         return Examined::Unproven;
+    }
+    let inside: Vec<&Registration> = worktrees_inside(one, registered);
+    if !inside.is_empty() {
+        return Examined::Kept(format!(
+            "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
+            names_of(inside.as_slice())
+        ));
     }
     if one.admin.join("locked").exists() {
         return Examined::Kept(String::from("it is locked, and a lock is a promise to keep it"));
