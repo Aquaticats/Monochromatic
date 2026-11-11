@@ -94,6 +94,13 @@ pub(crate) struct Plan<'a> {
     pub edits: &'a [Edit<'a>],
     /// Whether the first commit's files keep the time they were written at (otherwise they are aged).
     pub fresh: bool,
+    /// Configuration the repository carries before its first commit,
+    /// such as `feature.manyFiles`,
+    /// which Git honours on every index file it writes here.
+    pub config: &'a [(&'a str, &'a str)],
+    /// Whether the configuration asks for an untracked cache,
+    /// so a status after the first commit writes one into the index the landing copies.
+    pub untracked_cache: bool,
     /// Whether the repository uses SHA-256 object names.
     pub sha256: bool,
 }
@@ -105,6 +112,9 @@ pub(crate) fn scene(name: &str, plan: &Plan<'_>) -> Scene {
     std::fs::create_dir(&repo).expect("repository directory");
     let format: &str = if plan.sha256 { "--object-format=sha256" } else { "--object-format=sha1" };
     git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", format]);
+    for (key, value) in plan.config {
+        git(repo.as_path(), &["config", key, value]);
+    }
     for (path, content, executable) in plan.files {
         let file: PathBuf = repo.join(path);
         std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
@@ -130,6 +140,11 @@ pub(crate) fn scene(name: &str, plan: &Plan<'_>) -> Scene {
     }
     git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=first"]);
     let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    // The untracked cache is written by a status that walks the worktree, as the person's own status writes it; every later
+    // write of this index keeps it.
+    if plan.untracked_cache {
+        git(repo.as_path(), &["status", "--porcelain", "--untracked-files=normal"]);
+    }
     let temporary: PathBuf = repo.join(".git").join("scene-index");
     git_in_index(repo.as_path(), temporary.as_path(), &["read-tree", "HEAD"], None);
     for edit in plan.edits {
