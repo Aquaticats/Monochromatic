@@ -82,7 +82,8 @@ mod application_watch;
 mod bytes_as_lowercase_hex;
 /// The command line the program accepts and the work behind it.
 mod cli_commands;
-/// Whether a descriptor has a line to read, within a limit.
+/// Whether a descriptor has a line to read,
+/// within a limit.
 mod line_ready;
 /// Starts and stops detached application watcher.
 mod application_watch_service;

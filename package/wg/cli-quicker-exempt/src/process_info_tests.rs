@@ -280,8 +280,9 @@ fn an_entry_without_a_home_directory_field_is_an_error() {
 /// A process that was reaped while a file it left open was read answers `ESRCH`
 /// (`No such process`),
 /// and that is a vanished process and not a failure of the scan:
-/// the control fails on the earlier reader, which treated only `ENOENT` as gone and
-/// stopped the whole socket-marking rescan with "POLICY NOT IN FORCE".
+/// the control fails on the earlier reader,
+/// which treated only `ENOENT` as gone
+/// and stopped the whole socket-marking rescan with "POLICY NOT IN FORCE".
 #[test]
 fn a_reaped_process_answers_esrch_and_counts_as_gone() {
     let reaped = std::io::Error::from_raw_os_error(libc::ESRCH);
