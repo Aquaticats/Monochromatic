@@ -263,6 +263,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the sampler of a thread's own signs of work, whose /proc reads are what the quiet window is judged on",
     },
     Allowed {
+        file: "push/auto_push_reconcile.rs",
+        rule: "thread-start",
+        why: "the merge push of a command outside the runtime runs beside the one loop on a thread of its own, because it starts Git synchronously; an awaited planner for the stacked push removes the thread, the channel and its messages",
+    },
+    Allowed {
         file: "push/child_watch_one_shot_run.rs",
         rule: "thread-start",
         why: "a step left running is watched by a thread of its own",

@@ -1746,7 +1746,15 @@ highest priority first:
   One visible change:
   `git clean -fdx` is refused in a linked worktree that has ignored files,
   such as one with `node_modules`.
-  The owner questions on forced checkouts and on that refusal are in `questions-for-the-owner.md`.
+  The owner answered that question on 2026-11-10 with "Allow and log",
+  and branch `fix/git-policy-cli-git-clean-in-a-linked-worktree-allowed-and-logged`
+  makes such a clean run and leaves one audit line
+  (`package/git-policy/cli/SPEC.md`,
+  "Discarding commands";
+  the answer is recorded under "Answered in the question tool,
+  recorded 2026-11-10T08:04:14-05:00" in `doc/handover/questions-for-the-owner.md`,
+  as "`git clean -fdx` in a linked worktree").
+  The owner question on forced checkouts is still in `questions-for-the-owner.md`.
   Its report names 83 `service run` processes alive from other worktrees,
   and `fault_trace::slow_flushes_delay_a_commit_and_change_nothing_else` failing before its changes because its `strace` injection never matched.
   Both went to the inbox of `wrapper-tests-that-fail-only-in-a-suite`.

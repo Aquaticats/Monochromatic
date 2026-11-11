@@ -481,9 +481,12 @@ fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCo
         let Some(copy) = read_unfilled(path.as_path())? else { continue };
         // Only the worktree the record was written about is one it still describes: the object at the path now is the
         // object the record recorded, so a worktree that was removed or replaced settles the record instead.
-        let describes_the_worktree: bool = crate::worktree_add_binding::path_identity(copy.destination.as_path()).is_some_and(|identity| {
-            return identity == copy.destination_identity;
-        });
+        // `matches!` rather than a closure, so the record's own identity is compared the way the settlement below compares it
+        // (`rust/avoidable-closure` rejects a closure here, and clippy's `implicit_return` rejects one without `return`).
+        let describes_the_worktree: bool = matches!(
+            crate::worktree_add_binding::path_identity(copy.destination.as_path()),
+            Some(identity) if identity == copy.destination_identity
+        );
         if describes_the_worktree {
             standing.push(StandingRecord {
                 path,
