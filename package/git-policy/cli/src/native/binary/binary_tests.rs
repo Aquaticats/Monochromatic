@@ -669,6 +669,12 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
+
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,
 /// not even after a restart of the service.
