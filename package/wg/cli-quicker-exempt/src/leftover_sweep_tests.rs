@@ -6,7 +6,10 @@
 //! and what the log line says.
 
 /// Sweep under test.
-use crate::leftover_sweep::{describe_sweep, is_old_style_scope_name, read_populated, sweep_leftover_scopes, sweep_with, SweepReport, SweepSetup};
+use crate::leftover_sweep::{
+    describe_sweep, is_old_style_scope_name, read_populated, stop_empty_origin_scopes, sweep_leftover_per_process_scopes,
+    sweep_leftover_scopes, sweep_with, SweepReport, SweepSetup,
+};
 /// Where a scope lives.
 use crate::scope_naming::scope_cgroup_directory;
 /// The client the sweep runs.
@@ -359,4 +362,42 @@ fn the_production_setup_targets_systemctl_and_the_updates_slice() {
     assert_eq!(setup.slice, SLICE);
     assert_eq!(setup.cgroup_root, PathBuf::from("/sys/fs/cgroup"));
     assert!(setup.client.timeout >= Duration::from_secs(30));
+}
+
+/// The pass that runs while the watcher adopts stops no origin scope.
+///
+/// A process joining an origin scope is a process the watcher just moved there,
+/// and stopping a scope ends every process in it:
+/// a check of `populated 0` cannot answer for the moment the stop request arrives.
+/// The origin scopes are stopped before the first adoption instead,
+/// which the next case covers.
+#[test]
+fn the_sweep_that_runs_beside_adoption_leaves_origin_scopes_alone() {
+    let place = place("origins-run-beside", 0, 0);
+    let origin = "wg-quicker-update-app.slice-xx.scope";
+    std::fs::write(&place.listing, unit_line(origin, "active", "running")).expect("write the list");
+    let _directory = scope_directory(&place, origin, false);
+    let report = sweep_leftover_per_process_scopes(&place.setup, &|_path| return Some(false));
+    assert_eq!(report.origins_stopped, 0);
+    assert!(changes(&place).iter().all(|call| return !call.contains(" stop ")), "nothing was stopped: {:?}", changes(&place));
+}
+
+/// The origin scopes are stopped before the first adoption,
+/// so a scope an earlier watcher left empty is gone before any process can join it.
+#[test]
+fn the_origin_scopes_are_stopped_before_the_first_adoption() {
+    let place = place("origins-before-adoption", 0, 0);
+    let empty_origin = "wg-quicker-update-app.slice-xx.scope";
+    let held_origin = "wg-quicker-update-app.slice-yy.scope";
+    let mut list = unit_line(empty_origin, "active", "running");
+    list.push_str(&unit_line(held_origin, "active", "running"));
+    std::fs::write(&place.listing, list).expect("write the list");
+    let _empty = scope_directory(&place, empty_origin, false);
+    let _held = scope_directory(&place, held_origin, true);
+    let report = stop_empty_origin_scopes(&place.setup, &read_populated);
+    assert_eq!(report.origins_stopped, 1);
+    assert_eq!(report.held, 1);
+    let stopping = changes(&place);
+    assert!(stopping.iter().any(|call| return call.contains(" stop ") && call.contains("app.slice-xx.scope")), "{stopping:?}");
+    assert!(stopping.iter().all(|call| return !call.contains("app.slice-yy.scope")), "the scope that holds a process survives: {stopping:?}");
 }

@@ -32,7 +32,7 @@ use std::os::unix::net::UnixStream;
 /// Sockets and paths.
 use std::path::PathBuf;
 /// Bounded waits.
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long the system manager may take to say which process runs a user's manager.
 const MAIN_PID_TIMEOUT: Duration = Duration::from_secs(5);
@@ -152,7 +152,13 @@ fn socket_failure(error: &io::Error, what: &str) -> ManagerError {
 
 /// Reads messages until the reply to `serial` arrives,
 /// skipping anything else the manager sends.
-fn read_reply(stream: &mut UnixStream, serial: u32) -> Result<Message, ManagerError> {
+///
+/// The call has one deadline,
+/// and nothing the manager sends extends it:
+/// a socket read timeout alone restarts with every read,
+/// so a manager that emits an unrelated message more often than the timeout
+/// kept an unanswered call blocked for ever.
+fn read_reply(stream: &mut UnixStream, serial: u32, deadline: Instant) -> Result<Message, ManagerError> {
     let mut buffer: Vec<u8> = Vec::new();
     loop {
         if let Some(length) = message_length(&buffer)
@@ -171,6 +177,12 @@ fn read_reply(stream: &mut UnixStream, serial: u32) -> Result<Message, ManagerEr
         if buffer.len() >= MAX_REPLY_BYTES {
             return Err(ManagerError::Failed(format!("the manager's reply passed {MAX_REPLY_BYTES} bytes and was dropped")));
         }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(ManagerError::TimedOut("the manager's socket did not answer within the time the call allows".to_string()));
+        }
+        // Each read waits no longer than what is left of the call's own deadline.
+        let _read_timeout = stream.set_read_timeout(Some(left));
         let mut chunk = [0u8; 8192];
         match stream.read(&mut chunk) {
             Ok(0) => return Err(ManagerError::Failed("the manager closed the socket before it answered".to_string())),
@@ -217,6 +229,8 @@ impl ManagerClient {
     /// a refusal is reported loudly and moves nothing,
     /// and a timeout pauses the moves for a few seconds.
     pub fn call(&self, endpoint: &ManagerEndpoint, call: &MethodCall) -> Result<Message, ManagerError> {
+        // The one deadline of this call, from before the connect, which no answer can extend.
+        let deadline = Instant::now() + self.timeout;
         let mut stream = match UnixStream::connect(&endpoint.socket) {
             Ok(stream) => stream,
             Err(error) => return Err(ManagerError::Failed(format!("the manager's socket {} could not be reached: {error}", endpoint.socket.display()))),
@@ -244,7 +258,7 @@ nothing was sent, and a process that is not that manager is never listened to",
         if let Err(error) = stream.flush() {
             return Err(socket_failure(&error, "the call to the manager"));
         }
-        let reply = read_reply(&mut stream, serial)?;
+        let reply = read_reply(&mut stream, serial, deadline)?;
         if reply.kind == crate::dbus_wire::ERROR {
             let name = match &reply.error_name {
                 Some(name) => name.clone(),

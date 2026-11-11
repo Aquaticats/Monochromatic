@@ -13,10 +13,10 @@ use super::LOUD_MARKER;
 use crate::report_cause::quote_name;
 /// The search path the child's command gets.
 use crate::bounded_command::SECURE_PATH;
-/// Reading its lines and writing them on.
-use std::io::{BufRead, BufReader, Write};
+/// Reading its lines, reading its input and writing them on.
+use std::io::{BufRead, BufReader, Read, Write};
 /// Starting the child and taking its streams.
-use std::process::{Command, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
 /// How often and how long.
 use std::time::{Duration, Instant};
 
@@ -33,14 +33,57 @@ pub struct GuardSetup {
     pub reexec_gap: Duration,
 }
 
-/// Runs the guard until the process is killed,
+/// The watcher's end of the guard's standard input.
+///
+/// The watcher holds it for as long as it runs,
+/// and the guard ends when it closes,
+/// which happens when the watcher stops, exits or is killed:
+/// a guard that outlived its watcher kept polling the bus with nobody to report to,
+/// and every restart added another one.
+pub struct GuardHandle {
+    /// The write end.
+    /// Unused on purpose:
+    /// what matters is that the watcher holds it open.
+    _input: ChildStdin,
+}
+
+/// Reports when the guard's standard input reaches its end,
+/// which the watcher's exit closes.
+fn note_input_end(mut input: impl Read, ended: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+    let mut buffer = [0_u8; 64];
+    loop {
+        match input.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(_read) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_error) => break,
+        }
+    }
+    ended.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Runs the guard until its input closes or the process is killed,
 /// printing one line per report on standard output,
 /// which the watcher writes to the log,
 /// the journal and the desktop.
 pub fn run_child(setup: &GuardSetup, steps: &mut dyn GuardSteps) -> std::io::Result<()> {
+    return run_child_watching(setup, steps, std::io::stdin());
+}
+
+/// Runs the guard with the input whose end ends it,
+/// so a test can close that input itself.
+pub fn run_child_watching(setup: &GuardSetup, steps: &mut dyn GuardSteps, input: impl Read + Send + 'static) -> std::io::Result<()> {
+    // Whether the process that started the guard closed its input.
+    let ended = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let watched = std::sync::Arc::clone(&ended);
+    let _watching = std::thread::Builder::new().name("guard-input".to_string()).spawn(move || return note_input_end(input, watched))?;
     let mut guard = Guard { steps, memory: GuardMemory::new(setup.reexec_gap) };
     println!("wg-quicker-exempt: guarding {MANAGER_BUS_NAME} on the session bus of user {}", setup.uid);
     loop {
+        if ended.load(std::sync::atomic::Ordering::Relaxed) {
+            crate::log_line::log_line(&format!("wg-quicker-exempt: {LOUD_MARKER}: the watcher that started the guard of {MANAGER_BUS_NAME} is gone, so the guard ends"));
+            return Ok(());
+        }
         for report in guard.check(setup.uid, Instant::now()) {
             let line = if report.loud {
                 format!("wg-quicker-exempt: {LOUD_MARKER}: {}", report.text)
@@ -75,7 +118,12 @@ fn relay(uid: u32, gid: u32, stdout: std::process::ChildStdout, mut child: std::
 /// Starts the guard as the watched user
 /// and sends every line it prints to the watcher's log,
 /// the journal and the person's desktop.
-pub fn spawn(uid: u32, gid: u32) -> Result<(), String> {
+///
+/// The handle that comes back holds the guard's standard input:
+/// dropping it ends the guard,
+/// and so does the watcher's own exit,
+/// because the kernel closes the write end of the pipe with it.
+pub fn spawn(uid: u32, gid: u32) -> Result<GuardHandle, String> {
     let executable = match std::env::current_exe() {
         Ok(executable) => executable,
         Err(error) => return Err(format!("the path of this program is unknown: {error}")),
@@ -97,7 +145,7 @@ pub fn spawn(uid: u32, gid: u32) -> Result<(), String> {
         ])
         .env_clear()
         .env("PATH", SECURE_PATH)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     let mut child = match command.spawn() {
@@ -107,9 +155,12 @@ pub fn spawn(uid: u32, gid: u32) -> Result<(), String> {
     let Some(stdout) = child.stdout.take() else {
         return Err("the guard has no output stream".to_string());
     };
+    let Some(input) = child.stdin.take() else {
+        return Err("the guard has no input stream".to_string());
+    };
     let started = std::thread::Builder::new().name("impostor-guard".to_string()).spawn(move || return relay(uid, gid, stdout, child));
     return match started {
-        Ok(_handle) => Ok(()),
+        Ok(_handle) => Ok(GuardHandle { _input: input }),
         Err(error) => Err(format!("the guard's reporting thread could not start: {error}")),
     };
 }

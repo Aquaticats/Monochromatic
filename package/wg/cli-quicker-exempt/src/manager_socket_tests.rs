@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The method the tests call.
 fn a_call() -> MethodCall {
@@ -59,6 +59,10 @@ enum Answer {
     /// Nothing at all,
     /// so the client waits until its timeout.
     Silence,
+    /// Valid messages that answer no call of ours,
+    /// sent faster than the client's timeout,
+    /// so only an absolute deadline can end the call.
+    Noise,
 }
 
 /// Reads one whole message from a stream.
@@ -150,6 +154,17 @@ fn fake_manager(name: &str, answer: Answer) -> FakeManager {
                                 let _wrote_error = stream.write_all(&reply);
                             }
                             Answer::Silence => std::thread::sleep(Duration::from_millis(400)),
+                            Answer::Noise => {
+                                // A message the manager may send at any time, and not the reply:
+                                // a reply to another serial is exactly what the client skips.
+                                for _round in 0..200 {
+                                    let noise = encode_reply(message.serial.wrapping_add(1), None);
+                                    if stream.write_all(&noise).is_err() {
+                                        break;
+                                    }
+                                    std::thread::sleep(Duration::from_millis(25));
+                                }
+                            }
                         }
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(2)),
@@ -191,6 +206,30 @@ impl Drop for FakeManager {
 /// because the server runs in it.
 fn endpoint_of(manager: &FakeManager) -> ManagerEndpoint {
     return ManagerEndpoint { socket: manager.socket.clone(), expected_pid: i32::try_from(std::process::id()).unwrap_or(0) };
+}
+
+/// A manager that sends anything but the reply does not extend the call's deadline:
+/// the call ends at its own timeout, and not when the noise stops.
+#[test]
+fn a_manager_that_sends_other_messages_does_not_extend_the_call() {
+    let mut manager = fake_manager("noise", Answer::Noise);
+    let client = quick_client();
+    let endpoint = endpoint_of(&manager);
+    let call = a_call();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started = Instant::now();
+    let worker = std::thread::spawn(move || {
+        let outcome = client.call(&endpoint, &call);
+        sender.send(()).ok();
+        return outcome;
+    });
+    let finished_in_time = receiver.recv_timeout(Duration::from_secs(1)).is_ok();
+    let elapsed = started.elapsed();
+    assert!(finished_in_time, "the call ended at its own deadline and not when the noise stopped, after {elapsed:?}");
+    let outcome = worker.join().expect("the call thread returns");
+    assert!(matches!(outcome, Err(ManagerError::TimedOut(_))), "{outcome:?}");
+    assert!(elapsed < Duration::from_secs(1), "the call ended well before the noise stopped, after {elapsed:?}");
+    manager.close();
 }
 
 /// A client with a short timeout,

@@ -131,3 +131,130 @@ fn the_header_names_the_member() {
     let message = decode_message(&bytes).expect("readable");
     assert_eq!(message.member.as_deref(), Some("AttachProcessesToUnit"));
 }
+
+/// A reader of one body, written from the specification's layout rules,
+/// so a value's bytes are checked against the format and not against the writer.
+struct SpecReader<'a> {
+    /// The bytes being read.
+    bytes: &'a [u8],
+    /// Where the reader is.
+    at: usize,
+}
+
+/// Reading, by the specification.
+impl<'a> SpecReader<'a> {
+    /// Starts at the first byte of a body.
+    fn new(bytes: &'a [u8]) -> SpecReader<'a> {
+        return SpecReader { bytes, at: 0 };
+    }
+
+    /// Skips the padding that puts the next value on `boundary`,
+    /// and answers the padding's length.
+    fn align(&mut self, boundary: usize) -> usize {
+        let padding = (boundary - (self.at % boundary)) % boundary;
+        self.at += padding;
+        return padding;
+    }
+
+    /// Reads a 32-bit number, aligned to four.
+    fn u32(&mut self) -> u32 {
+        let _padding = self.align(4);
+        let value = u32::from_le_bytes(self.bytes[self.at..self.at + 4].try_into().expect("four bytes"));
+        self.at += 4;
+        return value;
+    }
+
+    /// Reads a boolean, aligned to four.
+    fn flag(&mut self) -> bool {
+        return self.u32() != 0;
+    }
+
+    /// Reads a string: its length, its bytes and the end byte.
+    fn string(&mut self) -> String {
+        let length = usize::try_from(self.u32()).expect("length fits");
+        let text = String::from_utf8_lossy(&self.bytes[self.at..self.at + length]).into_owned();
+        self.at += length;
+        assert_eq!(self.bytes[self.at], 0, "a string ends with a zero byte");
+        self.at += 1;
+        return text;
+    }
+
+    /// Reads a signature: its length, its bytes and the end byte.
+    fn signature(&mut self) -> String {
+        let length = usize::from(self.bytes[self.at]);
+        self.at += 1;
+        let text = String::from_utf8_lossy(&self.bytes[self.at..self.at + length]).into_owned();
+        self.at += length;
+        assert_eq!(self.bytes[self.at], 0, "a signature ends with a zero byte");
+        self.at += 1;
+        return text;
+    }
+
+    /// Reads an unsigned 64-bit number, aligned to eight.
+    fn u64(&mut self) -> u64 {
+        let _padding = self.align(8);
+        let value = u64::from_le_bytes(self.bytes[self.at..self.at + 8].try_into().expect("eight bytes"));
+        self.at += 8;
+        return value;
+    }
+
+    /// Reads an array whose element alignment is `element_alignment`,
+    /// and answers its length and where its content ends.
+    ///
+    /// The specification puts the length first,
+    /// then the padding that aligns the first element,
+    /// then the content,
+    /// and the length counts the content only.
+    fn array(&mut self, element_alignment: usize) -> (u32, usize) {
+        let length = self.u32();
+        let _padding = self.align(element_alignment);
+        let content_start = self.at;
+        let content_end = content_start + usize::try_from(length).expect("length fits");
+        return (length, content_end);
+    }
+}
+
+/// An array of eight-byte-aligned elements declares its content's length and not its padding,
+/// read against the specification's layout.
+///
+/// The body is that of `SetUnitProperties`: the unit's name, the runtime flag and the properties,
+/// and the property here carries an `a(st)` device list,
+/// whose elements start on eight-byte boundaries.
+#[test]
+fn an_array_of_aligned_elements_declares_its_content_length() {
+    let bytes = encode_call(
+        7,
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "SetUnitProperties",
+        None,
+        &[
+            Argument::Text("wg-quicker-update-app.slice-xx.scope".to_string()),
+            Argument::Flag(true),
+            Argument::Properties(vec![
+                Property { name: "IOReadBandwidthMax".to_string(), value: PropertyValue::Devices(vec![("/dev/block/8:0".to_string(), 1_000)]) },
+            ]),
+        ],
+    );
+    let message = decode_message(&bytes).expect("readable");
+    assert_eq!(message.signature, "sba(sv)");
+    let mut reader = SpecReader::new(message.body());
+    assert_eq!(reader.string(), "wg-quicker-update-app.slice-xx.scope");
+    assert!(reader.flag());
+    let (properties_length, properties_end) = reader.array(8);
+    let properties_start = reader.at;
+    assert_eq!(usize::try_from(properties_length).expect("length fits"), properties_end - properties_start, "the array length is its content's length");
+    // One `(sv)` element, on its own eight-byte boundary.
+    let _padding = reader.align(8);
+    assert_eq!(reader.string(), "IOReadBandwidthMax");
+    assert_eq!(reader.signature(), "a(st)");
+    let (devices_length, devices_end) = reader.array(8);
+    let devices_start = reader.at;
+    assert_eq!(usize::try_from(devices_length).expect("length fits"), devices_end - devices_start, "the device array length is its content's length");
+    let _element_padding = reader.align(8);
+    assert_eq!(reader.string(), "/dev/block/8:0");
+    assert_eq!(reader.u64(), 1_000);
+    assert_eq!(reader.at, devices_end, "the device array ends where its length says");
+    assert_eq!(reader.at, properties_end, "the property array ends where its length says");
+    assert_eq!(reader.at, message.body().len(), "the body ends after its last value");
+}

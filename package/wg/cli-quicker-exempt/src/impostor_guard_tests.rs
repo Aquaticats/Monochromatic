@@ -25,6 +25,9 @@ struct ScriptedSteps {
     ownership: Ownership,
     /// Whether killing fails.
     kill_fails: bool,
+    /// What the kill was asked to do:
+    /// the unique connection name and the pid.
+    killed: Option<(String, i32)>,
 }
 
 /// The scripted steps.
@@ -36,7 +39,7 @@ impl GuardSteps for ScriptedSteps {
 
     /// The scripted owner.
     fn ownership(&mut self, _uid: u32) -> Ownership {
-        return self.ownership;
+        return self.ownership.clone();
     }
 
     /// No event is scripted here.
@@ -44,8 +47,11 @@ impl GuardSteps for ScriptedSteps {
         return false;
     }
 
-    /// Records the kill.
-    fn kill(&self, _pid: i32) -> Result<(), String> {
+    /// Records the kill,
+    /// with the unique connection name the guard read,
+    /// which is what the real kill proves again.
+    fn kill(&mut self, _uid: u32, unique: &str, pid: i32) -> Result<(), String> {
+        self.killed = Some((unique.to_string(), pid));
         if self.kill_fails {
             return Err("operation not permitted".to_string());
         }
@@ -60,13 +66,52 @@ impl GuardSteps for ScriptedSteps {
 
 /// Builds the scripted steps.
 fn steps(expected: Option<i32>, ownership: Ownership) -> ScriptedSteps {
-    return ScriptedSteps { expected, ownership, kill_fails: false };
+    return ScriptedSteps { expected, ownership, kill_fails: false, killed: None };
+}
+
+/// The unique connection name the fixtures report.
+const IMPOSTOR_UNIQUE: &str = ":1.777";
+
+/// An owner the bus reports.
+fn owner(pid: i32) -> Ownership {
+    return Ownership::Owner { pid, unique: IMPOSTOR_UNIQUE.to_string() };
+}
+
+/// A bus answer the proof asks for.
+struct ScriptedLookup {
+    /// The pid the bus names,
+    /// absent when it names none.
+    names: Option<i32>,
+}
+
+/// The scripted bus.
+impl crate::impostor_guard::steps::OwnerLookup for ScriptedLookup {
+    /// The pid the bus names for the unique connection name.
+    fn pid_of(&mut self, _unique: &str) -> Option<i32> {
+        return self.names;
+    }
+}
+
+/// A signal that records what it was asked to send.
+#[derive(Default)]
+struct RecordingSignal {
+    /// The pids it was asked to signal.
+    sent: std::cell::RefCell<Vec<i32>>,
+}
+
+/// The signal a test watches.
+impl crate::impostor_guard::steps::SignalSend for RecordingSignal {
+    /// Records the pid.
+    fn send(&self, pid: i32) -> Result<(), String> {
+        self.sent.borrow_mut().push(pid);
+        return Ok(());
+    }
 }
 
 /// The manager owning the name needs nothing done.
 #[test]
 fn the_manager_owning_the_name_needs_nothing() {
-    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: Ownership::Owner(MANAGER_PID), kill_fails: false };
+    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(MANAGER_PID), kill_fails: false, killed: None };
     let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
     assert!(guard.check(1000, Instant::now()).is_empty());
 }
@@ -76,7 +121,7 @@ fn the_manager_owning_the_name_needs_nothing() {
 /// and the manager is asked to take the name again.
 #[test]
 fn an_impostor_is_killed_and_the_manager_takes_the_name_again() {
-    let mut steps = steps(Some(MANAGER_PID), Ownership::Owner(IMPOSTOR_PID));
+    let mut steps = steps(Some(MANAGER_PID), owner(IMPOSTOR_PID));
     let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
     let reports = guard.check(1000, Instant::now());
     assert!(reports.iter().any(|report| return report.loud && report.text.contains(&IMPOSTOR_PID.to_string()) && report.text.contains(&MANAGER_PID.to_string())), "{reports:?}");
@@ -91,12 +136,12 @@ fn an_impostor_is_killed_and_the_manager_takes_the_name_again() {
 fn a_second_impostor_inside_the_gap_is_killed_without_another_reexecution() {
     let mut memory = GuardMemory::new(REEXEC_GAP);
     let start = Instant::now();
-    assert!(matches!(memory.decide(MANAGER_PID, Ownership::Owner(IMPOSTOR_PID), start), Action::KillImpostor { pid: IMPOSTOR_PID, reexec: true }));
+    assert!(matches!(memory.decide(MANAGER_PID, owner(IMPOSTOR_PID), start), Action::KillImpostor { pid: IMPOSTOR_PID, reexec: true, .. }));
     assert!(matches!(
-        memory.decide(MANAGER_PID, Ownership::Owner(IMPOSTOR_PID + 1), start + Duration::from_secs(1)),
+        memory.decide(MANAGER_PID, owner(IMPOSTOR_PID + 1), start + Duration::from_secs(1)),
         Action::KillImpostor { reexec: false, .. }
     ));
-    assert!(matches!(memory.decide(MANAGER_PID, Ownership::Owner(IMPOSTOR_PID), start + REEXEC_GAP), Action::KillImpostor { reexec: true, .. }));
+    assert!(matches!(memory.decide(MANAGER_PID, owner(IMPOSTOR_PID), start + REEXEC_GAP), Action::KillImpostor { reexec: true, .. }));
 }
 
 /// No owner at all makes `systemctl --user` fail everywhere,
@@ -122,7 +167,7 @@ fn an_unknown_owner_changes_nothing() {
 /// and nothing is killed.
 #[test]
 fn no_main_process_is_reported_and_nothing_is_killed() {
-    let mut steps = steps(None, Ownership::Owner(IMPOSTOR_PID));
+    let mut steps = steps(None, owner(IMPOSTOR_PID));
     let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
     let reports = guard.check(1000, Instant::now());
     assert_eq!(reports.len(), 1);
@@ -133,7 +178,7 @@ fn no_main_process_is_reported_and_nothing_is_killed() {
 /// Killing the impostor uses `SIGKILL`,
 /// which an impostor manager cannot handle:
 /// `SIGTERM` would make it stop the units it started.
-/// The control runs the real kill on a process that ignores `SIGTERM`,
+/// The control runs the real signal on a process that ignores `SIGTERM`,
 /// so a kill with `SIGTERM` would leave it running.
 #[test]
 fn the_impostor_is_killed_with_the_signal_it_cannot_handle() {
@@ -144,8 +189,8 @@ fn the_impostor_is_killed_with_the_signal_it_cannot_handle() {
         .expect("start a process that ignores SIGTERM");
     let pid = i32::try_from(child.id()).expect("pid fits");
     std::thread::sleep(Duration::from_millis(200));
-    let steps = crate::impostor_guard::RealSteps::new(Duration::from_secs(2));
-    steps.kill(pid).expect("the kill was delivered");
+    let mut lookup = ScriptedLookup { names: Some(pid) };
+    crate::impostor_guard::steps::kill_proven(&mut lookup, &crate::impostor_guard::steps::PidfdSignal, IMPOSTOR_UNIQUE, pid).expect("the proven kill was delivered");
     let status = child.wait().expect("the process ended");
     assert!(!status.success(), "the process ended by a signal: {status:?}");
     use std::os::unix::process::ExitStatusExt;
@@ -156,8 +201,88 @@ fn the_impostor_is_killed_with_the_signal_it_cannot_handle() {
 /// and the manager is still asked to take the name again.
 #[test]
 fn a_kill_that_fails_is_reported() {
-    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: Ownership::Owner(IMPOSTOR_PID), kill_fails: true };
+    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(IMPOSTOR_PID), kill_fails: true, killed: None };
     let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
     let reports = guard.check(1000, Instant::now());
     assert!(reports.iter().any(|report| return report.loud && report.text.contains("could not be killed")), "{reports:?}");
+}
+
+/// A pid the bus no longer names is never signalled,
+/// because the identity the guard read can be given to another process by the kernel.
+/// The live process here stands in for that other process:
+/// a kill that only used the pid would end it.
+#[test]
+fn a_pid_the_bus_no_longer_names_is_not_signalled() {
+    let mut child = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the stand-in process");
+    let pid = i32::try_from(child.id()).expect("pid fits");
+    let mut lookup = ScriptedLookup { names: None };
+    let signal = RecordingSignal::default();
+    let refusal = crate::impostor_guard::steps::kill_proven(&mut lookup, &signal, IMPOSTOR_UNIQUE, pid).expect_err("the kill is refused");
+    assert!(refusal.contains("no longer names"), "{refusal}");
+    assert!(signal.sent.borrow().is_empty(), "nothing was signalled");
+    assert!(child.try_wait().expect("the process is asked for").is_none(), "the stand-in process still runs");
+    let _killed = child.kill();
+    let _reaped = child.wait();
+}
+
+/// A unique name that now names another pid proves nothing for the pid the guard read,
+/// so that pid is not signalled either.
+#[test]
+fn a_pid_the_bus_names_differently_is_not_signalled() {
+    let mut lookup = ScriptedLookup { names: Some(IMPOSTOR_PID + 1) };
+    let signal = RecordingSignal::default();
+    let refusal = crate::impostor_guard::steps::kill_proven(&mut lookup, &signal, IMPOSTOR_UNIQUE, IMPOSTOR_PID).expect_err("the kill is refused");
+    assert!(refusal.contains(&(IMPOSTOR_PID + 1).to_string()), "{refusal}");
+    assert!(signal.sent.borrow().is_empty(), "nothing was signalled");
+}
+
+/// The pid the bus just named is signalled, once.
+#[test]
+fn a_pid_the_bus_still_names_is_signalled() {
+    let mut lookup = ScriptedLookup { names: Some(IMPOSTOR_PID) };
+    let signal = RecordingSignal::default();
+    crate::impostor_guard::steps::kill_proven(&mut lookup, &signal, IMPOSTOR_UNIQUE, IMPOSTOR_PID).expect("the proven kill is delivered");
+    assert_eq!(*signal.sent.borrow(), vec![IMPOSTOR_PID]);
+}
+
+/// The guard passes the unique connection name it read to the kill,
+/// so the kill can prove that same connection and not just a number.
+#[test]
+fn the_guard_kills_the_connection_it_read() {
+    let mut steps = steps(Some(MANAGER_PID), owner(IMPOSTOR_PID));
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let _reports = guard.check(1000, Instant::now());
+    assert_eq!(steps.killed, Some((IMPOSTOR_UNIQUE.to_string(), IMPOSTOR_PID)));
+}
+
+/// A guard whose watcher goes away does not keep polling:
+/// the watcher holds the guard's standard input,
+/// and closing it ends the guard.
+#[test]
+fn the_guard_ends_when_its_watcher_closes_its_input() {
+    let (input, writer) = std::os::unix::net::UnixStream::pair().expect("a pair of streams");
+    let setup = crate::impostor_guard::GuardSetup {
+        uid: 1000,
+        poll_interval: Duration::from_millis(20),
+        reexec_gap: REEXEC_GAP,
+    };
+    let steps = ScriptedSteps {
+        expected: Some(MANAGER_PID),
+        ownership: owner(MANAGER_PID),
+        kill_fails: false,
+        killed: None,
+    };
+    let mut watching = Some(std::thread::spawn(move || {
+        let mut steps_in_thread = steps;
+        let _run = crate::impostor_guard::child::run_child_watching(&setup, &mut steps_in_thread, input);
+    }));
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(watching.as_ref().is_some_and(|thread| return !thread.is_finished()), "the guard runs while its watcher holds the input");
+    drop(writer);
+    let thread = watching.take().expect("the guard thread");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !thread.is_finished() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(thread.is_finished(), "closing the watcher's end ended the guard");
 }

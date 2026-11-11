@@ -29,6 +29,18 @@ use super::METHOD_CALL;
 /// The first byte of a little-endian message.
 use super::ENDIAN_LITTLE;
 
+/// Where an array's length field is, and where its content starts.
+///
+/// The two are not adjacent when the element alignment is wider than the length field:
+/// the content starts after the padding that aligns its first element,
+/// and the length counts only the content.
+pub(crate) struct ArrayStart {
+    /// Offset of the four length bytes.
+    pub(crate) length_at: usize,
+    /// Offset of the first content byte.
+    pub(crate) content_at: usize,
+}
+
 /// The value of one property of a unit,
 /// typed as the manager takes it:
 /// a 64-bit number (`t`),
@@ -198,22 +210,25 @@ impl Writer {
     }
 
     /// Starts an array whose element alignment is `element_alignment`,
-    /// and returns where its length field is,
-    /// so `finish_array` fills it in once the elements are written.
-    fn start_array(&mut self, element_alignment: usize) -> usize {
+    /// and returns where its length field is and where its content starts,
+    /// so `finish_array` fills the length in once the elements are written.
+    ///
+    /// The length a D-Bus array field carries is the length of its *content*:
+    /// the specification puts the padding that aligns the first element between the length and the content,
+    /// and the length does not count it.
+    fn start_array(&mut self, element_alignment: usize) -> ArrayStart {
         self.pad(FOUR);
         let length_at = self.bytes.len();
         self.bytes.extend([0; FOUR]);
         self.pad(element_alignment);
-        return length_at;
+        return ArrayStart { length_at, content_at: self.bytes.len() };
     }
 
-    /// Fills in the length of the array that started at `length_at`,
-    /// which is what lies after that field's place.
-    fn finish_array(&mut self, length_at: usize) {
-        let content_at = length_at.saturating_add(FOUR);
-        let content_length = u32::try_from(self.bytes.len().saturating_sub(content_at)).unwrap_or(u32::MAX);
-        self.bytes[length_at..length_at.saturating_add(FOUR)].copy_from_slice(&content_length.to_le_bytes());
+    /// Fills in the length of the array that started at `start`,
+    /// which is the bytes written after its alignment padding.
+    fn finish_array(&mut self, start: ArrayStart) {
+        let content_length = u32::try_from(self.bytes.len().saturating_sub(start.content_at)).unwrap_or(u32::MAX);
+        self.bytes[start.length_at..start.length_at.saturating_add(FOUR)].copy_from_slice(&content_length.to_le_bytes());
     }
 
     /// Writes one property value under its own signature,

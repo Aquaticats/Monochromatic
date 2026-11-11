@@ -82,6 +82,12 @@ fn a_stop_ends_the_process_group_of_the_watcher_it_stops() {
     let mut child = session_leader();
     let pid = child.id() as i32;
     let start_time = process_start_time(pid).expect("the fixture has a start time");
+    // The shell starts its child a moment after it starts, and a busy machine makes that moment longer:
+    // the fixture is asked for a bounded while, and the case fails only when the child never appears.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while group_member_count(pid) <= 1 && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     assert!(group_member_count(pid) > 1, "the fixture's child is in the group the fixture leads");
     stop_command_process(pid, start_time, &expected_command(), "watcher").expect("the stop succeeds");
     assert_eq!(group_member_count(pid), 0, "no process of the group is left");

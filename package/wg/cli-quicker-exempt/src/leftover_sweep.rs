@@ -259,6 +259,7 @@ fn targets<'a>(setup: &SweepSetup, units: &'a [ListedUnit]) -> SweepTargets<'a> 
 /// and a scope that holds a process by then is left alone.
 /// An origin scope that an earlier build named with a second `.scope` is stopped by the same rule,
 /// so the older spelling does not leave a scope nothing can ever use again.
+#[cfg(test)]
 fn stop_empty(setup: &SweepSetup, targets: &SweepTargets<'_>, populated: &dyn Fn(&Path) -> Option<bool>, report: &mut SweepReport) {
     let mut empty: Vec<&ListedUnit> = Vec::new();
     for unit in &targets.per_process {
@@ -312,8 +313,108 @@ fn stop_batches(setup: &SweepSetup, empty: &[&ListedUnit], populated: &dyn Fn(&P
     return stopped;
 }
 
+/// Stops the origin scopes that hold no process,
+/// and only ever runs before the watcher adopts anything.
+///
+/// An origin scope is the scope the watcher itself fills:
+/// a process joining one is a process the watcher just moved there,
+/// and the manager stops a scope by ending every process in it.
+/// A check of `populated 0` therefore says nothing once the adoption path is running,
+/// because a process can join between that read and the stop request,
+/// and the stop would end a live process.
+/// Ordered before the first adoption,
+/// no process of this watcher can be in a stopped scope,
+/// and this pass is the only one that stops them.
+pub fn stop_empty_origin_scopes(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>) -> SweepReport {
+    let mut report = SweepReport::default();
+    let units = match list_scopes(setup, &mut report) {
+        Some(units) => units,
+        None => return report,
+    };
+    let split = targets(setup, &units);
+    report.origins_listed = split.origins.len();
+    let empty_origins = collect_empty_origins(setup, &split, populated, &mut report);
+    let stopped = stop_batches(setup, &empty_origins, populated, &mut report, "empty origin scopes");
+    report.origins_stopped = report.origins_stopped.saturating_add(stopped);
+    return report;
+}
+
+/// Lists the manager's scopes of this watcher,
+/// or notes why it could not.
+fn list_scopes(setup: &SweepSetup, report: &mut SweepReport) -> Option<Vec<ListedUnit>> {
+    let arguments = vec![
+        "--user".to_string(),
+        "list-units".to_string(),
+        "--all".to_string(),
+        "--plain".to_string(),
+        "--no-legend".to_string(),
+        "--no-pager".to_string(),
+        // The pattern narrows the manager's list; every name it returns is classified again below.
+        format!("{}*{OLD_SCOPE_SUFFIX}", setup.prefix),
+    ];
+    let listing = match setup.client.run_limited(setup.uid, setup.gid, &arguments, LIST_OUTPUT_BYTES) {
+        Ok(text) => text,
+        Err(error) => {
+            note_problem(report, format!("listing the scopes failed: {error}"));
+            return None;
+        }
+    };
+    return Some(parse_listing(&listing));
+}
+
+/// The origin scopes that are active and hold nothing.
+fn collect_empty_origins<'a>(
+    setup: &SweepSetup,
+    split: &SweepTargets<'a>,
+    populated: &dyn Fn(&Path) -> Option<bool>,
+    report: &mut SweepReport,
+) -> Vec<&'a ListedUnit> {
+    let mut empty: Vec<&ListedUnit> = Vec::new();
+    for unit in &split.origins {
+        if unit.active != "active" {
+            continue;
+        }
+        match populated(&scope_cgroup_directory(&setup.cgroup_root, setup.uid, &setup.slice, &unit.name)) {
+            Some(false) => empty.push(unit),
+            Some(true) => report.held += 1,
+            None => report.unreadable += 1,
+        }
+    }
+    return empty;
+}
+
+/// Sweeps the scopes of the earlier design on a thread of its own,
+/// and stops no origin scope:
+/// those are stopped before the first adoption, by `stop_empty_origin_scopes`.
+pub fn sweep_leftover_per_process_scopes(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>) -> SweepReport {
+    let mut report = SweepReport::default();
+    let units = match list_scopes(setup, &mut report) {
+        Some(units) => units,
+        None => return report,
+    };
+    let split = targets(setup, &units);
+    report.listed = split.per_process.len();
+    report.origins_listed = split.origins.len();
+    reset_failed(setup, &split.per_process, &mut report);
+    let mut empty: Vec<&ListedUnit> = Vec::new();
+    for unit in &split.per_process {
+        if unit.active != "active" {
+            continue;
+        }
+        match populated(&scope_cgroup_directory(&setup.cgroup_root, setup.uid, &setup.slice, &unit.name)) {
+            Some(false) => empty.push(unit),
+            Some(true) => report.held += 1,
+            None => report.unreadable += 1,
+        }
+    }
+    let stopped = stop_batches(setup, &empty, populated, &mut report, "empty scopes");
+    report.stopped = report.stopped.saturating_add(stopped);
+    return report;
+}
+
 /// Sweeps with a given reader of the populated state,
 /// the seam where a test makes a scope gain a process between the two reads.
+#[cfg(test)]
 pub fn sweep_with(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>) -> SweepReport {
     let mut report = SweepReport::default();
     let arguments = vec![
@@ -342,7 +443,15 @@ pub fn sweep_with(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>)
     return report;
 }
 
-/// Sweeps the real cgroup filesystem.
+/// Stops the empty origin scopes of the real cgroup filesystem,
+/// before the first adoption.
+pub fn stop_empty_origin_scopes_now(setup: &SweepSetup) -> SweepReport {
+    return stop_empty_origin_scopes(setup, &read_populated);
+}
+
+/// Sweeps the real cgroup filesystem,
+/// both designs, which is what a watcher did before the origin scopes were ordered before adoption.
+#[cfg(test)]
 pub fn sweep_leftover_scopes(setup: &SweepSetup) -> SweepReport {
     return sweep_with(setup, &read_populated);
 }
@@ -377,7 +486,7 @@ pub fn describe_sweep(report: &SweepReport) -> Option<String> {
 /// so it inherits the block like the rest of the watcher.
 pub fn spawn_sweep(setup: SweepSetup) {
     let started = std::thread::Builder::new().name("leftover-sweep".to_string()).spawn(move || {
-        if let Some(line) = describe_sweep(&sweep_leftover_scopes(&setup)) {
+        if let Some(line) = describe_sweep(&sweep_leftover_per_process_scopes(&setup, &read_populated)) {
             log_line(&line);
         }
     });

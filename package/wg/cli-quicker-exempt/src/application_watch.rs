@@ -6,8 +6,9 @@ use crate::application_targets::{scan_application_targets, ScanRoots};
 use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
-/// The one-time sweep of the scopes of the earlier design.
-use crate::leftover_sweep::{spawn_sweep, SweepSetup};
+/// The one-time sweep of the scopes of the earlier design,
+/// and the pass over the origin scopes that must run before the first adoption.
+use crate::leftover_sweep::{describe_sweep, spawn_sweep, stop_empty_origin_scopes_now, SweepSetup};
 /// The guard of the manager's bus name.
 use crate::impostor_guard;
 /// Non-panicking bounded log.
@@ -78,6 +79,10 @@ pub struct ApplicationWatch<'a> {
     /// as last reported,
     /// so a rescan every quarter second does not repeat the same line for ever.
     reported_without_application: Vec<PathBuf>,
+    /// The guard of the manager's bus name this watcher started,
+    /// held so the guard ends when the watcher does:
+    /// dropping the handle closes the guard's standard input.
+    guard: Option<impostor_guard::GuardHandle>,
 }
 
 /// Time between full process scans,
@@ -161,6 +166,15 @@ pub fn prepare_application_watch(
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
         log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
     }
+    // The origin scopes are stopped before anything is adopted:
+    // a process joining one is a process this watcher just moved there,
+    // and a stop ends every process in the scope it stops.
+    // The sweep of the earlier design's scopes runs on its own thread, after this.
+    if let Some(setup) = sweep.as_ref()
+        && let Some(line) = describe_sweep(&stop_empty_origin_scopes_now(setup))
+    {
+        log_line(&line);
+    }
     if !routing.pid_namespace_known() {
         log_line(&policy_failure(
             "the watcher cannot read its own pid namespace, so a process in a container or a sandbox cannot be told apart and is treated like any other",
@@ -189,6 +203,7 @@ pub fn prepare_application_watch(
         identity,
         sweep,
         reported_without_application: Vec::new(),
+        guard: None,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
@@ -295,7 +310,12 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
     // which keeps a process that is not the user's manager from answering every `systemctl --user` call on the machine.
     let identity = watch.identity;
     match impostor_guard::spawn(identity.uid, identity.gid) {
-        Ok(()) => log_line(&format!("wg-quicker-exempt: guarding {} on the user's session bus", impostor_guard::MANAGER_BUS_NAME)),
+        Ok(guard) => {
+            log_line(&format!("wg-quicker-exempt: guarding {} on the user's session bus", impostor_guard::MANAGER_BUS_NAME));
+            // Held by the watch until the watcher ends, and closed with the process if it is killed:
+            // the guard ends when its input closes, so no guard outlives its watcher.
+            watch.guard = Some(guard);
+        }
         Err(error) => {
             watch.reporter.report_failure(
                 "impostor manager",
@@ -307,6 +327,7 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
         }
     }
     let result = poll_until_stopped(watch);
+    watch.guard = None;
     stop_process_events(watch);
     if let Err(error) = &result {
         watch.reporter.report_failure(

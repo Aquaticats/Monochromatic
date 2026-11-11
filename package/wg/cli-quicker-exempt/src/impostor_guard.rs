@@ -35,7 +35,7 @@ pub use steps::RealSteps;
 /// Starting the guard,
 /// its command and its setup,
 /// re-exported where the watcher uses them.
-pub use child::{GUARD_COMMAND, GuardSetup, run_child, spawn};
+pub use child::{GUARD_COMMAND, GuardHandle, GuardSetup, run_child, spawn};
 
 /// The bus name that must belong to the user's manager and to nothing else.
 pub const MANAGER_BUS_NAME: &str = "org.freedesktop.systemd1";
@@ -54,13 +54,17 @@ pub fn match_rule(name: &str) -> String {
 }
 
 /// What the bus says about the name's owner.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Ownership {
-    /// The name belongs to that process.
-    Owner(
-        /// Its pid.
-        i32,
-    ),
+    /// The name belongs to that connection and that process.
+    /// The unique name is what the guard proves again before it signals,
+    /// because a pid alone can be given to another process by the kernel.
+    Owner {
+        /// The pid the bus reports for the connection.
+        pid: i32,
+        /// The unique connection name that holds the name.
+        unique: String,
+    },
     /// No process holds the name.
     Nobody,
     /// The bus could not be asked,
@@ -80,6 +84,9 @@ pub enum Action {
     KillImpostor {
         /// The process that holds the name.
         pid: i32,
+        /// The unique connection name that holds it,
+        /// which the kill proves again.
+        unique: String,
         /// Whether the manager is asked to take the name again now.
         reexec: bool,
     },
@@ -119,13 +126,13 @@ impl GuardMemory {
     /// for the manager whose main process is `expected`.
     pub fn decide(&mut self, expected: i32, ownership: Ownership, now: std::time::Instant) -> Action {
         return match ownership {
-            Ownership::Owner(pid) if pid == expected => Action::Nothing,
-            Ownership::Owner(pid) => {
+            Ownership::Owner { pid, .. } if pid == expected => Action::Nothing,
+            Ownership::Owner { pid, unique } => {
                 let reexec = self.may_reexec(now);
                 if reexec {
                     self.last_reexec = Some(now);
                 }
-                Action::KillImpostor { pid, reexec }
+                Action::KillImpostor { pid, unique, reexec }
             }
             Ownership::Nobody => {
                 let ask = self.may_reexec(now);
@@ -149,8 +156,9 @@ pub trait GuardSteps {
     /// Waits up to `timeout` for the bus to say that the name's owner changed,
     /// and reports whether it did.
     fn wait_for_change(&mut self, uid: u32, timeout: std::time::Duration) -> bool;
-    /// Ends the process that holds the name.
-    fn kill(&self, pid: i32) -> Result<(), String>;
+    /// Ends the process that holds the name,
+    /// after proving that `unique` still names `pid`.
+    fn kill(&mut self, uid: u32, unique: &str, pid: i32) -> Result<(), String>;
     /// Asks the manager to take the bus name again.
     fn reexec(&self, uid: u32) -> Result<(), String>;
 }
@@ -212,14 +220,14 @@ impl Guard<'_> {
                     }),
                 }
             }
-            Action::KillImpostor { pid, reexec } => {
+            Action::KillImpostor { pid, unique, reexec } => {
                 reports.push(GuardReport {
                     loud: true,
                     text: format!(
                         "{MANAGER_BUS_NAME} on the session bus is held by pid {pid}, which is not the user's manager (pid {expected}); killing it, because every call to that name, `systemctl --user` included, would go to it instead"
                     ),
                 });
-                match self.steps.kill(pid) {
+                match self.steps.kill(uid, &unique, pid) {
                     Ok(()) => reports.push(GuardReport { loud: false, text: format!("killed pid {pid}, which was not the user's manager") }),
                     Err(error) => reports.push(GuardReport { loud: true, text: format!("pid {pid} holds {MANAGER_BUS_NAME} and could not be killed: {error}") }),
                 }

@@ -225,6 +225,14 @@ pub fn decode_message(bytes: &[u8]) -> Result<Message, WireError> {
 
 /// Reading a message's body.
 impl Message {
+    /// The body's bytes,
+    /// after the header and its padding,
+    /// which a reader decodes by the message's signature.
+    #[cfg(test)]
+    pub fn body(&self) -> &[u8] {
+        return self.bytes.get(self.body_start..).unwrap_or_default();
+    }
+
     /// The first string of the body,
     /// which an error reply uses for its text.
     pub fn first_text(&self) -> Option<String> {
