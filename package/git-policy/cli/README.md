@@ -1445,13 +1445,20 @@ and names an instance that maps to nothing without touching it.
 A stopped instance's note and socket file are removed,
 because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
-Its journal goes with them when it holds nothing else:
-the records of the batches that landed and the remains of a write that was killed
-are the memory of a service that will never run again,
+Its journal goes with them when it holds nothing else and no client of the instance can still read it:
+the records of the batches that landed,
+once they are older than the longest a client that lost its answer can look,
+and an empty landing record are the memory of a service that will never run again,
 while a batch that did not land,
 a landing that was in flight,
 and a file this release does not know keep the whole journal,
 and the command names the file it kept it for.
+A journal that stays only for the clients that may still read it,
+or for a service the manager does not yet report gone,
+keeps the note and the socket file too and is not named:
+nothing in it is the person's business,
+and the next sweep removes it once both are over,
+so until that sweep runs `git monochromatic-git-policy-cli doctor` counts the instance and names this command.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
 It starts nothing,
@@ -1472,6 +1479,14 @@ so it never asks the manager to stop the service it is,
 and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
+
+A removal through the wrapper stops the worktree's units and asks the manager whether the service's processes are gone
+before it removes the journal that service writes,
+because a stop answers when the job is queued:
+a service that is still going keeps its journal and the files that name the instance,
+and the next sweep finishes when it is gone.
+The wait for that answer is two seconds (`SERVICE_GONE_AFTER_A_STOP` in `service/wait_ceilings.rs`);
+a service that outlasts it costs the removal no more than the kept journal.
 
 `git monochromatic-git-policy-cli doctor` takes no options.
 It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,

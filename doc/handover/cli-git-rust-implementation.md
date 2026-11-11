@@ -6496,6 +6496,70 @@ and whether an earlier release's journal folder (`$XDG_STATE_HOME/cli-git/servic
 which nothing of this release writes or reads,
 and whose records may be the only copy of a commit from before the rename.
 
+That cleanup was wrong twice,
+and both are fixed in `e6fababb52` (2026-11-11T01:08:27-05:00),
+after Kimi K3.1 Pro's review of `fix/git-policy-cli-service-follow-ups-from-the-handover` named them
+(`kimi-reviews/service-follow-ups-from-the-handover-round-133/review.md`).
+Both were reproduced first,
+in a disposable tree whose product sources are `ee545033ad`'s byte for byte
+and which holds only the reproduction module:
+the review's own script failed with
+`assertion left == right failed: the cleanup erased the only record that let the waiting client succeed`,
+`left: None`,
+`right: Some("1111…")`,
+and two more,
+driven through the sweep and through the removal the wrapper runs,
+failed with
+`the sweep removed the journal of a service that the manager still reports running` and
+`the removal removed the journal of a service that the manager still reports running`.
+The first cause is `is_finished_memory` in `service_files_of_a_stopped_instance.rs`:
+any `<seq>.done` was the record of a batch nothing reads,
+and the whole folder then went,
+while `looking_for_what_landed` (`service_commit_looking_for_what_landed.rs`) reads exactly those records
+to tell a client whose answer was lost which commit its request became.
+The second cause is that `kept_entry_of` listed the folder and `remove_dir_all` deleted it afterwards,
+while a stop answers when the manager queued the job (`systemd_dbus.rs`),
+so the service could publish an unresolved record in between and lose it,
+or fail its next write.
+What the cleanup does now:
+a finished record written within `A_FINISHED_RECORD_IS_READ` keeps the journal,
+and so does a journal folder written that recently,
+where the ceiling is `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`
+(20 minutes,
+7 seconds and 10 seconds:
+a client's whole wait,
+the short extra wait inside it,
+and its look);
+the sweep and the wrapper's removal ask `service_is_gone` whether the service unit has no process left,
+waiting at most `SERVICE_GONE_AFTER_A_STOP` for the manager to say so,
+and both kept cases keep the note and the socket file,
+which answers the Open above:
+the next sweep finds the instance again and removes the journal
+once no client can read it and no service is left,
+and until a sweep runs,
+`doctor` counts the instance and names that command,
+which is the price of keeping it.
+Controls:
+`a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal`,
+`a_service_that_may_still_run_keeps_the_journal_and_the_files_that_name_it`,
+`the_journal_goes_once_the_manager_reports_the_service_gone`,
+`a_removal_whose_service_may_still_run_keeps_the_journal_and_the_files_that_name_it`,
+`a_removal_that_leaves_unresolved_work_keeps_the_journal_and_names_it`,
+and the four of `service_is_gone_after_a_stop_tests.rs`.
+Open:
+the two seconds are a pick under this brief,
+with no measurement of how long a service with nothing in flight takes to end,
+and stand open to the owner's veto (`wait_ceilings.rs`);
+those pauses come out of the one exchange budget the sweep sets for all its instances (`EXCHANGE_WAIT`),
+so a sweep whose services each outlive their stop spends up to two seconds of it per instance,
+and one ask can take what is left of it from a manager that stops answering;
+a `.done` record also goes by count,
+because `prune_done` keeps the newest `DONE_RETAINED` (1024) at each landing and at service start,
+so a burst of that many landings inside the window above would take a record a lost answer still reads:
+left as it is,
+unmeasured,
+because the review named only the cleanup.
+
 Pre-existing,
 from the lock-removal pass,
 probably moot if the commits-never-fail design lands (unsure):
