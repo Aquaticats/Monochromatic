@@ -613,13 +613,16 @@ fn a_landed_worktree_with_a_hidden_process_inside_stays() {
 }
 
 /// What:
-///  A landed worktree holding an unfinished bisect stays, and so does its `BISECT_LOG`.
+///  A landed worktree holding an unfinished bisect stays,
+/// and so does its `BISECT_LOG`.
 /// Why:
 ///  An unfinished bisect leaves `BISECT_LOG` in the worktree's own Git directory and moves nothing else:
 ///  the checkout stays on its branch and every file stays clean,
 ///  so no other condition of the sweep notices it,
 ///  and real Git's own `git worktree remove` deleted the worktree and the log without a word
-///  (measured with Git 2.56 on a fixture: exit 0, the log gone).
+///  (measured with Git 2.56 on a fixture:
+/// exit 0,
+/// the log gone).
 ///  The sweep's module doc lists a bisect among the operations that keep a worktree,
 ///  and the marks it checked did not include the one a bisect leaves
 ///  (a cross-vendor audit of the landed sweep).
@@ -642,7 +645,8 @@ fn a_landed_worktree_with_a_bisect_in_progress_stays() {
 /// What:
 ///  A landed worktree the command itself was started in stays.
 /// Why:
-///  `-C` names the repository a command works on, never its own working folder,
+///  `-C` names the repository a command works on,
+/// never its own working folder,
 ///  so a program that spawns a wrapped merge with the landed worktree as its working folder
 ///  left that worktree protected by no path at all,
 ///  and the only process in it was the command's own,

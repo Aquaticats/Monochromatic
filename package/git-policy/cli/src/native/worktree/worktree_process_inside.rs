@@ -19,7 +19,9 @@
 //!  with the same process keeping its worktree while the link was readable.
 //!  The kernel answers nothing else about such a process,
 //!  and the processes that hide their folders on a desktop are the services that start at login
-//!  (measured here: `systemd --user`, `(sd-pam)` and four more),
+//!  (measured here:
+//! `systemd --user`,
+//! `(sd-pam)` and four more),
 //!  so keeping every worktree they might be in would remove none.
 //!  A process that started before the worktree was made cannot be working inside it,
 //!  which is what its start time proves:
@@ -37,8 +39,10 @@
 //!  does not work in the worktree `-C` names,
 //!  and skipping it removed the folder the command itself was started in,
 //!  which a cross-vendor audit of the landed sweep reproduced:
-//!  `/proc/<pid>/cwd` of the wrapper was the landed worktree, and no other process was in it.
-//!  The worktree then stays, the notice says this command was started in it,
+//!  `/proc/<pid>/cwd` of the wrapper was the landed worktree,
+//! and no other process was in it.
+//!  The worktree then stays,
+//! the notice says this command was started in it,
 //!  and a person removes it when nothing there is theirs.
 //!
 //! In TS you'd write (pseudocode):
@@ -146,7 +150,8 @@ pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Optio
 /// Why:
 ///   A working folder can only be a directory that existed when the process changed into it,
 ///  so a process older than the worktree is outside it,
-///  and one younger may be inside, as may one whose age cannot be read.
+///  and one younger may be inside,
+/// as may one whose age cannot be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,7 +208,9 @@ fn ticks_per_second() -> f64 {
 ///  or nothing when the table does not say.
 /// Why:
 ///   The start is the only thing the kernel still answers about a process that hides its working folder,
-///  and this is the one reader of it (`/proc/<pid>/stat`, field 22, counted from this machine's boot).
+///  and this is the one reader of it (`/proc/<pid>/stat`,
+/// field 22,
+/// counted from this machine's boot).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

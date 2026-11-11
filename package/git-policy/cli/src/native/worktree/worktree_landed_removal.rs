@@ -53,7 +53,8 @@
 //!  a wrapper a program started in a landed one,
 //!  and the sweep removed the folder that program had set the command loose in
 //!  (a cross-vendor audit of the landed sweep).
-//!  The worktree then stays, the notice says this command was started in it,
+//!  The worktree then stays,
+//! the notice says this command was started in it,
 //!  and a person removes it when nothing there is theirs.
 //!  What is left is Git's own decision in Git's own words:
 //!  the removal runs real `git worktree remove` unless the btrfs destroy applies,
@@ -101,9 +102,12 @@ const TAG: &str = "worktreeLandedRemoval";
 ///  An unfinished bisect leaves `BISECT_LOG` in a worktree and never touches `HEAD`:
 ///  the checkout stays on its branch and every file stays clean,
 ///  and `git worktree remove` deletes the worktree and that log without a word
-///  (measured with Git 2.56 on a fixture: exit 0, the log gone).
+///  (measured with Git 2.56 on a fixture:
+/// exit 0,
+/// the log gone).
 ///  The sweep's own module doc promises a bisect keeps the worktree,
-///  and it did not, which a cross-vendor audit of the landed sweep reproduced.
+///  and it did not,
+/// which a cross-vendor audit of the landed sweep reproduced.
 const FURTHER_UNFINISHED_MARKERS: [&str; 1] = ["BISECT_LOG"];
 
 /// What:

@@ -80,12 +80,14 @@ fn a_process_working_elsewhere_does_not_count() {
 ///  This command's own process working in the folder keeps it,
 ///  and is named as this command rather than by its number.
 /// Why:
-///  `-C` names the repository a command works on, never its own working folder,
+///  `-C` names the repository a command works on,
+/// never its own working folder,
 ///  so a program that spawns a wrapped merge with the worktree a landed branch holds as its working folder
 ///  is the only process there,
 ///  and skipping the command's own number removed that folder
 ///  (a cross-vendor audit of the landed sweep).
-///  The table is written, not read from the machine,
+///  The table is written,
+/// not read from the machine,
 ///  because a control cannot choose where its own process works.
 #[test]
 fn this_command_working_in_the_folder_keeps_it() {
@@ -118,7 +120,8 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
 ///   A program can hide its working folder from every other reader,
 ///  and a fixture cannot make a link unreadable,
 ///  so the control writes a `cwd` that is no link at all:
-///  the read fails, the entry is this account's,
+///  the read fails,
+/// the entry is this account's,
 ///  and the answer must be the same as for a hidden folder.
 ///
 /// In TS you'd write (pseudocode):
