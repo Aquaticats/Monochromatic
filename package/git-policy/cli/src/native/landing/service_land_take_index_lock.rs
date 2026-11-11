@@ -67,11 +67,25 @@ pub(crate) fn take_index_lock(
     }
     match taken {
         Ok(lock) => {
-            // The markers of the two batches after this one begin flushing now, while this landing holds the lock and does its own
-            //  work, so the next commit finds its file on the disk and the one after it finds the spare. Started only after this
-            //  landing ended, the flush was the next commit's wait (`lock_stage_ms` with `lock_stage_kind=pre` in the answers).
-            crate::service_index_prestage::start(first.index.as_path(), seq + 1);
-            crate::service_index_prestage::start(first.index.as_path(), seq + 2);
+            // What:
+            //  The markers of the two batches after this one are started now,
+            // while this landing holds the lock and moves the branch.
+            // Why:
+            //  The making is seconds long on a loaded disk when its flush is the caller's,
+            // and it used to start after the landing's answer,
+            // so the next commit
+            //  met it still running (`lock_stage_kind=pre`,
+            // 9 to 13 s measured 2026-11-10).
+            //  Starting them here spends the landing's own seconds on them and leaves the next commit a finished marker usually,
+            //  and the one after it the spare.
+            //  The batches after this one land on this index and are numbered one and two more, which is known now.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const held = await takeIndexLock(...); prestage.start(first.index, seq + 1); prestage.start(first.index, seq + 2);
+            // ```
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(1));
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(2));
             return Ok(lock);
         }
         Err(failure) => {

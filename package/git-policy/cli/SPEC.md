@@ -56,7 +56,8 @@ build trees and caches,
 and the wrapper's own records)
 the owner handed the choice to the coordinator,
 2026-11-10:
-"I think you can decide yourself on which fsync to remove and not have to ask me. Or do it with the advisor."
+"I think you can decide yourself on which fsync to remove and not have to ask me.
+Or do it with the advisor."
 The coordinator's rule,
 made with the advisor on 2026-11-10 and open to the owner's veto:
 
@@ -10430,18 +10431,29 @@ not by the age of the lock file:
 The markers of the next batches are made ahead.
 A batch that takes the index lock for batch `n` starts the markers of batches `n + 1` and `n + 2`,
 which land on the same index:
-it creates each file,
-writes the marker and flushes it to storage,
-on a thread of its own while that landing moves the branch and builds the index.
+it creates each file and writes the marker there,
+and the flush is the service's background task's,
+while that landing moves the branch and builds the index.
 Started there rather than after the landing ended,
 a flush overlaps a landing's own work instead of being the next commit's wait,
 and the second marker is the spare that leaves one finished while another is being made.
 The next commit then only places the file for its own batch (a rename that does not replace),
 so the flush is not on its path.
+Starting them there matters because the flush is seconds long on a loaded disk:
+a measured landing waited 9 to 13 seconds for a marker whose flush was still running
+(`lock_stage_kind=pre`,
+2026-11-10),
+against the owner's rule that a commit through the wrapper is not five seconds slower than native Git.
+A landing that finds a marker still being made never waits for it:
+it stages its own marker the ordinary way,
+as one does when nothing was made ahead,
+and the markers that were still being made finish beside it and are removed once they are finished,
+by the batch that follows or by the service's end.
 Two files at most are the service's:
 they are kept for the service thread,
 named with this process and the batch number,
-and a marker is replaced or removed (waiting for a flush that is still running) when its batch is passed or the index is not the one it was made for.
+and a marker is replaced or removed (waiting for a flush that is still running)
+when its making has finished and its batch is passed or the index is not the one it was made for.
 They are removed when the service ends,
 whichever way its loop ends,
 and what a killed service leaves is removed by the next acquisition,
@@ -10468,7 +10480,7 @@ The file's pathname is checked before it is placed:
 it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
 A pathname that names another file is that file's,
 and is not removed.
-A commit that arrives while the flush is still running waits for it and starts no second.
+A commit that arrives while the flush is still running starts no second flush of its own and waits for none.
 The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
