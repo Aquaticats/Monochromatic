@@ -50,10 +50,17 @@
 //! (the audit's F8),
 //! and a tree of one holder that only ticks never ended at all.
 //!  So while a connection is open,
-//! the processor time of the process that holds it is not work:
-//! that process polls the socket.
-//! Every byte the tree moves is work,
-//! and so is the processor time or the task at work of every process that holds no connection:
+//! neither the processor time nor the bytes of the process that holds it are work:
+//! that process polls the socket and prints its own account of waiting.
+//! Measured the same day,
+//! which decided the bytes too:
+//! `git-lfs` writes fourteen bytes of its upload meter to its standard error about every ten seconds
+//! while it waits,
+//! and each of those lines reset the window,
+//! so an upload that stayed on one connection was not ended in more than 260 seconds.
+//! What that process really sends is on the connection,
+//! whose carried bytes are counted here,
+//! and the work of every process that holds no connection is still work:
 //! the pack a push is making,
 //! the delta search,
 //! the listing of what to send.
@@ -420,8 +427,9 @@ impl Meter {
     /// bytes moved,
     /// or processor time used or a task at work.
     /// Why:
-    ///   The two are kept apart because a process that holds the connection to the remote may be polling it,
-    /// and a poll is not work (`Meter::look`).
+    ///   The two are kept apart because they say different things about a process that holds the connection:
+    /// its processor time is a poll of the socket,
+    /// and its bytes are its own account of waiting (`Meter::look`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -489,7 +497,9 @@ impl Meter {
             }
             let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
             let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
-            if signs.moved || (signs.busy && !self.holders.contains(&member.pid)) {
+            // A process that holds the connection reports its own wait while it waits, and what it writes about itself is no
+            //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
+            if (signs.moved || signs.busy) && !self.holders.contains(&member.pid) {
                 progressed = true;
             }
         }

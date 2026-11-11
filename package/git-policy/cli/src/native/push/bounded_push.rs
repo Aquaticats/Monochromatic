@@ -537,7 +537,7 @@ pub async fn run_bounded_push_awaiting(
                 StopCause::Stalled(report) => {
                     // The server is asked for here, once, because a run that was not stopped never needed it.
                     naming.ask().await;
-                    stalled_reason(&report, naming.server())
+                    stalled_reason(label.as_str(), &report, naming.server())
                 }
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \

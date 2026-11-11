@@ -3904,12 +3904,17 @@ fractional or non-numeric value is ignored.
   however slow;
   one that does none of these is stopped after this many seconds.
   While a connection to the remote is open,
-  the processor time and the task able to run of the process that holds it are not work:
+  neither the processor time nor the bytes of the process that holds it are work:
   measured on 2026-11-11,
   `git-remote-http` uses one tick every three seconds polling a server that never answers,
-  and counting that tick is why a 150 second window never ended a silent server (the audit's F8).
-  Every byte the tree moves is work,
-  and so is the processor time of every process that holds no connection.
+  and `git-lfs` writes fourteen bytes of its upload meter about every ten seconds while it waits,
+  and counting either is why a 150 second window never ended a silent server (the audit's F8).
+  What the holder really sends is on the connection,
+  whose carried bytes count,
+  and so does the work of every process that holds no connection,
+  which is why a slow upload that keeps moving data is never stopped here.
+  Silence across a client's own reconnections still reaches the window,
+  because each new connection starts from nothing.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)

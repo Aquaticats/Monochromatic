@@ -7082,17 +7082,28 @@ in-process reader can) gives every value of the multi-valued keys.
   and moved not one byte,
   so a clock that counts that tick never reaches its window (the audit's F8:
   290 to 330 seconds of a service push with a 150 second window).
+  A second measurement the same day decided the rest:
+  `git-lfs` writes fourteen bytes of its upload meter to its standard error about every ten seconds
+  while it waits on a server that never answers,
+  the file belongs to the wrapper,
+  so each line is a byte the tree wrote,
+  and the window never fired in more than 260 seconds.
   While a connection is open,
-  the processor time of the process that holds it is therefore not work:
-  that process polls the socket.
-  Every byte the tree moves is work,
-  and so is the processor time or the task at work of every process that holds no connection,
+  neither the processor time nor the bytes of the process that holds it are therefore work:
+  that process polls the socket and prints its own account of waiting.
+  What it really sends is on the connection,
+  whose carried bytes are counted,
+  and the work of every process that holds no connection is still work,
   which is where a push keeps working while its connection stands open:
   the pack it makes,
   the delta search,
   the listing of what to send.
   A socket carries no progress on the look that first sees it,
-  because its counters then stand for this side's handshake and request.
+  because its counters then stand for this side's handshake and request,
+  and that is also why a client that reconnects on its own is bounded:
+  each new connection starts from nothing and its client is its holder,
+  so silence across reconnections still reaches the window (measured:
+  six connections of `git-lfs` thirty seconds apart ended one upload at 150 seconds).
   The cost,
   which the pick accepts:
   a process that sits in state `D` for good shows a sign of work for ever and holds the service's push of its

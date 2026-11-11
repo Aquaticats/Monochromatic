@@ -97,9 +97,9 @@ pub enum StopCause {
 }
 
 /// What:
-///  The line that ends a push the clock stopped as stalled,
+///  The line that ends a run the clock stopped as stalled,
 /// in the words of the window that was hit,
-/// naming the server it waited for when the run knew it.
+/// naming the run and the server it waited for when the run knew it.
 /// Why:
 ///  A person reading a stop must be able to change the cause it names.
 /// The stall window is
@@ -110,9 +110,9 @@ pub enum StopCause {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `held its connection to ${server ? `the server \`${server}\`` : 'the remote'} open ... fixed at ${limit} seconds`
+/// `${label} held its connection to ${server ? `the server \`${server}\`` : 'the remote'} open ... fixed at ${limit} seconds`
 /// ```
-pub(crate) fn stalled_reason(report: &StopReport, named: Option<&str>) -> String {
+pub(crate) fn stalled_reason(label: &str, report: &StopReport, named: Option<&str>) -> String {
     // What the line calls the other end: the server the run named, or the remote a destination says nothing about.
     let other_end: String = match named {
         Some(host) => format!("the server `{host}`"),
@@ -120,7 +120,7 @@ pub(crate) fn stalled_reason(report: &StopReport, named: Option<&str>) -> String
     };
     return match report.window {
         StopWindow::Stall => format!(
-            "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+            "monochromatic-git-policy-cli: {label} made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
              elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: if you were pushing over a slow or \
              offline connection, your commit is already saved; push again when the connection works.",
             report.limit.as_secs(),
@@ -129,7 +129,7 @@ pub(crate) fn stalled_reason(report: &StopReport, named: Option<&str>) -> String
             extend_clause()
         ),
         StopWindow::Connected => format!(
-            "monochromatic-git-policy-cli: git push held its connection to {other_end} open with nothing moving for {} seconds and was \
+            "monochromatic-git-policy-cli: {label} held its connection to {other_end} open with nothing moving for {} seconds and was \
              stopped (limit=connected, bytes_moved={}, elapsed_seconds={}); {} does not change this window, which is fixed at {} \
              seconds. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: a remote that keeps the connection open for longer \
              than this stops every attempt, and the retry settles whether the push landed; your commit is already saved.",
