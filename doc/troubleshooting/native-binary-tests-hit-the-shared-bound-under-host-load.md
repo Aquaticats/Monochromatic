@@ -1637,3 +1637,84 @@ fixed on `bound-supervisor-r2` with a control and a hand-applied mutant that tur
   no deterministic way to force a reuse exists
   without privileges,
   so the pin is tested by what it refuses.
+
+## A merge that waited for the commit service's answer, 2026-11-11
+
+Six controls of the binary suite's merge groups failed in one whole run,
+each with the same words:
+
+```text
+the harness supervisor ended the command `/usr/bin/timeout --signal=KILL 600 …/bin/git merge --no-edit topic` in …/repo:
+no progress for 5.0 s: no task was runnable, waiting for the disk or held from outside, and processor time, bytes moved,
+the work of waited-for children and the set of processes stood still (a deadlock or a wait on something that never happens)
+```
+
+The failing controls were
+`word_merge::a_part_line_names_each_input_as_a_blob_that_survives_the_resolution`,
+`word_merge::the_journal_receives_each_merged_part`,
+`word_merge_finish::a_merge_autostash_is_applied_by_the_ending_commit`,
+`word_merge_finish::cherry_pick_and_revert_edit_run_the_editor`,
+`word_merge_finish::merge_edit_runs_the_editor_and_merge_message_is_kept`
+and `word_merge_finish::each_operation_is_finished_like_a_clean_run`,
+in a run of 949 tests that passed 941
+(`package/git-policy/cli`, worktree `pi-wrapper-suite-failures-on-main-tip`;
+the summary and each failure's own output are kept at
+`~/temp/agent/wrapper-suite-5/binary-suite-failures-2026-11-11.log`,
+which the session's own process log of that run supplied).
+
+### What the killed trees were doing
+
+Every message named the same task:
+the wrapper, waiting in `unix_stream_read_generic`,
+the kernel's read of the Unix socket it sends its commit request on.
+The same run's service log names the other half of that wait:
+
+```text
+monochromatic-git-policy-cli-service: the background sync of 6 records of a landing took 48597 ms
+```
+
+So the wrapper was not deadlocked:
+it had asked the commit service for an answer,
+and the service's own records were being flushed through a volume that was stalling for tens of seconds
+under the other sessions' writes.
+No look at the *command's* tree can see that work:
+the service is not a descendant of the command,
+and it outlives it on purpose (`binary_supervisor_tests.rs`, `a_command_that_has_exited_is_finished_and_not_judged_idle`).
+
+The idle rule as it stood counted a task asleep in a socket read as a hang,
+which is right for a deadlock between two programs of one command
+and wrong for a wait whose answer depends on another program's disk work.
+The window is also shorter than the wrapper's own telling:
+`WAITING_NOTICE_AFTER` is 10 s (`src/native/service/wait_ceilings.rs`),
+so a healthy command is ended before it can say where it stands,
+and the notice is written once per place the service names,
+not repeatedly.
+
+### What changed
+
+The look at a tree reads each task's kernel wait channel (`/proc/<pid>/wchan`,
+the file the kill message already printed)
+and marks a process asleep in `unix_stream_read_generic` or `unix_stream_data_wait` as waiting for an answer
+(`binary_supervisor_proc.rs`, `waits_for_an_answer`).
+A tree with such a task restarts the idle window as one waiting for the disk does
+(`binary_supervisor.rs`, `Judge::observe`),
+so a command whose answer is being prepared is not called hung,
+and a deadlock on a pipe,
+a futex or a lock is still ended at the window
+(`a_deadlock_is_ended_and_reported_with_its_tasks`, `a_tree_that_stands_still_is_hung_when_the_window_has_passed`).
+
+The control is `a_wait_for_an_answer_over_a_socket_is_not_a_hang`
+(`binary_supervisor_tests.rs`):
+a child that reads a Unix socket pair this test holds the other end of,
+which must not be ended over several windows and must finish when the answer is written.
+
+### Limits
+
+- A deadlock *between the wrapper and its commit service* now looks like any answer wait,
+  so it ends at the processor budget or the ten-minute backstop instead of the idle window.
+  The wrapper's own answer ceiling is the product's limit for that wait (`ANSWER_CEILING`),
+  and a service that stops answering is what its own controls are for.
+- A task asleep in a pipe or a futex read is still judged idle,
+  which is what the fifo deadlock control shows.
+- The wait channel is read once per process per look,
+  one small file per poll of 100 ms.
