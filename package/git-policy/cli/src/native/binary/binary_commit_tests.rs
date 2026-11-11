@@ -370,6 +370,58 @@ fn a_commit_of_all_tracked_changes_lands_under_literal_pathspec_mode() {
     }
 }
 
+/// A staged deletion of a path a literal pathspec does not name is no concern of this commit,
+/// under both spellings of literal pathspec mode:
+/// `literal*.txt` names one file when the mode reads the star as text.
+#[test]
+fn a_staged_deletion_outside_a_literal_pathspec_is_not_this_commit() {
+    for (index, mode) in [LiteralMode::Option, LiteralMode::Variable]
+        .into_iter()
+        .enumerate()
+    {
+        let fixture: Fixture = fixture(format!("commit-literal-deletion-{index}").as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        std::fs::write(repo.join("literal*.txt"), b"star base\n").expect("star");
+        std::fs::write(repo.join("literal-other.txt"), b"other base\n").expect("other");
+        git(&fixture, repo.as_path(), &["add", "--", "literal*.txt", "literal-other.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+        git(&fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "literal-other.txt"]);
+        std::fs::write(repo.join("literal*.txt"), b"star edit\n").expect("edit the literal star");
+        let landed: Observed = run_under(
+            &fixture,
+            repo.as_path(),
+            mode,
+            &["commit", "--message=wrapped", "--", "literal*.txt"],
+        );
+        assert_eq!(landed.code, Some(0), "{mode:?}: {}", stderr_of(&landed));
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+            "wrapped",
+            "{mode:?}: the commit must land"
+        );
+        let tree: String = git_text(&fixture, repo.as_path(), &["ls-tree", "--name-only", "HEAD"]);
+        assert!(tree.contains("literal*.txt"), "{mode:?}: {tree}");
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:literal-other.txt"]),
+            "other base\n",
+            "{mode:?}: the unselected path keeps the content the base had"
+        );
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:literal*.txt"]),
+            "star edit\n",
+            "{mode:?}: the selected path holds its worktree content"
+        );
+        assert!(
+            porcelain(&fixture, repo.as_path()).contains("D  literal-other.txt"),
+            "{mode:?}: the deletion of a path this selection does not name stays staged: {}",
+            porcelain(&fixture, repo.as_path())
+        );
+        assert_nothing_left(&fixture, repo.as_path());
+        remove_settled(&fixture);
+    }
+}
+
 /// The only configuration file the native wrapper reads.
 const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
 
@@ -701,6 +753,125 @@ fn an_explicit_path_commit_of_a_staged_deletion_that_stays_on_disk_offers_the_in
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
     assert_eq!(git_text(&fixture, repo.as_path(), &["ls-tree", "--name-only", "HEAD"]).trim(), "");
     assert_eq!(std::fs::read(repo.join("a.txt")).expect("the file stays"), b"one\ntwo\n");
+    remove_settled(&fixture);
+}
+
+/// A repository with `a.txt` and `b.txt` tracked and an uncommitted edit in each,
+/// for the selections that name one path and exclude another.
+fn two_edited_files(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("a.txt"), b"a base\n").expect("a");
+    std::fs::write(repo.join("b.txt"), b"b base\n").expect("b");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "b.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(repo.join("a.txt"), b"a edit\n").expect("edit a");
+    std::fs::write(repo.join("b.txt"), b"b edit\n").expect("edit b");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// An exclusion subtracts the exact path it names,
+/// so `a.txt ':(exclude)a.txt'` is a selection no path matches:
+/// nothing lands and both edits stay where the person left them.
+#[test]
+fn an_exclusion_of_an_exact_path_leaves_nothing_to_commit() {
+    let fixture: Fixture = fixture("commit-exclusion-of-exact-path");
+    let repo: PathBuf = two_edited_files(&fixture, "repo");
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=selected", "--", "a.txt", ":(exclude)a.txt"],
+    );
+    assert_eq!(refused.code, Some(1), "{}", stderr_of(&refused));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the excluded path may not land: {}",
+        stderr_of(&refused)
+    );
+    assert_eq!(porcelain(&fixture, repo.as_path()), " M a.txt\n M b.txt\n");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// The exclusion narrows the exact paths and takes no path the person did not name:
+/// `a.txt b.txt ':(exclude)b.txt'` lands the edit of `a.txt` and leaves the edit of `b.txt` pending.
+#[test]
+fn an_exclusion_keeps_the_unselected_exact_path_out_of_the_commit() {
+    let fixture: Fixture = fixture("commit-exclusion-narrows");
+    let repo: PathBuf = two_edited_files(&fixture, "repo");
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=selected", "--", "a.txt", "b.txt", ":(exclude)b.txt"],
+    );
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "a edit\n");
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:b.txt"]),
+        "b base\n",
+        "b.txt is excluded from this selection"
+    );
+    assert_eq!(porcelain(&fixture, repo.as_path()), " M b.txt\n");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A `--pathspec-from-file` names the same paths the command line names,
+/// so a staged deletion whose file stays on disk gets the same finding:
+/// the commit is not made,
+/// the file keeps its bytes,
+/// and the deletion stays staged.
+#[test]
+fn a_pathspec_file_of_a_staged_deletion_that_stays_on_disk_gets_the_finding() {
+    let fixture: Fixture = fixture("commit-pathspec-file-staged-deletion");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    git(&fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    std::fs::write(repo.join("list.txt"), b"a.txt\n").expect("list");
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=wrapped", "--pathspec-from-file=list.txt"],
+    );
+    assert_eq!(refused.code, Some(1), "{}", stderr_of(&refused));
+    let text: String = stderr_of(&refused);
+    assert!(text.contains("commit-only/staged-deletion-worktree-present"), "{text}");
+    assert!(text.contains("[\\\"a.txt\\\"]"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing may land");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the file stays"), b"one\ntwo\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "D  a.txt\n?? a.txt\n?? list.txt\n");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A pathspec list read from standard input is the same selection as a list file,
+/// so the staged deletion it names gets the finding too.
+#[test]
+fn a_pathspec_list_from_standard_input_of_a_staged_deletion_gets_the_finding() {
+    let fixture: Fixture = fixture("commit-pathspec-input-staged-deletion");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    git(&fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: Observed = observe(
+        &mut wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--message=wrapped", "--pathspec-from-file=-"],
+        ),
+        b"a.txt\n",
+    );
+    assert_eq!(refused.code, Some(1), "{}", stderr_of(&refused));
+    assert!(
+        stderr_of(&refused).contains("commit-only/staged-deletion-worktree-present"),
+        "{}",
+        stderr_of(&refused)
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing may land");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the file stays"), b"one\ntwo\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "D  a.txt\n?? a.txt\n");
+    assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
 
