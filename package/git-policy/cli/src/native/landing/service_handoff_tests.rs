@@ -475,7 +475,8 @@ fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
 /// What:
 ///  A held push whose command died before any verdict names that command and what carries the commit instead.
 /// Why:
-///   The record states no verdict, so nothing stops a push of the branch and the next push carries the commit;
+///   The record states no verdict,
+/// so nothing stops a push of the branch and the next push carries the commit;
 /// the line says that
 ///  rather than claiming the commit stays local,
 /// and it names the command whose answer will never come and what the person

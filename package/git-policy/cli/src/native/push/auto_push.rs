@@ -479,7 +479,7 @@ pub fn push_once(
 ///  itself,
 /// a push to another destination,
 /// and a push whose remote is not the branch's tracked remote
-///  (`branch.<name>.pushRemote`, `push.default=current`) all leave that reference to Git,
+///  (`branch.<name>.pushRemote` and `push.default=current`) all leave that reference to Git,
 /// and writing it there would name a
 ///  commit the other remote never received.
 ///

@@ -144,8 +144,9 @@ fn every_command_says_which_commit_is_held() {
 /// Why:
 ///   That command is the only one that may promote the record,
 /// so a record naming none makes every command say the commit is held while a later push of the branch carries it
-///  (`held_push_line`, `service_handoff.rs`).
-/// The batch's own record is what a restart reads, so the command is taken from the request the batch landed.
+///  (`held_push_line` in `service_handoff.rs`).
+/// The batch's own record is what a restart reads,
+/// so the command is taken from the request the batch landed.
 #[test]
 fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
     let root: PathBuf = crate::test_support::fixture("service-land-owed-push-holder");

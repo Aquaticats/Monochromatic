@@ -1,5 +1,6 @@
 //! What:
-//!  The branch's remote-tracking reference, brought up to date with what a successful push delivered,
+//!  The branch's remote-tracking reference,
+//! brought up to date with what a successful push delivered,
 //!  when Git could not write it.
 //! Why:
 //!  Git delivers a push and then updates the remote-tracking reference of the pushed branch.

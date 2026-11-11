@@ -194,10 +194,9 @@ pub(crate) fn land_batch_body(
             old: old.clone(),
             new: new.clone(),
             ids: ids_of(&batch),
-            commits: commits.clone(),
             // The command that will run each commit's post-commit gate, recorded with the batch so a restart's hold of that
             //  commit's push names the command that will decide it (`held_push_holder_and_verdict.rs`).
-            holders: holders_of(&batch),
+            commits: commits.clone(), holders: holders_of(&batch),
             paths,
             derived,
             cleanup: first.cleanup.clone(),

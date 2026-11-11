@@ -92,7 +92,8 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
 /// Holds one push record for a commit a batch lands,
 /// naming the command that will decide the commit's checks.
 ///
-/// The holder is the request's own, recorded with the batch:
+/// The holder is the request's own,
+/// recorded with the batch:
 /// the answer loop writes it into the same record with the item's own words once the branch has moved (`hold_the_push`),
 /// and a batch a restart finishes names the command the request named,
 /// because no process table of the restart can tell which command owes the gate.

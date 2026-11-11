@@ -176,7 +176,7 @@ fn the_awaited_repair_writes_the_reference_the_synchronous_one_does() {
 ///  A reference named the way a branch's upstream names it (`origin/main`) is written by its full name.
 /// Why:
 ///   `git update-ref origin/main <commit>` is accepted and changes nothing
-/// (Git 2.56.0, measured on 2026-11-11),
+/// (measured with Git 2.56.0 on 2026-11-11),
 /// so a repair that wrote the name it was given would report success while the reference stayed behind.
 #[test]
 fn a_reference_named_short_is_written_by_its_full_name() {

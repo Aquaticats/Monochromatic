@@ -100,7 +100,7 @@ fn a_refusal_that_cannot_be_written_keeps_the_held_record() {
 ///  promote:
 /// the command that would have promoted it answered long before,
 ///  so the line stays on every command in the worktree while the commit is on the remote
-///  (`held_push_line`, `service_handoff.rs`).
+///  (`held_push_line` in `service_handoff.rs`).
 /// The queue's own states are the proof that the work was done,
 /// so the hold answers that nothing is owed.
 #[test]

@@ -978,14 +978,17 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
 ///  A push whose tracking reference could not be written says so,
 ///  and the reference is written once the lock that refused it is gone.
 /// Why:
-///   Git delivers such a push, prints `cannot lock ref`, and exits `0`,
+///   Git delivers such a push,
+/// prints `cannot lock ref`,
+/// and exits `0`,
 ///  so the service records the push as made while the reference names an older commit.
 /// The reference is what every later question about the branch's remote is answered from,
 /// so a silent one makes `git status` and the wrapper disagree for as long as nothing else writes it.
 /// A lock nobody proves gone is not cleared (`stale_ref_locks.rs`),
 /// so the state is said instead.
 /// The fixture kills a real push at the moment it holds that lock (`stale_ref_lock_killed_git`),
-/// which is exactly the state: the remote took the commit and the reference names the commit before it.
+/// which is exactly the state:
+/// the remote took the commit and the reference names the commit before it.
 #[test]
 fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
     let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-locked", true);
