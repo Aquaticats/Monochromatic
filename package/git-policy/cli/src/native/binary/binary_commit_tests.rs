@@ -1010,6 +1010,19 @@ fn one_path_that_matches_nothing_withholds_the_whole_commit() {
     remove_settled(&fixture);
 }
 
+/// The most bytes a pathspec file may hold and still be read as elements;
+/// a file above it is passed to Git as the file the caller named
+/// (`ITEMS_BYTES_LIMIT` in `commit_selection_staging.rs`).
+const LARGEST_READ_PATHSPEC_FILE_BYTES: usize = 64 * 1024;
+
+/// A list file whose one matching path is repeated past that bound,
+/// and whose last path matches nothing.
+fn list_past_the_reader_bound(missing: &str) -> String {
+    let entry: &str = "a.txt\n";
+    let repetitions: usize = LARGEST_READ_PATHSPEC_FILE_BYTES / entry.len();
+    return format!("{}{missing}\n", entry.repeat(repetitions));
+}
+
 /// A pathspec file with more bytes than one command line may carry is Git's to read,
 /// and a token in it that matches nothing is the same refusal the command line gets:
 /// exit `1`,
@@ -1022,10 +1035,11 @@ fn a_pathspec_file_too_large_for_one_command_line_is_refused_as_a_pathspec_that_
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let index_before: Vec<u8> = index_bytes(repo.as_path());
-    // A file past the bound the wrapper reads elements within is passed to Git as the file the caller named, so this is
-    //  the staging start whose pathspecs no command line spells.
-    let listed: String = format!("{}nope.txt\n", "a.txt\n".repeat(14_000));
-    assert!(listed.len() > 64 * 1024, "the list file is past the bound the wrapper reads elements within");
+    let listed: String = list_past_the_reader_bound("nope.txt");
+    assert!(
+        listed.len() > LARGEST_READ_PATHSPEC_FILE_BYTES,
+        "the list file is past the bound the wrapper reads elements within"
+    );
     let list: PathBuf = fixture.root.join("pathspecs.txt");
     std::fs::write(list.as_path(), listed.as_bytes()).expect("the list file");
     let option: String = format!("--pathspec-from-file={}", list.display());
@@ -1076,7 +1090,7 @@ fn a_pathspec_refusal_is_understood_whatever_the_persons_locale() {
 /// and no engine failure (issue 6283).
 #[test]
 fn a_pathspec_that_holds_the_refusal_wording_is_refused_as_the_one_pathspec_it_is() {
-    let fixture: Fixture = fixture("commit-pathspec-holds-judgement");
+    let fixture: Fixture = fixture("commit-pathspec-holds-the-wording");
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let index_before: Vec<u8> = index_bytes(repo.as_path());
