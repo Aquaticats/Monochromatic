@@ -342,10 +342,9 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     // The record comes first, and names the container and the instant while it holds no object yet: the identity of an
     //  object cannot be read before it exists, and a kill between the creation below and the record of the identity left a
     //  whole snapshot nothing could prove the wrapper made (`worktree_copy_stage_reaping_proof_and_words.rs`).
-    crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now())
-        .unwrap_or_else(|error| {
-            warn(TAG, format!("monochromatic-git-policy-cli: the creation of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
-        });
+    if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now()) {
+        warn(TAG, format!("monochromatic-git-policy-cli: the creation of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
+    }
     let ahead_entered: bool = begin_step("snapshotAhead");
     let look: AheadLook = look_for_a_snapshot_ahead(source, plan, stage, environment, service);
     end_step(ahead_entered);
