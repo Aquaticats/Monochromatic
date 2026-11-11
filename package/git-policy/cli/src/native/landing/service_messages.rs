@@ -45,7 +45,51 @@ pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
 /// Printed once when the service takes longer than the grace to answer.
-pub const STARTING_NOTICE: &str = "Starting the commit service...";
+pub const STARTING_NOTICE: &str = "Waiting for the commit service of this worktree...";
+
+/// What:
+///  The line that says what a wait for the service is waiting for,
+/// on whom,
+/// and how long it has waited.
+/// Why:
+///  A wait that says nothing is a wait a person cannot tell from a hang:
+/// a commit with a service that never answered printed
+///  nothing for ten seconds and then named a cause that was not true,
+/// and an add printed nothing for 613 s.
+/// The line names the address the service is asked at and the state the service manager reports,
+/// which is
+///  the one fact that tells a service that is starting from one that is stopped inside its own process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// startingNotice('/run/user/1000/monochromatic-git-policy-cli/abc.sock', 'the service manager says monochromatic-git-policy-cli@abc.service is active');
+/// ```
+pub fn starting_notice(address: &str, who: &str) -> String {
+    return format!("monochromatic-git-policy-cli: {STARTING_NOTICE} nothing has answered at {address} yet ({who}); this wait ends as soon as it answers.");
+}
+
+/// What:
+///  The line that says a running service did not answer and is being restarted,
+/// and why that is the repair.
+/// Why:
+///   The command ends the service,
+/// which is not a thing to do without saying so:
+/// a unit the service manager reports as running that
+///  answers nothing is one whose program stopped inside its own process,
+/// and the manager starts a unit it already
+///  believes runs for no connection.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// restartingNotice('monochromatic-git-policy-cli@abc.service', 3)
+/// ```
+pub fn restarting_notice(unit: &str, waited: Duration) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the commit service of this worktree has answered nothing for {} seconds, so it is stopped inside its own process; \
+         it is asked to restart ({unit}), and this commit goes on once it answers.",
+        waited.as_secs()
+    );
+}
 
 /// Printed each time the service goes silent while a commit waits,
 /// before the same request is sent to it again.
@@ -94,6 +138,14 @@ pub enum Platform {
 pub enum ClientFailure {
     /// The service was started and did not come up.
     DidNotStart,
+    /// Something accepted the connection at the service's address and nothing answered;
+    /// no service manager could be asked to start or restart it.
+    NothingAnswered {
+        /// The address the service was asked at.
+        address: String,
+        /// How long the wait lasted.
+        waited: Duration,
+    },
     /// The platform cannot start the service on demand.
     NoActivation(Platform),
     /// The service on the socket belongs to another account.
@@ -244,6 +296,15 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::DidNotStart => format!(
             "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::NothingAnswered { address, waited } => format!(
+            "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this \
+             commit was not made. A service that is stopped inside its own process (a frozen control group, a debugger, a \
+             suspended machine, or a wait in the kernel that never ends) looks like that, and this computer has no user \
+             service manager this git can ask to start or restart it. Check what the service of this worktree is doing with \
+             `git monochromatic-git-policy-cli service status`, end the service if it is stopped inside its own process, and \
+             run the commit again. {NOTHING_CHANGED}",
+            waited.as_secs().max(1)
         ),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
