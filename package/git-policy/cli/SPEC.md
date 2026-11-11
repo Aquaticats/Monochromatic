@@ -1551,6 +1551,10 @@ and the record,
 which still empties the trash when the repository's service next runs,
 and never fails the add,
 because the worktree is whole either way.
+The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`:
+the record is written before the wake and the add needs no answer to it,
+so a service that greets nothing costs one later wake and never the add's work
+(`src/native/worktree/worktree_trash_hand_over.rs`).
 A path that is not valid UTF-8 cannot be named by a work item,
 so the hand-over writes none,
 says so,
@@ -2718,6 +2722,20 @@ and a refusal by the kernel,
 is Git's own removal,
 which words its own refusal.
 
+The destroy is not run in the person's command:
+it waits for whatever snapshot another add is committing and for the running btrfs transaction,
+so the removal renames the worktree's directory out of the way inside its own parent in one `rename(2)`,
+writes a durable work item that names the renamed subvolume,
+and wakes the commit service,
+which deletes it later
+(`src/native/worktree/worktree_remove_hand_over.rs`).
+The path the person named is gone at once and every file of it is still under a name this wrapper chose,
+and the worktree was proven clean and unlocked before either step.
+The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`:
+the record is written before the wake,
+and a person removing a worktree waits for none of what the service does with it,
+so a service that greets nothing costs one later wake and never the removal.
+
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
 - The worktree is registered in the repository the command runs in:
@@ -3757,6 +3775,21 @@ the line names the tool,
 what it was
 doing,
 the seconds it ran and the command to run by hand.
+A tool still running `REPAIR_TOOL_NOTICE_AFTER` (two seconds) after it started
+says once on standard error which program it is,
+its arguments,
+the worktree it runs in,
+and both bounds that end it
+(`src/native/repair/package_repair_command.rs`).
+That line is a notice and not a bound:
+nothing ends at it,
+and the quiet window and the ceiling above it are what end a tool.
+It exists because an add whose `pnpm` never ended printed its last line at two seconds
+and nothing for the next 613 s,
+which a person cannot tell from a hang
+(`doc/../sonnet-audits/integration-tip-never-stuck/report.md`,
+finding 5 of the after-alpha.9 audit).
+The quiet window itself is the owner's number and is left as it was.
 A repair never fails the add:
 the exit status stays Git's.
 When all repairs worked,
@@ -5463,6 +5496,25 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
+- `SERVICE_GREETING_SILENCE` 3 seconds:
+  how long a commit lets a unit the service manager reports `active` stay silent before it asks the manager to
+  restart it.
+  A service greets a connection before it restores anything
+  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+  so a running unit that greets nothing is one whose program stopped inside its own process,
+  and a start of a unit the manager believes runs brings nothing back.
+  Nearly three times the slowest of the 52 measured cold starts (1.04 s),
+  and under the owner's 5,000 ms bound on what a commit may add to native Git.
+- `HAND_OVER_GREETING_WAIT` 2 seconds:
+  the longest a command waits for the greeting of a service it only has to tell about work whose record it has
+  already written (a snapshot's trash,
+  a removed worktree's subvolume,
+  a push record,
+  and the work after a landing).
+  The record is durable and every later command of the repository wakes the same service,
+  so an answer that does not come costs one later wake and never the work.
+  Twice the slowest of the 52 measured cold starts,
+  where `START_WAIT` (ten seconds) is what a command whose next step needs the answer keeps.
 - `LANDING_LOCK_CEILING` 1 minute:
   the landing waits for a foreign `index.lock` this long.
   It is five times the longest wait at a holder's place that ended when the lock was released (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
@@ -5981,6 +6033,48 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
+  A unit the manager reports `active` whose service has greeted nothing for `SERVICE_GREETING_SILENCE` is asked to
+  restart,
+  once,
+  and the wait goes on:
+  a service greets a connection before it restores anything,
+  so a running unit that greets nothing is one whose program stopped inside its own process
+  (a frozen control group,
+  a debugger,
+  a suspended machine,
+  a wait in the kernel that nothing ends),
+  and no start of a unit the manager believes runs brings it back.
+  The service survives being ended by design
+  (its journal,
+  its held commits and its work records are durable),
+  so the commit gets its answer instead of failing
+  (`src/native/service/systemd_dbus.rs`,
+  `RestartUnit`).
+- A wait for the service that lasts longer than `START_NOTICE_GRACE` says once on standard error what it waits for,
+  on whom,
+  and what ends it:
+  the address the service is asked at,
+  and the state the service manager reports about the worktree's unit
+  (`starting_notice` in `src/native/landing/service_messages_of_a_wait_for_the_service.rs`,
+  which the failure file reads).
+  A wait that says nothing is a wait a person cannot tell from a hang,
+  and the state the manager reports is what tells a service that is starting from one that stopped inside its own
+  process.
+  Where no manager can be asked,
+  one connection attempt waits no longer than that same grace,
+  and never past what is left of the start wait
+  (`greeting_patience_without_a_manager` in `src/native/service/service_client_reach_service.rs`):
+  an attempt that lasted the whole start wait spent the entire wait inside one read of the socket,
+  so the line could only be said at the bound that ended it,
+  which is the ten seconds of silence the audit measured.
+- Where no manager can be asked and something took the connection but nothing answered,
+  the wait ends at `START_WAIT` with a message that says what the wait proved:
+  the address,
+  how long it waited,
+  and that a service stopped inside its own process looks like that
+  (`ClientFailure::NothingAnswered`).
+  "The commit service did not start" is said only where nothing listened at all,
+  because the two states have different next steps.
   What provisioning already knows before that wait ends it at once instead,
   and the message names the cause and every way to change it
   (`src/native/service/service_provision_refusals_before_the_wait.rs`):
@@ -6458,6 +6552,9 @@ nothing over.
   A service that cannot be reached is said plainly,
   and the command's exit
 status is unchanged.
+  The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`,
+  because the record is written first and the command's own next steps need no answer
+  (`src/native/push/auto_push_trigger.rs`).
   `git rebase` is never handed over.
 
 The files are read as for a caller that follows a Git run that succeeded:
@@ -11119,6 +11216,14 @@ and Windows,
 BSD and other systems say that committing through the wrapper is not supported there yet.
 Run outside a repository,
 a commit ends with Git's own words and exit status for that question.
+A socket file nothing listens on and one that takes the connection and answers nothing are told apart,
+because only the second means a service stopped inside its own process:
+the message names the address and the seconds it waited
+(`ClientFailure::NothingAnswered`,
+and `ClientFailure::DidNotStart` where nothing listened at all).
+There is no other writer to fall back on:
+the service is the only writer,
+so a commit with no way to reach it changes nothing and stops.
 
 ### Invocation capture
 

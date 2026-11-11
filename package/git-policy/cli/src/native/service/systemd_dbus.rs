@@ -17,7 +17,8 @@
 //! the manager's own private socket is documented as private to systemd.
 //! Only `Reload`,
 //! `ResetFailedUnit`,
-//!  `StartUnit`,
+//!  `RestartUnit`,
+//! `StartUnit`,
 //! `StopUnit` and the state query (`GetUnit`,
 //! then a property read) are needed.
 //! The owner chose `zbus` 6 over the
@@ -77,6 +78,9 @@ pub const RELOAD: Target<'static> = Target { destination: MANAGER_NAME, path: MA
 
 /// `StartUnit` on the user manager.
 pub const START_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
+
+/// `RestartUnit` on the user manager.
+pub const RESTART_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "RestartUnit" };
 
 /// `StopUnit` on the user manager.
 pub const STOP_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
@@ -371,6 +375,29 @@ impl Bus {
     /// replacing a queued job for it.
     pub fn start_unit(&mut self, name: &str) -> Result<(), CallError> {
         return self.call_manager("StartUnit", (name.to_string(), String::from("replace"))).map(drop);
+    }
+
+    /// What:
+    ///  Stops a unit and starts it again,
+    /// whether it runs or not,
+    /// leaving the socket that activates it running.
+    /// Why:
+    ///  A unit the manager reports `active` whose program has stopped inside its own process is not repaired by a
+    /// start
+    /// (`systemctl` and the manager both leave a running unit alone),
+    /// and the socket keeps its file either
+    ///  way,
+    /// so a connection waits in its backlog and nothing ever greets it.
+    /// The service survives a kill by design (its journal,
+    ///  its held commits and its work records are durable),
+    /// so ending it is how a command that needs its answer gets one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await manager.call('RestartUnit', [name, 'replace'])
+    /// ```
+    pub fn restart_unit(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call_manager("RestartUnit", (name.to_string(), String::from("replace"))).map(drop);
     }
 
     /// What:

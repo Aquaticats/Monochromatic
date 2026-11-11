@@ -64,6 +64,10 @@ pub mod service_messages;
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
 
+/// What a commit says while it waits for the service,
+/// and that the service is restarted or the commit built again.
+pub mod service_messages_of_a_wait_for_the_service;
+
 /// The commit service's serialized step.
 pub mod service_land;
 
