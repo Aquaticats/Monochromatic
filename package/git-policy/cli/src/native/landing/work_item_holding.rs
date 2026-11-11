@@ -280,9 +280,11 @@ fn blocked_record(branch_ref: &str, commit: &str, reason: &str) -> String {
 
 /// What:
 ///  Every verdict this worktree's queue kept,
+/// and every refusal a held record still states,
 /// in name order,
 /// each naming its branch,
-/// its commit and the gate's words.
+/// its commit and the gate's words,
+/// and one per commit.
 /// Why:
 ///   The records are the only statement of a verdict,
 /// so the automatic push and every command's notice read them here rather than
@@ -291,10 +293,14 @@ fn blocked_record(branch_ref: &str, commit: &str, reason: &str) -> String {
 /// so it is
 ///  named without its branch and words:
 /// silence would let that commit be published.
+///  A refusal the held records state is read here too,
+/// because the verdict goes into such a record first
+///  and that record outliving it is the state a command killed in the gap or a failed write leaves,
+/// so a commit the gate refused stays local either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// blockedVerdicts(workDir) // one entry per file in `blocked`, oldest name first
+/// blockedVerdicts(workDir) // one entry per file in `blocked`, oldest name first, and one per refusal the held records state
 /// ```
 pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
     let blocked: PathBuf = state_directory(work_dir, BLOCKED);
@@ -324,7 +330,7 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
     //  between the verdict and the verdict record, or that record could not be written. The commit must not be published by the
     //  branch's next push in that state either (`held_push_holder_and_verdict.rs`), and one verdict per commit is enough.
     for refusal in refused_while_held(work_dir) {
-        if !verdicts.iter().any(|verdict| verdict.commit == refusal.commit) {
+        if !verdicts.iter().any(|verdict| return verdict.commit == refusal.commit) {
             verdicts.push(refusal);
         }
     }

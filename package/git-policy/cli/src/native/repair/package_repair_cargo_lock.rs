@@ -131,7 +131,7 @@ pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) 
         },
     };
     put_back(path.as_path(), before);
-    let Some(copy) = kept else { return None };
+    let copy: PathBuf = kept?;
     return Some(format!(
         "the {LOCK_FILE} of {} was not the checked-out file when the clean ended, so the bytes that stood there are kept at {}, and the file \
          is back as checked out",
