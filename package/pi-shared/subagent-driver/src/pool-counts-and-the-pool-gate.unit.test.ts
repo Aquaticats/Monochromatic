@@ -23,8 +23,8 @@ import {
   NO_POOL_HAS_ROOM,
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
-  POOL_OF_A_RUN_NAMING_NO_POOL,
   PoolGateOptionsError,
+  PROVIDER_POOLS,
   PROVIDER_OPTION,
   type PoolGateOptions,
   type PoolMembership,
@@ -57,7 +57,7 @@ import {
 function aRun(name: string, pool?: PoolMembership,): GoingRun {
   return {
     name,
-    membership: pool ?? { inAPool: false, },
+    membership: pool ?? { holds: 'no-pool', },
   };
 }
 
@@ -75,8 +75,27 @@ function aRun(name: string, pool?: PoolMembership,): GoingRun {
  */
 function inPool(pool: typeof NEURALWATT_STANDARD,): PoolMembership {
   return {
-    inAPool: true,
+    holds: 'a-pool',
     pool,
+  };
+}
+
+/**
+ A membership a command line could not place: every pool such a run could be running on.
+
+ @param pools - the pools the run could hold
+
+ @returns the membership
+
+ @example
+ ```ts
+ const unknown = couldBeIn(PROVIDER_POOLS);
+ ```
+ */
+function couldBeIn(pools: readonly (typeof NEURALWATT_STANDARD)[]): PoolMembership {
+  return {
+    holds: 'some-pools',
+    pools,
   };
 }
 
@@ -173,7 +192,7 @@ await describe({
             expect(poolNamed({
               provider: 'synthetic',
               model: 'moonshotai/Kimi-K3.1-Pro',
-            },),).toEqual({ inAPool: false, },);
+            },),).toEqual({ holds: 'no-pool', },);
           },
         },),
       ],
@@ -195,19 +214,20 @@ await describe({
           },
         },),
         it({
-          name: 'counts no slot for an audit, or for a Kimi run on a provider no pool holds',
+          name: 'counts no slot for an audit, whatever its command line names',
           fn: async () => {
-            expect(membershipOf({ runName: 'sol-audit-1', }),).toEqual({ inAPool: false, },);
-            expect(membershipOf({ runName: 'kimi-review-round-9', }),).toEqual({ inAPool: false, },);
+            expect(membershipOf({ runName: 'sol-audit-1', }),).toEqual({ holds: 'no-pool', },);
+            expect(membershipOf({
+              runName: 'sol-audit-1',
+              pool: inPool(NEURALWATT_STANDARD,),
+            },),).toEqual({ holds: 'no-pool', },);
           },
         },),
         it({
-          name: 'counts a run that names no pool at all in the fallback pool, which is what a unit whose own command line could not be read is counted in',
+          name: 'holds a slot in every pool a run could be in when its command line could not be read',
           fn: async () => {
-            expect(membershipOf({ runName: 'copy-route', }),).toEqual({
-              inAPool: true,
-              pool: POOL_OF_A_RUN_NAMING_NO_POOL,
-            },);
+            expect(membershipOf({ runName: 'copy-route', }),).toEqual(couldBeIn(PROVIDER_POOLS,),);
+            expect(membershipOf({ runName: 'kimi-review-a', }),).toEqual(couldBeIn([NEURALWATT_KIMI_FLEX,],),);
           },
         },),
       ],
@@ -230,6 +250,25 @@ await describe({
             expect(tallies.counts.get('neuralwatt',),).toBe(2,);
             expect(tallies.counts.get('opencode-go',),).toBe(0,);
             expect(summaryTextOf(tallies,),).toBe('neuralwatt 2/20, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22',);
+          },
+        },),
+        it({
+          name: 'counts a run whose pool could not be read in every pool it could be running on, and says so in the line',
+          fn: async () => {
+            /**
+             One run whose command line could not be read, and one that named the Kimi pool and could not be read either.
+             */
+            const tallies = talliesOf({
+              runs: [
+                aRun('copy-route', couldBeIn(PROVIDER_POOLS,),),
+                aRun('kimi-review-a', couldBeIn([NEURALWATT_KIMI_FLEX,],),),
+              ],
+            },);
+            expect(tallies.counts.get('neuralwatt',),).toBe(1,);
+            expect(tallies.counts.get('neuralwatt-flex',),).toBe(1,);
+            expect(tallies.counts.get('opencode-go',),).toBe(1,);
+            expect(tallies.counts.get('neuralwatt-kimi-flex',),).toBe(2,);
+            expect(summaryTextOf(tallies,),).toBe('neuralwatt 1/20, neuralwatt-flex 1/22, opencode-go 1/20, neuralwatt-kimi-flex 2/22',);
           },
         },),
       ],
@@ -345,7 +384,7 @@ await describe({
           name: 'sends a run whose provider no pool holds on its own provider',
           fn: async () => {
             expect(poolChoiceFor({
-              requested: { inAPool: false, },
+              requested: { holds: 'no-pool', },
               tallies: talliesOf({ runs: [], },),
               resumes: false,
             },),).toEqual({ destination: 'its-own-provider', },);
