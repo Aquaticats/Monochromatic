@@ -160,6 +160,70 @@ fn the_alternates_keep_a_path_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  A repository whose directory name holds a line feed writes its real object directory into the shadow's alternates
+///  as a C-quoted line,
+///  and the shadow's Git reads the real store through it.
+/// Why:
+///   The alternates file holds one pathname per line and an unquoted line ends at its first line feed,
+///  so the entry named a directory that does not exist and the shadow's Git called the shadow no repository.
+///  Git reads a line that begins with a double quote as a C-quoted pathname (`parse_alternates` in `odb.c`,
+///  `unquote_c_style` in `quote.c`).
+#[test]
+fn the_alternates_quote_a_path_a_line_feed_would_split() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-line-feed");
+    let repo: PathBuf = root.join(OsString::from_vec(b"a\nb".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = vec![b'"'];
+    expected.extend_from_slice(path_bytes_of(root.as_path()));
+    expected.extend_from_slice(b"/a\\nb/.git/objects\"\n");
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the line feed is escaped in a quoted line"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "the shadow's Git reads the real store through the quoted alternate"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A quoted alternate keeps a double quote and a backslash inside the one pathname it names.
+/// Why:
+///   A quote inside a quoted line would end the pathname early and a backslash would start an escape,
+///  so both are written as their C escapes and the shadow's Git still reads the real store.
+#[test]
+fn a_quoted_alternate_keeps_a_quote_and_a_backslash_in_one_pathname() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-quoted-name");
+    let repo: PathBuf = root.join(OsString::from_vec(b"q\"b\\s\nf".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = vec![b'"'];
+    expected.extend_from_slice(path_bytes_of(root.as_path()));
+    expected.extend_from_slice(b"/q\\\"b\\\\s\\nf/.git/objects\"\n");
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the quote and the backslash are escaped beside the line feed"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "one pathname still names the real store"
+    );
+    remove(root.as_path());
+}
+
 /// Creating the shadow leaves the real refs,
 /// the real index and the worktree bytes unchanged.
 #[test]
