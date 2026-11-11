@@ -98,6 +98,8 @@ pub(crate) fn objects_of_batch(
         //  it made (`held_commit_record.rs`, `service_scratch_ref_marker_of_a_batch.rs`).
         // The write is answered by the reference, not by the wait for it: a wait that ends without its answer is told apart from a
         //  write that failed, so a slow host never tells a person their commit was not made (`keep_on_the_scratch_reference`).
+        //  A reference that still does not name the commit after that is a write the repository did not take, and the batch ends
+        //  with the person's index and worktree as they were, so the answer that it was not made is true of anything they can reach.
         record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
         if let Some(words) = keep_on_the_scratch_reference(git, repository, scratch, built) {
             crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");

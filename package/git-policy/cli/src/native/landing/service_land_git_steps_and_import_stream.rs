@@ -30,6 +30,9 @@ use std::path::Path;
 ///  so one write more after the reference is read costs a step and saves the commit.
 ///  A write Git itself refused is written no second time:
 ///  the same value at the same name is refused the same way.
+///  Unmeasured:
+///  the count is the smallest that lets one wait which ended be finished by a read and one write after it,
+///  and another attempt would multiply the wait of a write the disk makes slow on every try.
 const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 
 /// What:
