@@ -75,7 +75,7 @@ static COLLECTING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 /// ```
 fn claim(common_dir: &Path) -> bool {
     let mut collecting = COLLECTING.lock().expect("the collections this service runs");
-    if collecting.iter().any(|held| held.as_path() == common_dir) {
+    if collecting.iter().any(|held| { return held.as_path() == common_dir; }) {
         return false;
     }
     collecting.push(common_dir.to_path_buf());
@@ -94,7 +94,7 @@ fn claim(common_dir: &Path) -> bool {
 /// release(commonDir) // void
 /// ```
 fn release(common_dir: &Path) {
-    COLLECTING.lock().expect("the collections this service runs").retain(|held| held.as_path() != common_dir);
+    COLLECTING.lock().expect("the collections this service runs").retain(|held| { return held.as_path() != common_dir; });
 }
 
 /// What:

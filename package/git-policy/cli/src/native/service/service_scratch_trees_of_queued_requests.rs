@@ -62,7 +62,7 @@ static HELD: Mutex<Vec<(String, OsString)>> = Mutex::new(Vec::new());
 pub fn note(id: &str, tree: &Path) {
     let Some(name) = tree.file_name() else { return };
     let mut held = HELD.lock().expect("the trees the queued requests hold");
-    held.retain(|(named, _)| named.as_str() != id);
+    held.retain(|(named, _)| { return named.as_str() != id; });
     held.push((String::from(id), name.to_os_string()));
 }
 
@@ -78,7 +78,7 @@ pub fn note(id: &str, tree: &Path) {
 /// release(id); // void
 /// ```
 pub fn release(id: &str) {
-    HELD.lock().expect("the trees the queued requests hold").retain(|(named, _)| named.as_str() != id);
+    HELD.lock().expect("the trees the queued requests hold").retain(|(named, _)| { return named.as_str() != id; });
 }
 
 /// What:
@@ -97,7 +97,7 @@ pub fn release(id: &str) {
 /// ```
 pub fn is_held(path: &Path) -> bool {
     let Some(name) = path.file_name() else { return false };
-    return HELD.lock().expect("the trees the queued requests hold").iter().any(|(_, held)| held.as_os_str() == name);
+    return HELD.lock().expect("the trees the queued requests hold").iter().any(|(_, held)| { return held.as_os_str() == name; });
 }
 
 /// The record and its two ends are controlled in the test module.
