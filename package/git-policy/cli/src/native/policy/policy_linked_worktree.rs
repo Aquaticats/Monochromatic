@@ -96,15 +96,12 @@ use std::path::{Path, PathBuf};
 ///  `Result<PathBuf, String>` is the directory or why it could not be named.
 /// Why:
 ///   A relative `--file` path is read from where the command runs,
-///  `--work-tree` does not move
-///       that directory for `git config`,
+///  `--work-tree` does not move that directory for `git config`,
 ///  and it may name a directory the command does not run in at all,
-///  so the
-///       worktree top level plus Git's own prefix is not the answer here:
-///  that prefix is empty whenever the
-///       caller sits outside the `--work-tree`, which is exactly when the two disagree.
-///  Only the `-C`
-///       chain moves the directory Git reads a relative path from.
+///  so the worktree top level plus Git's own prefix is not the answer here:
+///  that prefix is empty whenever the caller sits outside the `--work-tree`,
+///  which is exactly when the two disagree.
+///  Only the `-C` chain moves the directory Git reads a relative path from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

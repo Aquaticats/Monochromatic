@@ -15601,23 +15601,27 @@ a place outside any worktree and a repository under an allowlisted tool director
 
 The `--file` check decides from a path,
 and real Git opens that path after the wrapper has decided.
-A process that replaces the path in between, by repointing a link or by putting a link where a file was,
+A process that replaces the path in between,
+by repointing a link or by putting a link where a file was,
 makes Git open a file the wrapper did not compare,
 and the write lands there.
-No re-check of the same path closes that, because a swap can follow every check,
+No re-check of the same path closes that,
+because a swap can follow every check,
 and every complete answer either refuses more than Git or takes the write away from Git:
 refusing every `--file` write in a linked worktree,
-forwarding the resolved path instead (a process that can repoint a link can as easily replace the file it
-resolves to),
-writing the file inside the wrapper (which replaces Git's own locking and its byte-preserving rewrite),
-or holding `$GIT_COMMON_DIR/config.lock` for the command's whole life (every legitimate concurrent write from
-the main checkout would fail).
+forwarding the resolved path instead,
+which moves the same swap one step rather than closing it,
+writing the file inside the wrapper,
+which replaces Git's own locking and its byte-preserving rewrite,
+or holding `$GIT_COMMON_DIR/config.lock` for the command's whole life,
+which would fail every legitimate concurrent write from the main checkout.
 The guard therefore stops the command it was asked to stop,
 not a process that writes that file itself,
 under `--no-enforce-worktree` or without Git.
-A link is resolved before the comparison, so a spelling that reaches the shared file through one is refused;
-a hard link is another name for those bytes and is no bypass, because Git replaces a hard link rather than
-writing through it,
+A link is resolved before the comparison,
+so a spelling that reaches the shared file through one is refused;
+a hard link is another name for those bytes and is no bypass,
+because Git replaces a hard link rather than writing through it,
 which leaves the shared bytes what they were.
 
 The rejection changes nothing,

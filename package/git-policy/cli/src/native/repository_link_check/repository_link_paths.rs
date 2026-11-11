@@ -97,9 +97,9 @@ fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf
 ///  `PathBuf` is the owned directory.
 /// Why:
 ///   A relative path an option names is read from where the command runs,
-///  and `--work-tree`
-///  does not move that directory;
-///  Git moves it only for `-C`, one link of the chain at a time.
+///  and `--work-tree` does not move that directory;
+///  Git moves it only for `-C`,
+///  one link of the chain at a time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
