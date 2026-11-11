@@ -149,7 +149,19 @@ pub(crate) fn object_named_by(listing: &str, wanted: &str) -> Option<String> {
 /// shown.split('\n').filter((line) => line.includes('[rejected]') || line.includes('[remote rejected]'))
 /// ```
 pub(crate) fn refused_lines(shown: &str) -> Vec<&str> {
-    return shown.lines().filter(|line| line.contains(REJECTED_MARKER) || line.contains(REMOTE_REJECTED_MARKER)).collect();
+    return shown.lines().filter(is_a_refusal).collect();
+}
+
+/// Whether one line of a push's output is a refused ref.
+///  Both markers Git prints for one are a refusal,
+/// and a line that names no ref is none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (line) => line.includes('[rejected]') || line.includes('[remote rejected]')
+/// ```
+fn is_a_refusal(line: &&str) -> bool {
+    return line.contains(REJECTED_MARKER) || line.contains(REMOTE_REJECTED_MARKER);
 }
 
 /// What:
