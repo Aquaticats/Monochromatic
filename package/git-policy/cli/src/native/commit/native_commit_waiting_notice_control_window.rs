@@ -2,8 +2,7 @@
 //!  A control's window on the notice:
 //  the ceiling it plants,
 //  the looks that found the step,
-//  and the looks that failed once the ceiling had come,
-//  and the step a control states the stop did not end.
+//  and the looks that failed once the ceiling had come.
 // Why:
 //   A control that sleeps a fixed window races a notice thread on a loaded host:
 //   when its own setup outruns the ceiling,
@@ -16,7 +15,7 @@
 // Limits:
 //  Test-only. A release build reads no atomic and holds no lock here.
 
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 /// The ceiling a control planted,
@@ -26,8 +25,6 @@ static CEILING: AtomicI64 = AtomicI64::new(-1);
 /// How many looks found the step,
 /// which arms the ceiling from the first of them.
 static LOOKS_THAT_FOUND_THE_STEP: AtomicU32 = AtomicU32::new(0);
-/// Whether a control stated that the look after the stop still finds the step.
-static STOP_DID_NOT_END_THE_STEP: AtomicBool = AtomicBool::new(false);
 /// Held by the control that plants a ceiling.
 static WINDOW: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// How often a wait looks at a count.
@@ -49,32 +46,7 @@ pub(crate) fn take_the_window() -> std::sync::MutexGuard<'static, ()> {
     let taken = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     CEILING.store(-1, Ordering::SeqCst);
     LOOKS_THAT_FOUND_THE_STEP.store(0, Ordering::SeqCst);
-    STOP_DID_NOT_END_THE_STEP.store(false, Ordering::SeqCst);
     return taken;
-}
-
-/// What:
-///  State that the look after the ceiling's stop still finds the step,
-///  held in uninterruptible sleep.
-/// Why:
-///   No control on this host can put a process into that state:
-///  it takes a stalled disk,
-///  a dead network file system or a stopped file-system server,
-///  and the gate's runs mount nothing (`BOX`).
-///  The stop itself is real in every control that plants this;
-///  only the kernel's answer about the step's state is stated.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holdTheStepPastTheStop(); // a stand-in for a process in state `D`
-/// ```
-pub(crate) fn plant_a_step_the_stop_did_not_end() {
-    STOP_DID_NOT_END_THE_STEP.store(true, Ordering::SeqCst);
-}
-
-/// Whether a control stated that the stop did not end the step.
-pub(crate) fn a_control_says_the_stop_did_not_end_the_step() -> bool {
-    return STOP_DID_NOT_END_THE_STEP.load(Ordering::SeqCst);
 }
 
 /// Make the ceiling come at the next look.

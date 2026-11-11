@@ -757,3 +757,53 @@ fn a_commit_names_a_dependent_it_cannot_bump() {
         notes[0].message
     );
 }
+
+/// A real index that could not be listed leaves every dependent whose copies that listing would
+/// have proved out of the commit,
+/// names each one with Git's own reason,
+/// and proposes nothing it could not prove:
+/// a read that failed is never taken for an index that holds nothing.
+#[test]
+fn a_commit_names_every_dependent_a_failed_listing_left_behind() {
+    let root: PathBuf = fixture("dependent-commit-unlistable-index");
+    let repo: PathBuf = workspace(root.as_path());
+    let (lifecycle, _real_index): (LifecycleContent, PathBuf) =
+        commit_naming(repo.as_path(), &[path_of("a").as_str()]);
+    git(repo.as_path(), &["add", "--", path_of("a").as_str()]);
+    // A file Git refuses to read as an index stands for the real index a listing could not list.
+    let unreadable: PathBuf = root.join("unreadable-index");
+    std::fs::write(&unreadable, b"not an index\n").expect("an unreadable index");
+    let mut facts: ScriptedFacts = facts_in(repo.as_path());
+    let mut content: ContentState = ContentState::new();
+    let outcome: PolicyOutcome = super::check_dependent_version(DependentCheck {
+        content: &mut content,
+        lifecycle: &lifecycle,
+        facts: &mut facts,
+        trigger: Trigger::PreForward,
+        forwards_commit: true,
+        real_index: Some(unreadable.as_path()),
+    });
+    let proposals: Vec<Correction> = content.take_proposals();
+    remove(root.as_path());
+    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+        panic!("one note per dependent is expected, got {outcome:?}");
+    };
+    assert_eq!(findings, Vec::<PolicyFinding>::new());
+    assert_eq!(proposals, Vec::<Correction>::new());
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    for (note, name) in notes.iter().zip(["b", "c"]) {
+        assert_eq!(note.path, Some(EventPath::display(&path_of(name))), "{name}");
+        assert!(note.message.contains(&format!("@s/{name}")), "{name}: {}", note.message);
+        assert!(
+            note.message.contains("the real index could not be listed"),
+            "{name}: {}",
+            note.message
+        );
+        assert!(note.message.contains("index file"), "{name}: {}", note.message);
+        assert_eq!(
+            note.hint,
+            Some(crate::policy_events::UNPROVEN_RIPPLE_HINT),
+            "{name}"
+        );
+    }
+}

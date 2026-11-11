@@ -1367,6 +1367,35 @@ mise run //package/translation-repair/<package>:build
 mise run //package/translation-repair/<package>:lint:types   # 7 errors, 5 test files
 ```
 
+### The same staleness also fails a check that should pass
+
+Staleness cuts both ways.
+An export added to `src/` leaves the previous `index.d.mts` declaring nothing,
+ so the test files importing it fail a check whose source is correct.
+
+Observed 2026-11-10 in `package/backup-path/cli` at `6c039edb19`,
+ whose `src/index.ts` exports `backupFolderName`,
+ `backupPath` and `copyIntoBackup` since `b2d9898ae9`,
+ while the `dist/` in that checkout declared nothing:
+
+```text
+src/backup-path.unit.test.ts(30,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'backupFolderName'.
+src/backup-path.unit.test.ts(31,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'backupPath'.
+src/backup-path.unit.test.ts(32,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'copyIntoBackup'.
+```
+
+`mise run //package/backup-path/cli:build` followed by
+ `mise run //package/backup-path/cli:lint:types` exited 0,
+ and the rebuilt `index.d.mts` declared all three.
+So `TS2305` on a name the source exports is a stale bundle,
+ never a missing export:
+ read `dist/final/node/index.d.mts` before the source.
+
+A checkout holding no `dist/` at all reports the other diagnostic,
+ `TS2307: Cannot find module`,
+ so the check needs the package's build either way,
+ and reads as a regression on `main` only because the error names no artifact.
+
 ### Workaround
 
 Build before type-checking whenever a change could reach a test file:

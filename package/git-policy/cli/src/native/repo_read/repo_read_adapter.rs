@@ -19,6 +19,8 @@ use crate::repo_read_layout::{RepoLayout, git_path};
 use crate::repository_location::RepositoryLocation;
 use crate::rule_commit_sequencer::{SequencerFacts, SequencerState, sequencer_state};
 use crate::worktree_identity::WorktreeIdentity;
+/// `PathBuf` is an owned filesystem path.
+use std::path::PathBuf;
 
 /// What:
 ///  The location `git rev-parse` would report for this layout.
@@ -94,31 +96,72 @@ fn git_file_exists(layout: &RepoLayout, name: &str) -> Option<bool> {
 }
 
 /// What:
-///  The seven-line report the invocation capture asks `rev-parse` for:
+///  The layout facts the invocation capture records,
+///  read from a layout:
 /// top level,
 /// Git directory,
 /// common directory,
 ///  index,
 /// objects,
-/// transaction registry and object format,
-/// one per line.
+/// transaction registry,
+///  and object format.
 /// Why:
-///   The capture parses that text by line number,
-/// so an in-process answer is the same text and the parser stays one.
+///   The capture stores paths and not a report split at line feeds.
+///  A pathname may hold the line feed that separated two answers of one report,
+///  and it may hold bytes that are not UTF-8,
+///  so a text report cannot be taken apart into these paths again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [toplevel, gitDir, commonDir, gitPath('index'), gitPath('objects'), gitPath('cli-git-transactions'), objectFormat].join('\n')
+/// type InvocationReport = { topLevel: string; gitDir: string; commonDir: string; indexPath: string; objectDirectory: string; registryRoot: string; objectFormat: string };
 /// ```
-pub fn invocation_report(layout: &RepoLayout) -> Option<String> {
-    let lines: [String; 7] = [
-        layout.worktree_root.to_str()?.to_string(),
-        layout.git_dir.to_str()?.to_string(),
-        layout.common_dir.to_str()?.to_string(),
-        git_path(layout, "index")?.to_str()?.to_string(),
-        git_path(layout, "objects")?.to_str()?.to_string(),
-        git_path(layout, "cli-git-transactions")?.to_str()?.to_string(),
-        layout.object_format.name().to_string(),
-    ];
-    return Some(lines.join("\n"));
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvocationReport {
+    /// The worktree's top level.
+    pub top_level: PathBuf,
+    /// The per-worktree Git directory.
+    pub git_dir: PathBuf,
+    /// The directory that holds the objects and the shared refs.
+    pub common_dir: PathBuf,
+    /// The index Git would write,
+    ///  honouring `GIT_INDEX_FILE`.
+    pub index_path: PathBuf,
+    /// The object directory the shadow's alternates name.
+    pub object_directory: PathBuf,
+    /// The per-worktree transaction registry.
+    pub registry_root: PathBuf,
+    /// The object hash algorithm name `rev-parse --show-object-format` prints.
+    pub object_format: String,
 }
+
+/// What:
+///  The report of one layout,
+///  or nothing when the reader cannot name its per-worktree paths.
+/// Why:
+///   Every path is the layout's own path,
+///  kept as bytes (`path_bytes.rs`),
+///  so a repository whose name is not UTF-8 is read where it is;
+///  only a linked worktree,
+///  whose names Git splits,
+///  has no in-process answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ({ topLevel: layout.worktreeRoot, gitDir: layout.gitDir, ... , objectFormat: layout.objectFormat.name() })
+/// ```
+pub fn invocation_report(layout: &RepoLayout) -> Option<InvocationReport> {
+    return Some(InvocationReport {
+        top_level: layout.worktree_root.clone(),
+        git_dir: layout.git_dir.clone(),
+        common_dir: layout.common_dir.clone(),
+        index_path: git_path(layout, "index")?,
+        object_directory: git_path(layout, "objects")?,
+        registry_root: git_path(layout, "cli-git-transactions")?,
+        object_format: layout.object_format.name().to_string(),
+    });
+}
+
+/// The report's own controls stay out of the release executable.
+#[cfg(test)]
+#[path = "repo_read_adapter_tests.rs"]
+mod tests;

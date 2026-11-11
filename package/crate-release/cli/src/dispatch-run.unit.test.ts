@@ -50,6 +50,21 @@ type GitReplies = {
 };
 
 /**
+ The program a crate's dispatch gate runs in these tests, which is neither `git` nor `gh`, so its calls are told apart
+ from both.
+ */
+const gateProgram = 'node';
+
+/**
+ The dispatch gate the tests give a crate: the command its release waits for.
+ */
+const gateCall: ProgramCall = {
+  program: gateProgram,
+  args: ['bin/host-controls.ts'],
+  cwd: '/repo/package/gated/cli',
+};
+
+/**
  Default branch the canned remote names, which differs from `main` so a hard-coded branch name fails a test.
  */
 const defaultBranch = 'trunk';
@@ -120,10 +135,12 @@ function answerGit({
 async function record({
   dispatchOptions = options,
   result = { status: 0, stdout: '', stderr: '' },
+  gate = { status: 0, stdout: '', stderr: '' },
   git = {},
 }: {
   readonly dispatchOptions?: DispatchOptions;
   readonly result?: ProgramResult;
+  readonly gate?: ProgramResult;
   readonly git?: GitReplies;
 } = {}) {
   const allCalls: ProgramCall[] = [];
@@ -132,6 +149,8 @@ async function record({
     options: dispatchOptions,
     run: async function run(call) {
       allCalls.push(call);
+      if (call.program === gateProgram)
+        return gate;
       return call.program === 'git' ? answerGit({ call, replies: git }) : result;
     },
     print: function print(line) {
@@ -141,7 +160,16 @@ async function record({
   const calls = allCalls.filter(function isGh(call) {
     return call.program === 'gh';
   });
-  return { status, allCalls, calls, printed };
+  const gateCalls = allCalls.filter(function isGate(call) {
+    return call.program === gateProgram;
+  });
+  return {
+    status,
+    allCalls,
+    calls,
+    gateCalls,
+    printed,
+  };
 }
 
 await describe({
@@ -403,6 +431,102 @@ await describe({
         }),
 
         //endregion Origin containment before the dispatch
+
+        //region The crate's own release gate
+
+        describe({
+          name: 'dispatch gate',
+          children: [
+            it({
+              name: 'waits for the gate of the crate and names the command before the workflow is started',
+              fn: async () => {
+                const gateOutput = 'Waiting for the btrfs controls on this host: mise run //package/git-policy/cli:native:test:host:btrfs';
+                const result = await record({
+                  dispatchOptions: { ...options, dispatchGate: gateCall },
+                  gate: { status: 0, stdout: `${gateOutput}\n`, stderr: '' },
+                });
+                expect(result.status).toBe(0);
+                expect(result.gateCalls).toEqual([gateCall]);
+                expect(result.allCalls.indexOf(gateCall)).toBeLessThan(result.allCalls.indexOf(result.calls[0] ?? gateCall));
+                const text = result.printed.join('\n');
+                expect(text).toContain(`Waiting for node bin/host-controls.ts`);
+                expect(text).toContain(gateOutput);
+                expect(result.printed.at(-1)).toContain('RELEASE STARTED');
+              },
+            }),
+            it({
+              name: 'refuses before gh when the gate exits nonzero, showing what the gate printed',
+              fn: async () => {
+                const gateRefusal = 'REFUSED the wrapper release: the btrfs controls on this host did not pass';
+                const result = await record({
+                  dispatchOptions: { ...options, dispatchGate: gateCall },
+                  gate: { status: 1, stdout: '', stderr: `${gateRefusal}\n` },
+                });
+                expect(result.status).toBe(failureExitCode);
+                expect(result.calls).toHaveLength(0);
+                const text = result.printed.join('\n');
+                expect(text).toContain(gateRefusal);
+                expect(text).toContain(`REFUSED ${releaseWorkflow} was not started`);
+                expect(text).toContain('node bin/host-controls.ts exited 1');
+                expect(text).not.toContain('RELEASE STARTED');
+              },
+            }),
+            it({
+              name: 'skips the gate for a dry run and says the dry run proves nothing about it',
+              fn: async () => {
+                const result = await record({
+                  dispatchOptions: {
+                    ...options,
+                    dryRun: true,
+                    dispatchGate: gateCall,
+                  },
+                  result: { status: 0, stdout: 'https://github.com/o/r/actions/runs/7\n', stderr: '' },
+                });
+                expect(result.status).toBe(0);
+                expect(result.gateCalls).toHaveLength(0);
+                expect(result.calls).toHaveLength(1);
+                expect(result.printed.join('\n')).toContain('RELEASE DRY RUN: not running node bin/host-controls.ts');
+              },
+            }),
+            it({
+              name: 'runs the gate through the streaming runner when the caller supplies one, so an hour of controls stays visible',
+              fn: async () => {
+                /**
+                 The call the gate runner received, which is the gate's own command.
+                 */
+                const streamed: ProgramCall[] = [];
+                const printed: string[] = [];
+                const status = await dispatchRelease({
+                  options: { ...options, dispatchGate: gateCall },
+                  run: async function run(call) {
+                    return call.program === 'git' ? answerGit({ call, replies: {} }) : { status: 0, stdout: '', stderr: '' };
+                  },
+                  runGate: async function runGate(call) {
+                    streamed.push(call);
+                    return { status: 0, stdout: '', stderr: '' };
+                  },
+                  print: function print(line) {
+                    printed.push(line);
+                  },
+                });
+                expect(status).toBe(0);
+                expect(streamed).toEqual([gateCall]);
+                expect(printed.at(-1)).toContain('RELEASE STARTED');
+              },
+            }),
+            it({
+              name: 'starts the workflow without a gate when the crate names none',
+              fn: async () => {
+                const result = await record();
+                expect(result.status).toBe(0);
+                expect(result.gateCalls).toHaveLength(0);
+                expect(result.calls).toHaveLength(1);
+              },
+            }),
+          ],
+        }),
+
+        //endregion The crate's own release gate
 
         ...adversarialLines.map(function noteCase(note) {
           return it({

@@ -3644,3 +3644,286 @@ and the commit makes its creation as it did before.
 - The fill costs one creation and two Git starts per landing the service takes,
   beside the landing and never inside it,
   which no commit waits for.
+
+## Where the pool lives, and the leak check that found it (2026-11-10T15:57:02-05:00)
+
+What this answers:
+where the pool of finished shadows sits now,
+why it moved out of the repository scratch directory,
+and what the two controls that failed on `main` prove about it.
+
+### The two controls that failed
+
+The pool was built inside the repository scratch directory,
+at `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+and two controls of the release gate on `main` at `483bbc6587` said what that costs.
+Both are the check that catches leaked scratch:
+
+- `markdown::a_commit_keeps_its_git_input_in_the_repository_scratch_directory`
+  (`src/native/binary/binary_markdown_tests.rs`) failed with
+  `nothing is left in .../repo/.git/monochromatic-git-policy-cli-scratch after 30s: ["shadow-pool"]`;
+- `service_scratch::a_commit_leaves_no_scratch_directory_once_its_landing_is_over`
+  (`src/native/binary/binary_service_scratch_tests.rs`) failed with
+  `the repository scratch directory holds nothing`.
+
+Neither control is wrong.
+A member of the pool is standing state the owner asked for
+("Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.",
+`doc/handover/questions-for-the-owner.md`,
+"The private repository every commit builds"),
+and the owner did not say where it lives.
+A directory whose emptiness is the wrapper's own proof that nothing leaked
+cannot also hold the one thing the wrapper keeps on purpose.
+
+### What moved
+
+The pool is now its own folder inside the Git common directory and beside the scratch directory:
+`<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`
+(`SHADOW_POOL_FOLDER` in `wrapper_names_old_and_new.rs`,
+`pool_root_for` in `shadow_pool.rs`).
+The name is a fresh one this release is the first to write,
+so it has no earlier spelling.
+
+Every pass that removes scratch was read for what it would do with it,
+and each one leaves a member alone by construction rather than by a list:
+
+- the sweep a command that takes scratch runs
+  (`scratch_location.rs`,
+  `prepare_repository_scratch`)
+  reaches entries of the scratch directory only,
+  and of the earlier directory an earlier release made
+  (`sweep_earlier_repository_scratch`);
+- the release of a commit's scratch tree after its landing
+  (`service_scratch_release_removal.rs`)
+  refuses a name that is not under the scratch directory or the worktree's Git directory,
+  and that does not carry the wrapper's commit-tree prefix
+  (`is_scratch_path`);
+- the age decision both of them share
+  (`service_scratch_abandonment.rs`,
+  `may_go`)
+  is asked about an entry of a scratch place and about nothing else;
+- `doctor` and the reclamation of a removed worktree's state read no scratch entry at all
+  (searched:
+  no read of the scratch directory or of the pool in `invocation/management*.rs`,
+  `health/`,
+  or `service_units_of_removed_worktrees.rs`).
+
+One thing moving the pool out of scratch did need:
+the folder is a private shadow entry now,
+like the scratch root beside it
+(`shadow_links.rs`,
+`is_private_shadow_entry`).
+Without that,
+a creation would link the pool into every shadow,
+so one shadow could reach every other member,
+and whether the folder existed would decide what a claimed member has to hold:
+the first fill of a repository would refuse the member it had just made.
+
+### What says it works
+
+- The two controls above pass,
+  and `service_scratch::a_landed_commit_leaves_the_pool_of_finished_shadows_alone`
+  is the same check from the other side:
+  after a landed commit the scratch directory holds nothing,
+  and a mark left in the pool's folder still holds its bytes,
+  so the release and the sweep leave standing state alone.
+- `shadow::shadow_pool::tests::the_pool_is_its_own_folder_beside_the_scratch_directory`
+  pins the place,
+  and `a_pooled_shadow_survives_a_sweep_of_the_scratch_directory`
+  shows a stale tree of the scratch directory removed while a member older still stays.
+- `shadow::shadow_links::tests::the_pool_of_finished_shadows_never_reaches_the_shadow`
+  pins the link rule.
+
+## What a commit waited for under fifty agents, and the two waits that were silence (2026-11-10T19:20:00Z)
+
+What this answers:
+where the time of a wrapped commit went on the installed `0.6.1-alpha.8` with about fifty agents working,
+why the commit of 2026-11-10T17:50:19Z ended with exit 1 although the service landed it,
+and what of that wait is left after the pool of private repositories made ahead (`373e8adfe2`).
+
+### The records, split by the steps they name
+
+The two commit timing records of the main checkout (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+and its `.1`,
+read only),
+272 records of the releases `0.6.1-alpha.7` and `0.6.1-alpha.8`,
+2,436,718 ms in all,
+in whole milliseconds:
+
+- `build` 1,250,649,
+  `prepare` 527,191,
+  `submit` 502,195,
+  `handoff` 42,377,
+  `provision` 38,627,
+  `gate` 33,452,
+  `other` 41,105.
+- within `submit`:
+  425,180 waiting for the answer and 47,603 waiting for a service to start.
+- of the 45 records over 10 s (1,795,649 ms in all),
+  `build` 1,137,857 and `submit` 326,044.
+- `buildParts` of those 45:
+  `shadow conclusion` 959,581 (the `mkdir` of the conclusion copies directory,
+  which the pool's release no longer makes when a commit concludes nothing),
+  `shadow skeleton` 76,064,
+  `shadow refs` 10,561,
+  `shadow config` 3,022,
+  `shadow links` 723,
+  and everything else under 70.
+No step name is to blame for the rest:
+`git commit` 2,648 ms and `git update-index` 225 ms in the record of 17:50:19Z are the two largest steps of it.
+
+### The commit that ended exit 1
+
+Its record:
+`sends=6`,
+`connectTries=6`,
+`answerWaitMs=31,084`,
+`positions` empty,
+`waitingNotices` 0,
+`landing` null,
+`outcome "stopped"`,
+`exitCode 1`.
+Six sends of about 5.18 s each is six expiries of `HEARTBEAT_SILENCE` (5 s) and of `RECONNECTS` (5 reconnects),
+which ends `submit_loop` with `ClientFailure::ServiceSilent`.
+
+The service's own journal for that request (`requestId c2b378d0-1772-44f9-ab44-ba570a27db09`,
+instance `f30a114aaabc977cf77309db0f77f1ee`) says where the silence was:
+
+- the batch answered `outcome=landed ... read_ms=32019 ... lock_hold_ms=3118 index_update_ms=3101 landing_ms=3194`.
+  `read_ms` is the time from a connection being accepted to its request reaching the queue:
+  thirty-two seconds in which the connection wrote nothing at all.
+- the six sends were answered `outcome=already` with `queued_ms=3196`,
+  so the commit was on the branch and every later send was told so,
+  after the client had given up.
+
+Between those two instants the connection task awaits `is_foreign`
+(`service_server_connection_handling.rs`),
+which resolves the Git directory's real path on the blocking pool,
+and no beat is written until `queue_a_commit` starts after it.
+So a live service that is waiting for storage looked exactly like a dead one,
+which is the one thing the client's silence bound must not be.
+
+### The two changes
+
+- `da2ebbd589`:
+  the beats begin with the connection,
+  and the check's answer goes through the same single writer,
+  so a request for another worktree still never lands here.
+- `1b995c2aaa`:
+  a request that names this worktree's own Git directory exactly is this instance's without the
+  resolution at all,
+  because the same text names the same directory;
+  only a request spelling it another way waits for the filesystem.
+
+Measured with `native:test:host`,
+one control each:
+
+- `a_commit_whose_directory_check_waits_is_beaten_while_it_waits`:
+  before,
+  FAILED with "the beat comes while the check waits:
+  Elapsed(())" after six beat intervals;
+  after,
+  PASS in 1.02 s.
+- `where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing`:
+  before,
+  FAILED with "the instance of a Git directory could not be looked at:
+  the system refused a thread for a
+  blocking step";
+  after,
+  PASS in 0.075 s.
+
+### Many commits at once, against native Git
+
+Method:
+one disposable repository of 2,000 tracked files,
+24 linked worktrees of it on 24 branches,
+one service per worktree started at a socket of its own under a private runtime directory,
+and 24 commits started in the same tick,
+twice per arm,
+native Git first and then the wrapper.
+The host was not idle:
+its load average was 162,
+142 and 141 over the run,
+with about fifty agents working.
+The harness is scaffolding in `${HOME}/temp/agent/pi-commit-wait` and is not in the tree.
+
+Wall time of one commit,
+in whole milliseconds:
+
+- native Git:
+  48 commits,
+  minimum 14,
+  median 27,
+  p95 235,
+  largest 237.
+- the wrapper:
+  48 commits,
+  minimum 16,
+  median 1,197,
+  p95 8,161,
+  largest 8,243.
+- native Git's own two rounds:
+  median 24 and 24,
+  p95 40 and 235,
+  which is the spread of the unchanged control.
+- the wrapper's two rounds:
+  median 869 and 8,086,
+  p95 909 and 8,167.
+
+The phases of the 46 wrapped records of that run:
+
+- the 23 commits of the first round:
+  `build` 99 ms in all,
+  `prepare` 1,130,
+  `submit` 17,654 (answer wait 17,651).
+- the 23 of the second round:
+  `build` 115 ms in all,
+  `prepare` 1,386,
+  `submit` 184,092 (answer wait 184,089).
+
+So the pool did what it was made for:
+the creation of a private repository is gone from `build`,
+which costs four to five milliseconds a commit here,
+and every second over the bar is now the wait for the service's answer.
+
+### What that answer wait is, traced
+
+The landing's own figures of those slow records:
+`lockHoldMs` 26 to 47,
+`readsMs` 6 to 16,
+`queuedBehind` 0,
+so neither the landing nor a queue of other commits was the eight seconds.
+The service's `answered` line for three commits in a row in one worktree names it:
+
+- 3,066 ms in `lock_hold_ms`,
+  `lock_stage_kind=cold`;
+- `lock_wait_ms=9369 lock_stage_ms=9333 lock_stage_kind=pre`,
+  and no `lock_looks` field,
+  which means the index lock was free at the first placement;
+- `lock_wait_ms=12867 lock_stage_ms=12825 lock_stage_kind=pre`,
+  the same.
+
+`lock_stage_ms` with `kind=pre` is the whole of `take` in `service_index_prestage.rs`,
+which waits for the marker made ahead of the next landing to finish being flushed
+("A marker still being flushed is waited for.").
+That flush is a synced write on this volume,
+and it is seconds long under this load:
+the commit waits for the durability of the lock's own marker before it can even place the lock.
+
+That wait is kept,
+and its cost is now named:
+removing it means placing a marker that a kill can lose,
+which is the record a stale lock is judged by.
+What can still be made cheaper is when it starts:
+today it is started after a landing and waited for by the next commit,
+never finished before it.
+
+### What is still missing from the record
+
+The stop reason.
+A record says `outcome` and `exitCode`,
+and nothing names which `ClientFailure` ended it nor its words,
+so the six-send silence above had to be read from the counts and from the service's journal rather than
+stated by the record.

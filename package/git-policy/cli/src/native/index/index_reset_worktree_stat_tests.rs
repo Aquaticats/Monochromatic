@@ -7,7 +7,7 @@
 //! one that changed while it was read,
 //! and one of another kind record nothing.
 
-use super::{ProofSeams, WorktreeStatRequest, read_some, recorded_stat, recorded_stat_seamed};
+use super::{ProofSeams, WorktreeStatRequest, read_some, recorded_stat, recorded_stat_seamed, stamp_proves_one_version};
 use crate::index_stat::{IndexStamp, StatData};
 use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use crate::worktree_copy_stage_leaf_copying::{ClockPin, RECENT_CHANGE_NANOS, clock_reads, stamp_nanos};
@@ -637,4 +637,30 @@ fn a_nested_path_with_an_indexed_ancestor_attributes_file_records_rather_than_pa
         "the ancestor's worktree copy is the one Git applies, so the nested file records"
     );
     remove(root.as_path());
+}
+
+/// What:
+///  A change time with no nanoseconds proves nothing,
+///  so no state it reports can be one version of a file.
+/// Why:
+///  A file system that stores whole seconds reports a change time with none,
+/// and a same-size rewrite whose modification time is put back inside that second leaves every field the proof
+///  compares unchanged,
+/// so the entry would record stat data over an edit that stays hidden.
+/// This host's file systems store nanoseconds,
+/// so the rule is checked at the moment it reads,
+/// and the controls above show a file whose change time does carry nanoseconds still records
+/// (a cross-vendor review's seventh finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stampProvesOneVersion([1700000000, 0])).toBe(false); expect(stampProvesOneVersion([1700000000, 1])).toBe(true);
+/// ```
+#[test]
+fn a_change_time_without_nanoseconds_proves_nothing() {
+    assert!(
+        !stamp_proves_one_version((1_700_000_000, 0)),
+        "a whole-second change time cannot tell two rewrites in one second apart"
+    );
+    assert!(stamp_proves_one_version((1_700_000_000, 1)), "one nanosecond is enough to tell them apart");
 }

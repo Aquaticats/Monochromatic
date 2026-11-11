@@ -25,7 +25,51 @@ const registry = parseCrateRegistry(JSON.stringify({
  @returns the parsed options
  */
 function parse(argv: readonly string[]) {
-  return parseDispatchArguments({ argv, root: '/repo', registry: () => registry });
+  return parseDispatchArguments({
+    argv,
+    root: '/repo',
+    registry: function testRegistry() {
+      return registry;
+    }
+  });
+}
+
+/**
+ Registry of a crate that names a dispatch gate.
+ */
+const gatedRegistry = parseCrateRegistry(JSON.stringify({
+  gated: {
+    crateDir: 'package/gated/cli',
+    scope: 'gated/cli',
+    dispatchGate: [
+      'node',
+      'bin/host-controls.ts',
+      '--quick',
+    ],
+  },
+}));
+
+/**
+ Parse an argument list against a registry of the test's choosing.
+
+ @param argv - arguments after the script path
+ @param named - registry the options are resolved against
+ @returns the parsed options
+ */
+function parseWith({
+  argv,
+  named,
+}: {
+  readonly argv: readonly string[];
+  readonly named: ReturnType<typeof parseCrateRegistry>;
+}) {
+  return parseDispatchArguments({
+    argv,
+    root: '/repo',
+    registry: function chosenRegistry() {
+      return named;
+    }
+  });
 }
 
 /**
@@ -79,6 +123,41 @@ await describe({
               note: 'Skip the generated rule sources.',
               dryRun: false,
             });
+          },
+        }),
+        it({
+          name: 'resolves the dispatch gate of the crate from the crate\'s own directory, with the rest of the command as its arguments',
+          fn: async () => {
+            const options = parseWith({
+              argv: [
+                '--crate',
+                'gated',
+                '0.1.0',
+                '0.1.1',
+                'Run the controls first.',
+              ],
+              named: gatedRegistry,
+            });
+            expect(options.dispatchGate).toEqual({
+              program: 'node',
+              args: [
+                'bin/host-controls.ts',
+                '--quick',
+              ],
+              cwd: '/repo/package/gated/cli',
+            });
+          },
+        }),
+        it({
+          name: 'leaves the dispatch gate off the options of a crate that names none',
+          fn: async () => {
+            expect(parse([
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.6.1',
+              'Skip the generated rule sources.',
+            ]).dispatchGate).toBeUndefined();
           },
         }),
         it({

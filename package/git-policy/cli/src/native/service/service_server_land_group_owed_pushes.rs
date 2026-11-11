@@ -87,10 +87,15 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
 }
 
 /// Holds one push record for a commit a batch lands.
+///
+/// The holder is left empty here:
+/// this runs before the branch moves,
+/// and the answer loop that names the command (`hold_the_push`)
+///  writes it into the same record with the item's own words.
 fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
     let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, "") {
         crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
     }
 }
@@ -125,7 +130,13 @@ pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
         tries: 0,
     };
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+    // The record this batch already held names no command; naming this request's command here is what lets a later command
+    //  tell a wait that has a command behind it from one whose command is gone (`held_push_holder_and_verdict.rs`).
+    let named: bool = crate::work_item::record_verdict(work_dir.as_path(), item.id().as_str(), request.holder.as_str(), crate::held_push_holder_and_verdict::Verdict::Undecided, "");
+    if named {
+        return;
+    }
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, request.holder.as_str()) {
         crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
     }
 }

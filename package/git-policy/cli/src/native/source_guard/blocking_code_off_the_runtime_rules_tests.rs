@@ -294,11 +294,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
     },
     // The pauses of a synchronous face, each waiting for the step that owns its conversion.
     Allowed {
-        file: "commit/native_commit_waiting_notice.rs",
-        rule: "blocking-sleep",
-        why: "the waiting notice's own clock while the commit runs, on the thread that writes the notice",
-    },
-    Allowed {
         file: "foundation/name_held_while_one_thread_publishes_it.rs",
         rule: "blocking-sleep",
         why: "the macOS and Windows fallback of the name wait; on Linux the same wait is a futex",

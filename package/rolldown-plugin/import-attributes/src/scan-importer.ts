@@ -107,6 +107,36 @@ async function readImporterSource({
 
 //endregion Importer source
 
+//region Static declaration match
+
+/**
+ Reads the attribute type of one static declaration whose source is the scanned specifier.
+ 
+ @param source - because only the declaration naming this module carries its clause
+ 
+ @param attributes - because the clause is where the type is written
+ 
+ @param specifier - because the scan looks for one module's attribute
+ 
+ @returns the declaration's attribute type, or {@link NO_ATTR_TYPE} when it names another module
+ */
+function specifierAttrType({
+  source,
+  attributes,
+  specifier,
+}: Readonly<{
+  source: ESTree.StringLiteral;
+  attributes: readonly ESTree.ImportAttribute[];
+  specifier: string;
+}>,): string | typeof NO_ATTR_TYPE {
+  if (source.value
+    !== specifier)
+    return NO_ATTR_TYPE;
+  return staticDeclAttrType(attributes,);
+}
+
+//endregion Static declaration match
+
 //region Importer scan
 
 /**
@@ -183,33 +213,37 @@ export async function scanImporterForAttribute({
     ImportDeclaration(node: ForeignBorrowed<ESTree.ImportDeclaration>,): void {
       if (found !== NO_ATTR_TYPE)
         return;
-      if (node.source
-        .value
-        !== specifier)
-        return;
-      found = staticDeclAttrType(node.attributes,);
+      found = specifierAttrType({
+        source: node.source,
+        attributes: node.attributes,
+        specifier,
+      },);
     },
 
     ExportNamedDeclaration(node: ForeignBorrowed<ESTree.ExportNamedDeclaration>,): void {
       if (found !== NO_ATTR_TYPE)
         return;
-      if ((node.source
+      /**
+       Declaration without a source names no module to scan.
+       */
+      if (node.source
         === null)
-        || (node.source
-          .value
-          !== specifier))
         return;
-      found = staticDeclAttrType(node.attributes,);
+      found = specifierAttrType({
+        source: node.source,
+        attributes: node.attributes,
+        specifier,
+      },);
     },
 
     ExportAllDeclaration(node: ForeignBorrowed<ESTree.ExportAllDeclaration>,): void {
       if (found !== NO_ATTR_TYPE)
         return;
-      if (node.source
-        .value
-        !== specifier)
-        return;
-      found = staticDeclAttrType(node.attributes,);
+      found = specifierAttrType({
+        source: node.source,
+        attributes: node.attributes,
+        specifier,
+      },);
     },
 
     ImportExpression(node: ForeignBorrowed<ESTree.ImportExpression>,): void {

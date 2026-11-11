@@ -346,7 +346,23 @@ fn stale_fixture(root: &Path) -> Stale {
     let repo: PathBuf = repository(root, "repo");
     git(repo.as_path(), &["config", "filter.slow.clean", format!("sleep 0.{CLEAN_FILTER_MILLISECONDS}; cat").as_str()]);
     git(repo.as_path(), &["config", "filter.slow.smudge", "cat"]);
-    std::fs::write(repo.join(".gitattributes"), "* filter=slow\n").expect("attributes");
+    // What:
+    //  The slow filter covers the stale files a refresh must read, and not the one file a commit stages.
+    // Why:
+    //  The controls of a ceiling set it for every step of the preparation,
+    //  and a step that pays the filter is the staging `git add` of the named file, whose own cost is about 0.05 s.
+    //  With every file filtered, that start cost one `CLEAN_FILTER_MILLISECONDS` sleep,
+    //  and the 500 ms ceiling of `a_private_refresh_the_ceiling_ends_leaves_the_private_index_as_the_copy_made_it`
+    //  left it a quarter of its own cost as room,
+    //  so a loaded host ended the staging and failed a control about the refresh.
+    //  A step that must outlast the ceiling still does: the refresh reads `STALE_FILES - 1` filtered files,
+    //  which is what `stale_ceiling` already counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(join(repo, '.gitattributes'), 'f[2-9].txt filter=slow\nf1[0-2].txt filter=slow\n');
+    // ```
+    std::fs::write(repo.join(".gitattributes"), "f[2-9].txt filter=slow\nf1[0-2].txt filter=slow\n").expect("attributes");
     for number in 1..=STALE_FILES {
         std::fs::write(repo.join(format!("f{number}.txt")), format!("file {number}\n")).expect("a file of the worktree");
     }

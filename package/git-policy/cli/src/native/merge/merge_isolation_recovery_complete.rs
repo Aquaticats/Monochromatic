@@ -20,11 +20,12 @@
 //! await complete({ place, root, record, intent, changes, judgements, installedBefore, stderr });
 //! ```
 
-use crate::diagnostic_log::debug;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
-use crate::merge_isolation_recovery_cleanup::{a_worktree_that_switched, an_installed_merge_behind_a_held_index, partly_installed};
-use crate::merge_isolation_recovery_reads::symbolic_ref_awaiting;
+use crate::merge_isolation_recovery_cleanup::{
+    a_branch_that_could_not_be_put_back, a_landed_merge_in_another_branchs_worktree, a_worktree_that_switched, an_installed_merge_behind_a_held_index, partly_installed,
+};
+use crate::merge_isolation_recovery_reads::{resolve_commit_awaiting, symbolic_ref_awaiting};
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRefusal, RecoveryPlace, install_entries_awaiting,
 };
@@ -57,7 +58,7 @@ pub async fn complete_awaiting<W: std::io::Write + ?Sized>(
     installed_before: bool,
     out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
-    if install_entries_awaiting(place, root, changes, judgements, installed_before, out).await? == Installed::IndexHeld {
+    if install_entries_awaiting(place, root, changes, judgements, installed_before, intent.owner.transaction_id.as_str(), out).await? == Installed::IndexHeld {
         // A merge that was already installed has nothing to defer: a command that went on would read it as another session's
         //  staged work, so it is stopped and told what is there.
         if installed_before {
@@ -95,6 +96,21 @@ pub async fn complete_awaiting<W: std::io::Write + ?Sized>(
     arguments.push(intent.new_oid.as_str());
     arguments.push(intent.old_oid.as_str());
     if let Err(error) = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        // Another command may have landed this same merge between the branch's read and this write: its own compare-and-swap
+        //  then leaves the branch naming the merge, which is the merge landed and not a refusal to report (a trial reviewer's
+        //  finding). A checkout another command switched meanwhile keeps the record, as it does for a merge found landed.
+        if matches!(resolve_commit_awaiting(place, root, target).await, Ok(Some(found)) if found == intent.new_oid) {
+            let landed_here: Option<String> = symbolic_ref_awaiting(place, root).await.map_err(partly_installed)?;
+            if landed_here != intent.target_ref {
+                return Err(partly_installed(a_landed_merge_in_another_branchs_worktree(
+                    target,
+                    root,
+                    landed_here.as_deref(),
+                    record,
+                )));
+            }
+            return Ok(Installed::Written);
+        }
         // The index and every file of the merge are in place and the branch did not move.
         return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true });
     }
@@ -111,10 +127,15 @@ pub async fn complete_awaiting<W: std::io::Write + ?Sized>(
         undo.push(intent.old_oid.as_str());
         undo.push(intent.new_oid.as_str());
         if let Err(error) = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &undo)).await {
-            debug(
-                "settleFailedMerge",
-                format!("the branch move of a merge whose worktree switched could not be put back: {error}").as_str(),
-            );
+            // The record is kept either way, but the person must not read that the branch was put back when it still names
+            //  the merge (a trial reviewer's finding).
+            return Err(partly_installed(a_branch_that_could_not_be_put_back(
+                target,
+                root,
+                after.as_deref(),
+                record,
+                error.to_string().as_str(),
+            )));
         }
         return Err(partly_installed(a_worktree_that_switched(target, root, after.as_deref(), record)));
     }
