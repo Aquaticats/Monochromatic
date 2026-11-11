@@ -11,7 +11,8 @@
 //! and it compares the paths that namespace spells the way the root is spelled here,
 //! which covers a bind mount of the root at the root's own path.
 //! A root is compared both as it is spelled and with its symbolic links resolved,
-//! because `/proc` names a held file the way the kernel holds it: no link is left in that name,
+//! because `/proc` names a held file the way the kernel holds it:
+//! no link is left in that name,
 //! so a build base reached through a linked home directory would match none of them.
 //! A process whose entries cannot be read is classified instead of skipped:
 //! a kernel thread and an ended process hold no file,
@@ -36,7 +37,8 @@ const DELETED_SUFFIX: &str = " (deleted)";
 
 /// How a use found in another mount namespace by device and inode is named.
 /// Why:
-/// Such a use holds one of the identities the scan was given, which are this root's build locks,
+/// Such a use holds one of the identities the scan was given,
+/// which are this root's build locks,
 /// so it is a use of the whole root and not of one path under it.
 const FOREIGN_IDENTITY_HOW: &str = "identity";
 
@@ -88,8 +90,8 @@ impl ScanReport {
     /// which blocks its removal,
     /// and any use found by identity in another mount namespace,
     /// which blocks every entry of the root it was matched against.
-    /// Why the path is compared as it is spelled and, when that matches nothing,
-    /// with its symbolic links resolved:
+    /// Why the path is compared both ways:
+    /// it is tried as spelled and then with its symbolic links resolved.
     /// `/proc` names a held file the way the kernel holds it (`with_symlinks_resolved`),
     /// so a root reached through a link matches only the resolved spelling.
     /// Why only the uses it saw:
@@ -134,7 +136,8 @@ impl ScanReport {
 /// Why:
 /// `/proc` names the file a process holds the way the kernel holds it,
 /// and that name has no symbolic link left in it,
-/// so a root spelled through one (a build base under a linked home directory, say)
+/// so a root spelled through one,
+/// a build base under a linked home directory say,
 /// would match none of the uses and the proof would say "no use" about a file a process is running.
 /// A path that cannot be resolved is compared as it is spelled,
 /// which is the answer for an entry that is gone already.
@@ -144,7 +147,10 @@ impl ScanReport {
 /// export const withSymlinksResolved = (p: string): string => { try { return realpathSync(p); } catch { return p; } };
 /// ```
 fn with_symlinks_resolved(path: &Path) -> PathBuf {
-    return fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    return match fs::canonicalize(path) {
+        Ok(resolved) => resolved,
+        Err(_) => path.to_path_buf(),
+    };
 }
 
 /// What:
