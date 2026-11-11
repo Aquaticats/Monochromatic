@@ -56,6 +56,34 @@ pub struct Report {
     pub changed: Vec<Vec<u8>>,
 }
 
+impl Report {
+    /// What:
+    ///  Name the paths a write left alone,
+    /// and take back every line a path's own step built before that write.
+    /// Why:
+    ///   A line is built from what stood at the path when its step judged it,
+    /// and a path another program wrote after that holds the
+    ///  program's bytes:
+    /// the merge wrote nothing to it,
+    /// so the earlier line is false about the checkout this command leaves,
+    ///  and beside the line that names the change it contradicts it.
+    /// The path keeps one line,
+    /// the one that says the merge wrote nothing to it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// report.aPathWrittenAgain(written.changed);
+    /// ```
+    pub(crate) fn a_path_written_again(&mut self, paths: Vec<Vec<u8>>) {
+        for path in paths {
+            self.merged.retain(|kept| *kept != path);
+            self.conflicts.retain(|kept| *kept != path);
+            self.kept.retain(|kept| kept.path != path);
+            self.changed.push(path);
+        }
+    }
+}
+
 /// What:
 ///  The lines a carried merge adds to standard error,
 /// after Git's own.
@@ -83,7 +111,7 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
             "monochromatic-git-policy-cli: {command}: your changes to {} touch the lines the merge changes, so the file \
              holds both sides between conflict markers and the merge was made. Resolve the markers in that file, then run `git add -- {}`.",
             text(path),
-            text(path)
+            quoted(path)
         ));
     }
     for path in &report.merged {
@@ -100,7 +128,7 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
             "monochromatic-git-policy-cli: {command}: {} changed while the merge ran, so this merge wrote nothing to it and \
              left that change in place. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
             text(path),
-            text(path)
+            quoted(path)
         ));
     }
     return lines;
@@ -140,6 +168,23 @@ pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(out: &mut W, path: &[u
 /// ```
 fn text(path: &[u8]) -> String {
     return crate::path_bytes::path_message_text(path);
+}
+
+/// What:
+///  The same path spelled for a shell,
+/// which every command a line prints takes.
+/// Why:
+///   The person copies the command out of the line,
+/// and a name with a space reaches the program as several arguments otherwise
+///  (`crate::shell_quote`,
+/// the one owner of that spelling).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quoted = (path: Uint8Array) => shellQuote(path);
+/// ```
+fn quoted(path: &[u8]) -> String {
+    return crate::shell_quote::shell_quote(path);
 }
 
 /// The words a carry adds.

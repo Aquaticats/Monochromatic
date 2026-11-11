@@ -175,7 +175,8 @@ fn a_staged_version_and_a_later_save_both_stand_when_the_merge_deletes_the_path(
     assert_eq!(text_at(repo.as_path(), "gone.txt").unwrap_or_default(), later, "the later save stands in the checkout");
     let words: String = said(&observed);
     assert!(words.contains("gone.txt"), "the line names the path: {words}");
-    assert!(!words.contains("git add -- gone.txt"), "no line tells the person to replace the staged version: {words}");
+    assert!(!words.contains("keeps your bytes in the index instead"), "no line tells the person to stage over the staged version: {words}");
+    assert!(words.contains("would replace the version the index holds"), "the line says why `git add` is not the command to run: {words}");
     remove_settled(&fixture);
 }
 
