@@ -10934,15 +10934,20 @@ against the owner's rule that a commit through the wrapper is not five seconds s
 A landing that finds a marker still being made never waits for it:
 it stages its own marker the ordinary way,
 as one does when nothing was made ahead,
-and the markers that were still being made finish beside it and are removed once they are finished,
-by the batch that follows or by the service's end.
+and a marker that will not be used is let go rather than waited for:
+one whose file exists has it removed at once,
+and one whose file does not exist yet makes none,
+so no thread on a commit's path waits for a flush.
 Two files at most are the service's:
 they are kept for the service thread,
 named with this process and the batch number,
-and a marker is replaced or removed (waiting for a flush that is still running)
-when its making has finished and its batch is passed or the index is not the one it was made for.
+and a marker is replaced or removed without waiting for its making,
+when its batch is passed or the index is not the one it was made for.
 They are removed when the service ends,
-whichever way its loop ends,
+whichever way its loop ends:
+a marker's file is created and recorded as one step that the service's last sweep excludes itself from,
+so a marker is either recorded before that sweep and removed by it,
+or never made.
 and what a killed service leaves is removed by the next acquisition,
 by these rules:
 a whole marker decides alone,
