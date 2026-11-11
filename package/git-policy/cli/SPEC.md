@@ -8929,7 +8929,8 @@ export type CoreFindingEvent = EventBase & {
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
     | 'concurrent-commit/already-committed'
-    | 'explicit-path-commit/named-path-ignored';
+    | 'explicit-path-commit/named-path-ignored'
+    | 'explicit-path-commit/named-path-unmatched';
   readonly message: string;
 };
 ```
@@ -8971,6 +8972,28 @@ and cannot be disabled or assigned a severity through repository config.
   or stage it with `git add --force -- <path>` when it is meant to become tracked
   (`commit_named_ignored_files.rs`;
   issue 6278).
+- `explicit-path-commit/named-path-unmatched`:
+  an explicit-path commit names an element that matches no file of the worktree and no entry of the commit's index,
+  so the private staging would refuse it.
+  Every element after `--` is a path and never an option,
+  so a message written after the paths reaches this finding as well.
+  It is asked of Git over the private index,
+  one `git ls-files --cached -z -- <element>` per element that names no single file,
+  with the same pathspec modes the staging used,
+  and only once that staging has refused the selection:
+  a commit that stages its selection starts no Git for this question.
+  An element that names one file of the worktree is not asked about,
+  because the worktree is the question for it and a refusal there is Git's own text.
+  The commit is not made,
+  nothing is staged by it,
+  and the message names every unmatched element,
+  says that Native Git refuses the same command line with exit status `1`,
+  and shows both ways forward:
+  write the message before the paths,
+  as `git commit -m <message> -- <paths>`,
+  or name elements the worktree or the commit's index holds
+  (`commit_named_unmatched_files.rs`;
+  `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -11654,7 +11677,13 @@ For injected commit-only semantics:
     native Git commits the tracked and staged paths a directory or a pattern matches,
     so a commit of `.`,
     `*` or a directory leaves every untracked file untracked.
-    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    A pathspec whose elements match no entry of the private index fails as native Git fails it,
+    and that refusal ends the commit as the finding
+    `explicit-path-commit/named-path-unmatched`,
+    with exit `1`:
+    the elements that matched nothing are asked of Git over the private index once the staging has
+    refused
+    (`commit_named_unmatched_files.rs`).
     An empty pathspec file stages nothing,
     as native Git commits nothing for one.
     A pathspec file with more bytes than one command line may carry is passed as a file with

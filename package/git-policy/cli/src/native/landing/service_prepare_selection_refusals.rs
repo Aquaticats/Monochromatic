@@ -4,22 +4,26 @@
 //! Why:
 //!  Each of these is the person's own input meeting a rule,
 //! not a failure of the engine or of the transaction,
-//! so each ends the command as a finding with its own code and exit `1`,
-//!  and each is decided before the private index is built or any `git add` runs.
+//! so each ends the command as a finding with its own code and exit `1`.
+//!  The ignored path and the staged deletion are decided before the private index is built or any `git add` runs,
+//! and the element that matches nothing is decided once the private staging has refused the selection,
+//! because only the refusal proves there is nothing to name.
 //!  The preparation asks these here rather than carrying their shapes,
 //! which keeps one place naming what a selection can refuse
-//!  (`service_prepare.rs` builds the index and asks this module first).
+//!  (`service_prepare.rs` builds the index and asks this module).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const ending = namedIgnoredEnding(...) ?? stagedDeletionEnding(...);
+//! const ending = namedIgnoredEnding(...) ?? stagedDeletionEnding(...) ?? unmatchedEnding(...);
 //! ```
 
 use crate::commit_index_selection::IndexSelection;
 use crate::commit_named_ignored_files::{NAMED_IGNORED_CODE, NAMED_IGNORED_CORE_ID, named_ignored_files, named_ignored_message};
+use crate::commit_named_unmatched_files::{NAMED_UNMATCHED_CODE, NAMED_UNMATCHED_CORE_ID, named_unmatched_elements, named_unmatched_message};
 use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
 use crate::commit_transaction::TransactionResult;
 use crate::policy_events::PolicyEvent;
+use crate::private_index_request::CaptureIndexes;
 use crate::transaction_git::{GitContext, GitFailure};
 use std::ffi::OsString;
 use std::path::Path;
@@ -79,6 +83,36 @@ pub(crate) fn staged_deletion_ending(
         return Ok(None);
     }
     return Ok(Some(ending(STAGED_DELETION_CORE_ID, STAGED_DELETION_CODE, staged_deletion_message(present.as_slice()))));
+}
+
+/// What:
+///  The ending of a commit whose selection names an element that matches no entry the private index holds,
+///  and `None` for a selection the private staging took.
+/// Why:
+///  Every element after `--` is a path,
+///  so a message written after the paths is read as paths,
+///  and the private `git add --update` refuses the whole selection.
+///  The refusal is the command line's, not the engine's,
+///  so the finding names every element that matched nothing and shows where an option belongs
+///  (`commit_named_unmatched_files.rs`,
+///  `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
+///  It is asked only once the staging has refused, so a commit that stages its selection pays nothing for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unmatched = namedUnmatchedElements(commitIndex, selection); return unmatched.length > 0 ? found(NAMED_UNMATCHED, message) : null;
+/// ```
+pub(crate) fn unmatched_ending(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    selection: &IndexSelection<'_>,
+) -> Result<Option<TransactionResult>, GitFailure> {
+    let unmatched: Vec<Vec<u8>> = named_unmatched_elements(context, cwd, indexes.commit_index.as_path(), selection)?;
+    if unmatched.is_empty() {
+        return Ok(None);
+    }
+    return Ok(Some(ending(NAMED_UNMATCHED_CORE_ID, NAMED_UNMATCHED_CODE, named_unmatched_message(unmatched.as_slice()))));
 }
 
 /// What:

@@ -113,6 +113,10 @@ pub mod commit_selection_staging;
 /// decided from the selection before any `git add` runs (issue 6278).
 pub mod commit_named_ignored_files;
 
+/// The selected elements that match no entry of the private index,
+/// asked of Git only after the private staging refused the selection.
+pub mod commit_named_unmatched_files;
+
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;
 

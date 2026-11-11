@@ -50,7 +50,7 @@ use crate::commit_index::{
     IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
     write_private_tree,
 };
-use crate::service_prepare_selection_refusals::{named_ignored_ending, staged_deletion_ending};
+use crate::service_prepare_selection_refusals::{named_ignored_ending, staged_deletion_ending, unmatched_ending};
 use crate::commit_transaction::{
     CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
@@ -232,6 +232,13 @@ pub fn prepare<F: RepositoryFacts>(
             return Ok(Prepared::Ended(ending));
         }
         if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+            // Every element after `--` is a path, so a message written after the paths is read as paths and the private
+            //  staging refuses the whole selection. That refusal is the command line's: it is named here, with Git's own
+            //  answer to which elements matched nothing, instead of ending as a transaction failure whose hint asks whether
+            //  a commit that never ran had landed (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
+            if let Some(ending) = unmatched_ending(context, cwd, &indexes, &index_selection)? {
+                return Ok(Prepared::Ended(ending));
+            }
             return Err(failed(error.0));
         }
     }

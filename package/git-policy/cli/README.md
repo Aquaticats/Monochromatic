@@ -2751,6 +2751,22 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
+- A selected element that matches no file of the worktree and no entry of the commit's index.
+  Every element after `--` is a path,
+   so a message written after the paths is read as paths,
+   and the private `git add --update` refuses the whole selection.
+  The commit is not made,
+   nothing is staged by it,
+   and the finding `explicit-path-commit/named-path-unmatched`
+   names every element that matched nothing,
+   says that every element after `--` is a path and never an option,
+   and shows where the message belongs:
+   `git commit -m <message> -- <paths>` (`SPEC.md`,
+  "Core finding event").
+  Which elements matched nothing is Git's own answer over the private index,
+   asked only after the staging refused,
+   so a commit that stages its selection starts no Git for it
+   (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:

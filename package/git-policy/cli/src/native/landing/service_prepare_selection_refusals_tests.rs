@@ -52,6 +52,50 @@ fn deletion_ending(repo: &Path, base: &str, pathspecs: &[&str]) -> Option<Transa
         .expect("the question is answered");
 }
 
+/// The ending of an explicit-path commit of these elements,
+/// asked for an element that matches nothing.
+fn unmatched_ending_of(repo: &Path, base: &str, pathspecs: &[&str]) -> Option<TransactionResult> {
+    let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
+    let choice: IndexSelection<'_> = IndexSelection {
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: specs.as_slice(),
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        base_revision: base,
+    };
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: repo.join(".git").join("index"),
+        commit_index: repo.join(".git").join("index"),
+        object_directory: repo.join(".git").join("objects"),
+    };
+    return unmatched_ending(&git_context(), repo, &indexes, &choice).expect("the question is answered");
+}
+
+/// A selection whose elements match nothing ends the preparation with its own code,
+/// naming each element and where an option belongs.
+#[test]
+fn an_element_that_matches_nothing_ends_the_preparation_with_its_finding() {
+    let (root, repo, base) = ignored_repository("selection-refusal-unmatched");
+    let ending: TransactionResult = unmatched_ending_of(repo.as_path(), base.as_str(), &["a.txt", "-m", "one two"]).expect("the refusal");
+    assert_eq!(finding(&ending), "explicit-path-commit/named-path-unmatched");
+    let PolicyEvent::CoreFinding { message, .. } = &ending.events[0] else {
+        panic!("a core finding");
+    };
+    assert!(message.contains("[\"-m\",\"one two\"]"), "{message}");
+    assert!(message.contains("git commit -m <message> -- <paths>"), "{message}");
+    remove(root.as_path());
+}
+
+/// A selection the private staging can take ends with nothing.
+#[test]
+fn a_selection_whose_elements_all_match_has_no_unmatched_ending() {
+    let (root, repo, base) = ignored_repository("selection-refusal-unmatched-none");
+    assert!(unmatched_ending_of(repo.as_path(), base.as_str(), &["a.txt", "lib"]).is_none());
+    remove(root.as_path());
+}
+
 /// The one core finding an ending carries,
 /// and the exit status it ends with.
 fn finding(ending: &TransactionResult) -> String {
