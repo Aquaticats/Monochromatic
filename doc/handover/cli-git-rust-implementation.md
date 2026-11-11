@@ -175,7 +175,8 @@ None of them is in a file the merge touched
 `push_slow_server_tests.rs`,
 `package_repair_prewarm_job_tests.rs`,
 `standards_review_client.rs`,
-all as `main` holds them),
+all five exactly as the integration holds them,
+so no line of them came through the merge),
 every one of them asserts a wait ends inside a ceiling,
 two of them were stopped by the run's own progress watchdog after claiming no task could run
 (`SIGABRT`,
