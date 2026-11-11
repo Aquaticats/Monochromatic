@@ -198,6 +198,8 @@ fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
     assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
     let said: String = stderr_of(&removed);
     if removal_allowed(fixture.root.as_path()) {
+        // The sentence is the one the removal owns, so a rewording of what it says the commit service then deletes does
+        //  not read as a rung that went missing.
         assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated: {said}");
     }
     remove(&fixture);
