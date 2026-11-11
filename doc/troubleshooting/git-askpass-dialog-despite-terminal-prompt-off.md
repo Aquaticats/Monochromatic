@@ -430,6 +430,12 @@ with `mise run //package/git-policy/cli:native:test:host -- invocation::entry::`
 `29 tests run: 29 passed` with one (through `script -qec`),
 and `29 tests run: 29 passed` without one after the fix.
 
+`expected_overlay` was replaced on 2026-11-10 by `5f724cd494` (`inputs_at(root, Terminal)`):
+the controlling terminal is a `ResolutionInputs` field gathered once beside the other process facts,
+planning reads that answer instead of asking the kernel for it,
+and `a_command_without_a_controlling_terminal_never_prompts` pins the overlay of both answers,
+so no control's answer depends on the terminal the runner happens to have.
+
 ## Upstream filing decision
 
 Checked for `ccdf827304` (2026-11-07T06:30:01-05:00).
