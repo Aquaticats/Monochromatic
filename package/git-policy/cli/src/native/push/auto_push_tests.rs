@@ -125,7 +125,7 @@ fn head_ref(repo: &Path) -> String {
 /// Push the checked-out branch the way the service does and capture the terminal text it prints to `err`.
 fn run(repo: &Path, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(repo), &head_ref(repo), landed, &[], &mut err);
+    let result = push_once(&push_git(repo), &head_ref(repo), landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -312,7 +312,7 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     ));
     let mut err: Vec<u8> = Vec::new();
     let started = std::time::Instant::now();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     let elapsed = started.elapsed();
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
@@ -381,7 +381,7 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
         OsString::from("5"),
     ));
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed);
     assert_eq!(read_log(&seen), "5 \n");
     remove(&root);
@@ -562,7 +562,7 @@ fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
 /// Run the service's push of a named branch and capture the text it prints.
 fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(repo), branch_ref, landed, &[], &mut err);
+    let result = push_once(&push_git(repo), branch_ref, landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -721,7 +721,7 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
     let mut pushing = push_git(&repo);
     pushing.real_git = switching_git(&root, "other");
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &[], &mut err).expect("push");
+    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(root.join("switched").exists(), "the switch happened inside the window");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
@@ -748,7 +748,7 @@ fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch
     commit_change(&repo, "default work\n");
     let landed = head_oid(&repo);
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &[], &mut err).expect("push");
+    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
     assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
@@ -932,6 +932,7 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
         &head_ref(awaited_repo.as_path()),
         awaited_landed.as_str(),
         &[],
+        &[],
         &mut awaited_err,
     ))
     .expect("the runtime runs the work");
@@ -959,6 +960,7 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
             &push_git(awaited_repo.as_path()),
             &head_ref(awaited_repo.as_path()),
             awaited_landed.as_str(),
+            &[],
             &[],
             &mut refused_err,
         );

@@ -7,11 +7,10 @@
 
 use super::*;
 use crate::test_support::executable;
-use crate::package_repair_relink::{RelinkTool, decode, object_name_of};
 use crate::package_repair_report::{Outcome, Tool};
 use crate::service_work::work_directory;
 use crate::test_support::{SharedSink, fixture, git_context, remove};
-use crate::work_item::{PENDING, WorkItem, WorkKind, state_directory};
+use crate::work_item::{PENDING, state_directory};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -182,16 +181,16 @@ fn the_workers_are_what_the_host_offers() {
     assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
 }
 
-/// The pnpm and the toolchain repairs are one record of the worktree the service relinks,
-/// and a session no service answers still relinks the worktree here.
+/// The pnpm and the toolchain repairs a session no service answers are the add's own,
+/// in the order the report has always named them,
+/// and the record that hand-over wrote is taken back.
 ///
-/// The record is what takes the two tools off the add's waiting path:
-/// it is the only way the service learns which tools to run in which worktree,
-/// so it is written before the wake,
-/// and a worktree whose copy was never relinked would hold the source's links for the person's next command,
-/// so the add does the work itself when nothing took the record.
+/// A worktree whose copy was never relinked would hold the source's links for the person's next command,
+/// so the add does that work itself;
+/// a record left queued names only a path,
+/// and a service draining it later would start the install in whatever directory holds that path by then.
 #[test]
-fn the_relink_is_one_record_the_service_can_run() {
+fn a_repair_no_service_took_runs_here_and_leaves_no_record() {
     let scene: Scene = scene("repair-relink-record");
     a_repository_at(&scene);
     with_a_recording_stale_launcher(&scene);
@@ -204,14 +203,14 @@ fn the_relink_is_one_record_the_service_can_run() {
     let started: String = std::fs::read_to_string(scene.record.as_path()).expect("the tools the add started");
     assert!(started.contains("pnpm") && started.contains("mpm-shadow"), "{started}");
     let common: PathBuf = scene.destination.join(".git");
-    let record: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(format!("relink-{}", object_name_of(scene.destination.as_path())));
-    let text: String = match std::fs::read_to_string(record.as_path()) {
-        Ok(text) => text,
-        Err(error) => panic!("no relink record was left for the service ({error}): {findings:?} {printed}"),
-    };
-    let item: WorkItem = WorkItem::decode(text.as_str()).expect("the record is a work item");
-    assert_eq!(item.kind, WorkKind::Relink);
-    assert_eq!(decode(item.parent.as_str()).expect("the entry").tools, vec![RelinkTool::Pnpm, RelinkTool::Toolchain], "the record names the tools the add needs, in the report's order");
+    let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
+    let mut queued: Vec<String> = std::fs::read_dir(pending.as_path())
+        .expect("the queue the hand-over wrote")
+        .flatten()
+        .map(|item| return item.file_name().to_string_lossy().into_owned())
+        .collect();
+    queued.sort();
+    assert_eq!(queued, Vec::<String>::new(), "the record the add did the work for is still queued: {findings:?} {printed}");
     remove(&scene.root);
 }
 

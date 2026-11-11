@@ -38,14 +38,17 @@ use crate::bounded_push::{
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
-use crate::child_environment::{environment_value, prompting_disabled};
+use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
+/// The caller's own command-line configuration,
+/// as the variables the child reads.
+pub use crate::lfs_upload_child_configuration::prefix_variables;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
@@ -99,57 +102,6 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
     return std::env::join_paths(directories).unwrap_or(existing);
 }
 
-/// What:
-///  The variables that carry the global options of a push into a child that reads Git's configuration.
-/// Why:
-///   `-c name=value` becomes `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` after any pairs the environment already holds
-///  (a `-c` without `=` is the boolean true),
-/// `--git-dir`,
-/// `--work-tree` and `--namespace` become `GIT_DIR`,
-///  `GIT_WORK_TREE` and `GIT_NAMESPACE`;
-/// `-C` is the working directory and is applied by the caller.
-///  No shell is involved,
-/// and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
-///  Git that used to run the hook.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function prefixVariables(globalPrefix: string[], environment): [string, string][];
-/// ```
-pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    let mut pairs: Vec<(OsString, OsString)> = Vec::new();
-    let mut variables: Vec<(OsString, OsString)> = Vec::new();
-    let mut tokens = global_prefix.iter();
-    while let Some(token) = tokens.next() {
-        let text: String = token.to_string_lossy().into_owned();
-        if text == "-c" {
-            if let Some(setting) = tokens.next() {
-                let setting_text: String = setting.to_string_lossy().into_owned();
-                let (name, value) = setting_text.split_once('=').unwrap_or((setting_text.as_str(), "true"));
-                pairs.push((OsString::from(name), OsString::from(value)));
-            }
-            continue;
-        }
-        for (option, variable) in [("--git-dir", "GIT_DIR"), ("--work-tree", "GIT_WORK_TREE"), ("--namespace", "GIT_NAMESPACE")] {
-            if text == option {
-                if let Some(value) = tokens.next() {
-                    variables.push((OsString::from(variable), value.clone()));
-                }
-            } else if let Some(value) = text.strip_prefix(format!("{option}=").as_str()) {
-                variables.push((OsString::from(variable), OsString::from(value)));
-            }
-        }
-    }
-    let existing: usize = environment_config_count(environment);
-    if !pairs.is_empty() {
-        variables.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from((existing + pairs.len()).to_string())));
-    }
-    for (offset, (name, value)) in pairs.into_iter().enumerate() {
-        variables.push((OsString::from(format!("GIT_CONFIG_KEY_{}", existing + offset)), name));
-        variables.push((OsString::from(format!("GIT_CONFIG_VALUE_{}", existing + offset)), value));
-    }
-    return variables;
-}
 
 /// Why a run with captured standard error did not produce an outcome.
 enum CaptureError {
@@ -359,6 +311,16 @@ pub fn run_upload_interactive(
     // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
     //  failed login says what the wrapper did about prompting.
     let prompting_is_disabled: bool = prompting_disabled(overlay);
+    // What: The child's numbered configuration, settled by the overlay before the caller's own pairs are numbered after it.
+    // Why:  The overlay appends the wrapper's own pair (`core.lockfilePid`) in the next slot; a caller's pair numbered before it
+    //  took that slot and was overwritten, so `-c remote.origin.pushurl=...` never reached `git-lfs` and the object of the
+    //  published pointer went to the fetch remote. Numbered after the overlay, both are read, and a caller's setting of the
+    //  same key still wins as later numbered entries do in Git.
+    let settled: Vec<(OsString, OsString)> = environment_with_overlay(environment, overlay);
+    let Some(carried) = prefix_variables(global_prefix, settled.as_slice()) else {
+        // A `--config-env` Git refuses ends the push itself, so no object may travel to the server its absence points at.
+        return None;
+    };
     // A server error (an HTTP 5xx answer of the LFS server) is not run again here: it is outside our control, like a network that
     //  is down, and the commit service's push retry plan tries the push again by itself (pick 12 of
     //  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation). A typed push ends and says so.
@@ -369,7 +331,7 @@ pub fn run_upload_interactive(
                 .current_dir(directory)
                 .args(arguments.as_slice())
                 .env("PATH", path_with_real_git_first(environment, real_git));
-            for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+            for (name, value) in overlay.iter().cloned().chain(carried.iter().cloned()) {
                 command.env(name, value);
             }
             let (ended, relayed): (UploadEnd, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {

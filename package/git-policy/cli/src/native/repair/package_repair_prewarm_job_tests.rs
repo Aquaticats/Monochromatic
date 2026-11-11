@@ -305,7 +305,8 @@ fn item_for(common: &Path, worktree: &Path, entry: &PrewarmEntry) -> WorkItem {
 
 /// What:
 ///  The worktree's `Cargo.lock` is as checked out after the service's clean,
-/// whether it was there and stale or absent.
+/// whether it was there and stale or absent,
+/// when nothing else writes it.
 /// Why:
 ///   `cargo clean` resolves the worktree's workspace even when it deletes only from directories of
 /// this job's own,
@@ -313,6 +314,9 @@ fn item_for(common: &Path, worktree: &Path, entry: &PrewarmEntry) -> WorkItem {
 /// The add's own clean puts the lock back (`package_repair_cargo_lock.rs`),
 /// and the service's clean runs after the add has returned,
 /// so a lock it left rewritten would change a tracked file in the person's worktree behind their back.
+/// The clean itself is given `--locked`,
+/// the rewrite is asked for as a resolution of its own,
+/// and the checked-out bytes go back over it.
 #[test]
 fn the_filling_puts_the_lock_back_as_checked_out() {
     // The two states a checked-out lock can be in.
@@ -340,6 +344,123 @@ fn the_filling_puts_the_lock_back_as_checked_out() {
         assert_eq!(after.as_deref(), checked_out.as_deref(), "the worktree's {LOCK_FILE} is as checked out after the clean ({state}): {described}");
         remove(root.as_path());
     }
+}
+
+/// What the clean's own resolution writes into the worktree's lock,
+/// and what the person's own `cargo add` writes while that clean runs.
+/// Why:
+///   The filling's clean runs after the add returned,
+/// so the two texts say which one stands in the file afterwards:
+/// the person's must.
+const THE_RESOLUTIONS_LOCK: &str = "# what the worktree resolution wrote";
+
+/// The text the person's own write leaves,
+/// which is never Cargo's rewrite.
+const THE_PERSONS_LOCK: &str = "# what the person wrote instead";
+
+/// What:
+///  A stand-in Cargo for the controls about the lock:
+/// its resolution writes Cargo's rewrite,
+/// its first clean refuses the stale lock,
+/// and its second clean has the person's own write land while it runs.
+/// Why:
+///   The sequence is the whole rule:
+/// a clean that refuses starts no write,
+/// the resolution is what writes the lock,
+/// and the clean that runs afterwards cannot write it.
+/// None of that needs a real Cargo,
+/// and a stand-in makes a person's write land at a known moment inside the clean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const program = standIn({ metadata: resolutionsLock, refusesOnce: true, thenPersonWrites: personsLock });
+/// ```
+fn cargo_that_takes_the_persons_lock_as_it_runs(root: &Path) -> PathBuf {
+    let record: PathBuf = root.join("cargo-record");
+    let program: PathBuf = root.join("cargo-that-resolves");
+    let body: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{record}'\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{resolved}' > Cargo.lock\n  exit 0\nfi\nif [ ! -e refused-once ]; then\n  : > refused-once\n  echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2\n  exit 101\nfi\nprintf '%s' '{persons}' > Cargo.lock\nexit 0\n",
+        record = record.display(),
+        resolved = THE_RESOLUTIONS_LOCK,
+        persons = THE_PERSONS_LOCK,
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    return program;
+}
+
+/// The lines a stand-in Cargo recorded.
+fn recorded(record: &Path) -> Vec<String> {
+    return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
+}
+
+/// What:
+///  A lock the person writes while the filling's clean runs,
+///  stale before or not there at all,
+///  is left exactly as they wrote it,
+/// and the copy is still filled and published.
+/// Why:
+///   This clean runs after the add returned,
+/// so the person is working in the worktree and a write standing there when the clean ends may be theirs,
+/// and replacing it or removing it would discard a file they wrote.
+/// The clean is `--locked` and the resolution is a step of its own,
+/// so the file is only ever put back over bytes that resolution wrote.
+#[test]
+fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it() {
+    // The two states the checked-out worktree can be in when the person starts.
+    const LOCK_STATES: [&str; 2] = ["stale", "absent"];
+    for state in LOCK_STATES {
+        let root: PathBuf = fixture(format!("prewarm-person-lock-{state}").as_str());
+        let entry: PrewarmEntry = entry_of(root.as_path());
+        std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+        std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+        std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+        let lock: PathBuf = entry.root.join(LOCK_FILE);
+        if state == "stale" {
+            std::fs::write(lock.as_path(), b"# a lock that no longer matches its manifest\n").expect("the checked-out lock");
+        }
+        let program: PathBuf = cargo_that_takes_the_persons_lock_as_it_runs(root.as_path());
+        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+        let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
+        assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({state})");
+        let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
+        assert_eq!(after.as_deref(), Some(THE_PERSONS_LOCK.as_bytes()), "the person's own lock is exactly what stands there ({state})");
+        let lines: Vec<String> = recorded(root.join("cargo-record").as_path());
+        assert_eq!(lines.len(), 3, "a refused clean, the resolution, and the clean that runs ({state}): {lines:?}");
+        assert!(lines[0].starts_with("clean ") && lines[1].starts_with("metadata ") && lines[2].starts_with("clean "), "the lock is resolved between the two cleans ({state}): {lines:?}");
+        assert!(lines[0].contains("--locked") && lines[2].contains("--locked"), "neither clean may write the lock ({state}): {lines:?}");
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  A lock that still matches its manifest costs no resolution and is never written.
+/// Why:
+///   Most worktrees have a lock Cargo agrees with,
+/// and asking for a resolution there would start a second Cargo for nothing;
+/// the clean alone runs,
+/// with `--locked`,
+///  so the person's file is not opened for writing at all.
+#[test]
+fn a_lock_that_is_current_costs_no_resolution_and_is_never_written() {
+    let root: PathBuf = fixture("prewarm-lock-current");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    std::fs::write(lock.as_path(), THE_RESOLUTIONS_LOCK.as_bytes()).expect("a lock the clean agrees with");
+    let record: PathBuf = root.join("cargo-record");
+    let program: PathBuf = root.join("cargo-that-cleans-once");
+    let body: String = format!("#!/bin/sh\necho \"$*\" >> '{record}'\nexit 0\n", record = record.display());
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
+    assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(THE_RESOLUTIONS_LOCK.as_bytes()), "a current lock is left exactly as it was");
+    let lines: Vec<String> = recorded(record.as_path());
+    assert_eq!(lines.len(), 1, "one clean and no resolution: {lines:?}");
+    assert!(lines[0].starts_with("clean ") && lines[0].contains("--locked"), "the clean runs with the lock held still: {lines:?}");
+    remove(root.as_path());
 }
 
 /// A Cargo that succeeds without deleting anything,

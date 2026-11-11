@@ -50,6 +50,17 @@ fn every_dash_c_moves_the_directory_the_way_git_chains_them() {
     assert_eq!(named_paths(Path::new("/work/here"), prefix.as_slice(), &[]), vec![PathBuf::from("/a/b/c/../d")]);
 }
 
+/// The directory a command runs in follows the `-C` chain and nothing else:
+///  `--work-tree` names a tree,
+///  never the directory a relative path is read from,
+///  and a token that looks like `-C` inside another option's value is no move.
+#[test]
+fn the_directory_a_command_runs_in_follows_only_the_dash_c_chain() {
+    assert_eq!(chain_directory(Path::new("/work/here"), &[]), PathBuf::from("/work/here"));
+    let prefix: Vec<OsString> = text(&["-C", "/a/b", "--work-tree", "/elsewhere", "--git-dir", "-C", "-C", "c"]);
+    assert_eq!(chain_directory(Path::new("/work/here"), prefix.as_slice()), PathBuf::from("/a/b/c"));
+}
+
 /// The Git directory and work tree are named whether they come as options or as environment,
 /// relative ones from the directory after the `-C` chain.
 #[test]

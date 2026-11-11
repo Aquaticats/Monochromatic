@@ -96,16 +96,10 @@ function listingEntry(
 function listingResponse(
   entries: readonly QwenTokenPlanListingEntry[],
 ): Response {
-  return new Response(
-    JSON.stringify({
-      object: 'list',
-      data: entries,
-    },),
-    {
-      status: 200,
-      headers: { 'content-type': 'application/json', },
-    },
-  );
+  return Response.json({
+    object: 'list',
+    data: entries,
+  },);
 }
 
 /**
@@ -117,22 +111,16 @@ function listingResponse(
  */
 function fixtureFetcher(entries: readonly QwenTokenPlanListingEntry[],): {
   readonly fetcher: QwenTokenPlanListingFetcher;
-  readonly calls: {
-    readonly baseUrl: string;
-    readonly apiKey: string | undefined;
-    readonly signal: AbortSignal;
-  }[];
+  readonly calls: Parameters<QwenTokenPlanListingFetcher>[0][];
 } {
   /**
    Options each fetch call carried, in order.
    */
-  const calls: {
-    readonly baseUrl: string;
-    readonly apiKey: string | undefined;
-    readonly signal: AbortSignal;
-  }[] = [];
+  const calls: Parameters<QwenTokenPlanListingFetcher>[0][] = [];
   return {
-    fetcher: function fetcher(options): ReturnType<QwenTokenPlanListingFetcher> {
+    fetcher: function fetcher(
+      options: Parameters<QwenTokenPlanListingFetcher>[0],
+    ): ReturnType<QwenTokenPlanListingFetcher> {
       calls.push(options,);
       return Promise.resolve(listingResponse(entries),);
     },
@@ -465,7 +453,9 @@ await describe({
         const runtime = createQwenTokenPlanIndividualProvider({
           logger: fixtureLogger(),
           apiKeyAuth: fixtureApiKeyAuth(),
-          fetcher: function fetcher(options): ReturnType<QwenTokenPlanListingFetcher> {
+          fetcher: function fetcher(
+            options: Parameters<QwenTokenPlanListingFetcher>[0],
+          ): ReturnType<QwenTokenPlanListingFetcher> {
             seenSignals.push(options.signal,);
             return new Promise(function neverSettles(_resolve, reject) {
               options.signal.addEventListener('abort', function onAbort() {

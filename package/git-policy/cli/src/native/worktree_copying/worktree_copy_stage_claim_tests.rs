@@ -639,7 +639,7 @@ fn an_interrupted_add_that_is_removed_stops_being_reported() {
 /// and the report names it with the one
 ///  step that makes the rest work.
 /// Why:
-///   `git -C <destination> reset --no-enforce-worktree --hard` cannot start while that lock stands (Git answers
+///   `git -C <destination> reset --no-enforce-worktree --hard --no-recurse-submodules` cannot start while that lock stands (Git answers
 /// `fatal: Unable to create '.../index.lock': File exists`),
 /// so a report that offers only that command offers a
 ///  remedy that cannot run;
@@ -973,7 +973,7 @@ fn awkward_components() -> Vec<OsString> {
 /// naming exactly the
 ///  destination and the lock file.
 /// Why:
-///   `git -C <path> reset --no-enforce-worktree --hard` and `rm <lock>` act on whatever path the shell read,
+///   `git -C <path> reset --no-enforce-worktree --hard --no-recurse-submodules` and `rm <lock>` act on whatever path the shell read,
 /// so the text has
 ///  to name one place under a shell,
 /// whatever the directory is called.

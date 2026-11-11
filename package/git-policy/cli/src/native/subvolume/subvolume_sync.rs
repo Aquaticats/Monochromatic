@@ -21,6 +21,9 @@
 //! and so is a folder that held nothing but one:
 //! the container holds another worktree's ignored state while its own copy fills it,
 //! and nothing names it in the tree this pass builds.
+//! A container is a directory,
+//! so a file or a link whose name merely begins the stage prefix is the source's own entry
+//!  and is copied like any other.
 //! The walk uses a work stack,
 //! not recursion,
 //! so a deep tree cannot overflow the stack;
@@ -148,8 +151,13 @@ impl Pass<'_> {
             let child: PathBuf = relative.join(entry.file_name());
             // Another command's stage container holds the whole ignored state of a worktree its own copy is filling, so
             //  nothing of it is copied. Its name stays in `names`, so the delete pass leaves the container that is there
-            //  alone: it is that command's to remove, not this one's.
-            if names_a_private_stage(path_bytes_of(child.as_path())) {
+            //  alone: it is that command's to remove, not this one's. A container is a directory, so a file or a link whose
+            //  name merely begins the prefix is the source's own entry and is copied like any other.
+            let is_a_container: bool = match entry.file_type() {
+                Ok(kind) => kind.is_dir() && names_a_private_stage(path_bytes_of(child.as_path())),
+                Err(_unknown) => false,
+            };
+            if is_a_container {
                 self.stage_holders.insert(relative.to_path_buf());
                 continue;
             }

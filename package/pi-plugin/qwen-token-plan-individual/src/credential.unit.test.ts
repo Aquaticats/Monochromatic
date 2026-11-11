@@ -28,7 +28,7 @@ import {
   createQwenTokenPlanIndividualApiKeyAuth,
   isApiKeyCredential,
   resolveQwenTokenPlanIndividualCredential,
-  storedCredentialKey,
+  storedCredentialSources,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV,
   QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_GUIDANCE,
   QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_LABEL,
@@ -101,9 +101,9 @@ function capturingLogger(): {
 
  @returns the auth context
  */
-function fixtureAuthContext(environment: Record<string, string | undefined>,): AuthContext {
+function fixtureAuthContext(environment: NodeJS.ProcessEnv,): AuthContext {
   return {
-    env: function env(name: string,): Promise<string | undefined> {
+    env: function env(name: string,) {
       return Promise.resolve(environment[name]);
     },
     fileExists: function fileExists(): Promise<boolean> {
@@ -222,22 +222,22 @@ await describe({
 //region Stored credential narrowing
 
 await describe({
-  name: storedCredentialKey.name,
+  name: storedCredentialSources.name,
   children: [
     it({
-      name: 'reads the key of an api-key credential',
+      name: 'fills the sources fragment with the key of an api-key credential',
       fn: async () => {
-        expect(storedCredentialKey({
+        expect(storedCredentialSources({
           credential: apiKeyCredential('stored-key',),
         },),)
-          .toBe('stored-key');
+          .toEqual({ credentialKey: 'stored-key', },);
       },
     },),
     it({
-      name: 'reports undefined when pi resolved no credential',
+      name: 'carries no key when pi resolved no credential',
       fn: async () => {
-        expect(storedCredentialKey({ credential: undefined, },),)
-          .toBe(undefined);
+        expect(storedCredentialSources({},),)
+          .toEqual({},);
       },
     },),
     it({
@@ -254,7 +254,8 @@ await describe({
           expires: 0,
         };
         expect(isApiKeyCredential(credential,),).toBe(false);
-        expect(storedCredentialKey({ credential, },),).toBe(undefined);
+        expect(storedCredentialSources({ credential, },),)
+          .toEqual({},);
       },
     },),
   ],
