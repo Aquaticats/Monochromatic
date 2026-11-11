@@ -160,6 +160,20 @@ Issues whose named module is gone but whose behaviour is not were marked
   a replaced lock released,
  a long name classified) lives in `src/native/lock/` and `src/native/transaction/recovery_files.rs`,
  so the six need a fresh read rather than a close.
+  Note 2026-11-10:
+  `#1136`,
+  `#1137` and `#1138` were closed after that fresh read.
+  The release and install they report hold the judged file open and compare the name against that descriptor,
+  in `src/native/landing/service_index_hold.rs` and `src/native/landing/service_index_ownership.rs`.
+  A replacement nobody proved unheld is left where it is,
+  and the reference-lock clearing compares device,
+  inode,
+  size,
+  birth time and modification time (`src/native/lock/stale_ref_lock_identity.rs`).
+  The record is `doc/troubleshooting/git-policy-replaced-lock-filesystem.md`,
+  section "Where the boundary stands on main".
+  `#1135`,
+  `#1139` and `#1140` are closed.
 
 ## Still true, and left in another agent's folder
 
