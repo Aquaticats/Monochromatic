@@ -940,7 +940,7 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
     let outer: Registration = registered
         .iter()
-        .find(|one| one.worktree == landed.worktree)
+        .find(|one| return one.worktree == landed.worktree)
         .expect("the registration of the worktree this program made")
         .clone();
     // A command that adds a worktree inside this one finishes after that read and exits.
@@ -991,7 +991,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
     let outer: Registration = registered
         .iter()
-        .find(|one| one.worktree == landed.worktree)
+        .find(|one| return one.worktree == landed.worktree)
         .expect("the registration of the worktree this program made")
         .clone();
     // The one snapshot the sweep takes before it examines a candidate, when there was nothing to copy yet.
