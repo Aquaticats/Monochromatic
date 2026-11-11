@@ -223,6 +223,32 @@ impl ClaimWatch {
     }
 
     /// What:
+    ///  A watch for a service that starts now without having read its notes:
+    /// nothing is known about the repositories an earlier service was woken for,
+    /// the watch knows where they are kept,
+    ///  and the store is read again after a pause.
+    /// Why:
+    ///   The read of a journal that stopped answering is bounded,
+    /// so a service starts without it rather than never starting;
+    /// a watch kept in memory only would then write no note for the whole life of that service,
+    ///  so a restart after it killed the service would not know where pending after-commit work waits.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// new ClaimWatch(dir, instance, { unread: true, failures: 1 })
+    /// ```
+    pub fn unread(directory: &Path, instance: Option<&str>) -> Self {
+        return Self {
+            store: Some(directory.to_path_buf()),
+            instance: instance.map(str::to_string),
+            known: Vec::new(),
+            unwritten: Vec::new(),
+            unread: true,
+            failures: 1,
+        };
+    }
+
+    /// What:
     ///  A watch kept in `directory`,
     /// holding the Git directories the service before this one wrote down for `instance`.
     /// Why:

@@ -312,12 +312,15 @@ The first fix read the lock before the clean and put it back exactly as checked 
 through the same `package_repair_cargo_lock.rs` the add's own clean uses.
 The second review showed the windows a put-back cannot close ("What the second review of the filling
 found").
-What stands now is `--locked`:
-the clean refuses a lock it would have to change,
-the worktree is never written,
+The clean now passes `--locked`,
+so it writes no lock at all,
 and the report names the lock,
 the workspace and the add's own clean command
-(`repair::package_repair_prewarm_job::tests::the_filling_never_writes_the_worktrees_lock`).
+(`repair::package_repair_prewarm_job::tests::a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock`).
+The merge with the jam-fix integration kept that flag and added the resolution the integration had
+already built beside it,
+so a stale lock costs the filling nothing
+("The clean wrote the worktree's `Cargo.lock`").
 
 ### A directory at the staging name was removed without proof of ownership
 
@@ -431,8 +434,8 @@ a `Cargo.lock` written while the clean ran came back as the bytes read before it
 and a kill between the rewrite and the put-back left the rewritten bytes,
 because the original sat in memory.
 No restore can tell the two writers apart,
-so the filling no longer writes the lock at all:
-`clean_arguments_of_the_copy` passes `--locked`,
+so the filling's clean no longer writes the lock at all:
+`locked_clean_arguments` passes `--locked`,
 and `cargo clean --locked` exits 101 in Cargo's own words
 ("cannot update the lock file ... because --locked was passed to prevent this")
 with the file untouched,
@@ -450,18 +453,30 @@ The cost is the filling itself where a lock disagrees with its manifest:
 at `1885e5cb6e` the full resolution of all 35 committed workspaces
 (`cargo metadata --locked --offline`) succeeds,
 so nothing here costs that today,
-and the shape that does cost it is a manifest edited ahead of its lock
-(`repair::package_repair_prewarm_job::tests::the_filling_never_writes_the_worktrees_lock`,
-`the_filling_never_writes_a_lock_a_person_updates_while_the_clean_runs`).
-A worktree whose lock is missing altogether,
-which is every worktree of a repository that commits no `Cargo.lock`,
-is the other shape this costs:
-the filling refuses there too,
-where the put-back created a lock for the clean and removed it again.
-That removal cannot be told from deleting a lock the person made in the same window,
-so every mechanism that lets the clean finish writes the person's file,
-and a repository that commits no lock pays the prewarm rather than the person's bytes.
-The refusal is one `service_warn!` line and the item settles `failed`,
+and the shape that does cost it is a manifest edited ahead of its lock.
+
+That cost is gone as of the merge with the jam-fix integration
+(`3b94069dbf`),
+which carried this same collision resolved as well from the other side (`aec1ae9f76`):
+a lock the `--locked` clean refuses is resolved by `cargo metadata --offline` as a step of its own,
+the checked-out bytes go back only over the bytes that resolution wrote
+(`restore_only_the_cleans_own`),
+and anything else standing there is left exactly as it is found,
+so a stale or an absent lock no longer costs the filling.
+What this branch's finding keeps is what that resolution does not cover:
+the clean itself writes nothing,
+and a clean that stops anyway is reported in the words a person acts on
+(`what_to_do_next`).
+It is not the plain property a refusal had:
+a write of the person's that lands inside that one `cargo metadata` run is replaced,
+and a kill inside it leaves the resolution's bytes,
+which is the limit the handover records beside `aec1ae9f76`.
+The lock's controls are the integration's
+(`the_filling_puts_the_lock_back_as_checked_out`,
+`a_lock_that_is_current_costs_no_resolution_and_is_never_written`,
+`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`),
+and this branch's `a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock` pins the report.
+A refusal is one `service_warn!` line and the item settles `failed`,
 which nothing reads back (`landing/service_work_settling_with_words.rs`),
 so no later command repeats it.
 

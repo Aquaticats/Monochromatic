@@ -306,6 +306,72 @@ and the resolved Rust files and `SPEC.md` report none.
 where the code and `SPEC.md` name two keys,
 `.cli-git-recovery-<name-key>-<merge-key>-<pid>-<count>-<nanos>`;
 that line is the integration's and is left for its own change.
+### A Kimi K3.1 Pro audit of the commit path: two argument-transform findings, both reproduced and fixed (2026-11-11T14:14:06-05:00)
+
+Branch `fix/git-policy-cli-alpha-10-audit-commit-message-options-as-git-reads-them`,
+from `6777017fc4` on `integrate/git-policy-cli-jam-fixes-after-alpha-9`.
+The report `~/temp/agent/kimi-trials/kimi-audit-alpha-10-commit-path/report.md`
+audits `97aeffe75b` and names nine defects;
+this branch owns the two that live in `commit_args.rs`,
+both reproduced on `6777017fc4` through the built wrapper,
+and each fixed with a control that failed first.
+The owner's standing words behind both are "never discard user data"
+and "Commits should never fail.".
+
+#### A path before an equal, separated `-m` value deleted the message
+
+`private_explicit_commit_args` removed the last token equal to each pathspec
+without asking whether that token is a path at all,
+so `git -c commit.cleanup=strip commit a.txt -m a.txt` left `a.txt -m`
+and the scratch commit died with ``error: switch `m' requires a value`` (exit 129),
+where native Git 2.56.0 lands the path `a.txt` with the message `a.txt`.
+The same command line without `-c commit.cleanup=strip` took another route and landed,
+so the deletion was the transform's and not the route's.
+The removal now takes only a token in option position,
+from the same value positions the pathspec removal reads
+(`private_explicit_commit_args`,
+`value_positions`).
+The pathspec-file controls leave the same way,
+so a message that spells `--pathspec-file-nul` is no longer dropped either.
+
+Controls:
+`commit_args::tests::explicit_removal_keeps_a_message_that_equals_a_pathspec`
+failed with `left: ["a.txt", "-m"]` against `right: ["-m", "a.txt"]`,
+and the binary control
+`commit::a_message_equal_to_a_path_stays_and_the_path_is_committed`
+compares both arms against the host's Git on one fixture,
+failing with `left: Some(129)` and ``error: switch `m' requires a value``.
+
+#### An abbreviated `--message` let its value be removed as `--only`
+
+The transform knew only full long spellings as value-taking,
+while Git accepts every unambiguous prefix,
+so `git commit --mess -o -- a.txt` lost the message `-o` to the `--only` removal
+and the scratch commit died with ``error: option `message' requires a value`` (exit 129),
+where native Git lands the message `-o`.
+Whether a long token takes the next token is now Git's own answer:
+`command_options_long_resolution.rs` holds the one table walk
+`scan_long_option` and `takes_next_token` both read,
+so an abbreviation, a `--no-` form and an ambiguous spelling are read once,
+and a spelling Git refuses removes no token of the person's line.
+
+Controls:
+`commit_args::tests::an_abbreviated_value_option_takes_the_next_token` failed with
+`assertion failed: takes_next_token("--mess")`,
+and the binary control
+`commit::an_abbreviated_message_keeps_a_value_that_spells_a_flag`
+failed with `left: Some(129)` and ``error: option `message' requires a value``.
+
+Checks on the branch:
+`native:test:host` over `commit::`,
+`command::`,
+`service_commit_line_reissued` and `service_commit_args` is 785 run and 785 passed,
+`native:test:binary:host` over the two new controls is 2 run and 2 passed,
+`native:clippy` passes,
+and `monochromatic-lint` with `--max-warnings 0` reports nothing in the changed Rust files
+or in `SPEC.md`.
+The package-wide `monochromatic-lint` run still fails on findings in
+`worktree_copying` and `worktree` files this branch did not touch.
 ### A Kimi K3.1 Pro review of the released held push and of the blocked commit's record: four findings fixed, one read as intended (2026-11-11T06:33:22-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-blocked-commits-are-never-published`,
@@ -375,6 +441,151 @@ Two branches conflicted and went back to their agents (round 166):
 `fix/git-policy-cli-commands-never-wait-on-or-fail-with-a-silent-service` (`wait_ceilings_tests.rs`)
 and `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings` (the merge carry files).
 Gate `gpc-gate-alpha-11-on-82829a1696-20261111T070128-0500` runs on `82829a1696`.
+### Two Kimi K3.1 Pro gate findings on the sweep helper and the descriptor search: both real, both fixed (2026-11-11T10:17:24-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-commit-at-the-descriptor-ceiling-lands`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `82829a1696`.
+The review is `~/temp/agent/kimi-reviews/gate-flakes-scratch-sweep-and-descriptor-limit-round-133/review.md`,
+of the branches merged at `bc3d54f9cd`,
+and it names two findings.
+Both are controls and neither is product code:
+no commit,
+no command and no byte of a person's work was at stake,
+and each reproduction was run here against `82829a1696` before either was believed.
+
+#### Finding 1: a slow but correct removal failed the cut-short sweep control
+
+`sweep_until` in `foundation/scratch_location_tests.rs`
+gave the three-tree cut-short control seven attempts and six 20 ms looks,
+about 120 ms,
+while the removals its sweeps cut short finish on their own threads.
+Reproduced with `strace --inject=unlinkat:delay_enter=250ms` around the real run
+(`~/temp/agent/pi-kimi-findings-commit-at-the-descriptor-ceiling-lands/repro-fast-removal-window/run-delayed-removal.ts`):
+before the fix the control failed in 4.167 s,
+
+```text
+FAIL [   4.167s] foundation::scratch_location::tests::a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps
+  panicked at src/native/foundation/scratch_location_tests.rs:495:5:
+  every stale tree went over the later sweeps, though only 0 of their removals finished inside a sweep
+```
+
+and the same reproduction passed in 2.565 s after it.
+The helper now waits `SWEEP_UNTIL_PATIENCE`,
+which is `SCRATCH_REMOVAL_CEILING`,
+the ceiling the product gives one removal before it leaves that entry to a later sweep,
+and looks every `SWEEP_UNTIL_LOOK`;
+a sweep that never empties the place ends there and the assertion names what stayed.
+Its control is `the_sweep_helper_waits_for_a_removal_that_finishes_after_the_sweep_that_started_it`,
+which hands the helper a sweep whose removal finishes on a thread 400 ms later.
+It failed first with the message above and passes now.
+The cause,
+the reproduction and the limit are in `doc/planning/cli-git-scratch-locations.md`,
+"Why the cut-short control waited a ceiling".
+
+#### Finding 2: a landing at the search ceiling was read as no landing at all
+
+`smallest_working` (`binary/binary_fault_limits_tests.rs`)
+halved from the search ceiling and only lowered it on a probe that held,
+so an answer still at `FURTHEST_DESCRIPTOR_LIMIT_SEARCHED` was never probed,
+and the descriptor controls' assertion then said
+"no commit landed under any descriptor limit up to 1024" and skipped the sweep.
+Reproduced from the source under test
+(`~/temp/agent/pi-kimi-findings-commit-at-the-descriptor-ceiling-lands/repro-descriptor-ceiling/run-descriptor-ceiling.ts`):
+
+```text
+case one: smallest_working answered 1024, and a commit lands there: true
+case one assertion would fail: no commit landed under any descriptor limit up to 1024, so this control has no landing to be close to exhaustion
+case two: smallest_working answered 1024, and a commit lands there: false
+```
+
+The search now answers `Option<u64>`:
+a limit its own probe accepted,
+or nothing when no limit in its range worked,
+so those two machines are told apart.
+The wrapper and service descriptor controls name the ceiling once:
+a proven nothing fails with the probed fact,
+a landing below it sweeps as before,
+and a landing at the ceiling says the control did not run.
+That last branch is this branch's choice and not the review's:
+one case per descriptor below 1024 needs 1 200 s to 3 000 s here
+(the wrapper control's 23 cases took 72 s alone and 26.8 s beside the module)
+against the five minutes `.config/nextest.toml` gives one test,
+so failing the gate there would be false and sweeping it would be killed by its own bound.
+Its controls are `the_search_answers_only_a_limit_its_own_probe_accepted`,
+which failed first with
+"the search answered 1024,
+which it never probed,
+so a control cannot say a commit landed there",
+and `the_landing_search_answers_below_the_ceiling_and_says_so_at_it`
+with `the_landing_search_names_a_machine_where_no_limit_lands`.
+
+Run on the final tree:
+`native:clippy` clean;
+`foundation::scratch_location` 27 of 27;
+`fault_limits` 14 of 14;
+`runtime_build_under_limits` 3 of 3;
+`monochromatic-lint --max-warnings 0` on every changed file,
+exit 0.
+Not merged into the integration branch:
+the coordinator merges it.
+### The package repair left a stale lock rewritten, and touched two directories it did not own (2026-11-11T11:10:41-05:00)
+
+Branch `fix/git-policy-cli-pass-8-stale-cargo-lock-left-as-checked-out`,
+from the jam-fix integration at `82829a1696`.
+
+The alpha.11 gate failed
+`package_repair::real_cargo_leaves_a_stale_lockfile_as_checked_out` (1.583 s)
+at `binary_package_repair_tests.rs:569`,
+"the worktree's lock was rewritten".
+Run alone on the branch it fails too,
+so it was never contention.
+The cause is between two branches of pass 8:
+`8b872b3eed` (the never-stuck audit's finding 3,
+merged as `f0dfab8853`)
+made `restore_lock` keep the bytes a clean displaces
+and leave the file exactly as found when the repair is handed no Git directory to keep them in,
+and the add builds the repair's `GitContext` in `run_settled`
+(`worktree_copy_forward.rs`,
+`common_dir: None`,
+because the copy queries it was written for send no input).
+The repair runs after the copy with that same context,
+so the restore took the no-place arm:
+a probe of `git worktree add` in a throwaway workspace printed
+"no Git directory was named to keep those bytes in,
+so the file is left exactly as it is found"
+and left `git status` at ` M Cargo.lock`.
+`f9d58e5dc1` names the identity's common Git directory,
+which is the directory the service's prewarm job already uses for the same lock,
+and `real_cargo_leaves_a_stale_lockfile_as_checked_out` now also reads the kept bytes back,
+so a restore that drops them fails there too.
+
+Claude Sonnet's audit of `574063773d`
+(`~/temp/agent/sonnet-audits/alpha-10-merge-lfs-and-package-repair`,
+F1 and F2)
+found two more,
+both rerun on this branch with its scripts.
+F2:
+a copied `target` that is a link to a directory outside the worktree
+made the plan choose the clean,
+and `cargo clean --package` deleted the source checkout's build output through the link.
+F1:
+the service's clean runs after the add returned,
+so the person may be working in the worktree,
+and the restore put the checked-out `Cargo.lock` back over a lock the person wrote or created.
+`aec1ae9f76` fixes both:
+the plan reads where each directory it deletes from really is and leaves a link that leaves the worktree alone
+(the pnpm repair does the same for a linked `node_modules`),
+and the service's clean is given `--locked`,
+asks Cargo for the stale lock's resolution as a step of its own,
+and puts the checked-out bytes back only when the file still holds exactly what that resolution wrote.
+Its controls fail with each rule planted away,
+and both audit scripts now report the person's file and the source's artifact surviving.
+
+Limits:
+the resolution's own write can still replace a write of the person's that lands inside it,
+which is one `cargo metadata` run and not the clean;
+a worktree whose `target` link the person shares is left uncleaned,
+so its first build compiles the worktree's own crates again.
 
 ### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
 
@@ -536,16 +747,25 @@ The add's Cargo finding names every kept copy;
 the prewarm job writes the same line to its diagnostic log,
 because it runs in the service and has no terminal.
 Note (2026-11-11,
-the merge of this finding with the package-repair branch):
-the prewarm job is no longer a caller of `restore_lock`.
+the merge of this finding with the package-repair branch,
+`57c02af38e` and the merge after it):
+the prewarm job is a caller again,
+of `restore_only_the_cleans_own`.
 The filling of a new worktree's build directory runs after the add has returned,
 while the person may be working in the worktree,
-so its clean passes `--locked` and never writes that lock at all
+so its clean is given `--locked` and writes nothing there,
+a lock it refuses is resolved by `cargo metadata --offline` as a step of its own,
+and the checked-out bytes go back only over the bytes that resolution wrote
 (`package_repair_prewarm_job.rs`,
 `SPEC.md`,
 "A committed `Cargo.lock` that disagrees with its manifest").
-The kept copies above are the add's own clean's,
-whose one window is the worktree the same command just made.
+The filling reports the lock,
+the workspace,
+`cargo update --offline --workspace` there and the add's own clean command
+when it stops anyway.
+The kept copies above are both cleaners',
+and the add's clean is the one whose put-back stands over any change it finds,
+because its window is the worktree the same command just made.
 Controls:
 the new `package_repair_cargo_lock_tests.rs` (seven,
 including a second displacement of one lock and a lock the clean created).
@@ -12446,8 +12666,13 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
   `native:release:wait`,
-  then `node ~/temp/agent/upgrade-wrapper.ts <version>`
+  then `mise run //package/git-policy/cli:native:install -- <version>`
   and a sample commit.
+  That task is the scratch script `~/temp/agent/upgrade-wrapper.ts`
+  folded into the package on 2026-11-11
+  (`package/git-policy/cli/README.md`,
+  "The checks and the install");
+  it takes the same steps and samples the same commit.
   Owner (2026-11-02T21:58:07-05:00):
   "This is expected and fine,
   the correct answer is to release again combining all the

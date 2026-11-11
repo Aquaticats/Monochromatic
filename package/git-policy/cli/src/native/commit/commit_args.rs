@@ -8,10 +8,10 @@
 //!  Native `git commit` must see the policy-settled index,
 //! not worktree bytes again,
 //!  so selection controls and pathspecs are removed once the private index already holds them.
-//!  The removals match the TypeScript wrapper's token for token
-//!  (deleted on 2026-10-13 in `642b6d72cb`),
-//! including its use of `lastIndexOf`,
-//!  so a `-m` value equal to a pathspec is removed from the same position.
+//!  Only a token in option position is an option,
+//!  and a path is removed only where it is a path:
+//!  the value of an option such as `-m` is the person's text and stays,
+//!  even when it spells a path or a flag.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,6 +26,20 @@ const PATHSPEC_SEPARATOR: &str = "--";
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 
+/// What:
+///  Bring Git's own table of `git commit` long options and its abbreviation rules into this file.
+/// Why:
+///   Whether a token takes the next token as its value is Git's answer,
+///  and every unambiguous abbreviation of a value-taking option is one of its spellings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { COMMIT_TABLE } from './command_commit_table.ts';
+/// import { longOptionTakesNextToken } from './command_options_long_resolution.ts';
+/// ```
+use crate::command_commit_table::COMMIT_TABLE;
+use crate::command_options_long_resolution::long_option_takes_next_token;
+
 /// Global options that redirect native Git away from the shadow repository,
 /// so they are dropped.
 const REDIRECTING_VALUE_OPTIONS: [&str; 3] = ["-C", "--git-dir", "--work-tree"];
@@ -39,30 +53,6 @@ const VALUE_TAKING_GLOBAL_OPTIONS: [&str; 7] = [
     "--namespace",
     "--super-prefix",
     "--attr-source",
-];
-
-/// Commit options whose separated value never names a flag.
-const COMMIT_VALUE_OPTIONS: [&str; 20] = [
-    "-m",
-    "-F",
-    "-C",
-    "-c",
-    "-t",
-    "-U",
-    "--message",
-    "--file",
-    "--reuse-message",
-    "--reedit-message",
-    "--squash",
-    "--fixup",
-    "--author",
-    "--date",
-    "--cleanup",
-    "--trailer",
-    "--template",
-    "--unified",
-    "--inter-hunk-context",
-    "--pathspec-from-file",
 ];
 
 /// Short-value options whose clustered form can carry the value in the same token.
@@ -141,17 +131,20 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 ///   A value can be spelled like the separator (`-m --`),
 /// and only a token in option position can end the options.
 ///  A short cluster takes the next token when its value letter ends it;
-/// `-S` and `-u` take their value attached only.
+/// `-S` and `-u` take their value attached only;
+///  a long option is matched as Git matches it,
+/// so every unambiguous abbreviation of a value-taking option takes one too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// takesNextToken('-m'); // true
 /// takesNextToken('-qm'); // true
 /// takesNextToken('-mhello'); // false
+/// takesNextToken('--mess'); // true
 /// ```
 pub(crate) fn takes_next_token(token: &str) -> bool {
     if token.starts_with("--") {
-        return COMMIT_VALUE_OPTIONS.contains(&token);
+        return long_option_takes_next_token(token.as_bytes(), COMMIT_TABLE);
     }
     if !token.starts_with('-') || token.len() < 2 {
         return false;
@@ -325,11 +318,11 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
             if cluster == "-" {
                 continue;
             }
-            value_next = COMMIT_VALUE_OPTIONS.contains(&cluster.as_str());
+            value_next = takes_next_token(cluster.as_str());
             kept.push(cluster);
             continue;
         }
-        value_next = COMMIT_VALUE_OPTIONS.contains(&token.as_str());
+        value_next = takes_next_token(token.as_str());
         kept.push(token);
     }
     return kept;
@@ -342,18 +335,29 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// Why:
 ///   The private index already holds the selected paths,
 /// so the real commit names none of them.
-///  The pathspec removal runs from the last pathspec backwards with `lastIndexOf`,
-/// as the incumbent does.
+///  Only a token in option position is removed:
+/// the value of an option is the person's text,
+///  so a message that spells a path,
+/// a path command or a flag never leaves as that token.
+///  The pathspec removal takes the last path of each pathspec,
+///  as `lastIndexOf` found it in the incumbent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// privateExplicitCommitArgs({ args, pathspecs });
 /// ```
 pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
+    let person_values: Vec<usize> = value_positions(args);
     let mut without_file: Vec<String> = Vec::new();
     let mut index: usize = 0;
     while index < args.len() {
         let token: &str = args[index].as_str();
+        // A value is the person's text, never the control it spells.
+        if person_values.contains(&index) {
+            without_file.push(String::from(token));
+            index += 1;
+            continue;
+        }
         if token == "--pathspec-from-file" {
             index += 2;
             continue;
@@ -365,24 +369,36 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
         without_file.push(String::from(token));
         index += 1;
     }
+    let values: Vec<usize> = value_positions(without_file.as_slice());
+    let mut removed: Vec<bool> = vec![false; without_file.len()];
     for pathspec in pathspecs.iter().rev() {
-        // The last token equal to the pathspec goes, as `.rposition(...)` found it.
+        // The last token equal to the pathspec that is a path goes,
+        // as `.rposition(...)` found it.
         let mut last_position: Option<usize> = None;
         for (position, token) in without_file.iter().enumerate() {
+            if removed[position] || values.contains(&position) {
+                continue;
+            }
             if token == pathspec {
                 last_position = Some(position);
             }
         }
         if let Some(position) = last_position {
-            without_file.remove(position);
+            removed[position] = true;
+        }
+    }
+    let mut without_pathspecs: Vec<String> = Vec::with_capacity(without_file.len());
+    for (position, token) in without_file.into_iter().enumerate() {
+        if !removed[position] {
+            without_pathspecs.push(token);
         }
     }
     // Only the separator and the `-o` and `--only` the person typed in option position go; the same text as the value of an option
     //  (`-m --`) is the person's and stays.
-    let separator: Option<usize> = separator_index(without_file.as_slice());
+    let separator: Option<usize> = separator_index(without_pathspecs.as_slice());
     let mut kept: Vec<String> = Vec::new();
     let mut value_next: bool = false;
-    for (position, token) in without_file.into_iter().enumerate() {
+    for (position, token) in without_pathspecs.into_iter().enumerate() {
         let past_separator: bool = match separator {
             Some(at) => position > at,
             None => false,
@@ -406,6 +422,32 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
         kept.push(token);
     }
     return kept;
+}
+
+/// What:
+///  The indexes whose token is the value of the option before it,
+///  up to the separator.
+/// Why:
+///   The value of an option is the person's text,
+/// so no transform may read it as a path or as a flag.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// valuePositions(['a.txt', '-m', 'a.txt']) // [2]
+/// ```
+fn value_positions(tokens: &[String]) -> Vec<usize> {
+    let limit: usize = separator_index(tokens).unwrap_or(tokens.len());
+    let mut positions: Vec<usize> = Vec::new();
+    let mut index: usize = 0;
+    while index < limit {
+        let token: &str = tokens[index].as_str();
+        index += 1;
+        if takes_next_token(token) && index < limit {
+            positions.push(index);
+            index += 1;
+        }
+    }
+    return positions;
 }
 
 /// What:

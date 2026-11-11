@@ -14,9 +14,14 @@
 //! and publish the staging copy under the destination's name by a rename that never replaces.
 //! Both directories the clean reads and writes are named here,
 //! so the filling deletes nothing from the worktree itself:
-//! its only effect there is the one rename that publishes a directory the worktree did not have,
-//! because the clean is told to leave `Cargo.lock` alone and refuses rather than write it
-//! (`package_repair_cargo_lock.rs` says how the add's own clean treats the same file).
+//! its only effects there are the one rename that publishes a directory the worktree did not have
+//! and the `Cargo.lock` the checked-out one goes back over,
+//! because Cargo resolves the worktree's workspace for the clean.
+//! That lock is never written by the clean:
+//! it runs with `--locked`,
+//! a lock such a clean refuses is resolved by Cargo first,
+//! and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
+//! so a write of the person's lands in their own file and stays there.
 //! A destination that exists means a build got there first,
 //! so the staging copy is dropped and the build keeps everything it made.
 //! The staging directory,
@@ -31,9 +36,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::package_repair_cargo::{clean_arguments, manual_command};
-/// The lock file the filling's clean must not write.
-use crate::package_repair_cargo_lock::LOCK_FILE;
+use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
+/// The lock file the filling's report names,
+/// and the faces that read it and put the checked-out bytes back over a resolution's.
+use crate::package_repair_cargo_lock::{LOCK_FILE, read_lock, restore_only_the_cleans_own};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
 use crate::package_repair_request::RepairEnvironment;
@@ -71,6 +77,10 @@ pub(crate) struct Fill {
     pub(crate) cargo: PathBuf,
     /// The bounds it runs under.
     pub(crate) limits: ToolLimits,
+    /// The Git directory of the worktree whose lock the clean may displace,
+    /// or nothing when no Git directory is known,
+    /// in which case a lock the clean changed is left as it is found.
+    pub(crate) kept_in: Option<PathBuf>,
 }
 
 /// What:
@@ -393,38 +403,12 @@ fn remove_if_any(path: &Path) -> Result<(), String> {
 
 /// What the clean is told about the worktree's lock,
 /// so the report of a clean it stopped names the flag to look up.
-const LOCK_FLAG: &str = "--locked";
-
-/// What:
-///  The arguments the filling's clean runs with:
-/// the add's own clean,
-/// with `--locked` added.
 /// Why:
-///   The clean resolves the worktree's workspace,
-/// and Cargo rewrites a `Cargo.lock` that no longer matches its manifest and creates one that is
-/// missing;
-/// the filling runs after the add has returned,
-/// while the person works in the worktree,
-/// so the file it would write is the person's.
-/// Reading the lock before the clean and putting it back after cannot tell Cargo's write from the
-/// person's own,
-/// and the bytes a kill leaves between the two are rewritten ones,
-/// so the filling asks Cargo to leave the lock alone instead:
-/// a lock Cargo would have to change stops the clean,
-/// and the worktree keeps every byte it had.
-/// The add's own clean does not pass this flag,
-/// because `SPEC.md` records why its put-back stands where the worktree was just made and nobody has
-/// it yet.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const cleanArgumentsOfTheCopy = (members) => [...cleanArguments(members), '--locked'];
-/// ```
-fn clean_arguments_of_the_copy(members: &[String]) -> Vec<OsString> {
-    let mut arguments: Vec<OsString> = clean_arguments(members);
-    arguments.push(OsString::from(LOCK_FLAG));
-    return arguments;
-}
+///   The switch itself is one place,
+/// in `package_repair_cargo::locked_clean_arguments`,
+/// and the words a person reads are another,
+/// so the report spells the same flag these words name.
+const LOCK_FLAG: &str = "--locked";
 
 /// What:
 ///  Why a tool ended as it did,
@@ -477,8 +461,8 @@ fn what_to_do_next(entry: &PrewarmEntry, reason: &str) -> String {
 /// while the dependency builds hold nothing path-specific and are the reason the copy exists.
 /// Both directories are this job's own,
 /// which is what keeps the clean away from the workspace's live state,
-/// and the clean is told to leave `Cargo.lock` alone,
-/// which is what keeps it away from the worktree's files.
+/// and the clean itself is told to leave `Cargo.lock` alone,
+/// which is what keeps the clean out of the worktree's files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -486,13 +470,35 @@ fn what_to_do_next(entry: &PrewarmEntry, reason: &str) -> String {
 /// ```
 async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> ToolRun {
     let command: ToolCommand = ToolCommand {
-        arguments: clean_arguments_of_the_copy(entry.members.as_slice()),
+        arguments: locked_clean_arguments(entry.members.as_slice()),
         directory: entry.root.clone(),
         set: vec![
             (OsString::from(BUILD_DIRECTORY_VARIABLE), names.staging.as_os_str().to_os_string()),
             (OsString::from(TARGET_DIRECTORY_VARIABLE), names.target.as_os_str().to_os_string()),
         ],
     };
+    return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
+}
+
+/// What:
+///  Ask Cargo to resolve the worktree's workspace,
+/// which is what writes the `Cargo.lock` the clean itself must not write.
+/// Why:
+///   `cargo clean` resolves the workspace,
+/// and for a lock that no longer matches its manifest that rewrite is part of the clean;
+///  `--locked` keeps it out of the clean,
+/// so the resolution is asked for as a step of its own.
+/// The bytes it writes are Cargo's own,
+/// which is what lets the caller tell Cargo's rewrite from a person's newer write
+/// (`package_repair_cargo_lock.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runTool(cargo, { arguments: ['metadata', '--offline', '--format-version', '1'], directory: entry.root });
+/// ```
+async fn resolve_the_lock(fill: &Fill, entry: &PrewarmEntry) -> ToolRun {
+    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
+    let command: ToolCommand = ToolCommand { arguments, directory: entry.root.clone(), set: Vec::new() };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
 }
 
@@ -610,16 +616,32 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
         return Ok(Filled::Kept);
     }
     // Cargo resolves the worktree's workspace for this clean even though it deletes only from directories of this job's
-    //  own, and a lock that no longer matches its manifest would be rewritten where it lies. The clean is told to leave the
-    //  lock alone, so nothing here writes the worktree's files: a lock it would have to change stops the clean, and the
-    //  worktree keeps every byte it had.
-    let run: ToolRun = clean_the_copy(fill, entry, names).await;
+    //  own, and that rewrites a `Cargo.lock` that no longer matches its manifest or creates one that is missing. This job
+    //  runs after the add returned, when the person may be working in the worktree, so the clean itself must never write
+    //  that lock (`--locked`): a lock it refuses is resolved by Cargo first, and the checked-out lock goes back only when
+    //  the file still holds exactly the bytes that resolution wrote (`package_repair_cargo_lock.rs`).
+    let lock_before: Option<Vec<u8>> = read_lock(entry.root.as_path());
+    let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
+    if !matches!(run.end, ToolEnd::Succeeded) {
+        let resolved: ToolRun = resolve_the_lock(fill, entry).await;
+        if matches!(resolved.end, ToolEnd::Succeeded) {
+            let the_cleans_own: Option<Vec<u8>> = read_lock(entry.root.as_path());
+            run = clean_the_copy(fill, entry, names).await;
+            if let Some(written) = the_cleans_own.as_deref() {
+                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), written) {
+                    None => {}
+                    Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
+                }
+            }
+        }
+    }
     if !matches!(run.end, ToolEnd::Succeeded) {
         let _removed = remove_if_any(names.staging.as_path());
         let reason: String = end_reason(&run.end);
         return Err(format!(
-            "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The worktree \
-             is exactly as it was: the clean is asked not to change {LOCK_FILE} (`{LOCK_FLAG}`), and nothing here writes it. {}",
+            "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
+             never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved by Cargo first, and the checked-out bytes go \
+             back over bytes only that resolution wrote, so a write of yours stays yours. {}",
             entry.from.display(),
             what_to_do_next(entry, reason.as_str()),
         ));
@@ -681,7 +703,7 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
     let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
-    let fill: Fill = Fill { cargo, limits: environment.limits() };
+    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()) };
     let mut published: usize = 0;
     let mut kept: usize = 0;
     let mut failures: Vec<String> = Vec::new();

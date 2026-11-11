@@ -1769,3 +1769,84 @@ fn the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answ
     assert_eq!(from_a_task, Verdict::Done, "the upkeep ran");
     remove(root.as_path());
 }
+
+/// What:
+///  A service that starts without having listed its journal lists it again by itself,
+/// and the push the plan it finds names is made with no wake and no commit.
+/// Why:
+///  Finding 1 of the review of `bc3d54f9cd`:
+/// the read of the plan was given a ceiling,
+/// and a listing that gave no answer inside it left the service with an empty list and nothing that read the journal again,
+/// so a push an earlier service had promised to try waited for a start nothing requires to arrive.
+/// A directory the service may not list is the fault the control states:
+/// a file stands where the plan's directory must be,
+/// which a listing reports as no such directory,
+/// and it is mended before the service starts.
+/// The plan and the watch are read again after a pause (`PushRetries::needs_restore`,
+/// `restore_the_plan` in `service_server_work_loop_awaiting.rs`),
+/// and the repository the plan names is drained.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// putAFileWhereThePlanDirectoryIs(); const retries = PushRetries.restored(PAUSE, plans); mendTheFault(); startService(retries); expect(remoteTip()).toBe(landed);
+/// ```
+#[test]
+fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
+    let stage: Stage = stage_with("push-retry-plan-unlisted", "never-run");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    // The fault: a file stands where the plan's directory must be, so the start's listing of it gives no answer.
+    std::fs::create_dir_all(plans.parent().expect("the journal")).expect("the journal directory");
+    std::fs::write(plans.as_path(), b"not a directory\n").expect("the blocker");
+    let retries_at_the_start: PushRetries = PushRetries::restored(PAUSE, plans.as_path());
+    assert!(retries_at_the_start.directories().is_empty(), "a listing that gave no answer names no push yet");
+    assert!(retries_at_the_start.needs_restore(), "the journal that gave no answer is listed again, so the pushes it holds are tried");
+    // The fault is mended, and the plan an earlier service's worker published is in the journal.
+    std::fs::remove_file(plans.as_path()).expect("the blocker goes");
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: git_dir.clone(),
+            item: WorkItem {
+                kind: WorkKind::Push,
+                repository: stage.repo.clone(),
+                git_dir: git_dir.clone(),
+                branch_ref: String::from("refs/heads/main"),
+                oid: stage.landed.clone(),
+                parent: String::new(),
+                created: String::from("2026-11-03T05:40:00.000Z"),
+                tries: 0,
+            },
+            attempt: 1,
+        },
+    )
+    .expect("the plan an earlier service promised");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    std::thread::scope(|scope| {
+        let (sender, running) = start_the_loop_with(scope, &handlers, retries_at_the_start, &busy);
+        assert!(
+            wait_until(&|| { return remote_tip(&stage) == stage.landed; }),
+            "the push the plan names was made once the journal was listed again, with no wake and no commit"
+        );
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    remove(stage.root.as_path());
+}
+
+/// Run the work loop on a thread from the plan list a start was given,
+/// so a control states what that start had read:
+/// nothing wakes this service.
+fn start_the_loop_with<'scope>(
+    scope: &'scope std::thread::Scope<'scope, '_>,
+    handlers: &'scope GitHandlers,
+    retries: PushRetries,
+    busy: &'scope Arc<AtomicUsize>,
+) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, mut receiver) = unbounded_channel::<Wake>();
+    let running = scope.spawn(move || {
+        work_loop(&mut receiver, handlers, busy, retries, ClaimWatch::in_memory());
+    });
+    return (sender, running);
+}
