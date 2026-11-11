@@ -200,6 +200,26 @@ The bound of the leak is therefore one entry per kill,
 collected by the next run that uses the same directory.
 A repository that is never used again keeps at most the one input file of a kill inside that moment.
 
+## What one sweep promises
+
+One sweep removes every stale entry it can finish inside `SCRATCH_REMOVAL_CEILING`,
+and leaves the entry it could not to a later sweep:
+a removal that outlasts the ceiling keeps its thread,
+a removal takes a place from the process's budget for blocking work and a caller that finds every place taken starts nothing,
+and a machine that refuses a thread takes nothing.
+So a sweep never waits,
+which is what keeps a commit from waiting for another command's leftovers,
+and its count is the removals it finished and not the entries that are stale.
+What it promises is which entries remain.
+A control that asserted the count therefore failed in a gate of 2026-11-10
+(the sweep answered 0 where the control expected the 2 entries it had just made stale,
+while the same control passed in the gate before it and in 960 runs beside seven other test processes),
+and the only entry in that gate's log this behaviour can explain.
+The controls now sweep again until the expected entries are what remains
+(`scratch_location_tests.rs`,
+`sweep_until`),
+and the count is reported in their messages and never asserted.
+
 ## Controls
 
 Each production site has a child-process control (`binary_markdown_tests.rs`,
