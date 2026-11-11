@@ -129,6 +129,34 @@ fn a_manifest_name_that_holds_a_pipe_is_refused_without_waiting() {
     remove(root.as_path());
 }
 
+/// What:
+///  A link or a named pipe at the manifest's name is no manifest of the trash's,
+///  and reading it neither follows the link nor waits for a reader.
+/// Why:
+///   The emptying asks `its_own` before it unlinks anything,
+/// and it runs on every command in a worktree whose trash parent stands;
+/// a read that followed a link would judge a file outside the trash,
+///  and one that opened a pipe for reading would wait for a writer that may never come.
+#[test]
+fn a_manifest_name_that_holds_a_link_or_a_pipe_is_no_manifest_and_does_not_wait() {
+    let root: PathBuf = fixture("trash-own-manifest-not-a-file");
+    let name: String = "b".repeat(40);
+    let manifest: TrashManifest = planted(root.as_path(), name.as_str(), 1);
+    let victim: PathBuf = root.join("victim");
+    std::fs::write(&victim, manifest.encode().as_bytes()).expect("a file holding a manifest's own bytes");
+    let path: PathBuf = root.join(TRASH_PARENT).join(&name).join(MANIFEST_FILE_NAME);
+    std::os::unix::fs::symlink(&victim, path.as_path()).expect("a link at the manifest's name");
+    assert!(its_own(&opened(root.as_path(), name.as_str()), name.as_str()).is_none(), "the bytes behind a link prove nothing");
+    std::fs::remove_file(path.as_path()).expect("make room for the pipe");
+    crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600).expect("a named pipe");
+    let held: std::fs::File = opened(root.as_path(), name.as_str());
+    let read_name: String = name.clone();
+    let outcome: Option<bool> = crate::test_support::finished_within(move || return its_own(&held, read_name.as_str()).is_none());
+    let Some(answered) = outcome else { panic!("the manifest read waited on a named pipe") };
+    assert!(answered, "a named pipe is no manifest");
+    remove(root.as_path());
+}
+
 /// A root with no trash at all answers nothing and cannot be written into.
 #[test]
 fn a_root_without_that_trash_answers_nothing() {
