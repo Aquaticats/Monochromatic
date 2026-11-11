@@ -522,14 +522,16 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
 }
 
 /// What:
-///  Whether removing a copy the file at its path already holds loses nothing, because nothing can write into the copy any more.
+///  Whether removing a copy the file at its path already holds loses nothing,
+/// because nothing can write into the copy any more.
 /// Why:
 ///   A copy whose bytes the person's file holds again is a second file of the same bytes,
 /// and the copy beside the path is the one to go;
 ///  but the copy may be a file a program still has open,
 /// because a take moved it and a descriptor outlives the rename,
 ///  and a write through that descriptor lands in the file that would be unlinked and then has no name at all
-/// (`SPEC.md`, the removal the aside's own end acts on).
+/// (`SPEC.md`,
+/// the removal the aside's own end acts on).
 ///  So the same proof is asked before any copy is unlinked:
 /// the identity the copy had when the bytes were compared is still its identity,
 ///  that identity

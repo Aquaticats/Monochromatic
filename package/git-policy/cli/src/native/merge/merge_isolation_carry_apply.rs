@@ -32,12 +32,13 @@
 use crate::lazy_runtime::run_on_runtime;
 /// The decisions a path's layers come to,
 /// and the planning of one path's writes.
-use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
+use crate::merge_isolation_carry_plans::{plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
+/// Putting one written path into the report the lines are made from.
+use crate::merge_isolation_carry_notice::add_to_the_report;
 /// The kept path's line,
 /// and what stands at it.
-use crate::merge_isolation_carry_kept_path::kept_path;
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -373,20 +374,12 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  person's newer decision, not this carry's own write.
         let worktree_is_ours: bool =
             explained(&state, &[captured_object, merged_object, target.as_deref()]) && the_file_git_landed(landed, &standing);
-        // The reading is the only thing that proves the file standing at the path is the one Git's own update wrote. Without an
-        //  entry for this path the bytes are all there is, and a save that arrived after a kill and holds exactly the merge's
-        //  bytes reads as the merge's own file. The merge still finishes, and the bytes it would have written stay beside the
-        //  path, recorded and named, so the file keeps whatever the person's newest bytes were
+        // The reading is the only thing that proves the file standing at the path is the one Git's own update wrote, so a path
+        //  it does not name is left as it is and the bytes this carry planned for it are kept beside it and named
         //  (`merge_isolation_carry_landed.rs`).
-        let the_entry_is_proven: bool = crate::merge_isolation_carry_landed::the_reading_names_the_path(landed, entry.path.as_slice());
-        let holds_the_merges_own_bytes: bool = match (&state, merged_object) {
-            (WorktreeState::Content { object, .. }, Some(merged)) => object == merged,
-            _ => false,
-        };
-        // The bytes are only kept beside the path when this carry would have written some there: a path the merge's own bytes
-        //  already explain needs nothing written, so its layer is not lost by leaving it.
-        let keep_the_planned_bytes: bool =
-            worktree_is_ours && !the_entry_is_proven && holds_the_merges_own_bytes && matches!(&worktree, FileWrite::Bytes(_, _));
+        let keep_the_planned_bytes: bool = worktree_is_ours
+            && crate::merge_isolation_carry_landed::the_write_is_unproven(landed, entry.path.as_slice(), &state, merged_object)
+            && matches!(&worktree, FileWrite::Bytes(_, _));
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
@@ -405,18 +398,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             (IndexWrite::Remove, true) => false,
             _ => current.is_some(),
         };
-        if worktree_is_ours && !keep_the_planned_bytes {
-            match note {
-                Note::Merged => report.merged.push(entry.path.clone()),
-                Note::Conflict => report.conflicts.push(entry.path.clone()),
-                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, in_the_index)),
-                Note::None => {}
-            }
-        } else {
-            // This layer is someone else's, or the file is one nothing proves is Git's own write; either way nothing is written
-            //  over it, and the line about it says so.
-            report.changed.push(entry.path.clone());
-        }
+        add_to_the_report(&mut report, entry, change, note, in_the_index, worktree_is_ours && !keep_the_planned_bytes);
         let written: Step = Step {
             path: entry.path.clone(),
             index: if index_is_ours { index } else { IndexWrite::Leave },

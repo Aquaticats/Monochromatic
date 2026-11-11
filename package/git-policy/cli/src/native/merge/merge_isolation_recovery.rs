@@ -8,11 +8,13 @@ use crate::merge_isolation_journal::MergeIntent;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
 pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref_awaiting, partly_installed};
+/// Settling a saved merge whose paths hold the person's own newer edits.
+use crate::merge_isolation_recovery_cleanup::settle_a_saved_merge_over_newer_edits;
 /// The reads the decision rests on,
 /// named here so a caller keeps one import.
 pub use crate::merge_isolation_recovery_reads::{
     holds_the_merge, holds_the_merges_entry, paths_the_branch_does_not_hold_awaiting, resolve_commit_awaiting, symbolic_ref_awaiting,
-    the_paths_hold_only_the_persons_own_bytes_awaiting,
+    the_capture_holds_every_file_in_the_way, the_paths_hold_only_the_persons_own_bytes_awaiting,
 };
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
@@ -335,36 +337,19 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
     }
-    if !foreign.is_empty() {
-        // A merge saved behind an index lock that never began leaves the person's own edits in the paths it changes, and the
-        //  capture it saved may be older than those edits are now. Nothing of the merge is in the index or the checkout, so it
-        //  cannot be installed without writing bytes the capture does not hold over them: the record goes, the saved commit stays
-        //  on its ref, and the person makes the merge again on what their files hold now (a cross-vendor audit of alpha.10, its
-        //  fourth finding; the owner's "never discard user data").
-        if intent.side_ref.is_some()
-            && !any_in_index
-            && !any_in_worktree
-            && the_paths_hold_only_the_persons_own_bytes_awaiting(place, root, changes.as_slice(), judgements.as_slice()).await
-        {
-            let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
-            let _noted = out.write_all(
-                format!(
-                    "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made: {} hold your own edits, which were made \
-                     after that merge saved the work it carries, so installing it would write over them. Nothing was changed and the \
-                     record {} was removed; the merge commit {} is kept on {side_ref}, which nothing removes. Run `git merge {}` to \
-                     make the merge on the bytes your files hold now, or delete the ref once you have decided.\n",
-                    foreign.join(", "),
-                    record.display(),
-                    intent.new_oid,
-                    intent.new_oid
-                )
-                .as_bytes(),
-            );
-            if let Err(error) = drop_record(record) {
-                return Err(MergeRefusal { error, began });
-            }
-            drop_capture_awaiting(place, root, intent).await;
-            return Ok(MergeRecoveryAction::DeferredRefused);
+    // A merge saved behind a live index lock never began, and the person's own edits may stand in the paths it changes, where
+    //  nothing of the merge is in the index or the checkout. The capture the record keeps holds their bytes when they were saved
+    //  and no more, so the merge is installed over them only where the capture holds their bytes and their mode as they are now;
+    //  otherwise the record settles with its ref named rather than write over them (a cross-vendor audit of alpha.10, its fourth
+    //  finding; the owner's "never discard user data").
+    let a_saved_merge_over_the_persons_own_bytes: bool = intent.side_ref.is_some()
+        && !any_in_index
+        && !any_in_worktree
+        && the_paths_hold_only_the_persons_own_bytes_awaiting(place, root, changes.as_slice(), judgements.as_slice()).await;
+    if !foreign.is_empty() && !(a_saved_merge_over_the_persons_own_bytes && the_capture_holds_every_file_in_the_way(intent, changes.as_slice(), judgements.as_slice()))
+    {
+        if a_saved_merge_over_the_persons_own_bytes {
+            return settle_a_saved_merge_over_newer_edits(place, root, record, intent, foreign.as_slice(), out).await;
         }
         return Err(MergeRefusal { error: edits_on_the_merges_own_paths(root, foreign.as_slice(), record), began });
     }

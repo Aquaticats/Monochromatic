@@ -13247,9 +13247,12 @@ a copy whose merge still runs is left for that merge to finish,
 because a command beside a live merge that put the copy back under it would make Git refuse the checkout the
 merge was part way through making,
 a copy whose path is empty and whose merge stopped without finishing goes back,
-a copy whose bytes the file at its path holds again, and whose permissions that file has too, is removed only on the
+a copy whose bytes the file at its path holds again,
+and whose permissions that file has too,
+is removed only on the
 proof its own removal asks for:
-the identity and the bytes it read are still its own, and no process this command can read holds it open,
+the identity and the bytes it read are still its own,
+and no process this command can read holds it open,
 a copy whose bytes that file holds but whose permissions it does not keeps its bytes and is named with that reason,
 and so does a copy a program still holds open,
 a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
@@ -13297,11 +13300,18 @@ change nothing of the branch and say nothing.
 A merge saved on a side ref that cannot be finished now never stops a command while nothing of it has been installed:
 the line says where the merge is and what blocked it,
 and the command goes on.
-A merge saved on a side ref whose paths hold the person's own edits made after it was saved is not installed over them:
+A merge saved on a side ref whose paths hold the person's own edits is installed once the lock is free:
 nothing of it is in the index or the checkout,
-so the record goes,
+and the capture the record keeps holds their bytes and their mode,
+so the merge takes each file aside,
+writes its own content,
+and the carry puts their work back over it.
+A file the capture does not hold,
+because it was saved again after the merge was saved,
+is not written over at all:
+the record goes,
 the merge's commit stays on its ref,
-and the line names that ref and the `git merge` command that makes the merge again on the bytes the files hold now.
+and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now.
 A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
 another branch's checkout has nothing for it to finish and nothing of it was saved,
 so the record goes and the merge is run again on the branch it is for.
@@ -13326,12 +13336,14 @@ the reading goes with the record it belongs to,
 and the record is removed before it,
 so a kill inside that removal leaves a reading no command reads rather than a record whose reading is gone.
 A path the reading does not name is one nothing proves Git's update wrote:
-where the file there holds exactly the merge's own bytes, which is also what a save made after a kill holds,
+where the file there holds exactly the merge's own bytes,
+which is also what a save made after a kill holds,
 the merge finishes and the file stays as it is,
 the bytes the carry would have written are kept beside it under a private name,
 and that copy is recorded and named.
 A path whose entry is neither a regular file nor a symbolic link is never read for its bytes:
-a pipe has none, and asking Git to hash one waits for a writer that may never come,
+a pipe has none,
+and asking Git to hash one waits for a writer that may never come,
 so such a path proves nothing and every copy beside it stays.
 The line a recovery writes about a path it carried says which merge it is finishing,
 never a repository ref of the branch it lands on.

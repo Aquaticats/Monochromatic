@@ -26,7 +26,7 @@
 //! for (const line of reportLines('feature', report)) stderr.write(`${line}\n`);
 //! ```
 
-use crate::merge_isolation_carry_kept_path::{Kept, kept_line};
+use crate::merge_isolation_carry_kept_path::{Kept, kept_line, kept_path};
 
 /// What:
 ///  Everything one carry did,
@@ -146,3 +146,38 @@ fn text(path: &[u8]) -> String {
 #[cfg(test)]
 #[path = "merge_isolation_carry_notice_tests.rs"]
 mod tests;
+
+/// What:
+///  Put one written path into the report the lines are made from,
+///  or into the paths the command left alone.
+/// Why:
+///  The decision about one path and the line it earns are one answer,
+/// and the caller that writes the step is
+///  at its file's code-line limit,
+/// so the choice of which list a path joins lives here with the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addToTheReport({ report, entry, change, note, inTheIndex, written: worktreeIsOurs && !keepThePlannedBytes });
+/// ```
+pub(crate) fn add_to_the_report(
+    report: &mut Report,
+    entry: &crate::merge_isolation_carry_parts::CapturedPath,
+    change: &crate::merge_isolation_changes::Change,
+    note: crate::merge_isolation_carry_plans::Note,
+    in_the_index: bool,
+    written: bool,
+) {
+    if !written {
+        // The layer is someone else's, or the file is one nothing proves is Git's own write; either way nothing is written over
+        //  it, and the line about it says so.
+        report.changed.push(entry.path.clone());
+        return;
+    }
+    match note {
+        crate::merge_isolation_carry_plans::Note::Merged => report.merged.push(entry.path.clone()),
+        crate::merge_isolation_carry_plans::Note::Conflict => report.conflicts.push(entry.path.clone()),
+        crate::merge_isolation_carry_plans::Note::Kept(why) => report.kept.push(kept_path(entry, change, why, in_the_index)),
+        crate::merge_isolation_carry_plans::Note::None => {}
+    }
+}

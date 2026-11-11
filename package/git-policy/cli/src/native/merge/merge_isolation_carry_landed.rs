@@ -28,7 +28,7 @@
 //! const landed = landedOf(root, paths); const still = theFileGitLanded(landed, landedFileAt(location, path));
 //! ```
 
-use crate::merge_isolation_changes::{FileIdentity, file_identity, worktree_path};
+use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
 
 /// The version of the record of what Git's update left.
 pub const LANDED_RECORD_SCHEMA_VERSION: i64 = 1;
@@ -308,7 +308,8 @@ pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
 /// ```
 ///  The record is made under a private name beside its own and renamed onto it,
 /// so a kill inside the write leaves either no record
-///  at all, which is the state a power loss leaves and the recovery reads by bytes,
+///  at all,
+///  which is the state a power loss leaves and the recovery reads by bytes,
 /// or the whole record;
 ///  a record
 ///  a kill cut in half names paths whose entries it never finished writing,
@@ -428,3 +429,34 @@ pub fn the_file_git_landed(landed: &[LandedFile], standing: &LandedFile) -> bool
 #[cfg(test)]
 #[path = "merge_isolation_carry_landed_tests.rs"]
 mod tests;
+
+/// What:
+///  Whether the bytes a carry would write at a path stay beside it instead,
+///  because nothing proves the file standing there is the one Git's update wrote.
+/// Why:
+///   A file whose bytes are exactly the merge's own is what Git's update wrote,
+/// and also what a save made after a
+///  killed merge holds,
+/// so the reading is the only thing that tells them apart.
+/// Where the reading does not name the path,
+/// the
+///  file is left as it is and the bytes the carry planned for it are kept beside it and named,
+/// so the person's
+///  newest bytes are never replaced by the older layer the merge captured
+/// (`SPEC.md`,
+/// the copy whose bytes the file
+///  at its path holds).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theWriteIsUnproven = (landed, path, state, merged) => !landed.some((one) => sameBytes(one.path, path)) && state.kind === 'content' && state.object === merged;
+/// ```
+pub fn the_write_is_unproven(landed: &[LandedFile], path: &[u8], state: &WorktreeState, merged: Option<&str>) -> bool {
+    if the_reading_names_the_path(landed, path) {
+        return false;
+    }
+    return match (state, merged) {
+        (WorktreeState::Content { object, .. }, Some(found)) => object == found,
+        _ => false,
+    };
+}
