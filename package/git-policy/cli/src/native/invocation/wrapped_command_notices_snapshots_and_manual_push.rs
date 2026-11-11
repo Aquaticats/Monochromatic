@@ -353,7 +353,9 @@ impl CommitNamer for GitShortName<'_> {
 /// What:
 ///  Before `git worktree remove` or `git worktree prune`,
 /// copies the records of the linked worktrees into snapshots that
-///  survive the removal.
+///  survive the removal,
+/// keeps the commit of every held batch where a removal cannot reach it,
+/// and answers the words that stop the command when one such commit cannot be kept at all.
 /// Why:
 ///   Git deletes a removed worktree's Git directory,
 /// and with it the failed pushes nobody was told about and the pushes the
@@ -363,21 +365,24 @@ impl CommitNamer for GitShortName<'_> {
 /// Which worktrees go is
 ///  decided later,
 /// from whether each still exists (`worktree_removal_rescue.rs`).
+///  A held commit that no reference of the repository can be made to hold must not reach Git,
+/// which would delete the only references that name it
+///  (`worktree_removal_held_commits.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) await snapshotLinkedWorktrees(commonDir);
+/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) return await snapshotThenKeep(commonDir);
 /// ```
-pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) -> Option<String> {
     if command_word(stripped) != b"worktree" {
-        return;
+        return None;
     }
     let removes: bool = match command_region(stripped).first() {
         Some(word) => matches!(word.as_encoded_bytes(), b"remove" | b"prune"),
         None => false,
     };
     if !removes {
-        return;
+        return None;
     }
     if let Some(common_dir) = checks.facts.known_common_dir() {
         // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
@@ -389,10 +394,20 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
         //  is told, before Git runs (`worktree_removal_held_commits.rs`).
         let context: GitContext = checks.facts.transaction_context();
-        for said in crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context) {
+        let kept: crate::worktree_removal_held_commits::KeptCommits = crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context);
+        for said in kept.said {
             let _written = writeln!(std::io::stderr(), "{}: {said}", crate::wrapper_names_old_and_new::PROGRAM.current);
         }
+        if !kept.refused.is_empty() {
+            // A command that must stop names what it kept and where, whatever the terminal does with the words.
+            let mut stderr: String = String::new();
+            for refused in kept.refused {
+                stderr.push_str(format!("{}: {refused}\n", crate::wrapper_names_old_and_new::PROGRAM.current).as_str());
+            }
+            return Some(stderr);
+        }
     }
+    return None;
 }
 
 /// What:

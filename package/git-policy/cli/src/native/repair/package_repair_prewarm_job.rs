@@ -70,6 +70,10 @@ pub(crate) struct Fill {
     pub(crate) cargo: PathBuf,
     /// The bounds it runs under.
     pub(crate) limits: ToolLimits,
+    /// The Git directory of the worktree whose lock the clean may displace,
+    /// or nothing when no Git directory is known,
+    /// in which case a lock the clean changed is left as it is found.
+    pub(crate) kept_in: Option<PathBuf>,
 }
 
 /// What:
@@ -472,10 +476,14 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
     }
     // Cargo resolves the worktree's workspace for this clean even though it deletes only from directories of this job's
     //  own, and that rewrites a `Cargo.lock` that no longer matches its manifest or creates one that is missing. The
-    //  worktree must stay as Git wrote it, so the lock is put back exactly as the add's own clean puts it back.
+    //  worktree must stay as Git wrote it, so the lock is put back exactly as the add's own clean puts it back, keeping the
+    //  bytes the clean displaced first (`package_repair_cargo_lock.rs`).
     let lock_before: Option<Vec<u8>> = read_lock(entry.root.as_path());
     let run: ToolRun = clean_the_copy(fill, entry, names).await;
-    restore_lock(entry.root.as_path(), lock_before.as_deref());
+    match restore_lock(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref()) {
+        None => {}
+        Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
+    }
     if !matches!(run.end, ToolEnd::Succeeded) {
         let _removed = remove_if_any(names.staging.as_path());
         return Err(format!("the copy of {} could not be cleaned ({:?})", entry.from.display(), run.end));
@@ -537,7 +545,7 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
     let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
-    let fill: Fill = Fill { cargo, limits: environment.limits() };
+    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()) };
     let mut published: usize = 0;
     let mut kept: usize = 0;
     let mut failures: Vec<String> = Vec::new();

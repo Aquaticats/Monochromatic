@@ -40,7 +40,7 @@ use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_query_refs::tracking_ref;
 use crate::repo_read_refs::{RefValue, Refs};
 use crate::repo_read_tree::parse_commit;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
+use crate::service_client::{Activation, ClientConfig, manager_watch_for};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_handoff::{ServiceHandoff, hand_over_push, write_push_record};
 use crate::service_messages::{render};
@@ -48,6 +48,7 @@ use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
 use crate::service_messages::platform_remedy;
 use crate::service_provision::platform_without_manager;
 use crate::service_route::{Route, route_from_environment};
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use std::collections::{HashSet, VecDeque};
 use std::ffi::OsString;
 use std::io::Write;
@@ -420,10 +421,11 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         config: ClientConfig {
             address,
             activation: Activation::Managed,
-            start_wait: START_WAIT,
+            // The push record is durable, so the wake waits the hand-over's own greeting bound.
+            start_wait: HAND_OVER_GREETING_WAIT,
             heartbeat_silence: HEARTBEAT_SILENCE,
             start_watch: provision.as_ref().map(manager_watch_for),
-            keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
+            keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
             units_record_dir: provision.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
         },
         repository: watch.layout.worktree_root.clone(),

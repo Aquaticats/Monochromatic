@@ -583,17 +583,21 @@ settled from the worktree's own record of it, and the file may be removed once t
         //  still owes (`owed_index_update.rs`). A record the settlement marked done is gone, and nothing is left to decide.
         if was_held {
             match the_intent_as_it_reads_now(path.as_path()) {
-                // The settlement finished every obligation of the batch, and said so by removing its record.
-                None => continue,
+                // The settlement finished every obligation of the batch, and said so by removing its record: the hold's record went
+                //  with it and its intent was renamed to `.done`. A restart that says nothing about a batch it just landed and
+                //  finished tells the person who asked what became of it nothing at all, and a settle request builds its whole
+                //  answer from these reports: the batch would be in neither the settled nor the unanswered list, and
+                //  `service settle-earlier-batches` would print no line for it and exit 0 (`earlier_service_journal_adopted.rs`,
+                //  `settle_on_request`). So it is reported as what it is.
+                None => {
+                    reports.push(RecoveryReport { seq: intent.seq, decision: Recovery::Finish, handled: Handled::Finished });
+                    continue;
+                }
                 Some(Some(fresh)) => intent = fresh,
-                // A record this build cannot read is kept and named rather than dropped, as above.
+                // A record this build cannot read is kept and named rather than dropped: removing it would forget a landed commit's
+                //  owed index update (`owed_index_update.rs`).
                 Some(None) => {
-                    crate::service_error!(
-                        "batch {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is \
-settled; its owed index update is settled from the worktree's own record of it",
-                        intent.seq,
-                        path.display()
-                    );
+                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(&intent, path.as_path());
                     continue;
                 }
             }

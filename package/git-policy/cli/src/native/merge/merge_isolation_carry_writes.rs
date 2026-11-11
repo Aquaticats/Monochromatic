@@ -24,6 +24,9 @@ use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_kept_copies::keep_the_copy;
 use crate::merge_isolation_changes::worktree_path;
 use crate::transaction_git::{GitContext, GitOutput};
+/// The one owner of a path spelled for a shell,
+/// so a command the line prints takes the path as one word.
+use crate::shell_quote::shell_quote;
 use crate::transaction_phase::Phase;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -266,6 +269,26 @@ fn failure_detail(failure: &CarryFailure) -> String {
 }
 
 /// What:
+///  The words of the two commands that put a copy this merge kept back over its path,
+/// and drop it.
+/// Why:
+///   Both paths are copied out of the line and run,
+/// and a name with a space reaches `mv` as several arguments otherwise,
+///  so each is quoted for the shell
+/// (`crate::shell_quote`,
+/// the one owner of that spelling).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commands = (aside, path) => `mv -- ${shellQuote(aside)} ${shellQuote(path)} puts the copy back over what is there, rm -- ${shellQuote(aside)} drops the copy`;
+/// ```
+fn commands_that_end_the_copy(aside: &Path, path: &[u8]) -> String {
+    let shown_aside: String = shell_quote(aside.as_os_str().as_encoded_bytes());
+    let shown_path: String = shell_quote(path);
+    return format!("`mv -- {shown_aside} {shown_path}` puts the copy back over what is there, `rm -- {shown_aside}` drops the copy");
+}
+
+/// What:
 ///  Write every planned entry and file,
 /// after a bounded wait for `index.lock`.
 /// Why:
@@ -357,12 +380,10 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             let _ = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {path} was written, and the file it held before this merge took it can still be written \
-                     by a program that opened it, so it is kept at {}; nothing of the person's was removed. `mv -- {} {path}` puts the copy back over what is \
-                     there, `rm -- {}` drops the copy, and a later command removes the copy by itself once {path} holds its bytes \
-                     again.\n",
+                     by a program that opened it, so it is kept at {}; nothing of the person's was removed. {}, and a later command \
+                     removes the copy by itself once {path} holds its bytes again.\n",
                     aside.display(),
-                    aside.display(),
-                    aside.display()
+                    commands_that_end_the_copy(aside.as_path(), step.path.as_slice())
                 )
                 .as_bytes(),
             );
@@ -376,11 +397,10 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
                     let _ = out.write_all(
                         format!(
                             "monochromatic-git-policy-cli: {path} was written again while this merge ran, and the file it held before that is \
-                             kept at {}; nothing was removed. `mv -- {} {path}` puts the copy back over what is there, `rm -- {}` drops \
-                             the copy, and a later command removes the copy by itself once {path} holds its bytes again.\n",
+                             kept at {}; nothing was removed. {}, and a later command removes the copy by itself once {path} holds its \
+                             bytes again.\n",
                             waits.display(),
-                            waits.display(),
-                            waits.display()
+                            commands_that_end_the_copy(waits.as_path(), step.path.as_slice())
                         )
                         .as_bytes(),
                     );
@@ -420,3 +440,8 @@ pub(crate) struct StepResult {
     /// whose bytes are the person's and were left alone.
     pub(crate) changed: Vec<Vec<u8>>,
 }
+
+/// The words of a kept copy's commands.
+#[cfg(test)]
+#[path = "merge_isolation_carry_writes_tests.rs"]
+mod tests;

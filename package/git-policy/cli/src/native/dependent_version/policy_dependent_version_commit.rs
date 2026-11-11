@@ -50,6 +50,8 @@ use crate::policy_added_path::{
 use crate::policy_content::Correction;
 /// The facts interface the real index is listed through.
 use crate::repository_facts::RepositoryFacts;
+/// The repository location the listing names.
+use crate::repository_location::RepositoryLocation;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// Borrowed filesystem paths.
@@ -205,6 +207,8 @@ pub enum RealIndexListing {
 ///  Empty for every lifecycle that adds no path,
 ///  and for a
 ///       commit whose findings all name paths it selected.
+///  A location whose repository has no work tree is refused by the listing itself,
+///  which names the reason instead of answering that the index holds nothing.
 /// Why:
 ///   One Git start lists every added dependent,
 ///  and only a commit that adds one reaches
@@ -212,14 +216,14 @@ pub enum RealIndexListing {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function addedEntries({ plansCommit, findings, version, facts, root, realIndex }): Promise<RealIndexListing>;
+/// async function addedEntries({ plansCommit, findings, version, facts, location, realIndex }): Promise<RealIndexListing>;
 /// ```
 pub fn added_entries<F: RepositoryFacts>(
     plans_commit: bool,
     findings: &[DependentFinding],
     version: &CandidateVersion,
     facts: &mut F,
-    root: Option<&Path>,
+    location: Option<&RepositoryLocation>,
     real_index: Option<&Path>,
 ) -> RealIndexListing {
     let mut paths: Vec<Vec<u8>> = Vec::new();
@@ -232,13 +236,13 @@ pub fn added_entries<F: RepositoryFacts>(
             }
         }
     }
-    let (Some(top_level), Some(index)) = (root, real_index) else {
+    let (Some(found), Some(index)) = (location, real_index) else {
         return RealIndexListing::Listed(BTreeMap::new());
     };
     if paths.is_empty() {
         return RealIndexListing::Listed(BTreeMap::new());
     }
-    return match real_index_entries(&facts.transaction_context(), top_level, index, paths.as_slice()) {
+    return match real_index_entries(&facts.transaction_context(), found, index, paths.as_slice()) {
         Ok(entries) => RealIndexListing::Listed(entries),
         Err(message) => RealIndexListing::Unlisted(message),
     };
