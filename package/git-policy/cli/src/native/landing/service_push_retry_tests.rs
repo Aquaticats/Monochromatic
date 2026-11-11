@@ -302,6 +302,52 @@ fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person()
     remove(root.as_path());
 }
 
+/// What:
+///  A push whose earlier tries failed for a cause that can pass,
+///  and whose last try the server refused as an update to a protected branch,
+///  ends at the same count,
+///  and the record says what is true of that sequence.
+/// Why:
+///   The plan names a try and no cause,
+/// so wait hours spent on a stall count against the push;
+/// a record that claimed the refusal was tried that many times would be false,
+/// and one that let an unbounded cause reset the count could wait for ever.
+#[test]
+fn a_stall_before_a_protected_branch_refusal_spends_the_same_tries() {
+    let refusal: String = format!(
+        "remote: {GITHUB_PROTECTED_BRANCH_LINE}\nremote: \nTo /srv/remote.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n"
+    );
+    // The script is read from the end: every try before the last one met a stall, and the last one the refusal.
+    let mut script: Vec<Verdict> = (1..PROTECTED_BRANCH_TRIES).map(|_try_number| { return Verdict::Retry(String::from("Could not resolve host")); }).collect();
+    script.insert(0, Verdict::Retry(refusal));
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
+        scripted_world_paced("push-retry-refusal-after-stalls", script, COUNTED_PAUSE);
+    let mut rounds: u32 = 0;
+    let mut plan: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    loop {
+        let Some(wait) = plan else { break };
+        rounds += 1;
+        assert!(rounds < SAFETY_ROUNDS, "the service was still planning tries for a push it should have left to the person: {rounds} rounds");
+        std::thread::sleep(wait);
+        plan = round_of(git_dir.as_path(), &handlers, &mut retries);
+    }
+    assert_eq!(
+        handlers.pushes.load(Ordering::SeqCst),
+        usize::try_from(PROTECTED_BRANCH_TRIES).expect("a count of tries"),
+        "the push was given its tries and no more, though the earlier ones met a stall"
+    );
+    assert!(retries.directories().is_empty(), "no plan is left");
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
+    let record: &str = shown[0].as_str();
+    assert!(
+        record.contains("the server refused the last try of this push as an update to a protected branch"),
+        "the record says which try the server refused: {record}"
+    );
+    assert!(!record.contains("tried it"), "the record never says the refusal was tried as often as the push: {record}");
+    remove(root.as_path());
+}
+
 /// Every failure that can pass is tried again,
 /// each time after a longer pause,
 /// until the push lands;
