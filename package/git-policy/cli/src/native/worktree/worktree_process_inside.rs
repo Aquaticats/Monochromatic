@@ -7,8 +7,30 @@
 //!  a process whose working folder is in the worktree is a person's shell,
 //!  an agent's session,
 //!  or a build that would fail the moment the folder went.
-//!  This is a read of each process's working folder (`/proc/<pid>/cwd`),
+//!  This is a read of each process's working folder (`/proc/<pid>/cwd`)
+//!  and of the files it holds open (`/proc/<pid>/fd`),
 //!  never of its environment.
+//!  A process whose working folder is elsewhere can still be working in a worktree:
+//!  an editor, a pager, a build started with `-C` from another directory,
+//!  or any program that opened a file there and went on,
+//!  holds a descriptor into it,
+//!  and removing the worktree pulls the files out from under it
+//!  (a qwen4-max-preview audit of 0.6.1-alpha.10,
+//! `574063773d`,
+//! finding 2,
+//! reproduced with a `tail -f` of a file in the worktree whose working folder was the fixture root).
+//!  A descriptor into the worktree's own Git directory does not count:
+//!  the wrapper's commit service holds its marker there for as long as it lives
+//!  (measured on this host:
+//! `.../<worktree>/.git/index.lock.cli-git-marker-<pid>...`),
+//!  and counting it would keep every landed worktree whose service is up,
+//!  which is most of them.
+//!  The descriptor read costs one listing and one link read per descriptor of every process:
+//!  measured on this host with 1 567 processes,
+//!  five rounds took 137.7, 113.4, 108.0, 97.7 and 95.5 ms,
+//!  so it is paid once per worktree a merge considers removing and nowhere else.
+//!  A kernel gives no reverse lookup from a directory to the processes holding it open,
+//!  so a scan is what the truth costs.
 //!  A process that ended while it was being read is skipped:
 //!  it cannot be working there any more.
 //!  A process of this account whose working folder cannot be read keeps the worktree only when it could have been there:
@@ -58,6 +80,9 @@ use std::time::Duration;
 pub enum WorkingFolder {
     /// It is the worktree or a folder below it.
     Inside,
+    /// Its working folder is elsewhere,
+    /// and it holds a file open inside the worktree.
+    OpenFile,
     /// It could not be read,
     /// and the process is this account's,
     /// so nothing proves it is outside the worktree.
@@ -92,6 +117,7 @@ impl WorkingProcess {
         }
         return match self.folder {
             WorkingFolder::Inside => format!("process {} is working in it", self.pid),
+            WorkingFolder::OpenFile => format!("process {} has a file open in it, though its working folder is elsewhere", self.pid),
             WorkingFolder::Unreadable => format!(
                 "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
                 self.pid
@@ -118,7 +144,7 @@ impl WorkingProcess {
 /// ```ts
 /// processWorkingInside(root, procRoot, worktreeAge) // WorkingProcess | undefined
 /// ```
-pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
+pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
     let listing = std::fs::read_dir(proc_root).ok()?;
     let uptime: Option<Duration> = uptime_of(proc_root);
     for entry in listing.flatten() {
@@ -128,7 +154,12 @@ pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Optio
         };
         match std::fs::read_link(entry.path().join("cwd")) {
             Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
-            Ok(_elsewhere) => {}
+            Ok(_elsewhere) => {
+                // A folder outside the worktree can still hold a file open in it, and that process is working there.
+                if holds_a_file_inside(entry.path().as_path(), root, git_dir) {
+                    return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile });
+                }
+            }
             // The process went while it was being read, so it cannot be working in the worktree any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
@@ -144,6 +175,47 @@ pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Optio
     }
     return None;
 }
+
+/// What:
+///  Whether the process at `entry` holds a file open inside the worktree,
+///  its own Git directory excepted.
+/// Why:
+///   A descriptor is the kernel's own record of what a program is using,
+///  so a file written, read or watched there is found however the program was started.
+///  The worktree's Git directory is left out because this program's own commit service
+///  holds its marker file there for as long as it lives,
+///  and a rule that counted it would keep every landed worktree a service runs for.
+///  A descriptor directory this account cannot read says nothing,
+///  and its process's working folder could not be read either,
+///  which the caller has already decided by the process's age.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsAFileInside(entry, worktree, gitDir) // boolean
+/// ```
+fn holds_a_file_inside(entry: &Path, worktree: &Path, git_dir: &Path) -> bool {
+    let Ok(descriptors) = std::fs::read_dir(entry.join("fd")) else {
+        return false;
+    };
+    for descriptor in descriptors.flatten() {
+        let Ok(target) = std::fs::read_link(descriptor.path()) else {
+            continue;
+        };
+        // The kernel appends this to a path whose file is already deleted, and the file itself is what a removal takes.
+        let named: &Path = match target.to_str().and_then(|text| { return text.strip_suffix(DELETED_SUFFIX); }) {
+            Some(stripped) => Path::new(stripped),
+            None => target.as_path(),
+        };
+        if !named.starts_with(worktree) || named.starts_with(git_dir) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/// The text the kernel appends to the target of a descriptor whose file is already unlinked.
+const DELETED_SUFFIX: &str = " (deleted)";
 
 /// What:
 ///  Whether a process that started this long ago cannot be working in a folder this young.

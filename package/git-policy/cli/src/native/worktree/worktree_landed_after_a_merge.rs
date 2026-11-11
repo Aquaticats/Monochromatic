@@ -56,28 +56,6 @@ fn working_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
     }
 }
 
-/// What:
-///  The Git directory of the worktree the command runs in,
-///  whose commit service performs every removal the sweep hands over.
-/// Why:
-///   A record is enqueued in the queue of the Git directory it names,
-///  and `is_acceptable` refuses a record another instance reads,
-///  so the removal is handed to the instance whose command found the worktrees landed.
-///  A bare repository has one too,
-///  and the sweep of a bare repository looks at worktrees it will not remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ownGitDirectory = (identity) => identity.gitDir;
-/// ```
-fn own_git_directory(identity: &WorktreeIdentity) -> PathBuf {
-    // `match` on the repository shape: each one names the Git directory of the invocation.
-    match identity {
-        WorktreeIdentity::MainWorktree { git_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, .. } | WorktreeIdentity::BareRepository { git_dir, .. } => return git_dir.clone(),
-        WorktreeIdentity::OutsideWorktree => return PathBuf::new(),
-    }
-}
-
 /// The root of the worktree the command runs in,
 /// which the sweep never removes.
 fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
@@ -212,7 +190,6 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
     let directory: PathBuf = working_directory(identity)?;
     let common_dir: PathBuf = common_directory(identity)?;
     let root: Option<PathBuf> = current_root(identity);
-    let git_dir: PathBuf = own_git_directory(identity);
     let branch: String = match current_branch(context, directory.as_path()) {
         Some(found) => found,
         None => String::from("a head with no branch"),
@@ -236,9 +213,10 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
         current_root: root.as_deref(),
         proc_root: Path::new(PROCESS_TABLE),
         registered_before: registered,
-        // The removals this sweep hands over are the commit service's of the worktree the merge ran in: its instance just
-        //  served the merge, and its own queue is where this record is read from.
-        git_dir: git_dir.as_path(),
+        // The removals this sweep hands over are recorded for the commit service of the common Git directory, where the
+        //  removal a person runs records its own: the merge's instance stays free for the push that follows the merge, and a
+        //  removal that takes minutes never queues a merge's own work behind it.
+        git_dir: common_dir.as_path(),
         told: &wake_the_service,
     };
     let sweep: LandedSweep = sweep_landed_worktrees(&place, window.before.as_str(), now.as_str(), branch.as_str());

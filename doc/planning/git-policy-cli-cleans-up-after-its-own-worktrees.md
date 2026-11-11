@@ -768,3 +768,138 @@ This document held seven `markdown/semantic-line-breaks` findings in prose an ea
  in `by kind, mode and bytes`,
  and in the four suite bullets of the merge section;
  `monochromatic-lint --fix` plus one leading space on a continuation line leaves the file clean.
+
+## The removal off the merge's waiting path, 2026-11-11
+
+Work on `package/git-policy/cli`,
+ branch `fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`,
+ worktree `.claude/worktrees/pi-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`,
+ based on `3b94069dbf`.
+
+### What was measured, and the two defects behind it
+
+The coordinator's integration pass 12 merged finished branches with the installed wrapper
+ 0.6.1-alpha.10 from `.claude/worktrees/integrate-jam-fixes-after-alpha-9`.
+Two of those merges printed,
+ at 2026-11-11T20:19:13Z and 20:20:06Z
+ (`/var/home/user/temp/agent/pi-runs/integrate-jam-fixes-after-alpha-9.jsonl`):
+
+```text
+monochromatic-git-policy-cli: still waiting for git worktree remove /var/mnt/.../pi-kimi-review-alpha-10-audit-sweep-keeps-an-unmerged-held-commit-round-210, a bulk step (process 253135) after 20 seconds; it is a step that may not be run twice, so it is waited for as long as it lives (CLI_GIT_CHILD_WAIT_SECONDS changes this).
+```
+
+That worktree had been added seconds earlier, on a branch `test/kimi-review-...` at the tip of the
+ branch being merged, for a review that had not started:
+ the merge made that tip a landed commit,
+ the sweep counted its branch,
+ and the merge waited for the removal.
+
+Both halves were reproduced in a throwaway repository
+ (its own `HOME` and `XDG_RUNTIME_DIR`, its own commit services started from the wrapper's own
+ service mode, and a stand-in real Git whose only slowness is a `sleep` in front of one
+ `worktree remove`),
+ with the installed 0.6.1-alpha.10 and with this branch's build:
+
+- the fresh worktree,
+  on a branch at the very commit it was made at,
+  was removed by the release and is kept by this branch,
+  whose base already holds `4b2d609814`
+  ("keep a fresh worktree out of another branch's merge"):
+  a branch whose own reflog begins at the commit it points at holds no commit of its own,
+  so no sweep has work of it to finish.
+  The rule comes from the owner's "never discard user data" and the audit finding F4 of `574063773d`,
+  and this branch adds no second rule to it.
+- the finished worktree's removal ran on the merge's own thread and the merge ended only with it:
+  25 738 ms with the stand-in's 25 s sleep,
+  15 555 ms without any sleep at all on this host under its own load.
+  The release's own debug line says why the fast destroy never applies to a fresh worktree:
+  `... is not proven clean (feature.md is as new as the index, so its stat fields prove nothing); Git decides`.
+
+The owner's binding words:
+ "never discard user data",
+ "Agents should never wait on each other on commits or merges.",
+ "nothing should ever wait forever or indefinitely",
+ and "The wrapper should have cleaned up after itself automatically deterministically."
+`doc/decision/cli-git-concurrent-commits.md` lines 220 to 222 record that no wait between
+ commits is unbounded; the landed sweep's wait was,
+ because a step that may not be run twice is never ended.
+
+### A process that works in the worktree from elsewhere
+
+The brief's second item and the coordinator's follow-up name a worktree a process is working in.
+`worktree_process_inside.rs` read only each process's working folder,
+ so a program that opened a file in the worktree and went on,
+ an editor, a pager, or a build started with `-C` from another directory,
+ was invisible and the sweep removed the worktree with the file open
+ (the audit's finding 2,
+ reproduced with a `tail -f` of a file in the worktree whose working folder was the fixture root).
+
+`process_working_inside` now reads each process's descriptors too (`/proc/<pid>/fd`),
+ and a descriptor into the worktree keeps it with its own reason:
+ "process N has a file open in it, though its working folder is elsewhere".
+Two bounds keep that from keeping everything:
+
+- a descriptor into the worktree's own Git directory does not count,
+  because this program's commit service holds its marker there for as long as it lives
+  (measured on this host:
+  `<worktree>/.git/index.lock.cli-git-marker-<pid>-...` in 13 to 14 descriptors of an idle service),
+  and counting it would keep every landed worktree whose service is up;
+- a target the kernel names with ` (deleted)` counts,
+  because the file the program still reads was in the worktree.
+
+Cost: one listing and one link read per descriptor of every process,
+ measured at 137.7, 113.4, 108.0, 97.7 and 95.5 ms over five rounds on this host with 1 567 processes,
+ paid once per worktree a merge considers removing.
+A kernel has no reverse lookup from a directory to the processes holding it open,
+ so a scan is what the truth costs.
+
+### What changed
+
+`worktree_landed_removal.rs` `remove_here_or_hand_over`:
+ the subvolume destroy is asked for first, exactly as before,
+ and the answer `LeftToGit` no longer runs `git worktree remove` here.
+ It writes a `subvolume-delete` work item whose reference is
+ `worktree_remove_hand_over.rs` `WORKTREE_REMOVAL_REFERENCE`,
+ keyed by a SHA-1 of the worktree's path,
+ and wakes the commit service of the repository's common Git directory.
+ The merge's own thread does one record write and one greeting,
+ and its line names the record,
+ where `done` means the worktree is gone and `failed` means Git kept it.
+
+`worktree_remove_hand_over.rs` `delete_subvolume_of`:
+ a record that names the worktree removal runs real `git worktree remove` in the service,
+ with Git's own refusal as the verdict,
+ clears the shadow pool the removed worktree's commits filled
+ (read from the worktree's own `.git` before Git deletes it),
+ and answers `Done` for a path that is already gone.
+ The Git it starts is resolved from the service's own environment,
+ because the handler of a record is handed the record alone;
+ the overlay of a command does not apply there,
+ and the hooks are off for the whole service process (`hooks_off::activate`).
+
+The commit service of the **common Git directory** performs it,
+ which is the instance a person's own `git worktree remove` records its subvolume delete for:
+ the merge's instance then stays free for the push that follows the merge.
+Measured on this branch with the same stand-in:
+ the merge ended in 7 008 ms while the removal took 25 s in the service,
+ and the same fixture with no slowness in the stand-in is what the base's own removals cost.
+
+### What this does not do, and what it costs
+
+- A removal Git refuses now says so in the commit service's journal and in the record's `failed`
+  state, not on the merge's standard error:
+  the merge cannot know Git's answer without waiting for it.
+  The notice names both places.
+  A later command does not show a failed removal record:
+  nothing scans `failed` (`service_work_settling_with_words.rs`),
+  so the notice's own words are the whole of what a person reads.
+  A notice for a failed removal is the next step if it is wanted.
+- The service's handler runs the Git child synchronously inside the drain task,
+  because `WorkHandlers::subvolume_delete_awaiting` is the owned `service_work.rs`'s default that
+  wraps the synchronous face.
+  One service worker is therefore busy for the removal's length,
+  and the awaited form (`run_blocking_job` over `delete_subvolume_of`) belongs in that file,
+  whose owner is another change.
+- Nothing measures a worktree whose `git worktree remove` Git accepts but takes hours;
+  the record is the whole of the bookkeeping,
+  and the service's own step bound is what the wrapper's Git starts already carry.

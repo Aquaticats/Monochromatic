@@ -376,8 +376,8 @@ fn a_worktree_whose_branch_holds_no_commit_of_its_own_is_not_removed_by_another_
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = root.join("proc");
     std::fs::create_dir_all(table.as_path()).expect("an empty process table");
-    // The Git directory of the worktree the merge runs in, which is where a handed-over removal is recorded.
-    let own_git_dir: PathBuf = admin_of(merged_in.as_path());
+    // The common Git directory, where a handed-over removal is recorded: the record a person's own removal writes names it too.
+    let own_git_dir: PathBuf = common.clone();
     let place: LandedPlace<'_> = LandedPlace {
         context: &context,
         cwd: merged_in.as_path(),
@@ -756,6 +756,45 @@ fn a_landed_worktree_with_a_hidden_process_inside_stays() {
     assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
     assert!(sweep.kept[0].why.contains("process 4343"), "the reason names the process: {}", sweep.kept[0].why);
     assert!(sweep.kept[0].why.contains("hides its working folder"), "{}", sweep.kept[0].why);
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
+///  A landed worktree whose process holds a file open in it, with its working folder elsewhere, stays.
+/// Why:
+///  A program that opened a file in a worktree and went on, an editor or a build started with `-C` from another
+///  directory, works there without a working folder in it,
+///  and the working-folder read alone removed the worktree with the file open
+///  (a qwen4-max-preview audit of 0.6.1-alpha.10,
+/// `574063773d`,
+///  finding 2).
+///  The process table is written by the control, so no program on this machine decides the answer.
+#[test]
+fn a_landed_worktree_whose_file_is_held_open_from_elsewhere_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-open-file");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: PathBuf = landed.worktree.join("work.txt");
+    std::fs::write(held.as_path(), b"the file the process holds\n").expect("the file the process holds open");
+    let elsewhere: PathBuf = landed.root.join("elsewhere");
+    std::fs::create_dir(elsewhere.as_path()).expect("a folder the process was started in");
+    let table: PathBuf = a_table_with_one_process(&landed, 4343, Some(elsewhere.as_path()), 1_000, 100);
+    let descriptors: PathBuf = table.join("4343").join("fd");
+    std::fs::create_dir_all(descriptors.as_path()).expect("a descriptor directory");
+    std::os::unix::fs::symlink(held.as_path(), descriptors.join("3")).expect("the file the process holds open");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    assert!(sweep.removed.is_empty() && sweep.handed_over.is_empty(), "nothing is removed while a process holds a file there: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert_eq!(
+        sweep.kept[0].why,
+        "process 4343 has a file open in it, though its working folder is elsewhere",
+        "the reason names the process and what it holds"
+    );
     assert!(landed.worktree.exists(), "the worktree stays");
 }
 

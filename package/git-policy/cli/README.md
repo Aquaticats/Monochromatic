@@ -1047,6 +1047,8 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    an unfinished bisect moves nothing a removal would notice,
    and Git's own `git worktree remove` deletes the worktree and that log without a word);
 - no process is working in it or in a folder below it,
+   and no process holds a file open in it while working elsewhere,
+   an editor or a build started with `-C` from another directory being the same case,
    the command that ran the merge included:
    `-C` names the repository a command works on,
    never its own working folder,
@@ -1057,13 +1059,24 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
- elsewhere,
- or when the mount does not allow that call,
- real `git worktree remove` runs instead.
+ that call runs in the commit service,
+ behind one rename the merge does not wait for.
+Every other case is real `git worktree remove`,
+ which reads every tracked and untracked file of the worktree,
+ refuses what Git would keep,
+ and can take minutes on a large tree.
+That removal never runs on the merge's own thread:
+ the merge records it for the commit service of the worktree it ran in,
+ and the line it prints names the record,
+ where `done` means the worktree is gone and `failed` means Git kept it,
+ with Git's own sentence in the service's journal.
 Either way,
  **the branch is kept**,
  and so is every commit on it;
  only the checked-out copy goes.
+A removal recorded that way finishes after the merge returned,
+ so the worktree stands at the prompt until the service has run it;
+ `git worktree remove <path>` removes it now if nothing in it is yours.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,
@@ -2830,8 +2843,10 @@ After the branch moved,
  no process works inside it,
  and Git would remove it without `--force`.
 Each worktree the merge removes,
+ hands to the commit service,
  leaves,
- or cannot prove it made is named on standard error with its branch and the reason.
+ or cannot prove it made is named on standard error with its branch and the reason,
+ and a handed-over removal is named with the record its outcome is read from.
 See "What a worktree snapshot holds,
  and when the wrapper removes one".
 

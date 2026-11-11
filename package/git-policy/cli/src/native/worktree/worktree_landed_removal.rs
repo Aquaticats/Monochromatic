@@ -598,7 +598,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     //  inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(one.worktree.as_path(), place.proc_root, age_of(one.worktree.as_path())) {
+    if let Some(working) = process_working_inside(one.worktree.as_path(), one.admin.as_path(), place.proc_root, age_of(one.worktree.as_path())) {
         return Examined::Kept(working.why());
     }
     match place.current_root {
