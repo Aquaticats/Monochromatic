@@ -974,10 +974,8 @@ fn the_old_tree_with_read_only_directories_is_deleted() {
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     assert!(!layout.old_path.exists() && !layout.journal_path.exists());
-    // The late-write pass carried the read-only directories into the checkout, with their modes; the cleanup needs them writable.
-    for path in ["ignored/closed/inner", "ignored/closed", "ignored/node_modules"] {
-        std::fs::set_permissions(root.join(path), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
-    }
+    // The late-write pass carried the read-only directories into the checkout with their modes, so the fixture goes with them
+    // closed: the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     remove(parent.as_path());
 }
 
@@ -999,10 +997,8 @@ fn a_rollback_empties_a_subvolume_that_holds_read_only_directories() {
     let (code, lines) = run_command(&refused, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     assert_eq!(refused.is_subvolume_root(root.as_path()), Ok(false));
-    // The restored directory keeps the read-only modes it was given; the fixture cleanup needs them writable.
-    for path in ["ignored/closed", "ignored/closed/inner"] {
-        std::fs::set_permissions(root.join(path), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
-    }
+    // The restored directory keeps the read-only modes it was given, and the fixture goes with them closed:
+    // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     remove(parent.as_path());
 }
 

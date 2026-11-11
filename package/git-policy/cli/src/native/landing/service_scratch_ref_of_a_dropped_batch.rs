@@ -18,17 +18,28 @@
 //!  reference:
 //! no commit is lost,
 //! and no reference is left that pins objects for ever.
+//! Each removal has two faces:
+//! the synchronous one a caller on a thread asks,
+//! and
+//!  the awaited one a task of the runtime asks (`clear_after_dropped_batch_awaiting`,
+//! `clear_after_a_failed_landing_awaiting`),
+//! which
+//!  awaits every Git child on the runtime and reads the batch's journal record as a job of the blocking pool.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await keepThenRemove(scratchRef(seq), keptRef(seq)); // only for a batch that will not land
 //! ```
 
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::CommitRequest;
 use crate::transaction_git::{GitContext, GitRequest, NO_REFLOG_SETTING, run_git};
-use std::path::Path;
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::LANDING_STATE_CEILING;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
 /// the one answer that means "not there".
@@ -125,8 +136,47 @@ pub(crate) enum RefValue {
 /// async function valueOf(git, repository, name) { const asked = await git(['rev-parse', '--verify', '--quiet', name]); return asked.code === 0 ? { names: asked.out.trim() } : asked.code === 1 && !asked.err ? 'absent' : 'unasked'; }
 /// ```
 pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefValue {
-    let request: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", name]);
-    let Ok(output) = run_git(git, &request) else {
+    return value_answered_by(run_git(git, &value_request(repository, name)));
+}
+
+/// `value_of` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function valueOfAwaiting(git, repository, name): Promise<RefValue>;
+/// ```
+pub(crate) async fn value_of_awaiting(git: &GitContext, repository: &Path, name: &str) -> RefValue {
+    return value_answered_by(run_git_awaiting(git, &value_request(repository, name)).await);
+}
+
+/// What:
+///  The question `value_of` asks Git about `name`.
+/// Why:
+///  Both faces ask the one question,
+/// so neither can read another reference than the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = { cwd: repository, arguments: ['rev-parse', '--verify', '--quiet', name] };
+/// ```
+fn value_request(repository: &Path, name: &str) -> GitRequest {
+    return GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", name]);
+}
+
+/// What:
+///  What Git's answer to `value_request` says about the reference.
+/// Why:
+///  Both faces read Git's answer through this one function,
+/// so a reference that is not there,
+/// a reference that names an
+///  object and a question Git gave no answer to stay three different answers for both of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function valueAnsweredBy(answered: GitOutput | Error): RefValue;
+/// ```
+fn value_answered_by(answered: std::io::Result<crate::transaction_git::GitOutput>) -> RefValue {
+    let Ok(output) = answered else {
         return RefValue::Unasked;
     };
     if output.succeeded() {
@@ -148,8 +198,32 @@ pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefVa
 /// await git(['-c', 'core.logAllRefUpdates=false', 'update-ref', ...arguments])
 /// ```
 fn write_ref(git: &GitContext, repository: &Path, arguments: &[&str]) -> bool {
-    let request: GitRequest = GitRequest::new(repository, arguments);
-    return matches!(run_git(git, &request), Ok(output) if output.succeeded());
+    return git_took_it(run_git(git, &GitRequest::new(repository, arguments)));
+}
+
+/// `write_ref` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function writeRefAwaiting(git, repository, arguments): Promise<boolean>;
+/// ```
+async fn write_ref_awaiting(git: &GitContext, repository: &Path, arguments: &[&str]) -> bool {
+    return git_took_it(run_git_awaiting(git, &GitRequest::new(repository, arguments)).await);
+}
+
+/// What:
+///  Whether Git took a side-reference write.
+/// Why:
+///  Both faces read the answer through this one function,
+/// so a write that could not be started and a write Git refused are the
+///  same answer for both of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gitTookIt(answered: GitOutput | Error): boolean;
+/// ```
+fn git_took_it(answered: std::io::Result<crate::transaction_git::GitOutput>) -> bool {
+    return matches!(answered, Ok(output) if output.succeeded());
 }
 
 /// What:
@@ -233,6 +307,67 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
 }
 
 /// What:
+///  `clear_after_dropped_batch` with every Git step of it awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+/// and the removal is a step of the
+///  landing once that landing is a task.
+/// The order of the steps,
+/// the three answers of a reference that is not there,
+/// names another commit or gives no answer,
+/// and the words each of them says are the synchronous face's,
+/// pinned by
+///  `the_awaited_clearing_answers_what_the_synchronous_one_answers`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removal = await clearAfterDroppedBatchAwaiting(git, repository, seq)
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, repository: &Path, seq: u64) -> ScratchRefRemoval {
+    let scratch: String = scratch_ref(seq);
+    let kept: String = kept_ref(seq);
+    let tip: String = match value_of_awaiting(git, repository, scratch.as_str()).await {
+        RefValue::Names(found) => found,
+        // No scratch reference at all: the landing made no objects, or its branch write removed it.
+        RefValue::Absent => return ScratchRefRemoval::Removed,
+        RefValue::Unasked => {
+            left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            return ScratchRefRemoval::Left;
+        }
+    };
+    let already: RefValue = value_of_awaiting(git, repository, kept.as_str()).await;
+    match &already {
+        RefValue::Names(named) if *named == tip => {}
+        RefValue::Names(named) => {
+            left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            return ScratchRefRemoval::Left;
+        }
+        RefValue::Unasked => {
+            left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            return ScratchRefRemoval::Left;
+        }
+        RefValue::Absent => {
+            if !write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]).await {
+                left(
+                    seq,
+                    format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
+                );
+                return ScratchRefRemoval::Left;
+            }
+            crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
+        }
+    }
+    if write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]).await {
+        crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
+        return ScratchRefRemoval::Removed;
+    }
+    left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+    return ScratchRefRemoval::Left;
+}
+
+/// What:
 ///  Clears the scratch reference of the batch a failed landing left,
 /// when no open intent names the batch.
 /// Why:
@@ -256,3 +391,85 @@ pub(crate) fn clear_after_a_failed_landing(context: &LandContext, requests: &[Co
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
     return clear_after_dropped_batch(&git, first.repository.as_path(), seq);
 }
+
+/// The one path one open-intent question names,
+/// owned so that a job of the blocking pool can take it.
+struct OpenIntentQuestion {
+    /// The journal record of the batch's intent.
+    path: PathBuf,
+}
+
+/// The look one job of the pool does:
+/// whether the journal holds an open intent for the batch.
+fn an_intent_is_open(question: OpenIntentQuestion) -> bool {
+    return question.path.exists();
+}
+
+/// What:
+///  Whether the journal holds an open intent for batch `seq`,
+/// as a job of the blocking pool awaited no longer than
+///  `LANDING_STATE_CEILING`:
+/// `Some(true)` or `Some(false)` when the look answered,
+/// and nothing when it gave no answer.
+/// Why:
+///   The look is a `stat` of a file in the instance's journal,
+/// which waits in the kernel on a mount that stopped answering,
+/// and a
+///  task of the runtime may not wait there.
+/// A look that gave nothing in time is told apart from "no intent",
+/// because
+///  "no intent" sets the removal of the reference in motion and a look nobody answered must set nothing in motion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const open = await anOpenIntentAwaiting(journal, seq); // null when the look gave no answer
+/// ```
+async fn an_open_intent_awaiting(journal: &Path, seq: u64) -> Option<bool> {
+    return an_open_intent_within(LANDING_STATE_CEILING, journal, seq).await;
+}
+
+/// `an_open_intent_awaiting` with the wait `ceiling` grants.
+async fn an_open_intent_within(ceiling: Duration, journal: &Path, seq: u64) -> Option<bool> {
+    let question: OpenIntentQuestion = OpenIntentQuestion { path: batch_path(journal, seq, OPEN_EXTENSION) };
+    return match run_a_job_awaited_no_longer_than(ceiling, question, an_intent_is_open).await {
+        TheAnswerOfAJobAwaited::Ran(open) => Some(open),
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => None,
+    };
+}
+
+/// What:
+///  `clear_after_a_failed_landing` with the look at the intent a job of the pool and every Git step of it awaited
+///  on the runtime.
+/// Why:
+///   A task of the runtime may wait on neither a file nor a child it starts itself,
+/// so a landing that becomes a task
+///  does this through this face.
+/// A look that gave no answer leaves the reference where it is and says why,
+/// so
+///  no commit is lost and nothing claims to have removed what it never read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removal = await clearAfterAFailedLandingAwaiting(context, requests, seq)
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn clear_after_a_failed_landing_awaiting(context: &LandContext, requests: &[CommitRequest], seq: u64) -> ScratchRefRemoval {
+    // No request is no import, so the batch made no reference at all.
+    let Some(first) = requests.first() else { return ScratchRefRemoval::Removed };
+    // An open intent names the batch's own worktree, and the restart that settles it removes the reference then.
+    match an_open_intent_awaiting(context.journal.as_path(), seq).await {
+        Some(true) => return ScratchRefRemoval::Removed,
+        Some(false) => {}
+        None => {
+            left(seq, "the record of this batch's intent cannot be read, so its scratch reference is left as it is and a restart settles the batch");
+            return ScratchRefRemoval::Left;
+        }
+    }
+    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    return clear_after_dropped_batch_awaiting(&git, first.repository.as_path(), seq).await;
+}
+
+/// Controls for the awaited faces of these removals stay out of the release executable.
+#[cfg(test)]
+#[path = "service_scratch_ref_awaiting_tests.rs"]
+mod awaiting_tests;

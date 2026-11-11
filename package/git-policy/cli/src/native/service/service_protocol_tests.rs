@@ -32,6 +32,7 @@ fn request() -> CommitRequest {
         index: PathBuf::from("/work/repo/.git/index"),
         scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
         captured: 7_000_000_000,
+        holder: String::new(),
     };
 }
 

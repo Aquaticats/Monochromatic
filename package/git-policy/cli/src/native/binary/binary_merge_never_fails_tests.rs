@@ -314,8 +314,9 @@ fn a_lock_a_gone_git_left_does_not_end_a_merge() {
 /// const side = /saved on (\S+)/.exec(stderr)?.[1];
 /// ```
 fn side_ref_of(said: &str) -> String {
-    let (_, rest) = said.split_once("saved on ").expect("the line names the side ref");
-    return rest.split_whitespace().next().expect("a ref name").to_string();
+    // Every wait notice can say the merge is saved on a ref of its own, so the line is read at the ref it names.
+    let (_, rest) = said.split_once("saved on refs/").expect("the line names the side ref");
+    return format!("refs/{}", rest.split_whitespace().next().expect("a ref name"));
 }
 
 /// The side refs the wrapper keeps in `repo`.
@@ -417,6 +418,9 @@ fn a_merge_that_waits_out_a_live_holder_is_saved_and_not_failed() {
     assert_eq!(saved.code, Some(0), "a merge behind a running holder still exits 0: {said}");
     assert!(said.contains("did not let go within"), "the wait is reported: {said}");
     assert!(said.contains("saved on refs/cli-git/kept/"), "{said}");
+    // The notices before that line say what this merge does, not what Git does after a wait it never makes.
+    assert!(!said.contains("reports what Git says"), "no line promises another command's report: {said}");
+    assert!(!said.contains("meets Git's own refusal"), "no line promises a refusal the merge does not make: {said}");
     let side: String = side_ref_of(said.as_str());
     let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
     assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
