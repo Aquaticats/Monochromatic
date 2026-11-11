@@ -2004,6 +2004,64 @@ fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
     remove(&s.root);
 }
 
+/// The most bytes the kernel takes as one argument,
+/// `MAX_ARG_STRLEN` in Linux,
+/// which is how the merge commit's message reached `git commit-tree` before it went on the standard input.
+const KERNEL_ARGUMENT_BYTES: usize = 32 * 4096;
+
+/// What:
+///  A merge of many small regions is word-merged and published,
+///  one region per conflict,
+///  where every region is a pair of word edits,
+///  and its commit message lists every part.
+/// Why:
+///  The line merge's regions are cut out of its answer and placed by their stages,
+///  and a merge of hundreds of one-line regions is the shape that exercises both for every region;
+///  the message that lists them is what the kernel refused as one argument,
+///  so the merge failed its commit with "Argument list too long" although every region had resolved
+///  (cross-vendor review of round 198,
+///  finding 2,
+///  whose answer of a hundred and three thousand regions is past the answer ceiling and is measured by
+///  `the_line_merges_answer_ceiling_covers_a_measured_many_region_answer` instead of by a push).
+#[test]
+fn a_merge_of_many_small_regions_is_word_merged_and_published() {
+    let s: Scenario = scenario("ar-word-many-regions");
+    // One independently resolvable word edit per conflict on each side, and one shared line between two conflicts,
+    // which is what makes a conflict every other line rather than one large region.
+    const CONFLICTS: usize = 700;
+    let padding: String = "b".repeat(50);
+    let (mut base, mut ours, mut theirs) = (String::new(), String::new(), String::new());
+    for index in 0..CONFLICTS {
+        if index > 0 {
+            let separator: String = format!("s{index}\n");
+            base.push_str(separator.as_str());
+            ours.push_str(separator.as_str());
+            theirs.push_str(separator.as_str());
+        }
+        base.push_str(format!("alpha one {index} {padding}\n").as_str());
+        ours.push_str(format!("alpha uno {index} {padding}\n").as_str());
+        theirs.push_str(format!("ALPHA one {index} {padding}\n").as_str());
+    }
+    // The base reaches both clones first, so the local commit changes a path Git knows.
+    advance_remote(&s, "many.txt", base.as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    advance_remote(&s, "many.txt", theirs.as_str());
+    let landed: String = commit_local(&s, "many.txt", ours.as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published: String = text_of(&s.remote, &["show", "main:many.txt"]);
+    // Every conflict is one word of the first side's line and one of the second side's, so the merge is both edits.
+    assert_eq!(published.matches("ALPHA uno ").count(), CONFLICTS, "every region is the word merge of its two edits");
+    assert!(!published.contains("alpha one ") && !published.contains("alpha uno ") && !published.contains("ALPHA one "), "no line of a side is left unmerged");
+    // The merge commit lists every part, and the list is past what the kernel takes as one argument, so the message
+    // could not have been a `-m` argument of the commit.
+    let message: String = text_of(&s.remote, &["log", "--max-count=1", "--format=%B", "main"]);
+    assert_eq!(message.matches("word-level merge: many.txt: part ").count(), CONFLICTS, "the merge commit lists every part");
+    assert!(message.len() > KERNEL_ARGUMENT_BYTES, "the message is past one argument: {} bytes against {KERNEL_ARGUMENT_BYTES}", message.len());
+    assert!(err.contains("word-level merge") && err.contains("many.txt"), "{err}");
+    remove(&s.root);
+}
+
 /// Sections appended at one point by both sides stay a conflict:
 /// nothing is published and the paths are named.
 #[test]
