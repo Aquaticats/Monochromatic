@@ -40,7 +40,9 @@ use std::time::{Duration, SystemTime};
 ///  ends every wait of a commit at 20 minutes;
 ///  a live command renews its tree every `SCRATCH_REFRESH_EVERY`,
 ///  so only a tree whose command is gone reaches this age,
-///  and a landing that a killed client left queued reads its tree long before it.
+///  and a landing that a killed client left queued lands on its tree long before it,
+///  or holds that tree against every collection of this service when it does not
+///  (`service_scratch_trees_of_queued_requests.rs`).
 ///  Two hours is six times that ceiling.
 pub const SCRATCH_TREE_ABANDONED_AFTER: Duration = Duration::from_secs(2 * 60 * 60);
 
