@@ -278,6 +278,71 @@ fn an_abbreviated_message_keeps_a_value_that_spells_a_flag() {
     remove_settled(&fixture);
 }
 
+/// Stage the new `b.txt` an include commit must carry.
+fn stage_new_b(fixture: &Fixture, repo: &Path) {
+    std::fs::write(repo.join("b.txt"), b"new-b\n").expect("edit b");
+    git(fixture, repo, &["add", "--", "b.txt"]);
+}
+
+/// A selection control leaves only in option position,
+/// so a message value that spells `-i` stays and
+/// `git commit --include --mess -i -- a.txt` lands the message `-i` as native Git does.
+#[test]
+fn an_include_commit_keeps_a_message_value_that_spells_a_selection_control() {
+    let fixture: Fixture = fixture("commit-include-message-spells-selection");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let arguments: [&str; 6] = ["commit", "--include", "--mess", "-i", "--", "a.txt"];
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+        "-i",
+        "native Git reads the token after the abbreviation as the message"
+    );
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD~1"]);
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "-i");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "one\ntwo\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// Git reads `--pathspec-fr` as `--pathspec-from-file`,
+/// so the path the file names is the include selection and the staged `b.txt` lands with it,
+/// for the wrapper as for native Git;
+/// a pathspec-limited commit would leave `b.txt` staged.
+#[test]
+fn an_abbreviated_pathspec_file_include_commit_keeps_every_selected_path() {
+    let fixture: Fixture = fixture("commit-abbreviated-pathspec-file");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    std::fs::write(repo.join("b.txt"), b"base-b\n").expect("b");
+    git(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let list: PathBuf = fixture.root.join("a-paths.txt");
+    std::fs::write(&list, b"a.txt\n").expect("pathspec list");
+    let list_text: &str = list.to_str().expect("the list's path is text");
+    let arguments: [&str; 5] = ["commit", "--include", "--pathspec-fr", list_text, "--message=x"];
+    stage_new_b(&fixture, repo.as_path());
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:b.txt"]),
+        "new-b\n",
+        "native Git commits the staged b.txt with the path the list names"
+    );
+    // Back to the state before the commit: the branch one commit behind, the index as it was, the worktree untouched.
+    git(&fixture, repo.as_path(), &["reset", "--quiet", "HEAD~1"]);
+    git(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "one\ntwo\n");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:b.txt"]), "new-b\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
 /// A final-newline correction lands in the commit and in the worktree copy,
 /// and the summary names the path.
 #[test]
