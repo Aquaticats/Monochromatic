@@ -5,6 +5,9 @@
 //! groups the pushes by branch,
 //! and runs each kind with its awaited handler,
 //!  every storage step in a job of the blocking pool.
+//! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
+//! (`service_work_items_side_by_side.rs`),
+//! and the pushes of different branches of the repository run beside each other.
 //! Why:
 //!  It is the largest step of the service's work and has a file of its own,
 //! so the drains that call it stay short.

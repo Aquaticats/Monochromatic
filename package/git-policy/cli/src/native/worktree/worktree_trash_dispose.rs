@@ -23,7 +23,7 @@
 //! so a failure is never a silent success.
 //! The add never waits for any of this (`worktree_trash_hand_over.rs` hands the trash over):
 //! the
-//!  service empties one trash at a time for a repository,
+//!  service empties one worktree's trashes one at a time and different worktrees' side by side,
 //! at the idle I/O class,
 //! so concurrent adds do not delete at
 //!  once.
@@ -118,7 +118,7 @@ impl TrashLeft {
 ///   The add hands it over and returns;
 /// the record is the common directory's,
 /// because one repository's
-///  service drains one work directory after another and so empties one trash at a time,
+///  service drains one work directory after another and empties one worktree's trashes one at a time,
 /// whichever
 ///  worktree holds it.
 ///
@@ -285,7 +285,7 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
         let _told = match crate::worktree_trash::record_the_trash(&pending) {
             Ok(()) => writeln!(
                 notices,
-                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one worktree's trashes at a time.",
                 entry.path().display()
             ),
             Err(reason) => writeln!(

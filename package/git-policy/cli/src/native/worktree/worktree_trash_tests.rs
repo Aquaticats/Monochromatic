@@ -291,7 +291,7 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
 ///  (`worktree_trash_exclude_line.rs`).
 /// The add's own work is the record,
 /// and the emptying belongs to the service that runs
-///  it one trash at a time for the repository.
+///  it one worktree's trashes at a time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

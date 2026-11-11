@@ -804,7 +804,7 @@ Read-only commands,
    identities of everything moved into it,
      and it sits under the common directory,
      so one repository's service empties
-   its trashes one at a time whichever worktree holds each of them;
+   one worktree's trashes one at a time and different worktrees' side by side;
      the claim the drain takes is the lease every other
    kind of work already uses,
      so no lock is added.
