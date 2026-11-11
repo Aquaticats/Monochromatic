@@ -197,7 +197,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string() }),
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(

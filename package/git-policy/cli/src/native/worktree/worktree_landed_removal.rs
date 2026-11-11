@@ -220,7 +220,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 /// remove(place, registration) // throws Git's refusal, in Git's words
 /// ```
 fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
-    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()) };
+    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
         RemoveOutcome::Removed => {
