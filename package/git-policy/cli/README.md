@@ -5263,7 +5263,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   and then the newest line of the wrapper's commit timing record beside the common Git directory
   and the service journal of that commit.
   A lockfile that already names the release commits nothing and says so,
-  which an install of a release already recorded now survives instead of failing a commit with nothing to stage.
+  and reads no journal,
+  because there is then no sample commit;
+  an install of a release already recorded therefore survives instead of failing a commit with nothing to stage.
   Every toolchain step is bounded by `--deadline-seconds`
   (1800 by default;
   no run of either step was timed,
