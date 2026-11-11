@@ -89,10 +89,12 @@ pub(crate) fn kept_ref(seq: u64) -> String {
 ///  which loses a commit the wrapper said it kept
 ///  (the owner's rule "never discard user data").
 ///  A name beside the batch's own is free of that lock,
-///  and it stays in the kept family, where anyone who looks for a commit the wrapper kept
+///  and it stays in the kept family,
+/// where anyone who looks for a commit the wrapper kept
 ///  looks (`worktree_removal_held_commits.rs`).
 ///  `is_side_ref_name` in `transaction_git_step_rerun_and_end_rules.rs` spells the same suffix,
-///  as it already spells these prefixes, because that folder may not use this one.
+///  as it already spells these prefixes,
+/// because that folder may not use this one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -3,7 +3,9 @@
 //!  before a command that may remove that worktree:
 //!  kept where a removal cannot reach it,
 //!  said to the person,
-//!  and, when no reference can hold it, the command stopped
+//!  and,
+//! when no reference can hold it,
+//! the command stopped
 //!  with what is still held and where.
 //! Why:
 //!   A held commit is an object no branch names,
@@ -26,13 +28,16 @@
 //!  `git worktree prune` exists for the state a person leaves by deleting a checkout,
 //!  and a question asked in that deleted checkout is one Git cannot answer,
 //!  so a commit went unkept in the one case the command is for
-//!  (a review of `ee545033ad`, finding 1).
+//!  (a review of `ee545033ad`,
+//! finding 1).
 //!  `refs/cli-git/kept/<batch>` can be locked by another command,
 //!  or lie in a directory that refuses writes,
 //!  so the commit is kept on `refs/cli-git/kept/<batch>-rescue` then,
 //!  and only when no reference at all can be written does the command stop before Git runs
-//!  (the same review, finding 2).
-//!  Every write is a create-only one, so a name another command wrote is never replaced.
+//!  (the same review,
+//! finding 2).
+//!  Every write is a create-only one,
+//! so a name another command wrote is never replaced.
 //!  The person is told the branch does not move and where the commit is kept,
 //!  before the removal,
 //!  because no command can move that branch from a worktree that is gone.
@@ -127,7 +132,8 @@ fn words_of_a_commit_nothing_keeps(held: &Held, name: &str, words: &str, rescue:
 /// Why:
 ///   The three answers are what the person is told and what the command does next,
 ///  and the refusal is not a failure of the question but a state of the repository:
-///  no reference can be made to hold the commit, so no command may remove the worktree.
+///  no reference can be made to hold the commit,
+/// so no command may remove the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,7 +141,8 @@ fn words_of_a_commit_nothing_keeps(held: &Held, name: &str, words: &str, rescue:
 /// ```
 enum Keeping {
     /// The batch's own kept reference already names its commit,
-    /// or another command wrote it while this one was keeping it, so nothing was written.
+    /// or another command wrote it while this one was keeping it,
+    /// so nothing was written.
     Nothing,
     /// The commit is kept where a removal cannot reach it,
     /// and this is the line the person reads.
@@ -219,7 +226,8 @@ fn standing_locks(common_dir: &Path, names: &[String]) -> Vec<PathBuf> {
 /// type KeptCommits = { said: string[]; refused: string[] };
 /// ```
 pub(crate) struct KeptCommits {
-    /// What was kept and where, in the order the batches were served.
+    /// What was kept and where,
+    /// in the order the batches were served.
     pub said: Vec<String>,
     /// One paragraph for each held commit no reference could keep,
     /// then the paragraph that says nothing was removed and what to do next;
@@ -238,7 +246,8 @@ pub(crate) struct KeptCommits {
 ///  so every linked worktree is served and each keeps its commits.
 ///  A worktree with nothing held costs one directory read.
 ///  Every held commit is served even after one cannot be kept,
-///  because the command does not run: the worktrees stay,
+///  because the command does not run:
+/// the worktrees stay,
 ///  and the lines say what each of their commits came to.
 ///
 /// In TS you'd write (pseudocode):

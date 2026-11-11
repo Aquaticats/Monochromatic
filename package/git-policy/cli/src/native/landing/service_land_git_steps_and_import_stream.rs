@@ -71,7 +71,9 @@ pub(crate) fn keep_on_a_side_ref_only_if_free(git: &GitContext, repository: &Pat
 
 /// What:
 ///  Nothing when Git took a side-reference write,
-/// and Git's own words, or the reason it could not be run, when it did not.
+/// and Git's own words,
+/// or the reason it could not be run,
+/// when it did not.
 /// Why:
 ///  Every write of a side reference reads its answer here,
 /// so a write Git refused and one that could not start
