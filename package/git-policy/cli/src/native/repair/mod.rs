@@ -8,6 +8,12 @@
 //! // repair/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// The bounded start of one package-manager program for a worktree repair,
+/// run off the runtime's workers,
+/// and the stop of a child that appears after the bound.
+#[cfg(target_os = "linux")]
+pub mod package_repair_start;
+
 /// Starting one package-manager program for a worktree repair:
 /// finding it,
 /// running it with a limit,

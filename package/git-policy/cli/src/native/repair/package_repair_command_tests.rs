@@ -535,3 +535,73 @@ fn a_tool_that_ends_before_the_notice_bound_says_nothing() {
     assert!(said.is_empty(), "a quick tool says nothing: {said:?}");
     remove(&root);
 }
+
+/// The longest a start may take before the run ends:
+/// short,
+/// so a control reaches it in milliseconds.
+const BRIEF_START: Duration = Duration::from_millis(300);
+
+/// How long the control below holds the child before its own `exec`:
+/// well past the start bound and well inside this control's own deadline.
+const HELD_BEFORE_EXEC: Duration = Duration::from_secs(4);
+
+/// The numbers of this process's own children,
+/// read from every thread of it,
+/// because a child the blocking pool forked is listed under that thread.
+fn children_of_this_process() -> Vec<i32> {
+    let mut found: Vec<i32> = Vec::new();
+    let Ok(threads) = std::fs::read_dir("/proc/self/task") else { return found };
+    for thread in threads.flatten() {
+        let Ok(listed) = std::fs::read_to_string(thread.path().join("children")) else { continue };
+        found.extend(listed.split_whitespace().filter_map(|number| { return number.parse::<i32>().ok(); }));
+    }
+    return found;
+}
+
+/// What:
+///  A start that gives no answer ends the run at its own bound,
+///  and the child that finally appears is stopped instead of rewriting the new worktree.
+/// Why:
+///  `Command::spawn` returns only after the child's own `exec`:
+///  the standard library reads the pipe `exec` closes,
+///  and that `exec` can wait in the kernel with no end,
+///  so a start that does not answer waits for ever while the quiet window,
+///  the ceiling and the notice are all read from a clock the run has not reached.
+///  A child that appears after the bound must not run,
+///  because the run has already told the person the tool did not start and named the command to run by hand.
+///  The seam holds the child before its own `exec`,
+///  which is the only place a control can make a start itself take time;
+///  on 6777017fc4 the run waited the whole hold and then ran the tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdBeforeExec(4_000); const run = await runToolReapingStartedWithin(tool, command, limits, 300, reap);
+/// expect(run.end).toMatchObject({ kind: 'failed' }); await expect(theHeldChild).toBeGone();
+/// ```
+#[test]
+fn a_start_that_gives_no_answer_ends_the_run_at_its_bound_and_stops_the_child_it_started_late() {
+    let root: PathBuf = fixture("runs-start-bound");
+    let program: PathBuf = root.join("tool");
+    let ran: PathBuf = root.join("ran");
+    executable(program.as_path(), format!("#!/bin/sh\nsleep 2\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(Some(HELD_BEFORE_EXEC)));
+    let began: Instant = Instant::now();
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
+        .expect("the runtime runs the tool");
+    let waited: Duration = began.elapsed();
+    crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(None));
+    // The held child is this process's own, so the control can see it leave once the hold ends and the child execs.
+    let held: Vec<i32> = children_of_this_process();
+    assert!(waited < HELD_BEFORE_EXEC, "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}");
+    assert!(run.millis < HELD_BEFORE_EXEC.as_millis(), "the run reported {} ms, past the {HELD_BEFORE_EXEC:?} the child was held", run.millis);
+    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
+    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    assert!(text.contains("gave no answer"), "the reason names the start that did not answer: {text}");
+    assert!(!held.is_empty(), "the control's own child was held before its exec when the run ended");
+    for pid in held {
+        assert!(is_gone_soon(pid), "the child {pid} the run left started outlived the answer that it did not start");
+    }
+    assert!(!ran.exists(), "the tool ran in the worktree after the run said it did not start");
+    remove(&root);
+}

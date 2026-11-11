@@ -511,6 +511,38 @@ pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 /// `cargo metadata`,
 /// `cargo clean`,
 /// `mpm-shadow install`)
+///  takes to start,
+/// before the run says it gave no answer and stops the child it finally starts.
+///  Why:
+///  `Command::spawn` returns only after the child's own `exec`,
+///  which can wait in the kernel with no end:
+/// a program on a mount whose server stopped answering,
+/// a disk that stalls.
+///  The quiet window,
+/// the ceiling and the notice above are all read from a clock the command has not reached
+///  while that wait stands,
+/// so the start is what has to be bounded;
+/// the owner's rule is "nothing should ever wait
+///  forever or indefinitely".
+///  Measured:
+/// no log here holds the length of a start,
+/// because every start it recorded returned as soon as
+///  the program was found;
+/// the value is `START_CEILING`,
+/// the wait a client grants the commit service's own start
+///  (the slowest of 52 cold starts took 1,041 ms),
+/// because both are one program's start on this host and a start that
+///  outlasts either is one the answer by hand serves better.
+/// A start that reaches it costs the repair and never the worktree:
+/// the finding names the tool
+///  and the command to run,
+/// and the worktree keeps the files Git wrote.
+pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
+
+/// The longest one package-manager tool of a worktree repair (`pnpm install`,
+/// `cargo metadata`,
+/// `cargo clean`,
+/// `mpm-shadow install`)
 ///  runs,
 /// whatever it shows,
 /// before the wrapper ends it with its whole process group.

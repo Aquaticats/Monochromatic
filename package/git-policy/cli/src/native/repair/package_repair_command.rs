@@ -41,8 +41,9 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
-/// The start that rides out a refused start of a child.
-use crate::start_retry::spawn_retrying_without_blocking;
+/// The bounded start of the tool,
+/// and the stop of the group it leads.
+use crate::package_repair_start::{ToolStart, start_within, stop_group};
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::output_capture::Capture;
@@ -367,7 +368,25 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
 /// a control sees that the stop path reaps through it.
 ///  The wait for the tool is awaited on its pidfd,
 /// and the looks at the clock and the ceiling are made at `POLL_INTERVAL`.
+///  The start itself is bounded by `REPAIR_TOOL_START_CEILING`;
+/// `run_tool_reaping_started_within` takes that bound from its caller.
 pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
+    return run_tool_reaping_started_within(program, command, limits, crate::wait_ceilings::REPAIR_TOOL_START_CEILING, reap).await;
+}
+
+/// What:
+///  `run_tool_reaping` with the bound on the start given,
+/// which a control reaches in milliseconds.
+/// Why:
+///   The bound is one a person chooses through no setting and a control cannot wait for,
+/// so the run that ships gives it a
+///  named constant and a control names its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runToolReapingStartedWithin(program, command, limits, startMs, reap): Promise<ToolRun>;
+/// ```
+pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, start: Duration, reap: &Reap) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -384,12 +403,20 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
         Err(error) => return no_place_for_output(program, started, &error),
     };
     starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
+    // A control holds the child before its own exec, which is the only way a test can make a start take time.
+    #[cfg(test)]
+    crate::package_repair_start::hold_the_start_before_its_exec(&mut starting);
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: OwnedChild = match spawn_retrying_without_blocking(&mut starting).await {
-        Ok(running) => adopt(running),
-        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+    let mut child: OwnedChild = match start_within(start, starting).await {
+        ToolStart::Running(running) => adopt(running),
+        ToolStart::Refused(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+        ToolStart::NoAnswer => {
+            // Nothing reads what the tool writes: the run says it did not start here, and the child it finally starts is stopped.
+            captured.discard();
+            return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it gave no answer within {start:?}, so nothing of it ran", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+        }
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
@@ -618,22 +645,6 @@ fn tool_step(program: &Path, command: &ToolCommand) -> String {
         Some(first) => format!("{name} {}", first.to_string_lossy()),
         None => name,
     };
-}
-
-/// What:
-///  Stop the child's whole process group.
-/// Why:
-///   pnpm and Cargo start helpers;
-/// stopping only the leader would leave them running against the worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(-child.pid, 'SIGKILL');
-/// ```
-fn stop_group(leader_id: u32) {
-    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
-    // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
-    let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
 }
 
 /// Command controls stay out of the release executable.
