@@ -1,7 +1,8 @@
 //! The lowering of the emptying's I/O priority,
+//! the thread the lowered value belongs to,
 //! and the priority a thread is left with.
 
-use super::{class_here, with_idle_io_priority};
+use super::{LoweredIoPriority, class_here, with_idle_io_priority};
 
 /// The class the work runs in while it is lowered,
 /// as the kernel numbers it (`IOPRIO_CLASS_IDLE`).
@@ -60,4 +61,40 @@ fn a_stretch_that_unwinds_gives_the_thread_its_own_class_back() {
     });
     assert!(unwound.is_err(), "the work's own panic reaches the caller");
     assert_eq!(class_here(), before, "the thread is left as it was found, panic included");
+}
+
+/// What:
+///  The lowering stays on the thread that made it,
+/// which is what lets every restore give the right thread its priority back.
+/// Why:
+///   `Drop` writes the priority of the thread that drops the value,
+/// so a value carried to another thread
+///  would overwrite that thread's own priority and leave the lowered thread at the idle class.
+/// The refusal is the compiler's:
+/// the ask below has two answers exactly while the value may be carried to another thread,
+/// and one answer while it may not,
+///  so this file stops building the moment the value becomes movable again
+/// (`error[E0283]: type annotations needed`).
+#[test]
+fn the_lowering_cannot_be_carried_to_another_thread() {
+    /// What:
+    ///  A marker only a value that may be carried to another thread has.
+    struct IfCarriedToAnotherThread;
+
+    /// What:
+    ///  The one method every value offers, under each marker the value qualifies for.
+    trait Offered<Marker> {
+        fn offered() {}
+    }
+
+    /// What:
+    ///  The marker every value qualifies for, which is the one the ask names when nothing else does.
+    impl<T: ?Sized> Offered<()> for T {}
+
+    /// What:
+    ///  The marker a value that may be carried to another thread also qualifies for,
+    /// which leaves the ask naming neither of the two.
+    impl<T: ?Sized + Send> Offered<IfCarriedToAnotherThread> for T {}
+
+    let _ = <LoweredIoPriority as Offered<_>>::offered;
 }

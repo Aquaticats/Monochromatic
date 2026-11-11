@@ -31,6 +31,8 @@
 //! withIdleIoPriority(state, removeTree); // ioprio_set(thread, IDLE) ... ioprio_set(thread, before)
 //! ```
 
+use std::marker::PhantomData;
+
 /// The `ioprio_set(2)` selector for one thread:
 /// `IOPRIO_WHO_PROCESS` with id `0` names the caller.
 const WHO_PROCESS: libc::c_int = 1;
@@ -121,10 +123,18 @@ fn set_priority_here(value: libc::c_int) -> bool {
 /// no write without a
 ///  reading to restore,
 /// and no promise that the class changed.
+/// The value belongs to the thread that lowered it,
+/// and the compiler refuses to carry it to another one,
+/// because a drop writes the
+///  priority of the thread that drops it:
+/// a value that travelled would give the receiving thread the lowered thread's old
+///  priority and leave the lowered thread at the idle class for the rest of its life.
+/// A stretch of work that belongs on another thread makes its own value
+///  there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class LoweredIoPriority { static lower(): LoweredIoPriority; [Symbol.dispose](): void }
+/// class LoweredIoPriority { static lower(): LoweredIoPriority; [Symbol.dispose](): void } // on one thread only
 /// ```
 pub struct LoweredIoPriority {
     /// The priority this thread had before the lowering,
@@ -132,6 +142,10 @@ pub struct LoweredIoPriority {
     before: Option<libc::c_int>,
     /// Whether this thread's priority stays the idle class until this value is dropped.
     lowered: bool,
+    /// The marker that keeps the value on the thread that lowered it:
+    /// a value nothing can carry to another thread cannot be dropped there,
+    /// so the restore always reaches the thread that was lowered.
+    stays_on_its_thread: PhantomData<std::rc::Rc<()>>,
 }
 
 impl LoweredIoPriority {
@@ -149,11 +163,11 @@ impl LoweredIoPriority {
     pub fn lower() -> LoweredIoPriority {
         let before: Option<libc::c_int> = priority_here();
         let lowered: bool = set_priority_here(IDLE);
-        return LoweredIoPriority { before, lowered };
+        return LoweredIoPriority { before, lowered, stays_on_its_thread: PhantomData };
     }
 }
 
-/// Being dropped is what gives the thread back the priority it had.
+/// Being dropped is what gives the thread that lowered the value back the priority it had.
 impl Drop for LoweredIoPriority {
     fn drop(&mut self) {
         if self.lowered
