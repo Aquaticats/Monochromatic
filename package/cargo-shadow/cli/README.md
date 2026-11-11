@@ -1141,13 +1141,19 @@ Six mechanisms
   a layout it does not know is left untouched and reported.
 - C,
   verified-idle trees of the host build base.
-  A tree goes only when its workspace is gone (ledger,
+  A tree goes only when its workspace is confirmed gone (ledger,
   or a lead from dependency information),
   or its toolchain is retired,
   or nothing identifies it and it has been idle longer;
   no other tree's workspace lies inside it;
   every profile directory yields its build locks;
   and no process uses anything under it.
+  A workspace counts as gone only when its absence is confirmed:
+  a path whose metadata cannot be read (a directory this user may not search,
+  an I/O error)
+  may be a live workspace,
+  so the tree stays,
+  and the ledger that names such a workspace keeps the tree holding it.
   "Other tree" means every tree of the base,
   including the ones a pass that continues after a recorded position
   does not judge again.
@@ -1266,16 +1272,19 @@ and each of the two long passes continues where it stopped:
 - The file is replaced by an atomic rename and a dry run never writes it,
   so a run killed in the middle leaves the position it last recorded,
   and `lean run --dry-run` never moves it.
-- Neither name of the record is ever opened through a link or waited on as a pipe.
-  A symbolic link,
-  a hard link (a second name for a file this run does not own),
-  or a pipe at `lean-progress.new` is removed and this run writes its own file there,
-  so the text never lands in the file a link names and no open waits for the other end of a pipe;
-  a pipe at `lean-progress` itself is read for what it already holds,
-  which is not this version's header,
-  so the run starts at the front and says so.
+- Neither name of the record is ever followed through a link or waited on as a pipe.
+  The record is written into a staging name this run makes for itself
+  (`lean-progress.<process>-<count>.new`)
+  and creates in one open that cannot open a name that is already there,
+  so no link and no second name of a file is written through,
+  and no open waits for the other end of a pipe.
+  A file a killed run of another version left at `lean-progress.new` is neither opened nor removed.
+  The record is read as a regular file and never through a link,
+  and at most 64 KiB of it are read,
+  so a link,
+  a pipe or a device at `lean-progress` means the front of the list and says so.
   Both files are created readable and writable by this user alone (`0600`).
-  A name that cannot be used after that is reported once and costs the run its position,
+  A staging name that cannot be created is reported once and costs the run its position,
   never the run itself.
 - A resumed idle-trees pass still holds the whole base's workspaces as guards.
   The trees before the recorded position are not judged again,

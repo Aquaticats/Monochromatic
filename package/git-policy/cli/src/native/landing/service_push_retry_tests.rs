@@ -475,7 +475,7 @@ fn the_controls_window_covers_the_longest_push_measured_under_the_suite() {
 /// as the service does,
 /// and give the way to wake it;
 /// dropping the sender stops it.
-fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope Arc<AtomicUsize>) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, mut receiver) = unbounded_channel::<Wake>();
     let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
@@ -566,7 +566,7 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]));
     let commits_before: String = git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]);
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (wake, first) = start_service(scope, &handlers, plans.as_path(), &busy);
         wake.send((git_dir.clone(), None)).expect("the first service takes the wake");
@@ -1271,12 +1271,12 @@ fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> Pa
 /// Run `work_loop` on a thread as a service that has just started:
 /// the plan and the watch are read from the journal,
 /// and no wake is sent.
-fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope Arc<AtomicUsize>) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     return start_service_watching_with(scope, handlers, PAUSE, plans, watched, busy);
 }
 
 /// The same with the first pause of a push that is tried again given.
-fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope Arc<AtomicUsize>) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, mut receiver) = unbounded_channel::<Wake>();
     let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched, None)); });
     return (sender, running);
@@ -1297,7 +1297,7 @@ fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the successor pushed the claimed commit although nothing woke it");
@@ -1321,7 +1321,7 @@ fn a_wake_writes_the_repository_down_for_the_next_service() {
     let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     assert!(ClaimWatch::restored(store.as_path(), None).directories().is_empty(), "a new journal watches nothing");
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
@@ -1363,7 +1363,7 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), Duration::ZERO);
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == newer; }), "the pending push was run at the start");
@@ -1410,7 +1410,7 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     };
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1 }).expect("the plan is kept");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching_with(scope, &handlers, FAR_PLAN_PAUSE, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the claim was run although the push plan is due only after {FAR_PLAN_PAUSE:?}");
@@ -1445,7 +1445,7 @@ fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
     let (blocker, store): (PathBuf, PathBuf) = block_the_notes(&stage);
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         sender.send((git_dir.clone(), None)).expect("the service takes the wake");
@@ -1472,7 +1472,7 @@ fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_i
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
-    let busy: AtomicUsize = AtomicUsize::new(0);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return busy.load(Ordering::SeqCst) == 1; }), "the service stays up for the store it has to list again");

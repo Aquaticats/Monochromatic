@@ -105,7 +105,7 @@ five tries whose default pauses add up to 150 seconds put the last try past it.
 The wrapper's side is verifiable and is verified by tests.
 `the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome`
 and `a_github_protected_branch_refusal_is_tried_again`
-in `package/git-policy/cli/src/native/push/push_retry_tests.rs`
+in `package/git-policy/cli/src/native/push/push_retry_failure_tests.rs`
 hold a plain decline's words to the three facts the wrapper knows
 (the server's hook declined this push,
 the service stops pushing this branch until the next commit,

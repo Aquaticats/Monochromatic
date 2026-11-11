@@ -159,6 +159,9 @@ The original configuration and page files were backed up to
 `${HOME}/temp/agent/systemmonitor-backup-h1PVg4`.
 A recursive comparison confirmed the saved page files were unchanged.
 Normal application navigation changed `lastVisitedPage` in `systemmonitorrc`.
+A later comparison found `historyAmount=3600` saved for the filesystem graphs in `overview.page`.
+Those saved values were retained;
+the layouts were not reset.
 
 The local sensor-service drop-in is:
 
@@ -202,6 +205,12 @@ Do not modify the distribution-owned service or `.page` files.
   Relaunching the owned browser in a fresh scope with `TasksMax=512` completed the source checks.
   This is evidence about the diagnostic command's limit,
   not a cause of the System Monitor failures.
+- `gtk-launch org.kde.plasma-systemmonitor` emitted
+  `GLib-GIO-CRITICAL: g_dbus_connection_call_sync_internal: assertion 'object_path != NULL && g_variant_is_object_path (object_path)' failed`.
+  It returned success without opening System Monitor,
+  confirmed by `org.freedesktop.DBus.Error.NameHasNoOwner` for the application name.
+  The installed executable was reopened through the user service manager.
+  The GTK helper failure was not diagnosed as part of this repair.
 
 All source links were opened in `agent-browser` and checked for the quoted text and expected line-selection fragment.
 The committed Markdown was also checked in GitHub's rendered view.
@@ -213,8 +222,8 @@ Tighten `AGENTS.md` rule `SCF` to state:
 before accepting a screenshot,
 verify the target application/window and intended rendered state;
 recapture mismatches or transitional frames.
-This clarification was proposed to the owner;
-no agent-rule edit is part of the system repair.
+The owner approved this clarification,
+and it was applied to the maintained agent-rule source.
 
 ## Upstream filing decision
 

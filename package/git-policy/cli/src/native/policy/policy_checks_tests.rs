@@ -18,6 +18,7 @@
 ///  the engine types it returns and the scripted facts.
 use super::{ShippedChecks, shipped_checks};
 use crate::candidate_prediction::CandidateRequest;
+use crate::command_clean::UNREADABLE_CLEAN_DELETION;
 use crate::command_test_support::os_arguments;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
@@ -951,6 +952,73 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
     }
 }
 
+/// What:
+///  linked-worktree-only:
+///  a clean whose second force would delete a nested Git repository asks Git which repositories one force
+///  keeps,
+///  and stops the clean when that reading fails,
+///  because a reading that failed could hide a repository the clean would delete.
+/// Why:
+///   The nested repository's work is invisible to the outer status,
+///  so nothing else in this policy can see it;
+///  a clean with one force is Git's own protection of that repository,
+/// and asks nothing.
+#[test]
+fn a_clean_with_a_second_force_asks_which_repositories_one_force_keeps() {
+    let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
+    let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unreadable.clean_deletes = Ok(vec![b"Would remove cache/".to_vec()]);
+    unreadable.clean_keeps_with_one_force =
+        Err(String::from("Git could not read which repositories the clean would keep: fatal"));
+    let (outcome, questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unreadable);
+    assert_eq!(
+        outcome,
+        one(
+            "linked-worktree-required",
+            "Git could not read which repositories the clean would keep: fatal"
+        ),
+        "{questions:?}"
+    );
+    assert!(
+        questions.iter().any(|question| { return question.starts_with("clean-would-keep:"); }),
+        "{questions:?}"
+    );
+    // Git refuses the clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
+    let mut refused: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
+    let (refused_outcome, refused_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), refused);
+    assert_eq!(refused_outcome, clean(), "{refused_questions:?}");
+    // A reading that never answered is not a refusal: the clean stops rather than deleting a repository it could not see.
+    let mut unanswered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unanswered.clean_deletes = Err(String::from("the read of the clean's dry run was ended at its ceiling"));
+    let (unanswered_outcome, unanswered_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unanswered);
+    assert_eq!(
+        unanswered_outcome,
+        one("linked-worktree-required", "the read of the clean's dry run was ended at its ceiling"),
+        "{unanswered_questions:?}"
+    );
+    // One force is Git's own protection of every nested repository, so the wrapper asks nothing.
+    let one_force: Vec<&str> = vec!["clean", "-f", "-d", "-X"];
+    let (one_outcome, one_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, one_force.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
+    assert_eq!(one_outcome, clean(), "{one_questions:?}");
+    assert!(
+        one_questions.iter().all(|question| { return !question.starts_with("clean-would-keep:"); }),
+        "{one_questions:?}"
+    );
+    // The main checkout refuses the same clean before any of this is asked.
+    let (main_outcome, main_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), dirty_in(main_worktree("/r", ""), false));
+    assert!(matches!(main_outcome, PolicyOutcome::Findings(_)), "{main_questions:?}");
+    assert!(
+        main_questions.iter().all(|question| { return !question.starts_with("clean-would-keep:"); }),
+        "{main_questions:?}"
+    );
+}
+
 /// linked-worktree-only:
 ///  a command that changes the remote settings every worktree shares is refused in a linked
 ///  worktree,
@@ -974,6 +1042,18 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
             vec!["config", "remove-section", "remote.origin"],
             SharedRemoteWrite::Section(String::from("remote.origin")),
         ),
+        // A `--file` write that names the shared file is the same write, and an editor session
+        //  names no key and can change any of them.
+        (
+            vec!["config", "--file", "/r/.git/config", "remote.origin.url", "https://example.invalid/two.git"],
+            SharedRemoteWrite::Key(String::from("remote.origin.url")),
+        ),
+        (
+            vec!["config", "--file", "/r/.git/config", "--remove-section", "remote.origin"],
+            SharedRemoteWrite::Section(String::from("remote.origin")),
+        ),
+        (vec!["config", "--edit"], SharedRemoteWrite::Edit),
+        (vec!["config", "edit"], SharedRemoteWrite::Edit),
     ] {
         assert_eq!(
             pre_forward(
@@ -1008,10 +1088,29 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
         vec!["remote", "get-url", "origin"],
         vec!["config", "--get", "remote.origin.url"],
         vec!["config", "--worktree", "remote.origin.url", "own"],
+        vec!["config", "--global", "--edit"],
+        vec!["config", "--system", "--edit"],
+        vec!["config", "edit", "user.name"],
     ] {
         assert_eq!(
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unlocatable()),
             (clean(), Vec::<String>::new()),
+            "{values:?}"
+        );
+    }
+    // A `--file` write that names a file of its own is no write to the settings every worktree shares:
+    //  the location decides that, and nothing else is asked.
+    for values in [
+        vec!["config", "--file", "/elsewhere/other.config", "remote.origin.url", "https://example.invalid/two.git"],
+        vec!["config", "--file", "/elsewhere/other.config", "--edit"],
+    ] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                values.as_slice(),
+                located(linked_worktree("/r", "/w"))
+            ),
+            (clean(), location_only()),
             "{values:?}"
         );
     }

@@ -157,12 +157,10 @@ fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
 /// ```ts
 /// function mpmCommand(destination: string, verb: string[]): ToolCommand;
 /// ```
-fn mpm_command(destination: &Path, arguments: &[&str]) -> ToolCommand {
-    return ToolCommand {
-        arguments: arguments.iter().map(OsString::from).collect(),
-        directory: PathBuf::from(destination),
-        set: vec![(OsString::from(ROOT_VARIABLE), destination.as_os_str().to_os_string())],
-    };
+fn mpm_command(destination: &Path, arguments: &[&str], environment: &RepairEnvironment) -> ToolCommand {
+    let mut set: Vec<(OsString, OsString)> = vec![(OsString::from(ROOT_VARIABLE), destination.as_os_str().to_os_string())];
+    set.extend(crate::package_repair_request::with_the_persons_path(environment));
+    return ToolCommand { arguments: arguments.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set };
 }
 
 /// What:
@@ -335,7 +333,7 @@ fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEn
     let Some(program) = found_program else {
         return ToolchainRepair::NoProgram(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"]), destination: PathBuf::from(destination), limits: environment.limits() });
+    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"], environment), destination: PathBuf::from(destination), limits: environment.limits() });
 }
 
 /// What:

@@ -218,6 +218,32 @@ impl RepairEnvironment {
 }
 
 /// What:
+///  The variables a tool's own children read:
+/// the search path the add resolved the program on.
+/// Why:
+///   A repair's tool is a program that starts others (in this repository the pnpm-shadow runs the real pnpm,
+/// and mpm-shadow runs `pnpm` and `cargo`),
+/// and the owner decided the repair starts what the person's path names.
+/// A service runs on its own path,
+/// which may hold another pnpm or none,
+/// so the recorded path is handed to the tool itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withThePersonsPath = (environment) => environment.searchPath === undefined ? [] : [['PATH', environment.searchPath]];
+/// ```
+pub fn with_the_persons_path(environment: &RepairEnvironment) -> Vec<(OsString, OsString)> {
+    return match environment.path() {
+        None => Vec::new(),
+        Some(search_path) => vec![(OsString::from(PATH_VARIABLE), search_path.to_os_string())],
+    };
+}
+
+/// What:
+///  The variable a tool's children find their programs on.
+const PATH_VARIABLE: &str = "PATH";
+
+/// What:
 ///  Everything one repair needs.
 /// Why:
 ///   One request per new worktree keeps the call sites short.

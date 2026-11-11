@@ -503,23 +503,27 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
 
 /// What:
 ///  Whether a word is one of the wrapper's own side refs:
-/// `refs/cli-git/kept/<number>` or `refs/worktree/cli-git-service/<number>`.
+/// `refs/cli-git/kept/<number>`,
+/// the name beside it `refs/cli-git/kept/<number>-rescue`
+///  that a worktree removal keeps a held commit on when that name cannot be written,
+/// or `refs/worktree/cli-git-service/<number>`.
 /// Why:
 ///  `is_side_ref_write` accepts an `update-ref` only for these names,
-/// and the number is all digits.
+/// and each ends in a number,
+/// with `-rescue` allowed after the kept name's number.
+///  The words are the ones
+///  `service_scratch_ref_of_a_dropped_batch.rs` writes,
+/// spelled again here because that folder uses this one and may not be used by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /^refs\/(monochromatic-git-policy-cli\/kept|worktree\/cli-git-service)\/[0-9]+$/.test(word)
+/// /^refs\/(cli-git\/kept\/[0-9]+(-rescue)?|worktree\/cli-git-service\/[0-9]+)$/.test(word)
 /// ```
 fn is_side_ref_name(word: &str) -> bool {
-    for prefix in ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"] {
-        if let Some(number) = word.strip_prefix(prefix)
-            && !number.is_empty()
-            && number.as_bytes().iter().all(u8::is_ascii_digit)
-        {
-            return true;
-        }
-    }
-    return false;
+    let number: Option<&str> = match word.strip_prefix("refs/cli-git/kept/") {
+        Some(rest) => Some(rest.strip_suffix("-rescue").unwrap_or(rest)),
+        None => word.strip_prefix("refs/worktree/cli-git-service/"),
+    };
+    let Some(digits) = number else { return false };
+    return !digits.is_empty() && digits.as_bytes().iter().all(u8::is_ascii_digit);
 }

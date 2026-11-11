@@ -2,6 +2,7 @@
 //!  Pathnames as Git prints them:
 //! one answer with its one terminator removed,
 //! a pathname from the bytes of it,
+//! the bytes of a file without the line breaks Git strips at their end,
 //! and every value of `core.hooksPath` with the scope it came from.
 //! Why:
 //!   A pathname is a byte string,
@@ -37,6 +38,27 @@ pub(crate) fn without_the_terminator(answer: &[u8]) -> &[u8] {
         Some(body) => body,
         None => answer,
     };
+}
+
+/// What:
+///  The bytes of a file Git wrote,
+/// without the line breaks Git takes from their end.
+/// Why:
+///   Git's own reader of a `gitdir:` pointer (`read_gitfile_raw` in `setup.c`)
+///  removes every trailing carriage return and line feed and nothing else,
+/// so a directory whose name ends in a space is the directory the pointer names,
+///  and taking more named a directory that does not exist.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bytes.subarray(0, bytes.length - (/[\r\n]*$/.exec(bytes.toString('latin1'))?.[0].length ?? 0))
+/// ```
+pub(crate) fn without_trailing_newlines(bytes: &[u8]) -> &[u8] {
+    let mut end: usize = bytes.len();
+    while end > 0 && (bytes[end - 1] == b'\n' || bytes[end - 1] == b'\r') {
+        end -= 1;
+    }
+    return &bytes[..end];
 }
 
 /// What:

@@ -89,11 +89,12 @@ pub(crate) fn add_selected_paths(
         // An empty selection stages nothing, and the scratch commit then refuses as native Git refuses the command.
         Selected::Empty => return Ok(()),
         // A pathspec file too large to name on one command line keeps its own form, and only the tracked paths it matches
-        // are staged, so no file nothing staged reaches the commit.
+        // are staged, so no file nothing staged reaches the commit. Its start ends for the same two reasons the elements'
+        // does, and Git's refusal of one of its pathspecs is the caller's input too (issue 6283).
         Selected::File => {
             let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update")];
             arguments.extend(selection_arguments(selection));
-            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure);
+            return stage_the_callers_pathspec_file(context, cwd, indexes, arguments.as_slice());
         }
         // A pathspec file this reader cannot take is Git's to read, and every path it names is staged as before.
         Selected::Unreadable => {
@@ -181,6 +182,45 @@ fn stage_patterns(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, pa
     if let Ok(output) = outcome.as_ref()
         && !output.succeeded()
         && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::Elements(patterns))
+    {
+        return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
+    }
+    checked_from(outcome, request.arguments.as_slice()).map_err(explain_a_git_failure)?;
+    return Ok(());
+}
+
+/// What:
+///  Stages the pathspec file the caller named,
+/// as the file Git reads,
+///  and reports Git's refusal of a pathspec in it that matches nothing as the caller's input error.
+/// Why:
+///   A file past the bound on one command line is passed to Git as a file,
+/// so the tokens are never spelled here and every one of them is the caller's:
+/// the reading accepts whatever pathspec Git names (issue 6283).
+///  Every other failure of the start keeps the wording and the class it had,
+/// and the ignored-refusal sentence still applies to a pathspec Git reads from that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = runGit(callerPathspecRequest(['add', '--update', '--pathspec-from-file=...'])); const refused = outcome.ok ? null : pathspecMatchingNothing(outcome.stderr, FromTheCallersFile); if (refused) throw new InputRefusal(refused); checkedFrom(outcome);
+/// ```
+fn stage_the_callers_pathspec_file(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    arguments: &[OsString],
+) -> Result<(), SelectionStagingFailure> {
+    let request: GitRequest = caller_pathspec_request(
+        context,
+        cwd,
+        arguments,
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    let outcome: std::io::Result<GitOutput> = run_git(context, &request);
+    if let Ok(output) = outcome.as_ref()
+        && !output.succeeded()
+        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::FromTheCallersFile)
     {
         return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
     }

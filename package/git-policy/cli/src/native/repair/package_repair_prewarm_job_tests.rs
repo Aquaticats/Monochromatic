@@ -13,7 +13,7 @@ const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 
 /// What a control fills with when it expects the clean to stop it.
 fn fill_of_nowhere() -> Fill {
-    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) } };
+    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
 }
 
 /// One workspace whose source build directory holds one dependency build,
@@ -380,7 +380,7 @@ fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed()
             // A file at the marker name that does not hold this job's text claims nothing.
             std::fs::write(marker.as_path(), b"a person's own note").expect("a file this filling did not make");
         }
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) } };
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
         let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
         assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({stranger})");
         assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
@@ -409,7 +409,7 @@ fn a_published_filling_leaves_no_target_directory_of_its_own() {
         program.as_path(),
         b"#!/bin/sh\nmkdir --parents \"$CARGO_TARGET_DIR/debug\"\necho cleaned > \"$CARGO_TARGET_DIR/debug/state\"\nexit 0\n",
     );
-    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) } };
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     let staged: PathBuf = staging_of(entry.to.as_path());
@@ -443,7 +443,7 @@ fn a_build_directory_below_directories_that_do_not_exist_yet_is_filled() {
     std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     std::fs::create_dir_all(root.join("cargo-build")).expect("the root the person's configuration names");
     assert!(!entry.to.parent().expect("the destination has a directory").exists(), "the destination's own directory is not there before the filling");
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) } };
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     assert_eq!(std::fs::read(entry.to.join("debug/deps/libserde.rlib")).expect("the published copy"), b"a dependency build");

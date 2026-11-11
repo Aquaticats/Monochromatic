@@ -133,6 +133,31 @@ impl Binding {
     }
 }
 
+/// What:
+///  The record text of an add that has been bound to the objects Git made,
+/// keeping the ignored-state copy it still owes.
+/// Why:
+///   The binding is recorded as soon as Git returns,
+/// which is before the copy runs,
+/// so a record written with the binding alone loses the source and the selection a later command needs to make that copy;
+/// the two lines therefore travel with every rewrite of the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = registeredRecordWith(binding, owed, child);
+/// ```
+pub fn registered_record_with(binding: &Binding, owed: Option<&OwedCopy>, child: Option<&crate::worktree_copy_owner::CopyOwner>) -> String {
+    let mut text: String = binding.encode();
+    if let Some(copy) = owed {
+        text.push_str(format!("source={}\n", encode_path(copy.source.as_path())).as_str());
+        text.push_str(format!("sourceSelection={}\n", copy.selection.word()).as_str());
+    }
+    if let Some(named) = child {
+        text.push_str(format!("running={}\n", named.token()).as_str());
+    }
+    return text;
+}
+
 /// What a record says about an add.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Recorded {
