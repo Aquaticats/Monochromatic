@@ -224,19 +224,21 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 
 /// What:
 ///  The registration of `target` in the repository whose common Git directory is `common_dir`,
-/// when it is a linked
-///  worktree of that repository that Git would also pick for `operand`.
+/// when it is a linked worktree of that repository.
 /// Why:
-///   See the module description.
+///   The removal deletes this registration,
+/// so its id names the worktree's commit service units,
+/// and its `gitdir` text is what the removal proves again before the destroy.
+/// Whether Git would also pick this worktree for the name the person typed is the separate question
+/// `registration_of` answers.
 /// The error is the reason,
-/// for the log;
-/// the removal is then left to Git.
+/// for the log.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function registrationOf(args: { commonDir: string; target: string; operand: string }): Registration; // throws the reason
+/// function registeredWorktree(args: { commonDir: string; target: string }): Registration; // throws the reason
 /// ```
-pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Result<Registration, String> {
+pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registration, String> {
     let pointer_path: PathBuf = target.join(".git");
     let pointer: Vec<u8> = match std::fs::read(pointer_path.as_path()) {
         Ok(bytes) => bytes,
@@ -273,12 +275,31 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
     if !crate::real_git_candidate::same_file(recorded_pointer.as_path(), pointer_path.as_path()) {
         return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded_pointer.display(), pointer_path.display()));
     }
-    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path())?;
+    return Ok(Registration { id, admin, worktrees, gitdir_text });
+}
+
+/// What:
+///  The registration of `target` in the repository whose common Git directory is `common_dir`,
+/// when it is a linked
+///  worktree of that repository that Git would also pick for `operand`.
+/// Why:
+///   See the module description.
+/// The error is the reason,
+/// for the log;
+/// the removal is then left to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function registrationOf(args: { commonDir: string; target: string; operand: string }): Registration; // throws the reason
+/// ```
+pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Result<Registration, String> {
+    let registration: Registration = registered_worktree(common_dir, target)?;
+    let registered: Vec<RegisteredPath> = registered_paths(common_dir, registration.worktrees.as_path())?;
     for other in registered {
         // The registration this removal deletes is the worktree's own and the answer Git gives for it; every other one
         // that Git's suffix match could take the name for is a second worktree to Git, even when its path names the same
         // directory through a symbolic link, and then the name is Git's to answer.
-        if other.id.as_deref() == Some(id.as_os_str()) {
+        if other.id.as_deref() == Some(registration.id.as_os_str()) {
             continue;
         }
         if ends_with_name_ignoring_case(other.path.as_slice(), operand.as_bytes()) {
@@ -290,7 +311,7 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
             ));
         }
     }
-    return Ok(Registration { id, admin, worktrees, gitdir_text });
+    return Ok(registration);
 }
 
 /// Registry controls stay out of the release executable.
