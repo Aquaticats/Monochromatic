@@ -144,7 +144,8 @@ pub struct Settled {
 }
 
 /// What:
-///  The manifest entries the source no longer holds, apart from the names that hold something a worktree cannot copy.
+///  The manifest entries the source no longer holds,
+/// apart from the names that hold something a worktree cannot copy.
 /// Why:
 ///   An entry that went away has nothing left to install and nothing to tell;
 /// a name a build replaced with a named pipe,

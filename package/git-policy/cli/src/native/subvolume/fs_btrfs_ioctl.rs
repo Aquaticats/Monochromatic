@@ -384,7 +384,8 @@ pub struct SubvolumeInfoArgs {
     pub reserved: [u64; 8],
 }
 
-/// The request number states 504 bytes, so the structure must hold exactly that.
+/// The request number states 504 bytes,
+/// so the structure must hold exactly that.
 const _: () = assert!(std::mem::size_of::<SubvolumeInfoArgs>() == SUBVOLUME_INFO_BYTES);
 
 /// What:

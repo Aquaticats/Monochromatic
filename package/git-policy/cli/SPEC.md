@@ -3359,7 +3359,8 @@ in `after=<the generation of the subvolume holding the journal directory>`,
 read from the last flushed write before this record,
 which is the binding record the add writes immediately before the snapshot rung,
 because the filesystem writes both facts into every subvolume itself
-(`BTRFS_IOC_GET_SUBVOL_INFO`): the subvolume a snapshot was taken from,
+(`BTRFS_IOC_GET_SUBVOL_INFO`):
+the subvolume a snapshot was taken from,
 and the transaction that created it.
 A later command removes that folder only when it is a btrfs subvolume root,
 taken from the recorded source,
@@ -3368,7 +3369,8 @@ so a plain directory another party put at that name,
 and a snapshot another party took before the record,
 is kept and named.
 The owner answered the choice between naming such a folder for ever and keeping the automatic removal with
-"Keep removing, fix the check" (2026-11-11):
+"Keep removing,
+fix the check" (2026-11-11):
 nothing at the name is deleted on the shape of a folder alone.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
@@ -3565,7 +3567,8 @@ A claim with a destination record beside it was made by an add,
 and its stage is removed only with both proofs:
 the record `<identifier>.made` beside the claim names the container whose creation it recorded,
 its lines being `stage=<the container's bytes in lowercase hexadecimal>`,
-`object=<device:inode:birth seconds:birth nanoseconds>` when the identity is recorded, and
+`object=<device:inode:birth seconds:birth nanoseconds>` when the identity is recorded,
+and
 `written=<seconds>.<nanoseconds>`,
 with `snapshotParent=<the source's UUID>` and `after=<the transaction the creation must follow>` on a record written
 before the snapshot exists,

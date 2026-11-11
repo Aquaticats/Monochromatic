@@ -1899,7 +1899,8 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
 ///  made after it.
 /// Why the control reads this way:
 ///  the owner answered the choice between naming such a snapshot and never removing it and keeping the automatic removal
-///  with "Keep removing, fix the check" (2026-11-11).
+///  with "Keep removing,
+/// fix the check" (2026-11-11).
 #[test]
 fn btrfs_the_snapshot_created_before_its_record_is_removed() {
     let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window") else { return };

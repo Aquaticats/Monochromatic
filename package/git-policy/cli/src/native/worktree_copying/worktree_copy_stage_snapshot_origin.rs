@@ -83,6 +83,21 @@ pub fn origin_of_the_source(_source_root: &Path, _common_dir: &Path) -> Option<S
 }
 
 /// What:
+///  The reason a person reads when the folder's own record cannot be read.
+/// Why:
+///  A look that failed is not an answer of absence:
+/// the folder is kept and the sentence names what could not be read,
+/// and one named function keeps the words where a reader looks for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wordsForAnUnreadableSnapshot = (error) => `nothing shows when the snapshot there was made (${error})`;
+/// ```
+fn words_for_an_unreadable_snapshot(error: crate::fs_primitive_error::PrimitiveError) -> String {
+    return format!("nothing shows when the snapshot there was made ({error})");
+}
+
+/// What:
 ///  Whether the snapshot standing at the container's name is one the filesystem says this source made after the
 /// recorded transaction,
 /// or the reason a person reads when it is not.
@@ -109,8 +124,7 @@ pub fn proved_created_after_the_record(container: &Path, origin: &SnapshotOrigin
             "the folder there now is not a btrfs subvolume root, and the record of the object its creation made names no object",
         ));
     }
-    let made: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(container)
-        .map_err(|error| format!("nothing shows when the snapshot there was made ({error})"))?;
+    let made: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(container).map_err(words_for_an_unreadable_snapshot)?;
     if made.parent_uuid != origin.parent {
         return Err(String::from(
             "the snapshot there now was not taken from the source this command copied, and the record of the object its creation made names no object",

@@ -613,7 +613,8 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
 static THE_FILE_THAT_BECOMES_A_PIPE: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 static THE_PIPE_REPLACED_A_FILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Copy one file, replacing `cache/b.txt` with a named pipe before the copy reaches it.
+/// Copy one file,
+/// replacing `cache/b.txt` with a named pipe before the copy reaches it.
 fn clone_after_replacing_b(input: &std::fs::File, output: &std::fs::File) -> bool {
     if !THE_PIPE_REPLACED_A_FILE.swap(true, std::sync::atomic::Ordering::SeqCst) {
         let source: PathBuf = THE_FILE_THAT_BECOMES_A_PIPE.lock().expect("the source the control set").clone().expect("a source");
