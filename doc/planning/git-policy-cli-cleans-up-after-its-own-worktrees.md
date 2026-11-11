@@ -400,6 +400,14 @@ The set of candidates is the branches this merge brought in:
 That keeps a worktree whose branch merely sat on an older commit of the landed branch,
  which is not work this merge brought in,
  and it never considers a branch with no commits of its own.
+The candidates are also limited to the worktrees the repository registered before the merge ran,
+ which `window` reads in one directory read beside the branch it already reads before Git starts.
+Another cross-vendor review found the hole:
+the registrations were read after the merge commit existed,
+ so a worktree a command added in that window was in the candidate set
+ and a merge that landed before it existed removed it.
+A registration that was not there when the merge started is no work this merge ended,
+ so the sweep does not examine it at all.
 
 A candidate is removed only when all of these hold,
 each one a control:
@@ -413,9 +421,38 @@ each one a control:
   `rebase-merge`,
   `rebase-apply` or `sequencer`
    stands in its administrative directory;
-- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it.
+- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it,
+  and no process of this account that hides its working folder and started after the worktree was made;
+- every ignored file and link it holds is also in the worktree this merge ran in,
+  by kind,
+  mode and bytes (the paragraph below).
 
-The last condition,
+A process can hide its working folder from its own account:
+`PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the user that owns the process,
+and another cross-vendor review found that the sweep removed the worktree under such a process.
+The kernel answers nothing else about one,
+and the programs that hide their folders on this desktop are the services that start at boot or login
+(measured 2026-11-11:
+`systemd --user`,
+`(sd-pam)`,
+`kwin_wayland`,
+`polkit-kde-authentication-agent-1`,
+`ssh-agent` and three more),
+so keeping every worktree they might be in would remove none at all.
+A working folder can only lead into a directory that already existed,
+so a process older than the worktree directory cannot be inside it,
+and the directory's birth time settles that.
+A hidden process that is younger,
+or whose age or the worktree's cannot be read,
+keeps the worktree,
+and the reason names the process so a person can look at it.
+The cost is a worktree kept while a young hidden program runs elsewhere on the machine:
+safe,
+and readable in the notice rather than silent.
+The landed sweep's controls write their own process table,
+so no test depends on which programs this machine happens to run.
+
+Cleanliness,
 that Git would remove the worktree without `--force`,
 is Git's own to decide.
 The sweep does not pre-judge cleanliness:
@@ -435,6 +472,47 @@ Git's refusal words are what a kept worktree reports,
  it deletes what Git ignores and refuses what Git would keep.
 The branch is kept in every case;
  only the checked-out copy goes.
+
+Those ignored files are the one hole in Git's own line,
+ and a cross-vendor review found it:
+`git worktree remove` deletes the files Git ignores without a word,
+ and the btrfs destroy takes the whole directory,
+ so a file the person wrote there after the add,
+ a `.env` covered by a committed ignore rule,
+ went with the worktree and the merge exited 0.
+The owner's rule is that no command of this program discards a person's data,
+ so the sweep now asks Git for the worktree's ignored entries (`worktree_landed_ignored_files.rs`)
+ and compares every file and link among them with the worktree the merge ran in,
+ by kind,
+ mode and bytes (`worktree_copy_compare.rs` `entry_matches`).
+A file this repository's own worktree holds identically came from the add or from the repository,
+ and removing this worktree takes a copy and nothing else;
+ a file it does not hold,
+ or holds with other bytes,
+ may be the person's,
+ so the worktree stays and the file is named in the reason.
+Ignored directories are never read:
+ a build writes them into the worktree alone,
+ which is the state this sweep exists to give back,
+ and reading every file below them would cost the tree on every merge;
+ the removal line says the ignored files went because the merge's own worktree holds every one of them,
+ and it says a directory Git ignores went with the worktree unread,
+ so a person who kept something inside one learns it is not in the worktree the merge ran in.
+The comparison is a stat and a bounded byte read per ignored file Git lists,
+ and this repository's own worktree measured 136 such files against 468 ignored directories,
+ so the sweep keeps the space it was written for.
+A query or a comparison that cannot be made keeps the worktree and says why,
+ because nothing proves the files are not the person's.
+
+A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
+ and on the per-worktree reference `refs/worktree/cli-git-service/<batch>`,
+ and the removal deletes both,
+ so the sweep keeps it on `refs/cli-git/kept/<batch>` of the common Git directory before it examines a candidate,
+ through the same `worktree_removal_held_commits.rs` `keep_held_commits` the ordinary removal uses.
+Another cross-vendor review found that the sweep skipped this
+ and that `git gc --prune=now` then took the commit.
+The held lines are printed before the removal lines,
+ so a person reads where the commit is before reading that the worktree went.
 
 Every merge that lands a branch prints one line per worktree it removed,
  left,
@@ -549,12 +627,17 @@ Nothing in the crate's Rust changed in that merge,
  so the only risk to this change was a semantic one,
  and the suites were run again after it:
 
-- `native:clippy` (the gate's Clippy flags, warnings denied): clean.
+- `native:clippy` (the gate's Clippy flags,
+  warnings denied):
+  clean.
 - `test(/worktree_landed|worktree_added_by_the_wrapper|worktree_process_inside/)`:
    `20 tests run: 20 passed, 6289 skipped`.
-- `test(/worktree_add|worktree_remove/)`: `67 tests run: 67 passed, 6242 skipped`.
-- `test(/worktree_copying/)`: `384 tests run: 384 passed, 5925 skipped`.
-- `test(/landing::/)`: `850 tests run: 850 passed, 5459 skipped`.
+- `test(/worktree_add|worktree_remove/)`:
+  `67 tests run: 67 passed, 6242 skipped`.
+- `test(/worktree_copying/)`:
+  `384 tests run: 384 passed, 5925 skipped`.
+- `test(/landing::/)`:
+  `850 tests run: 850 passed, 5459 skipped`.
 
 The package's `lint` task is red on this branch for findings this work did not add.
 Every one of them is in a file whose diff against `main` is empty,
@@ -568,3 +651,120 @@ Every one of them is in a file whose diff against `main` is empty,
 The `lint:oxlint` and `lint:types` children of the same task also fail;
  this change holds no TypeScript and no generated file,
  so neither failure can be this branch's.
+
+## The continuation run: the review's reproductions and the whole suite
+
+An earlier run of this work was stopped while it rewrote the removal line,
+ and the rewrite it left behind put the ignored-files module in
+ `worktree_landed_sweep_notice.rs`,
+ so the crate did not compile.
+That file was taken back from `HEAD`,
+ and the move the rewrite was for was made with a control first:
+ the removal line promised nothing about a directory Git ignores,
+ though `worktree_landed_ignored_files.rs` never reads one and its own doc says the line says so.
+`a_removed_worktree_says_an_ignored_directory_went_unread` fails on the line as it stood,
+ and passes on the line that now says a directory Git ignores went with the worktree unread.
+
+Each of the review's four findings was reproduced again through the wrapper this worktree built,
+ in a throwaway repository with its own `HOME` and `XDG_RUNTIME_DIR` under the run folder,
+ and read twice:
+ on this branch,
+ and with the base's behaviour,
+ which for findings 1 and 2 was a build of `ee545033ad` and for findings 3 and 4 the base's own rule planted back.
+
+- Finding 1,
+ an ignored `.env` written after the add:
+  on `ee545033ad` the merge exited 0 with the worktree and the file gone;
+  now the merge exits 0,
+  the worktree stays,
+  the file is still there,
+  and the line names `.env`.
+  Its positive control,
+  the same file with no ignore rule,
+  keeps the worktree on this branch as it does on the base:
+  `worktree_remove.rs` `check_clean` leaves a dirty tree to Git,
+  and the base's `RemovePlan` already carried `force: false`,
+  so Git refuses in its own words.
+- Finding 2,
+ a commit a reference lock holds:
+  on `ee545033ad` the merge exited 0 and both `refs/cli-git/kept/7` and the object after
+  `git gc --prune=now` were absent (`status 1`);
+  now both are present (`status 0`),
+  and the held-commit line comes before the removal line.
+- Finding 3,
+ a worktree added while the sweep looks:
+  the run before this one tried to add it from a `post-merge` hook and the hook never ran,
+  because the wrapper forwards Git with `-c core.hooksPath=/dev/null/cli-git-no-hooks` and every
+  `hook.<name>.enabled=false`,
+  so a repository's own hooks are off.
+  The reproduction now stops the sweep's own Git child
+  (`for-each-ref --merged <commit>`) with `SIGSTOP`,
+  adds the worktree through the wrapper while it is stopped,
+  and lets it continue.
+  On this branch the merge exits 0,
+  the add exits 0,
+  and the worktree is still there,
+  with no removal line for it.
+  With the base's rule planted back
+  (`if false` in place of `place.registered_before.holds`,
+  the registration window),
+  the same run ends with the sweep's removal line naming that worktree and the worktree gone,
+  which is the defect.
+  The positive control in the same script adds the worktree before the merge and the sweep removes it,
+  so a kept worktree is not a sweep that never ran.
+- Finding 4,
+ a process whose working folder cannot be read:
+  with the base's rule planted back
+  (`Err(_refused) => continue`,
+  which skips every process whose `/proc/<pid>/cwd` cannot be read),
+  the merge exited 0 and removed the worktree under the live child,
+  which was still running in it;
+  now the worktree stays and the reason names the process,
+  that it belongs to this account,
+  that it hides its working folder,
+  and that nothing shows it started before the worktree was made.
+
+The whole suite was run once on the finished branch
+ (`native:test:host -- --no-fail-fast`):
+ `6564 tests run: 6556 passed (24 slow), 8 failed, 19 skipped` in 2442 seconds.
+Where each red test belongs,
+ measured against the wrapper handover's own record of the integration's red tests,
+ in its section at 2026-11-10T20:56:59-05:00
+ (`doc/handover/cli-git-rust-implementation.md`):
+
+- Four stage-container tests
+  (`worktree::worktree_convert::tests::a_stage_container_left_in_the_old_tree_does_not_keep_it`,
+  `worktree::worktree_convert::tests::btrfs_a_stage_container_is_left_out_of_the_new_subvolume`,
+  `worktree::worktree_convert_compare::tests::a_stage_container_of_another_command_is_not_a_difference` and
+  `subvolume::subvolume_sync::tests::another_commands_stage_container_is_left_out_of_a_pass`):
+  the handover records this class red on the integration tree before this branch,
+  in the same words,
+  and `297baefe42` on the integration fixes it after this branch's base
+  with `worktree_copy_prune.rs` `names_a_private_stage`.
+- `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote` and
+  `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`:
+  both are named red on the integration tree in the same handover section.
+- `commit::commit_index::stat_tests::a_private_refresh_the_ceiling_ends_leaves_the_private_index_as_the_copy_made_it`
+  and `lock::git_stop_lock_tests::a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove`:
+  neither file differs from `ee545033ad`,
+  and each passes alone
+  (`1 test run: 1 passed` for each),
+  so it fails only under the whole suite's own concurrency.
+  The run before this one failed a different member of that family
+  (`worktree_added_again_at_the_same_path_gets_its_own_filling`)
+  and not these two,
+  which is the spread between one full run and the next.
+
+The modules this branch touches,
+ run again on the finished branch:
+ `worktree_landed` `27 tests run: 27 passed`,
+ `worktree_process_inside` `10 tests run: 10 passed` and
+ `index_writer_forward` `10 tests run: 10 passed`;
+ `native:clippy` clean;
+ and both test targets build,
+ the binary one with `965 tests` known to it.
+This document held seven `markdown/semantic-line-breaks` findings in prose an earlier run of this change wrote,
+ in the process list after `(measured 2026-11-11:`,
+ in `by kind, mode and bytes`,
+ and in the four suite bullets of the merge section;
+ `monochromatic-lint --fix` plus one leading space on a continuation line leaves the file clean.

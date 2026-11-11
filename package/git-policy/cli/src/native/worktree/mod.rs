@@ -344,6 +344,10 @@ pub mod worktree_landed_after_a_merge;
 /// with the branch each one has checked out.
 pub mod worktree_landed_registrations;
 
+/// The ignored entries of a landed worktree that nothing else in the repository holds,
+/// which keep it.
+pub mod worktree_landed_ignored_files;
+
 /// The removal of every wrapper-made worktree whose branch a merge landed.
 pub mod worktree_landed_removal;
 
