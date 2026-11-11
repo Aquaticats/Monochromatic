@@ -182,6 +182,22 @@ struct ReadCode {
 }
 
 /// What:
+///  `blank` puts one space in the masked text for each character a comment or a literal held.
+/// Why:
+///  A replaced character keeps its place,
+///  so the line break it sat beside stays where the file put it and a finding still names the line a person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function blank(masked: string[], count: number): void
+/// ```
+fn blank(masked: &mut Vec<char>, count: usize) {
+    for _ in 0..count {
+        masked.push(' ');
+    }
+}
+
+/// What:
 ///  `fn read_the_code_of(text: &str) -> Result<ReadCode, String>` reads one source file once:
 ///  its code without comments or literal characters,
 ///  and the braces that code holds.
@@ -205,12 +221,6 @@ struct ReadCode {
 fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
     let characters: Vec<char> = text.chars().collect();
     let mut masked: Vec<char> = Vec::with_capacity(characters.len());
-    // Every character the reader passes over keeps its place in its line.
-    fn blank(masked: &mut Vec<char>, count: usize) {
-        for _ in 0..count {
-            masked.push(' ');
-        }
-    }
     let mut counts: Vec<(usize, usize)> = vec![(0, 0)];
     let mut scanner: Scanner = Scanner::Code;
     let mut index: usize = 0;
@@ -355,23 +365,18 @@ fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
                 }
             },
             Scanner::Raw(hashes) => {
-                let closing: bool = character == '"' && {
-                    let mut cursor: usize = index + 1;
-                    let mut seen: usize = 0;
-                    while seen < hashes && characters.get(cursor) == Some(&'#') {
-                        seen += 1;
-                        cursor += 1;
-                    }
-                    if seen == hashes {
-                        scanner = Scanner::Code;
-                        blank(&mut masked, cursor - index);
-                        index = cursor;
-                        true
-                    } else {
-                        false
-                    }
-                };
-                if !closing {
+                // A raw string ends at the first `"` its own count of `#` follows; any other `"` is its text.
+                let mut cursor: usize = index + 1;
+                let mut seen: usize = 0;
+                while seen < hashes && characters.get(cursor) == Some(&'#') {
+                    seen += 1;
+                    cursor += 1;
+                }
+                if character == '"' && seen == hashes {
+                    scanner = Scanner::Code;
+                    blank(&mut masked, cursor - index);
+                    index = cursor;
+                } else {
                     blank(&mut masked, 1);
                     index += 1;
                 }
