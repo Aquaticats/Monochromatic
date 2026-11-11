@@ -1024,6 +1024,15 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 
 - this program recorded that it made that worktree,
    which it does when its own `git worktree add` succeeds;
+- the branch it has checked out holds a commit of its own,
+   which its reflog proves by beginning at an earlier commit;
+   a worktree a person has just added and not committed in is never taken
+   by someone else's merge,
+   because a merge of another branch brings every branch sitting on its commits along;
+   a repository that keeps no reflog for that branch proves nothing about it,
+   so its worktree is examined as it was before this rule;
+- the worktree does not hold another worktree this repository registers,
+   whose files and whose own record a removal would take with it;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1055,12 +1064,31 @@ A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
 
+**What a removal keeps.**
+A worktree's own Git directory also holds the push failures nobody has seen yet
+ and the pushes the service had not run,
+ and a removal deletes it.
+So a removal copies them first,
+ as `git worktree remove` does,
+ and the next command shows what the worktree could no longer say:
+ the failed push with Git's words,
+ and an unfinished push as one that may not have finished.
+A commit a reference lock held in that worktree is kept the same way,
+ on `refs/cli-git/kept/<batch>` of this repository,
+ before anything is removed.
+
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,
  or could not prove it made,
  giving the path,
  the branch,
  and the reason nothing was removed.
+A worktree whose branch holds no commit of its own is no candidate at all,
+ so a merge that brings in another branch's commits leaves it where it is.
+When no kept reference can be written for a commit a reference lock holds,
+ the removal is stopped and the notice names the `git worktree remove` line that finishes it:
+ running the merge again removes nothing,
+ because a branch that already landed makes that merge up to date.
 Nothing is removed in silence,
  and nothing is removed while a person is working in it.
 
@@ -2721,6 +2749,7 @@ A merge that lands a branch also removes the worktrees that hold it.
 After the branch moved,
  every linked worktree whose checked-out branch this merge brought in is removed by itself when
  it is recorded as one this program made,
+ its branch holds a commit of its own,
  it is not the worktree the merge runs in,
  it is not locked,
  no operation is in progress in it,
