@@ -500,6 +500,12 @@ fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
 /// so the reserve leaves one of them to the work a person waits for.
 const TWO_PLACES: usize = 2;
 
+/// The work a person waits for, as one job of the blocking pool:
+/// a push's own read of its child is one.
+fn fn_seven() -> u8 {
+    return 7;
+}
+
 /// What:
 ///  How long the control lets a slow job that must not start keep trying,
 ///  so a run that hands it the reserved place fails rather than hangs.
@@ -541,7 +547,7 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
     assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the slow job never took its place");
     // The work a person waits for: one blocking job, which a push's own read of its child is.
     let began: std::time::Instant = std::time::Instant::now();
-    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(|| 7_u8).await; }).expect("the runtime");
+    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(fn_seven).await; }).expect("the runtime");
     let waited: Duration = began.elapsed();
     assert_eq!(answered, Ok(7), "the work a person waits for ran");
     assert!(waited < PATIENCE, "the work a person waits for ran beside the slow job, in {waited:?}");

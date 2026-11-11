@@ -10371,13 +10371,21 @@ the free memory over one repository's measured peak,
 and `SLOW_ITEMS_CEILING`
 (`service_work_items_side_by_side.rs`):
 4,
-measured on this host on 2026-11-11 at the load it had,
-as the point where draining a queue of directory removals stopped getting faster
-(four items at once 1.93 s and 1.88 s,
-six 1.91 s and 1.94 s,
-eight 1.90 s and 1.93 s,
-against 3.68 s and 3.60 s for one at a time),
-and it is also the number of blocking places the service has (`SERVICE_WORKER_CAP`).
+the number of blocking places the service has (`SERVICE_WORKER_CAP`),
+because beyond them a wider wave only adds tasks that wait for a place.
+Measured on 2026-11-11 on this host under its own load
+(average 68 to 100),
+the same binary asked for each width, alternating,
+over eight worktrees' trashes of one entry of 8,000 files each:
+1,599 and 1,389 ms at one item at once,
+9,935 and 948 ms at two,
+1,129 and 1,090 ms at four,
+1,916 and 853 ms at eight,
+so the spread of one width covered the differences between widths and no width was faster than another;
+the removals run at I/O priority class `idle`, and the drive was the limit.
+What the width buys is in the controls and not in that wall time:
+two worktrees' trashes are inside their handler at one moment after this change,
+which the release before it never did.
 A push's width is the host's threads and memory alone (`pushes_side_by_side`),
 because a push waits on the network and holds no place of the blocking pool.
 

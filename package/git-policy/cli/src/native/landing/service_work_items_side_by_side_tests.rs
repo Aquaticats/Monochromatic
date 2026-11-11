@@ -338,17 +338,10 @@ fn start_the_loop(staged: &Stage) -> (tokio::sync::mpsc::UnboundedSender<Wake>, 
 /// Why:
 ///   The measured queue of `2026-11-11` held 22 records of one work directory
 /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`),
-/// so four worktrees of one repository keep that shape at a size a measurement can run twice on a loaded host.
-const MEASURED_WORKTREES: usize = 4;
+/// so eight worktrees of one repository keep that shape at a size a measurement can run twice on a loaded host.
+const MEASURED_WORKTREES: usize = 8;
 
-const MEASURED_ENTRIES: usize = 500;
-
-/// How many of the queue's trashes are already claimed and running when the push is written.
-/// Why:
-///   The measured case is a push that arrives while slow work holds the service,
-/// so the queue must be in flight before the push exists;
-/// half of the queue is a state a drain reaches quickly and that cannot be confused with an empty one.
-const INTO_THE_QUEUE: usize = MEASURED_WORKTREES / 2;
+const MEASURED_ENTRIES: usize = 8_000;
 
 /// What:
 ///  Plant a trash below the worktree `worktree` and answer the manifest a leave-out would have written for it.
@@ -384,23 +377,36 @@ fn trash_name_of(index: usize) -> String {
     return format!("{:0>40}", format!("{index:x}"));
 }
 
+/// The name of trash `index` of measurement round `round`,
+/// which is what lets a round count only the trashes it planted.
+fn trash_name_of_round(round: usize, index: usize) -> String {
+    return format!("{round}{:0>39}", format!("{index:x}"));
+}
+
 /// What:
-///  Measure what one queue of one repository's slow work costs and how long a person's push waits behind it.
+///  Measure what draining one repository's queue of slow work costs, and what a person's push pays for it,
+///  asking both widths of the same binary on the same host.
 /// Why:
 ///   The owner asked "Shouldn't the service run anything that can be ran in parallel in parallel?"
-/// and the measured cost of the answer is the wall time to drain a queue of real trashes of real worktrees of one
-/// repository,
-/// with a real push written behind them and a real bare remote to land it on.
-/// The figures this prints are the ones written beside `SLOW_ITEMS_CEILING`
-/// (`service_work_items_side_by_side.rs`) and in the handover,
-/// so this is a measurement for the record and not a control: it asserts only that the queue drained and the push landed,
-/// which every arm must.
+/// and the answer's worth is a wall time:
+/// the queue is eight worktrees' trashes of one repository,
+/// each planted and proved the way a leave-out writes one,
+/// drained by the service's own lane under the service's own caps,
+/// once one item at a time and once four at a time, alternating,
+/// so the spread of one width from round to round is what the difference is read against.
+/// A push is written behind a queue that is already claimed,
+/// which is the state the coordinator measured on the installed `0.6.1-alpha.10`
+/// (`2026-11-11T10:38:00-05:00`: two reviews and four trashes claimed, a push pending since 10:29),
+/// and the service's own line reports how long the push itself took,
+/// so a wait that is the push's own cost is told from one behind the queue.
+/// This is a measurement for the record and not a control:
+/// it asserts only what every arm must give, that the queue drained and the push landed.
 /// Run it alone, as the service's own caps and its one process are what the figure is about:
 /// `mise run //package/git-policy/cli:native:test:host -- --run-ignored side_by_side_measure --success-output=final`
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const drained = await measureQueue(8, 2000); print(`queue_ms=${drained.ms} push_wait_ms=${drained.pushWaitMs}`)
+/// for (const width of [1, 4, 4, 1]) print(`width=${width} queue_ms=${await drain(width)}`)
 /// ```
 #[ignore = "a measurement for the record, not a control"]
 #[test]
@@ -416,21 +422,69 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
         let name: String = format!("measured-{index}");
         // The worktree Git makes sits beside the repository it was added from, so that is where the trash is planted.
         git(staged.repo.as_path(), &["worktree", "add", "--quiet", "--detach", name.as_str()]);
-        let worktree: PathBuf = staged.repo.join(name.as_str());
-        let manifest: crate::worktree_trash_manifest::TrashManifest = plant_trash(worktree.as_path(), trash_name_of(index).as_str(), MEASURED_ENTRIES);
-        let item: WorkItem = WorkItem {
-            kind: WorkKind::Trash,
-            repository: worktree.clone(),
-            git_dir: git_dir.clone(),
-            branch_ref: String::from(crate::worktree_trash_dispose::TRASH_REFERENCE),
-            oid: manifest.name.clone(),
-            parent: manifest.encode(),
-            created: String::from("2026-11-11T08:50:59.000Z"),
-            tries: 0,
-        };
-        enqueue(work.as_path(), &item).expect("the trash is written");
-        worktrees.push(worktree);
+        worktrees.push(staged.repo.join(name.as_str()));
     }
+    let mut round: usize = 0;
+    for width in MEASURED_WIDTHS {
+        round += 1;
+        for (index, worktree) in worktrees.iter().enumerate() {
+            let name: String = trash_name_of_round(round, index);
+            plant_a_big_trash_item(&staged, worktree, name.as_str(), MEASURED_ENTRIES, work.as_path());
+        }
+        crate::service_work_items_side_by_side::hold_the_width_to(width);
+        let began: Instant = Instant::now();
+        let lane_dir: PathBuf = git_dir.clone();
+        let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(async move {
+            let handlers: GitHandlers = GitHandlers::new(git_context());
+            return crate::service_work_slow_lane::drain_the_slow_work_awaiting(lane_dir.as_path(), &handlers).await;
+        })
+        .expect("the runtime starts the lane");
+        assert!(emptied_by(work.as_path(), trash_name_of_round(round, 0).as_str(), MEASURED_WORKTREES, MEASURED_DRAIN_CEILING), "round {round} of width {width} emptied every trash of its queue");
+        let drained: Duration = began.elapsed();
+        assert!(wait_until(&|| { return running.is_finished(); }), "the lane ended");
+        println!("measure round={round} width={width} queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={}", drained.as_millis());
+    }
+    crate::service_work_items_side_by_side::take_the_hosts_width();
+    remove(staged.root.as_path());
+}
+
+/// What:
+///  Measure what a person's push pays while a queue of slow work of the same repository is already claimed and running.
+/// Why:
+///   This is the state the coordinator measured on the installed `0.6.1-alpha.10` at `2026-11-11T10:38:00-05:00`:
+/// two reviews and four trashes claimed since 10:24,
+/// and a fresh commit's push still pending from 10:29,
+/// so `main` was pushed by hand.
+/// The push is written only once half the queue is claimed,
+/// so an arm cannot land it before any slow work began,
+/// and the service's own line reports how much of that wait was the push itself.
+/// A measurement for the record, not a control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wake(queue); await claimed(4); const asked = now(); enqueue(push); wake(); await remoteTip(); print(now() - asked)
+/// ```
+#[ignore = "a measurement for the record, not a control"]
+#[test]
+fn side_by_side_measure_the_push_behind_a_queue_that_is_already_running() {
+    crate::lazy_runtime::cap_workers(crate::service_main::SERVICE_WORKER_CAP);
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::service_main::SERVICE_WORKER_CAP);
+    let staged: Stage = stage("side-by-side-measure-push");
+    let git_dir: PathBuf = staged.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    for index in 0..MEASURED_WORKTREES {
+        let name: String = format!("measured-{index}");
+        git(staged.repo.as_path(), &["worktree", "add", "--quiet", "--detach", name.as_str()]);
+        plant_a_trash_item(&staged, staged.repo.join(name.as_str()).as_path(), trash_name_of(index).as_str(), MEASURED_PUSH_ENTRIES, work.as_path());
+    }
+    let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
+    let began: Instant = Instant::now();
+    wake.send((git_dir.clone(), None)).expect("the queue's wake");
+    assert!(
+        wait_until(&|| { return claimed(&held_world(&staged, work.as_path()), WorkKind::Trash) >= MEASURED_PUSH_CLAIMED; }),
+        "{MEASURED_PUSH_CLAIMED} trashes of the queue are claimed and running"
+    );
+    let asked: Instant = Instant::now();
     let push: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: staged.repo.clone(),
@@ -438,40 +492,155 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
         branch_ref: String::from(BRANCH),
         oid: staged.landed.clone(),
         parent: String::new(),
-        created: String::from("2026-11-11T08:50:59.000Z"),
+        created: String::from("2026-11-11T10:29:00.000Z"),
         tries: 0,
     };
-    let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
-    let began: Instant = Instant::now();
-    wake.send((git_dir.clone(), None)).expect("the queue's wake");
-    // The push is written once the queue is in flight, which is the case the coordinator measured: slow work claimed and
-    //  running, then a landing that must reach the remote anyway.
-    assert!(
-        wait_until(&|| {
-            return claimed(&held_world(&staged, work.as_path()), WorkKind::Trash) >= INTO_THE_QUEUE;
-        }),
-        "{INTO_THE_QUEUE} trashes of the queue are claimed and running"
-    );
-    let asked: Instant = Instant::now();
     enqueue(work.as_path(), &push).expect("the push is written");
     wake.send((git_dir.clone(), None)).expect("the push's wake");
     assert!(wait_until(&|| { return remote_tip(&staged) == staged.landed; }), "the push landed");
     let push_wait: Duration = asked.elapsed();
     let claimed_then: usize = claimed(&held_world(&staged, work.as_path()), WorkKind::Trash);
-    assert!(wait_until(&|| { return settled(&held_world(&staged, work.as_path()), DONE) >= MEASURED_WORKTREES; }), "every trash of the queue was emptied");
-    let drained: Duration = began.elapsed();
+    let queue_then: Duration = began.elapsed();
     println!(
-        "measure queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={} push_wait_ms={} push_written_after_ms={} slow_records_claimed_when_the_push_landed={claimed_then}",
-        drained.as_millis(),
+        "measure push_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_PUSH_ENTRIES} push_wait_ms={} queue_running_ms_when_it_landed={} slow_records_claimed_when_it_landed={claimed_then}",
         push_wait.as_millis(),
-        asked.duration_since(began).as_millis()
+        queue_then.as_millis()
     );
+    assert!(emptied_by(work.as_path(), trash_name_of(0).as_str(), MEASURED_WORKTREES, MEASURED_DRAIN_CEILING), "every trash of the queue was emptied");
+    // The same push with no queue beside it, which is what separates the queue's cost from what this host costs a push
+    //  at the load it has.
+    std::fs::write(staged.repo.join("b.txt"), b"after the queue\n").expect("file");
+    git(staged.repo.as_path(), &["add", "--", "b.txt"]);
+    let committed = crate::test_support::git_output(staged.repo.as_path(), &["commit", "--quiet", "--no-verify", "--message=after the queue"]);
+    assert!(committed.status.success(), "git commit after the queue failed: {:?} {}", committed.status.code(), String::from_utf8_lossy(&committed.stderr));
+    let later: String = git_text(staged.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let alone: WorkItem = WorkItem { oid: later, ..push };
+    let alone_asked: Instant = Instant::now();
+    enqueue(work.as_path(), &alone).expect("the second push is written");
+    wake.send((git_dir, None)).expect("the second push's wake");
+    assert!(wait_until(&|| { return remote_tip(&staged) == alone.oid; }), "the push with no queue landed");
+    println!("measure push_alone_ms={}", alone_asked.elapsed().as_millis());
     drop(wake);
     assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
-    for worktree in &worktrees {
-        assert!(std::fs::symlink_metadata(worktree.join(crate::worktree_trash::TRASH_PARENT)).is_err(), "the trash of {} was emptied", worktree.display());
-    }
     remove(staged.root.as_path());
+}
+
+/// How many trashes the push measurement queues,
+/// how many entries each holds,
+/// and how many of them are claimed before the push is written.
+/// Why:
+///  The queue is in flight when the push arrives, which is what makes the wait a wait behind slow work;
+/// the entries are few because what the push's step competes for is a place of the pool, not the entries' bytes.
+const MEASURED_PUSH_ENTRIES: usize = 500;
+
+const MEASURED_PUSH_CLAIMED: usize = 2;
+
+/// The widths a measurement asks its own binary for, alternating so the spread is visible.
+const MEASURED_WIDTHS: [usize; 8] = [1, 2, crate::service_work_items_side_by_side::SLOW_ITEMS_CEILING, 8, 8, crate::service_work_items_side_by_side::SLOW_ITEMS_CEILING, 2, 1];
+
+/// How long the whole queue may take before the measurement says it did not drain.
+/// Why:
+///  `wait_until` gives up only when the run stops moving, and the after-commit work keeps moving,
+/// so an arm whose trashes are refused would spin until the harness kills it:
+/// this ceiling makes that a named failure instead.
+const MEASURED_DRAIN_CEILING: Duration = Duration::from_secs(120);
+
+/// What:
+///  Whether `trashes` trash records of the queue are settled,
+///  waited for no longer than `ceiling`.
+/// Why:
+///  A record of another kind in `done` must not stand in for a trash:
+/// the push a control writes settles there too,
+/// so only the trash records are counted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await withDeadline(ceiling, waitUntil(() => doneTrashes() === worktrees))
+/// ```
+fn emptied_by(work: &Path, of_round: &str, trashes: usize, ceiling: Duration) -> bool {
+    let began: Instant = Instant::now();
+    while began.elapsed() < ceiling {
+        if done_trashes(work, of_round) >= trashes {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return done_trashes(work, of_round) >= trashes;
+}
+
+/// How many trash records of the work directory `work` whose object begins with `of_round` are settled as done.
+fn done_trashes(work: &Path, of_round: &str) -> usize {
+    let header: String = format!("{}-{}", WorkKind::Trash.name(), &of_round[..1.min(of_round.len())]);
+    return state_directory(work, DONE)
+        .read_dir()
+        .map_or(0, |listing| { return listing.flatten().filter(|entry| { return entry.file_name().to_string_lossy().starts_with(header.as_str()); }).count(); });
+}
+
+/// What:
+///  Write one trash whose single entry holds `files` files below `worktree`,
+///  and the record that has the service empty it.
+/// Why:
+///   One entry is one job of the removal, so a trash of one big entry is the case where an item's work is serial
+/// and the wave's width is what a queue of items costs:
+/// with many small entries each item already runs its own entries side by side,
+/// and two widths drain such a queue in the same time
+/// (measured on 2026-11-11: 424, 483, 422 and 424 ms for eight trashes of a thousand one-file entries at the widths 1, 4, 4 and 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// enqueue(work, trashItem(plantOneBigEntry(worktree, name, files)))
+/// ```
+fn plant_a_big_trash_item(staged: &Stage, worktree: &Path, name: &str, files: usize, work: &Path) {
+    let inside: PathBuf = worktree.join(crate::worktree_trash::TRASH_PARENT).join(name).join(crate::worktree_trash_manifest::entry_name(0));
+    std::fs::create_dir_all(&inside).expect("the entry directory");
+    for index in 0..files {
+        std::fs::write(inside.join(format!("file-{index}")), b"left out\n").expect("file");
+    }
+    let root: std::fs::File = crate::fs_beneath::open_root(worktree).expect("the worktree");
+    let names: Vec<std::ffi::OsString> = crate::fs_beneath::plain_components(Path::new(crate::worktree_trash::TRASH_PARENT)).expect("plain parent");
+    let parent: std::fs::File = crate::fs_beneath::open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
+    let trash: std::fs::File = crate::fs_beneath::open_directory_at(&parent, std::ffi::OsStr::new(name)).expect("the trash");
+    let manifest: crate::worktree_trash_manifest::TrashManifest = crate::worktree_trash_manifest::TrashManifest {
+        name: String::from(name),
+        trash: crate::fs_beneath::identity_of(&trash).expect("trash identity"),
+        entries: vec![crate::fs_beneath::identity_at(&trash, std::ffi::OsStr::new(crate::worktree_trash_manifest::entry_name(0).as_str())).expect("entry identity")],
+    };
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Trash,
+        repository: worktree.to_path_buf(),
+        git_dir: staged.repo.join(".git"),
+        branch_ref: String::from(crate::worktree_trash_dispose::TRASH_REFERENCE),
+        oid: manifest.name.clone(),
+        parent: manifest.encode(),
+        created: String::from("2026-11-11T08:50:59.000Z"),
+        tries: 0,
+    };
+    enqueue(work, &item).expect("the trash is written");
+}
+
+/// What:
+///  Write one trash of `entries` entries below `worktree` and the record that has the service empty it.
+/// Why:
+///   The handler proves the trash is the directory the leave-out made and each entry the object it moved,
+/// so a trash planted any other way measures a refusal and not an emptying.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// enqueue(work, trashItem(plantTrash(worktree, name, entries)))
+/// ```
+fn plant_a_trash_item(staged: &Stage, worktree: &Path, name: &str, entries: usize, work: &Path) {
+    let manifest: crate::worktree_trash_manifest::TrashManifest = plant_trash(worktree, name, entries);
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Trash,
+        repository: worktree.to_path_buf(),
+        git_dir: staged.repo.join(".git"),
+        branch_ref: String::from(crate::worktree_trash_dispose::TRASH_REFERENCE),
+        oid: manifest.name.clone(),
+        parent: manifest.encode(),
+        created: String::from("2026-11-11T08:50:59.000Z"),
+        tries: 0,
+    };
+    enqueue(work, &item).expect("the trash is written");
 }
 
 /// The world whose work directory is `work`,

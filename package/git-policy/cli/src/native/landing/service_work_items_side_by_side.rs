@@ -45,32 +45,30 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 /// The most items of one batch of slow work that run at once in one work directory:
-/// 4.
-/// Measured on `2026-11-11T22:20:00-05:00` on this host (28 threads as `nproc` reports them,
-/// the load average 26 to 44 while the arms ran,
-/// so other sessions were using it),
-/// in Sartre's own run folder under `${HOME}/temp/agent`,
-/// on the btrfs volume this repository lives on:
-/// the removal of 16 directory trees of 200 files each,
-/// every removal one job of the process's blocking pool,
-/// with the pool held to the service's own four places (`SERVICE_WORKER_CAP`) as the service holds it,
-/// and one removal per item at a time.
-/// One item at once drained the queue in 3.68 s and 3.60 s,
-/// two items at once in 2.47 s and 2.39 s,
-/// four in 1.93 s and 1.88 s,
-/// six in 1.91 s and 1.94 s,
-/// and eight in 1.90 s and 1.93 s.
-/// The same spacing appears without the three arms' spread:
-/// the time to drain the queue stops falling after four items,
+/// 4,
 /// which is the number of places the service's blocking pool has and the number of its runtime's workers
 /// (`service/service_main.rs`,
 /// `SERVICE_WORKER_CAP`).
-/// More than four items at once buys nothing and only shortens the turn each of them gets before the work a person's
-/// push needs,
-/// so the ceiling is four.
-/// A share cannot be measured as a quantity on a host of another size,
-/// so the figure is capped inside `worker_budget` by the CPUs and the memory this host has,
-/// and the ceiling is the disk's own measured answer.
+/// Measured on `2026-11-11T16:45:00-05:00` on this host,
+/// under its own load (average 68 to 100, so other sessions were working it hard),
+/// with the service's caps in force and the same binary asked for each width,
+/// alternating,
+/// eight worktrees' trashes of one entry of 8,000 files each:
+/// one item at once drained them in 1,599 ms and 1,389 ms,
+/// two at once in 9,935 ms and 948 ms,
+/// four at once in 1,129 ms and 1,090 ms,
+/// and eight at once in 1,916 ms and 853 ms.
+/// The spread of one width from round to round covers the differences between widths,
+/// so a wider wave bought nothing measurable on this host:
+/// the removals run at I/O priority class `idle`, and the drive, not the number of items, was the limit.
+/// What the width does buy is visible in the controls and not in a wall time:
+/// two worktrees' trashes are inside their handler at the same moment
+/// (`landing/service_work_items_side_by_side_tests.rs`),
+/// which the drain of the release before this one never did.
+/// Beyond the process's own places a wider wave only adds tasks that wait for one,
+/// so the ceiling is that number,
+/// and it is bounded further by the CPUs and the memory of a host of another size
+/// (`worker_budget`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -108,7 +106,37 @@ const SLOW_ITEM_MEMORY: u64 = crate::service_round::REPOSITORY_MEMORY;
 /// const width = workerBudget({ items, perItemMemory: SLOW_ITEM_MEMORY, ceiling: SLOW_ITEMS_CEILING, cap: undefined, host });
 /// ```
 pub(crate) fn slow_items_side_by_side(items: usize, host: &HostResources) -> usize {
+    #[cfg(test)]
+    {
+        let asked: usize = WIDTH_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
+        if asked > 0 {
+            return items.min(asked).max(1);
+        }
+    }
     return worker_budget(&BudgetRequest { items, per_item_memory: SLOW_ITEM_MEMORY, ceiling: Some(SLOW_ITEMS_CEILING), cap: None, host });
+}
+
+/// What:
+///  The width a control stated for the next batches of this process,
+///  or nothing when it stated none.
+/// Why:
+///  A measurement of what running a batch beside each other is worth has to ask both widths of one binary on one host,
+/// alternating,
+/// because the spread of the same width from run to run is what the difference is read against.
+/// The release executable keeps nothing of it.
+#[cfg(test)]
+static WIDTH_FOR_A_CONTROL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// State the width of the batches that follow, for a measurement of one binary against itself.
+#[cfg(test)]
+pub(crate) fn hold_the_width_to(width: usize) {
+    WIDTH_FOR_A_CONTROL.store(width, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// State that the batches that follow take the width their host allows.
+#[cfg(test)]
+pub(crate) fn take_the_hosts_width() {
+    WIDTH_FOR_A_CONTROL.store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// What:
