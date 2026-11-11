@@ -316,10 +316,7 @@ impl Prune {
             return false;
         };
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&[u8]> = match index.checked_sub(1) {
-                Some(before) => Some(components[before]),
-                None => None,
-            };
+            let parent: Option<&[u8]> = index.checked_sub(1).map(|before| { return components[before]; });
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
