@@ -9062,7 +9062,8 @@ cleared.
 
 The gate container runs the suite with `--memory 2g`,
 `--cpus 2` and `--pids-limit 512`
-(`${HOME}/temp/agent/gate/launch-gate.ts`),
+(`${HOME}/temp/agent/gate/launch-gate.ts`,
+which became `mise run //package/git-policy/cli:native:gate` on 2026-11-10),
 and the wrapper sizes the process's runtime and its bound on blocking jobs from
 the CPUs it may use
 (`lazy_runtime.rs`,

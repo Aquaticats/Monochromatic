@@ -4376,6 +4376,14 @@ mise run //package/git-policy/cli:native:test:container
   which split a slow sample into its phases.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
+  `native:lock:check` asks cargo whether every manifest the gate builds still resolves against its own lockfile
+  (`bin/native-lock-check.ts`,
+  replacing the scratch scripts `locked-check.ts` and `lock-refresh.ts`).
+  It prints one line per manifest with cargo's status,
+  the directory and cargo's first error,
+  and `--refresh` first re-resolves only the entries a raised floor made unsatisfiable,
+  which writes a lockfile before it checks again.
+  It exits nonzero when any locked check failed.
 
 A release build of the executable:
 
@@ -4387,6 +4395,97 @@ cargo build --release --locked --bin monochromatic-git-policy-cli
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### The release gate
+
+Three tasks start the full gate and read its verdict.
+They replace the coordinator's scratch scripts
+`~/temp/agent/gate/launch-gate.ts`,
+`~/temp/agent/gate/relaunch-gate-on-main-tip.ts` and
+`~/temp/agent/gate/wait-for-gate-verdict.ts`,
+which the wrapper's release flow ran many times a day.
+The scratch copies stay where they are
+until the coordinator has switched over;
+nothing in this package reads them.
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:native:gate -- <worktree name or full path> <label>
+mise run //package/git-policy/cli:native:gate:main-tip
+mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline seconds>
+```
+
+- `native:gate` starts `native:test:container` as its own transient systemd user unit,
+  which is the image build,
+  the compile,
+  the whole suite and Clippy,
+  and prints `<unit>.service=<log path>`.
+  It answers as soon as systemd has queued the unit,
+  so nothing waits an hour for a run.
+  The label is what the gate covers,
+  in lowercase letters,
+  digits and hyphens:
+  it names the unit,
+  the log file and the image tag of the tested image,
+  all three `gpc-gate-<label>-<stamp>`
+  with a second-precise timestamp
+  (`bin/native-gate-unit-name.ts`).
+  `--repository <path>` names the checkout the worktree belongs to
+  (otherwise the nearest folder above the caller whose `.git` is a folder),
+  `--log-directory <path>` names the log folder
+  (otherwise `${HOME}/temp/agent/gate`,
+  or `GIT_POLICY_GATE_LOG_DIRECTORY`),
+  and `--unit-cpu-quota`,
+  `--unit-memory-max`,
+  `--unit-tasks-max`,
+  `--unit-io-weight`
+  and `--container-pids-limit` override the caps every recorded gate ran with,
+  which are documented with what sized each one in `bin/native-gate-caps.ts`.
+  A worktree that holds no `package/git-policy/cli` is refused before the unit starts,
+  because systemd would otherwise fail at `CHDIR` with an empty log.
+- `native:gate:main-tip` detaches the gate worktree
+  (`--worktree <name>`,
+  default `gate-wrapper-next-alpha`,
+  or `GIT_POLICY_GATE_WORKTREE`)
+  at the commit `main` points at now,
+  then starts a gate there labelled `<worktree name minus gate->-on-<sha>`,
+  so the log names the commit it tested.
+  It prints `gate worktree at <sha>` and `launch status <n>`,
+  and a worktree holding uncommitted work is not moved:
+  the status is printed and the command exits 2,
+  because another session's work is never thrown away (rule `EC1`).
+  Run it from a folder inside the checkout,
+  or name the checkout with `--repository <path>`.
+- `native:gate:verdict` waits,
+  bounded,
+  for the gate log to hold a verdict
+  and prints it with nextest's summary and every line that names a failure.
+  A gate is read from its log and never from its unit:
+  the unit is started with `--collect`,
+  which unloads it when it ends and makes `systemctl show` report the defaults of a unit that does not exist
+  (`doc/troubleshooting/systemd-run-collect-reports-success-for-a-failed-unit.md`).
+  The unit therefore writes its own exit status as the log's last line,
+  `gate-exit-status=<n>`,
+  and that line is part of the printed verdict.
+  The exit status of this command says whether a verdict arrived,
+  never whether the gate passed:
+  a passing run and a failing one both earn a zero,
+  and the printed line and summary carry the difference.
+  `--poll-milliseconds` sets the interval between two looks
+  (default 20 seconds,
+  shortened to what the deadline leaves).
+  A wider caller can name what ends the wait and what it prints then:
+  `--marker <text>` waits for another line than the exit status
+  (the older waits spelled their own markers,
+  `exit=`,
+  a nextest tag or a sentence),
+  `--unit <name>` ends the wait as soon as systemd reports that unit stopped,
+  so a gate that died is reported at once instead of at the end of the deadline,
+  and `--tail-lines <count>` sets how many of the log's last lines a wait without a verdict prints
+  (30 by default,
+  none with 0).
+  A wait that ends without a verdict names its reason,
+  `no verdict in <log> within <n> s` or `unit <name> stopped without a verdict in <log>`.
 
 ### Lint
 

@@ -2504,6 +2504,9 @@ importers:
 
   package/git-policy/cli:
     devDependencies:
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
