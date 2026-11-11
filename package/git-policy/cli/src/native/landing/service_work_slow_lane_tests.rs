@@ -132,6 +132,36 @@ impl WorkHandlers for Counted {
     }
 }
 
+/// The oids of the records the round's control writes,
+/// each named once so an assertion says which record it read.
+const THE_ROUNDS_PUSH: &str = "1111111111111111111111111111111111111111";
+
+const THE_ROUNDS_TRASH: &str = "2222222222222222222222222222222222222222";
+
+const THE_ROUNDS_REVIEW: &str = "3333333333333333333333333333333333333333";
+
+/// The oids of the records the lane's control writes.
+const THE_LANES_PUSH: &str = "4444444444444444444444444444444444444444";
+
+const THE_LANES_TRASH: &str = "5555555555555555555555555555555555555555";
+
+const THE_LANES_REVIEW: &str = "6666666666666666666666666666666666666666";
+
+/// Whether the record of `kind` and `oid` is in `state` of `world`.
+/// Why:
+///   The name a record is stored under carries the hash of the destination it is for
+/// (`push-<oid>-<destination hash>`),
+/// which a control does not write and cannot name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesIn(world, state).some((name) => name.startsWith(`${kind}-${oid}`))
+/// ```
+fn record_of(world: &World, state: &str, kind: WorkKind, oid: &str) -> bool {
+    let wanted: String = format!("{}-{oid}", kind.name());
+    return names_in(world, state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
+}
+
 /// What:
 ///  The round that answers a wake takes the push and leaves every slow kind where it is,
 ///  so no step that can take minutes stands between a landing and its push.
@@ -149,7 +179,7 @@ impl WorkHandlers for Counted {
 fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
     let world: World = world(
         "slow-lane-the-round",
-        &[(WorkKind::Push, "1111111111111111111111111111111111111111"), (WorkKind::Trash, "2222222222222222222222222222222222222222"), (WorkKind::Review, "3333333333333333333333333333333333333333")],
+        &[(WorkKind::Push, THE_ROUNDS_PUSH), (WorkKind::Trash, THE_ROUNDS_TRASH), (WorkKind::Review, THE_ROUNDS_REVIEW)],
     );
     let counted: Arc<Counted> = Arc::new(Counted::default());
     let assignments: Vec<Assignment> = vec![Assignment::plain(world.common.clone())];
@@ -158,12 +188,10 @@ fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
     assert_eq!(counted.pushes.load(Ordering::SeqCst), 1, "the round took the push");
     assert_eq!(counted.trashes.load(Ordering::SeqCst), 0, "the round claims no trash");
     assert_eq!(counted.reviews.load(Ordering::SeqCst), 0, "the round claims no review");
-    assert_eq!(names_in(&world, DONE), vec![String::from("push-1111111111111111111111111111111111111111")], "only the push is settled");
-    assert_eq!(
-        names_in(&world, PENDING),
-        vec![String::from("review-3333333333333333333333333333333333333333"), String::from("trash-2222222222222222222222222222222222222222")],
-        "the slow kinds wait for the lane"
-    );
+    assert!(record_of(&world, DONE, WorkKind::Push, THE_ROUNDS_PUSH), "the round settled the push");
+    assert_eq!(names_in(&world, DONE).len(), 1, "the round settled nothing else");
+    assert!(record_of(&world, PENDING, WorkKind::Trash, THE_ROUNDS_TRASH), "the trash waits for the lane");
+    assert!(record_of(&world, PENDING, WorkKind::Review, THE_ROUNDS_REVIEW), "the review waits for the lane");
     remove(world.root.as_path());
 }
 
@@ -182,7 +210,7 @@ fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
 fn the_lane_runs_the_slow_kinds_the_round_left() {
     let world: World = world(
         "slow-lane-the-lane",
-        &[(WorkKind::Push, "4444444444444444444444444444444444444444"), (WorkKind::Trash, "5555555555555555555555555555555555555555"), (WorkKind::Review, "6666666666666666666666666666666666666666")],
+        &[(WorkKind::Push, THE_LANES_PUSH), (WorkKind::Trash, THE_LANES_TRASH), (WorkKind::Review, THE_LANES_REVIEW)],
     );
     let counted: Counted = Counted::default();
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
@@ -190,7 +218,8 @@ fn the_lane_runs_the_slow_kinds_the_round_left() {
     assert_eq!(counted.trashes.load(Ordering::SeqCst), 1, "the lane took the trash");
     assert_eq!(counted.reviews.load(Ordering::SeqCst), 1, "the lane took the review");
     assert_eq!(counted.pushes.load(Ordering::SeqCst), 0, "the lane takes no push");
-    assert_eq!(names_in(&world, PENDING), vec![String::from("push-4444444444444444444444444444444444444444")], "the push is left to the round");
+    assert_eq!(names_in(&world, PENDING).len(), 1, "only the push waits");
+    assert!(record_of(&world, PENDING, WorkKind::Push, THE_LANES_PUSH), "the push is left to the round");
     remove(world.root.as_path());
 }
 
