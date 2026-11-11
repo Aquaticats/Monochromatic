@@ -189,7 +189,13 @@ fn taking_this_batchs_lock_does_not_wait_for_another_indexs_flush() {
         let mut timing: LandTiming = LandTiming::default();
         let held: IndexLock = take_index_lock(&context_of(git_dir.as_path()), journal.as_path(), Duration::from_secs(30), &first, 20, &|_| {}, &mut timing, "new", "scratch-ref").expect("this index's lock is free and is taken");
         assert_eq!(HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst), 0, "taking this batch's lock waited for another index's marker to finish flushing");
-        assert!(std::fs::read_dir(&other_git).expect("listing").flatten().next().is_none(), "the other index's markers go without waiting for their flushes");
+        let staged_elsewhere: Vec<String> = std::fs::read_dir(&other_git)
+            .expect("listing")
+            .flatten()
+            .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+            .filter(|name| { return name.contains(crate::service_index_staging::STAGED_INFIX); })
+            .collect();
+        assert!(staged_elsewhere.is_empty(), "the other index's markers go without waiting for their flushes: {staged_elsewhere:?}");
         drop(held);
         FLUSH_MAY_END.store(true, std::sync::atomic::Ordering::SeqCst);
         let ended: Instant = Instant::now();

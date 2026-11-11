@@ -288,9 +288,14 @@ fn a_commit_that_comes_during_the_flush_takes_the_lock_without_waiting_for_it() 
     });
 }
 
-/// Starting what is already made or being made for the same batch and index starts nothing:
+/// What:
+///  Starting what is already made or being made for the same batch and index starts nothing:
 /// one flush,
 /// one file.
+/// Why:
+///   The three starts a landing makes for one batch would otherwise leave a file no batch takes;
+/// the making is waited for here because this control is about how many were started,
+/// never about the commit's path.
 #[test]
 fn starting_again_for_the_same_batch_makes_no_second_file() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
@@ -300,8 +305,10 @@ fn starting_again_for_the_same_batch_makes_no_second_file() {
         start_with(slow_flush, &index, 9);
         start_with(slow_flush, &index, 9);
         start_with(slow_flush, &index, 9);
-        discard();
+        until_finished(&index, 1);
         assert_eq!(FLUSHES.load(Ordering::SeqCst), 1);
+        assert_eq!(leftovers(&index).len(), 1, "one file, not three: {:?}", leftovers(&index));
+        discard();
         assert!(leftovers(&index).is_empty(), "discarded: {:?}", leftovers(&index));
         remove(root.as_path());
     });
@@ -916,6 +923,7 @@ fn a_marker_the_service_has_stopped_keeping_is_not_made() {
         assert_eq!(FLUSHES.load(Ordering::SeqCst), 0, "the marker was made after the service stopped keeping them");
         assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
         discard();
+        make_markers_again();
         remove(root.as_path());
     });
 }
@@ -932,6 +940,7 @@ fn the_last_sweep_removes_a_recorded_marker() {
         remove_the_file_made_ahead();
         assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
         discard();
+        make_markers_again();
         remove(root.as_path());
     });
 }
