@@ -746,6 +746,26 @@ such a worktree shows the difference.
 The add's Cargo finding names every kept copy;
 the prewarm job writes the same line to its diagnostic log,
 because it runs in the service and has no terminal.
+Note (2026-11-11,
+the merge of this finding with the package-repair branch,
+`57c02af38e` and the merge after it):
+the prewarm job is a caller again,
+of `restore_only_the_cleans_own`.
+The filling of a new worktree's build directory runs after the add has returned,
+while the person may be working in the worktree,
+so its clean is given `--locked` and writes nothing there,
+a lock it refuses is resolved by `cargo metadata --offline` as a step of its own,
+and the checked-out bytes go back only over the bytes that resolution wrote
+(`package_repair_prewarm_job.rs`,
+`SPEC.md`,
+"A committed `Cargo.lock` that disagrees with its manifest").
+The filling reports the lock,
+the workspace,
+`cargo update --offline --workspace` there and the add's own clean command
+when it stops anyway.
+The kept copies above are both cleaners',
+and the add's clean is the one whose put-back stands over any change it finds,
+because its window is the worktree the same command just made.
 Controls:
 the new `package_repair_cargo_lock_tests.rs` (seven,
 including a second displacement of one lock and a lock the clean created).

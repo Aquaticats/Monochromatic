@@ -3899,6 +3899,10 @@ of which the two that rewrite link layouts in place are the service's work whene
   so a write of the person's lands in their own file and stays there.
   A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
   and the job's diagnostic log says which file it was.
+  A clean that stops anyway names the lock,
+  the workspace,
+  `cargo update --offline --workspace` there and the clean the add would have run,
+  in Cargo's own words for whatever stopped it.
   Nothing is cloned or cleaned when the source and the worktree share one build directory,
   when the source has no such
   workspace,

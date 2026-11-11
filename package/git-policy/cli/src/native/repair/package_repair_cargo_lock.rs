@@ -4,15 +4,22 @@
 //! Why:
 //!  A clean may rewrite the lock file,
 //! and a new worktree must stay as checked out;
-//! the two steps need nothing from
-//!  either clean,
+//! the two steps need nothing from either clean,
 //! so they live in a file of their own that both import:
 //! `package_repair_cargo.rs`,
 //! which cleans what the worktree already has,
 //! and `package_repair_prewarm_job.rs`,
 //! which cleans the copy the commit service fills a build directory from after the add returns.
+//! The add's clean runs while the worktree it fills was made by the same command and nobody has it yet,
+//! which `SPEC.md` records as the reason its put-back stands
+//! ("A committed `Cargo.lock` that disagrees with its manifest"),
+//! so it puts the checked-out lock back over whatever the clean left (`restore_lock`).
+//! The filling runs after the add has returned and the person may be working in the worktree,
+//! so it accepts the checked-out bytes back only over bytes its own resolution wrote
+//! (`restore_only_the_cleans_own`),
+//! and the clean it runs is the one given `--locked` (`package_repair_prewarm_job.rs`).
 //!   The clean rewrites the lock because the committed one no longer matches its manifest,
-//! and it runs in a worktree another command may already be working in,
+//! and the worktree it runs in may be one another command is already working in,
 //! so the bytes standing there when it ends can be Cargo's own rewrite
 //!  or a command or person's newer write,
 //! and nothing at that moment can tell the two apart.
@@ -47,7 +54,7 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "packageRepairCargoLock";
 
 /// The lock file beside a workspace's root manifest.
-const LOCK_FILE: &str = "Cargo.lock";
+pub const LOCK_FILE: &str = "Cargo.lock";
 
 /// The directory,
 /// under the worktree's Git directory,
