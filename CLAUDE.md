@@ -654,6 +654,14 @@ FBN:
  never a stop:
  keep improving it unless the user drops the goal.
 
+NHX:
+ Never rush an agent or give it a due date,
+ not even by hint ("asap",
+ "urgent",
+ a release waiting on it);
+ any sense of hurry lowers its work.
+Briefs ask for the best result.
+
 ## Before running a command
 
 ### Command execution conventions
