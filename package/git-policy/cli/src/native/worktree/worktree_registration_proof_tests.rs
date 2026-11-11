@@ -58,7 +58,8 @@ fn only_registration(common: &std::path::Path) -> PathBuf {
     return found.into_iter().next().expect("one registration");
 }
 
-/// Make a named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// Make a named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
 fn make_a_named_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
@@ -83,10 +84,13 @@ fn the_registration_git_wrote_satisfies_the_proof() {
 /// What:
 ///  A directory whose pointer names a registration that does not point back at it is no worktree of the repository.
 /// Why:
-///   A person may remove a worktree, put their own directory at that path,
+///   A person may remove a worktree,
+/// put their own directory at that path,
 ///  and leave a copy of the old pointer there.
-///  Only the registration's `gitdir` back-link, which Git writes beside the registration and which names the
-///  worktree's own pointer, tells that copy from the worktree the registration belongs to.
+///  Only the registration's `gitdir` back-link,
+/// which Git writes beside the registration and which names the
+///  worktree's own pointer,
+/// tells that copy from the worktree the registration belongs to.
 #[test]
 fn a_pointer_without_its_registrations_back_link_is_no_worktree() {
     let added: Added = a_repository_with_one_worktree("proof-no-back-link");
@@ -117,7 +121,8 @@ fn a_registration_that_names_another_worktree_is_no_worktree_of_this_one() {
 ///  A pointer whose registration belongs to another repository is no worktree of this one.
 /// Why:
 ///   A registration copied in beside this repository's own would otherwise make its worktree look like one of
-///  this repository's, and the registration's `commondir` is what says which repository it belongs to.
+///  this repository's,
+/// and the registration's `commondir` is what says which repository it belongs to.
 #[test]
 fn a_registration_of_another_repository_is_no_worktree_of_this_one() {
     let added: Added = a_repository_with_one_worktree("proof-other-repository");
@@ -169,7 +174,8 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
 /// Why:
 ///   A directory that is no worktree of this repository is left as it is and the work that named it is done,
 /// while a permission or an input-output error keeps that work queued for another try.
-/// The gate runs this suite as root, where no file is unreadable for its mode,
+/// The gate runs this suite as root,
+/// where no file is unreadable for its mode,
 /// so the answers are asked of the classification directly.
 #[test]
 fn an_absent_path_is_not_the_same_answer_as_a_read_that_may_pass() {

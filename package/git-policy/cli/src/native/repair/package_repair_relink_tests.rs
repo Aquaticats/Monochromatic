@@ -383,7 +383,8 @@ fn a_hand_over_with_no_service_leaves_its_record_queued() {
 ///  A relative search path is recorded against the add's directory.
 /// Why:
 ///   `PATH=bin` names the add's own `bin`,
-/// and the service that runs the record is a resident process of another session, started from another directory:
+/// and the service that runs the record is a resident process of another session,
+/// started from another directory:
 /// a record carrying the text `bin` makes the service search its own `bin`,
 /// so the program the add resolved may never start and the worktree is left unrelinked.
 #[test]

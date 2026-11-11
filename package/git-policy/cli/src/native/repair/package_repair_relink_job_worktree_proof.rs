@@ -71,7 +71,8 @@ pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(item: &WorkItem, en
 /// keeps the record's claim,
 /// which queues the same work again when the claim runs out,
 /// so a transient refusal costs one try and never the promised repair.
-/// The words name the reason the proof gave, so the service's journal says what was left and why.
+/// The words name the reason the proof gave,
+/// so the service's journal says what was left and why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,7 +158,8 @@ impl HeldWorktree {
     /// Why:
     ///   A path such as `<worktree>/.git` is resolved again for every call,
     /// so a directory replaced at that path between two calls would have its own files read.
-    /// `/proc/self/fd/<descriptor>/<name>` names the directory that was opened, whatever its path names later.
+    /// `/proc/self/fd/<descriptor>/<name>` names the directory that was opened,
+    /// whatever its path names later.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -178,7 +180,8 @@ impl HeldWorktree {
     /// Why:
     ///   The proof about the registration is a proof about one directory,
     /// so a tool may only start in it:
-    /// a directory removed and replaced at the same path is another directory, whatever its pointer says.
+    /// a directory removed and replaced at the same path is another directory,
+    /// whatever its pointer says.
     /// Three questions are asked because none answers alone:
     /// the descriptor's own name says whether the directory it holds is still the one at that path
     /// (a removed one reads `<path> (deleted)`,

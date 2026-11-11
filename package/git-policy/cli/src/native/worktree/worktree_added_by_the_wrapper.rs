@@ -16,7 +16,8 @@
 //!  So the add writes this record,
 //!  one small file beside the registration,
 //!  and every automatic removal asks for it first.
-//!  Which registration that is, and that it is this repository's worktree at this path,
+//!  Which registration that is,
+//! and that it is this repository's worktree at this path,
 //!  is proved by `worktree_registration_proof.rs`.
 //!  The registration's directory is deleted with the worktree,
 //!  so the record needs no removal of its own.

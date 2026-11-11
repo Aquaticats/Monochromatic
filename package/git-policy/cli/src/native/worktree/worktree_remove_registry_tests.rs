@@ -162,7 +162,8 @@ fn a_name_that_matches_another_registered_worktree_is_refused() {
     remove(root.as_path());
 }
 
-/// Make a named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// Make a named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
 fn make_a_named_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");

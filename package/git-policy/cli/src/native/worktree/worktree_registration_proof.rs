@@ -34,7 +34,8 @@ use std::path::{Path, PathBuf};
 
 /// The most bytes one record of a registration may hold.
 /// Why:
-///  a pointer is one line, `gitdir: <path>`,
+///  a pointer is one line,
+/// `gitdir: <path>`,
 ///  and the longest path this system allows is 4096 bytes,
 ///  so a longer file is not a record Git wrote.
 const RECORD_LIMIT: u64 = 4096;
@@ -58,7 +59,8 @@ const RECORD_LIMIT: u64 = 4096;
 /// ```
 #[derive(Debug)]
 pub(crate) enum RegistrationRefusal {
-    /// The directory is no worktree of this repository, whatever it holds.
+    /// The directory is no worktree of this repository,
+    /// whatever it holds.
     NotThisRepository(String),
     /// Nothing could be decided about the directory now.
     Undecided(String),
@@ -130,7 +132,8 @@ thread_local! {
 /// What:
 ///  Whether a control has made the next record read answer that nothing could be decided now.
 /// Why:
-///   A read the system refuses (a permission, an input-output error) is the shape of that answer,
+///   A read the system refuses (a permission,
+/// an input-output error) is the shape of that answer,
 ///  and the gate runs this suite as root,
 ///  where no mode makes a file unreadable,
 ///  so the control makes the read answer instead and the product's own mapping of the answer is what it proves.

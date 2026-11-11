@@ -97,9 +97,11 @@ impl RelinkTool {
 /// Why:
 ///   The record must say which programs the add resolved,
 /// and "the add held no search path" is not "this record is too old to carry one".
-/// With no path, the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`,
+/// With no path,
+/// the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`,
 /// while a record that names none makes the service search its own path and start another program;
-/// so the three answers travel as three, not as the two an optional field could carry.
+/// so the three answers travel as three,
+/// not as the two an optional field could carry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,9 +109,11 @@ impl RelinkTool {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SearchPathOfTheAdd {
-    /// A record written before this release carried the add's environment: the service searches its own path.
+    /// A record written before this release carried the add's environment:
+    /// the service searches its own path.
     NotRecorded,
-    /// The add's environment held no search path, so the service's own must not stand in for one.
+    /// The add's environment held no search path,
+    /// so the service's own must not stand in for one.
     Unset,
     /// The directories the add resolved each tool's program on.
     Set(OsString),
@@ -283,13 +287,15 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 ///  The entry with every relative directory of its search path made absolute against the add's directory.
 /// Why:
 ///   `PATH=bin` names the add's own `bin`,
-/// and the service is a resident process of another session, started from another directory,
+/// and the service is a resident process of another session,
+/// started from another directory,
 /// so a record carrying `bin` would make it search its own `bin`,
 /// and the program the add resolved may never run.
 /// The tools' own children read the same path from the same record,
 /// so they resolve on the add's directories too.
 /// An empty entry is left as it is:
-/// it means the current directory of whoever runs, which no record can name for another process.
+/// it means the current directory of whoever runs,
+/// which no record can name for another process.
 ///
 /// # Errors
 ///
@@ -298,11 +304,10 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 /// and a search path that cannot be written back.
 fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry, String> {
     let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else { return Ok(entry.clone()) };
-    let relative: bool = std::env::split_paths(search_path).any(|directory| return !directory.as_os_str().is_empty() && !directory.is_absolute());
-    if !relative {
+    if !names_a_relative_directory(search_path) {
         return Ok(entry.clone());
     }
-    let add: PathBuf = std::env::current_dir().map_err(|error| format!("the directory this command runs in cannot be read ({error}), so a relative search path names no program it could resolve"))?;
+    let add: PathBuf = std::env::current_dir().map_err(no_working_directory)?;
     let mut absolute: Vec<PathBuf> = Vec::new();
     for directory in std::env::split_paths(search_path) {
         if directory.as_os_str().is_empty() || directory.is_absolute() {
@@ -311,8 +316,61 @@ fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry
         }
         absolute.push(add.join(directory));
     }
-    let joined: OsString = std::env::join_paths(absolute).map_err(|error| format!("the search path of this command cannot be recorded ({error})"))?;
+    let joined: OsString = std::env::join_paths(absolute).map_err(unrecordable_search_path)?;
     return Ok(RelinkEntry { search_path: SearchPathOfTheAdd::Set(joined), ..entry.clone() });
+}
+
+/// What:
+///  Whether any entry of `search_path` is relative to whatever directory runs.
+/// Why:
+///   Only a relative entry needs the add's directory,
+/// and a path of only absolute entries and empty entries is recorded as the add held it,
+/// which is the same text the person wrote.
+/// An empty entry is not relative:
+/// a shell reads it as the current directory of whatever runs,
+/// which no record can name for another process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const relative = splitPath(searchPath).some((directory) => directory !== '' && !isAbsolute(directory));
+/// ```
+fn names_a_relative_directory(search_path: &std::ffi::OsStr) -> bool {
+    for directory in std::env::split_paths(search_path) {
+        if !directory.as_os_str().is_empty() && !directory.is_absolute() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The words a working directory that cannot be read is reported with.
+/// Why:
+///   `bin` means the add's own `bin`,
+/// so a command whose own directory cannot be read cannot say what its search path named,
+/// and no record could carry an answer it did not have.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noWorkingDirectory = (error) => `the directory this command runs in cannot be read (${error}), so a relative search path names no program it could resolve`;
+/// ```
+fn no_working_directory(error: std::io::Error) -> String {
+    return format!("the directory this command runs in cannot be read ({error}), so a relative search path names no program it could resolve");
+}
+
+/// What:
+///  The words a search path that cannot be written back are reported with.
+/// Why:
+///   A joined path holds a separator between entries,
+/// so an entry holding that separator cannot be recorded,
+/// and the add says so rather than writing a path that means another set of directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unrecordableSearchPath = (error) => `the search path of this command cannot be recorded (${error})`;
+/// ```
+fn unrecordable_search_path(error: std::env::JoinPathsError) -> String {
+    return format!("the search path of this command cannot be recorded ({error})");
 }
 
 /// What:
@@ -367,7 +425,8 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// Err:
 ///  No service holds the record and none can be given it,
 /// so the add relinks the worktree itself;
-/// the answer says why, and the record it leaves is taken back after that run finishes.
+/// the answer says why,
+/// and the record it leaves is taken back after that run finishes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

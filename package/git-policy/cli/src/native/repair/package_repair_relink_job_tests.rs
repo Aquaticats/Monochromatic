@@ -128,7 +128,8 @@ fn starts(scene: &Scene) -> String {
 /// before it releases whatever the relink is waiting for and reports.
 const ANSWER_BOUND: Duration = Duration::from_secs(5);
 
-/// Make a named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// Make a named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
 fn make_a_named_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
@@ -439,7 +440,8 @@ fn an_add_with_no_search_path_does_not_borrow_the_services_path() {
 /// so answering "left as it is" settles a repair nobody did
 /// and no record is left to try again.
 /// The control makes the read answer the way a refused read does,
-/// because the gate runs this suite as root, where no mode makes a file unreadable.
+/// because the gate runs this suite as root,
+/// where no mode makes a file unreadable.
 #[test]
 fn a_registration_that_cannot_be_read_now_is_tried_again() {
     let scene: Scene = scene("relink-job-undecided-read");
