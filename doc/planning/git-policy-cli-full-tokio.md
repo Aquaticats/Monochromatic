@@ -10313,3 +10313,70 @@ and each shown to fail against the shape it replaces:
   `worktree_copy_journal`,
   `start_retry` and
   `bounded_query`.
+- What the suite says about the merged tree, measured 2026-11-11T04:05:31-05:00:
+  twenty-one tests fail on it,
+  and the same twenty-one fail with the integration parent's own sources,
+  so the resolution added none of them.
+  The measurement is
+  `git checkout 5686c7bb29 -- package/git-policy/cli/src/native`,
+  a rebuild of the lib test target,
+  the filtered run of those controls again,
+  and the same twenty-one names,
+  after which the sources were restored and the tree compared clean against `HEAD`.
+  The two runs:
+  133 tests run,
+  112 passed and 21 failed on the merged tree;
+  131 tests run,
+  110 passed and 21 failed on the parent's sources,
+  which hold none of this branch's three guard files,
+  so two of the filtered tests are absent there.
+- Where each red comes from, read against the branch that brought it:
+  - the ten `invocation::entry` overlay controls expect the four-entry overlay,
+    which `90991fa86e` widened with the never-prompt pair whenever the process has no
+    controlling terminal (`process/control_terminal.rs` reads `/dev/tty`).
+    That commit updated `child_environment_tests.rs` only,
+    so these ten fail in every process without a controlling terminal,
+    which is a `podman run` without `--tty` as well as this host's agent shells.
+  - `landing::service_index_lock::tests::the_flush_of_the_marker_is_the_operating_systems`
+    and `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`
+    meet `322079b2f0`,
+    which handed the marker's flush to `landing/service_durable.rs` (`defer_file`):
+    a pipe answers `Ok` where the control expects `EINVAL`,
+    and the queued syncs no longer name `lock-marker` at the call.
+  - the `merge::merge_isolation_recovery` control where a worktree switches before
+    the branch write (it keeps the record and the branch),
+    and the three `worktree_copying::worktree_copy_stage_claim` remedy controls
+    still match the finish commands as `git -C <path> reset --hard` and
+    `git restore --staged --worktree -- <path>`;
+    `3147d271df` and `920a4f13fd` print those commands with `--no-enforce-worktree`,
+    because a printed command runs as printed.
+  - the two `worktree::worktree_convert` controls,
+    `worktree::worktree_convert_compare::tests::a_stage_container_of_another_command_is_not_a_difference`,
+    `subvolume::subvolume_sync::tests::another_commands_stage_container_is_left_out_of_a_pass`
+    and `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`
+    read stage containers, `.claude` folders and the answer ceiling,
+    which the integration branch changed under them.
+  - `markdown::markdown_linter::tests::a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file`
+    and `repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`
+    fail in the run of the whole suite and pass in the filtered run of the same names,
+    which is contention and not a wrong answer,
+    and neither of them is in this branch's list of files either.
+- The package lint names none of this branch's files either:
+  `mise run //package/git-policy/cli:lint:monochromatic-lint` reports twenty-seven errors
+  and eight warnings,
+  and every one of the sixteen files it names is byte-identical to the parent's own text,
+  so that red is the integration branch's too.
+- Nothing on this branch's changed files is red:
+  `native:test:host` filtered to `lfs_interactive`,
+  `lfs_upload`,
+  `bounded_query`,
+  `start_retry`,
+  `source_guard`,
+  `merge_isolation_editor`,
+  `process_identity`,
+  `package_repair_command` and
+  `worktree_copy_journal` ran 205 tests, 205 passed,
+  the bounded query's own control among them
+  (`lfs::lfs_interactive::tests::a_configuration_question_that_never_answers_is_stopped_and_reported`)
+  and the guard whose list shrank
+  (`source_guard::blocking_code_off_the_runtime_tests::every_listed_exception_still_matches_code`).
