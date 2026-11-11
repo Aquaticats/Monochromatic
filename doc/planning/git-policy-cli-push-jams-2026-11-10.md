@@ -263,7 +263,8 @@ and the moment each of them left `pending`:
   The trash record each push is compared with is the one of that directory that
   settled nearest to it.
 
-One stretch of the day, from the records:
+One stretch of the day,
+from the records:
 
 - at `18:14:05` a trash record for
   `.claude/worktrees/pi-kimi-all-waits-findings-reproduced-then-fixed` was written,
@@ -290,9 +291,11 @@ no `pushed` line appears between `12:35:56` and `14:12:50`.
 The day's other late pushes have causes of their own and not this one:
 a server hook's decline that clears on a retry (the section
 "A decline that clears on a retry and the options for the owner"),
-the push URL of the shared remote settings, fixed on
+the push URL of the shared remote settings,
+fixed on
 `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`,
-and a held push whose command died, fixed on
+and a held push whose command died,
+fixed on
 `fix/git-policy-cli-held-push-released-by-the-retry`.
 
 ### The two claim lists, and the lane that holds the slow kinds

@@ -122,7 +122,8 @@ pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
 ///   A hold that blocks the thread it is reached on holds a worker of the runtime,
 /// and a runtime with few workers then runs nothing else,
 /// which is no state the shipped code can reach:
-/// the steps a hold stands in for wait on a child, on the network or on storage,
+/// the steps a hold stands in for wait on a child,
+/// on the network or on storage,
 /// and each of those frees the worker it waited on.
 /// An await frees it too,
 /// so the service goes on beside a held step as it does beside a trash that takes minutes.

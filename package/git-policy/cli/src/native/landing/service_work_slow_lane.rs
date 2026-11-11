@@ -10,10 +10,12 @@
 //! On `2026-11-10` that was measured:
 //! the round of the main checkout emptied trashes of removed worktrees for 18 minutes
 //!  (`18:16:11` to `18:34:47`) while seven landings of `refs/heads/main` waited,
-//! and the day holds four more such intervals, the longest 4 946 s
+//! and the day holds four more such intervals,
+//! the longest 4 946 s
 //! (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 //! The owner's rules this serves are "nothing should ever wait forever or indefinitely" and
-//! "Do not disturb, delay or slow other agents":
+//! "Do not disturb,
+//! delay or slow other agents":
 //! a step that can take minutes is waited for by nobody,
 //! so it runs here and the round is left with the pushes
 //!  (`PUSH_KINDS` and `SLOW_KINDS` in `service_work_handlers_replanning_and_acceptance.rs`).
@@ -56,7 +58,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 /// ```
 pub struct SlowLane {
     /// Where the lane takes its work;
-    /// dropped with the lane, which ends the task.
+    /// dropped with the lane,
+    /// which ends the task.
     inbox: UnboundedSender<Wake>,
 }
 
@@ -102,7 +105,8 @@ impl SlowLane {
 /// as the round does.
 /// A wake that arrives while a step runs waits in the channel and is served when that step ends,
 /// which is the bound the lane exists for:
-/// a push never waits here, because a push is never claimed here.
+/// a push never waits here,
+/// because a push is never claimed here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

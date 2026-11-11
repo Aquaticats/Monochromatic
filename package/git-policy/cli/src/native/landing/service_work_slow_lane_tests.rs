@@ -94,7 +94,7 @@ fn names_in(world: &World, state: &str) -> Vec<String> {
 fn names_in_at(work: &Path, state: &str) -> Vec<String> {
     let mut names: Vec<String> = state_directory(work, state)
         .read_dir()
-        .map_or_else(|_no_directory| Vec::new(), |listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); });
+        .map_or_else(|_no_directory| return Vec::new(), |listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); });
     names.sort();
     return names;
 }

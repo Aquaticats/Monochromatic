@@ -30,10 +30,13 @@ use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-/// The kinds of work the service runs itself: the push and every slow kind.
+/// The kinds of work the service runs itself:
+/// the push and every slow kind.
 pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
 
-/// The kinds the round that answers a wake claims: the push, which is the person's backup.
+/// The kinds the round that answers a wake claims:
+/// the push,
+/// which is the person's backup.
 /// Why:
 ///   A round holds the service until it ends,
 /// so nothing else may be claimed beside a push:
@@ -44,8 +47,13 @@ pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance,
 /// The other kinds are the slow lane's (`landing/service_work_slow_lane.rs`).
 pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
 
-/// The kinds whose steps can take minutes: the upkeep, the prewarm of a new worktree's build directories, the delete of a
-/// removed worktree's subvolume, the emptying of a trash, and the shadow review.
+/// The kinds whose steps can take minutes:
+/// the upkeep,
+/// the prewarm of a new worktree's build directories,
+/// the delete of a
+/// removed worktree's subvolume,
+/// the emptying of a trash,
+/// and the shadow review.
 /// Why:
 ///   Each of them is waited for by nobody,
 /// and the whole of `2026-11-10` shows that a step of these kinds that ran for minutes held every push of

@@ -106,12 +106,14 @@ which the agent `commit-waiting-path-with-dozens-of-agents` owns.
   kind on a lane of its own task
   (`landing/service_work_slow_lane.rs`),
   which `a_push_is_taken_while_the_service_is_inside_a_trash` asserts.
-  The measurement of the day's late pushes, and what is still unbounded,
+  The measurement of the day's late pushes,
+  and what is still unbounded,
   is in
   `doc/planning/git-policy-cli-push-jams-2026-11-10.md`,
   "A round that serves a push holds no slow step".
-  The trash itself is still unbounded: a worktree's `target/` still takes as long
-  as it takes, on the lane rather than on the push.
+  The trash itself is still unbounded:
+  a worktree's `target/` still takes as long as it takes,
+  on the lane rather than on the push.
 
 Until then,
 a commit that reports the service silent has landed more often than not:
