@@ -722,23 +722,30 @@ fn a_stat_line_gives_its_state_and_its_processor_ticks() {
 /// bytes,
 /// processor ticks,
 ///  a task able to run or waiting for the disk.
+/// The bytes are told apart from the other two, because only they are work for a process that holds a
+/// connection.
 #[test]
 fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     let key: (i32, u64) = (100, 1);
     let mut meter: Meter = Meter::new();
-    assert!(!meter.observe(key, 0, 0, false), "a process that has done nothing is idle at its first look");
-    assert!(!meter.observe(key, 0, 0, false));
-    assert!(meter.observe(key, 10, 0, false), "bytes");
+    let idle: Signs = Signs::default();
+    assert_eq!(meter.observe(key, 0, 0, false), idle, "a process that has done nothing is idle at its first look");
+    assert_eq!(meter.observe(key, 0, 0, false), idle);
+    assert_eq!(meter.observe(key, 10, 0, false), Signs { moved: true, busy: false }, "bytes");
     assert_eq!(meter.moved(), 10);
-    assert!(!meter.observe(key, 10, 0, false), "the same bytes are not new work");
-    assert!(meter.observe(key, 10, 1, false), "one processor tick");
-    assert!(!meter.observe(key, 10, 1, false));
-    assert!(meter.observe(key, 10, 1, true), "a task able to run or waiting for the disk, at every look it is found");
-    assert!(meter.observe(key, 10, 1, true));
-    assert!(!meter.observe(key, 10, 1, false), "and idle when it is not");
+    assert_eq!(meter.observe(key, 10, 0, false), idle, "the same bytes are not new work");
+    assert_eq!(meter.observe(key, 10, 1, false), Signs { moved: false, busy: true }, "one processor tick");
+    assert_eq!(meter.observe(key, 10, 1, false), idle);
+    assert_eq!(
+        meter.observe(key, 10, 1, true),
+        Signs { moved: false, busy: true },
+        "a task able to run or waiting for the disk, at every look it is found"
+    );
+    assert_eq!(meter.observe(key, 10, 1, true), Signs { moved: false, busy: true });
+    assert_eq!(meter.observe(key, 10, 1, false), idle, "and idle when it is not");
     assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
-    assert!(meter.observe((200, 1), 0, 3, false), "a new process that has already used time");
-    assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
+    assert_eq!(meter.observe((200, 1), 0, 3, false), Signs { moved: false, busy: true }, "a new process that has already used time");
+    assert_eq!(meter.observe(key, 5, 1, false), idle, "a counter that fell (a number reused) is not work");
 }
 
 /// A child that ends before the first sample interval has passed is never looked for among the machine's processes:

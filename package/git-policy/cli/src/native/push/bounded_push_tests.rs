@@ -455,7 +455,7 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
         elapsed: CONNECTED_PUSH_QUIET_WINDOW * 2,
         window: CONNECTED_PUSH_QUIET_WINDOW,
     };
-    let line: String = wait_line("git push", &report);
+    let line: String = wait_line("git push", &report, None);
     assert!(line.contains(WAIT_NOTE_PHRASE), "the line names the wait: {line}");
     assert!(!line.contains("no time limit"), "no promise of an unbounded wait: {line}");
     assert!(
@@ -478,7 +478,7 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
 #[test]
 fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting() {
     let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
-    let connected: String = stalled_reason(&StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window });
+    let connected: String = stalled_reason(&StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window }, None);
     assert!(connected.contains("limit=connected"), "the window that fired is named: {connected}");
     assert!(
         connected.contains(&format!("{PUSH_DEADLINE_VARIABLE} does not change this window")),
@@ -486,7 +486,7 @@ fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting
     );
     assert!(!connected.contains("to allow longer"), "no remedy that cannot work is offered: {connected}");
     assert!(connected.contains(PUSH_QUEUED_LINE), "the retry that does settle it is named: {connected}");
-    let stalled: String = stalled_reason(&StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window });
+    let stalled: String = stalled_reason(&StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window }, None);
     assert!(stalled.contains("limit=stall"), "the window that fired is named: {stalled}");
     assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");
 }

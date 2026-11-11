@@ -39,7 +39,7 @@ fn a_user_alone_and_a_token_alone_are_masked() {
 /// where a segment that is not a plain label is hidden.
 #[test]
 fn an_at_sign_outside_the_authority_is_not_userinfo() {
-    for (text, expected) in [
+    for (text, wanted) in [
         ("https://host/path@name/objects", "https://host/<credentials>/objects"),
         ("https://host/a/b@c@d", "https://host/a/<credentials>"),
         ("https://host?next=user@example.invalid", "https://host?next=<credentials>"),
@@ -51,8 +51,8 @@ fn an_at_sign_outside_the_authority_is_not_userinfo() {
         ("no url here, only user@example.invalid", "no url here, only user@example.invalid"),
         ("scp-style git@host:path.git", "scp-style git@host:path.git"),
     ] {
-        let expected: String = expected.replace("<credentials>", CREDENTIALS_MASK);
-        assert_eq!(masked(text), expected, "{text}");
+        let shown: String = wanted.replace("<credentials>", CREDENTIALS_MASK);
+        assert_eq!(masked(text), shown, "{text}");
     }
 }
 

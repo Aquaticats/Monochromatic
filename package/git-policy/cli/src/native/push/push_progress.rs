@@ -38,6 +38,28 @@
 //! so a wait on a server
 //!       that says nothing shows nothing in the process;
 //! only the connection's state shows it.
+//!  Measured on 2026-11-11,
+//! which decided what a tree with a connection open may count as work:
+//! the helper that speaks HTTP for a push,
+//! `git remote-http` and `git-remote-http`,
+//! was charged one processor tick every three seconds while it polled a server that had taken the
+//!  connection and never answered,
+//! and moved not one byte.
+//! A clock that counts those ticks as work never reaches its connected window:
+//! the service's push to such a server ran for 290 to 330 seconds with a 150 second window
+//! (the audit's F8),
+//! and a tree of one holder that only ticks never ended at all.
+//!  So while a connection is open,
+//! the processor time of the process that holds it is not work:
+//! that process polls the socket.
+//! Every byte the tree moves is work,
+//! and so is the processor time or the task at work of every process that holds no connection:
+//! the pack a push is making,
+//! the delta search,
+//! the listing of what to send.
+//!  A socket carries no progress on the look that first sees it,
+//! because its counters then stand for this side's handshake and request,
+//! never for an answer from the remote.
 //!  What each costs:
 //! bytes miss work that moves none;
 //! processor time makes a process that spins or polls look alive,
@@ -219,6 +241,26 @@ fn system_measures() -> bool {
     return bytes_moved_by(i32::try_from(std::process::id()).unwrap_or(1)).is_some();
 }
 
+/// What one look at one process found:
+/// the bytes it moved since the look before,
+/// and whether it used processor time or has a task at work.
+/// Why:
+///   The signs are kept apart because a process that holds the connection to the remote may be polling it,
+/// and a poll is not work the remote sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Signs = { moved: boolean; busy: boolean };
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Signs {
+    /// Bytes read or written since the look before.
+    pub moved: bool,
+    /// Processor time used since the look before,
+    /// or a task able to run or waiting for the disk now.
+    pub busy: bool,
+}
+
 /// What:
 ///  The work of the tree under a root so far,
 /// and whether a sample saw any sign of work since the one before.
@@ -249,6 +291,9 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
+    /// The processes of the tree that held a connected socket at the last sample:
+    /// the helpers that speak to the remote.
+    holders: Vec<i32>,
     /// How many times a sample listed the processes of the whole machine to find the tree;
     /// a stand-in for the cost of a
     ///  sample,
@@ -310,14 +355,19 @@ impl Meter {
     }
 
     /// Take one look at the connected sockets of the tree:
-    /// true when a socket carried bytes since the last look.
+    /// true when a socket it has seen before carried bytes since the last look,
+    /// and records the processes that hold them.
+    /// Why a socket seen for the first time is kept apart:
+    ///   Its counters stand for the handshake and the request this side wrote, not for an answer from the remote,
+    /// so a client that goes on reconnecting would reset the wait for its remote for good.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
-        let mut held: Vec<u64> = Vec::new();
-        for member in members {
-            held.extend(socket_inodes_of(member.pid));
-        }
+        let held: Vec<(i32, Vec<u64>)> = members
+            .iter()
+            .map(|member| return (member.pid, socket_inodes_of(member.pid)))
+            .collect();
         self.connected = false;
-        if held.is_empty() {
+        self.holders.clear();
+        if held.iter().all(|(_, inodes)| return inodes.is_empty()) {
             return false;
         }
         let Some(connected) = established_sockets() else {
@@ -325,13 +375,28 @@ impl Meter {
         };
         let mut progressed: bool = false;
         for socket in connected {
-            if socket.state != ESTABLISHED || !held.contains(&socket.inode) {
+            if socket.state != ESTABLISHED {
+                continue;
+            }
+            let mut carried_by_a_holder: bool = false;
+            for (pid, inodes) in &held {
+                if inodes.contains(&socket.inode) {
+                    carried_by_a_holder = true;
+                    if !self.holders.contains(pid) {
+                        self.holders.push(*pid);
+                    }
+                }
+            }
+            if !carried_by_a_holder {
                 continue;
             }
             self.connected = true;
             let total: u64 = socket.bytes_acked.saturating_add(socket.bytes_received);
-            let before: u64 = self.sockets.insert(socket.inode, total).unwrap_or(0);
-            let carried: u64 = total.saturating_sub(before);
+            let seen_before: Option<u64> = self.sockets.insert(socket.inode, total);
+            let carried: u64 = match seen_before {
+                Some(before) => total.saturating_sub(before),
+                None => 0,
+            };
             self.socket_moved = self.socket_moved.saturating_add(carried);
             if carried > 0 {
                 progressed = true;
@@ -340,14 +405,24 @@ impl Meter {
         return progressed;
     }
 
-    /// Take one look at one process:
-    /// true when it moved bytes or used processor time since the last look,
-    /// or is at work now.
-    fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> bool {
+    /// What:
+    ///  Take one look at one process,
+    /// and say which of its signs changed:
+    /// bytes moved,
+    /// or processor time used or a task at work.
+    /// Why:
+    ///   The two are kept apart because a process that holds the connection to the remote may be polling it,
+    /// and a poll is not work (`Meter::look`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { moved: bytes > before, busy: ticks > ticksBefore || working }
+    /// ```
+    fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> Signs {
         let (bytes_before, ticks_before): (u64, u64) = self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
         let moved_now: u64 = bytes.saturating_sub(bytes_before);
         self.moved = self.moved.saturating_add(moved_now);
-        return moved_now > 0 || ticks > ticks_before || working;
+        return Signs { moved: moved_now > 0, busy: ticks > ticks_before || working };
     }
 
     /// Read the counters and the states of the root and everything below it;
@@ -371,15 +446,32 @@ impl Meter {
         return self.look(root, false);
     }
 
-    /// One look at the root,
+    /// What:
+    ///  One look at the root,
     /// and at everything below it when `whole_tree` asks for it.
+    /// Why the sockets are looked at first:
+    ///   The holders of the connections are known from this look then,
+    /// and a holder's own processor time is what a helper that polls its silent socket spends,
+    /// never work the remote sees.
+    /// Every byte the tree moves is work,
+    /// and so is the processor time of every process that does not hold a connection:
+    /// the pack a push is making,
+    /// a delta search,
+    /// the listing of what to send.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// progressed = observeSockets(members); for (const member of members) { const s = observe(member); if (s.moved || (s.busy && !holders.includes(member.pid))) progressed = true; }
+    /// ```
     fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
         if whole_tree {
             self.scans += 1;
             members.extend(descendants_of(root));
         }
-        let mut progressed: bool = false;
+        // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
+        //  `wchar` do not see.
+        let mut progressed: bool = self.observe_sockets(members.as_slice());
         for member in &members {
             let bytes: Option<u64> = bytes_moved_by(member.pid);
             let activity: Option<(u64, bool)> = activity_of(member.pid);
@@ -387,14 +479,10 @@ impl Meter {
                 continue;
             }
             let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
-            if self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working) {
+            let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
+            if signs.moved || (signs.busy && !self.holders.contains(&member.pid)) {
                 progressed = true;
             }
-        }
-        // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
-        //  `wchar` do not see.
-        if self.observe_sockets(members.as_slice()) {
-            progressed = true;
         }
         return progressed;
     }

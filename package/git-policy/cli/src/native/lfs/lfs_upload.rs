@@ -302,7 +302,10 @@ async fn await_upload(
     // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
     let locks: LockLedger = LockLedger::none();
     let patience = push_patience(environment);
-    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await {
+    // A typed upload's own terminal carries the program's lines, so the stop and the wait name no server here.
+    let mut naming: crate::bounded_push::ServerNaming<'_> = crate::bounded_push::ServerNaming::none(environment);
+    let ended: Result<ExitStatus, StopCause> =
+        match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None, &mut naming).await {
         // A wait that could not be made at all is this process's own defect, and its words say which.
         Err(wait) => return Err(RunError::Wait(wait.to_string())),
         Ok(finished) => finished,

@@ -69,14 +69,23 @@ use std::ffi::OsString;
 /// `Read`,
 /// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
+/// The path a command runs in.
+use std::path::PathBuf;
 use std::io::{Read, Seek, SeekFrom};
 /// `Child` is a push handed to the sweeper;
-/// `Command` describes it;
+/// `Command` describes it and `CommandArgs` walks its words;
 /// `Stdio` connects its streams.
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, CommandArgs, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::Duration;
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
+/// The window a run whose connection is open may stay silent for.
+use crate::push_deadline_and_patience_settings::connected_window;
+/// The host a destination names, with no userinfo and no token.
+use crate::lfs_output_mask::host_of;
+/// The bounded query that answers where a remote name sends a push,
+/// and the answer it gives.
+use crate::bounded_query::{QueryOutput, query_window, run_bounded_query_awaiting};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -245,7 +254,124 @@ pub async fn wait_until_done_up_to(
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
+    let mut naming: ServerNaming<'_> = ServerNaming::none(&[]);
+    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop, &mut naming).await;
+}
+
+/// What:
+///  How a wait and a stop name the server they are waiting for:
+/// the word the command gave as its destination,
+/// the program and directory that can say where that word goes,
+/// the environment the answer is asked in,
+/// and the answer once it is known.
+/// Why:
+///   A wait or a stop that names no server leaves its reader to guess which remote held the connection,
+/// and `origin` is a name for one,
+/// not the server.
+/// The question costs nothing on a push that lands:
+/// it is asked when a wait or a stop is reported,
+/// in one bounded query,
+/// and its answer is kept.
+///  A destination written as a URL answers without a query,
+/// and a remote name is read with `git remote get-url --push`,
+/// which applies the rewriting rules of the repository, as Git's own push does.
+pub struct ServerNaming<'a> {
+    /// The word the run gave as its destination, when it gave one.
+    destination: Option<String>,
+    /// The Git executable that can say where the destination goes.
+    program: PathBuf,
+    /// The directory the answer is asked in.
+    directory: Option<PathBuf>,
+    /// The environment the answer is asked in.
+    environment: &'a [(OsString, OsString)],
+    /// Whether the answer has been asked for, so a line that asks twice pays once.
+    asked: bool,
+    /// The server;
+    /// nothing when the destination names none or the question could not be answered.
+    known: Option<String>,
+}
+
+impl<'a> ServerNaming<'a> {
+    /// A run that names no server,
+    /// and never asks.
+    pub fn none(environment: &'a [(OsString, OsString)]) -> ServerNaming<'a> {
+        return ServerNaming { destination: None, program: PathBuf::new(), directory: None, environment, asked: true, known: None };
+    }
+
+    /// What:
+    ///  How a run of `command` names the server it waits for,
+    /// taken from the command before it starts.
+    /// Why:
+    ///   The destination word and the program that resolves it are the command's,
+    /// and the environment is the one the run was given.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { destination: destinationOf(command), program: command.program, directory: command.cwd, environment, asked: false }
+    /// ```
+    fn of(command: &Command, environment: &'a [(OsString, OsString)]) -> ServerNaming<'a> {
+        return ServerNaming {
+            destination: destination_of(command),
+            program: command.get_program().into(),
+            directory: command.get_current_dir().map(std::path::Path::to_path_buf),
+            environment,
+            asked: false,
+            known: None,
+        };
+    }
+
+    /// What:
+    ///  Ask for the server once,
+    /// before the run it names starts,
+    /// so every line the run prints has it.
+    /// Why:
+    ///   The question is a Git query,
+    /// and a query awaited from inside the wait loop would make that loop's own future recursive;
+    /// asked once before the start, it costs one local query on a run whose push takes seconds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (!asked) { asked = true; known = await look(); }
+    /// ```
+    async fn ask(&mut self) {
+        if self.asked {
+            return;
+        }
+        self.asked = true;
+        self.known = self.look().await;
+    }
+
+    /// The server the run's destination names,
+    /// once it has been asked for.
+    fn server(&self) -> Option<&str> {
+        return self.known.as_deref();
+    }
+
+    /// One bounded query for the destination's push URL,
+    /// and the host of it with any userinfo left out.
+    async fn look(&self) -> Option<String> {
+        let destination: &str = self.destination.as_deref()?;
+        if let Some(host) = host_of(destination) {
+            return Some(host);
+        }
+        let mut query: Command = Command::new(&self.program);
+        query.args(["remote", "get-url", "--push", destination]);
+        if let Some(directory) = &self.directory {
+            query.current_dir(directory);
+        }
+        // The answer is bounded as every Git query of the wrapper's own is, by the same window and the same stop.
+        let text: String = format!("remote get-url --push {destination}");
+        let answer: QueryOutput = run_bounded_query_awaiting(query, text.as_str(), query_window(self.environment), STOP_GRACE, self.environment)
+            .await
+            .ok()?;
+        if answer.code != Some(0) {
+            return None;
+        }
+        // Git answers one location per line; the first is the one the push would use.
+        let output: String = String::from_utf8_lossy(answer.stdout.as_slice()).into_owned();
+        let first: &str = output.lines().next()?.trim();
+        return host_of(first);
+    }
 }
 
 /// What:
@@ -269,10 +395,11 @@ pub async fn wait_until_done_noting(
     label: &str,
     waits: &mut Vec<WaitReport>,
     stop: Option<&StopArm>,
+    naming: &mut ServerNaming<'_>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience);
+    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(connected_window(naming.environment));
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
+    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop, naming).await;
 }
 
 /// The loop of both waits,
@@ -286,6 +413,7 @@ async fn wait_with_clock(
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
+    naming: &mut ServerNaming<'_>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
     loop {
@@ -310,7 +438,8 @@ async fn wait_with_clock(
         }
         if let Some(report) = clock.take_wait_note() {
             // Said as the wait begins, so a long wait is read while it lasts (the service's log, or the person's terminal).
-            warn(TAG, &wait_line(label, &report));
+            let server: Option<&str> = naming.server();
+            warn(TAG, &wait_line(label, &report, server));
             waits.push(report);
         }
     }
@@ -335,9 +464,27 @@ async fn wait_with_clock(
 pub fn command_label(command: &Command) -> String {
     let program: String = command.get_program().to_string_lossy().rsplit('/').next().unwrap_or_default().to_owned();
     let mut arguments = command.get_args();
+    return match first_word(&mut arguments) {
+        Some(word) => format!("{program} {word}"),
+        None => program,
+    };
+}
+
+/// What:
+///  The first word of `arguments` that is not an option,
+/// with the value of a `-c` or a `-C` skipped with it.
+/// Why:
+///   `command_label` names a run by this word and `destination_of` reads the word after it,
+/// so both read the arguments by one rule,
+/// and neither takes the value of an option for a word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function firstWord(args) { for (const [i, word] of args.entries()) { if (['-c','-C'].includes(word)) { i++; continue; } if (!word.startsWith('-')) return word; } }
+/// ```
+fn first_word(arguments: &mut CommandArgs<'_>) -> Option<String> {
     while let Some(argument) = arguments.next() {
         let word: String = argument.to_string_lossy().into_owned();
-        // `-c name=value` and `-C directory` take the next word as their value.
         if word == "-c" || word == "-C" {
             let _value = arguments.next();
             continue;
@@ -345,9 +492,30 @@ pub fn command_label(command: &Command) -> String {
         if word.starts_with('-') {
             continue;
         }
-        return format!("{program} {word}");
+        return Some(word);
     }
-    return program;
+    return None;
+}
+
+/// What:
+///  The word a run gave as its destination:
+/// the argument after its subcommand,
+/// which is a remote name,
+/// a URL or a path.
+/// Why:
+///   A wait and a stop that name the server it is waiting for are actionable;
+/// the word is all the command itself says,
+/// and `ServerNaming` turns it into the server when a person reads the line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = nonOptionWords(command.args); return words[1];
+/// ```
+fn destination_of(command: &Command) -> Option<String> {
+    let mut arguments = command.get_args();
+    // The subcommand (`push`, `fetch`) comes first, and the destination is the word after it.
+    let _subcommand: String = first_word(&mut arguments)?;
+    return first_word(&mut arguments);
 }
 
 /// What:
@@ -385,10 +553,15 @@ fn shortened_output_line() -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
 /// ```
-fn wait_line(label: &str, report: &WaitReport) -> String {
+fn wait_line(label: &str, report: &WaitReport, named: Option<&str>) -> String {
+    // What the line calls the other end: the server it named, or the remote a destination names nothing about.
+    let other_end: String = match named {
+        Some(host) => format!("the server `{host}`"),
+        None => String::from("the remote"),
+    };
     return format!(
-        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
-         (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
+        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to {other_end} is open, and nothing has moved for {} seconds \
+         (elapsed_seconds={}); it may be checking the push or preparing its answer. It is waited for until it answers or \
          the connection closes, and a connection that stays open with nothing moving for {} seconds is stopped as a stall.",
         report.silent.as_secs(),
         report.elapsed.as_secs(),
@@ -485,11 +658,15 @@ pub async fn run_bounded_push_awaiting(
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let label: String = command_label(&command);
+    // How the lines a wait and a stop print name the server, read from the command before it is given to the child.
+    let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
+    naming.ask().await;
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref()).await?;
+    let ended: Result<ExitStatus, StopCause> =
+        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), &mut naming).await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
@@ -506,8 +683,9 @@ pub async fn run_bounded_push_awaiting(
         shown_text.push_str(shortened_output_line().as_str());
     }
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
+    let server: Option<String> = naming.server().map(str::to_owned);
     for report in &waits {
-        let line: String = wait_line(label.as_str(), report);
+        let line: String = wait_line(label.as_str(), report, server.as_deref());
         if !shown_text.is_empty() {
             shown_text.push('\n');
         }
@@ -531,7 +709,7 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => stalled_reason(&report),
+                StopCause::Stalled(report) => stalled_reason(&report, server.as_deref()),
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

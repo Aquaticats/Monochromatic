@@ -198,7 +198,7 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 fn is_plain_label(label: &[u8]) -> bool {
     return label
         .iter()
-        .all(|byte| byte.is_ascii_lowercase() || matches!(byte, b'-' | b'.' | b'_' | b'~'));
+        .all(|byte| return byte.is_ascii_lowercase() || matches!(byte, b'-' | b'.' | b'_' | b'~'));
 }
 
 /// Append one label as it stands when it is plain, and the mask when it is not.
@@ -214,7 +214,7 @@ fn push_label(label: &[u8], masked: &mut Vec<u8>) {
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
-        match path.get(from..).and_then(|rest| rest.iter().position(|byte| *byte == b'/')) {
+        match path.get(from..).and_then(|rest| return rest.iter().position(|byte| return *byte == b'/')) {
             Some(offset) => {
                 push_label(&path[from..from + offset], masked);
                 masked.push(b'/');
@@ -247,7 +247,7 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
         let (chunk, separator): (&[u8], Option<usize>) = match values.get(from..) {
-            Some(rest) => match rest.iter().position(|byte| *byte == b'&') {
+            Some(rest) => match rest.iter().position(|byte| return *byte == b'&') {
                 Some(offset) => (&values[from..from + offset], Some(from + offset)),
                 None => (&values[from..], None),
             },
@@ -292,7 +292,7 @@ fn trailing_punctuation(rest: &[u8]) -> &[u8] {
     let kept: usize = rest
         .iter()
         .rev()
-        .take_while(|byte| matches!(byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\''))
+        .take_while(|byte| return matches!(byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\''))
         .count();
     return &rest[rest.len() - kept..];
 }
@@ -309,7 +309,7 @@ fn push_masked_rest(rest: &[u8], masked: &mut Vec<u8>) {
 fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
     let path_end: usize = rest
         .iter()
-        .position(|byte| *byte == b'?' || *byte == b'#')
+        .position(|byte| return *byte == b'?' || *byte == b'#')
         .unwrap_or(rest.len());
     push_masked_path(&rest[..path_end], masked);
     let mut from: usize = path_end;
@@ -318,8 +318,8 @@ fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
         from += 1;
         let query_end: usize = rest
             .get(from..)
-            .and_then(|query| query.iter().position(|byte| *byte == b'#'))
-            .map_or(rest.len(), |offset| from + offset);
+            .and_then(|query| return query.iter().position(|byte| return *byte == b'#'))
+            .map_or(rest.len(), |offset| return from + offset);
         push_masked_values(&rest[from..query_end], masked);
         from = query_end;
     }
@@ -362,7 +362,7 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
         let userinfo_end: Option<usize> = text[authority_start..authority_end]
             .iter()
             .rposition(is_at_sign)
-            .filter(|offset| *offset > 0);
+            .filter(|offset| return *offset > 0);
         if let Some(offset) = userinfo_end {
             masked.extend_from_slice(&text[copied..authority_start]);
             masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
