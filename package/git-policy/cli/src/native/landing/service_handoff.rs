@@ -192,14 +192,17 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) {
         }
     }
     // The verdict is durable: a later recovery of the same batch must not hold the push again, and the next push of the branch
-    //  reads the same verdict to know where it must stop.
-    crate::work_item::block(work_dir.as_path(), &item, reason);
+    //  reads the same verdict to know where it must stop. A verdict that could not be written says so, and the held records then
+    //  stay: a record with a verdict keeps the commit local, and a record without one does too (`work_item_holding.rs`).
+    let durable: bool = crate::work_item::block(work_dir.as_path(), &item, reason);
     // A record an earlier release named by the kind and the commit alone is this push's too, so the gate forgets it as well:
     //  left in `pending`, the next wake would push a commit the gate kept local, and left in `held`, every command would name a push
     //  nothing may make.
     for id in [item.id(), item.id_before_the_branch()] {
         let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id.as_str()));
-        crate::work_item::forget_held(work_dir.as_path(), id.as_str());
+        if durable {
+            crate::work_item::forget_held(work_dir.as_path(), id.as_str());
+        }
     }
 }
 
@@ -344,6 +347,31 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
     return format!("{held}, and a push you make of {reference} sends it");
 }
 
+/// What:
+///  The one sentence the worktree says about a commit whose refusal could not be written,
+/// and what still holds it.
+/// Why:
+///   The refusal is in the held record,
+/// and the verdict record every push reads is not,
+///  so the record stays where it is and the line says what holds the commit and what still sends it.
+/// A push the person makes of their own branch is forwarded unchanged,
+/// which is the one thing that does send such a commit
+///  (`work_item_holding.rs`,
+/// `block`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aRefusalThatCouldNotBeKept(branchRef, commit, reason)
+/// ```
+pub fn a_refusal_that_could_not_be_kept(reference: &str, commit: &str, reason: &str) -> String {
+    let by_the_person: &str = if reference.is_empty() { "a push you make yourself still sends it" } else { "a push you make of it still sends it" };
+    return format!(
+        "the commit {commit} is held: the checks refused it ({}), and the record of that refusal could not be written, so nothing this \
+         repository pushes sends it, and {by_the_person}",
+        crate::blocked_commit_lines::named_reason(reason)
+    );
+}
+
 /// How a sentence names the command a holder text names,
 /// or says that its number could not be read.
 ///
@@ -456,8 +484,13 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                 //  refused it would have settled it, so the commit stays local and the next push of the branch stops before it.
                 Verdict::Blocked => {
                     if let Some(found) = item.as_ref() {
-                        crate::work_item::block(work_dir.as_path(), found, holding.reason.as_str());
-                        crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+                        if crate::work_item::block(work_dir.as_path(), found, holding.reason.as_str()) {
+                            crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+                            continue;
+                        }
+                        // The verdict could not be written, so this record is the only statement that the commit stays local: it is
+                        //  left where it is and the line below says what holds it.
+                        lines.push(a_refusal_that_could_not_be_kept(branch.as_str(), commit, holding.reason.as_str()));
                         continue;
                     }
                 }

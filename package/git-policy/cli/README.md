@@ -539,6 +539,9 @@ Read-only commands,
    naming the branch,
   the commit and the words of its verdict,
    and the line goes once the commit is off the branch's way out or Git already holds it in the branch's remote.
+  The refusal is read from the held record as well when its own verdict record could not be written,
+   because the verdict goes into that record first,
+   so a commit your gate refused still stops the push.
   A person's own `git push` is unchanged and still sends the branch whole,
    and a commit whose command died before its check ran holds nothing back:
   it has no verdict,
@@ -1955,6 +1958,13 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
+  The clean runs in a worktree you may already be working in,
+   and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
+   so the bytes standing there when the clean ends are kept whole under the worktree's Git directory,
+   in `monochromatic-git-policy-cli-displaced-locks`,
+   under a directory named by the lock's path in hexadecimal,
+   and the success line names each copy.
+  A lock whose bytes cannot be kept there is left as the clean found it and the worktree shows the difference.
   Registry and git dependencies stay reused;
   the worktree's own crates rebuild with their own paths.
   A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
@@ -1988,7 +1998,9 @@ its offline data is incomplete,
 a lock does not match or the run exceeds its limit,
  the add still succeeds and prints one line that names the reason and the command to run,
  such as `pnpm --dir <worktree> install --offline --frozen-lockfile`.
-Another process changing files while a worktree is copied or repaired is your risk and is not defended against.
+Another process changing files while a worktree is copied or repaired is your risk and is not defended against,
+except for the `Cargo.lock` a repair's clean rewrites:
+the bytes that clean displaces are kept under the worktree's Git directory and the success line names them.
 Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
  section "Package-manager state of a new worktree".
 
