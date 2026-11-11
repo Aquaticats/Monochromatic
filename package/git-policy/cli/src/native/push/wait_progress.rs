@@ -248,17 +248,22 @@ pub struct ChildWaitFacts<'facts> {
     /// Whether a child with no sign of work for the limit is ended;
     /// a step that may not be run twice is only waited for.
     pub ends_when_quiet: bool,
+    /// How long the command waits for a step it never ends before it stops waiting and leaves it running,
+    /// or nothing when it waits for as long as the step lives.
+    pub left_running_after: Option<Duration>,
 }
 
 /// What:
 ///  The notice of a wait for a child process.
 /// Why:
 ///   The first notice of a wait adds what to do if the child is stuck,
-/// and the repeats stay short.
+/// and the repeats stay short;
+///  a wait that has a bound of its own says that bound instead of the quiet window,
+/// because the window is not what ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ending it only after ${limit} seconds with no sign of work`
+/// `monochromatic-git-policy-cli: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ${ending}`
 /// ```
 pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     let hint: &str = if facts.repeat {
@@ -268,6 +273,19 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     };
     // A child is ended for being quiet and never for being slow, and a step that may not be run twice is never ended.
     if !facts.ends_when_quiet {
+        // A step the wrapper never ends that this command stops waiting for has a bound of its own: saying it is waited for as
+        //  long as it lives would tell the person there is no bound where there is one (2026-11-11, the release gate of
+        //  0.6.1-alpha.11: a notice said so of a write whose wait ended at 127 seconds).
+        if let Some(after) = facts.left_running_after {
+            return format!(
+                "monochromatic-git-policy-cli: still waiting for {} (process {}) after {} seconds; the wrapper never ends it, and this \
+                 command stops waiting for it after {} seconds and leaves it running, so whether it finished is not known then.{hint}",
+                facts.waiting_for,
+                facts.pid,
+                facts.waited.as_secs(),
+                after.as_secs()
+            );
+        }
         return format!(
             "monochromatic-git-policy-cli: still waiting for {} (process {}) after {} seconds; it is a step that may not be run twice, so it is \
              waited for as long as it lives{}.{hint}",

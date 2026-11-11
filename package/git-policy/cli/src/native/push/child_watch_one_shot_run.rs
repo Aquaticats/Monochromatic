@@ -189,6 +189,11 @@ pub fn output_watched_within_for_a_stop(
     if !stoppable {
         watch.never_stop();
     }
+    // A step the command stops waiting for and leaves running says so in every notice: the notice names that bound, not a wait
+    //  that has none (`wait_progress.rs`, `child_wait_line`).
+    if let StepBound::LeaveRunning { after, extra } = bound {
+        watch.stops_waiting_after(after.saturating_add(extra));
+    }
     // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
     // that may announce a wait but must not end it, both leave this wait as the only thing that ends the step at its ceiling
     // (the third review's finding 2). A watch whose pin proves the process is the one that ends the step, and this wait is then the

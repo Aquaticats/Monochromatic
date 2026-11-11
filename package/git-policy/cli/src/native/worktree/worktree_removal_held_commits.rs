@@ -36,6 +36,13 @@
 //!  and only when no reference at all can be written does the command stop before Git runs
 //!  (the same review,
 //! finding 2).
+//!  A name already written for another batch's commit is left where it is,
+//!  because replacing it would forget the commit it was made for,
+//!  and this batch's commit goes beside it like one a lock refused:
+//!  reading that collision as a keep kept nothing,
+//!  and the removal that followed took the last reference to the commit
+//!  (a review of `a735f75caa`,
+//! finding 1).
 //!  Every write is a create-only one,
 //! so a name another command wrote is never replaced.
 //!  The person is told the branch does not move and where the commit is kept,
@@ -64,19 +71,11 @@ fn branch_of(held: &Held) -> String {
     return held.reference.trim_start_matches("refs/heads/").to_string();
 }
 
-/// The conflict sentence:
-/// the batch's kept reference already names another commit,
-/// so it is left as it is and the removal keeps nothing of this commit there.
-fn words_of_a_kept_name_taken(held: &Held, name: &str, named: &str) -> String {
-    return format!(
-        "the commit {} for {} is held in {}, and {} already names {}, so it is left there and this removal keeps nothing of it \
-         on a reference of this repository.",
-        held.new,
-        branch_of(held),
-        held.repository.display(),
-        name,
-        named
-    );
+/// The clause saying why a kept reference was not written:
+/// it names another commit,
+/// so it is left as it is and this commit is kept beside it.
+fn words_of_a_name_already_taken(named: &str) -> String {
+    return format!("it already names {named}, which is another commit, so it is left there");
 }
 
 /// The sentence for a commit kept at the batch's own kept reference.
@@ -144,12 +143,48 @@ enum Keeping {
     /// or another command wrote it while this one was keeping it,
     /// so nothing was written.
     Nothing,
-    /// The commit is kept where a removal cannot reach it,
+    /// A reference of this repository now names the commit,
     /// and this is the line the person reads.
     Kept(String),
     /// No reference could be made to hold the commit,
     /// and this is the paragraph that says so.
     Refused(String),
+}
+
+/// Whether the reference `name` of `common_dir` names this very commit.
+/// Why:
+///  Every answer of keeping a commit rests on which commit a reference names now,
+///  so the question is asked once here for a name that may be absent,
+///  unreadable,
+///  or already written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesThisCommit(git, commonDir, 'refs/cli-git/kept/7', held.new)
+/// ```
+fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &str) -> bool {
+    return matches!(value_of(git, common_dir, name), RefValue::Names(named) if named == commit);
+}
+
+/// What:
+///  Why a kept reference was not written,
+///  as the person reads it.
+/// Why:
+///  A locked name and a name another batch's commit is kept under are two different answers,
+///  and only after the write failed can the read tell them apart:
+///  the person needs to know that a commit is kept beside the name,
+///  not that a lock stood there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takenWords(git, commonDir, name, refused) // the collision clause, or Git's own words
+/// ```
+fn taken_words(git: &GitContext, common_dir: &Path, held: &Held, name: &str, refused: &str) -> String {
+    // `match` on what the reference names now: another commit is said as itself, anything else is Git's own words.
+    return match value_of(git, common_dir, name) {
+        RefValue::Names(named) if named != held.new => words_of_a_name_already_taken(named.as_str()),
+        _ => refused.to_owned(),
+    };
 }
 
 /// What:
@@ -164,6 +199,10 @@ enum Keeping {
 ///  (`keep_on_a_side_ref_only_if_free`).
 ///  The write that failed is read again before the name beside it is tried,
 ///  so a reference another command had just written for this same commit is not written twice.
+///  A name that holds another batch's commit keeps nothing of this one,
+///  so the write beside it is what makes the commit kept;
+///  only when that write fails too is the commit held by no reference of the repository,
+///  and that alone is a refusal.
 ///  The question is asked in `common_dir`,
 ///  which is the common Git directory of the repository whose registrations are being served,
 ///  rather than in the worktree:
@@ -176,21 +215,29 @@ enum Keeping {
 /// ```
 fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
     let name: String = kept_ref(held.seq);
-    if let RefValue::Names(named) = value_of(git, common_dir, name.as_str()) {
-        return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
-    }
     let rescue: String = rescue_ref(held.seq);
+    if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
     let Some(words) = keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), held.new.as_str()) else {
         return Keeping::Kept(words_of_a_commit_kept(held, name.as_str()));
     };
     // The write failed, but another command may have written this very commit between the question and it.
-    if let RefValue::Names(named) = value_of(git, common_dir, name.as_str()) {
-        return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
+    if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
+    // The name belongs to another batch's commit, or a lock stands on it; either way this commit needs the name beside it.
+    let taken: String = taken_words(git, common_dir, held, name.as_str(), words.as_str());
+    if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
     }
     let Some(also_refused) = keep_on_a_side_ref_only_if_free(git, common_dir, rescue.as_str(), held.new.as_str()) else {
-        return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), words.as_str()));
+        return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), taken.as_str()));
     };
-    return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), words.as_str(), rescue.as_str(), also_refused.as_str()));
+    if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
+    return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), taken.as_str(), rescue.as_str(), also_refused.as_str()));
 }
 
 /// The lock files that would refuse these writes and stand now:
@@ -266,22 +313,68 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
     }
     directories.sort();
     let mut tried: Vec<String> = Vec::new();
+    // The worktrees whose commit no reference could hold, which is what the closing paragraph names the removal of.
+    let mut unkept_worktrees: Vec<PathBuf> = Vec::new();
     for git_dir in directories {
         let (records, _damaged) = list(git_dir.as_path());
         for held in records {
             match keep_one(git, &held, common_dir) {
                 Keeping::Nothing => {}
                 Keeping::Kept(line) => kept.said.push(line),
-                Keeping::Refused(line) => kept.refused.push(line),
+                Keeping::Refused(line) => {
+                    kept.refused.push(line);
+                    unkept_worktrees.push(held.repository.clone());
+                }
             }
             tried.push(kept_ref(held.seq));
             tried.push(rescue_ref(held.seq));
         }
     }
     if !kept.refused.is_empty() {
-        kept.refused.push(nothing_was_removed(common_dir, tried.as_slice()));
+        kept.refused.push(nothing_was_removed(common_dir, tried.as_slice(), unkept_worktrees.as_slice()));
     }
     return kept;
+}
+
+/// What:
+///  The command that finishes a removal this refusal stopped,
+///  one per worktree that holds a commit no reference could keep.
+/// Why:
+///   The refusal used to name the command the person had just run,
+///  and after a merge that command is up to date:
+///  it looks at no worktree and writes no reference,
+///  so following it finished nothing and said nothing
+///  (a cross-view review of the landed sweep,
+///  finding 2).
+///  The removal of the worktree itself is the command that keeps the commit:
+///  it runs this keeper before Git removes anything,
+///  and every removal route of this program does.
+///  A worktree whose checkout is already gone is finished by `git worktree prune`,
+///  which routes the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removalCommands(holders) // 'run `git worktree remove ...`'
+/// ```
+fn removal_commands(holders: &[PathBuf]) -> String {
+    let mut commands: Vec<String> = Vec::new();
+    let mut prune: bool = false;
+    for holder in holders {
+        if holder.is_dir() {
+            commands.push(format!("`git worktree remove {}`", crate::shell_quote::shell_quote(holder.as_os_str().as_encoded_bytes())));
+        } else {
+            prune = true;
+        }
+    }
+    if prune {
+        commands.push(String::from("`git worktree prune`"));
+    }
+    // `match` on how many commands there are: one reads as one sentence, none is the plain `git worktree remove` shape.
+    return match commands.as_slice() {
+        [] => String::from("run `git worktree remove <the path of each worktree above>`"),
+        [only] => format!("run {only}"),
+        many => format!("run {}", many.join(" or ")),
+    };
 }
 
 /// What:
@@ -292,29 +385,34 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
 /// Why:
 ///   A command that must stop has to say what it kept and where,
 ///  and the person's next step is one of two things:
-///  make the directory writable,
+///  make the directory writable and remove the worktree,
 ///  or remove a lock that nothing holds.
+///  The removal of the worktree is what keeps the commit,
+///  so the paragraph names it for each worktree that holds one,
+///  and it never names a command that is up to date and removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `no reference of this repository could be written for the held commits above, so nothing was removed and no Git command ran: ...`
+/// `no reference of this repository could be written for the held commits above, so nothing was removed ...`
 /// ```
-fn nothing_was_removed(common_dir: &Path, names: &[String]) -> String {
+fn nothing_was_removed(common_dir: &Path, names: &[String], holders: &[PathBuf]) -> String {
     let directory: PathBuf = common_dir.join("refs/cli-git/kept");
     let mut paragraph: String = format!(
-        "no reference of this repository could be written for the held commits above, so nothing was removed and no Git command ran: \
+        "no reference of this repository could be written for the held commits above, so nothing was removed and no removal ran: \
          the worktrees, their records of the hold and the references that name those commits are as they were. When `{}` can be \
-         written again, run the same command again, and it keeps each of those commits before Git removes anything. Until then those \
-         commits are held only by the worktrees' own references, and a `git gc --prune=now` run from another checkout of this \
-         repository takes them, because Git there does not count another worktree's references.",
-        directory.display()
+         written again, {}: the commit of each worktree above is kept on a reference of this repository before Git removes \
+         anything. Until then those commits are held only by the worktrees' own references, and a `git gc --prune=now` run from \
+         another checkout of this repository takes them, because Git there does not count another worktree's references.",
+        directory.display(),
+        removal_commands(holders)
     );
     let standing: Vec<PathBuf> = standing_locks(common_dir, names);
     if !standing.is_empty() {
         paragraph.push_str(
             format!(
-                " The {} stands in the way; if no Git process is using this repository, remove it with `{}`.",
+                " That removal needs {} gone first; if no Git process is using this repository, remove {} with `{}`.",
                 locks_named(standing.as_slice()),
+                if standing.len() == 1 { "it" } else { "them" },
                 removal(standing.as_slice())
             )
             .as_str(),

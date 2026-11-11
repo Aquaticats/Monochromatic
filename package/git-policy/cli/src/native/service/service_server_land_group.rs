@@ -223,6 +223,11 @@ pub(crate) fn land_group(
     //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
     if let Some(first) = requests.first() {
         crate::service_shadow_pool_fill::start(&context.git, first);
+        // What: The scratch trees a killed command left are collected while this landing runs.
+        // Why:  The collection lists the repository scratch directory and asks the file system about every entry, which was
+        //       the largest single cause of a commit's own time in the records of 2026-11-11 (13,482 ms of 48). The commit
+        //       that makes its tree no longer collects, so the work is here, beside the loop, on a thread of its own.
+        crate::service_repository_scratch_sweep::start(first.common_dir.as_path());
     }
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();

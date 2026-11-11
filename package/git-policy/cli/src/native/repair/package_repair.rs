@@ -42,7 +42,7 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_cargo::{repair_cargo, repair_cargo_awaiting};
 use crate::package_repair_pnpm::{PnpmNeed, repair_pnpm, repair_pnpm_awaiting};
 use crate::package_repair_prewarm::common_directory_awaiting;
-use crate::package_repair_relink::{RelinkEntry, RelinkTool, hand_over_in_a_job};
+use crate::package_repair_relink::{NotTaken, QueuedRelink, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
 /// What the repairs read,
 /// who asks,
 /// and the switches of the person;
@@ -202,7 +202,7 @@ fn handed_over(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string };
+/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string; queued?: QueuedRelink };
 /// ```
 enum Told {
     /// The record reached the service,
@@ -211,8 +211,9 @@ enum Told {
     Taken(u128),
     /// No service took the record,
     /// so the add relinks the worktree here;
-    /// the text says why the hand-over failed.
-    Stays(String),
+    /// the text says why the hand-over failed,
+    /// and the record still queued is taken back after this run has finished.
+    Stays { reason: String, queued: Option<QueuedRelink> },
 }
 
 /// What:
@@ -233,20 +234,20 @@ enum Told {
 async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) -> Told {
     let began: Instant = begin_work();
     let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
-    let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
+    let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
         Ok(common) => {
             let state: crate::package_repair_relink::TheHandOver =
                 (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        Err(reason) => Ok(Err(reason)),
+        Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
     };
     end_work("relinkHandOver", began);
     let millis: u128 = began.elapsed().as_millis();
     return match told {
         Ok(Ok(())) => Told::Taken(millis),
-        Ok(Err(reason)) => Told::Stays(reason),
-        Err(refusal) => Told::Stays(format!("{refusal}")),
+        Ok(Err(not_taken)) => Told::Stays { reason: not_taken.reason, queued: not_taken.queued },
+        Err(refusal) => Told::Stays { reason: format!("{refusal}"), queued: None },
     };
 }
 
@@ -320,7 +321,13 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
     if tools.is_empty() {
         return findings;
     }
-    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path: request.environment.search_path.clone(), tools: tools.clone() };
+    // The add's environment travels as the three answers it can be: a path it held, no path at all, or (for a record this
+    //  release reads and writes again) none recorded.
+    let search_path: SearchPathOfTheAdd = match request.environment.search_path.as_ref() {
+        None => SearchPathOfTheAdd::Unset,
+        Some(path) => SearchPathOfTheAdd::Set(path.clone()),
+    };
+    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path, tools: tools.clone() };
     let told: Told = hand_over_the_record(request, &entry).await;
     match told {
         Told::Taken(millis) => {
@@ -332,9 +339,14 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
                 }
             }
         }
-        Told::Stays(reason) => {
+        Told::Stays { reason, queued } => {
             debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
+            // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
+            //  worktree this record names rather than nothing at all.
+            if let Some(still_queued) = queued {
+                still_queued.take_back();
+            }
             findings.pnpm.extend(here.pnpm);
             findings.toolchain.extend(here.toolchain);
         }

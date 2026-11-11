@@ -36,8 +36,9 @@ use crate::service_work_storage_awaited::{
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, Retrying};
+use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
 use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::work_item::WorkKind;
 use std::path::{Path, PathBuf};
@@ -226,6 +227,31 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 );
             }
             Verdict::Retry(text) => {
+                // What:
+                //  A push the service has given every try it gives a protected-branch refusal is reported as failed,
+                //  with what the server
+                //  said and how long the tries covered.
+                // Why:
+                //  That refusal can clear by itself, so it is retried;
+                // and a rule of the branch that refuses every push (an unsigned commit on a
+                //  branch that requires signatures) refuses every try as well,
+                // so the tries end and the branch waits for the person
+                //  instead of for ever.
+                //  The words are the same whether or not this round keeps a plan,
+                // so a drain that reports a retryable failure as failed still names what the server said.
+                if out_of_tries(text.as_str(), due.attempt + 1) {
+                    let said: String = format!("{}\n{}", out_of_tries_words(replanning.first.unwrap_or(FIRST_PAUSE)), text);
+                    crate::service_warn!(
+                        "the push of {branch:?} failed on try {} of {PROTECTED_BRANCH_TRIES} and needs you: {}",
+                        due.attempt + 1,
+                        cause_line(text.as_str()).unwrap_or_default()
+                    );
+                    replanning.forget(git_dir, branch);
+                    if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await {
+                        crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                    }
+                    continue;
+                }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
                 let (said, outcome): (String, PushOutcome) = match replanning.first {
                     Some(first) => {

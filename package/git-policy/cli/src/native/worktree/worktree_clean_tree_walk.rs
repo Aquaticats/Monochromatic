@@ -19,7 +19,7 @@ use crate::fs_beneath_directory_chain::DirectoryChain;
 use crate::repo_read_index::IndexEntry;
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_index::StatFields;
-use crate::subvolume_index_files::fields_of;
+use crate::subvolume_index_files::{fields_of, matches_stored};
 use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
 use crate::worktree_clean_stat_verdicts::{CleanRefusal, StatEntry, StatVerdict, changed_file, file_changed, metadata_verdict, stat_finding};
 use std::ffi::OsStr;
@@ -174,6 +174,78 @@ pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry],
         fields.push(fields_of(&metadata));
     }
     return Ok(fields);
+}
+
+/// What:
+///  The tracked paths whose files are not the blobs their entries name,
+/// and those whose files could not be read to
+///  decide,
+/// for a restore that must write the commit's bytes where Git's own stat check cannot see the difference.
+/// Why:
+///   A restore makes a snapshot of a checkout with changes the commit's tree with
+/// `git read-tree --reset -u`,
+/// and Git
+///  rewrites only a path it can see changed:
+/// an edit of the same size made in the same second as the entry it was
+///  recorded against keeps every field that check compares,
+/// so the snapshot's bytes would stay and the proof after the
+///  reset would trust the same fields.
+/// The restore removes these paths before the reset,
+/// which then writes the
+///  commit's bytes there.
+/// A file whose bytes could not be compared at all is named the same way:
+/// removing it costs a
+///  write of the commit's content and never publishes bytes the entry does not name.
+/// A file whose recorded stat data is its own to the nanosecond is not read at all,
+/// even when Git calls
+///  the entry racy:
+/// such a file is the one instant the index was written at,
+/// so its bytes are the entry's,
+/// and a
+///  checkout whose index is as new as its files costs nothing here.
+/// A file the worktree does not hold,
+/// or a path whose
+///  directories a link replaced,
+/// is left to the reset:
+/// Git writes what is missing and refuses to write through a
+///  link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paths = pathsWhoseContentDiffers(target, entries, indexed, indexSeconds); // throws the reason the walk could not run
+/// ```
+pub fn paths_whose_content_differs(target: &ContentTarget<'_>, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Result<Vec<Vec<u8>>, CleanRefusal> {
+    if entries.len() != indexed.len() {
+        return Err(CleanRefusal::unreadable(String::from("the index entries and their stat data are not the same files")));
+    }
+    let held: std::fs::File = match open_root(target.root) {
+        Ok(opened) => opened,
+        Err(error) => return Err(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", target.root.display()))),
+    };
+    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, target.git_dir, target.common_dir, target.environment, target.format);
+    let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(CleanRefusal::unreadable(format!("{} cannot be examined", target.root.display()))) };
+    let mut differing: Vec<Vec<u8>> = Vec::new();
+    for (entry, committed) in entries.iter().zip(indexed) {
+        if entry.path != committed.path {
+            return Err(CleanRefusal::unreadable(String::from("the index entries and their stat data are not the same files")));
+        }
+        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        let Some((name, parents)) = names.split_last() else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        let Some(directory) = directory_of(&mut chain, parents) else { continue };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { continue };
+        // Git's own check cannot tell an edit from a file whose size, times and inode it recorded, so the recorded
+        //  stat data is compared the strict way here: a file that is not the one the entry recorded is read, and one
+        //  that is its own to the nanosecond is believed whatever Git calls a racy entry.
+        if matches_stored(&fields_of(&metadata), &entry.stored) {
+            continue;
+        }
+        let place: Place<'_> = Place { directory, parents, name: name.as_os_str() };
+        if judge.agrees(&place, entry, committed.id.as_slice(), index_seconds).is_err() {
+            differing.push(entry.path.clone());
+        }
+    }
+    return Ok(differing);
 }
 
 /// What:

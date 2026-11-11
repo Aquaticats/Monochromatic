@@ -61,11 +61,20 @@ pub mod package_repair_relink;
 #[cfg(target_os = "linux")]
 pub mod package_repair_relink_job;
 
+/// What a delayed relink proves about the worktree its record names,
+/// before that record's first tool and before every tool after it.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_job_worktree_proof;
+
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
 
 /// The reading of `Cargo.lock` before a clean and its restoring afterwards.
 pub mod package_repair_cargo_lock;
+
+/// Whether a directory a repair deletes from or writes in is inside the worktree it serves,
+/// once its links are followed.
+pub mod package_repair_touches_only_its_own_worktree;
 
 /// The Cargo workspaces of a new worktree and the manifests that lead to them.
 pub mod package_repair_cargo_workspaces;
