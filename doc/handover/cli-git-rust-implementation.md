@@ -146,7 +146,9 @@ What changed:
   the seven reviews that had already started read the old wording.
 - Runs briefed before 18:07 keep the briefs they have.
 - Not covered by this change, and Pi still reads them: `AGENTS.md`, this handover and other repository docs, which speak of the owner throughout.
-  Whether those change is the owner's call (asked).
+  Asked how far the instruction reaches, the owner picked "Prompts I send only (Recommended)", so those stay as they are.
+- Asked whether to write it into `AGENTS.md` as a new rule plus an amendment, the owner answered "Amend BRQ only."
+  Rule `BRQ` now says a brief to Pi carries a requirement as the project's own, implying no human owner.
 - The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
   They may no longer be edited where they are, so their output is reworded as data before a run starts,
   until the brief writers live in the workspace package.
@@ -175,6 +177,8 @@ First pass, with 50 `pi-*` and `launch-*` units running:
   "uh, I said to auto delete."
   So a superseded branch is deleted by the coordinator without asking,
   once its content is shown to live elsewhere (the earlier note that branch deletion needs permission each time was wrong).
+  Asked whether to write that into `AGENTS.md`, the owner answered "Add the rule, and make it cover not just branches.",
+  and rule `XSU` now covers anything superseded (branches, worktrees, units, briefs, scratch).
   This one's four commits were all documentation,
   its planning file `doc/planning/git-wrapper-open-issues-round-4.md` is in the integration in a newer form (`7f84c90b1b`),
   no worktree held it,
@@ -182,6 +186,18 @@ First pass, with 50 `pi-*` and `launch-*` units running:
 - Superseded, already stopped: round 224 (driver-side 429 handling) and the two Kimi reviews of the launcher port (rounds 212 and 221), whose worktrees the landed sweep removed when the port was merged into its landing branch.
 - Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
 - Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
+
+A jam met during that pass, and the owner's instruction on it.
+The worktree of the finished round 228 run (`pi-clippy-passes-after-the-daily-update-of-2026-11-11`) could not be removed:
+its Git directory held the wrapper's own snapshot taken ahead (`monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-*`),
+the wrapper's removal refused it as "a nested subvolume or another filesystem",
+and every Git command in the main checkout printed "The interrupted removal of ... cannot be finished"
+until the coordinator ran `btrfs subvolume delete` on that snapshot and `git worktree prune` at about 18:45.
+The owner, on reading "because of a nested subvolume": "make the wrapper work in that case."
+Round 234 (`fix/git-policy-cli-worktree-removal-finishes-with-a-nested-subvolume`,
+on top of `fix/git-policy-cli-sonnet-findings-removal-with-a-nested-subvolume`, whose answer was to refuse)
+makes the removal delete every subvolume the wrapper itself made and finish an interrupted removal unaided;
+for a subvolume that is not the wrapper's own it reports the ways to remove the worktree without losing that data and builds one only if it is shown safe.
 
 ### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T17:55:17-05:00)
 

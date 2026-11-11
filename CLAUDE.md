@@ -261,6 +261,17 @@ Else need authorization;
 Drafts stay local;
  read-only research allowed.
 
+XSU:
+ Delete what is superseded unasked,
+ everywhere it lives (branches,
+ worktrees,
+ units,
+ briefs,
+ scratch),
+ once its content is shown to live elsewhere;
+ unshown:
+ keep it and say why.
+
 TSK:
  Broad multi-area requests:
  one task-list item per major area,
@@ -637,10 +648,13 @@ RT4:
 ## Before briefing an agent
 
 BRQ:
- Briefs and notes carry as requirements only what the user said or decided,
+ Briefs and notes carry as requirements only what the user decided,
  quoted with source;
- derivations and own ideas are revisable suggestions;
- inferred requirements or policy:
+ to Pi,
+ as the project's own,
+ implying no human owner;
+ own ideas are suggestions;
+ inferred ones:
  ask first.
 
 DQB:
