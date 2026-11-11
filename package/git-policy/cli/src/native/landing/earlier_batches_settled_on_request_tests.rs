@@ -203,8 +203,9 @@ fn the_service_of_this_release_is_no_earlier_helper() {
 /// serve every
 ///  worktree,
 /// so the hold names them as such and not as this worktree's;
-/// a process whose journal folder cannot be resolved may be
-///  either and is told apart too.
+/// a process whose journal folder cannot be resolved
+///  (here a relative word,
+/// whose working directory is not there) may be either and is told apart too.
 #[test]
 fn the_hold_keeps_which_socket_or_helper_caused_it() {
     let (world, state) = world_with_earlier_journal("settle-which", "state");
@@ -224,7 +225,7 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
         ("shared journal", vec!["/p/cli-git-native", "--journal", shared.as_str(), "--git", "/usr/bin/git"], Hold::SharedHelperRuns),
         ("own journal", vec!["/p/cli-git-native", "--journal", own.as_str(), "--git", "/usr/bin/git", "--instance", instance.as_str()], Hold::InstanceHelperRuns),
         ("mode words", vec!["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()], Hold::InstanceHelperRuns),
-        ("unresolvable", vec!["/p/cli-git-native", "--journal", "/nowhere/at/all"], Hold::HelperUnsure),
+        ("unresolvable", vec!["/p/cli-git-native", "--journal", "not/yet/there"], Hold::HelperUnsure),
     ] {
         let proc_root: PathBuf = empty_proc(&world);
         fake_process(proc_root.as_path(), 52, &words);
@@ -234,7 +235,7 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
         match expected {
             Hold::HelperUnsure => {
                 let (pid, word, reason) = named.expect("the program that cannot be ruled out is named");
-                assert_eq!((pid, word.as_str()), (52, "/nowhere/at/all"), "{label}");
+                assert_eq!((pid, word.as_str()), (52, "not/yet/there"), "{label}");
                 assert!(reason.contains("No such file or directory"), "{label}: {reason}");
             }
             _ => assert_eq!(named, None, "{label}: only a program that cannot be ruled out is named"),
@@ -253,17 +254,85 @@ fn the_log_line_of_a_held_settling_names_the_program_and_folder_and_no_other_arg
     let landed: CommitRequest = request(&world, "logged", "logged.txt", "logged\n");
     land_with_failed_index(&world, 1, &[landed]);
     let proc_root: PathBuf = empty_proc(&world);
-    fake_process(proc_root.as_path(), 52, &["/usr/bin/unrelated-tool", "--journal", "/nowhere/at/all", "--remote", "https://user:s3cret@example.invalid/x", "--token", "s3cret-token"]);
+    fake_process(proc_root.as_path(), 52, &["/usr/bin/unrelated-tool", "--journal", "not/yet/there", "--remote", "https://user:s3cret@example.invalid/x", "--token", "s3cret-token"]);
     let mut settled: Option<RequestedSettlement> = None;
     let entries = crate::service_timing::capture::entries_of(|| { settled = Some(settle(&world, state.as_path(), proc_root.as_path())); });
     assert!(matches!(settled, Some(RequestedSettlement::Held { .. })), "{settled:?}");
     let line: &str = entries.iter().map(|entry| { return entry.message.as_str(); }).find(|message| { return message.contains("were not settled"); }).expect("the held settling is logged");
-    for wanted in ["52", "/usr/bin/unrelated-tool", "/nowhere/at/all"] {
+    for wanted in ["52", "/usr/bin/unrelated-tool", "not/yet/there"] {
         assert!(line.contains(wanted), "{wanted}: {line}");
     }
     for secret in ["s3cret", "--token", "--remote", "example.invalid"] {
         assert!(!entries.iter().any(|entry| { return entry.message.contains(secret); }), "{secret} must not be logged: {entries:?}");
     }
+    remove(world.root.as_path());
+}
+
+/// An unrelated program that carries a `--journal` option naming a folder that is not there holds nothing back:
+/// a folder that is not there holds no batch of this worktree,
+/// so the program cannot be settling one.
+/// The
+///  release gate of 2026-11-10 failed only on this host,
+/// where another session ran such a program,
+/// and every settle control
+///  waited for it until its patience ran out.
+#[test]
+fn an_unrelated_program_whose_journal_folder_is_not_there_holds_nothing_back() {
+    let (world, state) = world_with_earlier_journal("settle-absent-journal", "state");
+    let landed: CommitRequest = request(&world, "absent", "absent.txt", "absent\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 61, &["/usr/bin/unrelated-tool", "--journal", "/not/a/folder/of/a/worktree", "--token", "s3cret-token"]);
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), proc_root.as_path()) else {
+        panic!("a folder that is not there holds no batch, so the settling goes on")
+    };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
+
+/// What the look still keeps:
+/// an earlier helper shows its `--journal` word before it makes that folder,
+/// so a word that names one of
+///  this worktree's earlier journals,
+/// under another spelling of the same folder,
+/// holds the settling back even
+///  while the folder is not made yet.
+/// The helper settles the shared journal's batches of this worktree at its own
+///  start,
+/// and two services must never settle one batch.
+#[cfg(unix)]
+#[test]
+fn a_journal_not_made_yet_is_recognised_through_another_spelling_of_the_same_folder() {
+    let (world, state) = world_with_earlier_journal("settle-not-made-yet", "state");
+    let landed: CommitRequest = request(&world, "not-made-yet", "not-made-yet.txt", "not-made-yet\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let per_instance: PathBuf = world.context.journal.clone();
+    let shared: PathBuf = state.join(DATA_FOLDER.earlier).join("service");
+    // The open batch waits in the shared journal, which a starting helper settles at its own start.
+    let text: String = std::fs::read_to_string(batch_path(per_instance.as_path(), 1, OPEN_EXTENSION)).expect("the open batch");
+    let mut moved = parse_intent(text.as_str()).expect("parse");
+    moved.seq = 4;
+    write_intent(shared.as_path(), &moved).expect("an open batch in the shared journal");
+    remove(per_instance.as_path());
+    // The helper names its own journal through the link and has not made that folder yet.
+    let another_name: PathBuf = world.root.join("another-name-for-the-fixture-root");
+    std::os::unix::fs::symlink(world.root.as_path(), another_name.as_path()).expect("a link to the fixture root");
+    let spelled: String = another_name
+        .join(state.strip_prefix(world.root.as_path()).expect("the state folder is inside the fixture"))
+        .join(DATA_FOLDER.earlier)
+        .join("service")
+        .join(instance_for(&world))
+        .display()
+        .to_string();
+    assert!(!Path::new(spelled.as_str()).exists(), "the folder the helper names is not made yet");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 62, &["/p/cli-git-native", "--journal", spelled.as_str(), "--git", "/usr/bin/git"]);
+    assert_eq!(
+        settle(&world, state.as_path(), proc_root.as_path()),
+        RequestedSettlement::Held { open: 1, because: Hold::InstanceHelperRuns.into() },
+        "{spelled} names the same folder as {}",
+        per_instance.display()
+    );
     remove(world.root.as_path());
 }
 

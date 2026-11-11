@@ -218,7 +218,7 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     let ((single_code, _, single_err), _) = run(&world.request());
     assert_eq!(single_code, 1);
     assert!(single_err.contains("every worktree") && single_err.contains("systemctl --user stop cli-git.socket cli-git.service") && !single_err.contains(own_units.as_str()), "{single_err}");
-    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("/nowhere/at/all")]);
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("not/yet/there")]);
     let ((unsure_code, _, unsure_err), _) = run(&world.request());
     assert_eq!(unsure_code, 1);
     assert!(unsure_err.contains(own_units.as_str()) && unsure_err.contains("cli-git.socket cli-git.service"), "both sets of units, because the cause is not known: {unsure_err}");
@@ -249,9 +249,10 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
 ///  `--password`,
 /// a URL's credentials);
 /// the message says that they are not shown.
-/// Which programs hold the command back is
-///  not changed:
-/// a folder that exists holds nothing back.
+/// A folder the check cannot look up at all holds the command back;
+/// a word that is absolute and names a
+///  folder that is not there holds nothing back,
+/// because such a folder holds no batch of this worktree.
 #[test]
 fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_shows_no_other_argument() {
     let world: Setup = setup("settle-command-names-the-program");
@@ -259,7 +260,7 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let words: Vec<String> = [
         "/usr/bin/unrelated-tool",
         "--journal",
-        "/gone/for/good",
+        "gone/for/good",
         "--remote",
         "https://user:s3cret@example.invalid/x",
         "--token",
@@ -274,7 +275,7 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let ((code, stdout, stderr), before) = run(&world.request());
     assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
     assert!(stderr.contains(crate::earlier_service_process_look::Hold::HelperUnsure.words()), "the reason's words stay: {stderr}");
-    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`/gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
+    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
         assert!(stderr.contains(wanted), "{wanted}: {stderr}");
     }
     for secret in ["s3cret", "s3cret-token", "hunter2", "--token", "--password", "--remote", "example.invalid"] {
@@ -295,6 +296,11 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let ((resolved_code, _, resolved_err), _) = run(&world.request());
     assert_eq!(resolved_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {resolved_err}");
     assert!(!resolved_err.contains("process 77"), "{resolved_err}");
+    // A word that is absolute and names a folder that is not there names no folder that holds a batch of this worktree.
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("gone/for/good").display().to_string()]);
+    let ((absent_code, _, absent_err), _) = run(&world.request());
+    assert_eq!(absent_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {absent_err}");
+    assert!(absent_err.contains("Some batches were not settled") && !absent_err.contains("process 77") && !absent_err.contains("Nothing was changed"), "a folder that is not there holds nothing back: {absent_err}");
     assert_eq!(world.open_files(), 1);
     remove(world.root.as_path());
 }
@@ -307,7 +313,7 @@ fn the_held_message_agrees_in_number_with_the_count_of_open_batches() {
     for (count, wanted) in [(1_u64, "1 batch the earlier release's commit service left open for this worktree was not settled"), (2, "2 batches the earlier release's commit service left open for this worktree were not settled"), (3, "3 batches the earlier release's commit service left open for this worktree were not settled")] {
         let world: Setup = setup(format!("settle-command-number-{count}").as_str());
         world.leave_open_batches(count);
-        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")]);
+        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("gone/for/good")]);
         let ((code, _, stderr), _) = run(&world.request());
         assert_eq!(code, 1);
         assert!(stderr.starts_with(wanted), "{wanted}: {stderr}");
