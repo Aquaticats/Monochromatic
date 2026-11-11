@@ -4022,9 +4022,24 @@ and the line names the path,
 the files below it,
 and that nothing was changed
 (`src/native/merge/merge_isolation_a_directory_the_merge_replaces.rs`).
-A directory whose every file the merge deletes is the branch's own,
-and the merge's own deletions empty it,
-which is how the finish of a killed merge already judges one (see "Recovery").
+A directory is the branch's own only when the merge deletes every file below it and every one of those files
+still holds what `HEAD` holds,
+in the worktree and in the index,
+read with one `git diff-index --quiet HEAD -- <path>`;
+an answer that read could not give counts as a change,
+so a refused read never deletes a file either.
+A file the branch deletes whose bytes or index entry or mode the person changed is the person's own,
+and no layer of the carry can hold a path the merge puts a file over,
+so the merge stops for it too and names the files below it
+(a cross-vendor review of round 133,
+its first finding:
+a staged edit below such a directory went with it,
+its index entry included,
+while the command exited 0).
+The branch's own directory is emptied by the merge's own deletions and the merge's file takes its place,
+which is how the finish of a killed merge already judges one (see "Recovery");
+the finish reaches a file of the person's there through that path's own standing,
+which is never the merge's entry.
 
 A merge over that work that would open an editor opens it here
 (`default_edit_option`,
