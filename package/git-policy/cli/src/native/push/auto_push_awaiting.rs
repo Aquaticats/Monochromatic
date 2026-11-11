@@ -163,7 +163,7 @@ pub async fn push_once_awaiting(
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
     //  and so does a commit whose own checks still run.
     let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided).await;
-    let Some(source) = source_of(&stop, &sent, sent_up_to) else {
+    let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };
     // Git sets a branch's upstream only from a refspec that names a branch, and a push of a commit gives the branch none
@@ -172,7 +172,7 @@ pub async fn push_once_awaiting(
     //  sends the commit that push was allowed to send.
     let source: String = match set_upstream {
         true => pushed_ref.clone(),
-        false => source,
+        false => pinned,
     };
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
     let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
