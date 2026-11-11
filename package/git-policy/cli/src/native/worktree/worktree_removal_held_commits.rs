@@ -313,22 +313,68 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
     }
     directories.sort();
     let mut tried: Vec<String> = Vec::new();
+    // The worktrees whose commit no reference could hold, which is what the closing paragraph names the removal of.
+    let mut unkept_worktrees: Vec<PathBuf> = Vec::new();
     for git_dir in directories {
         let (records, _damaged) = list(git_dir.as_path());
         for held in records {
             match keep_one(git, &held, common_dir) {
                 Keeping::Nothing => {}
                 Keeping::Kept(line) => kept.said.push(line),
-                Keeping::Refused(line) => kept.refused.push(line),
+                Keeping::Refused(line) => {
+                    kept.refused.push(line);
+                    unkept_worktrees.push(held.repository.clone());
+                }
             }
             tried.push(kept_ref(held.seq));
             tried.push(rescue_ref(held.seq));
         }
     }
     if !kept.refused.is_empty() {
-        kept.refused.push(nothing_was_removed(common_dir, tried.as_slice()));
+        kept.refused.push(nothing_was_removed(common_dir, tried.as_slice(), unkept_worktrees.as_slice()));
     }
     return kept;
+}
+
+/// What:
+///  The command that finishes a removal this refusal stopped,
+///  one per worktree that holds a commit no reference could keep.
+/// Why:
+///   The refusal used to name the command the person had just run,
+///  and after a merge that command is up to date:
+///  it looks at no worktree and writes no reference,
+///  so following it finished nothing and said nothing
+///  (a cross-view review of the landed sweep,
+///  finding 2).
+///  The removal of the worktree itself is the command that keeps the commit:
+///  it runs this keeper before Git removes anything,
+///  and every removal route of this program does.
+///  A worktree whose checkout is already gone is finished by `git worktree prune`,
+///  which routes the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removalCommands(holders) // 'run `git worktree remove ...`'
+/// ```
+fn removal_commands(holders: &[PathBuf]) -> String {
+    let mut commands: Vec<String> = Vec::new();
+    let mut prune: bool = false;
+    for holder in holders {
+        if holder.is_dir() {
+            commands.push(format!("`git worktree remove {}`", crate::shell_quote::shell_quote(holder.as_os_str().as_encoded_bytes())));
+        } else {
+            prune = true;
+        }
+    }
+    if prune {
+        commands.push(String::from("`git worktree prune`"));
+    }
+    // `match` on how many commands there are: one reads as one sentence, none is the plain `git worktree remove` shape.
+    return match commands.as_slice() {
+        [] => String::from("run `git worktree remove <the path of each worktree above>`"),
+        [only] => format!("run {only}"),
+        many => format!("run {}", many.join(" or ")),
+    };
 }
 
 /// What:
@@ -339,29 +385,34 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
 /// Why:
 ///   A command that must stop has to say what it kept and where,
 ///  and the person's next step is one of two things:
-///  make the directory writable,
+///  make the directory writable and remove the worktree,
 ///  or remove a lock that nothing holds.
+///  The removal of the worktree is what keeps the commit,
+///  so the paragraph names it for each worktree that holds one,
+///  and it never names a command that is up to date and removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `no reference of this repository could be written for the held commits above, so nothing was removed and no Git command ran: ...`
+/// `no reference of this repository could be written for the held commits above, so nothing was removed ...`
 /// ```
-fn nothing_was_removed(common_dir: &Path, names: &[String]) -> String {
+fn nothing_was_removed(common_dir: &Path, names: &[String], holders: &[PathBuf]) -> String {
     let directory: PathBuf = common_dir.join("refs/cli-git/kept");
     let mut paragraph: String = format!(
-        "no reference of this repository could be written for the held commits above, so nothing was removed and no Git command ran: \
+        "no reference of this repository could be written for the held commits above, so nothing was removed and no removal ran: \
          the worktrees, their records of the hold and the references that name those commits are as they were. When `{}` can be \
-         written again, run the same command again, and it keeps each of those commits before Git removes anything. Until then those \
-         commits are held only by the worktrees' own references, and a `git gc --prune=now` run from another checkout of this \
-         repository takes them, because Git there does not count another worktree's references.",
-        directory.display()
+         written again, {}: the commit of each worktree above is kept on a reference of this repository before Git removes \
+         anything. Until then those commits are held only by the worktrees' own references, and a `git gc --prune=now` run from \
+         another checkout of this repository takes them, because Git there does not count another worktree's references.",
+        directory.display(),
+        removal_commands(holders)
     );
     let standing: Vec<PathBuf> = standing_locks(common_dir, names);
     if !standing.is_empty() {
         paragraph.push_str(
             format!(
-                " The {} stands in the way; if no Git process is using this repository, remove it with `{}`.",
+                " That removal needs {} gone first; if no Git process is using this repository, remove {} with `{}`.",
                 locks_named(standing.as_slice()),
+                if standing.len() == 1 { "it" } else { "them" },
                 removal(standing.as_slice())
             )
             .as_str(),

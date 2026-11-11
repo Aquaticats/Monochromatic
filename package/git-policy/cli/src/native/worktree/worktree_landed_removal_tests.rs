@@ -139,6 +139,14 @@ fn commit_is_there(repository: &Path, commit: &str) -> bool {
         .success();
 }
 
+/// Plant the lock file a refused update leaves on the reference `name`,
+/// as a killed or a concurrent Git leaves it.
+fn plant_lock(common_dir: &Path, name: &str) {
+    let lock: PathBuf = common_dir.join(format!("{name}.lock"));
+    std::fs::create_dir_all(lock.parent().expect("the directory of the lock")).expect("the lock's directory");
+    std::fs::write(lock.as_path(), b"").expect("the lock file");
+}
+
 /// The worktree's own Git directory, as Git's pointer names it.
 fn admin_of(worktree: &Path) -> PathBuf {
     let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
@@ -502,6 +510,52 @@ fn a_landed_worktree_whose_kept_reference_names_another_commit_keeps_its_commit_
     assert_eq!(holders.trim(), beside, "the held commit is kept on the reference beside the taken one: {sweep:?}");
     assert_eq!(git_text(landed.main.as_path(), &["rev-parse", taken.as_str()]), elsewhere, "the commit the taken name already held stays named");
     assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
+}
+
+/// What:
+///  A landed sweep that could keep a held commit on no reference names the command that finishes the removal,
+///  and that command keeps the commit before Git removes the worktree.
+/// Why:
+///  The refusal told the person to run the same command again,
+///  and a merge whose branch already landed is up to date: the retry looked at no worktree,
+///  wrote no kept reference and said nothing at all,
+///  so the one remedy the notice named did nothing
+///  (a cross-vendor review of the landed sweep,
+///  finding 2).
+#[test]
+fn a_refused_landed_sweep_names_a_command_that_finishes_the_removal() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit-refusal-remedy");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    let taken: String = String::from("refs/cli-git/kept/7");
+    let beside: String = String::from("refs/cli-git/kept/7-rescue");
+    for name in [taken.as_str(), beside.as_str()] {
+        plant_lock(landed.common.as_path(), name);
+    }
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.failed.is_some(), "neither kept reference can be written, so the sweep refuses: {sweep:?}");
+    assert!(landed.worktree.exists(), "the refusal leaves the worktree and its commit where they are");
+    let notice: String = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep).join("\n");
+    println!("{notice}");
+    let quoted: String = crate::shell_quote::shell_quote(landed.worktree.as_os_str().as_encoded_bytes());
+    let finishes: String = format!("git worktree remove {quoted}");
+    assert!(notice.contains(finishes.as_str()), "the notice names the command that finishes the removal, `{finishes}`: {notice}");
+    assert!(notice.contains("up to date"), "the notice says a merge run again removes nothing: {notice}");
+    // The remedy the notice names, run as the removal route runs it: the locks go, the records are snapshotted, the commit is
+    //  kept, and real Git removes the worktree.
+    for name in [taken.as_str(), beside.as_str()] {
+        std::fs::remove_file(landed.common.join(format!("{name}.lock"))).expect("the lock nothing holds is removed");
+    }
+    let context: crate::transaction_git::GitContext = git_context();
+    crate::worktree_removal_rescue::snapshot_linked_worktrees(landed.common.as_path());
+    let kept: crate::worktree_removal_held_commits::KeptCommits = crate::worktree_removal_held_commits::keep_held_commits(landed.common.as_path(), &context);
+    assert!(kept.refused.is_empty(), "the reference can be written again: {:?}", kept.refused);
+    let linked: String = landed.worktree.display().to_string();
+    git(landed.main.as_path(), &["worktree", "remove", linked.as_str()]);
+    assert!(!landed.worktree.exists(), "the command the notice names removes the worktree");
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    assert!(commit_is_there(landed.main.as_path(), held.as_str()), "the commit is kept before the worktree goes");
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", taken.as_str()]), held, "the kept reference names the held commit");
 }
 
 /// What:

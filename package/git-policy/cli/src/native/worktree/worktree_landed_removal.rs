@@ -144,6 +144,9 @@ pub struct LandedSweep {
     /// The lines that say which commit a removal would have deleted,
     /// and the reference of this repository that now names it.
     pub kept_commits: Vec<String>,
+    /// Whether a held commit no reference of this repository could hold stopped this sweep,
+    /// which no later merge finishes.
+    pub refused_commits: bool,
     /// Why no candidate was examined,
     /// when the repository could not be read.
     pub failed: Option<String>,
@@ -218,6 +221,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     let kept: KeptCommits = keep_held_commits(place.common_dir, place.context);
     sweep.kept_commits = kept.said;
     if !kept.refused.is_empty() {
+        sweep.refused_commits = true;
         sweep.failed = Some(kept.refused.join("\n"));
         return sweep;
     }
