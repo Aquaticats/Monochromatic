@@ -155,6 +155,85 @@ fn a_message_that_spells_a_pathspec_file_control_stays() {
     );
 }
 
+/// Git reads every unambiguous prefix of a long option,
+/// so an abbreviated pathspec-file control and the file it names leave together:
+/// the private index already holds the selection the preparation read from that file.
+#[test]
+fn an_abbreviated_pathspec_file_control_leaves_with_its_value() {
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--pathspec-fr", "list.txt", "--message=x"]), &[]),
+        args(&["--message=x"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--pathspec-fr=list.txt", "--message=x"]), &[]),
+        args(&["--message=x"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--pathspec-from-fil", "list.txt"]), &[]),
+        Vec::<String>::new()
+    );
+    // A message that spells the abbreviation is still the person's text.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-m", "--pathspec-fr"]), &[]),
+        args(&["-m", "--pathspec-fr"])
+    );
+    // A spelling Git refuses as ambiguous is no control at all: the command fails as the person's spelling asks.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--pathspec-f", "list.txt"]), &[]),
+        args(&["--pathspec-f", "list.txt"])
+    );
+}
+
+/// Selection controls go away once the private index already holds the choice,
+/// and a value that spells one is the person's text and stays.
+#[test]
+fn selection_removal_keeps_a_message_that_spells_a_selection_control() {
+    assert_eq!(
+        private_selection_commit_args(&args(&["--include", "--mess", "-i"]), &[]),
+        args(&["--mess", "-i"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-i", "-m", "--include"]), &[]),
+        args(&["-m", "--include"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-p", "--message", "-p"]), &[]),
+        args(&["--message", "-p"])
+    );
+}
+
+/// Selection controls leave in every spelling Git accepts and inside a short cluster,
+/// so the real commit never runs a selection that already ran against the private index.
+#[test]
+fn selection_removal_drops_every_spelling_of_the_controls() {
+    assert_eq!(
+        private_selection_commit_args(&args(&["--includ", "--message=x"]), &[]),
+        args(&["--message=x"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["--patc", "--message=x"]), &[]),
+        args(&["--message=x"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-im", "x"]), &[]),
+        args(&["-m", "x"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-ip", "-m", "x"]), &[]),
+        args(&["-m", "x"])
+    );
+    // A gpg-signing key that spells a selection letter is its value and stays whole.
+    assert_eq!(
+        private_selection_commit_args(&args(&["-iSp", "-m", "x"]), &[]),
+        args(&["-Sp", "-m", "x"])
+    );
+    // A message that spells an abbreviated control is still the person's text.
+    assert_eq!(
+        private_selection_commit_args(&args(&["-m", "--patc"]), &[]),
+        args(&["-m", "--patc"])
+    );
+}
+
 /// Selection controls go away once the private index already holds the choice.
 #[test]
 fn selection_removal_drops_selection_controls() {

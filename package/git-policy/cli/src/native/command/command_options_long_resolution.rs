@@ -209,6 +209,35 @@ pub(crate) fn resolve_long_option(
 }
 
 /// What:
+///  Whether one long token names the table row whose long spelling is `name`,
+///  in any spelling Git accepts.
+/// Why:
+///   A transform that removes a control must remove the spelling the person typed,
+///  and Git accepts every unambiguous prefix of a long option
+///  (`--pathspec-fr` for `--pathspec-from-file`).
+///  A `--no-` form names the row in its off state,
+/// where no control runs,
+///  and a spelling Git refuses names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// longOptionNames('--pathspec-fr', 'pathspec-from-file', COMMIT_TABLE) // true
+/// ```
+pub(crate) fn long_option_names(token: &[u8], name: &str, table: &[OptionSpec]) -> bool {
+    if !token.starts_with(b"--") || token.len() < 3 {
+        return false;
+    }
+    // `let Ok(x) = ... else` leaves an unknown or ambiguous token naming no row.
+    let Ok(Resolution::Known { row, .. }) = resolve_long_option(token, table, false) else {
+        return false;
+    };
+    if row.unset {
+        return false;
+    }
+    return row.spec.long == Some(name);
+}
+
+/// What:
 ///  Whether one long option token takes the token after it as its value.
 /// Why:
 ///   A transform that removes argument tokens must know which of them are the person's values,

@@ -1,6 +1,5 @@
 //! What:
 //!  Argument transforms of native preparation:
-//!       the normalised `commit` argument region,
 //!       the split of global options from the commit region,
 //!       the removal of `-a`/`--all`,
 //!       and the arguments of the real `git commit` that run against the complete private index.
@@ -12,6 +11,7 @@
 //!  and a path is removed only where it is a path:
 //!  the value of an option such as `-m` is the person's text and stays,
 //!  even when it spells a path or a flag.
+//!  How the region is read as Git reads it lives in `commit_args_reading.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,26 +19,48 @@
 //! const commitArgs = withoutAllFlag(invocation.commitArgs);
 //! ```
 
-/// Pathspec separator token,
-/// shared with the escape hatch module.
-/// The pathspec separator that ends option parsing in Git and in the incumbent.
-const PATHSPEC_SEPARATOR: &str = "--";
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 
 /// What:
-///  Bring Git's own table of `git commit` long options and its abbreviation rules into this file.
+///  Bring the reading of the region and Git's own table of `git commit` long options into this file.
 /// Why:
-///   Whether a token takes the next token as its value is Git's answer,
-///  and every unambiguous abbreviation of a value-taking option is one of its spellings.
+///   The transforms here remove a token only where the region reading says it is an option,
+///  and every unambiguous abbreviation Git accepts is one of a control's spellings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { COMMIT_TABLE } from './command_commit_table.ts';
-/// import { longOptionTakesNextToken } from './command_options_long_resolution.ts';
+/// import { longOptionNames } from './command_options_long_resolution.ts';
+/// import { separatorIndex, takesNextToken } from './commit_args_reading.ts';
 /// ```
+use super::commit_args_reading::{PATHSPEC_SEPARATOR, is_optional_value_letter};
 use crate::command_commit_table::COMMIT_TABLE;
-use crate::command_options_long_resolution::long_option_takes_next_token;
+use crate::command_options_long_resolution::long_option_names;
+
+/// What:
+///  The reading of the region is the commit path's,
+///  so callers keep reaching it through this module.
+/// Why:
+///   Moving it to its own file must not move a name any caller knows.
+pub use super::commit_args_reading::{normalise_commit_args, separator_index, takes_next_token};
+
+/// The `git commit` option that reads its pathspecs from a file.
+/// The private index already holds that selection,
+/// so no spelling of it reaches the real commit.
+const PATHSPEC_FROM_FILE: &str = "pathspec-from-file";
+/// The `git commit` option that reads a pathspec file as NUL-separated names.
+/// It means nothing without the file option,
+/// so it leaves with it.
+const PATHSPEC_FILE_NUL: &str = "pathspec-file-nul";
+/// The selection controls whose selection the private index already holds.
+const SELECTION_CONTROLS: [&str; 5] = ["-i", "-p", "--include", "--interactive", "--patch"];
+/// The long names of those controls,
+/// which Git also accepts in every unambiguous abbreviation.
+const SELECTION_OPTION_NAMES: [&str; 3] = ["include", "interactive", "patch"];
+/// The short letters of those controls,
+/// which a cluster such as `-im` carries.
+const SELECTION_LETTERS: [char; 2] = ['i', 'p'];
 
 /// Global options that redirect native Git away from the shadow repository,
 /// so they are dropped.
@@ -54,173 +76,6 @@ const VALUE_TAKING_GLOBAL_OPTIONS: [&str; 7] = [
     "--super-prefix",
     "--attr-source",
 ];
-
-/// Short-value options whose clustered form can carry the value in the same token.
-const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
-
-/// Short commit options with an optional attached value (`-S[<keyid>]`,
-/// `-u[<mode>]`).
-const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
-
-/// What:
-///  Finds the first value-taking short option letter inside a cluster token.
-/// Why:
-///   A cluster such as `-am` carries `m`,
-/// whose value is the following token or the rest of the cluster.
-/// A letter with an attached value (`-S<keyid>`,
-/// `-u<mode>`) ends the search instead:
-/// what follows it is its value,
-/// so a key ID or mode that spells `m`,
-/// `F`,
-/// `C`,
-/// `c`,
-/// `t` or `U` is never read as flags.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// findValueOptionIndex(token)
-/// ```
-fn find_value_option_index(letters: &[char]) -> Option<usize> {
-    for (index, letter) in letters.iter().enumerate().skip(1) {
-        if OPTIONAL_VALUE_LETTERS.contains(letter) {
-            return None;
-        }
-        let option: String = format!("-{letter}");
-        if SHORT_VALUE_OPTIONS.contains(&option.as_str()) {
-            return Some(index);
-        }
-    }
-    return None;
-}
-
-/// What:
-///  Splits one short cluster that carries its value inline into the separated form.
-/// Why:
-///   `-amhello` becomes `-a`,
-/// `-m`,
-/// `hello`,
-/// so the value is a token of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// normaliseInlineShort('-amhello') // ['-a', '-m', 'hello']
-/// ```
-fn normalise_inline_short(token: &str) -> Vec<String> {
-    if !token.starts_with('-') || token.starts_with("--") || token.len() <= 2 {
-        return vec![String::from(token)];
-    }
-    let letters: Vec<char> = token.chars().collect();
-    let Some(value_index) = find_value_option_index(letters.as_slice()) else {
-        return vec![String::from(token)];
-    };
-    let mut tokens: Vec<String> = Vec::new();
-    for letter in &letters[1..value_index] {
-        tokens.push(format!("-{letter}"));
-    }
-    tokens.push(format!("-{}", letters[value_index]));
-    let inline: String = letters[value_index + 1..].iter().collect();
-    if !inline.is_empty() {
-        tokens.push(inline);
-    }
-    return tokens;
-}
-
-/// What:
-///  Whether a commit option token takes the next token as its value.
-/// Why:
-///   A value can be spelled like the separator (`-m --`),
-/// and only a token in option position can end the options.
-///  A short cluster takes the next token when its value letter ends it;
-/// `-S` and `-u` take their value attached only;
-///  a long option is matched as Git matches it,
-/// so every unambiguous abbreviation of a value-taking option takes one too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// takesNextToken('-m'); // true
-/// takesNextToken('-qm'); // true
-/// takesNextToken('-mhello'); // false
-/// takesNextToken('--mess'); // true
-/// ```
-pub(crate) fn takes_next_token(token: &str) -> bool {
-    if token.starts_with("--") {
-        return long_option_takes_next_token(token.as_bytes(), COMMIT_TABLE);
-    }
-    if !token.starts_with('-') || token.len() < 2 {
-        return false;
-    }
-    let letters: Vec<char> = token.chars().skip(1).collect();
-    for (index, letter) in letters.iter().enumerate() {
-        if OPTIONAL_VALUE_LETTERS.contains(letter) {
-            return false;
-        }
-        if SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str()) {
-            return index + 1 == letters.len();
-        }
-    }
-    return false;
-}
-
-/// What:
-///  The index of the `--` that ends the options of a commit region,
-/// or nothing when the person typed none.
-/// Why:
-///   Everything after it is a path,
-/// so a wrapper option must never follow it;
-/// a `--` that is the value of an option such as
-///  `-m` is a message and not the separator.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// separatorIndex(['-m', '--', '--', 'a.txt']); // 2
-/// ```
-pub fn separator_index(region: &[String]) -> Option<usize> {
-    let mut index: usize = 0;
-    while index < region.len() {
-        let token: &str = region[index].as_str();
-        if token == PATHSPEC_SEPARATOR {
-            return Some(index);
-        }
-        if takes_next_token(token) {
-            index += 1;
-        }
-        index += 1;
-    }
-    return None;
-}
-
-/// What:
-///  Normalises the post-`commit` argument region,
-/// keeping the pathspec tail verbatim.
-/// Why:
-///   Later transforms recognize separated values only,
-/// and the pathspec tail after `--` must not change.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// normaliseCommitArgs(['-amhello', 'file.ts']); // ['-a', '-m', 'hello', 'file.ts']
-/// ```
-pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
-    let separator: Option<usize> = separator_index(args);
-    let (region, tail): (&[String], &[String]) = match separator {
-        Some(index) => (&args[..index], &args[index..]),
-        None => (args, &[]),
-    };
-    let mut normalised: Vec<String> = Vec::new();
-    let mut value_next: bool = false;
-    for token in region {
-        // The value of an option is the person's text and is never read as a cluster of options.
-        if value_next {
-            normalised.push(token.clone());
-            value_next = false;
-            continue;
-        }
-        normalised.extend(normalise_inline_short(token));
-        value_next = takes_next_token(token);
-    }
-    normalised.extend(tail.iter().cloned());
-    return normalised;
-}
 
 /// What:
 ///  Splits a transformed argument list into the kept global options and the commit region.
@@ -339,6 +194,8 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// the value of an option is the person's text,
 ///  so a message that spells a path,
 /// a path command or a flag never leaves as that token.
+///  A control is removed in every spelling Git accepts,
+/// so an abbreviation such as `--pathspec-fr` cannot hand the real commit a second selection.
 ///  The pathspec removal takes the last path of each pathspec,
 ///  as `lastIndexOf` found it in the incumbent.
 ///
@@ -348,21 +205,27 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// ```
 pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
     let person_values: Vec<usize> = value_positions(args);
+    let option_region_end: Option<usize> = separator_index(args);
     let mut without_file: Vec<String> = Vec::new();
     let mut index: usize = 0;
     while index < args.len() {
         let token: &str = args[index].as_str();
-        // A value is the person's text, never the control it spells.
-        if person_values.contains(&index) {
+        // A value is the person's text, never the control it spells, and a token past the separator is a path.
+        let option_position: bool = match option_region_end {
+            Some(at) => index < at,
+            None => true,
+        };
+        if !option_position || person_values.contains(&index) {
             without_file.push(String::from(token));
             index += 1;
             continue;
         }
-        if token == "--pathspec-from-file" {
-            index += 2;
+        if long_option_names(token.as_bytes(), PATHSPEC_FROM_FILE, COMMIT_TABLE) {
+            // The name after it is the value the preparation already read, so it goes with the option.
+            index += if takes_next_token(token) { 2 } else { 1 };
             continue;
         }
-        if token.starts_with("--pathspec-from-file=") || token == "--pathspec-file-nul" {
+        if long_option_names(token.as_bytes(), PATHSPEC_FILE_NUL, COMMIT_TABLE) {
             index += 1;
             continue;
         }
@@ -457,34 +320,104 @@ fn value_positions(tokens: &[String]) -> Vec<usize> {
 /// `-p`,
 /// `--include`,
 /// `--interactive` and `--patch` already ran against the private index.
+///  A value that spells one of them is the person's text and stays,
+/// so the real commit is never handed an option whose value was removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// privateSelectionCommitArgs({ args, pathspecs });
 /// ```
 pub fn private_selection_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
+    let without_explicit: Vec<String> = private_explicit_commit_args(args, pathspecs);
+    let person_values: Vec<usize> = value_positions(without_explicit.as_slice());
     let mut kept: Vec<String> = Vec::new();
-    for token in private_explicit_commit_args(args, pathspecs) {
-        if !["-i", "-p", "--include", "--interactive", "--patch"].contains(&token.as_str()) {
+    for (position, token) in without_explicit.into_iter().enumerate() {
+        if person_values.contains(&position) {
             kept.push(token);
+            continue;
+        }
+        if names_selection_control(token.as_str()) {
+            continue;
+        }
+        // A cluster carries its selection letter beside the other flags, as `-im` does.
+        match without_selection_letters(token.as_str()) {
+            Some(cluster) => {
+                if cluster != "-" {
+                    kept.push(cluster);
+                }
+            }
+            None => kept.push(token),
         }
     }
     return kept;
 }
 
 /// What:
-///  Whether a letter of a short-option cluster takes an optional value.
-///  `&char` borrows the letter,
-/// as `position` hands it over.
+///  Whether one token names a selection control in any spelling Git accepts.
 /// Why:
-///   `position` takes this function by path where a closure would otherwise stand.
+///   Git reads every unambiguous prefix of a long option (`--patc` for `--patch`),
+/// and a control the real commit runs again asks the person a second time.
+fn names_selection_control(token: &str) -> bool {
+    if SELECTION_CONTROLS.contains(&token) {
+        return true;
+    }
+    for name in SELECTION_OPTION_NAMES {
+        if long_option_names(token.as_bytes(), name, COMMIT_TABLE) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The short cluster without its selection letters,
+/// or nothing when the token is no cluster or carries none.
+/// Why:
+///   `-im` and `-ip` carry `-i` or `-p` beside other flags,
+/// and those already ran against the private index.
+///  A letter with an attached value (`-S<keyid>`) ends the search:
+/// its value is the person's and is kept whole,
+/// so a key that spells `i` or `p` never disappears.
+fn without_selection_letters(token: &str) -> Option<String> {
+    if !token.starts_with('-') || token.starts_with("--") || token.len() < 2 {
+        return None;
+    }
+    let letters: Vec<char> = token.chars().skip(1).collect();
+    let value_start: Option<usize> = letters.iter().position(is_optional_value_letter);
+    let flags: &[char] = match value_start {
+        Some(index) => &letters[..index],
+        None => &letters[..],
+    };
+    if !flags.iter().any(is_selection_letter) {
+        return None;
+    }
+    let mut cluster: String = String::from("-");
+    for letter in flags {
+        if !SELECTION_LETTERS.contains(letter) {
+            cluster.push(*letter);
+        }
+    }
+    if let Some(index) = value_start {
+        for letter in &letters[index..] {
+            cluster.push(*letter);
+        }
+    }
+    return Some(cluster);
+}
+
+/// What:
+///  Whether a letter of a short-option cluster names a selection control.
+///  `&char` borrows the letter,
+/// as `any` hands it over.
+/// Why:
+///   `any` takes this function by path where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isOptionalValueLetter = (letter: string) => OPTIONAL_VALUE_LETTERS.includes(letter);
+/// const isSelectionLetter = (letter: string) => SELECTION_LETTERS.includes(letter);
 /// ```
-fn is_optional_value_letter(letter: &char) -> bool {
-    return OPTIONAL_VALUE_LETTERS.contains(letter);
+fn is_selection_letter(letter: &char) -> bool {
+    return SELECTION_LETTERS.contains(letter);
 }
 
 /// What:
