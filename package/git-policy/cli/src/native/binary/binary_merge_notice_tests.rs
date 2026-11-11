@@ -1,7 +1,8 @@
 //! What:
 //!  The lines a merge prints about a path it kept whole,
 //! and the commands inside them:
-//! the person reads these, and runs what they name.
+//! the person reads these,
+//! and runs what they name.
 //! Why:
 //!  A merge that carries the person's work exits 0,
 //! so the line is the whole account of where their bytes are

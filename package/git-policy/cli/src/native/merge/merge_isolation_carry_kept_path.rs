@@ -34,7 +34,8 @@ use crate::merge_isolation_carry_parts::CapturedPath;
 use crate::merge_isolation_carry_writes::IndexWrite;
 use crate::merge_isolation_changes::Change;
 use crate::path_bytes::path_message_text;
-/// The one owner of a path spelled for a shell, so a command the person copies takes the path as one word.
+/// The one owner of a path spelled for a shell,
+/// so a command the person copies takes the path as one word.
 use crate::shell_quote::shell_quote;
 
 /// The Git mode of a symbolic link.
@@ -156,6 +157,11 @@ pub(crate) fn kept_path(entry: &CapturedPath, change: &Change, why: &'static str
     return Kept { path: entry.path.clone(), why, worktree: holds_of(entry), merge, staged };
 }
 
+/// The object of one index entry.
+fn object_of(entry: &(String, String)) -> &str {
+    return entry.1.as_str();
+}
+
 /// What:
 ///  The object the index holds for a kept path after the carry,
 /// or nothing when it holds no entry.
@@ -173,7 +179,7 @@ pub(crate) fn index_after<'a>(index: &'a IndexWrite, index_is_ours: bool, curren
     return match index {
         IndexWrite::Entry(_, oid) if index_is_ours => Some(oid.as_str()),
         IndexWrite::Remove if index_is_ours => None,
-        _ => current.map(|(_, oid)| oid.as_str()),
+        _ => current.map(object_of),
     };
 }
 

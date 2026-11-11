@@ -152,7 +152,8 @@ fn the_index_layer_is_told_by_the_bytes_a_command_would_write() {
 }
 
 /// What:
-///  A path the merge deletes, whose index holds a version of the person's that differs from the bytes at the path,
+///  A path the merge deletes,
+/// whose index holds a version of the person's that differs from the bytes at the path,
 /// names no `git add`:
 ///  that command would replace the staged version with the bytes at the path.
 /// Why:
@@ -173,7 +174,8 @@ fn a_staged_version_of_the_persons_is_never_told_to_run_git_add() {
 }
 
 /// What:
-///  A path the merge writes, whose index holds a version of the person's,
+///  A path the merge writes,
+/// whose index holds a version of the person's,
 /// names a restore that writes the checkout alone.
 /// Why:
 ///  `--staged` writes the merge's version into the index too,

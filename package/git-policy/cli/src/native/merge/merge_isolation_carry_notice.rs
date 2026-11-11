@@ -76,12 +76,41 @@ impl Report {
     /// ```
     pub(crate) fn a_path_written_again(&mut self, paths: Vec<Vec<u8>>) {
         for path in paths {
-            self.merged.retain(|kept| *kept != path);
-            self.conflicts.retain(|kept| *kept != path);
-            self.kept.retain(|kept| kept.path != path);
+            self.merged = without_path(std::mem::take(&mut self.merged), path.as_slice());
+            self.conflicts = without_path(std::mem::take(&mut self.conflicts), path.as_slice());
+            self.kept = without_kept(std::mem::take(&mut self.kept), path.as_slice());
             self.changed.push(path);
         }
     }
+}
+
+/// What:
+///  The entries of a list that are not this path's,
+/// in the order the list held them.
+/// Why:
+///  The lines of one path are the ones a later write takes back;
+/// a loop with a named function keeps that reading
+///  plain,
+/// where a closure would keep the path it compares against.
+fn without_path(entries: Vec<Vec<u8>>, path: &[u8]) -> Vec<Vec<u8>> {
+    let mut kept: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if entry.as_slice() != path {
+            kept.push(entry);
+        }
+    }
+    return kept;
+}
+
+/// The kept entries of a list that are not this path's.
+fn without_kept(entries: Vec<Kept>, path: &[u8]) -> Vec<Kept> {
+    let mut kept: Vec<Kept> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if entry.path.as_slice() != path {
+            kept.push(entry);
+        }
+    }
+    return kept;
 }
 
 /// What:
