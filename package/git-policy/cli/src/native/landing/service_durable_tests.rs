@@ -345,7 +345,8 @@ fn a_flush_no_background_task_takes_is_never_made_on_the_callers_thread() {
 /// What:
 ///  A landing that published a commit and whose queue no background task takes waits for no flush either.
 /// Why:
-///  The owner's decision for the landing's records is "Force at leaving, else background":
+///  The owner's decision for the landing's records is "Force at leaving,
+/// else background":
 /// the person waits for no forced write,
 ///  and a machine crash loses that attempt as it does with native Git.
 /// A queue made on the landing's thread instead would put the whole

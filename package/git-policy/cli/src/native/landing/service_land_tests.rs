@@ -1938,6 +1938,28 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
     });
 }
 
+/// The flush of the index lock marker,
+/// named as `service_index_placement::sync_file` names it.
+/// It sits on no landing's wait:
+/// the marker names the process that holds the lock and nothing else,
+/// so its flush is queued for the background task whichever landing is running
+/// (`service_durable::defer_file`).
+const LOCK_MARKER: &str = "lock-marker";
+
+/// The syncs of the records a landing wrote,
+/// in order,
+/// without the index lock marker's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const records = (names) => names.filter((name) => name !== 'lock-marker').sort()
+/// ```
+fn records_of(names: &[String]) -> Vec<String> {
+    let mut kept: Vec<String> = names.iter().filter(|name| { return name.as_str() != LOCK_MARKER; }).cloned().collect();
+    kept.sort();
+    return kept;
+}
+
 /// A landing that publishes nothing forces its records before it returns:
 /// a foreign index lock that outlasts the ceiling
 /// withdraws the commit and keeps it on a side ref,
@@ -1945,6 +1967,9 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// on the
 /// wait,
 /// because the command reports what it kept and that promise must survive a power cut.
+/// The index lock marker is no record the landing wrote,
+/// so it is left out of the comparison:
+/// its flush is queued for the background task in every landing.
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1957,11 +1982,12 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
-    let mut forced: Vec<String> = waited.clone();
-    let mut asked: Vec<String> = queued.clone();
-    forced.sort();
-    asked.sort();
-    assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
+    assert!(!waited.contains(&String::from(LOCK_MARKER)), "the marker's flush waits for no landing: {events:?}");
+    assert_eq!(
+        records_of(waited.as_slice()),
+        records_of(queued.as_slice()),
+        "every sync of a record the landing queued was made before it returned: {events:?}"
+    );
     remove(world.root.as_path());
 }
 

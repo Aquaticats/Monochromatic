@@ -24,6 +24,11 @@
 //! one background task makes them in batches (each batch one job of the runtime's blocking pool),
 //!  each sync of a batch overlapped.
 //! A landing that publishes nothing syncs what it wrote before it returns.
+//! A queue no background task takes is nobody's wait either:
+//! the records reach the disk with the operating system's own write-back,
+//!  which a machine crash loses as it loses any write the page cache held,
+//! and a forced write on the commit's thread would be the whole
+//!  device's wait on the person's path.
 //! Git's own object,
 //! reference
 //!  and index writes follow `core.fsync` as they do for native Git:
@@ -208,7 +213,7 @@ fn sender() -> &'static UnboundedSender<Job> {
 /// What:
 ///  Makes the channel to the background task and starts the task on the runtime;
 /// when the runtime has no worker to run it,
-/// the syncs are made where they are asked for.
+/// nothing waits for the syncs and they reach the disk with the operating system's write-back.
 /// Why:
 ///  `sender` runs it once,
 /// the first time a sync is handed to the background.
@@ -219,10 +224,10 @@ fn sender() -> &'static UnboundedSender<Job> {
 /// ```
 fn start_background() -> UnboundedSender<Job> {
     let (sender, jobs) = unbounded_channel::<Job>();
-    // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which makes `settle` force the
-    //  queue where it is asked for.
+    // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which leaves each flush to the
+    //  operating system rather than making it on the thread that asked for it.
     if spawn_on_runtime(background(jobs)).is_none() {
-        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; they are made where they are asked for");
+        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; each flush is left to the operating system's write-back");
     }
     return sender;
 }
@@ -357,9 +362,10 @@ impl Deferral {
             return;
         }
         if published {
-            if let Some(returned) = hand(batch) {
-                // The task is gone, so the queue is made here rather than lost.
-                force(returned);
+            if hand(batch).is_some() {
+                // No task takes the queue, and the decision for a landing that published is "Force at leaving, else background":
+                //  the records reach the disk with the operating system's own write-back rather than on the commit's thread.
+                crate::service_warn!("the runtime has no task for the syncs of a landing that published, so none waits for them here and the records reach the disk with the operating system's own write-back");
             }
         } else {
             force(batch);
@@ -394,7 +400,8 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 ///
 /// # Errors
 ///
-/// The error of duplicating the handle; a queue that the background task no longer takes is synced here.
+/// The error of duplicating the handle;
+/// a queue that the background task no longer takes is left to the operating system's write-back.
 pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
     return defer_file_with(&hand_to_the_background, file, what);
 }
@@ -415,9 +422,10 @@ fn defer_file_with(hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>, file: &F
     let handle: File = file.try_clone()?;
     note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
     crate::service_fault::note(format!("sync-queued:{what}").as_str());
-    if let Some(returned) = hand(vec![Pending { handle, what }]) {
-        // The task is gone, so the flush is made here rather than lost.
-        force(returned);
+    if hand(vec![Pending { handle, what }]).is_some() {
+        // No task takes the flush, so it is the operating system's: the marker names the holder and nothing else, which a power
+        //  cut loses as it loses any write the page cache held, and the step before a landing removes such a marker at once.
+        crate::service_warn!("the runtime has no task for the flush of the {what}, so nothing waits for it here and the write reaches the disk with the operating system's own write-back");
     }
     return Ok(());
 }

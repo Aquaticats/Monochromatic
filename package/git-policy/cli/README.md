@@ -877,15 +877,31 @@ Read-only commands,
      A
    directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
    service did not delete it yet:
-     the next command of that repository wakes the service that reads the record,
-     which is every
-   commit and every add,
-     and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
-   (a mount without `user_subvol_rm_allowed`,
-   for one).
-     Nothing of yours is in it:
-   a worktree is only removed
-   after the wrapper proved it clean and unlocked.
+     while a record for it is still queued,
+     the next command of that repository wakes the service that reads the
+   record,
+     which is every commit and every add.
+     A delete the kernel refuses may pass,
+     so the service tries it again,
+     and it gives up once the attempts a record
+   may cost have run out:
+     the directory then stays,
+     the record is kept in the repository's `failed` work state,
+     and the service says in
+   `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
+   (a worktree a program still has open,
+   or a mount
+   without `user_subvol_rm_allowed`,
+     for two),
+   so the files are yours to remove with `btrfs subvolume delete`.
+     The service deletes one subvolume and nothing else:
+     a directory another
+   command has put at that name,
+   or a directory that is not a subvolume,
+     is left exactly as it is and named in the journal.
+     Nothing of yours is in the removed
+   directory unless you forced the removal:
+   a worktree is only removed after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal

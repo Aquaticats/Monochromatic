@@ -201,6 +201,57 @@ The line the command prints now says that the service deletes the files after it
 and `package/git-policy/cli/README.md` says what a stranded `cli-git-deleting-<id>` directory means
 and which command empties it.
 
+### What the review of the hand-over found, and what it changed
+
+Kimi K3.1 Pro reviewed the branch at `5686c7bb29`
+(`~/temp/agent/kimi-reviews/never-waits-on-btrfs-commits-round-133/review.md`)
+and named four defects in this step and two in the syncs above.
+Each reproduction was run here again at alpha.9,
+and each fix has a control that failed at `ee545033ad`:
+
+- The destroy by id read the id from the **parent's** descriptor,
+  so the call always named the wrong subvolume and every delete fell through to the destroy by name,
+  which deletes whatever stands at the name.
+  A subvolume another command had put there lost its user's file.
+  `delete_subvolume_of` now reads the id the record holds (`item.oid`),
+  opens the directory at the name
+  without following a link or crossing a mount,
+  and asks **that** descriptor for its id:
+  a different id is a failure that leaves the directory as it is and names both ids.
+  The destroy by id runs only when the ids agree,
+  and the destroy by name only after that.
+  The record's id also carries a digest of the directory that held the subvolume
+  (`work_item::id`,
+  `work_item_ids_and_names::parent_digest`),
+  because a subvolume id is unique on one
+  filesystem only and two removals on two filesystems collided on one queue entry.
+- The record is published before the rename,
+  so a live service can claim it in that window,
+  find the hidden path absent,
+  and settle it as done;
+  the rename then left the worktree's files under a name no record named.
+  `hand_over_with` now asks,
+  after the rename,
+  whether a record for the item is still queued or claimed
+  (`a_record_awaits`),
+  and deletes the renamed subvolume itself when none is,
+  so the files still go.
+- A parent path that is not valid UTF-8 was written into the record as `U+FFFD`,
+  a path that names a different directory,
+  and the record then settled as done while the real directory stayed.
+  `record_the_removal` refuses such a path,
+  the hand-over answers why,
+  and the removal destroys the subvolume
+  in place exactly as it did before the hand-over existed.
+- `Verdict::Retry` was settled where a failure the service gave up on goes,
+  and nothing ever retried it.
+  `settle_with_the_words` queues a retryable verdict again,
+  bounded by `tries` and `MAX_TRIES`
+  (`service_work_settling_with_words.rs`),
+  so a call the kernel refuses every time cannot keep a round busy.
+
+The two sync findings are recorded under "What was changed" below.
+
 ## What was changed
 
 `sync_file` for the index lock marker,
@@ -219,6 +270,23 @@ Measured at 2026-11-10T18:26:00-05:00 in the disposable fixture:
 an empty `.git/index.lock` with its modification time set to 2020 was removed by the next wrapped commit,
 which then landed (`[main 2899a92] probe`, exit 0),
 so the file's age is not waited out.
+
+The same rule holds when there is no background task to hand the queue to,
+which a runtime that could not start one leaves behind:
+a rejected hand is a flush nobody makes,
+and the write reaches the disk with the operating system's own write-back,
+so no `sync_all` runs on the thread that asked for it
+(`defer_file_with` and `Deferral::settle_with` in `src/native/landing/service_durable.rs`,
+controls `a_flush_no_background_task_takes_is_never_made_on_the_callers_thread` and
+`a_published_landing_whose_queue_no_task_takes_waits_for_nothing`).
+For the index lock marker the decision above says what a power cut loses there:
+a name that points at no holder.
+For a landing that published,
+a machine crash loses that attempt as it does with native Git,
+and neither the marker nor a landing's record is worth a device's whole wait on the person's path.
+A landing that published nothing still forces its records before it returns,
+as the owner's "Force at leaving,
+else background" says.
 
 ### The numbers, alternating the two binaries on one sandbox
 

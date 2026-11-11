@@ -86,10 +86,12 @@ fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
 /// Why:
 ///  The delete happens after the person's command ended,
 /// so a path that is gone must be a finished item and never an error,
-/// and a path that stands must be deleted by its id.
+/// and a path that stands must be deleted by the id the record holds,
+///  which is the one the removal read from the held directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// const id = subvolumeId(held); handOver(id); const item = removalItem(common, parent, id);
 /// assert(deleteSubvolumeOf(item) === Done); assert(!exists(deleting)); assert(deleteSubvolumeOf(item) === Done);
 /// ```
 #[test]
@@ -100,10 +102,12 @@ fn the_service_deletes_the_subvolume_a_record_names_and_a_gone_path_is_done() {
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 11, made.as_path(), &|_: &Path| { return Ok(()); }).expect("handed over");
-    let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 11);
+    let child: File = File::open(made.as_path()).expect("child handle");
+    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &|_: &Path| { return Ok(()); }).expect("handed over");
+    let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the service's own call deletes it");
-    assert!(!parent_path.join(deleting_name(11)).exists(), "the directory is gone");
+    assert!(!parent_path.join(deleting_name(id)).exists(), "the directory is gone");
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "a path that is gone is nothing to delete");
     remove(root.as_path());
 }
