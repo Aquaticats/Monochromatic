@@ -106,9 +106,9 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
         ClientFailure::SocketPathTooLong { .. } => 28,
         ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::NothingAnswered { .. } => 30,
-        ClientFailure::Interrupted { .. } => 31,
-        ClientFailure::InterruptedNotKnown { .. } => 32,
+        ClientFailure::NothingAnswered { .. } => 32,
+        ClientFailure::Interrupted { .. } => 30,
+        ClientFailure::InterruptedNotKnown { .. } => 31,
     };
 }
 
@@ -281,6 +281,7 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
                 | ClientFailure::ServiceSilent
                 | ClientFailure::ServiceSilentAfterPreparing { .. }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
+                | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)
         );
         assert_eq!(!claims, may_have_landed, "{failure:?}");
