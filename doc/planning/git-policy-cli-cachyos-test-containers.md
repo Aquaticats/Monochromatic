@@ -373,7 +373,7 @@ the dependency stand-ins and the vendored sources.
   Startup 43 s.
   Image build 90 s,
   every layer cached and 0 s of compile.
-  Test run 1,105 s,
+  Test run 1,104 s,
   nextest 1,102.1 s.
   No Clippy because the suite failed.
   Exit 1.
@@ -443,7 +443,7 @@ Three facts about that list decide the rest of this section.
 - The test run is 70 to 91 per cent of a gate,
   and it grew with the suite:
   the gate of 2026-11-03 ran about 4,000 tests in 270 to 520 s,
-  and the gate of 2026-11-10 runs 7,192 in 890 to 1,105 s.
+  and the gate of 2026-11-10 runs 7,192 in 883 to 1,104 s.
 - Clippy is a flat 195 to 261 s and it stood after the suite,
   so it added its whole compile to the gate's wall time.
   The range is the five green gates of 2026-11-09 and 2026-11-10:
@@ -498,7 +498,7 @@ which is 175 s of the gate's wall time at two threads and 88 s at four.
   Under a load average of 80 to 143 on an eight-CPU host,
   that share is what the run may use however busy the rest of the host is:
   the run neither starved nor grew,
-  which is why gates of the same size measured 883 s to 1,105 s in the test run itself.
+  which is why gates of the same size measured 883 s to 1,104 s in the test run itself.
 - The btrfs host controls a release also waits for run on the bare host,
   under no container bound at all.
   The package's own record of that run
