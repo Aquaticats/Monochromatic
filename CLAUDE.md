@@ -659,7 +659,7 @@ BRQ:
 DQB:
  Before briefing work on a component,
  grep `doc/decision/` for its records
- and quote every owner decision and amendment that bears on the task,
+ and state every decision and amendment that bears on the task as the project's own,
  with path and lines.
 
 FBN:

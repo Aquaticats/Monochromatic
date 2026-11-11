@@ -152,6 +152,9 @@ What changed:
   So rule `BRQ` now says it of every brief and note, whichever agent it goes to:
   a requirement is stated as the project's own, with its record's path, implying no human owner.
   That covers Claude Code native subagents and reviewers of other vendors as well as Pi.
+  The owner then: "You may change DQB."
+  Rule `DQB` told a brief to "quote every owner decision and amendment";
+  it now says to state every decision and amendment that bears on the task as the project's own, with path and lines.
 - The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
   They may no longer be edited where they are, so their output is reworded as data before a run starts,
   until the brief writers live in the workspace package.
@@ -221,9 +224,9 @@ so round 230 (`feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-g
 round 212's agent (`feat/pi-shared-subagent-driver-takes-the-remaining-scratch-scripts`) keeps the rest:
 a batch as its own unit, the after-run steps of a launcherless run, the finished-worktree remover's in-use check.
 Until both are on `main` the existing scratch scripts are still run, unedited, to start agents.
-Round 230 finished and is on `main` since about 18:55 (merge of `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`):
+Round 230 finished and is on `main` since 18:49:32 (merge `bd66513014` of `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`):
 the package's gate holds today's pool table, the closed-pool rule for resumes and the free-space floor.
-Run one after the other at 18:57, `mise run //package/pi-shared/subagent-driver:start-pi-run-when-a-pool-has-room -- --counts-only`
+Run one after the other at about 18:50, `mise run //package/pi-shared/subagent-driver:start-pi-run-when-a-pool-has-room -- --counts-only`
 and the scratch gate printed the same line
 (`qwen-plan-deepseek 2/18, neuralwatt 3/0, neuralwatt-flex 11/20, opencode-go 0/0, neuralwatt-kimi-flex 20/20, qwen-token-plan 0/4; 336 GiB free on /var/mnt/encrypted`).
 So new batches start through the package's `start-pi-runs-from-a-batch-list`, in a `systemd-run --user` unit named on the command line,
@@ -236,7 +239,7 @@ The coordinator's own steps change at once: an alpha gets no `native:clippy` run
 In the coded pipeline an alpha today still waits for the crate's `dispatchGate` (the btrfs controls, 3286 s when measured),
 a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an alpha never goes to crates.io;
 round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
-It finished and is on `main` since about 19:00:
+It finished and is on `main` since 18:50:36 (merge `ca42d44590`):
 an alpha skips the dispatch gate and the `cargo check` (166.4 s of the 230 s release job of the recorded alpha.10 run `43019306127`),
 refreshes the crate's lockfile on purpose (the check used to do that as a side effect, and two `--locked` calls need it),
 and prints one line for each step it leaves out;
