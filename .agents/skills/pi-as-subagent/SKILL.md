@@ -119,6 +119,12 @@ so the 429 is what tells;
 Pi ends the run on it instead of retrying.
 The launcher's standard pool holds 6 runs until the owner turns auto-renew back on,
 which is the owner's billing decision.
+The same night 20 of 28 Kimi reviews on Kimi flex ended on
+"You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 7 in flight at once).
+Flex requests have a separate per-account concurrency limit from standard requests.",
+so the Kimi flex pool holds 7,
+not the 22 of the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something.";
+the DeepSeek flex pool is set to 7 on the assumption that the same per-model flex limit applies.
 Restart a run that ended this way under its own name;
 its worktree keeps the work.
 Two launcher defects showed that night,
