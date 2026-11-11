@@ -120,6 +120,27 @@ fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
     remove(root.as_path());
 }
 
+/// A second registration that ends in the operand, ignoring ASCII case, is another worktree to Git
+/// even when it names the same directory through a symbolic link:
+/// Git counts registrations,
+/// not directories,
+/// so a name it finds ambiguous is left to Git and never removes the directory.
+#[test]
+fn a_second_registration_naming_the_same_directory_is_refused() {
+    let root: PathBuf = fixture("registry-alias-case");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    // The second worktree moves and a link is left at its old name, so both registrations name the topic directory.
+    std::fs::rename(root.join("TOPIC"), root.join("upper-kept")).expect("move the second worktree");
+    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC")).expect("leave a link at the old name");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
+    let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
+    let refused: String = registration_of(common.as_path(), topic.as_path(), OsStr::new("topic")).expect_err("Git's suffix match finds two registrations for the name");
+    assert!(refused.contains("TOPIC") && refused.contains(topic.to_str().expect("UTF-8")), "{refused}");
+    remove(root.as_path());
+}
+
 /// A name that Git would match to a different registered worktree is refused with both paths named;
 /// a name that matches
 ///  only the target is accepted.
