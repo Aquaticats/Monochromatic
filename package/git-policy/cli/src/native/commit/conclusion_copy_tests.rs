@@ -58,9 +58,12 @@ fn present_entries_are_copied_and_absent_ones_skipped() {
 ///  the service copies both into the batch's journal before the branch moves
 ///  (`conclusion_state_copy.rs`),
 ///  so nothing recovers them from this directory.
-///  A copy a power cut never gave back keeps the worktree's own entry instead of removing it: no content is lost.
-///  Measured on this host: eight client fsyncs of these throwaway files,
-///  2 to 53 s over native Git in ten rounds, five of ten over native plus five seconds
+///  A copy a power cut never gave back keeps the worktree's own entry instead of removing it:
+/// no content is lost.
+///  Measured on this host:
+/// eight client fsyncs of these throwaway files,
+///  2 to 53 s over native Git in ten rounds,
+/// five of ten over native plus five seconds
 ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
 ///  "A conclusion commit's copies wait for no flush").
 #[test]

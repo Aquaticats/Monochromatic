@@ -13,7 +13,8 @@
 //!  4,775 ms in one,
 //!  and it was the largest single cause in the records of that window
 //!  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-//!  "The causes, ranked by the time they cost").
+//!  "The causes,
+//! ranked by the time they cost").
 //!  So the commit makes its own tree and starts nothing else,
 //!  and the service collects when it begins a landing:
 //!  the work is one thread of its own,

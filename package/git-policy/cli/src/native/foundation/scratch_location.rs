@@ -7,7 +7,8 @@
 //!  Both are checked as private (a real directory of this user,
 //! mode `0700`) and swept of entries
 //!       older than a day each time they are prepared,
-//!  except for a commit's own tree: a commit makes its tree and collects nothing,
+//!  except for a commit's own tree:
+//! a commit makes its tree and collects nothing,
 //! and the resident service collects beside its landing loop
 //!  (`service_repository_scratch_sweep.rs`).
 //! Why:
@@ -273,7 +274,8 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 ///  and never this command's:
 ///  the listing and the question to the file system per entry cost a commit 13,482 ms of 48 on 2026-11-11
 ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-///  "The causes, ranked by the time they cost").
+///  "The causes,
+/// ranked by the time they cost").
 ///  A repository whose scratch directory cannot be made private still commits,
 ///  into the Git directory,
 ///  and says so in the debug log:
@@ -392,7 +394,8 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
 ///  they were 13,482 ms of the 48 wrapped commits of 2026-11-11T12:33:40Z to 13:15:27Z,
 ///  4,775 ms in one
 ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-///  "The causes, ranked by the time they cost").
+///  "The causes,
+/// ranked by the time they cost").
 ///  The resident service collects beside its landing loop
 ///  (`service_repository_scratch_sweep.rs`),
 ///  so nothing a command killed at any instruction left is lost,
@@ -421,7 +424,8 @@ pub fn prepare_repository_scratch_for_a_commit(common_dir: &Path) -> std::io::Re
 /// Why:
 ///   A process killed between making a scratch file and removing it leaves the file behind,
 ///  and nothing else would ever collect it.
-///  The work is housekeeping no command reads, so it is a job of its own that a command may run
+///  The work is housekeeping no command reads,
+/// so it is a job of its own that a command may run
 ///  off its own path
 ///  (`service_repository_scratch_sweep.rs`).
 ///  A directory that is not there collects nothing and is no failure.

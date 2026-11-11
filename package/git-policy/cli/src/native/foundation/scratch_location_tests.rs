@@ -255,12 +255,19 @@ fn sweeping_a_missing_directory_removes_nothing() {
 /// What:
 ///  A commit's own scratch tree is made without collecting the repository's stale entries.
 /// Why:
-///   A commit never reads the answer: it makes its tree and goes, so a listing, one question to the file system per
-///  entry and a removal are free work on its path, and on a volume whose calls stall they were 13,482 ms of the 48
+///   A commit never reads the answer:
+/// it makes its tree and goes,
+/// so a listing,
+/// one question to the file system per
+///  entry and a removal are free work on its path,
+/// and on a volume whose calls stall they were 13,482 ms of the 48
 ///  commits of 2026-11-11T12:33:40Z to 13:15:27Z and 4,775 ms in one
-///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`, "The causes, ranked by the time they cost").
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "The causes,
+/// ranked by the time they cost").
 ///  The resident service collects beside its landing loop instead
-///  (`service_repository_scratch_sweep.rs`), so nothing a killed command left stays.
+///  (`service_repository_scratch_sweep.rs`),
+/// so nothing a killed command left stays.
 #[test]
 fn a_commits_scratch_tree_collects_nothing_on_the_commits_own_path() {
     let root: PathBuf = fixture("scratch-commit-without-a-sweep");

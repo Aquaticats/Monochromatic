@@ -20,7 +20,8 @@ use crate::conclusion_cleanup::{
     is_store_held, resolve_pseudoref, store_names_conclusions,
 };
 /// Private file writes and directory creation.
-///  A conclusion copy is written without a flush: nothing recovers it from this directory.
+///  A conclusion copy is written without a flush:
+/// nothing recovers it from this directory.
 use crate::private_storage::{create_private_directory, write_private_file, write_private_file_unsynced};
 /// Optional reads that treat a missing entry as absent.
 use crate::recovery_files::{path_present, read_optional};
