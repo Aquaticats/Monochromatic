@@ -181,7 +181,13 @@ fn held_noun(holds: Holds) -> &'static str {
 /// const insteadWords = (path, holds, indexed) => `${indexed ? `git rm --force -- ${path}` : `rm -- ${path}`} takes the merge's deletion, and git add -- ${path} keeps your ${heldNoun(holds)} in the index instead`;
 /// ```
 fn instead_words(path: &str, holds: Holds, in_the_index: bool) -> String {
-    let take: String = if in_the_index { format!("`git rm --force -- {path}`") } else { format!("`rm -- {path}`") };
+    // The wrapper's own worktree policy guards a forced `git rm` in a main worktree, so the command names the flag that
+    //  policy asks for; `rm` is not Git and takes no flag.
+    let take: String = if in_the_index {
+        format!("`git rm --no-enforce-worktree --force -- {path}`")
+    } else {
+        format!("`rm -- {path}`")
+    };
     let noun: &str = held_noun(holds);
     return format!("{take} takes the merge's deletion, and `git add -- {path}` keeps your {noun} in the index instead");
 }
@@ -213,14 +219,14 @@ pub(crate) fn kept_line(reference: &str, kept: &Kept) -> String {
         //  checkout and only the merge commit holds a version of it.
         (Holds::Nothing, MergeHolds::Version) => format!(
             "{named} keeps your own deletion: {why}. The merge is made with nothing at {path}, and the merge's version of {path} \
-             is in the merge commit, not in the checkout; `git restore --source=HEAD --staged --worktree -- {path}` puts the \
-             merge's version in the checkout and the index."
+             is in the merge commit, not in the checkout; `git restore --no-enforce-worktree --source=HEAD --staged --worktree \
+             -- {path}` puts the merge's version in the checkout and the index."
         ),
         // Both sides hold a path the merge could not merge as text: the person's side stands whole and the merge's
         //  version waits in the commit the merge made.
         (Holds::File | Holds::Link, MergeHolds::Version) => format!(
             "{named} {}, because {why}. The merge's version of {path} is in the merge commit, not in the checkout; \
-             `git restore --source=HEAD -- {path}` puts it in the checkout when you have read yours.",
+             `git restore --no-enforce-worktree --source=HEAD -- {path}` puts it in the checkout when you have read yours.",
             stands_words(kept.worktree)
         ),
         // The merge deletes the path and the person's side stands: their bytes are the only copy of it, and the merge's

@@ -191,6 +191,11 @@ pub mod merge_isolation_carry_notice;
 /// and the line that says both and names the command that reaches the merge's version.
 pub mod merge_isolation_carry_kept_path;
 
+/// A directory standing where the merge puts a file,
+/// which no layer of the carry can hold,
+/// and the sentence that stops the merge before anything is written.
+pub mod merge_isolation_a_directory_the_merge_replaces;
+
 /// Putting one planned worktree write in place,
 /// or leaving a path alone because what stands there is not the entry that was judged.
 pub mod merge_isolation_carry_place;

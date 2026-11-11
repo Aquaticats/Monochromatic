@@ -216,7 +216,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
             error: RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
              their old content, the merge's nor the newer commit's: {}. Nothing was changed and the record {} was kept. \
-             Save your edits to them elsewhere, restore them with `git restore -- <path>`, then run any git command again.",
+             Save your edits to them elsewhere, restore them with `git restore --no-enforce-worktree -- <path>`, then run any git command again.",
             root.display(),
             foreign.join(", "),
             record.display()
