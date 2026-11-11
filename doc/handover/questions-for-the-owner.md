@@ -1803,6 +1803,48 @@ Measured:
 and 8,086 ms of a wrapped commit at the median before against 804 with the host quieter.
 Say "undo" to publish without the flush instead.
 
+### A push URL changed from a worktree (asked 2026-11-10)
+
+Agent `stuck-step-notice-review-findings` made a worktree of this repository with `git worktree add` outside the repository folder,
+then ran `git remote set-url --push origin DISABLED` in it as if it were a separate clone.
+Every worktree shares one `.git/config`,
+so every push of `main` failed from the landing of `e5e689c8a5` on,
+until the coordinator removed that one entry.
+Asked whether the wrapper should guard against this,
+the owner chose:
+"Refuse in worktrees (Recommended)".
+In a linked worktree the wrapper refuses commands that change the repository's shared remote settings
+(`git remote set-url`, `add`, `remove` and `rename`, and `git config` writes to `remote.*`),
+says the setting is shared by every worktree,
+and suggests a real clone;
+the main checkout is unaffected.
+Asked whether to tighten `AGENTS.md` rule `APQ`,
+the owner chose:
+"Use the proposed text (Recommended)",
+so `APQ` now says "never in any `git worktree add` folder of this repo".
+
+### Two tokio choices made by an agent (coordinator's pick, veto open)
+
+Agent `tokio-next-step-on-the-runtime`,
+building the owner's "Full on tokio. Multi-thread.",
+made two choices on branch `refactor/git-policy-cli-tokio-next-step-on-the-runtime`
+and recorded both in `doc/planning/git-policy-cli-full-tokio.md`:
+
+- At the service loop's three state steps,
+  a job the system refuses a thread for no longer runs in turn on the awaiting task;
+  the loop keeps its state and lets the pool or the next wake write it,
+  so no storage call ever runs on a runtime worker.
+- The stronger fix for a job that starts after its caller gave up
+  (the job hands its value back through a store the caller awaits)
+  was not built,
+  because it changes the helper every command's blocking work goes through;
+  the plan records it as the alternative.
+
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+the coordinator keeps both as built,
+and the next tokio agent builds on them.
+Say "undo" for either one.
+
 ## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
 
 ### The btrfs host run before a release

@@ -260,10 +260,13 @@ Read-only commands,
    and lets Git's own fast-forward update move the checkout to it.
   Every staged entry,
   unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
-  A merge that changes a path someone else has staged or modified,
-  or that conflicts,
-   is refused with the paths named and the ways forward,
-  and changes nothing.
+  A merge that changes a path someone else has staged or modified is completed,
+  and that work is carried across it (see "Carrying the person's own work").
+  A merge that conflicts over that work is refused,
+  with the conflicting paths named and the ways forward,
+  only when no resolution settles every one of them;
+  over a clean checkout a conflict is native Git's,
+  which stops and leaves its markers in the worktree.
   Shapes the wrapper cannot make exact (`--squash`,
   `--no-commit`,
   `-s`,
@@ -296,6 +299,15 @@ Read-only commands,
   after your global options and before the subcommand,
   so no `-c` of yours brings a
    hook back.
+  One kind of start goes without them:
+  a `git config` that only reports or changes configuration,
+  because it must report what the repository configures,
+  and the wrapper reads the repository's `core.hooksPath` that way for the commit warning and for `doctor`
+   (`SPEC.md`,
+  "External hooks").
+  `git config --edit` starts an editor,
+  and the Git that editor starts inherits the switches,
+  so a Git edited in runs with hooks off too.
   The wrapper injects no hook of its own,
   so `pre-push` is switched off like every other event.
   A script that starts `/usr/bin/git` directly,
@@ -375,6 +387,25 @@ Read-only commands,
   It covers a typed `git push` (including the merge push of a lost race),
   the auto-push after a commit and its
    reconcile pushes.
+  The typed push's upload is bounded like the auto-push's:
+  a program that shows no sign of work for the push's stall window
+   (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+  30 seconds by default) is stopped,
+  everything it started is ended,
+  and the push
+   says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
+  a program whose connection to the server is open is waited for,
+  as a push is.
+  The plan's own Git questions are bounded the same
+   way,
+  so a Git that never answers is stopped and named.
+  A push whose process has no controlling terminal uploads with `GIT_ASKPASS` set to the empty string and
+   `GIT_TERMINAL_PROMPT=0`,
+  so a login it does not have fails at once instead of opening a desktop password window for nobody
+   to answer,
+  and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
+   login").
+  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -590,7 +621,7 @@ Read-only commands,
   one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next;
   when the add
-   succeeds without being a snapshot,
+   succeeds without being a snapshot because of a cause the person can change,
   one line on standard error (unless `--quiet`) and one journal entry say why,
   in plain
    words,
@@ -670,14 +701,7 @@ Read-only commands,
      a worktree-specific configuration,
      a submodule,
      `.gitattributes`
-   files that differ between the source and the new `HEAD`,
-     and `--force`,
-     `--no-checkout`,
-     `-B`,
-     `--orphan`,
-     `--track`,
-   any `-c` option,
-     and `--no-worktree-copy`;
+   files that differ between the source and the new `HEAD`;
      rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git monochromatic-git-policy-cli migrate-to-subvolume` or `git monochromatic-git-policy-cli convert-worktree-to-subvolume` makes them
    subvolumes).
@@ -770,6 +794,10 @@ Read-only commands,
    command:
      only the cheap checks (no followed links,
      identities compared on opening) guard against it.
+  Unless `--quiet` is given the snapshot also prints one line of its own saying the worktree was made as a snapshot of the
+   main checkout and that nested worktrees,
+     caches,
+     run records and the stage containers of other commands were left out.
   The line reads like `monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because the main checkout has
    uncommitted changes in 2 paths (for example notes.md). Commit or stash them, and the next add is a snapshot that
    takes seconds.` It tells uncommitted changes,
@@ -783,7 +811,20 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
-  Every worktree the wrapper creates on btrfs is a subvolume,
+  The ladder does not read `--force`,
+     `--no-checkout`,
+     `-B`,
+     `--orphan`,
+     `--track`,
+   any `-c` option,
+     or `--no-worktree-copy`:
+     Git makes such a worktree alone,
+   as an ordinary directory,
+     and `--no-worktree-copy` skips the ignored-state copy with it.
+     An add run from such a worktree says it is not a subvolume and names
+   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
+  Every worktree the ladder makes on btrfs is a subvolume,
+     whatever rung served it,
      so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung,
      because every real Git start of the wrapper switches hooks off.
@@ -797,13 +838,38 @@ Read-only commands,
    another repository's worktree and a name that Git resolves differently go to Git,
      which words its answer.
   A subvolume destroy cannot be undone,
-     and the command prints a line that says so each time it destroys one:
+     and the command prints a line that says so each time it removes one:
      a write,
      a
    lock or a rename that another process makes in the moments between the last check and the destroy is destroyed with the
    worktree,
      as it is when Git deletes the files one by one.
      Do not run it on a worktree something else is still using.
+  What the command no longer does itself is delete the files:
+     it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
+   beside the path you typed,
+     writes a record of it,
+     tells the worktree's commit service,
+     and returns;
+     that service deletes the
+   subvolume in its own time,
+   normally within a second,
+     so a busy volume's btrfs transaction or cleaner does not hold your
+   command.
+     The path you named is gone the moment the command returns;
+     the files are gone when the service has run.
+     A
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
+   service did not delete it yet:
+     the next command of that repository wakes the service that reads the record,
+     which is every
+   commit and every add,
+     and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
+   (a mount without `user_subvol_rm_allowed`,
+   for one).
+     Nothing of yours is in it:
+   a worktree is only removed
+   after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
@@ -851,6 +917,105 @@ Read-only commands,
    `SIGHUP` and `SIGQUIT` while it waits for Git.
   A signal sent by another process is relayed to the Git child,
    and the wrapper then ends without leaving state of its own behind.
+
+## What a worktree snapshot holds, and when the wrapper removes one
+
+A `git worktree add` on btrfs is served by a snapshot of the worktree the command runs from,
+ usually the main checkout.
+A snapshot shares every data block with the tree it was taken from,
+ so it costs almost nothing at the moment it is made.
+What that means over time surprises people,
+ so this section says it plainly.
+
+**A snapshot keeps the files the source had at the moment of the add.**
+The new worktree sees its own copy of them,
+ but the blocks it shares are the ones the source held then.
+When the source later rewrites a file,
+ the new bytes go to new blocks and the old blocks stay,
+ kept alive by the snapshot,
+ until that worktree is removed.
+This holds for every file the add copied,
+ ignored ones included:
+ `node_modules/`,
+ each `package/*/*/target/`,
+ `dist/`,
+ and the repository's `.cache/`.
+So a finished worktree that nobody removes pins one generation of the source's files.
+The cost is invisible in any single worktree,
+ because no snapshot owns those blocks;
+ it shows up only as space that no file seems to use.
+
+**The wrapper removes a worktree by itself when the branch it holds lands.**
+When a `git merge` run through this wrapper lands a branch on the branch the merge ran in,
+ every linked worktree whose checked-out branch that merge brought in is removed,
+ provided all of these hold:
+
+- this program recorded that it made that worktree,
+   which it does when its own `git worktree add` succeeds;
+- the worktree is not the one the merge runs in,
+   and it is not locked;
+- no merge,
+   rebase,
+   cherry-pick or revert is in progress in it;
+- no process is working in it or in a folder below it;
+- Git would remove that worktree without `--force`:
+   no tracked file is modified or staged there and no untracked file exists.
+
+On btrfs the removal destroys the worktree's subvolume in one call,
+ which is what gives the shared blocks back;
+ elsewhere,
+ or when the mount does not allow that call,
+ real `git worktree remove` runs instead.
+Either way,
+ **the branch is kept**,
+ and so is every commit on it;
+ only the checked-out copy goes.
+
+**What goes with the worktree.**
+The files Git ignores in it go too,
+ exactly as they do when a person runs `git worktree remove`:
+ a `node_modules/` and a `target/` are rebuilt by the next task,
+ and anything else ignored that you put there yourself is gone.
+That is the whole reason a worktree is removed only when this program made it:
+ a worktree you created by hand is never removed by itself,
+ because this program cannot know which ignored files in it are yours.
+A worktree this program cannot prove it made is named instead,
+ once per merge that lands its branch,
+ with the `git worktree remove` line that removes it.
+
+**What a worktree left behind says.**
+Every merge that lands a branch names each worktree it kept,
+ or could not prove it made,
+ giving the path,
+ the branch,
+ and the reason nothing was removed.
+Nothing is removed in silence,
+ and nothing is removed while a person is working in it.
+
+**Seeing what the snapshots hold.**
+The commands that answer this on this repository's filesystem,
+ each read-only:
+
+```sh
+# every linked worktree Git knows, with its branch
+git worktree list
+
+# the subvolumes under the worktrees folder, which is what a snapshot is
+btrfs subvolume list --sort=path .claude/worktrees
+
+# space per worktree: the total each one sees, and what only it holds
+btrfs filesystem du --summarize .claude/worktrees/<name>
+
+# what the whole set holds, and what the filesystem has left
+btrfs filesystem du --summarize --human-readable .claude/worktrees
+df --human-readable .
+```
+
+A worktree whose exclusive figure is small and whose total is large is one of many snapshots
+ sharing the source's blocks:
+ removing it alone frees little,
+ and removing all of them frees the generations they pinned.
+That is why the wrapper now removes them when their branches land.
 
 ## Other processes changing files
 
@@ -1145,6 +1310,13 @@ and names an instance that maps to nothing without touching it.
 A stopped instance's note and socket file are removed,
 because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
+Its journal goes with them when it holds nothing else:
+the records of the batches that landed and the remains of a write that was killed
+are the memory of a service that will never run again,
+while a batch that did not land,
+a landing that was in flight,
+and a file this release does not know keep the whole journal,
+and the command names the file it kept it for.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
 It starts nothing,
@@ -1157,7 +1329,8 @@ when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
-removes the note and the socket file,
+removes the note,
+the socket file and the journal when the journal holds nothing else,
 and ends with status 0.
 Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,
@@ -1390,7 +1563,6 @@ when:
 is a mount point,
 is on another device than its parent
  or is a symbolic link;
- it already is a subvolume with no migration recorded;
  the parent directory has fewer free bytes than the metadata of the checkout's entries needs
  (2048 bytes per entry:
 one kibibyte measured per copied entry on btrfs,
@@ -1412,6 +1584,10 @@ and the refusal names the count and both byte figures);
 `packed-refs.lock` or
  `shallow.lock` in `.git` or in a linked worktree's administrative directory);
  the commit service has unfinished work in `.git/monochromatic-git-policy-cli/work/pending` or `claimed`.
+A checkout that already is a subvolume with no migration recorded is no refusal:
+the command says there is nothing to do,
+exits 0,
+and names `--remove-old` when the migration's original tree is still beside it.
 Exit status 0 means done,
 already done or previewed;
 1 means a refusal;
@@ -1815,7 +1991,10 @@ The rule is:
   and `git clean -X` while any ignored file does.
   A `git clean -fd`,
   which keeps the ignored files,
-  is unaffected.
+  is not rejected for an ignored file,
+  though the rules above still reject it in the main worktree and in a linked worktree that holds
+  uncommitted changes or untracked files,
+  so its rejection names `git clean --no-enforce-worktree -fd`.
   `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
   A `git clean -X` that names its own exclusions (`-e`,
   `--exclude`) is measured by Git's own dry run of that clean,
@@ -1853,7 +2032,10 @@ The rule is:
   so they are rejected in a linked worktree while the repository holds an entry,
   whatever that worktree's own status says.
   `git stash list` and `git stash show` read the stash,
-  and `git stash branch <branch>` moves an entry into its own branch and keeps the work.
+  and `git stash branch <branch>` moves an entry into its own branch and keeps the work,
+  which runs in a clean linked worktree and is rejected in the main worktree and in a linked
+  worktree that holds uncommitted changes,
+  because it is a stash form that changes state.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -1861,7 +2043,12 @@ The rule is:
   else `~/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`,
   else `XDG_DATA_HOME/mise`,
    else `~/.local/share/mise`),
-  where mise keeps its plugin clones and updates them with a forced checkout.
+  where mise keeps its plugin clones and updates them with a forced checkout,
+  and Cargo's build-script output directory (`OUT_DIR`,
+  which Cargo sets for every build script and passes on to what it starts),
+  where a crate that vendors another project clones it and runs Git in that clone,
+  as `libghostty-vt-sys` did with Ghostty.
+  An empty value of any of these variables counts as unset.
   The exemption is chosen by the environment of the command itself,
   so the wrapper says on standard error which variable exempted the repository and which directory it named,
   because a variable that happens to name a repository turns the guard off for it.
@@ -1869,6 +2056,7 @@ The rule is:
 The guard reads the command Git will run,
 not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
+up to 16 expansions,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
 `git config --null --list` decides which value Git keeps when both spellings of one alias are set,
@@ -1877,10 +2065,33 @@ and the value is split on space,
 TAB,
 LF and CR only,
 keeping the empty last word a trailing whitespace character leaves.
+Two ordinary aliases are left to Git as you typed them,
+because the expansion the wrapper read is not the command that runs:
+one whose value moves the directory or sets an environment variable,
+which Git refuses and runs nothing for,
+and one whose name an installed `git-<name>` program carries,
+which Git runs before it looks any alias up.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
+One plain form of it is read,
+only so the guard can decide:
+a value written `!git <words>` whose bytes hold no quote,
+backslash,
+`$`,
+backtick,
+glob,
+brace or separator,
+and whose words name no global option of their own.
+Git appends your own words to that value,
+so `-c 'alias.wipe=!git' wipe reset --hard` is refused where `git reset --hard` is,
+and so is `-c 'alias.wipe=!git reset --hard' wipe`.
+Every other shell alias runs as Git runs it,
+with no guard:
+`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
+An alias the guard reads is still forwarded as you wrote it,
+because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it.
 
 Two commands are never rejected and always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,
@@ -2179,31 +2390,41 @@ when the index differs from `HEAD`,
 The wrapper completes that merge instead,
 when all of these hold:
 
-- the command is `git merge` with one commit-ish and only the options `-m`,
+- the command is `git merge` with one commit-ish and only the options the wrapper reads exactly,
+  each in the full spelling Git documents or its short one,
+  never an abbreviation:
+  `-m`/`--message` (a value after it,
+  or attached to it),
   `--no-edit`,
   `--ff`,
   `--no-ff`,
-   `-q`,
-  `-v`,
-  `--stat`,
-  `--summary` (Git's synonym for it),
-  `--no-stat`,
-  `--no-summary`,
-  `-n`,
+  `-q`/`--quiet`,
+  `-S`/`--gpg-sign` (with or without a key),
+  `--no-gpg-sign`,
+  `--stat`/`--summary` (Git's synonym for it),
+  `--no-stat`/`--no-summary`/`-n`,
   `--log`,
   `--no-log`,
-  `-S`,
-  `--gpg-sign`,
-  `--no-gpg-sign`,
-   `--no-verify`,
-  `--allow-unrelated-histories` and `--no-progress` (full spellings only);
+  `--allow-unrelated-histories`,
+  and the output-only options that leave the merge commit exactly as it would be without them,
+  which the isolated merge therefore does not carry:
+   `-v`/`--verbose`,
+  `--no-verbose`,
+  `--progress`,
+  `--no-progress`,
+  `--verify`,
+  `--no-verify`,
+  `--no-signoff`,
+  `--no-autostash` and `--no-verify-signatures`
+  (`is_ignorable` in `src/native/merge/merge_options.rs`;
+  `--log` or `--no-log` together with `-m` is native Git's);
 - `HEAD` is not already ahead of or equal to the merged commit
    (native Git fast-forwards and answers "Already up to date" by itself);
 - no merge,
   rebase,
   cherry-pick or revert is in progress,
-  and the settings `merge.autostash`,
-   `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
+  neither `merge.autostash` nor `merge.verifySignatures` is true,
+  and no `branch.<name>.mergeOptions` is set;
 - the merge would not open an editor,
   unless the checkout holds the person's own work in the paths the merge changes:
   that merge is completed with the editor (see "The editor a carried merge opens").
@@ -2224,8 +2445,26 @@ That is Git's two-way update:
 The merge commit skips `pre-merge-commit`,
 `prepare-commit-msg` and `commit-msg`,
  like the merge the auto-push makes from objects;
- `post-merge` runs once.
+no hook runs around it at all,
+`post-merge` included,
+for the reason "Hooks" gives:
+every Git the wrapper starts runs with `core.hooksPath` at a directory that cannot exist.
 The branch reflog reads `merge <branch>: Fast-forward`.
+
+A merge that lands a branch also removes the worktrees that hold it.
+After the branch moved,
+ every linked worktree whose checked-out branch this merge brought in is removed by itself when
+ it is recorded as one this program made,
+ it is not the worktree the merge runs in,
+ it is not locked,
+ no operation is in progress in it,
+ no process works inside it,
+ and Git would remove it without `--force`.
+Each worktree the merge removes,
+ leaves,
+ or cannot prove it made is named on standard error with its branch and the reason.
+See "What a worktree snapshot holds,
+ and when the wrapper removes one".
 
 #### Carrying the person's own work
 
@@ -2354,7 +2593,14 @@ A `git pull` that merges is completed the same way when the command line or the 
 or `--ff` or `--no-ff`) and every option
  and operand is one the wrapper reads exactly:
  the wrapper runs the pull's fetch,
- then the merge of `FETCH_HEAD` as a typed `git merge --no-edit FETCH_HEAD` would run.
+ then the merge of `FETCH_HEAD` through the path of a typed `git merge`
+ that carries the pull's own merge options,
+ so the editor opens on a terminal exactly where `git pull` opens it.
+When the pull the wrapper completes cannot move the working tree along,
+the report keeps Git's own words
+(`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
+and adds one line naming `git reset --no-enforce-worktree --hard`,
+because the worktree guard refuses a hard reset in the dirty worktree that made the move fail.
 Every other pull is native Git's whole (a rebase,
 `--ff-only`,
 `--autostash`,
@@ -2380,7 +2626,11 @@ or a lock nothing proves held):
  until `MERGE_LOCK_CEILING` (1 minute),
 whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
- at the bound it names the holder and the merge ends with Git's refusal,
+ at the bound it names the holder and stops waiting:
+ a merge the wrapper completes is saved on `refs/cli-git/kept/<n>`,
+ exits 0 and changes nothing in the checkout
+ (see "A merge saved for a later command"),
+ and a merge native Git runs ends with Git's refusal,
 non-zero,
 with nothing changed.
 The notice names the merge,
@@ -2460,9 +2710,13 @@ Each with its cause:
   or an index that holds unmerged entries:
   the command is native Git's whole,
   which refuses such a checkout itself.
-- A lock that stays held for the whole wait limit:
-  the merge stops,
+- A merge whose commit cannot be kept on a side ref while the lock stays held:
+  the command is refused with status 2,
   changes nothing and leaves the lock.
+  That is the outcome of a merge native Git runs,
+  which fails on the held lock;
+  a merge the wrapper completes is saved on a side ref and exits 0 instead,
+  as "A merge saved for a later command" says.
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.
@@ -2568,6 +2822,33 @@ a path whose mode differs between the sides,
 and a path whose `merge` attribute names a driver,
 `binary` or `-merge`.
 
+The merge is Git's own line merge:
+`git merge-file --zdiff3` over the base,
+your side and the other side,
+so the lines both sides wrote identically stay out of a conflict,
+and the record of each file says which line regions the word pass settled.
+The owner on 2026-11-10:
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+Measured on 723 files that both sides of a two-parent merge changed and that plain Git conflicts on,
+from 3,194 merges of this repository,
+`--zdiff3` resolved 130 of them where the pass's own line merge resolved 108,
+and Git's `patience`,
+`histogram` and `minimal` algorithms resolved the same 130 to 129.
+
+A region whose merge would write more than a resolution keeps both sides instead:
+a word written twice in a row that neither side writes twice
+(merge `ef43afe9f9` shipped `return return without_variable == *selected;` that way),
+and,
+where the region spans more than one line on some side,
+a line neither side holds
+(the shape that ran one body into the other mid-sentence).
+A file with such a region stays exactly as Git left it and you resolve it,
+which is what the measured set shows:
+the refusals took both files that wrote a doubled word
+and the 71 lines no side holds that 34 resolved files had joined across lines.
+
 The result can be text neither side wrote:
 two edits of different arguments of one call become one call with both edits.
 Nothing either side added or kept is dropped,
@@ -2604,7 +2885,8 @@ by this or by anything else,
 because no proof ties one to a Git that has ended.
 
 A commit that meets a lock nothing proves gone is therefore made and kept,
-on `refs/worktree/cli-git-service/<batch>`,
+on `refs/worktree/cli-git-service/<batch>` (a commit real Git built included,
+so no maintenance that drops objects no reference names can take it while the lock stands),
 and the command exits `0` with one line that names the branch,
 the lock and the exact `rm -- <path>` to run when no Git process is using the repository.
 Nothing of the person's is lost:
@@ -2620,6 +2902,17 @@ naming the branch,
 the commit and the lock it waits for.
 Held commits never collect without that line,
 and a command whose output a program reads prints none of it.
+
+A commit the service made and held whose answer was lost ends the same way,
+with the same words and exit `0`,
+found through the record of the hold rather than the branch,
+which the lock keeps from showing it.
+
+`git worktree remove` or `git worktree prune` deletes a linked worktree's own Git directory,
+and the per-worktree reference with it,
+so a held commit there is kept on `refs/cli-git/kept/<batch>` before Git runs,
+and the command says then that the branch stays where it is,
+because no command in a removed worktree can move it.
 
 The first command that finds the lock gone moves the branch,
 by one compare-and-swap from the value the batch was prepared on.
@@ -2751,6 +3044,20 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
+- A pathspec the command names that matches no path Git can stage.
+  Native Git keeps deciding which pathspecs are valid,
+   so the wrapper reports Git's own refusal instead of predicting a match:
+   a directory,
+   a pattern,
+   a magic selector and a literal name behave exactly as before.
+  The commit is not made,
+   nothing is staged by it,
+   the finding `explicit-path-commit/pathspec-matches-nothing` names every refused token as Git named it,
+   and a token that begins with a hyphen also says that options belong before `--`
+   (`git commit --message <text> -- <paths>`).
+  Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
+  "Core finding event";
+  issue 6283).
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -2764,7 +3071,10 @@ none is waited out or retried on the moved head yet:
   2026-11-03:
   "Warn and finish the merge (Recommended)");
   Git's "Committing is not possible because you have unmerged files" no longer ends it.
-  `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
+  `git commit -a` over unmerged files commits their markers and warns for each file in the same words,
+  when the repository's commit-only policy is off:
+  with it on,
+  `-a` is refused before anything is committed (`commit-only/all-flag`).
 
 ### Output and exit status
 
@@ -2806,7 +3116,9 @@ The former TypeScript wrapper read `cli-git.config.mjs` and `cli-git.config.ts`;
 With no JSONC file beside them,
  they are a configuration failure that asks for the translation.
 Beside a JSONC file,
- they are reported and ignored.
+ `git monochromatic-git-policy-cli check` reports a `legacy-config-ignored` configuration warning that names the file,
+ and every other command and `fix` stay silent about it;
+ either way those files are ignored.
 The keys `plugins` and `trust` are refused.
 
 ```jsonc
@@ -2888,6 +3200,9 @@ Listing one with a severity is the only way to turn it on,
    or a dependent whose version cannot be bumped automatically,
    is named the same way;
    a commit never fails over the ripple.
+  A real index the commit could not list is named the same way,
+   once for each dependent whose copies that listing would have proved,
+   so a failed lookup never reads as an index that holds nothing.
   `git monochromatic-git-policy-cli check` and
    `git monochromatic-git-policy-cli fix` report the same ripple for the worktree.
 - `mono/catalog-specifiers`:
@@ -3092,7 +3407,7 @@ wrapper never waits without saying so.
 A wait with no bound of the wrapper's own is a scratch `git commit` the kernel has taken:
 once the ceiling's `SIGKILL` reaches a process in uninterruptible sleep it cannot act on it,
 and the commit waits until the kernel releases the step,
-saying so in one line
+saying so once and again while that wait lasts
 (owner,
 2026-11-10,
 "Keep waiting and say so").
@@ -3365,7 +3680,9 @@ fractional or non-numeric value is ignored.
    failure above,
   and no desktop password dialog opens for nobody to answer.
   `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
-  and a command you type keeps Git's own prompting.
+  and a command typed at a terminal keeps Git's own prompting
+   while one whose process has no controlling terminal gets the same pair,
+  because nobody can answer it.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.
@@ -3502,18 +3819,25 @@ Each line names what the command waits for,
    a process in uninterruptible sleep (state `D`,
    a stalled disk or a file system that stopped answering)
    cannot act on the `SIGKILL` until the call it is inside returns,
-   so one line names that `git commit` (its process),
-   says the stop was sent and the kernel has not released it,
+   so the wait that keeps waiting says,
+   once and again for as long as it lasts,
+   that the stop was sent and the kernel has not released the step,
+   names that `git commit` and the process the kernel is holding
+   (the step itself or a program it started),
    says that nothing was committed and that the person's index and files are as they were,
    and says the terminal stays there until the kernel lets go.
+   It says it from the wait and never from the notice's thread,
+   which a process at its thread limit never started.
    The owner chose that wait,
    over leaving after a bound and failing the commit
    (2026-11-10,
    "Keep waiting and say so"),
    as an exception to "nothing should ever wait forever or indefinitely";
    the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
-   The line is said only of a step that still reports that state one look interval after the signal,
-   so a step that acts on its stop in that interval is never said to be held.
+   The line is said only of a process that still reports that state one look interval after the signal,
+   so one that acts on its stop in that interval is never said to be held,
+   a look that could not be made is made again rather than read as the kernel having let go,
+   and a line the writer could not take is said again as soon as it can be.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;
@@ -4014,12 +4338,30 @@ so a copy killed at any moment is resumed by the next command and a copy that tr
 named instead of forgetting what is missing there.
 The line goes when the worktree is removed or is replaced by another one at the same path.
 
+A worktree this program made has one record of its own beside its registration in the common Git directory,
+ `monochromatic-git-policy-cli/worktrees/<name>/monochromatic-git-policy-cli-worktree-added`,
+ which names the worktree's path.
+It is written once the add that Git accepted has returned,
+ and it goes with the registration,
+ so nothing removes it on its own.
+It is the only proof a later command accepts that this program made that worktree,
+ and a merge uses it to remove the worktree once its branch has landed
+ (see "What a worktree snapshot holds,
+and when the wrapper removes one").
+
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
 Every command that runs the recovery before it prints one line on standard error about that worktree,
-with `git -C <path> reset --hard` to finish the checkout and `git worktree remove --force <path>` to remove it,
+with `git -C <path> reset --no-enforce-worktree --hard` to finish the checkout and
+`git worktree remove --force <path>` to remove it,
 and names the worktree's `index.lock` first when a Git killed inside the index install left one,
 because that command cannot start while the lock stands.
+The hatch is in that line because the worktree guard reads a checkout that never ran as a worktree
+holding uncommitted changes,
+so it refuses a hard reset there,
+and the line says what the reset discards:
+`src/native/worktree/worktree_finish_commands.rs` holds the sentence,
+and the placement ladder's own incomplete-add report prints the same one.
 Every path in those commands is quoted the way a shell reads a word back
 (`src/native/worktree/shell_quote.rs`),
 so a `$`,
@@ -4039,7 +4381,8 @@ wherever the name sits below the main checkout:
  a directory that holds a `.git` file or directory (another checkout,
 including every registered worktree);
  the caches `.pnpm-store`,
-`.gradle` and `.kotlin`;
+`.gradle`,
+`.kotlin` and `.zig-cache`;
  a `.cache` directory other than the one in the repository root (the root `.cache` holds the tool launchers and generated
  inputs that tasks read,
 so it is copied);
@@ -4245,6 +4588,14 @@ mise run //package/git-policy/cli:native:test:container
   which split a slow sample into its phases.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
+  `native:lock:check` asks cargo whether every manifest the gate builds still resolves against its own lockfile
+  (`bin/native-lock-check.ts`,
+  replacing the scratch scripts `locked-check.ts` and `lock-refresh.ts`).
+  It prints one line per manifest with cargo's status,
+  the directory and cargo's first error,
+  and `--refresh` first re-resolves only the entries a raised floor made unsatisfiable,
+  which writes a lockfile before it checks again.
+  It exits nonzero when any locked check failed.
 
 A release build of the executable:
 
@@ -4256,6 +4607,97 @@ cargo build --release --locked --bin monochromatic-git-policy-cli
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### The release gate
+
+Three tasks start the full gate and read its verdict.
+They replace the coordinator's scratch scripts
+`~/temp/agent/gate/launch-gate.ts`,
+`~/temp/agent/gate/relaunch-gate-on-main-tip.ts` and
+`~/temp/agent/gate/wait-for-gate-verdict.ts`,
+which the wrapper's release flow ran many times a day.
+The scratch copies stay where they are
+until the coordinator has switched over;
+nothing in this package reads them.
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:native:gate -- <worktree name or full path> <label>
+mise run //package/git-policy/cli:native:gate:main-tip
+mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline seconds>
+```
+
+- `native:gate` starts `native:test:container` as its own transient systemd user unit,
+  which is the image build,
+  the compile,
+  the whole suite and Clippy,
+  and prints `<unit>.service=<log path>`.
+  It answers as soon as systemd has queued the unit,
+  so nothing waits an hour for a run.
+  The label is what the gate covers,
+  in lowercase letters,
+  digits and hyphens:
+  it names the unit,
+  the log file and the image tag of the tested image,
+  all three `gpc-gate-<label>-<stamp>`
+  with a second-precise timestamp
+  (`bin/native-gate-unit-name.ts`).
+  `--repository <path>` names the checkout the worktree belongs to
+  (otherwise the nearest folder above the caller whose `.git` is a folder),
+  `--log-directory <path>` names the log folder
+  (otherwise `${HOME}/temp/agent/gate`,
+  or `GIT_POLICY_GATE_LOG_DIRECTORY`),
+  and `--unit-cpu-quota`,
+  `--unit-memory-max`,
+  `--unit-tasks-max`,
+  `--unit-io-weight`
+  and `--container-pids-limit` override the caps every recorded gate ran with,
+  which are documented with what sized each one in `bin/native-gate-caps.ts`.
+  A worktree that holds no `package/git-policy/cli` is refused before the unit starts,
+  because systemd would otherwise fail at `CHDIR` with an empty log.
+- `native:gate:main-tip` detaches the gate worktree
+  (`--worktree <name>`,
+  default `gate-wrapper-next-alpha`,
+  or `GIT_POLICY_GATE_WORKTREE`)
+  at the commit `main` points at now,
+  then starts a gate there labelled `<worktree name minus gate->-on-<sha>`,
+  so the log names the commit it tested.
+  It prints `gate worktree at <sha>` and `launch status <n>`,
+  and a worktree holding uncommitted work is not moved:
+  the status is printed and the command exits 2,
+  because another session's work is never thrown away (rule `EC1`).
+  Run it from a folder inside the checkout,
+  or name the checkout with `--repository <path>`.
+- `native:gate:verdict` waits,
+  bounded,
+  for the gate log to hold a verdict
+  and prints it with nextest's summary and every line that names a failure.
+  A gate is read from its log and never from its unit:
+  the unit is started with `--collect`,
+  which unloads it when it ends and makes `systemctl show` report the defaults of a unit that does not exist
+  (`doc/troubleshooting/systemd-run-collect-reports-success-for-a-failed-unit.md`).
+  The unit therefore writes its own exit status as the log's last line,
+  `gate-exit-status=<n>`,
+  and that line is part of the printed verdict.
+  The exit status of this command says whether a verdict arrived,
+  never whether the gate passed:
+  a passing run and a failing one both earn a zero,
+  and the printed line and summary carry the difference.
+  `--poll-milliseconds` sets the interval between two looks
+  (default 20 seconds,
+  shortened to what the deadline leaves).
+  A wider caller can name what ends the wait and what it prints then:
+  `--marker <text>` waits for another line than the exit status
+  (the older waits spelled their own markers,
+  `exit=`,
+  a nextest tag or a sentence),
+  `--unit <name>` ends the wait as soon as systemd reports that unit stopped,
+  so a gate that died is reported at once instead of at the end of the deadline,
+  and `--tail-lines <count>` sets how many of the log's last lines a wait without a verdict prints
+  (30 by default,
+  none with 0).
+  A wait that ends without a verdict names its reason,
+  `no verdict in <log> within <n> s` or `unit <name> stopped without a verdict in <log>`.
 
 ### Lint
 

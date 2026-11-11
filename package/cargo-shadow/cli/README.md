@@ -1236,8 +1236,80 @@ Measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:0
 and hours for the units pass,
 which reached about 700 of several thousand profile directories in 40 minutes.
 In the plan's order that pass came second and starved the Podman pass of the deadline.
-What a deadline cuts off waits for the next run;
-the units pass starts again at the front of the profile list.
+What a deadline cuts off waits for the next run,
+and each of the two long passes continues where it stopped:
+
+- The idle-trees pass and the units pass record the last tree and the last profile directory they judged,
+  in one line each,
+  in `lean-progress` under `$XDG_STATE_HOME/cargo-shadow`,
+  or under `$HOME/.local/state/cargo-shadow` when the variable is unset.
+  The next run starts after that key,
+  and a pass that finished its list leaves no key,
+  so the run after it starts at the front.
+- A record that is missing,
+  unreadable,
+  or of a shape this version does not know means the front of the list,
+  never a failed run,
+  and the run says which of the two happened.
+- The key is a path,
+  not a count,
+  because the list changes between runs:
+  a key whose tree was removed in the same pass still orders the list.
+- The file is replaced by an atomic rename and a dry run never writes it,
+  so a run killed in the middle leaves the position it last recorded,
+  and `lean run --dry-run` never moves it.
+
+The bound is set from what each mechanism costs,
+measured 2026-11-10 on this machine:
+
+- The idle-trees pass judged 14,850 of 33,804 trees in 10,475 s of the run that ended
+  2026-11-10T07:37:24-05:00,
+  0.71 s per tree including the removal of 511.49 GiB,
+  so a pass over every
+  tree costs about 6.6 h at today's size.
+  Before it judges anything it reads every tree's recorded workspace,
+  and under the load of that day
+  (a load average of 70 to 148,
+  a build base with 18 GiB free) that fixed read alone ran past an hour;
+  the pass now says how long it took.
+- The units pass judged 1,782 of 68,755 profile directories in the 921 s a planning pass had left after
+  listing them (0.52 s each,
+  `lean run --dry-run --only units --deadline-minutes 30`),
+  so a pass over
+  every profile directory costs about 9.9 h,
+  and listing them costs 880 s before the first one is judged.
+- Run records,
+  toolchains and Podman took 24 s,
+  under a second and 334 s in the journaled run above,
+  and 193 s,
+  6 s and 1,944 s in the one before it.
+
+A pass over both lists is therefore about seventeen hours today,
+so no bound a person would accept makes one run cover it.
+
+`RUN_DEADLINE_SECONDS` is 5 h (`src/lean_policy.rs`),
+the service's `TimeoutStartSec` is that plus thirty minutes,
+both written by the next `cargo-shadow lean timer-install`,
+while the unit installed today still holds the old bound's 12,600 s,
+and a run that starts at the timer's 04:30 ends at 09:30 at the latest,
+or 30 minutes past that at worst,
+when one large tree's deletion outlasts the run's own bound.
+The trees pass at 6.6 h then needs a second night,
+whose last 3.4 h the units pass takes,
+and the two continue that way while a whole pass costs more than the bound.
+What the bound costs a person is small:
+systemd recorded `2min 22s CPU time over 3h 30min wall clock` and a 517 MiB peak for the run that ended
+2026-11-09T08:00:00-05:00,
+the unit holds `IOWeight=5` against the default 100 on a disk whose scheduler is BFQ (which honours that weight)
+and `IOSchedulingClass=idle` with `Nice=15`,
+and under a load average near 100,
+with the trees pass reading the same btrfs volume,
+a commit of fourteen
+files in this repository took 2.69 s.
+`lean run --deadline-minutes <n>` overrides the bound for one run;
+the tree deletion itself has no deadline of its own,
+so a run can pass its bound while it finishes one large tree,
+which the service's extra thirty minutes covers.
 
 The proof of "not in use",
 recorded in the log line of every removal:
@@ -1276,6 +1348,20 @@ recorded in the log line of every removal:
   before it is moved into a trash directory on the same file system by an atomic rename that never replaces,
   and again just before it is deleted.
   A mismatch leaves the entry in the trash and removes nothing.
+- A directory inside the claimed entry that this user owns and may not write
+  (`0500`,
+  `0555`,
+  `0000`) gets this user's read,
+  write and search before the walk removes what it holds,
+  because unlinking what a directory holds needs the first and last of those and listing it needs the second.
+  The removal's line names every directory whose mode it changed,
+  as it names the locks it took,
+  and a tree that could not be emptied whole is reported as partly removed with a reason for each part that stayed,
+  never as skipped (issue 6282).
+  A directory that belongs to another user is left exactly as it is and named:
+  this removal changes no mode it does not own.
+  Only a directory the walk enters is changed and a symbolic link is removed as a link,
+  so nothing outside the claimed entry is touched.
 
 Nothing waits without end:
 every walk obeys the run's deadline and every `podman`,

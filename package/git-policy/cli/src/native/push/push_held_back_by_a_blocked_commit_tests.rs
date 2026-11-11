@@ -128,7 +128,7 @@ fn record_the_verdict(world: &World, commit: &str, reason: &str) -> Vec<BlockedV
     let work: PathBuf = work_directory(world.repo.join(".git").as_path());
     // The gate holds the push record before it decides, and blocks it when it refuses; the hold is what a case that only
     //  records a verdict reproduces.
-    hold(work.as_path(), &item).expect("the push is held while the gate decides");
+    hold(work.as_path(), &item, "").expect("the push is held while the gate decides");
     block(work.as_path(), &item, reason);
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "a blocked push is not held");
     return crate::work_item_holding::blocked_verdicts(work.as_path());

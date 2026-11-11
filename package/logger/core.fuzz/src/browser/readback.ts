@@ -56,12 +56,20 @@ export function isRecord(value: unknown,): value is LogRecord {
 }
 
 /**
- Parses newline-separated JSONL into records, dropping anything that is not
- a record.
+ Parses newline-separated JSONL into records, reporting any line that is not
+ one.
 
- @param text - Batch text.
+ A line the sinks wrote always carries a level, a message and a timestamp, so a
+ line that does not is not evidence to drop: it means the store holds text the
+ sink would not have written, and the caller comparing a readback list against
+ what was written must see that rather than a shortened list.
+
+ @param text - Newline-separated batch text.
 
  @returns Records in line order.
+
+ @throws Error naming the line when it is not JSON, or when it parses as JSON
+ without the record fields.
 
  @example
  ```ts
@@ -73,10 +81,15 @@ export function recordsInBatch({ text, }: { readonly text: string; },): readonly
     .filter(function nonEmpty(line,): boolean {
       return line.length > 0;
     },)
-    .map(function parseLine(line,): unknown {
-      return JSON.parse(line,);
-    },)
-    .filter(isRecord,);
+    .map(function parseRecord(line,): LogRecord {
+      /**
+       Parsed line, checked for the record shape below.
+       */
+      const parsed: unknown = JSON.parse(line,);
+      if (!isRecord(parsed,))
+        throw new Error(`batch line is not a log record: ${line}`);
+      return parsed;
+    },);
 }
 
 //endregion Records

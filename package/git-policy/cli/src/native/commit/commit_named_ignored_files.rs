@@ -22,6 +22,8 @@ use crate::commit_index_selection::IndexSelection;
 use crate::commit_selection_staging::{Selected, names_one_file, pattern_characters_are_literal, selection_items};
 use crate::path_bytes::path_message_text;
 use crate::private_index_request::indexed_request;
+use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, command_text, run_git};
 use std::ffi::OsString;
 use std::path::Path;
@@ -43,10 +45,13 @@ pub const NAMED_IGNORED_CODE: &str = "named-path-ignored";
 /// nothing here writes an index,
 /// an object or a worktree file,
 ///  and the answer comes from the selection's own elements rather than from the words of a Git message.
+///  A path the real index holds no entry at is the only kind `git add` can refuse this way,
+/// so those are the only ones asked about,
+///  and a commit whose named paths the index holds starts no Git at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const named = elements.filter(namesOneFile); return checkIgnore(named);
+/// const named = elements.filter(namesOneFile); const untracked = named.filter((path) => !indexHolds(path)); return untracked.length ? checkIgnore(untracked) : [];
 /// ```
 pub fn named_ignored_files(
     context: &GitContext,
@@ -70,7 +75,124 @@ pub fn named_ignored_files(
     if named.is_empty() {
         return Ok(Vec::new());
     }
-    return ignored_among(context, cwd, real_index, named.as_slice());
+    // The reader that declines the index leaves every name to Git, which is the answer that was right before this saving.
+    let untracked: Vec<&OsString> = match untracked_among(context, cwd, real_index, named.as_slice()) {
+        Some(found) => found,
+        None => named,
+    };
+    if untracked.is_empty() {
+        return Ok(Vec::new());
+    }
+    return ignored_among(context, cwd, real_index, untracked.as_slice());
+}
+
+/// The largest index file this reads.
+///  The same bound the stat refresh of a private index reads its file with
+/// (`INDEX_LIMIT` in `commit_index_stat_staleness.rs`),
+/// classed once in `doc/planning/cli-git-shipped-limits-audit.md`.
+const INDEX_LIMIT_BYTES: u64 = 1 << 30;
+
+/// What:
+///  The paths of `named` the real index holds no entry at,
+/// and `None` when the in-process reader cannot say.
+/// Why:
+///   `git add` refuses a named path as ignored only while the index holds no entry at it,
+/// so a path the index tracks cannot reach that refusal:
+/// the private index carries the entry first (`commit_staged_additions.rs`),
+///  and `git add` then refreshes it without asking any ignore rule (issue 1807).
+///  Reading the index in process is what makes a commit of tracked paths start no Git at all,
+/// which the release gate's budget counts (`binary_budget_tests.rs`).
+///  Every reason to decline answers with `None`,
+/// because a name left to Git costs one start,
+///  where a name wrongly believed tracked would let the refusal return as an engine failure.
+///  A command line that selects a repository (`--git-dir`,
+/// `--work-tree`,
+/// `--bare`) is one this reading cannot answer for:
+/// the layout reader answers for the directory it is given,
+///  so the prefix it gives belongs to another worktree than the index does,
+/// and a name completed with it can match an entry the
+///  selected index does not hold.
+///  `capture_invocation.rs`
+/// (`capture_invocation_layout`) declines the same prefix read for a named repository.
+///  The spellings are the selection's,
+/// so a token Git reads as a path relative to the top level (`/a.txt`)
+///  is measured as the directory path it names and is then left to Git,
+/// which answers for it correctly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (repositorySelection(cwd, globalPrefix).length) return undefined;
+/// const layout = readLayoutIn(cwd, overlay); const entries = parseIndex(readRegularFile(realIndex), layout.objectFormat);
+/// return named.filter((path) => !entries.some((entry) => entry.path === layout.prefix + path));
+/// ```
+fn untracked_among<'named>(
+    context: &GitContext,
+    cwd: &Path,
+    real_index: &Path,
+    named: &[&'named OsString],
+) -> Option<Vec<&'named OsString>> {
+    // The readers answer for the directory they are given and cannot honour a repository the caller named, so a command line
+    //  that names one asks Git (`capture_invocation.rs`, `capture_invocation_layout`, decides the same way).
+    if !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty() {
+        return None;
+    }
+    let overlay: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
+    let layout: crate::repo_read_layout::RepoLayout = crate::repo_read_layout::read_layout_in(cwd, overlay.as_slice())?;
+    // A repository nothing was ever staged in has no index, so no entry tracks any name and every name may be refused.
+    let entries: Vec<IndexEntry> = match read_regular_file(real_index, INDEX_LIMIT_BYTES) {
+        Ok(bytes) => parse_index(bytes.as_slice(), layout.object_format)?,
+        // An index this reading cannot open is one Git answers for.
+        Err(ReadRefusal::Missing) => Vec::new(),
+        Err(_) => return None,
+    };
+    let mut untracked: Vec<&'named OsString> = Vec::new();
+    for name in named {
+        let spelled: Vec<u8> = top_relative(layout.prefix.as_slice(), name.as_encoded_bytes());
+        // The reader refuses an index whose entries are out of order, so a miss here is a path no entry holds.
+        if entries.binary_search_by_key(&spelled.as_slice(), held_path).is_err() {
+            untracked.push(*name);
+        }
+    }
+    return Some(untracked);
+}
+
+/// What:
+///  The path one index entry holds,
+/// the key the binary search over the entries compares.
+/// Why:
+///   The entries are in path order,
+/// so asking whether one holds a path is a search and not a walk,
+///  and the search takes the key as a function that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldPath = (entry) => entry.path;
+/// ```
+fn held_path(entry: &IndexEntry) -> &[u8] {
+    return entry.path.as_slice();
+}
+
+/// What:
+///  One selection element as the index spells it:
+/// the directory prefix the command runs below,
+/// then the element.
+/// Why:
+///   Index paths are relative to the top of the worktree,
+///  while an element is read from the directory the command runs in,
+/// and the crate maps one to the other the same way where a private index
+///  asks which entries a selection restages (`restaged_paths` in `commit_index_stat_staleness.rs`).
+///  A miss only costs one `check-ignore` start,
+/// so a spelling this mapping does not resolve needs no second rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const topRelative = (prefix, spelled) => prefix + spelled;
+/// ```
+fn top_relative(prefix: &[u8], spelled: &[u8]) -> Vec<u8> {
+    let mut path: Vec<u8> = Vec::with_capacity(prefix.len() + spelled.len());
+    path.extend_from_slice(prefix);
+    path.extend_from_slice(spelled);
+    return path;
 }
 
 /// What:

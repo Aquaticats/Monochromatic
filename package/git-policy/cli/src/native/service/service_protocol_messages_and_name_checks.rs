@@ -255,6 +255,14 @@ pub struct CommitRequest {
     ///  service keeps it with the commit it lands,
     /// and a retry uses it to tell which of two overlapping captures is the later.
     pub captured: u64,
+    /// The command that will decide this commit's post-commit checks,
+    /// spelled as `held_push_holder_and_verdict::this_command` does,
+    /// or empty when it could not be read.
+    /// The service holds the commit's push before it answers,
+    /// and only the command that asked can say who will promote or
+    ///  forget that record,
+    /// so a record whose command is gone can be told from one that is still deciding.
+    pub holder: String,
 }
 
 /// A commit the service landed and when its bytes were captured,

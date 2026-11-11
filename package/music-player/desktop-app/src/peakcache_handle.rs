@@ -80,11 +80,12 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
 /// What:
-///      `use super::service::{self, Read, Upsert};`.
+///      `use super::service::{self, Read, Upsert, Write};`.
 ///  The actor module plus its
-///           two request types.
+///           three request types.
 /// Why:
-///       The handle spawns the actor and builds the requests it serves.
+///       The handle spawns the actor and builds the requests it serves,
+///           reading with `Read` and writing with a `Write` that wraps one `Upsert`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +108,7 @@ use super::service::{self, Read, Upsert, Write};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class CacheHandle { readTx: Sender<Read>; writeTx: Sender<Upsert>; }
+/// class CacheHandle { readTx: Sender<Read>; writeTx: Sender<Write>; }
 /// ```
 #[derive(Clone)]
 pub(crate) struct CacheHandle {
@@ -123,14 +124,15 @@ pub(crate) struct CacheHandle {
     /// ```
     read_tx: UnboundedSender<Read>,
     /// What:
-    ///      `write_tx: UnboundedSender<Upsert>`.
+    ///      `write_tx: UnboundedSender<Write>`.
     ///  The write-request sender.
     /// Why:
-    ///       Carries fire-and-forget upserts to the actor's write arm.
+    ///       Carries fire-and-forget `Write` requests to the actor's write arm;
+    ///           `upsert` sends one `Write::Put` wrapping the `Upsert`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// writeTx: Sender<Upsert>;
+    /// writeTx: Sender<Write>;
     /// ```
     write_tx: UnboundedSender<Write>,
 }
@@ -311,7 +313,7 @@ impl CacheHandle {
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // writeTx.send({ fingerprint, decision });
+        // writeTx.send(Write.Put({ fingerprint, decision }));
         // ```
         let _ = self.write_tx.send(Write::Put(Upsert { fingerprint, decision }));
     }

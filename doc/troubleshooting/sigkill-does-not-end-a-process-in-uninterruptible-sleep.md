@@ -5,10 +5,18 @@ FOUND 2026-11-09 while reviewing the scratch `git commit` ceiling of
 BUILT 2026-11-10:
 the owner chose to keep waiting and say so
 ("Keep waiting and say so"),
-so the command now prints one line naming the step,
-saying the stop was sent
-and the kernel has not released it,
+so the command now says,
+once and again for as long as the wait lasts,
+that the stop was sent
+and the kernel has not released the process it is holding,
 and keeps waiting.
+AMENDED 2026-11-10 after the review of `62994776ec`
+(`/var/home/user/temp/agent/kimi-reviews/stuck-step-kernel-notice-1/review.md`):
+the wait that lasts says the line and not the notice's thread,
+which a process at its thread limit never starts,
+a look that could not be made is made again,
+a line the writer could not take is said again,
+and the line names the process the kernel is actually holding.
 The other answers below stay unbuilt,
 as the record of what he chose over.
 
@@ -29,9 +37,11 @@ The person-visible shape is the one `AGENTS.md` names in `NHP`
 and it is the one state in which this wrapper's own ceiling cannot bound its
 own wait.
 
-Since 2026-11-10 the notice's lines stop with one line that names the step,
+Since 2026-11-10 the notice's lines stop with a line that names the commit and the
+process the kernel is holding,
 says the stop was sent and the kernel has not released it,
-and says nothing of the person's is at risk,
+and says nothing of the person's is at risk;
+the wait that keeps waiting says it again at every notice interval,
 and the command still returns only when the kernel lets the step go
 (the owner's choice under "Verified workarounds").
 The silence above is what a person saw before that change.
@@ -149,9 +159,11 @@ and the third was rejected.
 
 1.  **Say what is happening,
     keep waiting.**
-    BUILT 2026-11-10.
+    BUILT 2026-11-10,
+    and amended after the review of `62994776ec`.
     After the ceiling's signal,
-    one line names the step and its process,
+    the wait that owns the step says a line that names the commit it stopped and the
+    process the kernel is holding,
     says the stop was sent and the kernel has not released it,
     names the state the kernel reports (`D`,
     which the notice already
@@ -159,11 +171,21 @@ and the third was rejected.
     says nothing was committed and that the person's index and files are as they were,
     and says the terminal stays until the kernel lets go
     (`commit/scratch_step_held_by_the_kernel.rs`).
-    The line is said once,
-    and only of a step that a second look,
+    The wait says it and not the notice's thread
+    (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`),
+    because a process at its thread limit starts no notice thread and such a commit
+    then waited in silence;
+    it says the line again at every notice interval until the step is reaped,
+    because a person who reads it once and then sees nothing reads a hang;
+    a look that `/proc` refused is made again and never read as the kernel having
+    let go;
+    a line the writer could not take is handed over again as soon as it can take one;
+    and the process the line names is the one the look found in uninterruptible sleep,
+    which is a program the step started when that program is the one held.
+    The line is said only of a process that a second look,
     one look interval after the signal,
     still reports in uninterruptible sleep,
-    so a step that acts on its stop in that interval is never said to be held.
+    so one that acts on its stop in that interval is never said to be held.
     - Tradeoff:
       the person's wait is unchanged;
       only the words change.
@@ -175,9 +197,14 @@ and the third was rejected.
       (it takes a stalled disk,
       a dead network file system or a stopped file-system server,
       and the gate's runs mount nothing),
-      so the line is proven with a step that a control states was not released
-      (`native_commit_waiting_notice_tests.rs`,
-      `a_stop_the_kernel_has_not_released_is_said_once_and_names_the_step`).
+      so the line is proven with a process a control states the kernel holds,
+      and a step a control states has not been reaped
+      (`process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs`:
+      `a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step`,
+      `the_line_is_said_again_for_as_long_as_the_wait_lasts`,
+      `a_look_that_could_not_be_made_is_made_again`,
+      `a_line_the_writer_could_not_take_is_said_again_when_it_can`,
+      `a_helper_held_below_the_step_is_the_process_the_line_names`).
 2.  **Leave after a bound,
     with the child unreaped.**
     The commit's thread stops waiting at the ceiling plus a grace,

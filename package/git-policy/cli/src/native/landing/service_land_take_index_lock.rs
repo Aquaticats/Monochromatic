@@ -1,6 +1,7 @@
 //! What:
 //!  Takes the index lock for a batch that is ready to land,
 //! notes the wait in the timing and the log,
+//! starts making the markers of the two batches after it,
 //! and cleans up when the lock is refused.
 //! Why:
 //!  It is a self-contained step of a landing,
@@ -67,19 +68,24 @@ pub(crate) fn take_index_lock(
     match taken {
         Ok(lock) => {
             // What:
-            //  The marker of the batch after this one is made and flushed now, while this landing holds the lock and moves the
-            //  branch.
+            //  The markers of the two batches after this one are started now,
+            // while this landing holds the lock and moves the branch.
             // Why:
-            //  The flush is seconds long on a loaded disk, and it used to start after the landing's answer, so the next commit
-            //  met it still running and waited for it (`lock_stage_kind=pre`, 9 to 13 s measured 2026-11-10).
-            //  Starting it here spends the landing's own seconds on it and leaves the next commit a finished marker usually.
-            //  The batch after this one lands on this index and is numbered one more, which is known now.
+            //  The making is seconds long on a loaded disk when its flush is the caller's,
+            // and it used to start after the landing's answer,
+            // so the next commit
+            //  met it still running (`lock_stage_kind=pre`,
+            // 9 to 13 s measured 2026-11-10).
+            //  Starting them here spends the landing's own seconds on them and leaves the next commit a finished marker usually,
+            //  and the one after it the spare.
+            //  The batches after this one land on this index and are numbered one and two more, which is known now.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // const held = await takeIndexLock(...); prestage.start(first.index, seq + 1);
+            // const held = await takeIndexLock(...); prestage.start(first.index, seq + 1); prestage.start(first.index, seq + 2);
             // ```
             crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(1));
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(2));
             return Ok(lock);
         }
         Err(failure) => {
@@ -94,3 +100,8 @@ pub(crate) fn take_index_lock(
         }
     }
 }
+
+/// Controls for taking the index lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_take_index_lock_tests.rs"]
+mod tests;

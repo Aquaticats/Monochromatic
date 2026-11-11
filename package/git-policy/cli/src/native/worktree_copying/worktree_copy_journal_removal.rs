@@ -11,6 +11,7 @@
 //! await removePendingJournal(pending); // removes the stage, then the journal and its unfinished writes
 //! ```
 
+use crate::blocking_job::BlockingJobError;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
@@ -274,6 +275,66 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// async function removeTreeSplit(path: string): Promise<void>;
 /// ```
 async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
+    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
+    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
+    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
+        outcome?;
+    }
+    // The directories above the split depth hold nothing now, so this is a handful of known removals rather than a
+    //  walk: it stays on the caller, where the sweep that kills the copy at each `rmdir` still traces the wrapper's own
+    //  thread (`binary/binary_fault_trace_tests.rs`, `copy_flow`).
+    return remove_shallow_directories(shallow.as_slice());
+}
+
+/// What:
+///  `walk_to_the_split_depth` as a job of the blocking pool,
+/// run on this task where the system refuses a thread.
+/// Why:
+///   A walk of a stage can read an unbounded number of directories,
+/// and a disk,
+/// a lock or a mount holds it,
+///  so it belongs off the worker that carries the call.
+/// A thread is only a way to work sooner (`foundation/scoped_start.rs`):
+/// where the system refuses one,
+///  the walk runs in turn,
+/// as the removal it serves did before the pool was asked,
+/// and the control that runs it with no
+///  thread to start still removes the tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
+/// ```
+async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    let walking: PathBuf = path.to_path_buf();
+    return match crate::blocking_job::run_blocking_job(move || { return walk_to_the_split_depth(walking.as_path()); }).await {
+        Ok(lists) => lists,
+        Err(BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused) => {
+            return walk_to_the_split_depth(path);
+        }
+        Err(other) => Err(std::io::Error::other(format!(
+            "the walk to the split depth below {} did not run ({other})",
+            path.display()
+        ))),
+    };
+}
+
+/// What:
+///  The entries of the tree at `path` down to the split depth:
+/// the subtrees at that depth,
+/// and the directories above it that
+///  are removed once those subtrees are gone.
+/// Why:
+///   This is one job of the blocking pool rather than a walk of the task that called the removal,
+/// because a stage holds an
+///  unbounded number of directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkToTheSplitDepth(path: string): [string[], string[]]
+/// ```
+fn walk_to_the_split_depth(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     let mut shallow: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut level: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut subtrees: Vec<PathBuf> = Vec::new();
@@ -315,11 +376,24 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
         }
         level = next;
     }
-    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
-    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
-        outcome?;
-    }
+    return Ok((subtrees, shallow));
+}
+
+/// What:
+///  Removes the directories above the split depth,
+/// deepest first,
+/// treating an absent one as removed.
+/// Why:
+///   The subtrees were removed by their own jobs,
+/// so what is left above them is empty;
+/// this is the second
+///  job of the split removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeShallowDirectories(shallow: string[]): void
+/// ```
+fn remove_shallow_directories(shallow: &[PathBuf]) -> std::io::Result<()> {
     for directory in shallow.iter().rev() {
         match std::fs::remove_dir(directory.as_path()) {
             Ok(()) => {}

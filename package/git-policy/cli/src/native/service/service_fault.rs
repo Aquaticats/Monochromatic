@@ -48,7 +48,7 @@ pub const PRESTAGE_START: &str = "prestage-start";
 ///  that could block a commit.
 pub const PRESTAGE_STAGED: &str = "prestage-staged";
 
-/// The instant the marker made ahead is flushed and ready,
+/// The instant the marker made ahead is complete and its flush has been asked for,
 /// before the landing whose commit may take it can go on.
 /// Why:
 ///  A kill here leaves a complete marker under its staging name and still no lock,
@@ -65,6 +65,13 @@ pub const PRESTAGE_FLUSHED: &str = "prestage-flushed";
 /// Named here because the controls of both halves of that promise reach it,
 /// and it is inert unless the variable names it.
 pub const AFTER_PROMOTE: &str = "after-promote";
+
+/// The instant after a command wrote its verdict into a held push record and before it promoted or forgot that record:
+/// a kill here leaves the record saying what the command decided,
+/// so a later command settles it from those words instead of
+///  waiting for a command that is gone
+/// (`held_push_holder_and_verdict.rs`).
+pub const AFTER_THE_VERDICT: &str = "after-the-verdict";
 
 /// The instant after `index.lock` was created by exclusive creation
 /// (where the filesystem places no file whole)

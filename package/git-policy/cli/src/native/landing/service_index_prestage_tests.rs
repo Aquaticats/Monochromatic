@@ -1,8 +1,8 @@
-//! Controls for the marker made ahead of the next batch:
-//! it is taken and placed without a flush on the commit's path,
-//! a commit that comes while it is still being flushed waits for it and starts no second,
+//! Controls for the markers made ahead of the next batches:
+//! one is taken and placed without a flush on the commit's path,
+//! a commit that comes while one is still being made never waits for it and stages its own,
 //! a marker for another batch or index is removed and replaced by a cold one,
-//! one file at most exists,
+//! two files at most exist,
 //! and nothing is left when the service ends.
 
 use super::*;
@@ -120,7 +120,8 @@ static FLUSH_MAY_FINISH: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 ///  would hold the flush's gate forever;
 /// the ceiling ends such a run instead of hanging it,
 /// and it is far past the
-///  cold staging a landing does on this disk (a flush of its own marker, which waits on the whole filesystem's dirty data),
+///  cold staging a landing does on this disk (a flush of its own marker,
+/// which waits on the whole filesystem's dirty data),
 /// so
 ///  a control that reads the held marker's file as still being written is reading a fact and not a race.
 const HOLD_CEILING: Duration = Duration::from_secs(120);
@@ -156,7 +157,8 @@ fn held_flush(_: &std::fs::File) -> std::io::Result<()> {
     return Ok(());
 }
 
-/// A flush held until the control lets it go, which then fails.
+/// A flush held until the control lets it go,
+/// which then fails.
 fn held_failing_flush(_: &std::fs::File) -> std::io::Result<()> {
     hold_until_let_go();
     GATED_FLUSH_DONE.store(true, Ordering::SeqCst);
@@ -171,7 +173,8 @@ fn held_failing_flush(_: &std::fs::File) -> std::io::Result<()> {
 /// Why:
 ///   The flush is seconds long on a loaded disk,
 /// and a landing waited for it on the commit's path
-///  (`lock_stage_kind=pre`, 9 to 13 s measured 2026-11-10);
+///  (`lock_stage_kind=pre`,
+/// 9 to 13 s measured 2026-11-10);
 /// the owner's bar is that a commit through the wrapper is not five
 ///  seconds slower than native Git,
 /// so a landing stands aside from a flush still running instead.
@@ -465,7 +468,8 @@ fn a_commit_that_comes_to_a_failing_flush_stages_its_own_without_joining_it() {
 ///   The commit's own path may not wait for the disk,
 /// and the marker is not the commit's;
 /// the file stays until it is safe to
-///  remove, which is after its flush.
+///  remove,
+/// which is after its flush.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

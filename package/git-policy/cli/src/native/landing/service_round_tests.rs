@@ -656,3 +656,107 @@ fn a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused() {
     );
     crate::test_support::remove(root.as_path());
 }
+
+/// How long the control of a lane key gives the runtime's one worker to pick up its next task.
+const THE_TICK: Duration = Duration::from_millis(50);
+
+/// The most the control of a lane key waits for that task,
+/// far beyond what a free worker needs,
+/// so only a held worker reaches it.
+const THE_PATIENCE: Duration = Duration::from_secs(10);
+
+/// What:
+///  Stand a pipe with no writer at `path`,
+/// so a read of it waits in the kernel until a writer opens it.
+/// Why:
+///  This is the one way to make a read of a file hold its thread with no end,
+/// which is what a mount that stopped answering does
+///  (`work_awaited_within_a_ceiling.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('mkfifo', [path]);
+/// ```
+fn stall_a_file(path: &Path) {
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+    // SAFETY: `mkfifo` reads the path it is given and writes only the file it makes; the mode is the one a control's own
+    //  fixture takes.
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe must stand where the file would be: {}", std::io::Error::last_os_error());
+}
+
+/// What:
+///  Open the pipe at `path` for writing and close it again,
+/// which ends the read a control left behind.
+/// Why:
+///  The read of the pipe is abandoned,
+/// never cancelled,
+/// so the thread that holds it ends only when a writer appears;
+/// the open does
+///  not wait for a reader,
+///  and the control asks again until `THE_PATIENCE`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (;;) { try { close(openSync(path, 'w')); return } catch { await sleep(10) } }
+/// ```
+fn release_the_pipe(path: &Path) {
+    use std::io::Write as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < THE_PATIENCE {
+        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+            Ok(mut writer) => {
+                let _written = writer.write_all(b"");
+                return;
+            }
+            Err(_not_yet) => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+/// What:
+///  A `commondir` that gives no answer does not hold the round's worker:
+/// a task beside the reading runs while the read waits.
+/// Why:
+///  Finding 5 of the review of `b3d00b3be4`:
+/// the round read each directory's `commondir` on the task that runs it,
+/// so a linked worktree on a mount
+///  that stopped answering held a worker of the runtime for good,
+/// and the after-commit queue made no further progress.
+/// The read is a job
+///  of the blocking pool here,
+/// so the worker polls what is beside it.
+/// One worker makes the difference visible:
+/// a held worker runs
+///  nothing else.
+#[test]
+fn a_common_directory_that_gives_no_answer_does_not_hold_the_rounds_worker() {
+    use std::sync::atomic::AtomicBool;
+    let root: PathBuf = fixture("round-lane-key-stalls");
+    let git_dir: PathBuf = root.join("worktree/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("a linked worktree's Git directory");
+    let stalled: PathBuf = git_dir.join("commondir");
+    stall_a_file(stalled.as_path());
+    let directories: Vec<Assignment> = vec![Assignment::plain(git_dir.clone())];
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let ticked: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let tick: Arc<AtomicBool> = Arc::clone(&ticked);
+    let _ticking = runtime.spawn(async move {
+        tokio::time::sleep(THE_TICK).await;
+        tick.store(true, Ordering::SeqCst);
+    });
+    let reading = runtime.spawn(async move {
+        return lane_keys_awaiting(directories.as_slice()).await;
+    });
+    let began: std::time::Instant = std::time::Instant::now();
+    while !ticked.load(Ordering::SeqCst) && began.elapsed() < THE_PATIENCE {
+        std::thread::sleep(THE_TICK);
+    }
+    let ran_beside: bool = ticked.load(Ordering::SeqCst);
+    release_the_pipe(stalled.as_path());
+    let answered: TheAnswerOfAJobAwaited<Vec<PathBuf>> = runtime.block_on(async { return reading.await.expect("the reading task ends"); });
+    assert!(ran_beside, "the task beside a common directory that gives no answer still runs, so no worker is held by that read");
+    assert!(matches!(answered, TheAnswerOfAJobAwaited::Ran(_)), "the reading gave the lane of the directory once the pipe was let go");
+    crate::test_support::remove(root.as_path());
+}

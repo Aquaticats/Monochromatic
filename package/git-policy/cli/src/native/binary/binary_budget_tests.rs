@@ -34,6 +34,11 @@ use std::process::{Command, Output};
 //  A test fails on any difference, so a saving shows up as a failure that asks for the lower number.
 // Each list names every program the commit may start or sync from; a zero entry documents a start that was removed
 //  (for example `findmnt` and `hash-object`) and must not return, and makes the failure message print that name.
+// `check-ignore` is one of those zeros, and its reason is a rule: the ignored-path question of an explicit-path
+//  commit (`commit_named_ignored_files.rs`) is decided from the real index the wrapper reads in process, so a commit
+//  whose named paths the index holds starts no such child, and a named path no entry holds starts exactly one. Every
+//  scenario here commits a tracked `a.txt`, so a start of one is the failure the release gate reported at
+//  `483bbc6587` and the reading of the rule it broke.
 // The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
 //  only when the real index no longer describes the worktree, and every repository here has an index Git has just
 //  written, so the `update-index` counts are the ones measured before that refresh existed.
@@ -62,6 +67,7 @@ const NO_HOOKS: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 0),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -100,6 +106,7 @@ const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 0),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -135,6 +142,7 @@ const AMEND: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 3),
+        ("check-ignore", 0),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -176,6 +184,7 @@ const WARM: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 0),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),

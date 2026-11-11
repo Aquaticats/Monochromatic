@@ -112,14 +112,16 @@ fn every_command_says_which_commit_is_held() {
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked);
+    let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked, &crate::held_push_release_wakes_the_service::NothingWoken);
     assert_eq!(shown.len(), 1, "one line: {shown:?}");
     assert!(shown[0].starts_with(format!("the commit {commit} is held").as_str()), "the line names the commit, not the record's file name: {}", shown[0]);
-    assert!(shown[0].contains("held") && shown[0].contains("has not been released yet") && shown[0].contains("next push"), "{}", shown[0]);
-    // What is known is said; whether the command is still running cannot be told, so the line does not claim it stopped.
+    // What is known is said: the record names no command, so no verdict for the commit's checks was ever written, and the line
+    //  names what still has to happen for the commit to leave this worktree.
+    assert!(shown[0].contains("no command has said whether its checks passed"), "{}", shown[0]);
+    assert!(shown[0].contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", shown[0]);
     assert!(!shown[0].contains("stopped"), "{}", shown[0]);
     // The state stands, so the line stands while the record does: nothing has to be written or cleared for it.
-    assert_eq!(crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked), shown, "the line is the record's");
+    assert_eq!(crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked, &crate::held_push_release_wakes_the_service::NothingWoken), shown, "the line is the record's");
     // The record itself is still held: a notice is not a release.
     let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
     let held_name: String = crate::work_item::WorkItem {
