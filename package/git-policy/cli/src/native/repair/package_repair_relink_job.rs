@@ -140,7 +140,7 @@ fn refusal_of_a_record_that_is_not_about_its_own_directory(item: &WorkItem, entr
     }
     return match crate::worktree_added_by_the_wrapper::registration_admin(item.git_dir.as_path(), entry.root.as_path()) {
         Ok(_registration) => None,
-        Err(reason) => Some(format!("the copied package state at {} was left exactly as the copy left it ({reason})", entry.root.display())),
+        Err(reason) => Some(format!("this directory is no worktree of the repository any more ({reason})")),
     };
 }
 
