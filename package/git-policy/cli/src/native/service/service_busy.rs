@@ -365,6 +365,10 @@ impl LandingBoard {
     /// 2026-11-04,
     ///  "Short extra wait");
     /// the words that follow a minute's stuck write are the longer ones.
+    /// The words name no moment of the write:
+    /// the client says them once the person's wait
+    ///  has mattered (`waiting_notice_after`),
+    /// so a moment taken here would be false by the time it is read.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -383,9 +387,8 @@ impl LandingBoard {
             None => String::new(),
         };
         return Some((format!("{began}:start"), format!(
-            "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `{command}`{detail}, begun {} seconds ago. The service never ends a write \
-             in the middle, so if it does not return this command reports that the result is not known after its wait.\n",
-            running / 1000
+            "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `{command}`{detail}. The service never ends a write \
+             in the middle, so if it does not return this command reports that the result is not known after its wait.\n"
         )));
     }
 

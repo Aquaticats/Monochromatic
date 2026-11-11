@@ -139,6 +139,9 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// The words a waiting command is told about its own wait.
+pub mod service_client_waiting_words;
+
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
 
