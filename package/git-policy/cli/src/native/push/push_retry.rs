@@ -634,14 +634,20 @@ impl PushRetries {
     /// for (const change of changes) change.forget ? forget(change) : plan(change);
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
-        for index in 0..changes.len() {
+        // How many of the changes this call has applied, for the control that kills a service inside it; nothing outside one.
+        #[cfg(test)]
+        let mut applied: usize = 0;
+        for change in changes {
             // A service killed here has applied the changes before this one and nothing after it.
             #[cfg(test)]
-            if stopped_after(index) {
-                return;
+            {
+                if stopped_after(applied) {
+                    return;
+                }
+                applied += 1;
             }
-            match &changes[index] {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), item, *attempt, *due),
+            match change {
+                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
                 RetryChange::Forget { git_dir, branch_ref } => self.forget(git_dir.as_path(), branch_ref.as_str()),
             }
         }
