@@ -189,12 +189,13 @@ impl NoteSource for NothingToSay {
 /// the answer behind it,
 ///  and every later beat.
 ///  A note still unanswered one beat later is left for the next beat,
-/// so a read that storage holds costs one note and never a beat:
+/// so a read that storage holds costs a note and never a beat:
 ///  the writer's slowest interval becomes two beats,
 /// which is well inside the five seconds a client allows between messages
 ///  (`HEARTBEAT_SILENCE`, `service_protocol.rs`).
-///  The read itself is left running on the blocking pool,
-/// and the answer nobody waited for is dropped.
+///  The source keeps the read it started (`StuckNotice`),
+/// so the beat behind a slow read waits for that same read and its words are written as soon as it answers,
+///  and a read that outlives many beats is made once and never queued behind itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -219,14 +220,12 @@ pub async fn write_until_answered_noting<Stream: AsyncWrite + Unpin, Notes: Note
                 if !write_line(stream, &ServiceMessage::Heartbeat).await {
                     return;
                 }
-                match tokio::time::timeout(every, note.note()).await {
-                    Ok(Some(notice)) => {
-                        if !write_line(stream, &notice).await {
-                            return;
-                        }
-                    }
-                    // Nothing of the landing thread to say, or nothing in time: the next beat asks again.
-                    _ => {}
+                // A note still unanswered one beat later is left for the next beat, which waits for that same read rather than
+                //  starting another behind a storage that is already late.
+                if let Ok(Some(notice)) = tokio::time::timeout(every, note.note()).await
+                    && !write_line(stream, &notice).await
+                {
+                    return;
                 }
             }
         }
