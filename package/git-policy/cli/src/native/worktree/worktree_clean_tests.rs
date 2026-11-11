@@ -61,13 +61,15 @@ fn deepest_of_nested_directories(root: &Path, top: &str, depth: usize) -> PathBu
     return deepest;
 }
 
-/// A tracked file one directory past the chain's bound is proven clean at a descriptor limit that fits the walk
-/// alone, when the tracked file at the bound was walked first.
+/// A tracked file one directory past the chain's bound is proven clean,
+/// at a descriptor limit that fits the walk alone,
+/// when the tracked file at the bound was walked first.
 ///
 /// Why:
 /// the paths of an index come in order;
-/// a deeper path walked while the chain still holds the directories of the path before it spends descriptors its own
-/// root's clone and first directory need, and a file that is there is refused as missing.
+/// a deeper path walked while the chain still holds the directories of the path before it spends descriptors,
+/// its own root's clone and its first directory among them,
+/// and a file that is there is refused as missing.
 #[test]
 fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room() {
     let root: PathBuf = fixture("clean-past-chain-bound");
