@@ -269,14 +269,23 @@ Evidence,
 all on this branch:
 
 ```text
-merge::     Summary [  66.326s] 219 tests run: 219 passed, 6073 skipped
-landing::   Summary [ 229.018s] 851 tests run: 851 passed, 5441 skipped
-service::   Summary [  71.290s] 319 tests run: 319 passed (1 slow), 5973 skipped
+merge::     Summary [ 152.540s] 221 tests run: 221 passed, 6073 skipped
+landing::   Summary [ 324.015s] 851 tests run: 851 passed, 5443 skipped
+service::   Summary [  31.444s] 319 tests run: 319 passed, 5975 skipped
 ```
 
 `mise run //package/git-policy/cli:native:clippy` finished with no warnings,
-`mise run //package/git-policy/cli:native:check` and this package's `lint:monochromatic-lint` pass,
-and the three controls above each failed before its fix and passed after it.
+`mise run //package/git-policy/cli:native:check` passes,
+and `monochromatic-lint --max-warnings 0` reports nothing on any file this branch changes.
+That package task still exits nonzero on nine findings,
+all of them in four files under `native/worktree/` that this branch does not touch:
+five `rust/avoidable-closure` warnings (`warn` severity,
+which `--max-warnings 0` raises to a failure),
+and four `markdown/semantic-line-breaks` errors
+(`git diff --name-only 3b0a23017e..HEAD` names no file under `native/worktree/`).
+Each of the three controls above failed before its fix and passed after it,
+and the two controls added for the carry's deletion path and its notice pass too.
+The counts above are from one run of each group on the tree this branch's last commit holds.
 
 Next action:
 review and merge this branch;
