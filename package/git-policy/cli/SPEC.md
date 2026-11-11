@@ -14346,6 +14346,39 @@ A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
 which the status measurement over-reports rather than under-reports.
+A clean in a linked worktree that deletes ignored files with two or more `-f` keeps every nested Git repository first.
+Git removes such a repository whole (`builtin/clean.c`,
+`if (force > 1) rm_flags = 0`),
+with its own history and its uncommitted files,
+and the outer worktree reports it as one ignored directory,
+so nothing else the policy reads can see the work inside it.
+One force never removes a nested repository,
+so a clean with one force asks nothing about them.
+Git names the repositories itself:
+the typed clean's `--dry-run` names each path Git would remove,
+and the same clean written with one `-f` names each nested repository that force keeps (`Would skip repository <path>`),
+so the wrapper walks nothing itself.
+A repository that is itself a removed path is found through its own `.git` entry,
+and a path Git had to quote (a name holding a newline,
+a quote or another byte it cannot print) is decoded
+before anything reads it as a path,
+because the quoted text is not the name.
+Only the outermost of two repositories is kept,
+because moving a repository takes everything inside it.
+Each repository is moved whole to
+`<common git dir>/monochromatic-git-policy-cli/discarded/<stamp>/<path below the worktree>`,
+the clean then runs as typed,
+the person is told where each one is before Git starts,
+and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
+written `<path> => <place>`.
+A rename keeps every byte and the repository's own `.git` without copying anything,
+the place is the folder the age and size limits already prune,
+and a generation whose line names a copy still on disk outlives those limits like a saved conflicted file's.
+A move the system refuses stops the command,
+names the repositories and where they still are,
+and leaves the worktree exactly as it was.
+The deliberate way to delete such a repository with the rest is the escape hatch,
+which the rejection names.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
