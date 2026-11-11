@@ -13346,9 +13346,28 @@ nothing of the merge is written,
 the paths are named on standard error and the record is kept.
 The files are checked out without `--force`,
 so a file that appears in the instant after the take is skipped and Git's own words are reported.
+The carry after the merge writes a path only while the file standing there is still the one Git's own update wrote,
+whose entry the apply reads as soon as the branch has moved:
+the device,
+the inode,
+the size,
+the mode and the change time are compared,
+so a save whose bytes accept the whole merge,
+and which would otherwise be read as the merge's own file,
+stands and is named as a path that changed under the merge.
+That entry is read once,
+right after Git's update,
+and a save that lands in the instant between Git's own write and that read is read as Git's own:
+no evidence this command can read tells the two apart,
+because the save leaves the same bytes in the same entry,
+only newer.
+The carry then merges the person's older layer into the file,
+so both sides stand in it and the path is named;
+nothing either side wrote is discarded,
+and the window is that one read wide.
 A command that stops between a take and the write leaves the file under a private name beside its path,
-`.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
-where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
+`.cli-git-recovery-<name-key>-<merge-key>-<pid>-<count>-<nanos>`,
+where each key is a 64-bit FNV-1a hash in 16 hex digits of the file's name and of the merge's transaction id,
 so a name at the file system's component limit still has a private name that can exist;
 the next command puts such a file back before it judges the path and says on standard error that it did,
 and where the path holds something else keeps both,
@@ -13398,6 +13417,16 @@ so a file such a process holds open is removed with its private name.
 A scan that was cut at its bound,
 or could not list the processes,
 proves nothing and the file is kept.
+A private name carries the key of the merge record that made it,
+and only a name that a record still there names is put back:
+a name nothing claims is what a merge that already ended left behind,
+and putting it back would bring back a file the person deleted.
+A name an earlier release wrote carries no such key,
+so it is left where it is and named,
+with the path it belongs to,
+and the person moves it back;
+the record it belongs to then finishes as it would with the path gone,
+and the bytes it holds are neither moved nor removed.
 A take whose read of the bytes fails after the rename puts that file back before it reports anything,
 and a file that cannot go back is named and counted as installed;
 a take or a write that fails puts every file it already took back,

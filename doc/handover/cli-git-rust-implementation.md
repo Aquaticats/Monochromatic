@@ -108,6 +108,205 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `ee545033ad`.
+The review of the branch the integration already carries is
+`~/temp/agent/kimi-reviews/merge-carry-review-round-2-findings-round-133/review.md`,
+its four findings summarised in `~/temp/agent/pi-runs/kimi-findings-round-133.md` under
+`## merge-carry-review-round-2-findings-round-133`;
+all four are about the carry.
+Two were reproduced here and two are read from the code.
+
+- **A save that accepts the whole merge was replaced by the older captured layer after a kill (real and fixed).**
+  The apply reads the entry every path Git's own update wrote
+  (`merge_isolation_apply.rs`,
+  `landed_of`),
+  and the carry writes a path only while that entry still stands;
+  a recovery passed an empty reading,
+  and `the_file_git_landed` answers `true` for a path the reading does not name,
+  so a killed merge's recovery judged every path by its bytes alone
+  (`merge_isolation_recovery_carry.rs`).
+  This branch published the reading into the merge's record
+  (`rewrite_merge_intent`,
+  `merge_isolation_journal.rs`,
+  staged beside the record and renamed over it,
+  with no flush on the merge's own path),
+  and the integration carries its own fix of the same finding,
+  which writes the reading beside the record as `<transaction id>.landed`
+  (`write_landed_record`,
+  `read_landed_record`,
+  `merge_isolation_carry_landed.rs`).
+  The merge into `integrate/git-policy-cli-jam-fixes-after-alpha-9` keeps the
+  integration's form and drops this branch's:
+  a record stays a file written once and never rewritten.
+  The reading is written before the marker a kill stops at,
+  with no flush,
+  so a machine crash leaves it absent and the recovery judges a path by its bytes,
+  which is the reading an earlier release's record also has:
+  none.
+  It is read by the carry of a merge whose branch already names it;
+  the recovery's own install and the settling onto a moved head take none,
+  because each writes the checkout itself,
+  so no reading of the merge's own write describes the paths there.
+  Control `a_save_after_the_kill_that_accepts_the_whole_merge_stands`
+  (`binary_merge_carries_edits_kill_tests.rs`)
+  fails with the recovery's reading put back to `&[]`,
+  which is what `ee545033ad` did there,
+  and passes with it:
+  the failing run left the older captured line in the file,
+  `left: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\nthe person's own line\n")`
+  against `right: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\n")`,
+  at the `assert_eq!` of `binary_merge_carries_edits_kill_tests.rs` whose message reads
+  "the newer save stands,
+  and the older captured line does not come back".
+  The review's program printed `REPRODUCED` on the reverted binary and `NOT REPRODUCED` on this one,
+  which left the newer save alone and said the path changed while the merge ran.
+- **A save that lands between Git's write and the reading is read as Git's own (a window that stays).**
+  No evidence this command can read tells the two apart:
+  the save leaves the merge's own bytes in the entry Git made.
+  The carry then merges the older layer into the file,
+  so both sides stand in it and the path is named;
+  nothing either side wrote is discarded.
+  Control `a_save_that_lands_before_the_reading_keeps_both_sides`
+  pins what that leaves.
+  `SPEC.md`,
+  "Recovery",
+  records the window and why it stays.
+- **A live merge record does not restore a previous release's aside (a recorded limit that stays).**
+  A private name an earlier release wrote carries no merge key,
+  so no record claims it;
+  it is left where it is and named with the path it belongs to,
+  and the person moves it back.
+  Putting an unclaimed name back is the hazard the round-two finding 3 removed:
+  it brings back a file the person deleted.
+  The bytes stay at a path the command prints,
+  and the command names the private file,
+  the path it belongs to,
+  and that nothing was removed.
+  The record is `a3e78adc32`'s message,
+  "a private name an earlier release left names no record,
+  so a merge interrupted before this change is reported rather than put back by itself",
+  and the section of this file of `2026-11-10T15:43:18-05:00`,
+  which also records that nothing sweeps a kept name.
+  `SPEC.md`,
+  "Recovery" now states the claiming rule,
+  which it did not before.
+- **An unreadable holder is ignored before the aside is unlinked (a recorded limit that stays).**
+  `SPEC.md` states it with the removal's proof,
+  at lines 12967 to 12971 here and 12941 to 12945 at `ee545033ad`:
+  "a process in another user namespace,
+  or one that cannot be read,
+  is not seen,
+  so a file such a process holds open is removed with its private name".
+  The tolerance is the owner's answer of 2026-11-07,
+  "Service removes it",
+  whose stated limit is that a complete scan sees every readable process
+  (`doc/handover/questions-for-the-owner.md`,
+  lines 1254 to 1258 at `ee545033ad`).
+  Measured again here:
+  681 of 1281 processes have a descriptor directory this user cannot read,
+  so counting one as a possible holder would keep every aside forever.
+
+The reproductions are the review's programs with three changes:
+Git is called as plain `git`,
+every command gets a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+and a fixture commit is built from plumbing (`add`,
+`write-tree`,
+`commit-tree`,
+`update-ref`),
+because a porcelain commit starts the commit service,
+which cannot start from a runtime directory that has no session bus.
+Both programs were run again with this branch's binary,
+and with a binary of this branch whose recovery carry passes `&[]` again:
+the first prints `NOT REPRODUCED` with the fix and `REPRODUCED` without it,
+and the second still prints `REPRODUCED` either way,
+which is the recorded limit.
+
+Checks after the last edit:
+`mise run //package/git-policy/cli:native:build` passes,
+`native:clippy` passes,
+`cargo nextest run --lib -- merge::` is 245 passed,
+`push::auto_push_reconcile::tests::` is 85 passed,
+and `--test native_binary -- merge` is 158 run:
+156 passed,
+2 failed.
+One whole lib suite run stopped at 2422 of 6547 tests
+on `landing::service_land::hung_write_tests::a_commit_the_service_takes_is_told_its_place_on_the_wire`,
+which asserts two client lines and got three,
+the third being the service's notice that the commit is inside a write,
+and which passes alone.
+The two the binary suite failed are
+`word_merge_finish::a_merge_options_setting_is_applied_to_the_finish` and
+`word_merge_finish::a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+which this branch does not touch.
+A run of that module failed a different pair of its own controls,
+and each of the four passes when it runs without the others,
+with the harness supervisor naming the disk:
+`no progress for 5.0 s: no task was runnable, waiting for the disk or held from outside`,
+next to a `git update-ref` step that took 7447 ms.
+None of the failures is in a module this branch changes.
+`monochromatic-lint` reports nothing in this branch's added lines;
+the eleven it reports in this file lie outside them and are there at `ee545033ad` too.
+
+Next action:
+the merge into `integrate/git-policy-cli-jam-fixes-after-alpha-9` is committed on this branch,
+and the coordinator lands it;
+the integration's own red tests are untouched by it.
+
+The merge itself:
+the integration's commits after `ee545033ad` touched the same two files this branch did.
+`merge_isolation_carry_landed.rs` conflicted at the end of the file,
+where this branch added the record's form of the reading and the integration
+added its test module;
+the merge keeps the integration's form and its test module,
+with this branch's two doc sentences rewritten to say the reading travels beside the record.
+`merge_isolation_recovery_carry.rs` conflicted at the reading the recovery passes,
+which is the integration's parameter over this branch's `intent.landed`,
+and the merge keeps the parameter.
+The merge also puts the settling onto a moved head back to `&[]`,
+which the wrapper's own pass took from this branch:
+the settling writes those paths itself,
+so the killed command's reading names entries that are no longer there,
+and every captured path would be reported as changed instead of carried.
+The journal's `landed` field,
+its encode and decode,
+`rewrite_merge_intent`,
+and the two journal controls that pinned them went with the dropped form.
+
+Checks after the merge:
+`mise run //package/git-policy/cli:native:test:host -- --no-run` and
+`native:test:binary:host -- --no-run` build both targets,
+`native:clippy` passes,
+`native:test:host -- merge::` is 259 run,
+259 passed and 6439 skipped,
+`native:test:binary:host -- merge_carries_edits_kill` is 14 run,
+14 passed and 968 skipped,
+and the controls of the resolved files run together
+(`merge_isolation_carry_landed::tests`,
+`merge_isolation_journal::tests`,
+`a_save_that_lands_before_the_reading`,
+`a_save_of_the_merges_own_bytes_after_a_kill_stands`,
+`without_the_landed_reading`) are 14 run and 14 passed.
+`a_save_after_the_kill_that_accepts_the_whole_merge_stands`
+was run again with the recovery's reading put back to `&[]` and failed
+at `binary_merge_carries_edits_kill_tests.rs`
+with the same two values this branch recorded before the merge:
+`left: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\nthe person's own line\n")`
+against `right: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\n")`,
+so the integration's form of the reading is what makes it pass.
+`monochromatic-lint` on the two resolved files,
+`SPEC.md` and this page reports 100 findings,
+every one a `markdown/semantic-line-breaks` in a section of this page
+this branch did not write,
+and the resolved Rust files and `SPEC.md` report none.
+`README.md` still names a private take name
+`.cli-git-recovery-<key>-<process>-<count>-<moment>`
+where the code and `SPEC.md` name two keys,
+`.cli-git-recovery-<name-key>-<merge-key>-<pid>-<count>-<nanos>`;
+that line is the integration's and is left for its own change.
+
 ### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
 
 At 2026-11-11T03:51:27-05:00 a Kimi agent's probe script started a second `/usr/lib/systemd/systemd --user --log-target=console`
