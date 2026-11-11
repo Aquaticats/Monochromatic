@@ -331,7 +331,7 @@ struct Tally {
 impl Tally {
     /// What:
     ///  Add what the looking thread has moved that no reading of its own accounts for,
-    ///  and answer the bytes of the one reading that the next look must take off too.
+    ///  and count every reading this look takes of it.
     /// Why:
     ///   A reader's own work is the run's work:
     /// a predicate that makes a retry or a round does real disk work on the waiting thread,
@@ -339,25 +339,25 @@ impl Tally {
     ///  `D` state is the evidence `run_progress` treats as work.
     /// Its readings of `/proc` are not,
     ///  and the kernel charges every one of them to the thread that read it.
-    /// `own_readings` is what its previous looks read,
-    /// so the difference is the work it did of its own.
-    /// The `io` file is read first and its own bytes answered to the caller,
-    /// because that reading happens before the
-    ///  counter it yields can include itself.
+    /// `own_readings` is the bytes its previous looks read,
+    /// so the difference is the work it did of its own,
+    /// and this look's
+    ///  readings join that figure for the next one.
+    /// The `io` file is read first,
+    /// because the counter it yields cannot include the reading that yields it.
     /// Only the disk wait counts for its state,
     ///  never state `R`:
     /// the reader is running because it is taking this very look.
-    fn add_the_readers_own_counters(&mut self, task: &std::path::Path, own_readings: u64) -> Option<u64> {
-        let io: String = std::fs::read_to_string(task.join("io")).ok()?;
+    fn add_the_readers_own_counters(&mut self, task: &std::path::Path, own_readings: u64) {
+        let Ok(io) = std::fs::read_to_string(task.join("io")) else { return };
         self.read_bytes = self.read_bytes.saturating_add(io.len() as u64);
         // Its processor time is this look's too, so the run is judged on what it moved that was not a reading.
         self.bytes = self.bytes.saturating_add(bytes_in(io.as_str()).saturating_sub(own_readings));
-        let stat: String = std::fs::read_to_string(task.join("stat")).ok()?;
+        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
         self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
-        let (state, _ticks): (char, u64) = parse_activity(stat.as_str())?;
+        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
         self.working = self.working || state == 'D';
-        return Some(io.len() as u64);
     }
 
     /// What:
@@ -532,8 +532,7 @@ fn look(reader: i32) -> Option<Look> {
     // What the looking thread moved that no reading of its own accounts for is the run's work, and the reading that
     //  learns this is itself taken off the next look (`Tally::add_the_readers_own_counters`).
     let own_readings: u64 = readers.iter().find(|each: &&Reader| { return each.thread == reader }).map_or(0, |each: &Reader| { return each.own_readings; });
-    let task: String = format!("/proc/{own}/task/{reader}");
-    let uncounted: Option<u64> = tally.add_the_readers_own_counters(std::path::Path::new(task.as_str()), own_readings);
+    tally.add_the_readers_own_counters(std::path::Path::new(format!("/proc/{own}/task/{reader}").as_str()), own_readings);
     // Another reader's disk wait is work whatever reader took the look, and nothing else of it is counted: its bytes
     //  would be its own readings, which only its own looks can take off.
     for each in &readers {
@@ -551,9 +550,8 @@ fn look(reader: i32) -> Option<Look> {
     if !tally.readable {
         return None;
     }
-    // Every byte this look read was read by the caller, so the next look takes exactly these off, with the one reading
-    //  whose own bytes cannot be in the counter it yields.
-    note_a_reader_s_own_readings(reader, tally.read_bytes.saturating_add(uncounted.unwrap_or(0)));
+    // Every byte this look read was read by the caller, so the next look takes exactly these off.
+    note_a_reader_s_own_readings(reader, tally.read_bytes);
     return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members });
 }
 
