@@ -1,9 +1,9 @@
 import { spawn, } from 'node:child_process';
 import { createHash, } from 'node:crypto';
 import { once, } from 'node:events';
+import { existsSync, } from 'node:fs';
 import {
   mkdtemp,
-  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -292,7 +292,7 @@ await describe({
          */
         const after = await readLinuxProcessIdentity({ pid, },);
         expect(['gone', 'Z',],).toContain((typeof after) === 'symbol' ? 'gone' : after.state,);
-        expect(await readFile(`${statePath}.watcher.json`, 'utf8',).then(() => 'present', () => 'removed',),).toBe('removed',);
+        expect(existsSync(`${statePath}.watcher.json`,),).toBe(false,);
       },
     },),
   ],
