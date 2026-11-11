@@ -129,7 +129,11 @@ pub(crate) fn pathspec_base(context: &GitContext, cwd: &Path) -> PathBuf {
     let selection: Vec<OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     let Some(work_tree) = named_work_tree(selection.as_slice()) else { return cwd.to_path_buf() };
     let Ok(root) = std::fs::canonicalize(work_tree) else { return cwd.to_path_buf() };
-    let here: PathBuf = std::fs::canonicalize(cwd).unwrap_or_else(|_unresolved| { return cwd.to_path_buf(); });
+    let here: PathBuf = match std::fs::canonicalize(cwd) {
+        Ok(resolved) => resolved,
+        // A directory that cannot be resolved keeps the name it was given, and a pathspec is then read from it.
+        Err(_unresolved) => cwd.to_path_buf(),
+    };
     if here.starts_with(root.as_path()) {
         return cwd.to_path_buf();
     }

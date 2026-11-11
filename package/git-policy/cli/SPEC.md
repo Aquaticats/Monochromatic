@@ -5904,6 +5904,10 @@ now inside these bounds:
   and a note still unanswered one beat later is left for the next beat
   (`service_reply.rs`),
   so a journal read that storage holds costs a note and never a beat,
+  and the connection keeps that read (`StuckNotice`,
+  `service_server_connection_handling.rs`):
+  the beat behind a slow read waits for the same read and the words it answers with are written then,
+  so a read that outlives many beats is made once and never queued behind itself,
   and every record that note reads is opened only when it is a regular file
   (`open_regular_file`,
   `service_busy.rs`):

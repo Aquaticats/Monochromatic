@@ -192,7 +192,8 @@ impl NoteSource for NothingToSay {
 /// so a read that storage holds costs a note and never a beat:
 ///  the writer's slowest interval becomes two beats,
 /// which is well inside the five seconds a client allows between messages
-///  (`HEARTBEAT_SILENCE`, `service_protocol.rs`).
+///  (`HEARTBEAT_SILENCE`,
+/// `service_protocol.rs`).
 ///  The source keeps the read it started (`StuckNotice`),
 /// so the beat behind a slow read waits for that same read and its words are written as soon as it answers,
 ///  and a read that outlives many beats is made once and never queued behind itself.

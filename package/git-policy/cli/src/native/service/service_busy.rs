@@ -166,7 +166,8 @@ pub struct LandingBoard {
 }
 
 /// What:
-///  One record of this board, read as text,
+///  One record of this board,
+/// read as text,
 ///  and nothing when the name holds no regular file or the read fails.
 /// Why:
 ///  These reads answer a waiting client's beat (`service_reply.rs`) and the connection that answers a withdrawal,

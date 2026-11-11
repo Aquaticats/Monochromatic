@@ -222,7 +222,8 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
 /// Why:
 ///  `--git-dir` and `--work-tree` name the worktree the command works on,
 /// and Git reads a relative pathspec from that worktree's top when the directory the command runs in
-///  is outside it (`rev-parse --show-prefix` answers nothing, which the control records).
+///  is outside it (`rev-parse --show-prefix` answers nothing,
+/// which the control records).
 ///  A reader that asks the invocation directory instead finds no file at the name,
 /// takes the element for a pattern,
 ///  and the staging's `git add --update` then fails:
@@ -230,7 +231,8 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
 ///  and an exact path the commit must take,
 /// both end as an engine step's failure instead.
 ///  A directory is not an exact path even when an ignore rule matches it,
-/// so the tracked file it holds is still committed: only files are refused.
+/// so the tracked file it holds is still committed:
+/// only files are refused.
 #[test]
 fn a_named_file_of_the_selected_worktree_is_refused_where_the_invocation_directory_has_none() {
     let root: PathBuf = fixture("named-ignored-selected-worktree-without-a-current-file");

@@ -325,7 +325,8 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
 ///  more than once,
 ///  and its answer is written after the note is let go.
 /// Why:
-///  A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`, `service_client.rs`),
+///  A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
+/// `service_client.rs`),
 /// sends the commit again,
 ///  and may report it failed although it landed.
 ///  Every beat asks the note what the landing thread is inside,

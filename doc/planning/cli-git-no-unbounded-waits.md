@@ -472,6 +472,15 @@ each with its margin:
   a test marker,
   the longest any test may run (`.config/nextest.toml`).
   Built.
+- The note of a beat (`write_until_answered_noting`,
+  `service_reply.rs`):
+  one `HEARTBEAT_EVERY` (1 s),
+  and the connection keeps that read (`StuckNotice`,
+  `service_server_connection_handling.rs`),
+  so a note is at most two beats behind the beat it rides on.
+  Two seconds against the client's `HEARTBEAT_SILENCE` of 5 s,
+  which is the wait the beat exists for.
+  Built.
 
 ## Options for the coordinator to pick
 

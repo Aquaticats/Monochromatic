@@ -769,7 +769,8 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
 ///  never through a final link,
 ///  and without waiting for a writer when the name holds a named pipe.
 /// Why:
-///   Some readers answer a waiting client, so an open that waited for a writer would hold back the proof of life
+///   Some readers answer a waiting client,
+/// so an open that waited for a writer would hold back the proof of life
 ///  and no timer could end it;
 ///  a link planted at a record path must be refused,
 ///  never read through;
@@ -806,7 +807,8 @@ pub fn open_regular_file(path: &Path) -> Result<File, ReadRefusal> {
 ///  a link or a directory must be named as unsafe,
 ///  and a
 ///       runaway file must not be read into memory.
-///  The open is `open_regular_file`'s, so a named pipe at the record's name is refused instead of waited on.
+///  The open is `open_regular_file`'s,
+/// so a named pipe at the record's name is refused instead of waited on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

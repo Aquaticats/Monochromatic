@@ -12,8 +12,8 @@
 //!  A path the real index tracks is not refused:
 //! the private index carries that entry (`commit_staged_additions.rs`),
 //! and `git add` then refreshes it without asking an ignore rule (issue 1807).
-//!  The directory an element is read from is the one Git reads a relative pathspec from (`pathspec_base`): the
-//! invocation directory when it is inside the worktree the command works on,
+//!  The directory an element is read from is the one Git reads a relative pathspec from (`pathspec_base`).
+//! It is the invocation directory when it is inside the worktree the command works on,
 //!  and that worktree's top otherwise,
 //! which is where a command line that names another worktree reads it.
 //!
