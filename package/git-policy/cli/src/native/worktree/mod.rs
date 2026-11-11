@@ -257,6 +257,10 @@ pub mod worktree_convert_inspection;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
 
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
+
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
 #[cfg(target_os = "linux")]
