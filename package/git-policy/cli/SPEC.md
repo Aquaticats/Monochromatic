@@ -14241,6 +14241,17 @@ naming the variable and the directory it points at,
 so a variable that happens to name a repository is visible to the person:
 "this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
 which contains both its Git directory and its worktree".
+The comparison is made on resolved paths:
+each allowlisted directory is resolved before it is compared,
+and Git's identity query prints the resolved path of the worktree and the Git directory
+for every spelling an invocation can use
+(the working directory reached through a symbolic link,
+`-C`,
+`GIT_WORK_TREE`,
+`--work-tree`,
+`core.worktree`,
+and a worktree added through a symbolic link all printed it on Git 2.56.0),
+so an exemption never depends on how a path was spelled.
 The record carries the same name in `facts.exemptedBy`
 and the outcome `exempt`.
 The rejection names the form,
