@@ -54,7 +54,6 @@ pub(crate) fn lock_state(admin: &Path) -> Result<bool, String> {
     };
 }
 
-
 /// What:
 ///  The directories one removal holds open from before the proof of cleanliness to the destroy,
 /// and the identities they
@@ -91,7 +90,6 @@ pub struct Held {
     /// The identity of `admin` when it was opened.
     pub admin_identity: ObjectId,
 }
-
 
 /// What:
 ///  Open the worktree directory,
