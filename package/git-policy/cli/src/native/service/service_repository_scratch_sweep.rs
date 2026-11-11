@@ -57,7 +57,8 @@ pub(crate) fn collection_point(common_dir: &Path) -> String {
 ///  the common directories whose collection this service has started and not finished,
 ///  which it adds to and removes from and nothing else touches:
 /// one collection at a time is all a repository scratch directory needs,
-/// and a landing of another directory never waits for more than the search, the addition and the removal of one entry,
+/// and a landing of another directory never waits for more than one search,
+/// one addition and one removal of an entry,
 /// because a landing that finds its own directory here leaves the collection to the run already under way.
 static COLLECTING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
@@ -75,7 +76,7 @@ static COLLECTING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 /// ```
 fn claim(common_dir: &Path) -> bool {
     let mut collecting = COLLECTING.lock().expect("the collections this service runs");
-    if collecting.iter().any(|held| { return held.as_path() == common_dir; }) {
+    if place_of(collecting.as_slice(), common_dir).is_some() {
         return false;
     }
     collecting.push(common_dir.to_path_buf());
@@ -94,7 +95,33 @@ fn claim(common_dir: &Path) -> bool {
 /// release(commonDir) // void
 /// ```
 fn release(common_dir: &Path) {
-    COLLECTING.lock().expect("the collections this service runs").retain(|held| { return held.as_path() != common_dir; });
+    let mut collecting = COLLECTING.lock().expect("the collections this service runs");
+    if let Some(collected) = place_of(collecting.as_slice(), common_dir) {
+        let _released = collecting.remove(collected);
+    }
+}
+
+/// What:
+///  The place of `common_dir` among the directories this service is collecting,
+///  or nothing when it is not there.
+/// Why:
+///   One directory has one collection,
+///  so the claim and the release ask the same question and remove the entry they found:
+///  neither borrows the record for a removal nor hides the search in a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeOf(collected, commonDir) // the index of that directory, or nothing
+/// ```
+fn place_of(collected: &[PathBuf], common_dir: &Path) -> Option<usize> {
+    let mut place: usize = 0;
+    while place < collected.len() {
+        if collected[place].as_path() == common_dir {
+            return Some(place);
+        }
+        place += 1;
+    }
+    return None;
 }
 
 /// What:
@@ -138,7 +165,9 @@ pub fn start(common_dir: &Path) {
     }
 }
 
-/// The collection, the directories it holds and the point a control holds it at are controlled in the test module.
+/// The collection,
+/// the directories it holds and the point a control holds it at
+/// are controlled in the test module.
 #[cfg(test)]
 #[path = "service_repository_scratch_sweep_tests.rs"]
 mod tests;

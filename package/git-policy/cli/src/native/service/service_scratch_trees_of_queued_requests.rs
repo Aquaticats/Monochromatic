@@ -62,7 +62,10 @@ static HELD: Mutex<Vec<(String, OsString)>> = Mutex::new(Vec::new());
 pub fn note(id: &str, tree: &Path) {
     let Some(name) = tree.file_name() else { return };
     let mut held = HELD.lock().expect("the trees the queued requests hold");
-    held.retain(|(named, _)| { return named.as_str() != id; });
+    if let Some(earlier) = position_of(held.as_slice(), id) {
+        // The attempt this request left is its own to release, so only the tree it names now is kept.
+        let _replaced = held.remove(earlier);
+    }
     held.push((String::from(id), name.to_os_string()));
 }
 
@@ -78,7 +81,10 @@ pub fn note(id: &str, tree: &Path) {
 /// release(id); // void
 /// ```
 pub fn release(id: &str) {
-    HELD.lock().expect("the trees the queued requests hold").retain(|(named, _)| { return named.as_str() != id; });
+    let mut held = HELD.lock().expect("the trees the queued requests hold");
+    if let Some(entry) = position_of(held.as_slice(), id) {
+        let _released = held.remove(entry);
+    }
 }
 
 /// What:
@@ -97,7 +103,34 @@ pub fn release(id: &str) {
 /// ```
 pub fn is_held(path: &Path) -> bool {
     let Some(name) = path.file_name() else { return false };
-    return HELD.lock().expect("the trees the queued requests hold").iter().any(|(_, held)| { return held.as_os_str() == name; });
+    let held = HELD.lock().expect("the trees the queued requests hold");
+    for (_, named) in held.iter() {
+        if named.as_os_str() == name {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// The entry of the record that the request `id` holds,
+/// as its place in the record.
+/// Why:
+///  The record is one entry per request,
+///  and removing an entry by its place neither borrows the record for the removal nor hides the search in a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// positionOf(held, id); // the index of the request's entry, or nothing
+/// ```
+fn position_of(held: &[(String, OsString)], id: &str) -> Option<usize> {
+    let mut place: usize = 0;
+    while place < held.len() {
+        if held[place].0.as_str() == id {
+            return Some(place);
+        }
+        place += 1;
+    }
+    return None;
 }
 
 /// The record and its two ends are controlled in the test module.

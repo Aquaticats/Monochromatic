@@ -49,7 +49,9 @@ const A_QUEUED_REQUEST: &str = "scratch-abandonment-queued-request";
 /// and goes by the age rule once the service is done with that request.
 /// Why:
 ///  A client killed while its request is queued renews nothing,
-///  so the age a collection sees of the tree, not the liveness of a process, is what it judges;
+///  so the age a collection sees of the tree,
+///  not the liveness of a process,
+///  is what it judges;
 ///  the landing that request waits for reads the private index and the conclusion copies in that tree,
 ///  and losing them leaves the real conclusion state where the next commit concludes the same merge again.
 #[test]
