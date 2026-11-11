@@ -97,6 +97,16 @@ pub(crate) async fn ignored_untracked_among_awaiting(context: &GitContext, root:
 }
 
 /// What:
+///  The words for a Git that could not be started at all.
+/// Why:
+///   A start that never happened is not Git's answer,
+///  so it is named as the start's own failure,
+/// as the carry names it.
+fn git_start_failure(error: std::io::Error) -> String {
+    return format!("git could not start: {error}");
+}
+
+/// What:
 ///  The ignored untracked files under the pathspecs of one batch.
 /// Why:
 ///  One read serves every path of the batch,
@@ -130,7 +140,7 @@ async fn listed_awaiting(context: &GitContext, root: &Path, batch: &[Vec<u8>]) -
     let mut request: GitRequest = GitRequest::new::<&str>(root, &[]).own_pathspecs();
     request.without_prefix = true;
     request.arguments = words;
-    let started: GitOutput = run_git_awaiting(context, &request).await.map_err(|error| { return format!("git could not start: {error}"); })?;
+    let started: GitOutput = run_git_awaiting(context, &request).await.map_err(git_start_failure)?;
     if !started.succeeded() {
         return Err(format!("git ls-files failed: {}", started.error_text()));
     }
