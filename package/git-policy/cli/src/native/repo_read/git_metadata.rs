@@ -161,7 +161,7 @@ fn read_subject(real_git: &Path, arguments: &[OsString]) -> String {
 /// ```
 fn takes_the_next_word(argument: &OsString) -> bool {
     let bytes: &[u8] = argument.as_encoded_bytes();
-    return crate::global_arguments::VALUE_OPTIONS.iter().any(|known| *known == bytes);
+    return crate::global_arguments::VALUE_OPTIONS.contains(&bytes);
 }
 
 /// What:
