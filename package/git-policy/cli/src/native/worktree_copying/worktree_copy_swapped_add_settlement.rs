@@ -212,7 +212,8 @@ fn completed_swap_of(claim: &Path, container: &Path) -> Result<Option<CompletedS
     //  put there, or the stage name is clear and the snapshot it was exchanged with stands at the
     //  destination.
     let displaced_stands: bool = stands && path_identity(container) == Some(binding.destination_id);
-    let settled_before: bool = !stands && made.object.is_some_and(|made_object| return at_the_destination == Some(made_object));
+    // A record a command writes before it creates the container names no object, so it proves nothing of the destination.
+    let settled_before: bool = !stands && made.object.is_some() && at_the_destination == made.object;
     // A stage name a command already cleared, a snapshot that stands nowhere, and a directory at the
     //  destination whose identity is neither the snapshot nor the directory Git made: the add's worktree
     //  was removed and made again, so its records describe nothing that stands and no copy has a worktree
@@ -267,7 +268,7 @@ fn clear_the_displaced_directory(swapped: &CompletedSwap) -> Result<Displacement
     }
     let container: &Path = swapped.made.container.as_path();
     let destination: &Path = swapped.binding.destination.as_path();
-    if swapped.made.object.is_some_and(|made_object| return path_identity(destination) == Some(made_object)) {
+    if swapped.made.object.is_some() && path_identity(destination) == swapped.made.object {
         let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(container, destination, swapped.binding.destination_id, swapped.binding.pointer.as_slice());
         let mut lines: Vec<String> = Vec::with_capacity(notes.len());
         for note in notes {
@@ -361,7 +362,7 @@ fn remove_the_directory_git_made(swapped: &CompletedSwap) -> Result<Displacement
 /// ```
 fn settled_words(swapped: &CompletedSwap) -> String {
     let destination: String = quote(swapped.binding.destination.to_string_lossy().as_ref());
-    if swapped.made.object.is_some_and(|made_object| return path_identity(swapped.binding.destination.as_path()) == Some(made_object)) {
+    if swapped.made.object.is_some() && path_identity(swapped.binding.destination.as_path()) == swapped.made.object {
         return format!(
             "monochromatic-git-policy-cli: the `git worktree add` of {destination} was interrupted after its snapshot was swapped into place; the snapshot carried the source's ignored state, so nothing in that worktree is missing, and the add's records are settled."
         );
