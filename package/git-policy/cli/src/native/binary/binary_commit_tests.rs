@@ -85,6 +85,12 @@ pub(super) fn git_text(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> St
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
 }
 
+/// Both streams of an observed command as text,
+/// for a failure that says what Git or the wrapper said on either one.
+fn stdout_and_stderr(observed: &Observed) -> String {
+    return format!("stdout: {}stderr: {}", String::from_utf8_lossy(&observed.stdout), stderr_of(observed));
+}
+
 /// A repository with one tracked file whose worktree copy holds an uncommitted edit.
 fn edited_repository(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
@@ -216,6 +222,57 @@ fn an_explicit_path_commit_lands_once_and_leaves_nothing() {
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "3");
     assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "one\ntwo\n");
     assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "second");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A message that spells the path named before it stays:
+/// `git commit a.txt -m a.txt` lands the path `a.txt` with the message `a.txt`,
+/// as native Git does,
+/// because only a token in option position is removed.
+#[test]
+fn a_message_equal_to_a_path_stays_and_the_path_is_committed() {
+    let fixture: Fixture = fixture("commit-message-equal-path");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let arguments: [&str; 6] = ["-c", "commit.cleanup=strip", "commit", "a.txt", "-m", "a.txt"];
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+        "a.txt",
+        "native Git reads the later token as the message"
+    );
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD~1"]);
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "a.txt");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "one\ntwo\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A long option is accepted by any unambiguous prefix,
+/// so the value of `--mess` is the person's message even when it spells `-o` or `--only`,
+/// and `git commit --mess -o -- a.txt` lands the message `-o` as native Git does.
+#[test]
+fn an_abbreviated_message_keeps_a_value_that_spells_a_flag() {
+    let fixture: Fixture = fixture("commit-abbreviated-message");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let arguments: [&str; 7] = ["-c", "commit.cleanup=strip", "commit", "--mess", "-o", "--", "a.txt"];
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+        "-o",
+        "native Git reads the token after the abbreviation as its value"
+    );
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD~1"]);
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "-o");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "one\ntwo\n");
     assert_eq!(porcelain(&fixture, repo.as_path()), "");
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);

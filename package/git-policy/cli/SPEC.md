@@ -12785,6 +12785,15 @@ For injected commit-only semantics:
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.
+    Only a token in option position is removed:
+    the value of an option is the person's text,
+    so `git commit a.txt -m a.txt` lands the path `a.txt` with the message `a.txt`
+    and the message is never taken for the path it spells,
+    and long options are read the way Git reads them,
+    every unambiguous prefix included,
+    so the value of `--mess` stays
+    (`commit_args.rs`,
+    `command_options_long_resolution.rs`).
 
 Merge,
 cherry-pick,
