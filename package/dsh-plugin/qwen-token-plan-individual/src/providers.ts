@@ -13,13 +13,13 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import {
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
-  QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME,
   QWEN_TOKEN_PLAN_INDIVIDUAL_LISTING_TIMEOUT_MS,
   QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE,
   QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE,
 } from './constants.ts';
 import {
   fetchQwenTokenPlanIndividualListing,
+  QwenTokenPlanIndividualCredentialError,
   resolveQwenTokenPlanIndividualApiKey,
   type QwenTokenPlanIndividualCredentialsTarget,
 } from './fetch-listing.ts';
@@ -268,8 +268,9 @@ export async function writeQwenTokenPlanIndividualRoute({
 
  @param settings - settings surface the route is written through
 
- @param credentials - credentials service the route's API key resolves through,
- named explicitly because a composition without one keeps the snapshot
+ @param credentials - credentials service the route's API key resolves through;
+ a composition without one keeps the snapshot, so the property names the
+ presence rather than a maybe
 
  @param fetchListing - listing fetch, defaulted to the real transport
 
@@ -284,7 +285,7 @@ export async function refreshQwenTokenPlanIndividualRoute({
   fetchListing = fetchQwenTokenPlanIndividualListing,
 }: {
   readonly settings: QwenTokenPlanIndividualSettingsTarget;
-  readonly credentials: QwenTokenPlanIndividualCredentialsTarget | undefined;
+  readonly credentials?: QwenTokenPlanIndividualCredentialsTarget;
   readonly fetchListing?: typeof fetchQwenTokenPlanIndividualListing;
 }): Promise<void> {
   /**
@@ -305,56 +306,63 @@ export async function refreshQwenTokenPlanIndividualRoute({
   }
   try {
     /**
-     API key the route's credential reference resolves to, or undefined when
-     no credential answers; that absence keeps the served snapshot.
+     API key the route's credential reference resolves to; the typed failure
+     its absence throws lands in the outer catch below.
      */
-    const apiKey = await resolveQwenTokenPlanIndividualApiKey({
-      credentials,
-    });
-    if (apiKey === undefined) {
-      logger
-        .warn(`no ${QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME} credential resolves; keeping the served snapshot`);
-      return;
-    }
-    /**
-     Listing entries the live endpoint served at mount.
-     */
-    const listing = await fetchListing({
-      baseUrl: QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
-      apiKey,
-      signal: AbortSignal.timeout(QWEN_TOKEN_PLAN_INDIVIDUAL_LISTING_TIMEOUT_MS),
-    });
+    const apiKey = await resolveQwenTokenPlanIndividualApiKey(
+      credentials === undefined
+        ? {}
+        : { credentials, },
+    );
     try {
       /**
-       Route mapping the live listing earns, built before the gate that protects
-       the served snapshot from an empty catalog.
+       Listing entries the live endpoint served at mount.
        */
-      const mapped = mapQwenTokenPlanIndividualProviders({
-        listing,
+      const listing = await fetchListing({
+        baseUrl: QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
+        apiKey,
+        signal: AbortSignal.timeout(QWEN_TOKEN_PLAN_INDIVIDUAL_LISTING_TIMEOUT_MS),
       });
-      /**
-       Serviceable model count the live mapping produced; zero keeps the snapshot.
-       */
-      const modelCount = mapped[QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE]
-        ?.models
-        ?.length
-        ?? 0;
-      if (modelCount === 0) {
+      try {
+        /**
+         Route mapping the live listing earns, built before the gate that protects
+         the served snapshot from an empty catalog.
+         */
+        const mapped = mapQwenTokenPlanIndividualProviders({
+          listing,
+        });
+        /**
+         Serviceable model count the live mapping produced; zero keeps the snapshot.
+         */
+        const modelCount = mapped[QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE]
+          ?.models
+          ?.length
+          ?? 0;
+        if (modelCount === 0) {
+          logger
+            .warn('qwen-token-plan-individual listing GET mapped to no serviceable model; keeping the served snapshot');
+          return;
+        }
+        await writeQwenTokenPlanIndividualRoute({
+          settings,
+          listing
+        });
+      } catch (error) {
         logger
-          .warn('qwen-token-plan-individual listing GET mapped to no serviceable model; keeping the served snapshot');
-        return;
+          .warn(`qwen-token-plan-individual live route write could not complete (${caughtValueText(error)}); keeping the served snapshot. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown before the mount fetch resolved.`);
       }
-      await writeQwenTokenPlanIndividualRoute({
-        settings,
-        listing
-      });
     } catch (error) {
       logger
-        .warn(`qwen-token-plan-individual live route write could not complete (${caughtValueText(error)}); keeping the served snapshot. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown before the mount fetch resolved.`);
+        .warn(`qwen-token-plan-individual listing GET failed (${caughtValueText(error)}); keeping the served snapshot`);
     }
   } catch (error) {
-    logger
-      .warn(`qwen-token-plan-individual listing GET failed (${caughtValueText(error)}); keeping the served snapshot`);
+    if (error instanceof QwenTokenPlanIndividualCredentialError) {
+      logger
+        .warn(`${caughtValueText(error)}; keeping the served snapshot`);
+      return;
+    }
+    /* v8 ignore next 2 -- @preserve: the resolution seam wraps every failure into QwenTokenPlanIndividualCredentialError, so an unexpected value here is a defect the caller must see */
+    throw error;
   }
 }
 

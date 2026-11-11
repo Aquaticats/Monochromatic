@@ -41,15 +41,6 @@ export function factsToPiAiModelProfile({
 }: {
   readonly facts: QwenTokenPlanResolvedModelFacts;
 }): PiAiModelProfile {
-  /**
-   Reasoning declaration the facts' state projects: `false` states a
-   non-reasoning model, a dict states the selectable efforts, and absence
-   inherits the installed catalog's capability instead of guessing one.
-   */
-  const reasoningEfforts: PiAiModelProfile['reasoningEfforts'] | undefined =
-    facts.reasoning === false
-      ? false
-      : facts.efforts;
   return {
     id: facts.id,
     name: facts.name,
@@ -58,9 +49,11 @@ export function factsToPiAiModelProfile({
     input: [
       ...facts.input,
     ],
-    ...(reasoningEfforts === undefined
-      ? {}
-      : { reasoningEfforts, }),
+    ...(facts.reasoning
+      ? (facts.efforts === undefined
+        ? {}
+        : { reasoningEfforts: facts.efforts, })
+      : { reasoningEfforts: false as const, }),
     compat: {
       ...facts.compat,
     },

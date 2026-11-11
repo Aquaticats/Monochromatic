@@ -32,15 +32,6 @@ type RecordedWrite = {
 };
 
 /**
- Wire options the injected listing fetch received, captured so a test can
- assert the refresh forwards the resolved credential.
- */
-type CapturedFetchOptions = {
-  baseUrl: string;
-  apiKey: string | undefined;
-};
-
-/**
  Recording fake of the settings seam: serves a fixed form value through
  `describe`, records every accepted merge write, and can refuse writes at the
  given zero-based call indices to reach the failure branches.
@@ -93,6 +84,51 @@ function fakeSettingsOf({
 }
 
 /**
+ The one accepted write a test's premise promises, or a loud failure when no
+ write landed.
+
+ @param writes - writes the fake accepted
+
+ @returns the first accepted write
+
+ @example
+ ```ts
+ firstWriteOf(fake.writes);
+ ```
+ */
+function firstWriteOf(writes: readonly RecordedWrite[]): RecordedWrite {
+  /**
+   First accepted write, before the premise check.
+   */
+  const [first] = writes;
+  if (first === undefined) {
+    throw new Error('expected one accepted settings write');
+  }
+  return first;
+}
+
+/**
+ Provider dict one write's patch carried under its `providers` key: the shape
+ the loader merges per provider key.
+
+ @param write - recorded write to read
+
+ @returns provider dict the patch carried
+
+ @example
+ ```ts
+ writtenProvidersOf(firstWriteOf(fake.writes));
+ ```
+ */
+function writtenProvidersOf(write: RecordedWrite): Record<string, {
+  models?: readonly { id: string }[];
+}> {
+  return (write.patch.providers ?? {}) as Record<string, {
+    models?: readonly { id: string }[];
+  }>;
+}
+
+/**
  Credentials fake resolving one fixed value, or the configured failure, so
  every credential branch of the refresh is reachable.
 
@@ -110,7 +146,7 @@ function fakeCredentialsOf({
   rejectWith,
 }: {
   readonly value?: string;
-  readonly rejectWith?: unknown;
+  readonly rejectWith?: Error;
 } = {}): {
   readonly target: QwenTokenPlanIndividualCredentialsTarget;
   readonly askedAbout: string[];
@@ -265,9 +301,8 @@ await describe({
              Provider keys the accepted patch carries; the loader merges per
              key, so carrying only the served key leaves every sibling standing.
              */
-            const writtenProviderKeys = Object.keys(
-              (fake.writes[0]?.patch['providers'] ?? {}) as Record<string, unknown>,
-            );
+            const acceptedWrite = firstWriteOf(fake.writes,);
+            const writtenProviderKeys = Object.keys(writtenProvidersOf(acceptedWrite,));
             expect(writtenProviderKeys).toEqual([QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE,]);
             expect(fake.writes[0]
               ?.patch,)
@@ -318,24 +353,23 @@ await describe({
             const fake = fakeSettingsOf();
             const credentials = fakeCredentialsOf({ value: 'live-key', });
             /**
-             Wire options the injected fetch received.
+             Wire facts the injected fetch received; each field stays absent
+             until the fetch receives it.
              */
-            let captured: CapturedFetchOptions | undefined;
+            const seen: { baseUrl?: string; apiKey?: string; } = {};
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
               credentials: credentials.target,
               fetchListing: async (options) => {
-                captured = {
-                  baseUrl: options.baseUrl,
-                  apiKey: options.apiKey,
-                };
+                seen.baseUrl = options.baseUrl;
+                if (options.apiKey !== undefined) {
+                  seen.apiKey = options.apiKey;
+                }
                 return [{ id: 'live-a', },];
               },
             },);
-            expect(captured).toEqual({
-              baseUrl: QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
-              apiKey: 'live-key',
-            },);
+            expect(seen.baseUrl).toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL);
+            expect(seen.apiKey).toBe('live-key',);
           },
         },),
         it({
@@ -405,7 +439,6 @@ await describe({
             let fetchCalls = 0;
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: undefined,
               fetchListing: async () => {
                 fetchCalls += 1;
                 return [{ id: 'live-a', },];
@@ -532,14 +565,11 @@ await describe({
             /**
              Served model ids the snapshot write carried.
              */
-            const writtenModelIds = (
-              ((fake.writes[0]?.patch['providers'] as Record<string, unknown> | undefined)
-                ?.[QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE] as { models?: readonly { id: string }[] })
-                ?.models ?? []
-            )
-              .map(function byId(model) {
+            const writtenModelIds = writtenProvidersOf(firstWriteOf(fake.writes,))[QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE]
+              ?.models
+              ?.map(function byId(model) {
                 return model.id;
-              },);
+              },) ?? [];
             expect([...writtenModelIds].toSorted())
               .toEqual([...MEASURED_SERVICEABLE_IDS].toSorted(),);
             /**

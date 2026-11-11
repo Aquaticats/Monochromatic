@@ -14,9 +14,6 @@ import type {
 import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
-import type {
-  QwenTokenPlanIndividualCredentialsTarget,
-} from './fetch-listing.ts';
 import {
   qwenTokenPlanIndividualLogger,
 } from './logging.ts';
@@ -68,12 +65,11 @@ export function apply(ctx: Context): void {
    */
   const settings: SettingsForms = ctx.settings;
   /**
-   Credentials service resolving the route's `apiKeyEnv` reference, or
-   undefined in a composition that mounts none; the refresh degrades to the
-   served snapshot either way.
+   Credentials service resolving the route's `apiKeyEnv` reference, or absent
+   in a composition that mounts none; the refresh degrades to the served
+   snapshot either way.
    */
-  const credentials: QwenTokenPlanIndividualCredentialsTarget | undefined = ctx
-    .get('credentials');
+  const credentials = ctx.get('credentials');
   logger
     .debug('qwen-token-plan-individual route feed applied over the llm-pi-ai settings entry');
   /**
@@ -82,7 +78,9 @@ export function apply(ctx: Context): void {
    */
   void refreshQwenTokenPlanIndividualRoute({
     settings,
-    credentials,
+    ...(credentials === undefined
+      ? {}
+      : { credentials, }),
   },);
 }
 

@@ -112,7 +112,7 @@ function servedIdsOf(listing: readonly QwenTokenPlanListingEntry[]): readonly st
 }
 
 /**
- Facts row the carried table holds for one id, or undefined when it holds
+ Facts row the carried table holds for one id, or a loud failure when it holds
  none.
 
  @param id - model id to look up
@@ -124,10 +124,17 @@ function servedIdsOf(listing: readonly QwenTokenPlanListingEntry[]): readonly st
  factsRowOf('qwen3.8-max');
  ```
  */
-function factsRowOf(id: string): QwenTokenPlanModelFacts | undefined {
-  return qwenTokenPlanIndividualFacts.find(function byId(row) {
-    return row.id === id;
+function factsRowOf(id: string): QwenTokenPlanModelFacts {
+  /**
+   Facts row the carried table holds for the id, before the premise check.
+   */
+  const row = qwenTokenPlanIndividualFacts.find(function byId(candidate) {
+    return candidate.id === id;
   },);
+  if (row === undefined) {
+    throw new Error(`expected the carried facts table to hold a row for ${id}`);
+  }
+  return row;
 }
 
 //endregion Test fixtures
@@ -219,7 +226,7 @@ await describe({
              profile must carry that dict unchanged.
              */
             const factsRow = factsRowOf('qwen3.8-max');
-            if ((factsRow === undefined) || (factsRow.efforts === undefined)) {
+            if (factsRow.efforts === undefined) {
               throw new Error('expected the carried facts table to declare efforts for qwen3.8-max');
             }
             expect(servedModelOf('qwen3.8-max')?.reasoningEfforts).toEqual(factsRow.efforts);
