@@ -351,6 +351,53 @@ fn a_live_helpers_journal_word_a_removed_link_no_longer_resolves_still_holds_the
     remove(world.root.as_path());
 }
 
+/// What:
+///  This release's own service holds nothing back,
+/// even when the journal folder its command line names is not there.
+/// Why:
+///   The service of this release serves the worktree's new journal and settles its own batches,
+/// never an earlier release's,
+/// so its command line is no reason to leave any batch of the earlier journals alone.
+/// The look tells it apart by
+///  the mode words behind this release's command word,
+/// and a word it cannot resolve must not turn it into an earlier
+///  helper:
+/// the hold would name the wrong release and stop the settling for a reason that never clears.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fakeProcess(['/p/monochromatic-git-policy-cli', 'monochromatic-git-policy-cli', 'service', 'run', '--journal', notMadeYet, '--instance', instance]); expect(settle(...)).toMatchObject({ settled: true })
+/// ```
+#[test]
+fn the_service_of_this_release_holds_nothing_back_when_its_folder_is_not_there() {
+    let (world, state) = world_with_earlier_journal("settle-own-service-absent", "state");
+    let landed: CommitRequest = request(&world, "own-absent", "own-absent.txt", "own-absent\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let not_made_yet: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
+    assert!(!Path::new(not_made_yet.as_str()).exists(), "the folder the service names is not made yet");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(
+        proc_root.as_path(),
+        42,
+        &[
+            "/p/monochromatic-git-policy-cli",
+            "monochromatic-git-policy-cli",
+            "service",
+            "run",
+            "--journal",
+            not_made_yet.as_str(),
+            "--instance",
+            instance.as_str(),
+        ],
+    );
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), proc_root.as_path()) else {
+        panic!("this release's own service held the settling back")
+    };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
+
 /// What the look still keeps:
 /// an earlier helper shows its `--journal` word before it makes that folder,
 /// so a word that names one of

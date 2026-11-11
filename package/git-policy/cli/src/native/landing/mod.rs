@@ -87,6 +87,12 @@ pub mod scan_awaited_under_a_ceiling;
 /// and the report of a line that cannot be proved.
 pub mod earlier_service_command_line_read;
 
+/// The questions about the file system that the look at an earlier commit service asks:
+/// the bytes that spell a path,
+/// the part of a path the file system knows,
+/// and the identity of each earlier journal that exists.
+pub mod earlier_service_look_paths;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 
