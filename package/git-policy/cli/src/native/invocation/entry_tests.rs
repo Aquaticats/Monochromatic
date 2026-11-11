@@ -18,7 +18,8 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::FORWARD_TARGET_VARIABLE;
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay};
+use crate::control_terminal::{Terminal, control_terminal};
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
@@ -70,23 +71,42 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 
 /// The forward action for these fixtures:
 ///  real Git,
-///  the lock-PID overlay and no warning.
+///  the lock-PID overlay,
+///  the never-prompt pair when this process has no controlling terminal,
+/// and no warning.
+/// Why:
+///   Planning reads the controlling terminal of the process it runs in
+///   (`invocation_overlay`),
+/// so a control that named a fixed overlay would pass
+///   at a terminal and fail in the gate,
+/// which runs with none.
+///   The pair is asked for here the way planning asks for it,
+/// once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const overlay = [...lockPidOverlay(), ...(terminal() === 'absent' ? neverPromptOverlay() : [])];
+/// ```
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
+    let mut overlay: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
+        (
+            OsString::from("GIT_CONFIG_KEY_0"),
+            OsString::from("core.lockfilePid"),
+        ),
+        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
+        (
+            OsString::from(FORWARD_TARGET_VARIABLE),
+            OsString::from(REAL_GIT),
+        ),
+    ];
+    if control_terminal() == Terminal::Absent {
+        overlay.extend(never_prompt_overlay());
+    }
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay: vec![
-            (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-            (
-                OsString::from("GIT_CONFIG_KEY_0"),
-                OsString::from("core.lockfilePid"),
-            ),
-            (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
-            (
-                OsString::from(FORWARD_TARGET_VARIABLE),
-                OsString::from(REAL_GIT),
-            ),
-        ],
+        overlay,
         stderr: String::new(),
     };
 }
