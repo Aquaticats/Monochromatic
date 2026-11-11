@@ -5882,7 +5882,10 @@ on the commit path:
   because the unit names its address with `%t` and `%t` is the manager's runtime directory.
   Two spellings of one folder are one address there:
   a link,
-  a `..` part and a link already on the way (`/home` to `/var/home`, `/var/run` to `/run`) all reach the one socket,
+  a `..` part,
+  and a link already on the way,
+  which this account has in `/var/run` reaching `/run`,
+  all reach the one socket,
   so the file system decides that question and never the two texts.
   The manager's answer about the address it made is the fact that decides the second;
   an answer that cannot be read proves nothing and leaves the wait as it was,

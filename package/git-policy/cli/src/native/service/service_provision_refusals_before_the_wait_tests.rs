@@ -161,8 +161,8 @@ fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
 /// What:
 ///  A symbolic link beside `runtime` that resolves to it.
 /// Why:
-///  A person's runtime directory may be reached through a link
-/// (`/home` is a link to `/var/home` on the machine these controls ran on),
+///  A person's runtime directory may be reached through a link,
+/// which this machine has in `/home` reaching `/var/home`,
 /// and the file system resolves the link while the texts stay different.
 fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
     let link: PathBuf = runtime.parent().expect("a runtime directory stands in a folder").join(name);
@@ -330,8 +330,9 @@ fn a_service_the_manager_made_where_this_command_waits_is_used() {
 /// the manager's own spelling of its runtime directory,
 /// while the address a command connects to is built from the spelling of `XDG_RUNTIME_DIR` it was given.
 /// A link to the same directory,
-/// `/run/user/1000/../1000` and a runtime directory reached through a link that already exists
-/// (`/home` to `/var/home`, `/var/run` to `/run`)
+/// a `/run/user/1000/../1000` part,
+/// and a runtime directory already reached through a link,
+/// which this account has in `/home` reaching `/var/home` and in `/var/run` reaching `/run`,
 /// all reach the one socket the manager made,
 /// so a comparison of the two texts alone refused a service that answers on the very socket this command connects to.
 /// Worse,
