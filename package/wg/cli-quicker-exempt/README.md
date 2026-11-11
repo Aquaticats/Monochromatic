@@ -336,6 +336,12 @@ reproduced),
 and because the old bus-name call is what a second manager could take over.
 One connection and one login precede each call,
 and the socket's peer credentials are checked before anything is written.
+Each call has one deadline, taken before the connect:
+not the socket's read timeout,
+which restarts with every read,
+so a manager that emits an unrelated message more often than the timeout cannot keep an unanswered call open.
+A call that passes its deadline is a `TimedOut` refusal,
+which pauses the moves for a few seconds.
 
 The group id handed to `setpriv` is the watched user's,
 not the matched process's.
@@ -394,8 +400,15 @@ or failed with no cgroup,
 and nothing removes them:
 the manager stops a scope when its last process exits,
 and a scope that never held one gets no such event.
-When the watcher starts it sweeps them once,
-on a thread of its own,
+When the watcher starts it sweeps them once.
+The scopes of one origin are stopped before the first target scan and the first adoption,
+in the watcher's own thread:
+a process joining an origin scope is a process the watcher just moved there,
+and the manager ends every process in a scope it stops,
+so a sweep running beside adoption cannot make that decision safely.
+The scopes of the earlier per-process design,
+which the current watcher never fills,
+are swept on a thread of its own,
 so the policy is enforced while the manager works.
 It lists the manager's units that match the earlier design's names (two runs of digits,
 not a path),
@@ -634,6 +647,23 @@ in order:
    goes to the watcher log,
    the journal
    and the desktop of the watched user.
+
+Every signal is proven first.
+The pid a bus reports is not an identity the kernel keeps:
+an owner can exit and the kernel can give its number to another process of the same user,
+so the guard asks the bus again whether the same unique connection name still names that pid,
+and sends `SIGKILL` through a process descriptor (`pidfd`) opened for it,
+which refers to that process and not to the number.
+A pid the bus no longer names,
+or names with another pid,
+is never signalled;
+a kernel without process descriptors falls back to the bus proof and a direct signal.
+The guard also ends when its watcher does:
+the watcher holds the guard's standard input for its whole life,
+and the guard's loop ends when that input reaches its end,
+which a stop, an exit or a kill of the watcher all close.
+Without that, a guard outlived its watcher and kept polling the bus,
+and every restart added another one.
 
 The guard's decisions and its signal are tested
 (`src/impostor_guard_tests.rs`):
