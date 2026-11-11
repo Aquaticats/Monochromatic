@@ -335,18 +335,31 @@ impl Deferral {
     ///  landing that published nothing (a withdrawal,
     /// an error,
     /// a commit sent back) syncs its records before it returns.
-    pub fn settle(mut self, published: bool) {
+    pub fn settle(self, published: bool) {
+        return self.settle_with(published, &hand_to_the_background);
+    }
+
+    /// What:
+    ///  `settle` with the handing of the queue to the background task given,
+    /// so a control proves what a published landing does when no task takes it.
+    /// Why:
+    ///   The sender is one for the process,
+    /// so only the hand can be made to refuse in a control.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// deferral.settleWith(published, hand)
+    /// ```
+    fn settle_with(mut self, published: bool, hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>) {
         self.settled = true;
         let batch: Vec<Pending> = end();
         if batch.is_empty() {
             return;
         }
         if published {
-            if let Err(rejected) = sender().send(Job::Batch(batch)) {
+            if let Some(returned) = hand(batch) {
                 // The task is gone, so the queue is made here rather than lost.
-                if let Job::Batch(returned) = rejected.0 {
-                    force(returned);
-                }
+                force(returned);
             }
         } else {
             force(batch);
@@ -383,16 +396,53 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 ///
 /// The error of duplicating the handle; a queue that the background task no longer takes is synced here.
 pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
+    return defer_file_with(&hand_to_the_background, file, what);
+}
+
+/// What:
+///  `defer_file` with the handing of the batch to the background task given,
+/// so a control proves what happens when no task takes it.
+/// Why:
+///   Which task holds the queue is one process-wide sender,
+/// so a control cannot make it refuse by way of the runtime;
+/// the hand is the one step that decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deferFileWith(hand, file, what)
+/// ```
+fn defer_file_with(hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>, file: &File, what: &'static str) -> std::io::Result<()> {
     let handle: File = file.try_clone()?;
     note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
     crate::service_fault::note(format!("sync-queued:{what}").as_str());
-    if let Err(rejected) = sender().send(Job::Batch(vec![Pending { handle, what }])) {
+    if let Some(returned) = hand(vec![Pending { handle, what }]) {
         // The task is gone, so the flush is made here rather than lost.
-        if let Job::Batch(returned) = rejected.0 {
-            force(returned);
-        }
+        force(returned);
     }
     return Ok(());
+}
+
+/// What:
+///  Hands one batch to the background task,
+/// or answers it back when the task no longer takes it.
+/// Why:
+///   The receiver is dropped when no task started,
+/// so a rejected send is the only sign that nothing will make the syncs.
+/// A barrier is never sent through here,
+/// so a rejected batch is the only thing the answer holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hand = (batch) => { try { sender().send({ batch }); return undefined; } catch { return batch; } };
+/// ```
+fn hand_to_the_background(batch: Vec<Pending>) -> Option<Vec<Pending>> {
+    return match sender().send(Job::Batch(batch)) {
+        Ok(()) => None,
+        Err(rejected) => match rejected.0 {
+            Job::Batch(returned) => Some(returned),
+            Job::Barrier(_answered) => None,
+        },
+    };
 }
 
 /// Flushes a file that is a landing's record:

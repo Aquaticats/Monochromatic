@@ -57,3 +57,8 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
         }
     }
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_settling_with_words_tests.rs"]
+mod tests;
