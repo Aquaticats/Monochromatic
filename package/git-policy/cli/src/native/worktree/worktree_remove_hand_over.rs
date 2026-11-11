@@ -58,7 +58,8 @@ const TAG: &str = "worktreeRemoveHandOver";
 /// and one the next commands report when it stays.
 pub const DELETING_PREFIX: &str = "cli-git-deleting-";
 
-/// The reference an item of this kind names, which is no branch:
+/// The reference an item of this kind names,
+/// which is no branch:
 /// an item carries a reference-shaped field so that every reader of a record keeps one shape,
 /// and no push is ever made for this kind.
 pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-delete";
@@ -188,7 +189,8 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 }
 
 /// What:
-///  Hand the subvolume of a proven, unlocked worktree to the service:
+///  Hand the subvolume of a proven,
+/// unlocked worktree to the service:
 /// record the item,
 /// rename the subvolume out of the
 ///  person's way,
@@ -219,7 +221,41 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 /// await handOverRemoval({ context, commonDir, parent, parentPath, name, id });
 /// ```
 pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path) -> Result<(), String> {
-    return hand_over_with(common_dir, parent, parent_path, name, id, target, &|wake_at: &Path| { return wake_the_service(context, wake_at); });
+    return hand_over_with(common_dir, parent, parent_path, name, id, target, &ThroughTheService { context });
+}
+
+/// What:
+///  Who is told that a deletion record waits for the service.
+/// Why:
+///   A removal's wake is one function bound to the context the command holds,
+/// and a closure carrying that binding is a shape this crate's closure rule refuses
+///  (`package/git-policy/cli/doc/closure-lint-suppressions.md`:
+/// only the standard library's own callables are suppressed),
+/// so the state travels in a value and the wake is a method of it.
+pub trait ToldOfHandOver {
+    /// What:
+    ///  Tell the service of `common_dir` that a record waits.
+    /// Why:
+    ///   A hand-over is never what makes a removal fail,
+    /// so the answer is a reason the removal warns about rather than an error it returns.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// told(commonDir): string | undefined
+    /// ```
+    fn told(&self, common_dir: &Path) -> Result<(), String>;
+}
+
+/// The service of the person's session, woken through the context the removal holds.
+pub struct ThroughTheService<'a> {
+    /// The context whose repository is the session's.
+    pub context: &'a GitContext,
+}
+
+impl ToldOfHandOver for ThroughTheService<'_> {
+    fn told(&self, common_dir: &Path) -> Result<(), String> {
+        return wake_the_service(self.context, common_dir);
+    }
 }
 
 /// What:
@@ -237,7 +273,7 @@ pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File,
 /// ```ts
 /// handOverWith({ commonDir, parent, parentPath, name, id, target, told });
 /// ```
-pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn Fn(&Path) -> Result<(), String>) -> Result<(), String> {
+pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn ToldOfHandOver) -> Result<(), String> {
     let item: WorkItem = record_the_removal(common_dir, parent_path, id)?;
     let deleting: OsString = deleting_name(id);
     if let Err(error) = rename_at(parent, name, parent, deleting.as_os_str(), false) {
@@ -262,7 +298,7 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         }
         return Ok(());
     }
-    if let Err(why) = told(common_dir) {
+    if let Err(why) = told.told(common_dir) {
         // The record stays, and the next command of this repository wakes the service that reads it.
         warn(TAG, format!("the delete of {} is recorded and not woken ({why})", target.display()).as_str());
     }
@@ -321,13 +357,16 @@ fn recorded_subvolume(oid: &str) -> Option<u64> {
 ///  subvolume in place,
 /// or a service already deleted it,
 /// so the item is done.
-/// A path that is not a directory, or that
+/// A path that is not a directory,
+/// or that
 ///  holds another subvolume than the record's id,
 /// is not this item's to remove:
 /// a replacement is left as it is and named in the
 ///  failure,
 /// because the record promised the person who removed the worktree that one subvolume goes and nothing else
-///  (`SPEC.md`, "Cheap worktree creation and removal on btrfs, XFS and overlayfs").
+///  (`SPEC.md`,
+/// "Cheap worktree creation and removal on btrfs,
+/// XFS and overlayfs").
 /// The destroy names the subvolume by the id the record holds when the kernel
 ///  allows it,
 /// so a replaced ancestor cannot redirect it,
@@ -424,12 +463,14 @@ fn by_id_unavailable(errno: i32) -> bool {
     return errno == libc::ENOTTY || errno == libc::EOPNOTSUPP || errno == libc::EINVAL;
 }
 
-/// The path of a pending record, for the words that name it.
+/// The path of a pending record,
+/// for the words that name it.
 pub fn pending_record_path(common_dir: &Path, inventory: &WorkItem) -> PathBuf {
     return state_directory(work_directory(common_dir).as_path(), PENDING).join(inventory.id());
 }
 
-/// The bytes of a path, for a control that checks the record names the same place twice.
+/// The bytes of a path,
+/// for a control that checks the record names the same place twice.
 pub fn path_bytes(path: &Path) -> Vec<u8> {
     return path.as_os_str().as_bytes().to_vec();
 }

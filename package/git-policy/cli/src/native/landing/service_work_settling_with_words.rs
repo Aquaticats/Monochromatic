@@ -10,7 +10,8 @@
 //! A retryable verdict is the one that must not be settled where a failure goes:
 //! later rounds claim only
 //!  `pending`,
-//! and recovery reads `claimed` and `recovering`, never `failed`,
+//! and recovery reads `claimed` and `recovering`,
+//! never `failed`,
 //! so a record settled as failed is never tried
 //!  again.
 //! `tries` bounds the retries:
