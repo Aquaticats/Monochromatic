@@ -11,7 +11,8 @@ use crate::worktree_add_plan::AddPlan;
 use crate::worktree_snapshot_ahead_claim::{identity_of_name, look_for_a_snapshot_ahead};
 use crate::fs_btrfs_ioctl::{snapshot_create_at, subvolume_create_at};
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{git_context, remove};
+use crate::test_support::{fixture, git_context, remove};
+use crate::work_item::{FAILED, PENDING, state_directory};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use crate::worktree_snapshot_source::choose_snapshot_source;
 use std::cell::RefCell;
@@ -341,6 +342,32 @@ fn a_stale_snapshot_is_deleted_by_the_path_the_service_is_given() {
     assert_eq!(item.oid.len(), 64);
     let again: WorkItem = deletion_item(root.join(".git").as_path(), root.as_path(), name.as_os_str());
     assert_eq!(item.id(), again.id(), "two adds that prove one entry stale write one record");
+}
+
+/// A delete the service gave up on is queued again by the next add that proves the copy stale.
+/// Why:
+///  The id of the delete of one path is that path,
+/// so every later add names the same record;
+/// a queue that only
+///  answers "already there" would never delete that copy,
+/// and its blocks would stay pinned for good.
+#[test]
+fn a_delete_the_service_gave_up_on_is_queued_again() {
+    let root: PathBuf = fixture("ahead-delete-given-up");
+    let repo: PathBuf = root.join("repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("a Git directory");
+    let pool: PathBuf = pool_folder(git_dir.as_path());
+    let work: PathBuf = crate::service_work::work_directory(git_dir.as_path());
+    let name: OsString = ahead_name(repo.as_path(), SystemTime::UNIX_EPOCH).expect("a name");
+    let id: String = deletion_item(git_dir.as_path(), pool.as_path(), name.as_os_str()).id();
+    hand_over_with(git_dir.as_path(), pool.as_path(), std::slice::from_ref(&name)).expect("the delete is recorded");
+    assert!(state_directory(work.as_path(), PENDING).join(&id).exists(), "the delete waits for a round");
+    // The service gave up on it, and nothing scans `failed`.
+    std::fs::rename(state_directory(work.as_path(), PENDING).join(&id), state_directory(work.as_path(), FAILED).join(&id)).expect("the record is given up");
+    hand_over_with(git_dir.as_path(), pool.as_path(), std::slice::from_ref(&name)).expect("the delete is recorded again");
+    assert!(state_directory(work.as_path(), PENDING).join(&id).exists(), "the delete is queued again instead of staying given up");
+    remove(root.as_path());
 }
 
 /// The snapshots ahead of a repository stand inside its own Git directory,

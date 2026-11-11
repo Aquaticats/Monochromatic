@@ -351,6 +351,39 @@ fn create_states(work_dir: &Path) -> bool {
     return true;
 }
 
+/// What:
+///  Put a record the consumer gave up on back where a round finds it,
+/// when its id stands in `failed`,
+/// and
+///  say whether it moved.
+/// Why:
+///   Some work has an id its producer can name again without knowing what became of the last attempt:
+/// the
+///  delete of one path is that work,
+/// and a consumer that gave up on it is no statement that the condition lasts for ever
+///  (a disk fills and empties,
+/// a volume is replaced,
+/// a mount is remounted).
+/// Nothing scans `failed`,
+/// and an
+///  id that reached it is answered as already known,
+/// so without this a name the producer keeps naming is never
+///  acted on again.
+/// The count of tries goes with the record,
+/// so each producer's hand-over buys one more attempt rather than
+///  a fresh allowance.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const requeueAfterGivingUp = (workDir, id) => rename(join(workDir, 'failed', id), join(workDir, 'pending', id));
+/// ```
+pub fn requeue_after_giving_up(work_dir: &Path, id: &str) -> bool {
+    if !create_states(work_dir) {
+        return false;
+    }
+    return std::fs::rename(state_directory(work_dir, FAILED).join(id), state_directory(work_dir, PENDING).join(id)).is_ok();
+}
+
 /// Forgets a held item whose producer refused it;
 /// one that is already promoted is not reached.
 pub fn forget_held(work_dir: &Path, id: &str) {

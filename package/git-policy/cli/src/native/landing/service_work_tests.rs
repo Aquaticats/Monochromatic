@@ -1484,7 +1484,10 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
         let wanted: WorkItem = item(&repo, kind, OID, BRANCH);
         enqueue_all(&repo, std::slice::from_ref(&wanted));
         let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
-        let wait: Option<Duration> = drain(repo.common.as_path(), &retrying, &ClaimTime::read());
+        // The renewal is driven by this control and driven not at all, so no thread of the round is renaming the claim
+        //  the pass below takes: the take of a name a renewal moved is the one race the recovery leaves to the next pass.
+        let driver: DrivenRenewal = DrivenRenewal::default();
+        let wait: Option<Duration> = drain_with_renewal(repo.common.as_path(), &retrying, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Driven(&driver));
         assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
         assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
         assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());

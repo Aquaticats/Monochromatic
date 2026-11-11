@@ -1389,6 +1389,14 @@ which is how a round after it asks again.
 The same holds for every kind that answers in words,
 including the delete of a subvolume the pool hands over,
 so a copy that proved stale is deleted on a later round instead of staying on the disk for ever.
+A delete the service gave up on after its tries is no permanent answer about that copy:
+the next add that proves the
+same copy stale hands the same name over again,
+and the hand-over queues that record again out of `failed`,
+because
+the id of one path's delete is that path and a record in `failed` is otherwise never run again
+(`src/native/landing/work_item_holding.rs`,
+`requeue_after_giving_up`).
 The drain runs this kind after a push and before the upkeep and every kind that frees space,
 awaited on a thread of the process's blocking pool,
 because it is the one item there that a person's command is waiting for and its ioctl waits for a commit of the whole

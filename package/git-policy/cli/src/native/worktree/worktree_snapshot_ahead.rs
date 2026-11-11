@@ -62,7 +62,7 @@ use crate::service_work::work_directory;
 use crate::subvolume_sha::sha256;
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
-use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::work_item::{Enqueued, WorkItem, WorkKind, enqueue, requeue_after_giving_up};
 use crate::worktree_remove_hand_over::DELETE_REFERENCE;
 use crate::worktree_snapshot_index_step::Proof;
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -673,6 +673,12 @@ pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, s
 /// so a control asserts them without a service,
 /// and one
 ///  record that cannot be written is said and does not stop the others.
+/// A record the service already gave up on is queued again rather than left in `failed`:
+/// the id of the
+///  delete of one path is that path,
+/// so every later add names the same record,
+/// and a queue that only answers
+///  "already there" would never delete that copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -681,8 +687,15 @@ pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, s
 pub fn hand_over_with(git_dir: &Path, pool: &Path, stale: &[OsString]) -> Result<(), String> {
     let work: PathBuf = work_directory(git_dir);
     for name in stale {
-        if let Err(reason) = enqueue(work.as_path(), &deletion_item(git_dir, pool, name.as_os_str())) {
-            debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str());
+        let record: WorkItem = deletion_item(git_dir, pool, name.as_os_str());
+        match enqueue(work.as_path(), &record) {
+            Ok(Enqueued::Added) => {}
+            Ok(Enqueued::Known) => {
+                if requeue_after_giving_up(work.as_path(), record.id().as_str()) {
+                    debug(TAG, format!("the delete of {} was given up on and is queued again", pool.join(name).display()).as_str());
+                }
+            }
+            Err(reason) => debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str()),
         }
     }
     debug(TAG, format!("{} name(s) of snapshots ahead are handed to the service in {}", stale.len(), pool.display()).as_str());
