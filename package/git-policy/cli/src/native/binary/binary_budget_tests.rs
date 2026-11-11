@@ -42,11 +42,6 @@ use std::process::{Command, Output};
 // The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
 //  only when the real index no longer describes the worktree, and every repository here has an index Git has just
 //  written, so the `update-index` counts are the ones measured before that refresh existed.
-// The two wrapper syncs are the held record's verdict: `record_verdict` (`landing/work_item_holding.rs`, through
-//  `replace_private_file`) flushes the record's bytes and the directory that received it, so a command killed between
-//  its gate and the record's promotion leaves a verdict a later command settles from. That durability is the point of
-//  the write, so the wrapper syncs of every scenario are two and no scenario loses the flush
-//  (`doc/planning/cli-git-spawn-and-sync-reduction.md`, section "Budgets", "Raised on 2026-11-10").
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
 // Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance
@@ -99,7 +94,7 @@ const NO_HOOKS: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 2,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -138,7 +133,7 @@ const CONFIGURED_HOOK: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 2,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -174,7 +169,7 @@ const AMEND: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 2,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -218,7 +213,7 @@ const WARM: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 2,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0), ("multi-pack-index write", 0), ("pack-objects", 0)],
 };
 //endregion

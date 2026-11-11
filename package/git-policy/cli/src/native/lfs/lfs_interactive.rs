@@ -102,7 +102,9 @@ impl GitQuery for InteractiveQuery<'_> {
         let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
         arguments.extend(query_arguments.iter().map(OsString::from));
         // The question is asked through the push's own bounded query, so a Git that never answers is stopped and named instead of
-        //  holding the push for good; the wait is the push's stall window, as it is for every query of a push.
+        //  holding the push for good; the wait is the push's stall window, as it is for every query of a push. That query also
+        //  starts the child through `spawn_retrying_without_blocking`, so a start the system refuses for lack of processes is
+        //  tried again instead of ending the push.
         // The question is the wrapper's own read-only Git, so it runs with the monitor and the hooks off (`StartOwner::Wrapper`),
         //  never with the person's setting.
         let command: std::process::Command =

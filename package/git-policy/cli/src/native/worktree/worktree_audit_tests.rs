@@ -16,6 +16,7 @@ use super::{changed_paths, removal_facts, removal_target, worktree_head};
 use crate::discard_audit_facts::AuditFact;
 use crate::command_test_support::git_status;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
+use crate::path_bytes::path_bytes_of;
 use crate::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -207,5 +208,27 @@ fn real_git_resolves_a_worktree_whose_path_holds_a_line_break() {
     let removed: std::process::Output = git_status(repo.as_path(), &["worktree", "remove", "--force", "chapter"]);
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(removed.stderr.as_slice()));
     assert!(!linked.exists());
+    remove(root.as_path());
+}
+
+/// What:
+///  A `gitdir:` pointer that names a Git directory whose own path is not UTF-8 text names that directory.
+/// Why:
+///   The pointer was read as UTF-8 text,
+/// so such a worktree's facts were reported as unread
+///  and a removal recorded nothing about what it took.
+#[test]
+fn a_pointer_to_a_directory_that_is_not_text_names_it() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("worktree-audit-pointer-not-text");
+    let linked: PathBuf = root.join("linked");
+    let own: PathBuf = linked.join(OsString::from_vec(b"own\xefgit".to_vec()));
+    std::fs::create_dir_all(&own).expect("own Git directory");
+    std::fs::write(own.join("HEAD"), b"ref: refs/heads/topic\n").expect("HEAD");
+    let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
+    pointer.extend_from_slice(path_bytes_of(own.as_path()));
+    pointer.push(b'\n');
+    std::fs::write(linked.join(".git"), pointer).expect("pointer file");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
     remove(root.as_path());
 }

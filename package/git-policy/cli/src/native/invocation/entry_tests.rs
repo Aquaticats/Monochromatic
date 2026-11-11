@@ -80,7 +80,8 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 /// so a suite run at a terminal and one run in a session without one
 ///  each expect the overlay its own answer produces;
 /// the answer never comes from whether standard input is a terminal
-/// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+/// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
+/// and the pair's variables and order are proven in `child_environment_tests.rs`.
 fn expected_overlay() -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),

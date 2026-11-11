@@ -16,6 +16,8 @@
 //!  (`linked-worktree-only`),
 //! the root (`require-root`) and the branch-worktree
 //!  (`branch-worktree-only`) rejections;
+//! the shared-remote-settings refusal of `linked-worktree-only` carries its own
+//!  text in `rule_shared_remote_messages.rs`,
 //! the add rejection's hint is in the table of
 //!  `finding_hint`,
 //! and the commit-only diagnostics carry their own text in
@@ -33,6 +35,7 @@ use crate::manual_push_cause::ManualPushCause;
 pub const SELF_HINTED: &[(&str, &str)] = &[
     ("require-root", "not-at-root"),
     ("linked-worktree-only", "linked-worktree-required"),
+    ("linked-worktree-only", "shared-remote-settings"),
     ("branch-worktree-only", "branch-creation-requires-worktree"),
 ];
 

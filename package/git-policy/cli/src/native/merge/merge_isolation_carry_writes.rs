@@ -276,7 +276,8 @@ fn failure_detail(failure: &CarryFailure) -> String {
 ///  A clear checks every worktree path before its index records go,
 /// and every batch takes each path aside under a private name
 ///  before its own bytes are replaced,
-/// so a file saved in either window is kept.
+/// so a file saved in either window is kept,
+///  and the private name of a file a program can still write into is kept and said.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -330,6 +331,8 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         }
         let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
         // The private names this one path's write may not remove, because a program could still write into them.
+        //  A deletion keeps such a name too, which is why the notice below says the write happened and not that a file was
+        //  replaced.
         let mut held: Vec<PathBuf> = Vec::new();
         let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut held).await {
             Ok(found) => found,
@@ -348,8 +351,8 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         for aside in &held {
             let _ = out.write_all(
                 format!(
-                    "monochromatic-git-policy-cli: {path} was replaced while a program could still write the file it held before, so \
-                     that file is kept at {}; nothing of the person's was removed.\n",
+                    "monochromatic-git-policy-cli: {path} was written, and the file it held before this merge took it can still be written \
+                     by a program that opened it, so it is kept at {}; nothing of the person's was removed.\n",
                     aside.display()
                 )
                 .as_bytes(),
