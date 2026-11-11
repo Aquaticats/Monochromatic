@@ -22,12 +22,16 @@ export {
 export {
   COMMAND_ANSWER_MILLISECONDS,
   FEED_PREVIEW_CHARACTERS,
+  MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
   MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
   NESTED_RUN_VARIABLE,
   NO_RUN_FAILURE,
   POLL_MILLISECONDS,
+  PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+  QUOTA_FALLBACK_MODEL,
+  QUOTA_FALLBACK_PROVIDER,
   SHUTDOWN_GRACE_MILLISECONDS,
   SHUTDOWN_STAGES,
   TEARDOWN_ANSWER_MILLISECONDS,
@@ -42,7 +46,9 @@ export type {
   EventObservation,
   PiExit,
   PiRecord,
+  ProviderAndModel,
   RecordOfPiRun,
+  RetryBound,
   RetryTaken,
   RunEnding,
   RunFailure,
@@ -55,10 +61,36 @@ export {
   isRateLimit,
   kindOfModelError,
   type ModelErrorKind,
+} from './retries-of-a-model-error.ts';
+export {
+  leadingStatusCode,
+  type NamedSeconds,
+  secondsNamedBy,
+} from './scanning-a-failure-text.ts';
+export {
+  concurrencyDelayMilliseconds,
+  type ConcurrencyWait,
+  concurrencyWaitOf,
   retryDelayMilliseconds,
   type WaitAskedByProvider,
   waitAskedByProvider,
-} from './retries-of-a-model-error.ts';
+} from './waits-a-model-error-names.ts';
+export {
+  type ProviderMove,
+  promptAfterAProviderSwitch,
+  QUOTA_FALLBACK,
+  switchProviderOnSpentQuota,
+  switchWarranted,
+} from './switch-provider-on-a-spent-quota.ts';
+export {
+  type PromptToSend,
+  THE_PROMPT_FILE,
+} from './take-the-first-prompt.ts';
+export {
+  type WatchedRun,
+  type WatchedRunRequest,
+  watchEveryPiOfARun,
+} from './watch-every-pi-of-a-run.ts';
 export {
   DRIVER_USAGE,
   DriverOptionsError,

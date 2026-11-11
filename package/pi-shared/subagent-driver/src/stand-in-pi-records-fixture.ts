@@ -46,6 +46,23 @@ export const LONG_WAIT_ERROR_TEXT = '503 {"error":{"message":"Service Unavailabl
 export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
 
 /**
+ The limit on requests running at once, exactly as Neuralwatt sent it, recorded in
+ `pi-runs/release-wait-reports-a-passed-run-as-passed-1/summary.json` on 2026-11-11.
+
+ Its own text links a page under `/billing`, which Pi reads as a spent quota and never retries (its
+ `NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN` holds `billing`), while the failure says in the same body that a slot frees and the
+ request can go again.
+ */
+export const CONCURRENCY_LIMIT_ERROR_TEXT = '429: {"type":"rate_limit_error","code":"concurrent_budget_exceeded","message":"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. Wait for a request to complete and retry. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews. Turn auto-renew back on to restore your account level\'s limits: https://docs.neuralwatt.com/billing/account-levels#overage-with-auto-renew-off","retry_strategy":{"type":"concurrent_drain","suggested_initial_delay_s":1,"max_delay_s":30,"backoff":"exponential","backoff_base":2,"jitter":true},"retryable":true,"context":{"budget":6,"in_flight":6,"model":"deepseek-ai/DeepSeek-V4.1-Flash","limit_type":"concurrent","tpm_window_tokens":0,"tpm_limit":5242880,"floor":5,"burst":6,"burst_shed":false}}';
+
+/**
+ Synthetic's 429, exactly as it was recorded in `pi-runs/kimi-review-merge-route-round-9-1/summary.json` on 2026-11-11: the
+ subscription's quota is spent, so another attempt on Synthetic reaches the same answer.
+ */
+export const SPENT_QUOTA_ERROR_TEXT =
+  '429 "You\'ve exceeded your subscription rate limits. Upgrade, or try again later. You can view your usage at https://synthetic.new/billing"';
+
+/**
  The text the standard-error scenario writes, so a test can see the copy reach its file.
  */
 export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';

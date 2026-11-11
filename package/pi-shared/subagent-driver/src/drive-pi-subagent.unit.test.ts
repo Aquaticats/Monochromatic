@@ -38,17 +38,23 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   continuationPromptOf,
   FEED_PREVIEW_CHARACTERS,
+  MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
+  promptAfterAProviderSwitch,
+  PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+  QUOTA_FALLBACK,
   type RunSummary,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
 import {
+  CONCURRENCY_LIMIT_ERROR_TEXT,
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
+  SPENT_QUOTA_ERROR_TEXT,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
 
@@ -110,6 +116,23 @@ const LOOKS_A_RETRY_WAIT_SPANS = 4;
  Seconds before the first retry in a test whose run must never reach it, far past the wall clock the run itself is given.
  */
 const WAIT_PAST_THE_RUN_SECONDS = 600;
+/**
+ Seconds the first wait the recorded concurrency 429 asks for, which is `suggested_initial_delay_s` 1 in its own retry strategy.
+ */
+const CONCURRENCY_FIRST_DELAY_SECONDS = 1;
+/**
+ Seconds a run waits for a request slot in a test about the bound ending it, well above the one wait the recorded body asks for
+ and small enough that the test is quick.
+ */
+const CONCURRENCY_WAIT_SECONDS_IN_A_TEST = 0.5;
+/**
+ The model every stand-in run starts on.
+ */
+const STAND_IN_MODEL = 'stand-in-model';
+/**
+ The session file the stand-in reports for `get_session_stats`, which a run moved to another provider resumes from.
+ */
+const STAND_IN_SESSION_FILE = 'stand-in-session.jsonl';
 /**
  How many looks the driver would need to schedule the attempt it owes and send it, which a test waits out so an attempt that
  should not go has had its chance.
@@ -196,6 +219,10 @@ type Finished = {
    The names of the variables Pi started with, never their values.
    */
   readonly environmentNames: readonly string[];
+  /**
+   The arguments of each Pi the run started, kept whole per Pi: a run that moved has one entry for each Pi.
+   */
+  readonly piArgumentLists: readonly (readonly string[])[];
   readonly piArguments: readonly string[];
   readonly inbox: readonly string[];
   readonly inboxContents: Readonly<Record<string, string>>;
@@ -221,6 +248,16 @@ type RunRequest = {
   readonly extraOptions?: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
   readonly withoutPi?: boolean;
+
+  /**
+   The provider this run starts on, which a test about a spent quota sets to the one whose quota moves a run.
+   */
+  readonly provider?: string;
+
+  /**
+   The model this run starts on.
+   */
+  readonly model?: string;
 
   /**
    Text of the prompt file, which no test leaves empty.
@@ -502,6 +539,8 @@ async function runDriver(
     extraOptions = [],
     environment = {},
     withoutPi = false,
+    provider = 'stand-in',
+    model = STAND_IN_MODEL,
     promptText = 'hello',
     withoutPrompt = false,
     wallSeconds = RUN_WALL_SECONDS,
@@ -537,8 +576,8 @@ async function runDriver(
     `--run-folder=${runFolder}`,
     `--working-folder=${folder.path}`,
     `--prompt-file=${promptFile}`,
-    '--provider=stand-in',
-    '--model=stand-in-model',
+    `--provider=${provider}`,
+    `--model=${model}`,
     `--wall-seconds=${String(wallSeconds,)}`,
     `--idle-seconds=${String(idleSeconds,)}`,
     `--turn-cap=${String(turnCap,)}`,
@@ -583,6 +622,9 @@ async function runDriver(
       logged.find((line,) => line.startsWith('environment-names ',))?.slice('environment-names '.length,) ?? '[]',
     ) as readonly string[],
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
+      JSON.parse(line.slice('arguments '.length,),) as string[]
+    ),
+    piArgumentLists: logged.filter((line,) => line.startsWith('arguments ',)).map((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
     inbox: await listInbox(join(runFolder, 'inbox',),),
@@ -957,6 +999,105 @@ await describe({
         expect(run.summary.retries,).toBe(1,);
         expect(run.summary.rateLimitErrors,).toBe(1,);
         expect(run.feed.find((entry,) => entry.kind === 'retry')?.errorKind,).toBe('throttled',);
+      },
+    },),
+    it({
+      name: 'a provider whose pool is full waits for a slot and goes on, instead of ending the run as Pi does',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'concurrency-limit-then-success', },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        expect(run.summary.modelError,).toBeUndefined();
+        expect(run.summary.rateLimitErrors,).toBe(1,);
+        expect(run.summary.retries,).toBe(1,);
+        /**
+         The wait the run announced before it made its attempt.
+         */
+        const waiting = run.feed.find((entry,) => entry.kind === 'waiting-for-a-slot');
+        expect(waiting?.error,).toContain(CONCURRENCY_LIMIT_ERROR_TEXT.slice(0, FEED_PREVIEW_CHARACTERS.modelError / 2,),);
+        expect(waiting?.budgetMilliseconds,).toBe(MODEL_ERROR_CONCURRENCY_WAIT_SECONDS * MILLISECONDS_PER_SECOND,);
+        /**
+         The attempt it made, which the failure's own `suggested_initial_delay_s` bounds rather than `--retry-base-seconds`.
+         */
+        const retry = run.feed.find((entry,) => entry.kind === 'retry');
+        expect(retry?.errorKind,).toBe('concurrency-limit',);
+        expect(retry?.delayMilliseconds,).toBe(CONCURRENCY_FIRST_DELAY_SECONDS * MILLISECONDS_PER_SECOND,);
+        // The wait for a slot is what bounds these attempts, so the line names no attempt count.
+        expect(retry?.of,).toBeUndefined();
+        expect(retry?.withinMilliseconds,).toBe(MODEL_ERROR_CONCURRENCY_WAIT_SECONDS * MILLISECONDS_PER_SECOND,);
+      },
+    },),
+    it({
+      name: 'a provider whose pool stays full ends the run once the wait for a slot is spent, naming that wait',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'always-concurrency-limit',
+          extraOptions: [`--concurrency-wait-seconds=${String(CONCURRENCY_WAIT_SECONDS_IN_A_TEST,)}`,],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(CONCURRENCY_LIMIT_ERROR_TEXT.slice(0, 20,),);
+        // One attempt was made inside the wait, and no more once it was spent.
+        expect(run.summary.retries,).toBe(1,);
+        expect(String(run.feed.find((entry,) => entry.kind === 'problem')?.problem,),)
+          .toContain('no slot freed within it',);
+      },
+    },),
+    it({
+      name: 'a spent Synthetic quota moves the run to the owner’s fallback provider, on the session it already has',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'spent-quota-then-moves',
+          provider: PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        // The failure was answered by a run that went on, not by a reply in the session that failed.
+        expect(run.summary.modelError,).toBeUndefined();
+        expect(run.summary.rateLimitErrors,).toBe(1,);
+        /**
+         The feed line that says the run moved, and what it moved to.
+         */
+        const switched = run.feed.find((entry,) => entry.kind === 'provider-switch');
+        expect(switched?.from,).toEqual({
+          provider: PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+          model: STAND_IN_MODEL,
+        },);
+        expect(switched?.to,).toEqual(QUOTA_FALLBACK,);
+        expect(switched?.sessionFile,).toBe(STAND_IN_SESSION_FILE,);
+        // The Pi that follows runs on the fallback provider and model, on the session the one before it reported.
+        expect(run.piArgumentLists,).toEqual([
+          [
+            '--mode',
+            'rpc',
+            '--provider',
+            PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+            '--model',
+            STAND_IN_MODEL,
+          ],
+          [
+            '--mode',
+            'rpc',
+            '--provider',
+            QUOTA_FALLBACK.provider,
+            '--model',
+            QUOTA_FALLBACK.model,
+            '--session',
+            STAND_IN_SESSION_FILE,
+          ],
+        ],);
+        // The session goes on with the work the failure left, and is told which provider it is on now.
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).map((command,) => command.message),)
+          .toEqual([
+            'hello',
+            promptAfterAProviderSwitch({
+              problem: SPENT_QUOTA_ERROR_TEXT,
+              from: PROVIDER_WHOSE_QUOTA_MOVES_A_RUN,
+              to: QUOTA_FALLBACK,
+            },),
+          ],);
       },
     },),
     it({

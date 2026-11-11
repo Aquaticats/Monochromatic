@@ -79,6 +79,12 @@ export type ObservedPiRun = {
    Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
    */
   readonly countPromptHandled: () => void;
+
+  /**
+   Takes the standing model error as answered by something other than a reply, such as the same session resumed on another
+   provider, so a run that goes on afterwards does not report the failure it left behind.
+   */
+  readonly takeFailureAsAnswered: () => void;
 };
 
 /**
@@ -366,6 +372,12 @@ export function startObservingPiRun({
     observe,
     countPromptHandled: function countPromptHandled() {
       state.settled += 1;
+    },
+    takeFailureAsAnswered: function takeFailureAsAnswered() {
+      // Nothing was recorded as Pi's own error any more once something other than a reply answers it, and a settle that follows
+      // must not raise it again from the message it was read from.
+      delete state.pendingModelError;
+      delete state.unrecoveredModelError;
     },
   };
 }

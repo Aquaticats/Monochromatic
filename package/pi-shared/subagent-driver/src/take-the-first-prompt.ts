@@ -11,6 +11,7 @@ import type {
   DriverOptions,
   EndReason,
   PiRecord,
+  ProviderAndModel,
   RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
@@ -22,8 +23,40 @@ import {
   fieldsOf,
   recordsIn,
 } from './read-pi-fields.ts';
+import { promptAfterAProviderSwitch, } from './switch-provider-on-a-spent-quota.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { watchUntilEnded, } from './watch-pi-run.ts';
+
+/**
+ What the first prompt of a Pi says: the task the run was started with, or the work a provider switch left unfinished.
+ */
+export type PromptToSend =
+  | {
+    readonly kind: 'the-prompt-file'
+  }
+    | {
+      readonly kind: 'after-a-provider-switch';
+
+    /**
+     What the model said when its message ended in the error the switch answers.
+     */
+      readonly problem: string;
+
+    /**
+     The provider the run left.
+     */
+      readonly from: string;
+
+    /**
+     The provider and model this Pi runs on.
+     */
+      readonly to: ProviderAndModel
+    };
+
+/**
+ The task this run was started with, which is the first prompt of a Pi the run has not moved.
+ */
+export const THE_PROMPT_FILE: PromptToSend = Object.freeze({ kind: 'the-prompt-file', },);
 
 /**
  Tells whether Pi refused the prompt itself.
@@ -110,33 +143,71 @@ type ProgressAfterPrompt = {
 };
 
 /**
+ The text of the first prompt this Pi is given.
+
+ @param prompt - what the prompt says
+
+ @param promptFile - the file the task was written to
+
+ @returns the prompt's text
+ */
+async function firstPromptText({
+  prompt,
+  promptFile,
+}: {
+  readonly prompt: PromptToSend;
+  readonly promptFile: string
+},): Promise<string> {
+  if (prompt.kind === 'the-prompt-file') {
+    // The prompt, which must be an ordinary file: a named pipe would wait for a writer.
+    return await readOrdinaryFile(promptFile,);
+  }
+  return promptAfterAProviderSwitch({
+    problem: prompt.problem,
+    from: prompt.from,
+    to: prompt.to,
+  },);
+}
+
+/**
  Sends the first prompt and notes what Pi made of it.
 
- @param connection - running Pi
+ @param watch - what the run needs
 
- @param record - run's record
-
- @param options - options of this run
+ @param prompt - what this Pi's first prompt says
 
  @returns why the run is already over, or that it goes on
  */
 async function sendFirstPrompt({
-  connection,
-  record,
-  options,
-  deadline,
-}: WatchRequest,): Promise<ProgressAfterPrompt> {
+  watch,
+  prompt,
+}: {
+  readonly watch: WatchRequest;
+  readonly prompt: PromptToSend
+},): Promise<ProgressAfterPrompt> {
   /**
-   The prompt, which must be an ordinary file: a named pipe would wait for a writer.
+   What the run needs, read once for the send and the notes about it.
    */
-  const prompt = await readOrdinaryFile(options.promptFile,);
+  const {
+    connection,
+    record,
+    options,
+    deadline,
+  } = watch;
+  /**
+   The prompt, read before Pi is given anything so that one the run cannot read fails it here.
+   */
+  const text = await firstPromptText({
+    prompt,
+    promptFile: options.promptFile,
+  },);
   /**
    Pi's answer, waited for within the run's own deadline.
    */
   const answer = await connection.send({
     command: {
       type: 'prompt',
-      message: prompt,
+      message: text,
     },
     deadline,
   },);
@@ -146,7 +217,7 @@ async function sendFirstPrompt({
   const { disposition, } = notePromptAnswer({
     answer,
     record,
-    chars: prompt.length,
+    chars: text.length,
   },);
   if (disposition === 'handled') {
     record.countHandledPrompt();
@@ -224,14 +295,22 @@ export type Ending = {
 
  @param watch - what the run needs
 
+ @param prompt - what this Pi's first prompt says
+
  @returns why the run ended
 
  @example
  ```ts
- const ending = await endReasonOfRun(watch,);
+ const ending = await endReasonOfRun({ watch, prompt: THE_PROMPT_FILE, },);
  ```
  */
-export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
+export async function endReasonOfRun({
+  watch,
+  prompt,
+}: {
+  readonly watch: WatchRequest;
+  readonly prompt: PromptToSend
+},): Promise<Ending> {
   try {
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return { endReason: 'wall-clock', };
@@ -240,7 +319,10 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
     /**
      Where the run stands once the prompt is sent, which may already be its end.
      */
-    const { endReason, } = await sendFirstPrompt(watch,);
+    const { endReason, } = await sendFirstPrompt({
+      watch,
+      prompt,
+    },);
     if (endReason !== 'still-running') {
       return { endReason, };
     }

@@ -7,21 +7,11 @@
 import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
-  type ConnectionToPi,
-  startConnectionToPi,
-} from './connection-to-pi.ts';
-import {
-  COMMAND_ANSWER_MILLISECONDS,
-  FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
 } from './driver-constants.ts';
 import {
-  millisecondsLeftUntil,
-} from './deadline.ts';
-import {
   CLEAN_END_REASONS,
-  endReasonOfPromptWait,
   finalEndReason,
 } from './end-reasons.ts';
 import {
@@ -33,25 +23,11 @@ import {
   DriverOptionsError,
 } from './parse-driver-options.ts';
 import type {
-  CommandAnswer,
   DriverOptions,
-  EndReason,
-  PiRecord,
-  RecordOfPiRun,
-  RunProgress,
   RunSummary,
 } from './driver-types.ts';
-import { preview, } from './previews-of-pi-messages.ts';
-import { putTheRunAway, } from './put-the-run-away.ts';
-import { endReasonOfRun, } from './take-the-first-prompt.ts';
-import { readOrdinaryFile, } from './read-ordinary-file.ts';
-import {
-  fieldsOf,
-  recordsIn,
-} from './read-pi-fields.ts';
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
-import type { WatchRequest, } from './watch-request.ts';
-import { watchUntilEnded, } from './watch-pi-run.ts';
+import { watchEveryPiOfARun, } from './watch-every-pi-of-a-run.ts';
 import { writeSummary, } from './write-summary.ts';
 
 /**
@@ -72,29 +48,6 @@ export class PiRunEndedEarlyError extends Error {
    The name printed with the message.
    */
   override readonly name = 'PiRunEndedEarlyError';
-}
-
-/**
- Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
-
- @param options - options of this run
-
- @returns the arguments for Pi
- */
-function piCommandLine(options: DriverOptions,): readonly string[] {
-  return [
-    '--mode',
-    'rpc',
-    '--provider',
-    options.provider,
-    '--model',
-    options.model,
-    ...(options.session === undefined ? [] : [
-      '--session',
-      options.session,
-    ]),
-    ...options.piArguments,
-  ];
 }
 
 /**
@@ -205,78 +158,24 @@ export async function supervisePiRun(
     removedNames: givenToPi.removedNames,
   },);
   /**
-   Declines a dialog, which would otherwise wait for an answer forever.
-
-   @param id - dialog's identifier
+   The last Pi of the run, why the run ended, and what putting that Pi away left: its own statistics, and whether its leaving
+   could be confirmed.
    */
-  function declineDialog(id: unknown,): void {
-    connection.write({
-      type: 'extension_ui_response',
-      id,
-      cancelled: true,
-    },);
-  }
-  /**
-   The running Pi.
-   */
-  const connection: ConnectionToPi = startConnectionToPi({
-    piArguments: piCommandLine(options,),
-    workingFolder: options.workingFolder,
-    environment: {
-      ...givenToPi.environment,
-      [NESTED_RUN_VARIABLE]: '1',
-    },
+  const watched = await watchEveryPiOfARun({
+    options,
+    record,
+    inbox,
+    deadline,
+    environment: givenToPi.environment,
     standardErrorFile: join(
       options.runFolder,
       'stderr.log',
     ),
-    listeners: {
-      onEvent: function onEvent(event,) {
-        record.observe({
-          event,
-          declineDialog,
-        },);
-      },
-      onUnreadableLine: function onUnreadableLine(line,) {
-        record.note({
-          kind: 'non-json',
-          line: preview({
-            value: line,
-            length: FEED_PREVIEW_CHARACTERS.unreadableLine,
-          },),
-        },);
-      },
-      onExit: function onExit(exit,) {
-        record.note({
-          kind: 'exit',
-          ...exit,
-        },);
-      },
-      onProblem: function onProblem(problem,) {
-        record.note({
-          kind: 'problem',
-          problem,
-        },);
-      },
-    },
   },);
   /**
    Why the run ended.
    */
-  const { endReason, } = await endReasonOfRun({
-    connection,
-    record,
-    options,
-    inbox,
-    deadline,
-  },);
-  /**
-   What putting the run away left: Pi's own statistics, and whether its leaving could be confirmed.
-   */
-  const putAway = await putTheRunAway({
-    connection,
-    record,
-  },);
+  const { endReason, } = watched;
   await record.close();
   /**
    The error Pi settled on, when nothing after it recovered.
@@ -292,13 +191,15 @@ export async function supervisePiRun(
   /**
    How Pi ended, which the summary and the reason both read.
    */
-  const piExit = connection.exitDetails();
+  const piExit = watched.connection
+    .exitDetails();
   /**
    Why the run ended, once every late failure is known.
    */
   const finalReason = finalEndReason({
     endReason,
-    stopped: putAway.stopped,
+    stopped: watched.putAway
+      .stopped,
     modelError,
     feedProblem,
     piExit,
@@ -309,8 +210,10 @@ export async function supervisePiRun(
   const summary = record.summarize({
     endReason: finalReason,
     piExit,
-    piHasExited: connection.hasExited(),
-    sessionStats: putAway.sessionStats,
+    piHasExited: watched.connection
+      .hasExited(),
+    sessionStats: watched.putAway
+      .sessionStats,
   },);
   await writeSummary({
     runFolder: options.runFolder,

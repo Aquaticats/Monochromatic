@@ -231,7 +231,13 @@ export function startRecordOfPiRun({
       note({
         kind: 'retry',
         attempt: retry.attempt,
-        of: retry.of,
+        ...((retry.bound
+          .kind
+          === 'attempts')
+          ? { of: retry.bound
+            .of, }
+          : { withinMilliseconds: retry.bound
+            .withinMilliseconds, }),
         delayMilliseconds: retry.delayMilliseconds,
         errorKind: retry.kind,
         error: preview({
@@ -239,6 +245,10 @@ export function startRecordOfPiRun({
           length: FEED_PREVIEW_CHARACTERS.modelError,
         },),
       },);
+    },
+    takeFailureAsAnswered: function takeFailureAsAnswered() {
+      observed.takeFailureAsAnswered();
+      state.retriesSinceAnswer = 0;
     },
     noteDriverFailure: function noteDriverFailure(failure,) {
       state.driverError = failure;

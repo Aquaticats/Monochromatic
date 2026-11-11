@@ -11,6 +11,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   DriverOptionsError,
+  MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
   parseDriverOptions,
@@ -63,6 +64,7 @@ await describe({
           turnCap: 80,
           retryCap: MODEL_ERROR_RETRY_CAP,
           retryBaseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
+          concurrencyWaitSeconds: MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
         },);
       },
     },),
@@ -109,11 +111,17 @@ await describe({
       },
     },),
     it({
-      name: 'reads the bound on retries and the first delay',
+      name: 'reads the bound on retries, the first delay, and how long a wait for a request slot lasts',
       fn: async () => {
-        const options = parseDriverOptions([...COMPLETE, '--retry-cap=1', '--retry-base-seconds=0.25',],);
+        const options = parseDriverOptions([
+          ...COMPLETE,
+          '--retry-cap=1',
+          '--retry-base-seconds=0.25',
+          '--concurrency-wait-seconds=0.5',
+        ],);
         expect(options.retryCap,).toBe(1,);
         expect(options.retryBaseSeconds,).toBe(0.25,);
+        expect(options.concurrencyWaitSeconds,).toBe(0.5,);
         // Zero retries is the run this driver made before it retried anything, so a coordinator may ask for it.
         expect(parseDriverOptions([...COMPLETE, '--retry-cap=0',],).retryCap,).toBe(0,);
       },
@@ -124,8 +132,10 @@ await describe({
         for (const value of ['-1', '1.5', 'soon', 'Infinity',]) {
           expect(errorOf([...COMPLETE, `--retry-cap=${value}`,],),).toContain('must be a whole number of attempts',);
         }
-        for (const value of ['0', '-1', 'soon', 'Infinity',]) {
-          expect(errorOf([...COMPLETE, `--retry-base-seconds=${value}`,],),).toContain('must be a number above zero',);
+        for (const name of ['retry-base-seconds', 'concurrency-wait-seconds',]) {
+          for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+            expect(errorOf([...COMPLETE, `--${name}=${value}`,],),).toContain('must be a number above zero',);
+          }
         }
       },
     },),

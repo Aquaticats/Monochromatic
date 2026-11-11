@@ -6,14 +6,22 @@
  @module
  */
 
-import { exit, } from 'node:process';
+import {
+  argv,
+  exit,
+} from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
-import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
+import {
+  POLL_MILLISECONDS,
+  QUOTA_FALLBACK_MODEL,
+  QUOTA_FALLBACK_PROVIDER,
+} from '../dist/final/node/index.mjs';
 import { seen, } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
   assistantFailure,
   assistantReply,
+  CONCURRENCY_LIMIT_ERROR_TEXT,
   emit,
   emitErrorWithoutSettling,
   emitInOneWrite,
@@ -25,6 +33,7 @@ import {
   PERMANENT_ERROR_TEXT,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
+  SPENT_QUOTA_ERROR_TEXT,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
 
@@ -124,6 +133,33 @@ export const modelErrorPlays: ReadonlyMap<string, (id: unknown,) => void> = new 
       error: RATE_LIMIT_ERROR_TEXT,
       recovers: true,
     }),
+  ],
+  [
+    'concurrency-limit-then-success',
+    modelErrorPlay({
+      error: CONCURRENCY_LIMIT_ERROR_TEXT,
+      recovers: true,
+    }),
+  ],
+  [
+    'always-concurrency-limit',
+    modelErrorPlay({
+      error: CONCURRENCY_LIMIT_ERROR_TEXT,
+      recovers: false,
+    }),
+  ],
+  [
+    'spent-quota-then-moves',
+    function failOnTheSpentQuota(id,) {
+      answer({ id, },);
+      // The provider the owner's rule moves a spent quota to: the Pi running on it answers, and the Pi that ran on the spent quota
+      // ends on the failure that moved it, so which Pi this is shows in the arguments the driver gave it.
+      if (argv.includes(QUOTA_FALLBACK_PROVIDER,) && argv.includes(QUOTA_FALLBACK_MODEL,)) {
+        finishRun(RECOVERED_REPLY,);
+        return;
+      }
+      finishRunInError(SPENT_QUOTA_ERROR_TEXT,);
+    },
   ],
   [
     'handled-retry',

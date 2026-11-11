@@ -94,6 +94,36 @@ export const MODEL_ERROR_RETRY_BASE_SECONDS = 2;
 export const MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS = 60_000;
 
 /**
+ How long a run waits, in all, for a provider to have a request slot free after saying its limit on requests at once is reached.
+
+ The number of attempts is not what bounds this wait, because what it waits for is another run of the provider's pool finishing.
+ Measured on 2026-11-11T03:00Z over the 1,052 finished runs in `${HOME}/temp/agent/pi-runs`, a run lasts 1,744,872 ms at the
+ median (29 minutes) and 6,458,155 ms at the 90th percentile (108 minutes), so a pool of six slots frees one about one run length
+ after it fills. Forty minutes is above that median and well inside the 90th percentile, and the run's own wall clock is the
+ outer bound either way: `--wall-seconds` of 14,400 in the coordinator's launcher leaves this wait several times over.
+ */
+export const MODEL_ERROR_CONCURRENCY_WAIT_SECONDS = 2_400;
+
+/**
+ The provider whose spent quota moves a run to another provider.
+
+ Synthetic sets no limit on runs at once, so its 429 means the quota is spent and a later attempt on Synthetic cannot succeed
+ (`.agents/skills/pi-as-subagent/SKILL.md`). The owner's rule, 2026-11-10: "Use neuralwatt/kimi-k3.1-pro-flex whenever
+ Synthetic 429s."
+ */
+export const PROVIDER_WHOSE_QUOTA_MOVES_A_RUN = 'synthetic';
+
+/**
+ The provider a run whose provider's quota is spent goes on with.
+ */
+export const QUOTA_FALLBACK_PROVIDER = 'neuralwatt';
+
+/**
+ The model a run whose provider's quota is spent goes on with.
+ */
+export const QUOTA_FALLBACK_MODEL = 'kimi-k3.1-pro-flex';
+
+/**
  Longest text of one kind kept on a feed line, carried over from the driver the recorded runs used. They bound the size of a feed
  line and change nothing about the run.
  */

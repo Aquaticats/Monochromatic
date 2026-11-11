@@ -26,6 +26,13 @@ and the tests use one per wait inside a polling loop.
   One command has to stay up while the runs work,
   and each look reads the whole finished corpus,
   so a promise per look would read that corpus many times at once and separate the waits from the deadline that bounds them.
+- The waits for a run's Pis (`src/watch-every-pi-of-a-run.ts`):
+  one Pi is watched to its end,
+  put away,
+  and only then is the next one started,
+  because two Pis on one worktree would write the same session and the same feed.
+  The run moves to another provider at most once,
+  so the loop makes at most two Pis and a promise per Pi would start both at once.
 - The test polling helpers (`src/drive-pi-subagent.unit.test.ts`,
   `src/connection-to-pi.unit.test.ts`,
   `src/record-of-pi-run.unit.test.ts`):

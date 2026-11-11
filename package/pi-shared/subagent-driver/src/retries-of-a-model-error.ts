@@ -1,5 +1,5 @@
 /**
- What kind of failure a model error is, whether another attempt can fix it, and how long the driver waits before one.
+ What kind of failure a model error is, whether another attempt can fix it, and what the driver sends to answer one.
 
  The shapes read here come from the feeds of the runs in `${HOME}/temp/agent/pi-runs` on 2026-11-09: of 556 run folders, six
  summaries ended `model-error`, and every assistant message that ended in an error carried one of four texts:
@@ -19,15 +19,15 @@
  read in one pass and nothing here can backtrack. A status code is read only where the text starts with one, which is where a
  response writes it: the same digits inside a body name a token count or a limit the provider states, and neither is transient.
 
+ The waits a failure asks for are read in `waits-a-model-error-names.ts`, and the characters both modules read are in
+ `scanning-a-failure-text.ts`.
+
  @module
  */
 
-import {
-  FEED_PREVIEW_CHARACTERS,
-  MILLISECONDS_PER_SECOND,
-  MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
-} from './driver-constants.ts';
+import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { leadingStatusCode, } from './scanning-a-failure-text.ts';
 
 /**
  What kind of failure a model error is. The kind decides both whether another attempt can fix it and how the run counts it.
@@ -43,6 +43,15 @@ export type ModelErrorKind =
    */
     | 'throttled'
   /**
+   A limit on how many requests the provider runs at once, sent as HTTP 429: another attempt can fix it, because a slot frees when
+   another run of the provider's pool finishes, and the coordinator measures these apart from other failures.
+
+   This is read apart from `throttled` because it names its own wait and its own ceiling, and because the wait it needs is the
+   length of a run rather than a backoff: two recorded bodies, on 2026-11-11, asked for `suggested_initial_delay_s` 1 and 10 with
+   `max_delay_s` 30 and 120.
+   */
+    | 'concurrency-limit'
+  /**
    A quota or a plan limit: written as a rate limit, but another attempt cannot refill it, so it ends the run and is counted apart
    all the same.
    */
@@ -52,16 +61,6 @@ export type ModelErrorKind =
    for: another attempt cannot fix it.
    */
     | 'permanent';
-
-/**
- The wait a provider asked for, when its failure names one, or that it named none.
- */
-export type WaitAskedByProvider =
-  | { readonly asked: false }
-    | {
-      readonly asked: true;
-      readonly milliseconds: number
-    };
 
 /**
  The failures another attempt cannot fix, whatever else their text says: a credential Pi does not have, a provider or a model
@@ -100,12 +99,29 @@ const TERMINAL_CAUSE_PHRASES: readonly string[] = [
 ];
 
 /**
+ A limit on requests running at once, which a slot frees by passing: the provider says so in its own words, and the two bodies
+ recorded on 2026-11-11 both carry it.
+
+ A concurrency limit reads before the quota shapes below, because the provider explains the same 429 with its billing terms: the
+ DeepSeek body says "Your subscription is in overage with auto-renew off" and links a page under `/billing`, and neither makes the
+ slot that frees a quota that does not. See `doc/troubleshooting/` for the recorded bodies.
+ */
+const CONCURRENCY_LIMIT_PHRASES: readonly string[] = [
+  '"limit_type":"concurrent',
+  'concurrent limit',
+  'concurrent request limit',
+  'slots in use',
+];
+
+/**
  A limit another attempt cannot refill: the account, the plan or the billing has nothing left, and waiting out a backoff does not
  change that.
 
  These read before the rate-limit shapes below, because several of them are sent as HTTP 429.
  */
 const QUOTA_REACHED_PHRASES: readonly string[] = [
+  'subscription rate limit',
+  'exceeded your subscription',
   'quota',
   'out of budget',
   'billing',
@@ -213,82 +229,6 @@ const TRANSIENT_CODES: readonly string[] = [
 ];
 
 /**
- The ways a failure writes the wait it asks for: the Cloudflare body above carries `"retry_after":60`, and an HTTP header carries
- `Retry-After: 60`.
- */
-const WAIT_KEYS: readonly string[] = [
-  'retry_after',
-  'retry-after',
-  'retry after',
-];
-
-/**
- What may stand between a wait's key and its number: whitespace of any kind, quotes, a colon and an equals sign. A body
- pretty-printed over several lines puts a line break between the key and its number, which is still the wait it asks for.
- */
-const WAIT_SEPARATORS: ReadonlySet<string> = new Set([
-  '"',
-  '\'',
-  ' ',
-  '\t',
-  '\n',
-  '\r',
-  ':',
-  '=',
-]);
-
-/**
- Tells whether a character is an ASCII digit.
-
- @param character - one character of the text
-
- @returns whether it is a digit
- */
-function isDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
- Tells whether a character is an ASCII letter or digit, so a number that touches one is part of a longer word, count or request
- number.
-
- @param character - one character of the text
-
- @returns whether it is a letter or a digit
- */
-function isLetterOrDigit(character: string,): boolean {
-  return (isDigit(character,)) || ((character >= 'a') && (character <= 'z'));
-}
-
-/**
- Finds the status code a failure text starts with.
-
- A response writes its status before the body that explains it, so a number anywhere else is a count, a request number or a limit
- the provider states, and none of those is a status. Reading only the first word is what keeps `max_tokens must not exceed 500`
- from being read as a server error another attempt may fix.
-
- @param text - text folded to lower case
-
- @returns the digits of the status, or an empty string when the text starts with anything else
- */
-function leadingStatusCode(text: string,): string {
-  /**
-   How many digits a status code has.
-   */
-  const statusDigits = 3;
-  for (let at = 0; at < statusDigits; at += 1) {
-    if (!isDigit(text.charAt(at,),)) {
-      return '';
-    }
-  }
-  // A letter or digit right after those three digits makes them part of a longer word or number, which is no status.
-  return isLetterOrDigit(text.charAt(statusDigits,),) ? '' : text.slice(
-    0,
-    statusDigits,
-  );
-}
-
-/**
  Tells whether a failure text starts with a status that refused the request itself.
 
  A status the text starts with is the answer the provider gave, and the body after it only explains that answer: a `400` whose
@@ -356,6 +296,12 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
   }
   if (holdsOneOf({
     text,
+    phrases: CONCURRENCY_LIMIT_PHRASES,
+  },)) {
+    return 'concurrency-limit';
+  }
+  if (holdsOneOf({
+    text,
     phrases: QUOTA_REACHED_PHRASES,
   },)) {
     return 'quota-reached';
@@ -396,7 +342,8 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
  ```
  */
 export function anotherAttemptMayFix(kind: ModelErrorKind,): boolean {
-  return (kind === 'transient') || (kind === 'throttled');
+  return (kind === 'transient') || (kind === 'throttled')
+    || (kind === 'concurrency-limit');
 }
 
 /**
@@ -412,176 +359,8 @@ export function anotherAttemptMayFix(kind: ModelErrorKind,): boolean {
  ```
  */
 export function isRateLimit(kind: ModelErrorKind,): boolean {
-  return (kind === 'throttled') || (kind === 'quota-reached');
-}
-
-/**
- Finds where the separators between a wait's key and its number end.
-
- @param text - text folded to lower case
-
- @param from - where to start looking
-
- @returns the first index holding anything else, or the end of the text
- */
-function firstIndexOutside({
-  text,
-  from,
-}: {
-  readonly text: string;
-  readonly from: number
-},): number {
-  for (let at = from; at < text.length; at += 1) {
-    if (!WAIT_SEPARATORS.has(text.charAt(at,),)) {
-      return at;
-    }
-  }
-  return text.length;
-}
-
-/**
- Finds where a run of digits ends.
-
- @param text - text folded to lower case
-
- @param from - where to start looking
-
- @returns the first index that is no digit, or the end of the text
- */
-function firstIndexNotDigit({
-  text,
-  from,
-}: {
-  readonly text: string;
-  readonly from: number
-},): number {
-  for (let at = from; at < text.length; at += 1) {
-    if (!isDigit(text.charAt(at,),)) {
-      return at;
-    }
-  }
-  return text.length;
-}
-
-/**
- Reads the wait a provider asked for, when its failure names one, in seconds.
-
- @param problem - what the model said when its message ended in an error
-
- @returns the milliseconds to wait, or that the failure named none
-
- @example
- ```ts
- const asked = waitAskedByProvider('{"retry_after":60}',);
- ```
- */
-export function waitAskedByProvider(problem: string,): WaitAskedByProvider {
-  /**
-   The failure, folded once so every key below is a plain substring.
-   */
-  const text = problem.toLowerCase();
-  /**
-   Where the earliest key ends, and nothing until one is found.
-   */
-  const afterKey = WAIT_KEYS.reduce(
-    function earlierKeyEnd(
-      earliest,
-      key,
-    ) {
-    /**
-     Where this key starts, when the text holds it.
-     */
-      const found = text.indexOf(key,);
-      if (found === (-1)) {
-        return earliest;
-      }
-    /**
-     Where this key ends.
-     */
-      const end = found + key.length;
-      return ((earliest === (-1)) || (end < earliest)) ? end : earliest;
-    },
-    -1,
-  );
-  if (afterKey === (-1)) {
-    return { asked: false, };
-  }
-  /**
-   Where the number starts, once every separator between it and its key is passed.
-   */
-  const start = firstIndexOutside({
-    text,
-    from: afterKey,
-  },);
-  /**
-   Where the number ends.
-   */
-  const end = firstIndexNotDigit({
-    text,
-    from: start,
-  },);
-  if (end === start) {
-    return { asked: false, };
-  }
-  /**
-   The seconds the failure names.
-   */
-  const seconds = Number(text.slice(
-    start,
-    end,
-  ),);
-  return Number.isFinite(seconds,)
-    ? {
-      asked: true,
-      milliseconds: seconds * MILLISECONDS_PER_SECOND,
-    }
-    : { asked: false, };
-}
-
-/**
- How long the driver waits before the next attempt: a delay that doubles with each attempt, raised to the wait the provider
- asked for when it named one, and never longer than the largest delay.
-
- The cap is what keeps the wait from growing without end: a failure naming no wait doubles from the first delay, and a provider
- asking for an hour is still waited out within the cap.
-
- @param problem - what the model said when its message ended in an error
-
- @param retryNumber - which attempt this delay comes before, counting from one
-
- @param baseSeconds - the first delay, in seconds
-
- @returns the milliseconds to wait
-
- @example
- ```ts
- const delay = retryDelayMilliseconds({ problem: 'Request timed out.', retryNumber: 2, baseSeconds: 2, },);
- ```
- */
-export function retryDelayMilliseconds({
-  problem,
-  retryNumber,
-  baseSeconds,
-}: {
-  readonly problem: string;
-  readonly retryNumber: number;
-  readonly baseSeconds: number
-},): number {
-  /**
-   The delay the growth alone asks for, which a large attempt count pushes past every cap.
-   */
-  const grown = (baseSeconds * MILLISECONDS_PER_SECOND) * (2 ** (retryNumber - 1));
-  /**
-   The wait the provider asked for.
-   */
-  const asked = waitAskedByProvider(problem,);
-  return Math.min(
-    MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
-    Math.max(
-      grown,
-      asked.asked ? asked.milliseconds : 0,
-    ),
-  );
+  return (kind === 'throttled') || (kind === 'quota-reached')
+    || (kind === 'concurrency-limit');
 }
 
 /**

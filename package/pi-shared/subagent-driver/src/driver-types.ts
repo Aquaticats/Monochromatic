@@ -124,6 +124,14 @@ export type RunFailure =
     };
 
 /**
+ A provider and the model of it a run uses, which say what a run moved to when a quota moved it.
+ */
+export type ProviderAndModel = {
+  readonly provider: string;
+  readonly model: string;
+};
+
+/**
  What `summary.json` holds.
  */
 export type RunSummary = {
@@ -220,6 +228,13 @@ export type DriverOptions = {
    Seconds before the first attempt after a model error, doubling with each attempt.
    */
   readonly retryBaseSeconds: number;
+
+  /**
+   How long the run waits, in all, for a provider to have a request slot free once it said its limit on requests at once is
+   reached. A pool frees a slot when another run of it finishes, which is no count of attempts, so this wait is what bounds the
+   attempts at such a failure instead of `retryCap`.
+   */
+  readonly concurrencyWaitSeconds: number;
 };
 
 /**
@@ -250,9 +265,9 @@ export type RetryTaken = {
   readonly attempt: number;
 
   /**
-   How many attempts the run allows, so a reader sees the bound this one sits under.
+   What bounds the attempts the run allows for the failure this one answers.
    */
-  readonly of: number;
+  readonly bound: RetryBound;
 
   /**
    Milliseconds the driver waited before this attempt.
@@ -275,6 +290,30 @@ export type RetryTaken = {
    */
   readonly answersBefore: number;
 };
+
+/**
+ What bounds another attempt after a model error, so a reader sees what this one sits under.
+
+ An attempt count bounds a failure another attempt can settle, and a total wait bounds a failure whose answer is another run of
+ the provider's pool finishing, which no count of attempts can name.
+ */
+export type RetryBound =
+  | {
+    readonly kind: 'attempts';
+
+  /**
+   How many attempts the run allows, counting the first one.
+   */
+    readonly of: number
+  }
+    | {
+      readonly kind: 'wait';
+
+    /**
+     How long the run waits, in all, for whatever it is waiting on to pass.
+     */
+      readonly withinMilliseconds: number
+    };
 
 /**
  The feed and the counts of one run.
@@ -333,6 +372,12 @@ export type RecordOfPiRun = {
    same error is never counted twice.
    */
   readonly countRetry: (retry: RetryTaken,) => void;
+
+  /**
+   Takes the standing model error as answered by something other than a reply, such as a run resumed on another provider, so a
+   run that goes on afterwards does not report the failure it left behind.
+   */
+  readonly takeFailureAsAnswered: () => void;
   readonly observe: (observation: EventObservation,) => void;
   readonly summarize: (ending: RunEnding,) => RunSummary;
 

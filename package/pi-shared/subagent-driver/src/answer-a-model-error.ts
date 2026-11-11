@@ -5,10 +5,15 @@
  @module
  */
 
-import { MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS, } from './driver-constants.ts';
+import {
+  FEED_PREVIEW_CHARACTERS,
+  MILLISECONDS_PER_SECOND,
+  MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
+} from './driver-constants.ts';
 import type {
   CommandAnswer,
   RecordOfPiRun,
+  RetryBound,
   RetryTaken,
   RunProgress,
 } from './driver-types.ts';
@@ -20,9 +25,14 @@ import {
   anotherAttemptMayFix,
   continuationPromptOf,
   kindOfModelError,
+  type ModelErrorKind,
+} from './retries-of-a-model-error.ts';
+import {
+  concurrencyDelayMilliseconds,
   retryDelayMilliseconds,
   waitAskedByProvider,
-} from './retries-of-a-model-error.ts';
+} from './waits-a-model-error-names.ts';
+import { preview, } from './previews-of-pi-messages.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
@@ -44,6 +54,17 @@ export type RetryWaiting = {
      attempt was scheduled for rather than whichever one a later settle names.
      */
     readonly problem: string;
+
+    /**
+     How long the driver waited before this attempt, kept so the feed records the wait that was scheduled rather than one read
+     again from what may by then be another failure.
+     */
+    readonly delayMilliseconds: number;
+
+    /**
+     What bounds the attempts the run allows for this failure.
+     */
+    readonly bound: RetryBound;
   };
 
   /**
@@ -51,6 +72,12 @@ export type RetryWaiting = {
    until one comes the error the attempt answers is neither counted again nor answered again.
    */
   settlesAtAttempt?: number;
+
+  /**
+   When a run's wait for a request slot must end, set when the first failure that names a limit on requests at once is read. A
+   slot frees when another run of the provider's pool finishes, which is a wait no count of attempts names.
+   */
+  untilSlotsFree?: number;
 };
 
 /**
@@ -62,6 +89,10 @@ export type RetryWaiting = {
 
  @param problem - what the model said when its message ended in an error
 
+ @param delayMilliseconds - how long the driver waited before this attempt
+
+ @param bound - what bounds the attempts the run allows for this failure
+
  @returns why the run is over, or that it goes on
  */
 async function answerWithAnotherAttempt(
@@ -69,10 +100,14 @@ async function answerWithAnotherAttempt(
     watch,
     retry,
     problem,
+    delayMilliseconds,
+    bound,
   }: {
     readonly watch: WatchRequest;
     readonly retry: RetryWaiting;
-    readonly problem: string
+    readonly problem: string;
+    readonly delayMilliseconds: number;
+    readonly bound: RetryBound
   },
 ): Promise<RunProgress> {
   /**
@@ -111,14 +146,8 @@ async function answerWithAnotherAttempt(
   watch.record
     .countRetry({
       attempt,
-      of: watch.options
-        .retryCap,
-      delayMilliseconds: retryDelayMilliseconds({
-        problem,
-        retryNumber: attempt,
-        baseSeconds: watch.options
-          .retryBaseSeconds,
-      },),
+      bound,
+      delayMilliseconds,
       kind: kindOfModelError(problem,),
       problem,
       answersBefore,
@@ -309,6 +338,8 @@ export async function answerModelError(
         watch,
         retry,
         problem: owed.problem,
+        delayMilliseconds: owed.delayMilliseconds,
+        bound: owed.bound,
       },);
     }
   }
@@ -319,14 +350,7 @@ export async function answerModelError(
    What kind of failure the model named.
    */
   const kind = kindOfModelError(failure.problem,);
-  /**
-   How many attempts after a model error the run has made already.
-   */
-  const taken = watch.record
-    .retriesTaken();
-  if ((!anotherAttemptMayFix(kind,)) || (taken
-    >= watch.options
-      .retryCap)) {
+  if (!anotherAttemptMayFix(kind,)) {
     return 'model-error';
   }
   /**
@@ -344,19 +368,199 @@ export async function answerModelError(
     return 'model-error';
   }
   /**
+   What this failure leaves the run allowed to do, or why nothing follows it.
+   */
+  const decision = decisionAboutAnotherAttempt({
+    watch,
+    retry,
+    kind,
+  },);
+  if (!decision.makeAttempt) {
+    if (decision.problem !== undefined) {
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: decision.problem,
+        },);
+    }
+    return 'model-error';
+  }
+  /**
    How long this attempt waits, which is what the feed records for it once it goes.
    */
+  const delayMilliseconds = delayBeforeAnAttempt({
+    watch,
+    kind,
+    problem: failure.problem,
+    attemptNumber: watch.record
+      .retriesTaken()
+      + 1,
+  },);
+  if (kind === 'concurrency-limit') {
+    // A reader of the feed sees the wait begin, not only the attempt it ends with, because this one is expected to last about as
+    // long as another run does.
+    watch.record
+      .note({
+        kind: 'waiting-for-a-slot',
+        waitMilliseconds: delayMilliseconds,
+        budgetMilliseconds: concurrencyWaitMillisecondsOf(watch,),
+        error: preview({
+          value: failure.problem,
+          length: FEED_PREVIEW_CHARACTERS.modelError,
+        },),
+      },);
+  }
   retry.owed = {
     at: Date.now() + Math.min(
-      retryDelayMilliseconds({
-        problem: failure.problem,
-        retryNumber: taken + 1,
-        baseSeconds: watch.options
-          .retryBaseSeconds,
-      },),
+      delayMilliseconds,
       millisecondsLeftUntil(watch.deadline,),
     ),
     problem: failure.problem,
+    delayMilliseconds,
+    bound: decision.bound,
   };
   return 'still-running';
+}
+
+/**
+ What a failure leaves the run allowed to do: make one more attempt under a bound, or end on it.
+ */
+type AttemptDecision =
+  | {
+    readonly makeAttempt: false;
+
+  /**
+   Why no attempt follows, when the driver has something to say about it beyond the failure itself.
+   */
+    readonly problem?: string
+  }
+    | {
+      readonly makeAttempt: true;
+
+    /**
+     What bounds the attempts the run allows for this failure.
+     */
+      readonly bound: RetryBound
+    };
+
+/**
+ Decides whether another attempt follows this failure, and what bounds it.
+
+ A failure another attempt can settle is bounded by how many attempts the run allows. A limit on requests running at once is
+ bounded by a total wait instead, because what it waits for is another run of the provider's pool finishing rather than a
+ backoff passing, which no count of attempts names.
+
+ @param watch - watch request
+
+ @param retry - where the watch stands with the model error it is answering
+
+ @param kind - what kind of failure the model named
+
+ @returns whether another attempt follows, and what bounds it
+ */
+function decisionAboutAnotherAttempt({
+  watch,
+  retry,
+  kind,
+}: {
+  readonly watch: WatchRequest;
+  readonly retry: RetryWaiting;
+  readonly kind: ModelErrorKind
+},): AttemptDecision {
+  if (kind === 'concurrency-limit') {
+    /**
+     How long the run waits for a slot, in all.
+     */
+    const budgetMilliseconds = concurrencyWaitMillisecondsOf(watch,);
+    // The wait the run gets for slots, set by the first failure that names one so later ones share it rather than each starting
+    // a new wait of their own.
+    retry.untilSlotsFree ??= Date.now() + budgetMilliseconds;
+    /**
+     When the wait must end, which the run's own wall clock can bring forward.
+     */
+    const until = Math.min(
+      retry.untilSlotsFree,
+      watch.deadline
+    );
+    if (Date.now() >= until) {
+      return {
+        makeAttempt: false,
+        problem: `the run waited ${String(budgetMilliseconds,)} ms at the provider's limit on requests running at once, and no slot freed within it, so no further attempt was made`,
+      };
+    }
+    return {
+      makeAttempt: true,
+      bound: {
+        kind: 'wait',
+        withinMilliseconds: budgetMilliseconds,
+      },
+    };
+  }
+  /**
+   How many attempts after a model error the run has made already.
+   */
+  const taken = watch.record
+    .retriesTaken();
+  return (taken
+    >= watch.options
+      .retryCap)
+    ? { makeAttempt: false, }
+    : {
+      makeAttempt: true,
+      bound: {
+        kind: 'attempts',
+        of: watch.options
+          .retryCap,
+      },
+    };
+}
+
+/**
+ How long this run waits, in all, for a provider to have a request slot free.
+
+ @param watch - watch request
+
+ @returns the milliseconds the wait is bounded by
+ */
+function concurrencyWaitMillisecondsOf(watch: WatchRequest,): number {
+  return watch.options
+    .concurrencyWaitSeconds
+    * MILLISECONDS_PER_SECOND;
+}
+
+/**
+ How long this attempt waits before it goes.
+
+ @param watch - watch request
+
+ @param kind - what kind of failure the attempt answers
+
+ @param problem - what the model said when its message ended in an error
+
+ @param attemptNumber - which attempt this is, counting from one
+
+ @returns the milliseconds to wait
+ */
+function delayBeforeAnAttempt({
+  watch,
+  kind,
+  problem,
+  attemptNumber,
+}: {
+  readonly watch: WatchRequest;
+  readonly kind: ModelErrorKind;
+  readonly problem: string;
+  readonly attemptNumber: number
+},): number {
+  return (kind === 'concurrency-limit')
+    ? concurrencyDelayMilliseconds({
+      problem,
+      retryNumber: attemptNumber,
+    },)
+    : retryDelayMilliseconds({
+      problem,
+      retryNumber: attemptNumber,
+      baseSeconds: watch.options
+        .retryBaseSeconds,
+    },);
 }

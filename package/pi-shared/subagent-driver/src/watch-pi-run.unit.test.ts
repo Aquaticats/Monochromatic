@@ -28,6 +28,7 @@ import {
   COMMAND_ANSWER_MILLISECONDS,
   type DriverOptions,
   isRecord,
+  MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
   type PiRecord,
   POLL_MILLISECONDS,
   type RecordOfPiRun,
@@ -144,6 +145,8 @@ async function makeFolder(): Promise<DisposableFolder> {
 
  @param retryBaseSeconds - seconds before the first attempt at a model error
 
+ @param concurrencyWaitSeconds - seconds the run waits for a request slot
+
  @param idleSeconds - seconds of silence after which a settled run ends
 
  @returns options of this run
@@ -153,12 +156,14 @@ function optionsOf({
   milliseconds = RUN_MILLISECONDS,
   retryCap = 0,
   retryBaseSeconds = 1,
+  concurrencyWaitSeconds = MODEL_ERROR_CONCURRENCY_WAIT_SECONDS,
   idleSeconds = IDLE_SECONDS,
 }: {
   readonly runFolder: string;
   readonly milliseconds?: number;
   readonly retryCap?: number;
   readonly retryBaseSeconds?: number;
+  readonly concurrencyWaitSeconds?: number;
   readonly idleSeconds?: number
 },): DriverOptions {
   return {
@@ -173,6 +178,7 @@ function optionsOf({
     turnCap: Number.MAX_SAFE_INTEGER,
     retryCap,
     retryBaseSeconds,
+    concurrencyWaitSeconds,
   };
 }
 
