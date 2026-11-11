@@ -15587,6 +15587,12 @@ one written with `=`,
 a relative one,
 one through `..` or a link and one reached after `-C` are the plain form's rejection when they name that file,
 and a path that names any other file runs.
+That directory is where the command really starts,
+moved by its `-C` chain and by nothing else:
+`--work-tree` names the tree Git reads and writes,
+never the directory a relative `--file` path is read from,
+and `git config` does not move into it,
+so a relative path under a `--work-tree` elsewhere is read from the same place as without one.
 A `-c` global option is one command's override,
 changes no file and is not a write to the shared settings.
 The main checkout,
@@ -15621,7 +15627,9 @@ every read and every write to another file,
 the hatch,
 the main checkout and an allowlisted cache through the built executable,
 and compares the shared configuration byte for byte before and after each rejection.
-It also runs every spelling of the shared file a `--file` write can take and both editor forms,
+It also runs every spelling of the shared file a `--file` write can take,
+a relative one under a `--work-tree` that names another directory included,
+and both editor forms,
 requires the shared bytes unchanged and the editor never started,
 and keeps the positive control that the same editor on the same worktree does change the shared file when Git
 itself runs it.

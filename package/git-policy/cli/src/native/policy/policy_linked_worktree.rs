@@ -73,16 +73,13 @@ use crate::rule_worktree_dirty::index_file_is_absent;
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
 /// The common Git directory,
-///  for naming the file every worktree shares,
-///  and the worktree top level,
-///  for the directory a command runs in.
-use crate::worktree_identity::{common_directory, worktree_root};
-/// The reader that turns the bytes Git printed into a path,
-///  whose form differs per platform.
-use crate::git_metadata::path_from_git_bytes;
+///  for naming the file every worktree shares.
+use crate::worktree_identity::common_directory;
 /// The path with every link resolved as far as it exists,
-///  for comparing two spellings of one file.
-use crate::repository_link_paths::resolve_as_far_as_it_exists;
+///  for comparing two spellings of one file,
+///  and the directory a command runs in,
+///  which `--work-tree` does not move.
+use crate::repository_link_paths::{chain_directory, resolve_as_far_as_it_exists};
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
@@ -93,30 +90,35 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The directory the command runs in,
 ///  as Git resolved it:
-///  the worktree top level plus the path Git
-///  reported from it to the working directory.
-///  `&RepositoryLocation` borrows the reading that names both.
+///  this process's own directory moved by the `-C` chain the caller
+///  wrote before the subcommand.
+///  `&[OsString]` borrows that chain.
+///  `Result<PathBuf, String>` is the directory or why it could not be named.
 /// Why:
 ///   A relative `--file` path is read from where the command runs,
-///  and `git -C` moves that
-///       directory before the command reads it;
-///  Git's own `--show-prefix` already carries that move.
-///  A command below the worktree root is
-///       usually refused by the require-root policy before this rule reads it,
-///  and its hatch is what lets such
-///       a command reach here.
+///  `--work-tree` does not move
+///       that directory for `git config`,
+///  and it may name a directory the command does not run in at all,
+///  so the
+///       worktree top level plus Git's own prefix is not the answer here:
+///  that prefix is empty whenever the
+///       caller sits outside the `--work-tree`, which is exactly when the two disagree.
+///  Only the `-C`
+///       chain moves the directory Git reads a relative path from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const commandDirectory = (location) => location.worktreeRoot ? join(location.worktreeRoot, location.prefix) : undefined;
+/// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
 /// ```
-fn command_directory(location: &RepositoryLocation) -> Option<PathBuf> {
-    let root: &Path = worktree_root(&location.identity)?;
-    // A command at the top level reports no prefix at all, which is the root itself.
-    return Some(match path_from_git_bytes(location.prefix.as_slice()) {
-        Some(prefix) => root.join(prefix),
-        None => root.to_path_buf(),
-    });
+fn command_directory(global_prefix: &[OsString]) -> Result<PathBuf, String> {
+    // The caller's own directory, which no option changes: Git moves it only for `-C`.
+    let Ok(cwd) = std::env::current_dir() else {
+        return Err(String::from(
+            "monochromatic-git-policy-cli could not name the directory this command runs in, so the command was \
+             not judged.",
+        ));
+    };
+    return Ok(chain_directory(cwd.as_path(), global_prefix));
 }
 
 /// What:
@@ -198,8 +200,9 @@ fn refuse_shared_remote_settings(
     };
     // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
     if let Some(named) = &change.named_file {
-        let Some(directory) = command_directory(&location) else {
-            return clean();
+        let directory: PathBuf = match command_directory(facts.transaction_context().global_prefix.as_slice()) {
+            Ok(found) => found,
+            Err(message) => return fact_unavailable(message),
         };
         if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
             return clean();

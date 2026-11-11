@@ -43,23 +43,26 @@ fn path_option_value(prefix: &[OsString], index: usize, name: &str) -> Option<(P
 }
 
 /// What:
-///  The directories an invocation names:
-/// the directory its `-C` chain ends in (the current directory without one),
-/// and the Git directory,
-/// work tree and common directory its options and environment name.
+///  The directory a command runs in and the Git directory,
+///  work tree and common directory its global
+///  options name,
+///  before the ones its environment adds.
+///  `&[OsString]` borrows the tokens before the subcommand;
+///  `(PathBuf, Vec<PathBuf>)` is that directory and the named ones.
 /// Why:
-///  The check is on the path the wrapper finally uses,
-/// so a command that spells the repository by its physical path,
-/// through `GIT_DIR`,
-/// or through `--work-tree` is checked as well.
-/// `-C` paths chain the way Git chains them (a relative one from the one before),
-/// and a relative Git directory or work tree is from the directory the chain ends in.
+///   One walk answers both:
+///  a `-C` moves the directory for every question after it,
+///  and a
+///  relative Git directory or work tree is from the directory the chain ends in.
+///  A value
+///  that takes an argument is stepped over,
+///  so a path is never read out of one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// namedPaths({ cwd, globalPrefix, environment }) // ['/work/here', '/g/dir']
+/// prefixPaths({ cwd, globalPrefix }) // { directory: '/a/b/c/../d', options: ['/g/dir', '/a/b/c/../d/tree'] }
 /// ```
-pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf>) {
     let mut directory: PathBuf = cwd.to_path_buf();
     let mut options: Vec<PathBuf> = Vec::new();
     let mut index: usize = 0;
@@ -83,6 +86,48 @@ pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsStr
         let takes_value: bool = VALUE_OPTIONS.contains(&token.as_encoded_bytes());
         index += if takes_value { 2 } else { 1 };
     }
+    return (directory, options);
+}
+
+/// What:
+///  The directory a command runs in,
+///  after the caller's `-C` chain:
+///  the current directory when the chain is empty.
+///  `&[OsString]` borrows the tokens before the subcommand;
+///  `PathBuf` is the owned directory.
+/// Why:
+///   A relative path an option names is read from where the command runs,
+///  and `--work-tree`
+///  does not move that directory;
+///  Git moves it only for `-C`, one link of the chain at a time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chainDirectory('/work/here', ['-C', '/a/b', '-C', 'c']) // '/a/b/c'
+/// ```
+pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
+    return prefix_paths(cwd, global_prefix).0;
+}
+
+/// What:
+///  The directories an invocation names:
+/// the directory its `-C` chain ends in (the current directory without one),
+/// and the Git directory,
+/// work tree and common directory its options and environment name.
+/// Why:
+///  The check is on the path the wrapper finally uses,
+/// so a command that spells the repository by its physical path,
+/// through `GIT_DIR`,
+/// or through `--work-tree` is checked as well.
+/// `-C` paths chain the way Git chains them (a relative one from the one before),
+/// and a relative Git directory or work tree is from the directory the chain ends in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namedPaths({ cwd, globalPrefix, environment }) // ['/work/here', '/g/dir']
+/// ```
+pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+    let (directory, mut options): (PathBuf, Vec<PathBuf>) = prefix_paths(cwd, global_prefix);
     for (name, value) in environment {
         if GIT_PATH_VARIABLES.contains(&name.to_string_lossy().as_ref()) && !value.is_empty() {
             options.push(PathBuf::from(value));
