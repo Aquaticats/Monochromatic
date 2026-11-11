@@ -201,6 +201,10 @@ pub mod service_files_of_a_stopped_instance;
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
 
+/// The pushes a service owes a repository that no longer exists:
+/// the retry plan of each branch whose Git directory is proven gone ends.
+pub mod service_plans_of_a_gone_repository;
+
 /// The journal folder the unit gives an instance,
 /// and the state folder that holds it.
 pub mod service_journal_folder_of_an_instance;
