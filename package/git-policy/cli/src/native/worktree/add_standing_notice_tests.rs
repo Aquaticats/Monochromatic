@@ -59,7 +59,8 @@ fn published() -> Option<(Option<String>, Instant)> {
 /// and a step entered with no recording publishes nothing.
 ///
 /// This is the control that the line names what the add is doing:
-/// before the add's timing published its steps, a waiting add had nothing to name.
+/// before the add's timing published its steps,
+/// a waiting add had nothing to name.
 #[test]
 fn the_add_s_own_steps_are_what_the_notice_names() {
     let root: PathBuf = crate::test_support::fixture("add-standing-published");
@@ -81,7 +82,8 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
 /// A notice is printed once the add has been in a step longer than the wait,
 /// and it stops when the add's notice goes out of scope.
 ///
-/// The wait here is a few milliseconds instead of the shipped seconds, so the control's bound is the machine's speed
+/// The wait here is a few milliseconds instead of the shipped seconds,
+/// so the control's bound is the machine's speed
 /// rather than a person's patience.
 #[test]
 fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {

@@ -25,7 +25,8 @@ pub mod worktree_identity;
 /// and the cleanup that must leave it alone.
 pub mod worktree_kept_folders;
 
-/// The line a `git worktree add` prints while it is still running, naming the step it is in.
+/// The line a `git worktree add` prints while it is still running,
+/// naming the step it is in.
 pub mod add_standing_notice;
 
 /// The record of where one wrapped `git worktree add` spent its time,

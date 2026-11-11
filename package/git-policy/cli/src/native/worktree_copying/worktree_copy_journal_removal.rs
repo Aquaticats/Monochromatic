@@ -472,6 +472,28 @@ pub fn remove_file_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
+///  Remove one file and say whether it was there.
+/// Why:
+///   A sweep that flushes the directory it changed must know whether it changed it:
+/// a removal that found nothing costs no filesystem commit,
+/// and one that found a file does.
+/// Absence is no failure,
+/// as it is for [`remove_file_if_present`].
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = await removeFileSayingWhetherItWasThere(path); // false when nothing stood there
+/// ```
+pub fn remove_file_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
+    // `match` on the removal: absence answers false and every other refusal is reported.
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(raw_failure(&error)),
+    };
+}
+
+/// What:
 ///  Removes the temporary writes an interrupted write of one journal left beside it.
 /// Why:
 ///   Only temporaries named after this journal are removed,

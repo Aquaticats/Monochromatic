@@ -35,7 +35,7 @@
 use crate::wait_ceilings::{ADD_STANDING_NOTICE_REPEAT, add_standing_notice_after};
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -91,7 +91,7 @@ pub struct StandingNotice {
     /// so the notice's thread ends at its next look.
     ended: Arc<AtomicBool>,
     /// The notice's thread,
-    /// kept only so that it is named here;
+    /// kept so that it is named here and never joined:
     /// the add never waits for it,
     /// because a stream nobody drains would wait for ever
     /// ("nothing should ever wait forever or indefinitely").
@@ -147,14 +147,6 @@ pub fn the_add_ended() {
 }
 
 /// What:
-///  Whether the notice has begun for this process,
-/// so a step entered twice starts no second thread.
-/// Why:
-///   `begin` is called once per recorded add,
-/// and a step published before it (a control's) must not be noticed twice.
-static STARTED: OnceLock<()> = OnceLock::new();
-
-/// What:
 ///  Start the notice for the add whose steps are published here,
 /// printing to the standard error.
 /// Why:
@@ -166,10 +158,22 @@ static STARTED: OnceLock<()> = OnceLock::new();
 /// const notice = beginAddStandingNotice();
 /// ```
 pub fn begin() -> StandingNotice {
-    return begin_with(Box::new(|line: String| {
-        // Terminal output error: a notice is advisory and must never fail the add it describes.
-        let _written = writeln!(std::io::stderr(), "{line}");
-    }));
+    return begin_with(Box::new(write_to_standard_error));
+}
+
+/// What:
+///  Write one notice line to the standard error.
+/// Why:
+///   The add's own entry point hands this function to the notice,
+/// so the line and its failure are one place and no closure carries anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeToStandardError = (line) => process.stderr.write(line + '\n');
+/// ```
+fn write_to_standard_error(line: String) {
+    // Terminal output error: a notice is advisory and must never fail the add it describes.
+    let _written = writeln!(std::io::stderr(), "{line}");
 }
 
 /// What:
@@ -201,20 +205,13 @@ pub fn begin_with(announce: Box<dyn FnMut(String) + Send>) -> StandingNotice {
 pub fn begin_after(announce: Box<dyn FnMut(String) + Send>, wait: Duration) -> StandingNotice {
     let ended: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let stopping: Arc<AtomicBool> = Arc::clone(&ended);
-    // A notice entered twice in one process starts one thread: the second value stops the same thread's work at once, so a
-    // caller that starts one anyway gets a value that does nothing.
-    let started: bool = STARTED.set(()).is_ok();
-    let thread: Option<JoinHandle<()>> = if started {
-        let mut writing: Box<dyn FnMut(String) + Send> = announce;
-        std::thread::Builder::new()
-            .name(String::from(NOTICE_THREAD_NAME))
-            .spawn(move || {
-                return notice_until_stopped(&mut writing, wait, &stopping);
-            })
-            .ok()
-    } else {
-        None
-    };
+    let mut writing: Box<dyn FnMut(String) + Send> = announce;
+    let thread: Option<JoinHandle<()>> = std::thread::Builder::new()
+        .name(String::from(NOTICE_THREAD_NAME))
+        .spawn(move || {
+            return notice_until_stopped(&mut writing, wait, &stopping);
+        })
+        .ok();
     return StandingNotice { ended, thread };
 }
 

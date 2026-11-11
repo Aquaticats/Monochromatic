@@ -146,7 +146,8 @@ fn holds_only_gits_pointer(container: &Path, pointer: &[u8]) -> bool {
     if names.len() != 1 || names[0] != std::ffi::OsStr::new(".git") {
         return false;
     }
-    return std::fs::read(container.join(".git")).is_ok_and(|bytes| { return bytes == pointer; });
+    let Ok(bytes) = std::fs::read(container.join(".git")) else { return false };
+    return bytes == pointer;
 }
 
 /// What:

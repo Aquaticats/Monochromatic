@@ -29,7 +29,7 @@ use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_fail
 use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
-use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
+use crate::worktree_copy_journal_removal::{remove_file_and_say, remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
@@ -230,24 +230,6 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
 }
 
 /// What:
-///  Remove one file of the journal root and say whether it was there.
-/// Why:
-///   The flush of the directory follows a removal and never a look,
-/// so the sweep knows whether it changed anything.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removed = await removeFileIfPresent(path); // false when nothing stood there
-/// ```
-fn remove_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
-    if !still_there(path)? {
-        return Ok(false);
-    }
-    remove_file_if_present(path)?;
-    return Ok(true);
-}
-
-/// What:
 ///  Removes the temporaries that dead writers left in the journal root.
 /// Why:
 ///   A write cut off before its rename leaves a file nothing else names.
@@ -265,7 +247,7 @@ fn remove_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
 pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<bool, WorktreeCopyError> {
     let mut removed: bool = false;
     for name in &verdicts.dead_temporaries {
-        removed |= remove_and_say(root.join(name).as_path())?;
+        removed |= remove_file_and_say(root.join(name).as_path())?;
     }
     return Ok(removed);
 }
@@ -639,7 +621,7 @@ fn remove_records_nothing_claims(root: &Path) -> Result<bool, WorktreeCopyError>
     }
     let mut removed: bool = false;
     for path in unclaimed {
-        removed |= remove_and_say(path.as_path())?;
+        removed |= remove_file_and_say(path.as_path())?;
     }
     return Ok(removed);
 }

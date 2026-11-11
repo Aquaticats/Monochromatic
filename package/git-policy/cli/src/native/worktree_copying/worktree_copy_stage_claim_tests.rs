@@ -1806,10 +1806,14 @@ fn owed_copy_beside(destination: &Path) -> crate::worktree_add_binding::OwedCopy
 
 /// The two records of an add are published whole by their renames and flushed by nobody.
 ///
-/// A loaded host made this step wait 15 to 44 seconds with nothing said (measured 2026-11-11: `recordDestination` of
-/// five concurrent adds, 9.3 s, 9.3 s and 13.9 s of adds that took 29 to 36 seconds), and one `fsync` of the claim's
-/// temporary file took 11.2 seconds on its own. A kill keeps both records in the page cache, so the flush bought nothing
-/// a kill can take away, and the next command answers an absent record at once (`settle_interrupted_add`).
+/// A loaded host made this step wait with nothing said:
+/// `recordDestination` took 9,282 ms of an add of 29,487 ms,
+/// 9,310 ms of one of 31,652 ms,
+/// and 13,903 ms of one of 31,659 ms (measured 2026-11-11),
+/// and one `fsync` of the claim's temporary file took 11,239 ms on its own.
+/// A kill keeps both records in the page cache,
+/// so the flush bought nothing a kill can take away,
+/// and the next command answers an absent record at once (`settle_interrupted_add`).
 #[test]
 fn the_records_of_an_add_are_published_without_flushing() {
     let (root, common, destination) = scene("claim-add-records-unflushed");
@@ -1826,10 +1830,13 @@ fn the_records_of_an_add_are_published_without_flushing() {
     remove(root.as_path());
 }
 
-/// The record of the binding is published whole by one rename, and the directory that holds it is flushed once at most.
+/// The record of the binding is published whole by one rename,
+/// and the directory that holds it is flushed once at most.
 ///
-/// This is the second write of the same kind: it waited 2.7 to 3.4 seconds of a loaded add (measured 2026-11-11), and it
-/// names objects recovery only ever reports, never removes without a second proof.
+/// This is the second write of the same kind:
+/// it waited 1,950 ms of one loaded add and 3,390 ms of another (measured 2026-11-11),
+/// and it names objects recovery only ever reports,
+/// never removes without a second proof.
 #[test]
 fn the_record_of_a_binding_is_published_without_flushing() {
     let (root, common, destination) = scene("claim-binding-unflushed");
@@ -1857,8 +1864,11 @@ fn the_record_of_a_binding_is_published_without_flushing() {
 /// A reaping that removed nothing flushes nothing;
 /// one that removed a dead owner's stage flushes the directory whose entries changed.
 ///
-/// The flush is the directory's, so an add that found other adds' live claims paid a filesystem commit for no removal at
-/// all: measured 2026-11-11 as 4.6 to 13.9 seconds of the `recover` step of five concurrent adds.
+/// The flush is the directory's,
+/// so an add that found other adds' live claims paid a filesystem commit for no removal at all:
+/// measured 2026-11-11 as 4,617 ms of one add and 4,619,
+/// 13,792 and 13,886 ms of three others,
+/// out of the `recover` step of five concurrent adds.
 #[test]
 fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
     let (root, common, destination) = scene("claim-reap-flush");
@@ -1903,7 +1913,8 @@ fn index_holding(entries: u32) -> Vec<u8> {
 }
 
 /// What:
-///  The worktree a killed add left at `destination`, as Git's own files make it,
+///  The worktree a killed add left at `destination`,
+///  as Git's own files make it,
 /// with the administrative directory `admin` holding an index of `entries` entries.
 /// Why:
 ///   The settlement reads Git's pointer and index rather than running Git,
@@ -1924,12 +1935,19 @@ fn registered_worktree(destination: &Path, admin: &Path, entries: u32) -> Vec<u8
 }
 
 /// A `git worktree add` killed between the exchange that publishes its snapshot and the removal of the directory Git
-/// made leaves that directory at the stage name, holding Git's pointer and nothing else.
+/// made leaves that directory at the stage name,
+/// holding Git's pointer and nothing else.
 ///
-/// The reaping recognises it by the identity the add's record holds for the directory Git made, which is the rule
-/// `settle_displaced` applies, and removes it; and the add's record settles, because the object the record of the stage's
-/// creation made is the one standing at the destination. Nothing tells the person to remove a stage they cannot account
-/// for, and nothing says a whole worktree is missing files.
+/// The reaping recognises it by the identity the add's record holds for the directory Git made,
+/// which is the rule
+/// `settle_displaced` applies,
+/// and removes it;
+/// and the add's record settles,
+/// because the object the record of the stage's
+/// creation made is the one standing at the destination.
+/// Nothing tells the person to remove a stage they cannot account
+/// for,
+/// and nothing says a whole worktree is missing files.
 #[test]
 fn the_directory_git_made_is_removed_from_the_stage_name_once_the_snapshot_is_in_place() {
     let (root, common, destination) = scene("claim-displaced-git-directory");
@@ -1968,8 +1986,10 @@ fn the_directory_git_made_is_removed_from_the_stage_name_once_the_snapshot_is_in
     remove(root.as_path());
 }
 
-/// The same stage name with anything else in it is kept, and its claim stays:
-/// the identity proves Git made the directory, and the entry proves somebody else wrote there since.
+/// The same stage name with anything else in it is kept,
+/// and its claim stays:
+/// the identity proves Git made the directory,
+/// and the entry proves somebody else wrote there since.
 #[test]
 fn a_displaced_directory_that_holds_anything_else_is_kept() {
     let (root, common, destination) = scene("claim-displaced-git-directory-kept");
@@ -2006,8 +2026,11 @@ fn a_displaced_directory_that_holds_anything_else_is_kept() {
 
 /// A worktree whose destination holds the object the record of the stage's creation made is not named as missing files.
 ///
-/// This is the second notice of the same kill point: the record still names the copy the add owed, but the snapshot that
-/// was swapped in carries the ignored state, so nothing is missing and nothing is owed.
+/// This is the second notice of the same kill point:
+/// the record still names the copy the add owed,
+/// but the snapshot that
+/// was swapped in carries the ignored state,
+/// so nothing is missing and nothing is owed.
 #[test]
 fn a_destination_that_holds_the_adds_snapshot_is_not_said_to_be_missing_its_files() {
     let (root, common, destination) = scene("claim-snapshot-placed");

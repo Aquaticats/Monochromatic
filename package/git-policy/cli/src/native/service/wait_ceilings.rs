@@ -775,13 +775,15 @@ pub fn waiting_notice_after() -> Duration {
 ///  Measured on this host,
 /// 2026-11-11,
 /// load average 58 to 61:
-/// five concurrent adds of a 24-package checkout took 29,487, 29,493,
-///  31,652, 31,659 and 35,574 ms,
+/// five concurrent adds of a 24-package checkout took 29,487,
+/// 29,493,
+/// 31,652,
+/// 31,659 and 35,574 ms,
 /// and a single one took 4,288 ms;
 /// the steps of one add ran from a few milliseconds to 12,177 ms,
 /// and one `fsync` of its own bookkeeping took 11,239 ms.
 /// Five seconds is longer than a step of an add that is making progress on an idle host,
-///  and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
+/// and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
 pub const ADD_STANDING_NOTICE_AFTER: Duration = Duration::from_secs(5);
 
 /// How long an add that stays in one step waits between two of the lines that name it.

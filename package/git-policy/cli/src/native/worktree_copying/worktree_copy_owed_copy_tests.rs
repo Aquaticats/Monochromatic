@@ -227,8 +227,10 @@ fn a_stage_bound_to_another_destination_is_not_this_copy_s_own() {
 /// a command in another linked worktree of the same repository names the worktree that is short of
 /// files and starts nothing.
 /// Why:
-///  Before this, any command of the repository finished the copy and waited for it:
-/// 63.5 s for a `git merge` and 119.8 s for a `git push` in another worktree, silently,
+///  Before this,
+///  any command of the repository finished the copy and waited for it:
+/// 63.5 s for a `git merge` and 119.8 s for a `git push` in another worktree,
+/// silently,
 /// after an add was killed while copying 15,151 ignored entries
 /// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
 #[test]
@@ -370,12 +372,16 @@ fn a_record_that_names_a_copy_is_kept_by_a_command_in_another_worktree() {
     remove(root.as_path());
 }
 
-/// A destination that holds the object the add's own snapshot became owes no copy, and the directory Git made at the
+/// A destination that holds the object the add's own snapshot became owes no copy,
+/// and the directory Git made at the
 /// stage name goes with the add's records.
 ///
-/// This is the kill point right after the exchange that publishes an add: the record still names the copy the add owed,
+/// This is the kill point right after the exchange that publishes an add:
+/// the record still names the copy the add owed,
 /// so every command of the repository used to finish a copy nobody needed and to say the worktree was missing files it
-/// already held, and the stage name held Git's own directory for ever (sonnet audit of alpha.10, F6).
+/// already held,
+/// and the stage name held Git's own directory for ever (sonnet audit of alpha.10,
+/// F6).
 #[test]
 fn a_destination_that_holds_the_adds_snapshot_owes_no_copy_and_leaves_no_stage() {
     let (root, repo, destination) = interrupted_add("owed-copy-snapshot-placed");
