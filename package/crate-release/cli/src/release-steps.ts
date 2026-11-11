@@ -340,6 +340,41 @@ export function releaseRunsCargoCheck(version: string): boolean {
 }
 
 /**
+ The step that records the crate's own changed version in the `Cargo.lock` beside its manifest.
+
+ A released crate needs it whichever version it moves to: `cargo-publish.yml` builds the pushed commit with `--locked`,
+ which refuses a lockfile the bump left stale (measured 2026-11-11: after a version bump, `cargo build --locked` fails
+ with "cannot update the lock file ... because --locked was passed", and `cargo update --workspace` clears it). A release
+ that checks the crate gets this for free, because `cargo check` rewrites the lockfile; an alpha, which checks nothing,
+ runs this instead, so skipping the check never costs the alpha its GitHub release.
+
+ @param options - validated release options
+
+ @param crateRoot - absolute directory of the crate
+
+ @returns the step, named for what it records
+
+ @example
+ ```ts
+ lockTheCrateStep({ options, crateRoot: '/r/package/c' });
+ ```
+ */
+function lockTheCrateStep({
+  options,
+  crateRoot,
+}: {
+  readonly options: ReleaseOptions;
+  readonly crateRoot: string;
+}): ReleaseStep {
+  return {
+    label: 'lock the crate',
+    program: cargoProgram,
+    args: buildLockArguments(options.host),
+    cwd: crateRoot,
+  };
+}
+
+/**
  Say what a release of this version leaves out of the full plan, and why, for the person reading the run.
 
  The plan itself omits these steps (`buildReleaseSteps`), and the lines are printed before the first step runs, so a
@@ -363,7 +398,7 @@ export function releasePlanNotes(options: ReleaseOptions): readonly string[] {
   return [
     ...(releaseRunsCargoCheck(options.to)
       ? []
-      : ['no cargo check: an alpha is committed without compiling here, and cargo-publish.yml builds the binary of the pushed commit on both Linux targets instead']),
+      : ['no cargo check: an alpha is committed without compiling here, and cargo-publish.yml builds the binary of the pushed commit on both Linux targets (the crate\'s own lockfile is still refreshed)']),
     ...(route.goes
       ? []
       : [`no publish dry run: ${route.reason}`]),
@@ -373,7 +408,8 @@ export function releasePlanNotes(options: ReleaseOptions): readonly string[] {
 /**
  Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit. A
  version that never goes to crates.io (alpha, beta, and every form the label rule does not name) has no publish dry run,
- and an alpha has no check either (`releaseRunsCargoCheck`).
+ and an alpha has no check either, so it lands its crate's own version in the lockfile with a refresh instead
+ (`releaseRunsCargoCheck`).
 
  A local host keeps cargo offline and runs the dry run in a capped transient unit; a runner lets cargo use the network
  and runs the dry run directly, because the runner is a disposable machine of its own.
@@ -406,7 +442,12 @@ export function buildReleaseSteps(options: ReleaseOptions): readonly ReleaseStep
         }),
         cwd: crateRoot,
       }]
-      : []),
+      // The check records the new member version as a side effect; without it an alpha must do that itself, or the
+      // locked build of the pushed commit fails and the alpha gets no GitHub release.
+      : [lockTheCrateStep({
+        options,
+        crateRoot
+      })]),
     ...options.lockDirectories
       .map(function lockStep(directory): ReleaseStep {
         return {

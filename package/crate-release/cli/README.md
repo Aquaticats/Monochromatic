@@ -267,6 +267,13 @@ A release of an alpha runs
   A crate that does not compile therefore leaves its bump on `main` with no GitHub release,
   and the fix lands in the next alpha,
   which is what "fixes in alpha.11" asks for.
+  The crate's own `Cargo.lock` is still refreshed there,
+  with `cargo update --workspace` in the crate directory,
+  because the bump moves the crate's own version
+  and `cargo-publish.yml` builds the pushed commit with `--locked`,
+  which refuses a lockfile the bump left stale.
+  A release that checks the crate gets that refresh for free,
+  because `cargo check` rewrites the lockfile.
 - no `cargo publish --dry-run`,
   which every version that never goes to crates.io leaves out.
 
@@ -388,8 +395,10 @@ it
 
 1.  edits the `version` of the `[package]` table in `<crate-dir>/Cargo.toml`;
 2.  edits the exact pin (`version = "=<from>"`) of the crate in each `--pin-file` manifest;
-3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory,
-    unless the version is an alpha ("What an alpha release leaves out");
+3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory;
+    an alpha runs `cargo update --workspace` there instead,
+    which records the new version of the crate in its own `Cargo.lock`
+    ("What an alpha release leaves out");
 4.  runs `cargo update --workspace` in each `--lock-dir`,
     in order,
     which records the new version of the workspace member without moving any other locked version;

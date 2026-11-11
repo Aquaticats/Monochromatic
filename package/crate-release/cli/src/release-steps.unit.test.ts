@@ -497,7 +497,7 @@ await describe({
           },
         }),
         it({
-          name: 'plans no cargo check for an alpha on either host, and keeps the lock refresh and the commit',
+          name: 'plans no cargo check for an alpha on either host, and lands its version in the lockfile instead',
           fn: async () => {
             for (const host of ['local', 'runner'] as const) {
               const steps = buildReleaseSteps({
@@ -507,9 +507,29 @@ await describe({
               });
               expect(steps.map(function labelOf(step) {
                 return step.label;
-              })).toEqual(['lock members', 'commit']);
+              })).toEqual(['lock the crate', 'lock members', 'commit']);
+              // The crate's own refresh runs in the crate directory, with the lock command of this host.
+              expect(steps[0]?.cwd).toBe('/repo/package/git-policy/cli');
+              expect(steps[0]?.args).toEqual(buildLockArguments(host));
               // The commit still names the path the check used to build, so an alpha's commit is the same commit.
               expect(steps.at(-1)?.args).toContain('package/git-policy/cli/Cargo.toml');
+            }
+          },
+        }),
+        it({
+          name: 'records the new version in the crate\'s own lockfile before the commit, whatever the label',
+          fn: async () => {
+            for (const to of ['0.4.3-alpha.2', '0.4.3-beta.2', '0.4.3-rc.1', '0.4.3', '0.4.3-dev.1']) {
+              const steps = buildReleaseSteps({
+                ...gitPolicyOptions,
+                host: 'runner',
+                to
+              });
+              // The first step in the crate directory either checks the crate, which rewrites Cargo.lock as a side
+              // effect, or refreshes the lockfile on purpose; either way the pushed commit's locked build resolves.
+              expect(steps[0]?.cwd).toBe('/repo/package/git-policy/cli');
+              expect(steps[0]?.program).toBe(cargoProgram);
+              expect(steps[0]?.label).toBe(releaseRunsCargoCheck(to) ? 'cargo check' : 'lock the crate');
             }
           },
         }),
@@ -524,6 +544,7 @@ await describe({
             expect(notes[0]).toContain('no cargo check');
             expect(notes[0]).toContain('alpha');
             expect(notes[0]).toContain('cargo-publish.yml');
+            expect(notes[0]).toContain('lockfile is still refreshed');
             expect(notes[1]).toContain('no publish dry run');
             expect(notes[1]).toContain('the alpha label is not published to crates.io');
           },

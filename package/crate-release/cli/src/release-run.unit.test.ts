@@ -145,7 +145,7 @@ await describe({
           },
         }),
         it({
-          name: 'runs no cargo check for an alpha and says before the first step what the plan left out',
+          name: 'runs no cargo check for an alpha, refreshes the crate lockfile instead, and says before the first step what the plan left out',
           fn: async () => {
             const result = await record({
               releaseOptions: {
@@ -156,12 +156,14 @@ await describe({
             expect(result.status).toBe(0);
             expect(result.steps.map(function labelOf(step) {
               return step.label;
-            })).toEqual(['lock members', 'commit']);
+            })).toEqual(['lock the crate', 'lock members', 'commit']);
+            expect(result.printed).toContain('$ cargo update --offline --workspace');
+            expect(result.printed).not.toContain('== cargo check');
             const noteAt = result.printed.findIndex(function isCheckNote(line) {
               return line.startsWith('no cargo check:');
             });
             expect(noteAt).toBeGreaterThan(-1);
-            expect(result.printed.indexOf('== lock members')).toBeGreaterThan(noteAt);
+            expect(result.printed.indexOf('== lock the crate')).toBeGreaterThan(noteAt);
             expect(result.printed.at(-1)).toBe('RELEASE COMMITTED');
           },
         }),

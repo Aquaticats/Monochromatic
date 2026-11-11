@@ -379,10 +379,12 @@ await describe({
             const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0-alpha.1', 'n'] });
             expect(child.status).toBe(0);
             expect(child.stdout).toContain('RELEASE COMMITTED');
-            // An alpha is committed without compiling; the lock refresh and the commit are what it runs.
+            // An alpha is committed without compiling: the crate's own lockfile refresh, the lock directory's, and the
+            // commit are what it runs, and no check and no dry run.
             expect((await fixture.calls()).map(function programOf(call) {
               return call.program;
-            })).toEqual([cargoProgram, gitProgram]);
+            })).toEqual([cargoProgram, cargoProgram, gitProgram]);
+            expect(child.stdout).toContain('== lock the crate');
             expect(child.stdout).toContain('no cargo check:');
             expect(child.stdout).toContain('no publish dry run:');
           },
