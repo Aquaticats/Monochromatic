@@ -446,6 +446,12 @@ Three facts about that list decide the rest of this section.
   and the gate of 2026-11-10 runs 7,192 in 890 to 1,105 s.
 - Clippy is a flat 195 to 261 s and it stood after the suite,
   so it added its whole compile to the gate's wall time.
+  The range is the five green gates of 2026-11-09 and 2026-11-10:
+  195 s in `212fc5a4e2`,
+  203 s in `tokio-drain-round-2`,
+  213 s in `46e50d20f3`,
+  219 s in `9724cb6270`,
+  and 261 s in `9d38e1c7b9`.
 - The suite's wall time is its summed test time divided by two.
   Gate `cd9b8132f8` summed 2,000 s of test time inside a 1,000.4 s run,
   and gate `630cba63d4` summed 2,203 s inside 1,102.1 s.
@@ -590,22 +596,45 @@ so the work itself did not grow and the host had the CPUs to give.
 Four threads need more processes,
 because the fault sweeps of the binary suite start six cases at once inside one test,
 and each case starts a service with its own threads and the Git programs it runs.
-At 512 processes the demand reached the cap in both four-thread runs and the failures were `fork` refusals:
+At 512 processes one of the two four-thread runs sampled its process peak at exactly 512,
+which is the cap,
+and both failed with `fork` refusals:
 `the fixture's commit service starts: Os { code: 11, kind: WouldBlock }`.
-The same four threads at 1024 processes peaked at 401 and passed everything,
+The failure count there is not one per run,
+because both runs also carried the two pre-existing flakes named below:
+the one sampled run failed three tests,
+two of them the sequencer ones that were refused a process,
+and the other failed one test,
+again a refusal.
+At 1024 processes the run whose peak was sampled reached 401 and passed all 7,192,
 so the process bound follows the thread count at 256 for each.
 A two-CPU container is unchanged at the repository's 512.
+A count of `Resource temporarily unavailable` lines is not a failure signal:
+the passing 1024-process run printed 41 of them,
+from tests that provoke that refusal on purpose
+(`subvolume::subvolume_index_files::parallel_tests::a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`
+is one),
+and the failing 512-process run printed 43.
 
-Memory does not need to move.
-The suite peaked at 978 MiB.
-Clippy reached the 2 GiB bound itself,
-2,048 MiB in the peak file of the run it passed in.
-So the memory bound stays the repository default,
-and a gate that ever fails Clippy on memory has `--memory 4g` to take.
+The memory bound was left where it is,
+and the evidence for that is weaker than for the other two.
+The suite peaked at 978 MiB of the 2 GiB.
+Clippy reached the bound itself:
+2,048 MiB in the peak file of the run it passed in,
+which is no headroom at all.
+Two passing runs say it has not been killed for memory yet,
+and nothing more.
+The first gate that fails Clippy on memory is when to move it,
+and `--memory 4g` is the option that does it.
 
 The whole gate was then run twice through `bin/test-native-container.ts` with the changes in place,
 tagged `gate-wall-time-after`,
-and both times the Clippy container started in the same second as the suite's and finished long before it:
+and both times the Clippy container started in the same second as the suite's and finished long before it.
+That is also a change in what the gate draws from the host at once:
+the suite's four CPUs plus Clippy's four,
+which is 8 CPUs inside the 1,000% its systemd unit allows,
+against 4 before,
+so the peak draw is the reading to compare when asking whether a gate crowds the other agents.
 
 - Started 2026-11-10T19:19:50-05:00,
   wall 865 s.
@@ -657,6 +686,15 @@ CPUs.
   Giving that run a cgroup with a CPU share,
   or running it in the gate's image the way the gate does,
   is a separate change with its own measurement.
+- Two other ways to four threads were rejected on arithmetic,
+  not on measurement,
+  and either could be measured instead:
+  declaring nextest `threads-required` on the fault sweeps would serialize about 409 s of their thread time,
+  `fault_limits::` 113.1 s and `fault_trace::` 295.9 s in one two-thread log,
+  which is most of the 513 s the fourth thread bought;
+  and two half-partitioned containers of 512 processes each would put the same 1,024 processes on the host,
+  add a partition whose completeness the gate would have to prove,
+  and leave the proof manifest with one limit set to record.
 - The four-thread curve had not flattened.
   479 s at four threads against 992 s at two is very close to linear,
   so six threads are the next point to measure,

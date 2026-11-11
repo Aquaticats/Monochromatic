@@ -1,11 +1,11 @@
 [tasks."native:test:container"]
-description = "Run native wrapper tests and Clippy in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
+description = "Run native wrapper tests and Clippy together in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override this gate's own bounds of 2g, 4 CPUs and 256 processes per test thread, which is 1024, and a --pids-limit below that floor is raised (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 # Mechanism D: the run-record retention of this package's target/verification runs before a run writes a new record,
 # through cargo-shadow's own sweep so the task does not reimplement it (doc/handover/cargo-shadow-lean-build-folders.md).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts"]
 
 [tasks."native:mutation"]
-description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
+description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at its own default bounds (run native:test:container with its own options first to change them)"
 # The gate step sweeps this package's run records before either step writes another (mechanism D).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
 

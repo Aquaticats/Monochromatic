@@ -149,7 +149,7 @@ export function gateLimitsFrom({ given, }: {
       ...given,
       pidsLimit: needed,
     },
-    raised: `The gate runs ${String(given.cpus)} test threads at once, which need ${String(needed)} processes, so its containers get that instead of the --pids-limit of ${String(given.pidsLimit)} it was given: this gate's process bound follows its test-thread count.`,
+    raised: `The gate runs ${String(given.cpus)} test threads at once, which need ${String(needed)} processes, so its containers get that: this gate's process bound follows its test-thread count, and the --pids-limit it was given was ${String(given.pidsLimit)}.`,
   };
 }
 
