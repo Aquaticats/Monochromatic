@@ -25,7 +25,7 @@ use crate::service_work::work_directory;
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_dispose::{PendingTrash, RECORD_LIMIT};
-use crate::worktree_trash_hand_over::TheServiceWill;
+use crate::worktree_trash_hand_over::Recorded;
 use crate::worktree_trash_manifest::is_trash_name;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -154,9 +154,16 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 /// and removing it would be a guess,
 /// so it is only named,
 ///  with the advice to look at it.
-/// A record the service already settled is no work either,
-/// and the line says so rather than promising a run that
-///  never comes.
+/// The id of a trash's record is the trash's name,
+/// so a record the queue already holds is this trash's record,
+/// and the line says
+///  which of the three the queue answered:
+/// a record this command wrote is reported as recorded now,
+/// one that waits without a
+///  service having read it as already in the queue,
+/// and a record the service settled as failed as a trash nothing will
+///  empty,
+/// so no command promises an emptying no service will claim.
 /// Only a directory named the way the wrapper names a trash is looked at at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,40 +180,54 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
             continue;
         }
         let Some(manifest) = crate::worktree_trash_own_manifest::read(worktree, name.as_str()) else {
-            let _told = writeln!(
-                notices,
-                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none, and the trash cannot say what it is), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
-                entry.path().display()
-            );
+            let _told = writeln!(notices, "{}", left_words(entry.path().as_path(), "there is no record the service still works on, and the trash cannot say what it is"));
             continue;
         };
         let pending: PendingTrash = PendingTrash { destination: worktree.to_path_buf(), common_dir: git_dir.to_path_buf(), manifest, taken_over: 0, quiet: true };
-        match crate::worktree_trash_hand_over::record_the_trash(&pending) {
-            Ok(TheServiceWill::EmptyIt) => {
+        let said: String = match crate::worktree_trash_hand_over::record_the_trash(&pending) {
+            Ok(Recorded::Written) => {
+                // A record nobody is told about waits for a wake that need never come, so the writing of one is what the
+                //  repository's service is told; a record that was already there tells it nothing new.
                 waiting = true;
-                let _told = writeln!(
-                    notices,
+                format!(
                     "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
                     entry.path().display()
-                );
+                )
             }
-            // A settled record is where the promise of a later attempt stops: no round claims it, so nothing will empty the
-            //  trash however often the trash says what it is, and the line says what the person has instead of promising a run.
-            Ok(TheServiceWill::Nothing) => {
-                let _told = writeln!(
-                    notices,
-                    "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the record of this trash is settled (the commit service either finished with it or gave up on it), so no run of the service will empty it now: look at them, and remove them yourself if nothing in them is wanted.",
-                    entry.path().display()
-                );
-            }
-            Err(reason) => {
-                let _told = writeln!(
-                    notices,
-                    "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the record of the trash cannot be written: {reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
-                    entry.path().display()
-                );
-            }
-        }
+            // The queue's id is the trash's name, so a record it already holds is this trash's record: one that waits is
+            //  emptied by the service, and one it gave up on never is; only the second is news, and the words say which.
+            Ok(Recorded::There) => format!(
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the trash says what it is, and a record of it is already in the queue, so the commit service empties it when it next runs for this repository, one trash at a time.",
+                entry.path().display()
+            ),
+            Ok(Recorded::GivenUp) => left_words(entry.path().as_path(), "the commit service gave up on the record of this trash and never claims it again"),
+            Err(reason) => left_words(entry.path().as_path(), format!("the record of the trash cannot be written: {reason}").as_str()),
+        };
+        let _told = writeln!(notices, "{said}");
     }
     return waiting;
+}
+
+/// What:
+///  The line that names a trash nothing will empty,
+/// with the reason it stays where it is.
+/// Why:
+///   Three reasons leave a trash alone:
+/// it cannot say the wrapper made it,
+/// the record of it cannot be written,
+/// and
+///  the service gave up on its record;
+/// the person reads the same instruction for all three,
+/// so the sentence has one shape and
+///  only the reason changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftWords = (path, reason) => `... ${path} holds directories a snapshot left out that nothing will empty now (${reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.`;
+/// ```
+fn left_words(path: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now ({reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+        path.display()
+    );
 }

@@ -1,14 +1,14 @@
 //! Controls for the plan of the pushes waiting for a new try,
-//! when the job that writes it gives no answer:
-//! the retry a worker promised is never dropped from the plan the loop reads.
+//! when a round applies what its workers asked:
+//! the list the loop reads keeps the retry a worker promised,
+//! and the round takes no plan's file away from a later round.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! stateTheAnswer('noAnswer'); const plan = await applyAwaiting(plan, [plannedAttempt]); expect(plan.nextWait(dir)).toBeDefined();
+//! const kept = applyWithoutAJob(plan, [plannedAttempt]); expect(kept.nextWait(dir)).toBeDefined();
 //! ```
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
 use crate::work_item::WorkItem;
 use crate::work_item::WorkKind;
 
@@ -26,17 +26,14 @@ fn item(branch: &str) -> WorkItem {
     };
 }
 
-/// Runs one round's plan job to its end on a runtime of this thread,
-/// which is the thread the control states its answer on.
-fn run(applied: impl std::future::Future<Output = PushRetries>) -> PushRetries {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
-    return runtime.block_on(applied);
+/// One change a worker of a round asked of the plan.
+fn a_planned_attempt(directory: &Path) -> RetryChange {
+    return RetryChange::Plan { git_dir: directory.to_path_buf(), item: item("refs/heads/main"), attempt: 1, due: Instant::now() + Duration::from_secs(10) };
 }
 
 /// What:
-///  A plan job that started on another thread,
-/// or that gave no answer within its ceiling,
-/// leaves the plan it was handed with the retry the worker promised.
+///  The retry a worker promised is in the list the loop reads after the round,
+/// and the round writes no plan's file itself.
 /// Why:
 ///  Finding 1 of the review of `b3d00b3be4`:
 /// the round took the due push out of the plan,
@@ -50,35 +47,17 @@ fn run(applied: impl std::future::Future<Output = PushRetries>) -> PushRetries {
 ///  its entry:
 /// a push stayed unpushed with nothing to wake it.
 /// The worker of each plan writes the file it promised,
-/// so the
-///  list keeps them here,
-/// and no task of the runtime writes the journal.
+/// so the list keeps them here,
+/// and the round's own apply writes nothing at all,
+/// which is what leaves a later round's plan alone (`a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk`).
 #[test]
-fn a_plan_job_given_no_answer_keeps_the_retry_its_worker_promised() {
+fn a_round_keeps_the_retry_its_worker_promised_and_writes_no_file() {
     let directory: PathBuf = PathBuf::from("/srv/repo/.git");
-    let plan: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
-    let changes: Vec<RetryChange> =
-        vec![RetryChange::Plan { git_dir: directory.clone(), item: item("refs/heads/main"), attempt: 1, due: Instant::now() + Duration::from_secs(10) }];
-    let _stated = state_the_answer(AStatesAnswer::NoAnswer);
-    let kept: PushRetries = run(apply_awaiting(plan, changes));
+    let mut plan: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
+    plan.apply(vec![a_planned_attempt(directory.as_path())]);
     assert!(
-        kept.next_wait(directory.as_path(), Instant::now()).is_some(),
-        "a plan job that gave no answer kept the retry its worker promised, so that round's directory has a wake"
+        plan.next_wait(directory.as_path(), Instant::now()).is_some(),
+        "the round keeps the retry its worker promised, so that round's directory has a wake"
     );
-    assert_eq!(
-        kept.directories(),
-        vec![directory.clone()],
-        "the plan names the directory of the retry it kept, which is what the loop schedules a wait for"
-    );
-    // The refusal that promised the job will not run leaves the same list,
-    // and writes no journal from this task either.
-    let _refused = state_the_answer(AStatesAnswer::NotRun);
-    let refused_plan: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
-    let refused_changes: Vec<RetryChange> =
-        vec![RetryChange::Plan { git_dir: directory.clone(), item: item("refs/heads/main"), attempt: 1, due: Instant::now() + Duration::from_secs(10) }];
-    let after_a_refusal: PushRetries = run(apply_awaiting(refused_plan, refused_changes));
-    assert!(
-        after_a_refusal.next_wait(directory.as_path(), Instant::now()).is_some(),
-        "a plan job the system gave no thread for kept the retry its worker promised, so that round's directory has a wake"
-    );
+    assert_eq!(plan.directories(), vec![directory], "the plan names the directory of the retry it kept, which is what the loop schedules a wait for");
 }

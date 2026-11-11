@@ -211,6 +211,12 @@ mod fsync_tests;
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
 
+/// Controls for a write of one of the landing's own side references whose wait ends before the write does
+/// stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_side_reference_write_tests.rs"]
+mod side_reference_write_tests;
+
 /// Controls for the push a landed commit leaves before its client is answered stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_owed_push_tests.rs"]

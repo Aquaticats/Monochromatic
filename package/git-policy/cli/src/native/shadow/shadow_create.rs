@@ -147,23 +147,27 @@ pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
 /// Why:
 ///   Reftable tables carry their own format,
 /// so only Git creates them.
+///  The pathname handed to Git is the shadow's own bytes:
+/// a spelling of it writes every byte that is not UTF-8 as U+FFFD,
+/// and Git then initializes a different directory,
+///  so the creation protects a path that does not exist and the commit cannot be prepared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
+/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadowBytes] });
 /// ```
 fn init_with_git(
     context: &GitContext,
     template: &ShadowTemplate,
     shadow: &Path,
 ) -> Result<(), GitFailure> {
-    let arguments: Vec<String> = vec![
-        String::from("init"),
-        String::from("--bare"),
-        String::from("--template="),
-        format!("--object-format={}", template.object_format),
-        String::from("--ref-format=reftable"),
-        shadow.display().to_string(),
+    let arguments: Vec<OsString> = vec![
+        OsString::from("init"),
+        OsString::from("--bare"),
+        OsString::from("--template="),
+        OsString::from(format!("--object-format={}", template.object_format)),
+        OsString::from("--ref-format=reftable"),
+        shadow.as_os_str().to_os_string(),
     ];
     let mut init: GitRequest = GitRequest::new(template.common_dir.as_path(), &arguments);
     init.without_prefix = true;

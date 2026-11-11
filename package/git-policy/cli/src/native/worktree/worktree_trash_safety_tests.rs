@@ -482,6 +482,75 @@ fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
 }
 
 /// What:
+///  A trash that says what it is and whose record the service gave up on is named as left where it is,
+///  and no command claims a new record for it.
+/// Why:
+///   The scan re-records a trash whose manifest proves the wrapper made it,
+/// but the queue's id is the trash's name,
+/// so a
+///  terminal failed record answers that the trash is known and writes nothing;
+/// a line that then said it was
+///  recorded now told the person the commit service would empty it,
+/// which never happens again,
+/// and the
+///  command would repeat that promise for ever.
+#[test]
+fn a_trash_the_service_gave_up_on_is_not_promised_a_new_record() {
+    let name: String = "e".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-given-up-again", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
+    std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
+    for attempt in ["the first command", "the next command"] {
+        let mut say: Vec<u8> = Vec::new();
+        name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+        let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+        assert!(!said.contains("recorded now"), "{attempt} must not promise a record that was not written: {said}");
+        assert!(said.contains(trash.to_str().expect("UTF-8")), "{attempt} names the trash that stays: {said}");
+        assert!(!pending.exists(), "nothing wrote a pending record: {said}");
+        assert!(failed.is_file() && trash.join("d0/file").is_file(), "the terminal record and the trash stay");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash that says what it is and whose record nothing ever claimed is reported as already in the queue,
+///  not as recorded now,
+/// and the record is left where it is for the service.
+/// Why:
+///   The id of a trash's record is the trash's name,
+/// so a record that waited without a service looking at it is this
+///  trash's record;
+/// claiming a new one would be a second write of what is there already,
+/// and only
+///  the write a command makes says the service was told of this trash now.
+#[test]
+fn a_trash_whose_record_already_waits_is_not_reported_as_recorded_now() {
+    let name: String = "c".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-record-there", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    age_by(&pending, std::time::Duration::from_secs(600));
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(!said.contains("recorded now"), "a record the command did not write is not reported as written: {said}");
+    assert!(said.contains("already in the queue"), "the record that waits is named as there: {said}");
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the line names the trash: {said}");
+    assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A named pipe among the trash records does not hold the command that reads them,
 ///  and the trash they account for is left alone.
 /// Why:

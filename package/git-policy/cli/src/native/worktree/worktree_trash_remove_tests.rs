@@ -98,6 +98,36 @@ fn a_very_deep_chain_of_directories_is_removed() {
 }
 
 /// What:
+///  A tree that holds a nested subvolume is refused whole:
+///  every ordinary directory in it is still there when the reason comes back.
+/// Why:
+///   The nested subvolume is no part of the tree being removed,
+/// so the removal cannot go on;
+/// the person decides what happens to the tree,
+/// and a removal that unlinked the ordinary directories
+///  first destroyed what `never discard user data` keeps until that decision.
+/// `SPEC.md` states the refusal comes before anything is deleted.
+#[test]
+fn btrfs_a_nested_subvolume_is_refused_before_anything_else_in_the_tree_is_deleted() {
+    let Some(root) = btrfs_fixture("trash-remove-nested-subvolume") else { return };
+    let top: PathBuf = root.join("top");
+    std::fs::create_dir(top.as_path()).expect("the top directory");
+    subvolume_create_at(top.join("boundary").as_path()).expect("a nested subvolume");
+    put(root.as_path(), "top/boundary/inside", b"data the subvolume holds");
+    put(root.as_path(), "top/ordinary-a/sentinel", b"a file the person has not committed");
+    put(root.as_path(), "top/ordinary-b/deep/sentinel", b"another file the person has not committed");
+    let held: std::fs::File = open_root(root.as_path()).expect("root");
+    let reason: String = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None).expect_err("a nested subvolume is no boundary a removal crosses");
+    assert!(reason.contains("boundary"), "the reason names the path it stopped at: {reason}");
+    assert!(top.join("ordinary-a/sentinel").exists(), "nothing was deleted before the refusal came: {reason}");
+    assert!(top.join("ordinary-b/deep/sentinel").exists(), "nothing was deleted before the refusal came: {reason}");
+    assert!(top.join("boundary/inside").exists(), "the subvolume and what it holds are untouched");
+    drop(held);
+    // The walk that removes a fixture goes through the subvolume like any directory, and removes it once it is empty.
+    remove(root.as_path());
+}
+
+/// What:
 ///  A folder holding the stand-ins a snapshot shows where its source holds nested subvolumes is removed whole.
 /// Why:
 ///   The stand-in step takes a whole worktree folder off an add's waiting path by moving it into the trash,

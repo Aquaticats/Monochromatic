@@ -47,11 +47,12 @@ use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
+use crate::worktree_trash::{PendingTrash, TrashManifest};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -160,7 +161,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  reset to the new worktree's HEAD from the index the snapshot carries, which is one instant with its files.
     if source.dirty.is_some() || state == CopyState::ChangedUnderCopy {
         let restore_dirty_entered: bool = begin_step("restoreDirty");
-        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context);
+        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context, &environment);
         end_step(restore_dirty_entered);
         restore_dirty_outcome?;
     } else {
@@ -198,45 +199,6 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
     return Ok(Served { line: target.line, placed, trash: handed_later });
-}
-
-/// What:
-///  Write the trash's record now that the worktree holding it is published,
-/// and answer what the hand-over still owes,
-///  which is the same trash when a run of the service will claim that record.
-/// Why:
-///   The record is what outlives the command,
-/// so it is written before the rung returns,
-/// and a command killed after
-///  the swap leaves a trash the service empties.
-/// A record that cannot be written,
-///  and one the service already settled,
-/// are both a trash no later run will empty,
-/// and the add
-///  pays the emptying itself in either case,
-/// which no ordinary add reaches:
-/// a trash's name is the name this
-///  add gave it,
-/// so its record is new or the one this command has just written;
-/// a trash that then stays is reported with its
-///  path and the reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const recordBeforeTheRungReturns = (pending) => { const will = recordTheTrash(pending); return will === 'empty it' ? pending : (warn(why(will)), deleteTrash(pending), undefined); };
-/// ```
-fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
-    let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
-    let why: String = match record_the_trash(&pending) {
-        Ok(crate::worktree_trash::TheServiceWill::EmptyIt) => return Some(pending),
-        Ok(crate::worktree_trash::TheServiceWill::Nothing) => String::from("the record of the trash is settled, so no run of the commit service will claim this one"),
-        Err(reason) => format!("the record of the trash could not be written ({reason})"),
-    };
-    warn(TAG, format!("monochromatic-git-policy-cli: {why}, so this add empties it before it returns: {}", shown.display()).as_str());
-    if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
-    }
-    return None;
 }
 
 /// What:

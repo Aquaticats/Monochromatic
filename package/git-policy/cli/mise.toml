@@ -73,6 +73,18 @@ description = "Wait, bounded, for a gate log's verdict line and print it with ne
 # The promoted `~/temp/agent/gate/wait-for-gate-verdict.ts`.
 run = "node bin/native-gate-verdict.ts"
 
+[tasks."native:ts-checks"]
+description = "Run the TypeScript checks of this package (or of `-- <task>...`) each in its own capped systemd user scope, all at once, and print one line per check with its status and a failing check's lines: `-- [--worktree <path>] [--deadline-seconds <count>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [<task>...]`. Exits 0 when every check passed and 2 when one failed or ran past its deadline; replaces the scratch script `~/temp/agent/gate/ts-checks.ts`"
+# The promoted `~/temp/agent/gate/ts-checks.ts`; the caps, the deadline and the labels live in
+# bin/native-capped-scope-command.ts and bin/native-ts-checks.ts.
+run = "node bin/native-ts-checks.ts"
+
+[tasks."native:install"]
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff, converges the installed tools, refuses unless `git --version` names the release, commits the lock when it moved, then prints the newest timing line and the service journal of the sample commit; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+# The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
+# bin/native-install.ts.
+run = "node bin/native-install.ts"
+
 [tasks."native:lock:check"]
 description = "Ask cargo whether every manifest the gate builds still resolves against its own lockfile, and print one line per manifest with the status, the directory and cargo's first error: `-- [--checkout <path>] [--refresh] [<directory>...]`. `--refresh` re-resolves the locked entries first, which writes a lockfile, and prints both answers; the exit status is nonzero when any locked check failed. Replaces the scratch scripts `locked-check.ts` and `lock-refresh.ts`"
 run = "node bin/native-lock-check.ts"

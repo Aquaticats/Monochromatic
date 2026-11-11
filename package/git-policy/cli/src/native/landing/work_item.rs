@@ -256,25 +256,6 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     return Ok(*answer);
 }
 
-/// What:
-///  Whether a record of `id` is in a state nothing claims again:
-/// `done` or `failed`.
-/// Why:
-///  `enqueue` answers `Known` for an id that is in any state,
-/// and only `pending`,
-/// `claimed` and `recovering` are work a
-///  service picks up;
-/// a caller that promises a record will be emptied has to tell a settled record from a waiting one,
-///  and the two directories are the whole of that difference.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const settledRecordOf = (workDir, id) => existsSync(join(workDir, 'done', id)) || existsSync(join(workDir, 'failed', id));
-/// ```
-pub fn settled_record_of(work_dir: &Path, id: &str) -> bool {
-    return state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists();
-}
-
 pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up};
 pub use crate::work_item_queued_ids::queued_ids;
 

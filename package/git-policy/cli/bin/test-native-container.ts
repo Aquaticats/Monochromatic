@@ -24,6 +24,7 @@ import {
   nativeTestImageRepository,
 } from './native-gate-image-tag.ts';
 import { runGateChecks, } from './native-gate-checks.ts';
+import { runGateContainer, } from './native-gate-container.ts';
 import {
   gateContainerLimitOptions,
   gateLimitsFrom,
@@ -74,6 +75,7 @@ async function localImageNames(): Promise<readonly ImageName[]> {
   });
   return imageNames({ output: listing.stdout, },);
 }
+
 
 // Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
 // and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
@@ -329,25 +331,33 @@ const sysroot = await runCommand({
 const compiler = sysroot.stdout
   .trim();
 // The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
-// behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other.
+// behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other. Each is
+// bounded, so a container that never ends refuses the gate instead of holding it open
+// (bin/native-gate-checks.ts), and each removes its container whether it ended by itself or at that bound.
 await runGateChecks({
-  testRun: function runTheWholeSuite() {
-    return runCommand({
-      command: 'podman',
+  testRun: function runTheWholeSuite(deadlineMilliseconds) {
+    return runGateContainer({
+      cidFile: join(
+        evidence,
+        'suite.cid',
+      ),
+      deadlineMilliseconds,
       args: [
-        'run',
         ...limits,
         image,
       ],
-    });
+    },);
   },
   // Its diagnostics are captured rather than streamed, so the run stays the one stream a person reads and a refused
   // Clippy still quotes what Clippy said.
-  clippyRun: function runClippy() {
-    return runCommand({
-      command: 'podman',
+  clippyRun: function runClippy(deadlineMilliseconds) {
+    return runGateContainer({
+      cidFile: join(
+        evidence,
+        'clippy.cid',
+      ),
+      deadlineMilliseconds,
       args: [
-        'run',
         ...limits,
         '--security-opt',
         'label=disable',
@@ -371,7 +381,7 @@ await runGateChecks({
       ],
       capture: true,
       allowFailure: true,
-    });
+    },);
   },
 });
 await writeFile(
