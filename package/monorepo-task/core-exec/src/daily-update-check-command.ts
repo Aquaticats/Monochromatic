@@ -82,9 +82,24 @@ export async function keepFirstError({
     ) : line,);
   }
   /**
+   Reads the line a stream left open, for a check whose last line ends without a newline.
+
+   @param reading - the line the stream read so far
+   */
+  function readOpenLine(reading: { text: string; },): void {
+    if (reading.text === '')
+      return;
+    readLine(reading.text,);
+    reading.text = '';
+  }
+  /**
    One promise per stream, resolved when that stream can deliver nothing more.
    */
   const ended: Promise<unknown>[] = [];
+  /**
+   The line each stream has read so far, read once every stream can deliver nothing more.
+   */
+  const readings: { text: string; }[] = [];
   for (const stream of streams) {
     if (stream === null)
       continue;
@@ -94,6 +109,7 @@ export async function keepFirstError({
      The line this stream has read so far; it is cut at the bound once it passes it.
      */
     const reading = { text: '', };
+    readings.push(reading,);
     stream.on(
       'data',
       function readText(chunk: string,) {
@@ -122,6 +138,9 @@ export async function keepFirstError({
     ),);
   }
   await Promise.all(ended,);
+  for (const reading of readings) {
+    readOpenLine(reading,);
+  }
 }
 
 /**

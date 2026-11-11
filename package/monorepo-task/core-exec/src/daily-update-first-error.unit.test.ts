@@ -205,6 +205,17 @@ await describe({
           },
         },),
         it({
+          name: 'reads the last line even when the stream ends before its newline',
+          fn: async () => {
+            const scan = firstErrorScan();
+            await keepFirstError({
+              streams: [chunksOf(['   Compiling a v0.1.0\n', 'error: linker not found',],),],
+              scan,
+            },);
+            expect(errorIn(scan.error(),).message,).toBe('linker not found',);
+          },
+        },),
+        it({
           name: 'does not read the rest of a line it stopped keeping as a line of its own',
           fn: async () => {
             const scan = firstErrorScan();
