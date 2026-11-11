@@ -23,7 +23,8 @@
 //! and the owner's rule "never discard user data").
 //!  A file below it that the merge deletes is the branch's own by its path,
 //! so the directory is judged again by what
-//!  those files hold: a person's edit or staged entry there is theirs,
+//!  those files hold:
+//! a person's edit or staged entry there is theirs,
 //! and the merge stops for it too rather than
 //!  deleting it with the directory.
 //!  That is the answer the recovery of a killed merge already gives such a directory,
