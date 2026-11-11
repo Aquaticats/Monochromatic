@@ -3710,6 +3710,11 @@ an empty message,
 a named path an ignore rule matches while no index entry tracks it
 (the `explicit-path-commit/named-path-ignored` finding,
 "Core finding event"),
+an element of an explicit-path commit's selection that matches no file of the worktree
+and no entry of the commit's index,
+which native Git refuses with its own status `1`
+(the `explicit-path-commit/named-path-unmatched` finding,
+"Core finding event"),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
