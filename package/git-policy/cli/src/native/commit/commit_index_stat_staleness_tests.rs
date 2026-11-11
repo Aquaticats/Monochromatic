@@ -181,7 +181,7 @@ fn the_sliced_walk_answers_as_the_one_linear_walk_does() {
     assert!(stale_paths_in_slice(slice_of(repo.as_path())).is_empty(), "a clean index names no path on one thread");
     for workers in 1..=8 {
         assert!(
-            walk_in_slices(slice_of(repo.as_path()), workers).is_some_and(|stale| stale.is_empty()),
+            walk_in_slices(slice_of(repo.as_path()), workers).is_some_and(|stale| { return stale.is_empty(); }),
             "a clean index names no path on {workers} threads"
         );
     }

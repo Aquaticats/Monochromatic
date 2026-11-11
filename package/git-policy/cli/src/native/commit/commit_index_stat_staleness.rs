@@ -489,11 +489,11 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```
     let workers: usize = workers_for(parsed.entries.len());
     let slice: EntrySlice<'_> = EntrySlice { entries: parsed.entries.as_slice(), worktree_root: layout.worktree_root.as_path(), restaged: restaged.as_slice() };
-    let stale: Option<Vec<Vec<u8>>> = match workers {
+    let walked: Option<Vec<Vec<u8>>> = match workers {
         1 => Some(stale_paths_in_slice(slice)),
         _ => walk_in_slices(slice, workers),
     };
-    let Some(stale) = stale else {
+    let Some(stale) = walked else {
         return StaleStatData::Unknown;
     };
     if stale.is_empty() {

@@ -94,7 +94,7 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
     // The member itself is not asked about: listing it below is the answer to that question.
-    for relative in SKELETON_DIRECTORIES.iter().filter(|relative| !relative.is_empty()) {
+    for relative in SKELETON_DIRECTORIES.iter().filter(|relative| { return !relative.is_empty(); }) {
         let path: PathBuf = member.join(relative);
         let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
             return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
@@ -116,7 +116,7 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     for (name, _is_link) in &listed {
         let spelled: String = name.to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
-        let linked: bool = shared.iter().any(|candidate| candidate.name == *name);
+        let linked: bool = shared.iter().any(|candidate| { return candidate.name == *name; });
         if !own && !linked {
             return Ok(Some(format!("it holds {spelled}, which this invocation's creation does not make")));
         }
@@ -125,7 +125,7 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     for entry in &shared {
         let shared_named: String = entry.name.to_string_lossy().into_owned();
         let link: PathBuf = member.join(&entry.name);
-        let Some((_, is_link)) = listed.iter().find(|(name, _is_link)| *name == entry.name) else {
+        let Some((_, is_link)) = listed.iter().find(|(name, _is_link)| { return *name == entry.name; }) else {
             return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
         };
         if !is_link {
@@ -167,8 +167,8 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 /// ```
 fn listing_of(directory: &Path) -> std::io::Result<Vec<(std::ffi::OsString, bool)>> {
     let mut listed: Vec<(std::ffi::OsString, bool)> = Vec::new();
-    for entry in std::fs::read_dir(directory)? {
-        let entry: std::fs::DirEntry = entry?;
+    for listed_entry in std::fs::read_dir(directory)? {
+        let entry: std::fs::DirEntry = listed_entry?;
         listed.push((entry.file_name(), entry.file_type()?.is_symlink()));
     }
     return Ok(listed);
@@ -206,7 +206,7 @@ fn link_target(link: &Path) -> std::io::Result<PathBuf> {
 /// ```
 fn note_link_question() {
     #[cfg(test)]
-    LINK_QUESTIONS.with(|counter| counter.set(counter.get() + 1));
+    LINK_QUESTIONS.with(|counter| { counter.set(counter.get() + 1); });
 }
 
 /// What:
@@ -234,7 +234,7 @@ fn link_questions() -> u64 {
 /// ```
 #[cfg(test)]
 fn reset_link_questions() {
-    LINK_QUESTIONS.with(|counter| counter.set(0));
+    LINK_QUESTIONS.with(|counter| { counter.set(0); });
 }
 
 /// What:
