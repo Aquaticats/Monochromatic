@@ -179,6 +179,61 @@ export function scopeLabelOfTask({ task }: { readonly task: string; }): string {
 }
 
 /**
+ One check this run starts: the task as the command line named it, and the label its scope carries.
+
+ The label is what {@link scopeLabelOfTask} makes of the task, and a second task that writes the same label gets its
+ position appended: two task names longer than the label limit, or two spellings that differ only in case, would
+ otherwise ask systemd for the same scope and the second start would be refused.
+ */
+export type NamedCheck = {
+  /**
+   The task as the command line named it.
+   */
+  readonly task: string;
+  /**
+   The label its scope carries, unique among the checks of one run.
+   */
+  readonly label: string;
+};
+
+/**
+ Pairs every task with the label its scope carries, made unique within the run.
+
+ @param tasks - the tasks the caller named, or this package's own
+
+ @returns one entry per task, in the order the caller named them
+
+ @example
+ ```ts
+ namedChecks({ tasks: ['//package/a:b', '//package/a:b'] });
+ ```
+ */
+export function namedChecks({ tasks }: { readonly tasks: readonly string[]; }): readonly NamedCheck[] {
+  /**
+   How often each label has been used so far, which is what a repeat is numbered from.
+   */
+  const used = new Map<string, number>();
+  return tasks.map(function named(task) {
+    /**
+     The label the task's own words make.
+     */
+    const label = scopeLabelOfTask({ task, });
+    /**
+     How often this label has been used, this task included.
+     */
+    const count = (used.get(label) ?? 0) + 1;
+    used.set(
+      label,
+      count
+    );
+    return {
+      task,
+      label: count === 1 ? label : `${label}-${String(count)}`,
+    };
+  });
+}
+
+/**
  The lines of a check's output that say why it did not pass.
 
  @param output - everything the check printed, on both streams
@@ -399,22 +454,26 @@ async function main(): Promise<number> {
     .length
     === 0) ? recordedCheckTasks : options.positionals;
   /**
+   Each task with the label its scope carries, which no two checks of one run share.
+   */
+  const named = namedChecks({ tasks, });
+  /**
    The moment every scope name is stamped with, so the checks of one run are one run.
    */
   const moment = new Date();
   /**
    Every check's task, scope and outcome, in the order the caller named them.
    */
-  const checks = await Promise.all(tasks.map(async function checkOf(task): Promise<CheckRun> {
+  const checks = await Promise.all(named.map(async function checkOf(one): Promise<CheckRun> {
     /**
      The scope this check runs in.
      */
     const scope = checkScopeName({
-      label: scopeLabelOfTask({ task, }),
+      label: one.label,
       stamp: localStamp({ moment, }),
     });
     return {
-      task,
+      task: one.task,
       scope,
       outcome: await runInCappedScope({
         name: scope,
@@ -422,7 +481,7 @@ async function main(): Promise<number> {
         program: taskRunnerProgram,
         args: [
           'run',
-          task,
+          one.task,
         ],
         deadlineMilliseconds,
         workingDirectory: worktree,

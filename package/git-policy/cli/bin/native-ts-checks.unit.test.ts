@@ -19,6 +19,7 @@ import {
 } from './native-gate-run.ts';
 import {
   failureLinesOf,
+  namedChecks,
   recordedCheckTasks,
   resultLinesOf,
   scopeLabelOfTask,
@@ -226,6 +227,40 @@ await describe({
         expect(() => {
           scopeLabelOfTask({ task: '///', });
         },).toThrow(NativeGateError,);
+      },
+    }),
+    it({
+      name: 'numbers the label of a second task that writes the same one, so two checks never share a scope',
+      fn: async () => {
+        /**
+         Two tasks whose labels collide: one spelled in another case, and two long names that differ past the limit.
+         */
+        const long = 'y'.repeat(60);
+        expect(namedChecks({
+          tasks: [
+            'lint:types',
+            'LINT::TYPES',
+            `x:${long}a`,
+            `x:${long}b`,
+          ],
+        }),).toEqual([
+          {
+            task: 'lint:types',
+            label: 'lint-types',
+          },
+          {
+            task: 'LINT::TYPES',
+            label: 'lint-types-2',
+          },
+          {
+            task: `x:${long}a`,
+            label: scopeLabelOfTask({ task: `x:${long}a`, }),
+          },
+          {
+            task: `x:${long}b`,
+            label: `${scopeLabelOfTask({ task: `x:${long}a`, })}-2`,
+          },
+        ],);
       },
     }),
     it({
