@@ -5923,8 +5923,8 @@ all durations in whole milliseconds taken from the monotonic clock:
   another
   program's hold on the index and the landing itself.
   `positions` lists the queue positions the service reported,
-  `waitingNotices` counts the notices the service sent it about its wait
-  (another program's hold, and the words of a write its own request is inside),
+  `waitingNotices` counts the notices the service sent it about its wait,
+  another program's hold and the words of a write its own request is inside,
   whichever of them its wait had mattered enough to say,
   `lockHolderKind` says what the last of them said of that program
   (`proven-alive` for a process proven to hold the lock,

@@ -1315,11 +1315,14 @@ and why an older client or service is unharmed:
 
 #### When the person is told they are inside that write, 2026-11-11T03:40:00Z
 
-A commit that exited 0 printed "this commit is inside a write of the commit service ... begun 0 seconds ago"
-(`commit-exit-zero-prints-no-false-write-notice`, reported from
+A commit that exited 0 printed "this commit is inside a write of the commit service ... begun 0 seconds ago".
+The failing controls that named it are
 `event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit`,
-`commit-held-behind-a-dead-branch-lock-4` and `process-look-ceiling-under-load-1`).
-Measured cause: the service sends the line as the write begins (the fix above),
+`commit-held-behind-a-dead-branch-lock-4`,
+and `process-look-ceiling-under-load-1`
+(on `commit-exit-zero-prints-no-false-write-notice`).
+Measured cause:
+the service sends the line as the write begins (the fix above),
 and the client printed it at once,
 while a branch write that crossed a heartbeat took milliseconds.
 Of the 6,703 landings this host's service journal recorded from 2026-11-01 to 2026-11-11,
@@ -1327,7 +1330,8 @@ the branch write took 5 ms at the median,
 601 ms at the 99th percentile and 4,785 ms at the 99.9th,
 and 6 reached 5,000 ms.
 
-What changed: the client holds those words and says them on standard error only once its own wait has passed
+What changed:
+the client holds those words and says them on standard error only once its own wait has passed
 `WAITING_NOTICE_AFTER` (10 seconds,
 the wait the place of a waiting commit waits for,
 set by `CLI_GIT_STANDING_NOTICE_SECONDS`),
@@ -1335,10 +1339,14 @@ and says words that differ from the ones already said at once,
 so a write that has stayed stuck a new minute is still told at once.
 The words carry no moment of the write,
 because the moment they are read is the client's.
-The noticing at the write's start, and the not-withdrawing it decides, are unchanged.
+The noticing at the write's start is unchanged,
+and so is the not-withdrawing it decides.
 Tests:
-`a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered` (at the board, on the client's own connection
-and on a held write of a real landing; red first),
+`a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered`
+(at the board,
+on the client's own connection,
+and on a held write of a real landing;
+red first),
 `a_commit_inside_a_write_says_it_once_its_wait_has_mattered`,
 `the_new_words_of_a_write_that_stayed_stuck_are_said_at_once` and
 `the_words_of_the_write_a_request_is_inside_carry_no_moment` (red first).

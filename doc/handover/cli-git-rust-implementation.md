@@ -447,6 +447,12 @@ three were the fixture service running out of threads under the suite's own para
 and one was the commit path's "inside a write of the commit service" note on standard error in
 `service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes`,
 which `without_wait_notices` does not filter and which fails alone under load.
+(2026-11-11:
+not a load failure but a defect;
+the client said the words of a write that takes milliseconds,
+fixed on `fix/git-policy-cli-commit-exit-zero-prints-no-false-write-notice`,
+see `doc/planning/cli-git-no-unbounded-waits.md`,
+section "When the person is told they are inside that write".)
 One more test timed out at its 300 second bound in that run:
 `fault_trace::the_worktree_copy_kill_list_names_only_calls_the_flow_makes`,
 of the worktree copy,
@@ -2134,6 +2140,27 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 
 Each item names what remains,
 where it lives and its evidence.
+
+### A landing that withdraws leaves its lock marker sync unmade (2026-11-11T03:50:00Z)
+
+`landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote` fails on the jam-fix integration base
+`5686c7bb29`,
+and fails the same way with that base's own `service_client.rs`,
+`service_busy.rs` and `wait_ceilings.rs` in place,
+so it is not the notice branch's.
+It queued `intent-file`,
+`intent-dir` and `lock-marker`
+and waited for only the two intent records,
+so the control's assertion that every queued sync was made before the landing returned fails
+(`src/native/landing/service_land_tests.rs:1964`).
+The service's own line for the same landing reads `lock_stage_kind=cold`,
+so the marker the sync is about was never taken;
+the sync list and the marker's stage disagree for a landing whose index lock is refused.
+Evidence:
+`mise run //package/git-policy/cli:native:test:host -- a_withdrawal_forces_the_records_it_wrote`,
+failing in about 2 seconds,
+and `landing::service_land`'s other 251 tests passing in the same run.
+An agent's to close.
 
 ### The wrapper landings of 2026-11-09 evening and the alpha they go into (2026-11-09T20:44:34-05:00)
 
