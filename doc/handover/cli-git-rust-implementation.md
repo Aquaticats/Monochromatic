@@ -266,8 +266,34 @@ Pass 7 merged seven finished branches the runs had left unmerged
 (three Kimi-findings fixes, `commits-that-stop-after-their-add-steps`, `gate-flakes-scratch-sweep-and-descriptor-limit`,
 the `mpm-shadow` printed-remedy fix and the release-waiter fix) at `6df69b62f8`, Clippy clean;
 `pushes-of-main-that-stalled-today` conflicts in five landing files and went to a re-merge agent (round 157).
+By 2026-11-11T05:05:00-05:00:
+the bisect named `950d24bd78` (the merge of `perf/git-policy-cli-worktree-removal-delete-load`),
+but more runs did not hold it up:
+its parent `3702fa307f` passed 5 of 5, `950d24bd78` failed 1 run of 4, `8bd685935d` 3 of 4, later tips nearly every run,
+and a commit that fails one run in four passes five in a row about a quarter of the time.
+The reading kept is a recovery gap in a killed worktree add that the integration's changes hit more and more often,
+not one merge's regression;
+it is worse on the integration than on alpha.9 either way, so it still holds the release,
+and agent `killed-add-leftover-copy-is-not-another-commands-wait` owns closing every kill point.
+The suites on `6df69b62f8` ran under the load of about 30 agents
+(library 6,602 of 6,606 in 1,168 s, binary 954 of 967 in 1,435 s).
+Run alone, six of the seven failures outside the killed-copy controls passed:
+contention or ordering defects in those tests (a preparation step given a ceiling of 0 s,
+a waiting notice that grows lines on a slow host, two prewarm-job controls and two binary controls that ran past 300 s).
+`service_landing_state::a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes`
+ran past 300 s alone twice, a hang to compare against `ba1be33739`;
+`cargo-shadow`'s launcher-shim control failed only in its suite;
+`crate-release` and `mpm-shadow` passed lint and tests.
+A commit through alpha.9 printed `[warn] ... [shadowPool] refused the pooled shadow member-...: the shared ...`:
+a pooled shadow is refused whenever the common Git directory's shared entries change,
+which makes the commit build its own shadow and prints an internal-cache warning to the person;
+agent `pooled-shadow-refusals-are-rare-and-quiet` (round 158) measures and fixes both.
+Eighteen more Kimi reviews came back, fourteen with findings;
+fix agents for the gravest started in rounds 159 and 160 (ten),
+four reviews that ended on model errors were started again,
+and ten fix agents of rounds 155 and 156 finished, to merge as pass 8.
 Next:
-the bisect's first failing commit,
+pass 8 and its suites,
 the fix agents' reproductions,
 the suites on `6df69b62f8` and the checks of `crate-release`, `cargo-shadow` and `mpm-shadow`,
 the Kimi reviews of the newly merged branches,
