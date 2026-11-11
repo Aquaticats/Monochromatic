@@ -133,11 +133,11 @@ fn the_name_carries_no_merge_key(aside: Option<&Aside>) -> bool {
 /// ```
 enum Held {
     /// The commit the branch held before the merge does.
-    ByTheBranch(String),
+    BranchCommit(String),
     /// The merge's own commit does.
-    ByTheMerge,
+    MergeCommit,
     /// The merge's capture does.
-    ByTheCapture,
+    Capture,
 }
 
 /// What:
@@ -177,17 +177,17 @@ async fn the_bytes_the_merge_holds_awaiting(
             if let Some(file) = entry.worktree.as_ref()
                 && file.raw == held
             {
-                return Some(Held::ByTheCapture);
+                return Some(Held::Capture);
             }
         }
     }
     // The file form is what the worktree would hold for one of the merge's commits, so a copy of either side's file is the
     //  file the merge judged.
     if the_file_form_of_awaiting(context, root, change.path.as_slice(), change.old_oid.as_str()).await.as_deref() == Some(held.as_str()) {
-        return Some(Held::ByTheBranch(String::from(change.old_oid.as_str())));
+        return Some(Held::BranchCommit(String::from(change.old_oid.as_str())));
     }
     if the_file_form_of_awaiting(context, root, change.path.as_slice(), change.new_oid.as_str()).await.as_deref() == Some(held.as_str()) {
-        return Some(Held::ByTheMerge);
+        return Some(Held::MergeCommit);
     }
     return None;
 }
@@ -281,7 +281,7 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         Fate::PutBack
     } else if !free && the_file_holds_them_awaiting(context, root, copy.location.as_path(), copy.aside.as_path()).await {
         Fate::TheFileHoldsThem
-    } else if let Some(Held::ByTheBranch(object)) = held {
+    } else if let Some(Held::BranchCommit(object)) = held {
         Fate::GitHoldsThem(object)
     } else {
         Fate::Kept

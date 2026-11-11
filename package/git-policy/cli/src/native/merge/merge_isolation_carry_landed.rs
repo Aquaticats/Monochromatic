@@ -362,3 +362,8 @@ pub fn the_file_git_landed(landed: &[LandedFile], standing: &LandedFile) -> bool
     }
     return true;
 }
+
+/// The record of what Git's update left.
+#[cfg(test)]
+#[path = "merge_isolation_carry_landed_tests.rs"]
+mod tests;
