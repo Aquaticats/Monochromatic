@@ -185,8 +185,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     then
     `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`,
     then `pnpm install --lockfile-only`.
-    The separate `bump:dependents` task and its runner under `package/git-policy/repository`
-    were deleted on 2026-10-13 (`a2b56c548c`) with the authoring packages,
+    The separate `bump:dependents` task and the runner that served it
+    were deleted on 2026-10-13 (`a2b56c548c`) with the authoring packages under `package/git-policy`,
     so the policy is the one implementation of the edge and publishability rules,
     which live under
     `package/git-policy/cli/src/native/dependent_version/`.

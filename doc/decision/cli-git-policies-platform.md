@@ -341,7 +341,7 @@ Documentation must state this behavior change.
 Superseded on 2026-10-13 (commit `642b6d72cb`):
 the release artifact is one Rust executable,
 `monochromatic-git-policy-cli`,
-and no Node package is built or published.
+and the Node package this record prepared is neither built nor published.
 The rest of `Distribution` records the package this record decided,
 kept for its reasoning.
 
