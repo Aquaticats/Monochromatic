@@ -5,6 +5,7 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use crate::time_spent_outside_the_phases::outside_the_phases;
 use std::os::unix::fs::PermissionsExt;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// What:
 ///  The names `directory` holds,
@@ -39,6 +40,23 @@ fn names_in(directory: &Path) -> Vec<String> {
 ///  and the figure this answers is reported in that assertion's message and never asserted,
 ///  because a removal cut short still finishes on its thread while the later sweeps run.
 fn sweep_until(directory: &Path, now: SystemTime, ceiling: Duration, wanted: &[&str]) -> usize {
+    return sweep_until_with(directory, now, wanted, &|directory: &Path, now: SystemTime| {
+        return sweep_stale(directory, now, SCRATCH_STALE_AFTER, ceiling);
+    });
+}
+
+/// What one sweep removes with,
+/// given the directory and the moment the sweep is made at,
+/// and how many removals it finished.
+/// Why:
+///   A control hands the helper a sweep whose removals finish on a thread after the call returns,
+///  which is what a ceiling that cuts a removal short leaves,
+///  and cannot make the real one take that long without a stalled device.
+type Sweep<'a> = dyn Fn(&Path, SystemTime) -> usize + 'a;
+
+/// The helper with its sweep given,
+/// so a control can hand it one whose removals outlast the call that started them.
+fn sweep_until_with(directory: &Path, now: SystemTime, wanted: &[&str], sweep: &Sweep<'_>) -> usize {
     let mut removed: usize = 0;
     let attempts: usize = names_in(directory).len().saturating_mul(2).saturating_add(1);
     for attempt in 0..attempts {
@@ -46,7 +64,7 @@ fn sweep_until(directory: &Path, now: SystemTime, ceiling: Duration, wanted: &[&
             break;
         }
         let finished_before: usize = removed;
-        removed += sweep_stale(directory, now, SCRATCH_STALE_AFTER, ceiling);
+        removed += sweep(directory, now);
         if removed == finished_before && attempt + 1 < attempts {
             // Nothing finished inside that call, so a removal it started is still on its thread: the next sweep waits for it.
             std::thread::sleep(Duration::from_millis(20));
@@ -494,6 +512,56 @@ fn a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps() {
     let removed: usize = sweep_until(scratch.as_path(), SystemTime::now(), Duration::from_micros(1), &[]);
     assert!(names_in(scratch.as_path()).is_empty(), "every stale tree went over the later sweeps, though only {removed} of their removals finished inside a sweep");
     assert!(outside_the_phases().removals_that_did_not_finish > before, "the removals a one-microsecond ceiling cut short were reported as not finished");
+    remove(root.as_path());
+}
+
+/// How long the control below takes to remove the stale trees on its own thread:
+/// several times the look interval a helper that retried a fixed handful of times would spend,
+/// so that helper ends before the thread does,
+/// while a helper that waits for a removal to finish on its thread sees the end.
+const SLOW_REMOVAL: Duration = Duration::from_millis(400);
+
+/// A control that hands the helper a sweep whose removals finish on a thread after the call returned:
+/// it must keep looking until they are gone,
+/// and the count it reports is never asserted.
+/// Why:
+///  A sweep whose ceiling cuts its removals short answers before they are gone,
+///  and they finish on their threads,
+///  which on a slow device can take far longer than a handful of retries:
+///  with a fixed window the cut-short control above failed while the product was right,
+///  and no control could tell a slow device from a sweep that never finishes.
+/// What:
+///  It waits as long as the ceiling the product gives one removal and no longer,
+///  which is the wait the owner's "nothing should ever wait forever or indefinitely" allows.
+#[test]
+fn the_sweep_helper_waits_for_a_removal_that_finishes_after_the_sweep_that_started_it() {
+    let root: PathBuf = fixture("scratch-slow-removal");
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(&scratch).expect("scratch");
+    for at in 0..3 {
+        let tree: PathBuf = scratch.join(format!("cli-git-slow-{at}"));
+        std::fs::create_dir(&tree).expect("tree");
+        std::fs::write(tree.join("entry"), b"x").expect("an entry");
+        age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
+    }
+    // The sweep answers before its removals finish, as one whose ceiling cuts them short does, and one removal finishes
+    //  SLOW_REMOVAL later, on a thread of its own.
+    let started: AtomicBool = AtomicBool::new(false);
+    let slow = |directory: &Path, _now: SystemTime| -> usize {
+        if started.swap(true, Ordering::SeqCst) {
+            return 0;
+        }
+        let directory: PathBuf = directory.to_path_buf();
+        std::thread::spawn(move || {
+            std::thread::sleep(SLOW_REMOVAL);
+            for entry in std::fs::read_dir(directory.as_path()).expect("list") {
+                remove(entry.expect("entry").path().as_path());
+            }
+        });
+        return 0;
+    };
+    let removed: usize = sweep_until_with(scratch.as_path(), SystemTime::now(), &[], &slow);
+    assert!(names_in(scratch.as_path()).is_empty(), "every stale tree went once the removal its sweep cut short finished on its thread, though only {removed} of their removals finished inside a sweep");
     remove(root.as_path());
 }
 
