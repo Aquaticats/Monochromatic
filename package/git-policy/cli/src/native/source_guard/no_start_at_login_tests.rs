@@ -42,6 +42,7 @@ use std::path::{Path, PathBuf};
 /// The members of the user manager (and of the bus daemon) the wrapper may call:
 /// say hello,
 /// reload,
+/// restart a unit whose program stopped inside its own process,
 /// reset a failed unit,
 /// start,
 ///  stop,
@@ -50,7 +51,7 @@ use std::path::{Path, PathBuf};
 /// links,
 /// presets,
 /// masks or changes the default target is on it.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
+const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "RestartUnit", "StartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,
