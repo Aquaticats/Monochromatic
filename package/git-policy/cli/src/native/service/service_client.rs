@@ -233,6 +233,46 @@ fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: O
     let _written = writeln!(notices, "{words}");
 }
 
+/// What:
+///  Says that the command's own request is inside a write of the service,
+/// once the wait has mattered or the service's words about that write have changed.
+/// Why:
+///   The service says it the moment the write begins,
+/// because a client whose ceiling falls inside the write would otherwise
+///  miss it (sol-1);
+/// a write that takes what writes take is over in milliseconds,
+/// so a line said then reaches the person of a
+///  command that lands at once and says nothing else.
+/// The words therefore wait for the wait the place of a waiting commit waits for
+///  (`waiting_notice_after`),
+/// and words that differ from the ones already said are newer news,
+/// so they are said at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayTheWriteItIsInside(notices, config, parked, words, told)
+/// ```
+fn say_the_write_it_is_inside(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, words: Option<&str>, told: &mut Option<String>) {
+    let Some(text) = words else {
+        return;
+    };
+    if told.as_deref() == Some(text) {
+        return;
+    }
+    // Words other than the ones already said are newer news: a write that has stayed stuck a new minute, said at once.
+    if told.is_none() {
+        let Some(since) = parked else {
+            return;
+        };
+        if since.elapsed() < config.waiting_notice_after {
+            return;
+        }
+    }
+    *told = Some(text.to_string());
+    // Terminal output error: a notice is advisory; a failed write must not stop the commit.
+    let _written = write!(notices, "{text}");
+}
+
 /// The sends and the waits of `submit_traced`.
 ///
 /// The wait for the answer lasts as long as the service keeps sending,
@@ -261,6 +301,10 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_blocker: Option<String> = None;
     // Whether the service said this request is inside its stuck branch write, and when the extra wait for that write ends.
     let mut inside_write: bool = false;
+    // What the service said about the write this command's own request is inside, held until the wait has mattered, and the
+    // words of it the person was told last.
+    let mut inside_words: Option<String> = None;
+    let mut inside_told: Option<String> = None;
     // The wait for the answer ends here, and the extra wait for a write the request is inside ends the extra wait after it: both
     // are measured from the start of the wait, not from the moment a loop first notices them.
     let answer_deadline: Instant = waiting_since + config.answer_ceiling;
@@ -324,6 +368,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
             //  in the same words as one that only beats: neither has started on this commit.
             say_where_it_stands(notices, config, parked, last_place, &mut told_place);
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
             let heard: Heard = listen(&mut reader);
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
@@ -392,7 +437,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::InsideWrite { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
-                    let _written = write!(notices, "{text}");
+                    inside_words = Some(text);
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
@@ -406,6 +451,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break None;
                 }
             }
+            // Words about the write that came with this message are said at once when they differ from the ones already said,
+            // so a write that has stayed stuck a new minute is not held until the beat after it.
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {
