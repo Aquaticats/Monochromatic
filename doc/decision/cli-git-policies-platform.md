@@ -5,8 +5,8 @@
 Accepted.
 Implementation is tracked by GitHub issues #341 through #356;
 the hk and Pkl retirement capstone is #357.
-The parts below that describe the TypeScript implementation are superseded,
-as the section that follows records.
+The parts of this record that describe the TypeScript implementation are superseded,
+as `Superseded in part on 2026-10-13` records.
 
 The canonical implementation interface is
 `package/git-policy/cli/SPEC.md`.
@@ -28,7 +28,7 @@ the transactional commit gate,
 whole-sequence convergence,
 CI independence,
 and linked-worktree ignored state.
-Every part below that describes TypeScript machinery records the retired implementation;
+Every part of this record that describes TypeScript machinery records the retired implementation;
 these are the parts the rewrite replaced:
 
 - `Policy identifiers and configuration`:
@@ -342,7 +342,7 @@ Superseded on 2026-10-13 (commit `642b6d72cb`):
 the release artifact is one Rust executable,
 `monochromatic-git-policy-cli`,
 and no Node package is built or published.
-What follows records the package this record decided,
+The rest of `Distribution` records the package this record decided,
 kept for its reasoning.
 
 Prepare `@monochromatic-dev/git-policy-cli` as a public npm-ready Node package.
@@ -456,7 +456,7 @@ That replaced the precedence this record decided,
 in which `cli-git.config.mjs` won over `cli-git.config.ts` and both were code,
 on 2026-10-13 (commit `642b6d72cb`).
 
-The paragraphs below record the executable-configuration rules of that retired precedence,
+The rest of `Configuration discovery` records the executable-configuration rules of that retired precedence,
 kept for their reasoning.
 
 A consumer-built MJS artifact must be self-contained except for Node built-in imports.
