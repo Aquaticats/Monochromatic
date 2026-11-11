@@ -351,7 +351,9 @@ async function main(): Promise<number> {
     printLine(`native:install would, in ${repository}:`);
     for (const step of plan)
       printLine(`  ${stepNameOf({ step, })}`);
-    printLine(`  then read ${wrapperVersionLine({ version, })} in what ${gitProgram} --version prints, commit ${lockFileName} when it moved, and print the newest line of ${commitTimingFileName} beside the common Git directory and the service journal since the sample commit began`);
+    printLine(`  then refuse unless what ${gitProgram} --version prints holds ${wrapperVersionLine({ version, })}`);
+    printLine(`  commit ${lockFileName} when it moved, and print the newest line of ${commitTimingFileName} beside the common Git directory`);
+    printLine('  and the service journal of the sample commit');
     return 0;
   }
   /**
