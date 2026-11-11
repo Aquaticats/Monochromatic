@@ -1365,8 +1365,21 @@ recorded in the log line of every removal:
   a file system that cannot lock and a directory with no lock file all skip it.
 - A scan of `/proc` finds no process whose working directory,
   program,
-  open file or mapped file lies under the entry;
-  processes in another mount namespace are judged by the device and inode of what they hold.
+  open file or mapped file lies under the entry.
+  Every root is compared twice:
+  as the run spelled it,
+  and with its symbolic links resolved,
+  because `/proc` names a held file the way the kernel holds it and no link is left in that name.
+  Without the second spelling a base reached through a linked path matched none of those names
+  (measured 2026-11-11 in a throwaway build folder:
+  the unit holding the program a live process was running went with `0 uses under the roots`,
+  and the same fixture spelled without the link kept it with `pid N uses ... as exe`).
+  Processes in another mount namespace are judged by the device and inode of what they hold,
+  by the paths that namespace spells,
+  and by the program they run and the files they mapped;
+  a use matched by device and inode is one of the entry's own build locks,
+  which a container's cargo holds while it builds,
+  so it keeps the whole entry and not only one path under it.
   A process whose entries cannot be read is classified from its `/proc/<pid>/status`,
   which every process shows:
   a kernel thread (`Kthread: 1`) and an ended process (`State: Z`) hold no file and are counted as such,
@@ -1410,6 +1423,51 @@ every walk obeys the run's deadline and every `podman`,
 `lean` never starts `cargo`,
 never starts itself,
 and takes no lock of its own (the claim is the rename).
+
+### What still takes a binary a run is using
+
+The proof answers one question at one moment:
+what a process holds now.
+It cannot keep a file that a runner will ask for next,
+and it is not the only writer in a build folder:
+
+- A test runner holds no build lock.
+  `cargo nextest` lists the test binaries,
+  then starts one process per test,
+  each with `--exact`.
+  Nothing it holds when the scan runs names the binaries it has not started yet,
+  and one started a moment after the scan finds its file gone.
+  Measured 2026-11-11 in a throwaway workspace:
+  `nextest run` over thirty generated tests,
+  with one shadowed `cargo build --tests` of the same workspace during it,
+  26 passed and four failed with
+  `error: [double-spawn] failed to exec ... No such file or directory`.
+- A cargo run of the same workspace relinks in place.
+  Cargo replaces `deps/<unit>-<hash>` and `build/<package>/<hash>/out/...` by rename when a source,
+  a flag or the compiler behind a toolchain name changed,
+  and a process that already has the old file mapped keeps running while the path names the new one
+  (its `/proc/<pid>/exe` then ends in ` (deleted)`).
+  Mechanism A keys a build folder by the toolchain's name,
+  so two dated nightlies both called `nightly` share one folder,
+  and every unit of it is relinked the first time the newer one builds.
+  That is what mechanism B sweeps afterwards,
+  and it is what replaced a test binary under a run:
+  the sweep's pass of 2026-11-11 ended by 07:31:34,
+  and the build folder the failing run used was first written at 09:16:55 the same day,
+  so no lean pass had ever judged it.
+- A container that mounts the base somewhere else is judged by the device and inode of the build locks,
+  never by path:
+  this tool cannot translate one mount namespace's spelling into another's.
+  A container's build is protected by the build lock it holds;
+  a test binary that container runs from a bind mount at another path is not protected,
+  and the same holds for any process of another namespace whose view of the base is not the base's own path.
+  Closing that needs the namespace's own spelling of the entry,
+  which is not read here today.
+
+What a person can do about the first two:
+run the tests before a second build of the same workspace,
+or give that build its own `CARGO_BUILD_BUILD_DIR`,
+or pin the toolchain by its date (`nightly-2026-11-11`) so a nightly update cannot relink in place.
 
 ```sh
 # package/cargo-shadow/cli/README.md
