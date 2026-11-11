@@ -473,6 +473,19 @@ pub struct PushRetries {
     /// so that a restarted service rebuilds it;
     /// nothing for a list kept in memory only.
     store: Option<PathBuf>,
+    /// Whether a plan an earlier service left has not been read yet.
+    /// Why:
+    ///   The read of the journal is bounded,
+    /// and a filesystem that stopped answering can outlast the ceiling,
+    /// so the service starts before its plan is known.
+    /// The list keeps the journal's own directory either way,
+    /// so a retry planned now is kept for a restart,
+    /// and the read is made again (`restore_now`) rather than given up on:
+    /// a plan nobody read is a push nobody tries.
+    restore_pending: bool,
+    /// How many reads of the journal have come to nothing so far,
+    /// which is the pause before the next one.
+    restore_failures: u32,
     /// The forgets this list applied without writing them,
     /// each with the instant it was asked and the number of writes that came to nothing.
     /// Why:
@@ -509,7 +522,7 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new(), store: None, unwritten: Vec::new() };
+        return Self { first, waiting: Vec::new(), store: None, restore_pending: false, restore_failures: 0, unwritten: Vec::new() };
     }
 
     /// What:
@@ -530,12 +543,106 @@ impl PushRetries {
     /// const retries = new PushRetries(first, dir); for (const saved of await load(dir)) retries.plan(saved, now + pauseBefore(saved.attempt, first));
     /// ```
     pub fn restored(first: Duration, directory: &Path) -> Self {
-        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unwritten: Vec::new() };
-        let now: Instant = Instant::now();
-        for saved in load(directory) {
-            list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
-        }
+        let mut list: Self = Self::unread(first, directory);
+        let _found: Vec<PathBuf> = list.restore_now(directory);
         return list;
+    }
+
+    /// What:
+    ///  A list for a service that starts now,
+    /// whose journal is in `directory` and has not been read yet.
+    /// Why:
+    ///   The read of the journal is bounded,
+    /// and a plan or a note that outlasts its ceiling leaves the service starting first;
+    /// the journal's own directory is kept,
+    /// so a retry planned after that is kept for a restart,
+    /// and `next_wait` names the journal for a read that is tried again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const retries = new PushRetries(first, dir, { unread: true })
+    /// ```
+    pub fn unread(first: Duration, directory: &Path) -> Self {
+        return Self {
+            first,
+            waiting: Vec::new(),
+            store: Some(directory.to_path_buf()),
+            restore_pending: true,
+            restore_failures: 1,
+            unwritten: Vec::new(),
+        };
+    }
+
+    /// A list whose journal has not been read yet,
+    /// with the first pause the variable gives or the default.
+    pub fn unread_from_environment(directory: &Path) -> Self {
+        return Self::unread(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
+    }
+
+    /// Whether a plan an earlier service left has not been read yet.
+    pub fn needs_restore(&self) -> bool {
+        return self.restore_pending;
+    }
+
+    /// How long until the read of the journal is tried again:
+    /// the first pause,
+    /// doubled for each read that came to nothing.
+    pub fn restore_pause(&self) -> Duration {
+        return pause_before(self.restore_failures.max(1), self.first);
+    }
+
+    /// What:
+    ///  Note that a read of the journal made to learn it gave no answer,
+    /// so it is owed again at the next pause.
+    /// Why:
+    ///   The read is tried again rather than given up on,
+    /// and a journal that stopped answering may not be read at the shortest pause for ever:
+    /// each attempt leaves its read behind in a job that holds a place of the blocking bound until the journal answers,
+    /// so the pause grows as it does for a plan and the attempts thin out.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// retries.restoreCameToNothing(); // the next read is owed at pauseBefore(++failures, first)
+    /// ```
+    pub fn restore_came_to_nothing(&mut self) {
+        self.restore_pending = true;
+        self.restore_failures = self.restore_failures.saturating_add(1);
+    }
+
+    /// What:
+    ///  Read the journal in `directory` into this list
+    /// and answer the Git directories it made the list hold.
+    /// Why:
+    ///   A service that started before its plan could be read makes the read again,
+    /// and every plan the files hold is then due after its own pause counted from now.
+    /// A branch the list already holds keeps what it has,
+    /// which is newer than the file the worker wrote before this read;
+    /// a branch whose forget this round owes is left out,
+    /// because that removal is the newer statement about it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const found = retries.restoreNow(dir)
+    /// ```
+    pub fn restore_now(&mut self, directory: &Path) -> Vec<PathBuf> {
+        let now: Instant = Instant::now();
+        let mut found: Vec<PathBuf> = Vec::new();
+        for saved in load(directory) {
+            let branch: &str = saved.item.branch_ref.as_str();
+            if self.waiting.iter().any(|held| held.git_dir == saved.git_dir && held.item.branch_ref == branch)
+                || self.unwritten.iter().any(|owed| owed.git_dir == saved.git_dir && owed.branch_ref == branch)
+            {
+                continue;
+            }
+            let due: Instant = now + pause_before(saved.attempt, self.first);
+            if !found.contains(&saved.git_dir) {
+                found.push(saved.git_dir.clone());
+            }
+            self.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due });
+        }
+        self.restore_pending = false;
+        self.restore_failures = 0;
+        return found;
     }
 
     /// A list for a service that starts now,

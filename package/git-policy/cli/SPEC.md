@@ -4185,6 +4185,17 @@ and a kill before that would leave a notice that says the service keeps trying a
 A plan that could not be written makes no promise:
 the notice then carries only Git's own words
 (`planned_retry`).
+A plan record carries the instant it was written,
+and a forget removes only the plans of its branch written before the round that asked for it began:
+the job that applies a round's changes is never cancelled,
+so a round whose caller stopped waiting for it may write its forgets long after a later round kept a newer plan,
+and that newer statement must stand (`push_retry_store.rs`,
+`remove_except`).
+A forget that no round could write is kept by the list and written by the next round's apply,
+with a wake until it is,
+so a plan the person's notice has already ended is not restored by a service that starts after a kill
+(`PushRetries::forget_keeping`,
+`write_the_forgets_that_were_left`).
 Only the last plan a round makes for a branch is published:
 a plan the same round plans again later is not applied,
 and a forget keeps the name of that last plan,
@@ -5181,6 +5192,13 @@ so:
   because the claim decides it:
   either the step will not run and changed nothing,
   or the pool ran it on another thread and whether it finished is not known.
+- the read of the retry plan and of the watch at a service's start is bounded,
+  and a read that gave no answer is made again rather than given up on:
+  the plan's directory and the watch's directory are kept either way,
+  so a retry planned after the timeout is still kept for a restart,
+  and the pause before each new read grows
+  (`restored_within`,
+  `PushRetries::restore_came_to_nothing`).
 
 
 The owner,

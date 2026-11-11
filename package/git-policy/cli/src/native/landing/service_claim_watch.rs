@@ -223,6 +223,30 @@ impl ClaimWatch {
     }
 
     /// What:
+    ///  A watch kept in `directory` whose notes have not been read yet.
+    /// Why:
+    ///   The read of the notes is bounded,
+    /// and a journal that stopped answering can outlast its ceiling,
+    /// so the service starts before its notes are known.
+    /// The directory is kept either way,
+    /// so a note written now is kept for a restart,
+    /// and `needs_retry` names the read to be made again (`retry`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// new ClaimWatch(dir, instance, { unread: true })
+    /// ```
+    pub fn unread(directory: &Path, instance: Option<&str>) -> Self {
+        return Self {
+            store: Some(directory.to_path_buf()),
+            instance: instance.map(str::to_string),
+            unread: true,
+            failures: 1,
+            ..Self::default()
+        };
+    }
+
+    /// What:
     ///  A watch kept in `directory`,
     /// holding the Git directories the service before this one wrote down for `instance`.
     /// Why:

@@ -25,7 +25,7 @@ use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
 use crate::push_failure_notice::notice_directory;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
+use crate::test_support::{WaitingFor, fixture, git, git_context, git_text, remove, repository, wait_until, wait_until_for};
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
 use crate::push_retry::PLAN_DIRECTORY;
@@ -354,6 +354,19 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
     return (sender, running);
 }
 
+/// A service whose start read the journal too slowly to read it:
+/// its plan is in `plans` and unread, which is what a journal that stopped answering leaves.
+fn start_service_that_could_not_read_its_plan<'scope>(
+    scope: &'scope std::thread::Scope<'scope, '_>,
+    handlers: &'scope GitHandlers,
+    plans: &'scope Path,
+    busy: &'scope AtomicUsize,
+) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, mut receiver) = unbounded_channel::<Wake>();
+    let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::unread(PAUSE, plans), ClaimWatch::in_memory()); });
+    return (sender, running);
+}
+
 /// What:
 ///  Run the after-commit work as a task of the process's runtime,
 /// as the service does,
@@ -457,6 +470,53 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     });
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]), commits_before, "no commit was made");
+    remove(stage.root.as_path());
+}
+
+/// How long the control waits for the delivery of a plan the service reads again:
+/// four first pauses and three stall windows,
+/// which is many times the one pause the read is owed before it is made.
+const DELIVERY_AFTER_A_REREAD: Duration = Duration::from_secs(PAUSE.as_secs() * 4 + STALL_SECONDS_NUMBER * 3);
+
+/// What:
+///  A service that started before its plan could be read reads it again and delivers the commit.
+/// Why:
+///   The read of the plan at a start is bounded,
+/// so a journal that stopped answering leaves the service with the journal's directory and no plans.
+/// The plan the earlier service kept is a promise the person's failure record already made,
+/// and a service that waited for the next restart to read it again would break that promise for the whole of its life
+/// (kimi finding 1 of round 133, tokio-next-step-on-the-runtime).
+/// No wake is sent: the read is what makes the push due.
+#[test]
+fn a_plan_the_start_could_not_read_is_read_again_and_delivered() {
+    let stage: Stage = stage("push-retry-restore-read-again");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]));
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (wake, first) = start_service(scope, &handlers, plans.as_path(), &busy);
+        wake.send((git_dir.clone(), None)).expect("the first service takes the wake");
+        assert!(wait_until(&|| { return notices(&stage) == 1; }), "the first service stopped the stalled push and told the person");
+        drop(wake);
+        first.join().expect("the first service ends");
+        assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered before the restart");
+        assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "the plan of the push is on disk for the restart");
+        // The person's next command shows and removes the failure record, as it does in a day of work.
+        let _shown = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+        let (nobody, second) = start_service_that_could_not_read_its_plan(scope, &handlers, plans.as_path(), &busy);
+        // Bounded by a window of its own, so a service that never reads its plan again fails here instead of holding the suite.
+        assert!(
+            wait_until_for(WaitingFor {
+                window: DELIVERY_AFTER_A_REREAD,
+                done: &|| { return remote_tip(&stage) == stage.landed; },
+            }),
+            "the service read its plan again and delivered the commit by itself"
+        );
+        drop(nobody);
+        second.join().expect("the second service ends");
+    });
+    assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     remove(stage.root.as_path());
 }
 

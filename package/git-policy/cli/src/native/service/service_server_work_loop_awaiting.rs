@@ -159,6 +159,57 @@ fn retry_in_a_job(mut watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
 }
 
 /// What:
+///  Read the plan of the pushes waiting for a new try,
+/// as a job of the process's blocking pool awaited no longer than the after-commit work's own state,
+/// and give the directories the read made the plan hold.
+/// Why:
+///   The read a service makes before it starts is bounded,
+/// so a journal that stopped answering leaves the service with the journal's directory and no plans,
+/// and a plan the earlier service kept waits for a read that is made again (`PushRetries::needs_restore`).
+/// The read is storage,
+/// so it goes to the pool and the loop awaits it;
+/// a plan it finds is woken for at once,
+/// because nothing else would try a push whose pause is already over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [retries, found] = await restoreAwaiting(retries)
+/// ```
+async fn restore_awaiting(retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
+    let Some(directory) = retries.plans().map(Path::to_path_buf) else { return (retries, Vec::new()) };
+    // The job takes the list, and a job that gives no answer may never hand it back, so this loop keeps the one it schedules from.
+    let owed: PushRetries = retries.clone();
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, (retries, directory), restore_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran((back, found)) => (back, found),
+        // Nothing was read, and each attempt leaves a read behind that holds a place of the blocking bound until the journal
+        //  answers, so the pause before the next attempt grows.
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the plan of the pushes waiting for a new try could not be read again, because the system gave no thread for it, so it is tried again after a longer pause");
+            (unread_again(owed), Vec::new())
+        }
+        // Whether the journal was read is not known, and a plan without it would schedule nothing: the read is owed again
+        //  after a longer pause.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the plan of the pushes waiting for a new try gave no answer again, so it is read again after a longer pause");
+            (unread_again(owed), Vec::new())
+        }
+    };
+}
+
+/// The plan a read came to nothing for, owed again after a longer pause.
+fn unread_again(mut retries: PushRetries) -> PushRetries {
+    retries.restore_came_to_nothing();
+    return retries;
+}
+
+/// `restore_awaiting`'s work,
+/// as the job of the pool takes it.
+fn restore_in_a_job((mut retries, directory): (PushRetries, PathBuf)) -> (PushRetries, Vec<PathBuf>) {
+    let found: Vec<PathBuf> = retries.restore_now(directory.as_path());
+    return (retries, found);
+}
+
+/// What:
 ///  Runs the after-commit work of each repository named,
 /// one repository at a time,
 /// folding wakes that arrive while it
@@ -233,6 +284,15 @@ pub async fn work_loop_awaiting(
         restored.push((key, watch.pause(push_retries.first())));
         watch_scheduled = true;
     }
+    // A plan the service started before it could read is read again after its pause, under the plan's own directory as the
+    //  schedule's key: it names no repository, so a due of it is a read and never a drain.
+    let mut restore_scheduled: bool = false;
+    if let Some(plans) = push_retries.plans()
+        && push_retries.needs_restore()
+    {
+        restored.push((plans.to_path_buf(), push_retries.restore_pause()));
+        restore_scheduled = true;
+    }
     retries.replace(&[], restored, started);
     if !retries.is_empty() {
         busy.fetch_add(1, Ordering::SeqCst);
@@ -257,10 +317,13 @@ pub async fn work_loop_awaiting(
             wakes.push(queued_wake);
         }
         let mut watch_due: Vec<PathBuf> = Vec::new();
+        let mut restore_due: bool = false;
         let mut due: Vec<PathBuf> = Vec::new();
         for directory in retries.take_due(Instant::now()) {
             if watch.key().as_ref() == Some(&directory) {
                 watch_due.push(directory);
+            } else if push_retries.needs_restore() && push_retries.plans() == Some(directory.as_path()) {
+                restore_due = true;
             } else {
                 due.push(directory);
             }
@@ -273,6 +336,15 @@ pub async fn work_loop_awaiting(
             watch_scheduled = false;
             let (back, found) = retry_awaiting(watch).await;
             watch = back;
+            for directory in found {
+                wakes.push((directory, None));
+            }
+        }
+        if restore_due {
+            // The pushes a retried read of the plan found are tried as if their pause had just ended.
+            restore_scheduled = false;
+            let (back, found) = restore_awaiting(push_retries).await;
+            push_retries = back;
             for directory in found {
                 wakes.push((directory, None));
             }
@@ -299,6 +371,13 @@ pub async fn work_loop_awaiting(
         {
             retries.replace(&[], vec![(key, watch.pause(push_retries.first()))], Instant::now());
             watch_scheduled = true;
+        }
+        if !restore_scheduled
+            && let Some(plans) = push_retries.plans()
+            && push_retries.needs_restore()
+        {
+            retries.replace(&[], vec![(plans.to_path_buf(), push_retries.restore_pause())], Instant::now());
+            restore_scheduled = true;
         }
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {
