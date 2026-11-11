@@ -412,6 +412,14 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     if entry.to.exists() {
         return Ok(Filled::Kept);
     }
+    // What: The folder the destination sits in, made before anything this job writes beside it.
+    // Why:  Cargo's own layout names an external build directory by two characters and then a hash (`build.build-dir`),
+    //  so a worktree that has never been built has neither folder; the marker, the staging copy and the rename that
+    //  publishes it all sit in that folder, and without it the marker was refused with "No such file or directory" and
+    //  nothing of the workspace was filled (the binary suite's external build directory control, 2026-11-11).
+    if let Some(folder) = entry.to.parent() {
+        std::fs::create_dir_all(folder).map_err(|error| format!("the folder {} the build directory sits in could not be made ({error}), so nothing of this workspace was filled", folder.display()))?;
+    }
     let names: TheNames = names_for(entry.to.as_path())?;
     let filled: Result<Filled, String> = fill_the_staging(fill, entry, &names).await;
     give_back(&names);
