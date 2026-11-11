@@ -41,6 +41,15 @@ the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
 Minutes later: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 So the opencode-go pool's limit is 0 (no new run goes there) until the owner says the week has reset;
 the one run already on it continues, and if the cap ends it, it resumes on Neuralwatt.
+At about 17:55 the same day, on the qwen plan (which the 16:35 answer had kept for qwen4-max-preview alone):
+"I think there's no point to withholding all Qwen quota to Qwen itself.
+Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017"
+So default runs go first to the pool `qwen-plan-deepseek` (`qwen-token-plan-individual`, `deepseek-v4.1-flash-1017`, 18 slots, the size of the pool it replaces),
+then to Neuralwatt DeepSeek flex;
+standard Neuralwatt DeepSeek takes no new run (limit 0), and the runs already on it finish there.
+Pi lists that model and it answered a test prompt at 17:49.
+The plan's own concurrency limit is not stated or measured: a 429 that names one sets the real number.
+A resume whose pool is closed (standard Neuralwatt, OpenCode Go) now takes the first default pool with room.
 And: "It's Pi's native retry's responsibility to deal with 429s."
 The driver on `main` re-prompts after model errors on its own (`MODEL_ERROR_RETRY_CAP` and its siblings in `package/pi-shared/subagent-driver/src/driver-constants.ts`),
 and on the driver-port review's 429 both layers retried (Pi at 1, 2 and 4 s, then the driver three times) before the run ended.
