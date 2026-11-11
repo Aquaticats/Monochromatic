@@ -3393,8 +3393,8 @@ none is waited out or retried on the moved head yet:
    prewarm,
   subvolume deleting and trash removing starts at most `HOUSEKEEPING_OF_ONE_ROUND` (30 seconds) of it,
    and what the round does not reach goes back to wait for a later round,
-   which comes five seconds later and finds it by
-   name in the service's journal.
+   which the service takes by itself five seconds later and finds by
+   name in its journal.
    Before 2026-11-11 the beat waited for its note and a trash took every thread of that pool,
    so a busy round left a
    waiting command with no word for up to 32 s,

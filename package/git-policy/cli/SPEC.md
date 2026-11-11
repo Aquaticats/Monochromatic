@@ -6505,9 +6505,11 @@ now inside these bounds:
   subvolume deletes and trashes) for at most
   `HOUSEKEEPING_OF_ONE_ROUND` (30 seconds,
   `landing/housekeeping_of_one_round.rs`);
-  the rest of it goes back to `pending` for a later round,
+  the rest of it goes back to `pending`,
   is named in one journal line,
-  and is woken for after `LOOK_AGAIN_AFTER_DEFERRING` (5 seconds).
+  and the lane that runs those kinds looks at that repository again after `LOOK_AGAIN_AFTER_DEFERRING` (5 seconds,
+  `landing/service_work_slow_lane.rs`),
+  so the part of a backlog one look could not start is taken by the look after it.
   An item a round has started is never interrupted,
   because a removal stopped halfway would need a resume the trash does not keep;
   the bound decides what a round starts,
