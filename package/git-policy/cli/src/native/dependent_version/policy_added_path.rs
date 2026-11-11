@@ -361,6 +361,14 @@ fn is_space_byte(byte: &u8) -> bool {
 ///  One start lists every path,
 ///  so a commit that
 ///       adds several dependents pays one Git process and not one per file.
+///  The listing keeps none of the caller's other options,
+///  so it names the repository those options selected:
+/// `repository_root` is the worktree top it runs in,
+/// and a relative `--git-dir` or `--work-tree` is read from there,
+/// as Git reads it.
+///  A Git directory beside its work tree has no `.git` inside the work tree to find,
+/// so a listing that named no repository would answer "not a git repository"
+/// for every dependent whose copy it was asked to prove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -380,6 +388,7 @@ pub fn real_index_entries(
     }
     // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(repository_root, context.global_prefix.as_slice());
     request.index = Some(index.to_path_buf());
     let output: GitOutput = run_git_checked(context, &request).map_err(git_failure_message)?;
     let mut entries: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();

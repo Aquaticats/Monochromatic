@@ -18,7 +18,7 @@ use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, read_commit};
 use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput};
+use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
 use std::path::{Path, PathBuf};
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
@@ -91,6 +91,14 @@ pub(crate) fn objects_of_batch(
             if !run(git, repository, connected.as_slice(), None)?.succeeded() {
                 return Err(FailureCode::Unavailable);
             }
+        }
+        // A commit Git built elsewhere is an object no reference names until the branch write below moves one to it, and
+        //  `git gc --prune=now` takes an object nothing names. It is kept on the batch's side reference here, as the import
+        //  keeps the commits it makes, so a commit that is held behind a reference lock, or a landing a kill leaves, keeps what
+        //  it made (`held_commit_record.rs`, `service_scratch_ref_marker_of_a_batch.rs`).
+        record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
+        if !run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", scratch, built], None)?.succeeded() {
+            return Err(FailureCode::Unavailable);
         }
         Ok((vec![built.to_string()], built.to_string()))
     } else {

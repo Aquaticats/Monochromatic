@@ -50,6 +50,9 @@ use crate::process_tree::{TreeMember, descendants_of_read};
 use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, unended_in};
 /// The grace a stopped child gets before a task of the runtime collects it.
 use crate::bounded_push::STOP_GRACE;
+/// What the command says while it still waits on a step the kernel has not released,
+/// and where that line goes.
+use crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords;
 /// The stop of a push,
 /// which a stop of the service asks for.
 use crate::bounded_push::stop_push;
@@ -172,6 +175,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     mut stop: Option<StopArm>,
     ceiling: Duration,
     what: &str,
+    while_held: Option<HeldStepWords<'_>>,
 ) -> std::io::Result<(ChildOutcome, Option<CeilingStop>)> {
     let began: Instant = Instant::now();
     // The child's own end wins over the ceiling when both are ready:
@@ -217,9 +221,11 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // a step in an uninterruptible call cannot act on `SIGKILL` until that call returns,
     // and the owner chose that this commit waits the kernel's time and says so
     // (2026-11-10, "Keep waiting and say so"), an exception to his rule that nothing waits for ever.
-    // The notice prints, once and while this wait runs, that the stop was sent and the kernel has not released the step
-    // (`commit/scratch_step_held_by_the_kernel.rs`).
-    let reaped: Option<std::process::ExitStatus> = match owned.wait().await {
+    // The line that says why comes from this wait and never from the notice's thread, which a system at its thread
+    //  limit never started (`wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+    let reaped: Option<std::process::ExitStatus> = match crate::wait_after_the_stop_saying_the_kernel_holds_it::until_reaped(&mut owned, waited, while_held)
+        .await
+    {
         Ok(collected) => Some(collected),
         // What: A status the wait could not collect.
         // Why:  The step was signalled here and the wait knows nothing of what ended it, which is what the answer says;

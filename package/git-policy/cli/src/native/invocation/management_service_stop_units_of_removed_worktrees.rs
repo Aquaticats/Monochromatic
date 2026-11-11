@@ -19,6 +19,10 @@
 //! It stops units only for a worktree whose Git directory is missing while the repository that held it is there,
 //! never for an instance that maps to nothing,
 //! and only through the user manager.
+//! A stopped instance's journal goes with its note and its socket file when it holds nothing but the records of the
+//! batches that landed;
+//! a journal that holds work is kept and named,
+//! never discarded.
 //! Nothing here starts a unit.
 //!
 //! In TS you'd write (pseudocode):
@@ -165,6 +169,19 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
                 outcome.survey.unmapped.len(),
                 if outcome.survey.unmapped.len() == 1 { "instance" } else { "instances" },
                 if outcome.survey.unmapped.len() == 1 { "was" } else { "were" }
+            )
+            .as_str(),
+        );
+    }
+    // A journal that holds work is kept and named with where it is and what kept it, never discarded, and the command's
+    // own status stays 0: the units it was asked about were stopped.
+    for (instance, kept) in &outcome.journals_kept {
+        stderr.push_str(
+            format!(
+                "{COMMAND}: the journal of instance {instance} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted\n",
+                kept.journal.display(),
+                kept.entry,
+                kept.reason
             )
             .as_str(),
         );

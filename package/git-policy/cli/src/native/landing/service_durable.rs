@@ -377,6 +377,24 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
     return state.index_hardened.get();
 }
 
+/// Queues a flush in the background task and never waits for it.
+///
+/// # Errors
+///
+/// The error of duplicating the handle; a queue that the background task no longer takes is synced here.
+pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
+    let handle: File = file.try_clone()?;
+    note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
+    crate::service_fault::note(format!("sync-queued:{what}").as_str());
+    if let Err(rejected) = sender().send(Job::Batch(vec![Pending { handle, what }])) {
+        // The task is gone, so the flush is made here rather than lost.
+        if let Job::Batch(returned) = rejected.0 {
+            force(returned);
+        }
+    }
+    return Ok(());
+}
+
 /// Flushes a file that is a landing's record:
 /// queued while a landing defers,
 /// made now otherwise.

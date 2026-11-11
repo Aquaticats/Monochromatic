@@ -13,8 +13,15 @@ This record keeps the names of its time.
 
 Status:
 implemented on 2026-10-29,
-on the branch `worktree-agent-afb65bb9babbe8ffa`,
-not yet merged.
+on the branch `worktree-agent-afb65bb9babbe8ffa`.
+
+Note 2026-11-10T04:46:08-05:00:
+merge commit `81b7fd690f` (2026-10-29T10:43:18-04:00) brought this to `main` on the day it was written,
+no local branch of that name remains,
+and the merge modules it cites are tracked on `main` under `src/native/merge/`;
+the sentence that followed the status said "not yet merged".
+The deviation below ships with the user's veto still open,
+not with a decision it waits for.
 The implementation deviates from the brief's recommended design on one point,
 which the user may veto:
 the checkout moves with Git's own fast-forward update of the merge commit and not with the commit path's

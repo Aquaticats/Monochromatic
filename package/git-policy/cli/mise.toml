@@ -56,6 +56,27 @@ run = "node bin/native-release-host-controls.ts"
 description = "Follow the release run that `native:release` printed, then the cargo-publish run it started, then check crates.io and the GitHub release: `-- <run URL or id> <version>`"
 run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-git-policy-cli"
 
+[tasks."native:gate"]
+description = "Start the wrapper's full release gate (the image build, the compile, the suite and Clippy of native:test:container) as its own capped systemd user unit and print `<unit>.service=<log path>`: `-- [options] <worktree name under .claude/worktrees, or its full path> <label>`. The unit writes the run's own exit status as its log's last line and is collected when it ends, so read the verdict with `native:gate:verdict`, never from `systemctl show`. Options: `--repository <path>`, `--log-directory <path>`, `--unit-cpu-quota <value>`, `--unit-memory-max <value>`, `--unit-tasks-max <count>`, `--unit-io-weight <weight>`, `--container-pids-limit <count>`"
+# The launcher is the promoted `~/temp/agent/gate/launch-gate.ts`; the caps, the label rules and why each value is what it
+# is live in bin/native-gate-caps.ts and bin/native-gate-unit-name.ts.
+run = "node bin/native-gate-launch.ts"
+
+[tasks."native:gate:main-tip"]
+description = "Detach the release gate worktree (`--worktree <name>`, default gate-wrapper-next-alpha) at the commit main points at now and start a gate there, labelled with that commit: `-- [options]`. Prints `gate worktree at <sha>` and `launch status <n>`, and exits 2 without moving the worktree when it holds uncommitted work"
+# The promoted `~/temp/agent/gate/relaunch-gate-on-main-tip.ts`; a real wrapper release is gated this way
+# (doc/handover/cli-git-rust-implementation.md, "Working rules for this effort", "Gates").
+run = "node bin/native-gate-main-tip.ts"
+
+[tasks."native:gate:verdict"]
+description = "Wait, bounded, for a gate log's verdict line and print it with nextest's summary and the failures: `-- <log path> <deadline seconds>`. Exits zero as soon as a verdict line is there whatever the gate's own status was, and nonzero when the deadline passed without one; the printed `gate-exit-status=<n>` line carries the gate's status"
+# The promoted `~/temp/agent/gate/wait-for-gate-verdict.ts`.
+run = "node bin/native-gate-verdict.ts"
+
+[tasks."native:lock:check"]
+description = "Ask cargo whether every manifest the gate builds still resolves against its own lockfile, and print one line per manifest with the status, the directory and cargo's first error: `-- [--checkout <path>] [--refresh] [<directory>...]`. `--refresh` re-resolves the locked entries first, which writes a lockfile, and prints both answers; the exit status is nonzero when any locked check failed. Replaces the scratch scripts `locked-check.ts` and `lock-refresh.ts`"
+run = "node bin/native-lock-check.ts"
+
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
 run = "cargo build --locked --offline --bin monochromatic-git-policy-cli"
