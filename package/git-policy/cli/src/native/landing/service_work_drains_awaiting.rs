@@ -25,6 +25,7 @@
 //! const drained = await drainPlannedAwaiting(dir, handlers, now, retrying)
 //! ```
 
+use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_handlers_replanning_and_acceptance::{
     Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
@@ -116,8 +117,15 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     //  keeps a kill in between from abandoning the branch in silence.
     requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
     run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning).await;
-    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, kinds).await;
-    let wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
+    // Housekeeping this round could not start keeps its records pending, and the answer says when to look at this directory
+    //  again: the earliest of the claim a holder still has and that look.
+    let housekeeping_wait: Option<Duration> =
+        drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
+    let claim_wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
+    let wait: Option<Duration> = match (claim_wait, housekeeping_wait) {
+        (Some(claim), Some(housekeeping)) => Some(claim.min(housekeeping)),
+        (claim, housekeeping) => claim.or(housekeeping),
+    };
     return Drained { wait, changes: replanning.changes };
 }
 
@@ -174,8 +182,13 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;
-    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds).await;
-    let wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
+    let housekeeping_wait: Option<Duration> =
+        drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
+    let claim_wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
+    let wait: Option<Duration> = match (claim_wait, housekeeping_wait) {
+        (Some(claim), Some(housekeeping)) => Some(claim.min(housekeeping)),
+        (claim, housekeeping) => claim.or(housekeeping),
+    };
     return Drained { wait, changes: replanning.changes };
 }
 

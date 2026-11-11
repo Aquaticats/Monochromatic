@@ -927,7 +927,11 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
     let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
-    crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(common.as_path(), &lane_handlers));
+    let _left: Option<Duration> = crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+        common.as_path(),
+        &lane_handlers,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -1393,6 +1397,100 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         "a drain that runs every kind plans no retry: {:?}",
         drained.changes
     );
+    remove(repo.root.as_path());
+}
+
+/// The messages the code under test wrote on this thread while `body` ran,
+/// in the order it wrote them.
+fn journal_of(body: impl FnOnce()) -> Vec<String> {
+    return crate::service_timing::capture::entries_of(body).into_iter().map(|entry| { return entry.message; }).collect();
+}
+
+/// What:
+///  A round that has spent its share of housekeeping leaves the rest of it pending for a later round,
+/// names them in one journal line,
+/// and asks to be woken again,
+/// while the first housekeeping item it found is started all the same.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a service that logged 15 of them spent 1 h 37 min in one round without making the person's
+///  push (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// A bound makes a round say "not this round" instead of starting another trash,
+/// and the records it did not
+///  start go back to `pending` so nothing is lost.
+/// The first item starts because a look that could spend its whole slice on the claim and the refusal that come before the
+///  housekeeping would otherwise leave every item for a later look that would spend its slice the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, kinds, ZERO); expect(wait).toBe(LOOK_AGAIN); expect(names(DONE)).toHaveLength(1)
+/// ```
+#[test]
+fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
+    let repo: Repo = repo("work-housekeeping-left");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH), item(&repo, WorkKind::Prewarm, OTHER_OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    // A round whose housekeeping share is already over starts none of it beyond the first item, which is the state a long round
+    //  reaches.
+    let mut looked_again: Option<Duration> = None;
+    let said: Vec<String> = journal_of(|| {
+        looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+            repo.common.as_path(),
+            &recorder,
+            CLAIM_LEASE,
+            Renewal::Timed,
+            &mut replanning,
+            &SERVICE_KINDS,
+            Duration::ZERO,
+        ))
+        .expect("the process runtime runs the drain");
+    });
+    assert_eq!(looked_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "a round that left housekeeping for later asks to be woken again");
+    assert_eq!(names(&repo, DONE).len(), 1, "the first housekeeping item of the round is started, whatever its slice had spent");
+    assert!(names(&repo, FAILED).is_empty(), "the housekeeping the round did not start is not settled");
+    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start is pending again");
+    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    let waiting: String = names(&repo, PENDING)[0].clone();
+    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(waiting.as_str()); }).collect();
+    assert_eq!(named.len(), 1, "one line names the housekeeping that waits for a later round: {said:?}");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The positive control of the bound:
+/// a round with its housekeeping share unspent runs the housekeeping it finds and leaves nothing behind.
+/// Why:
+///   The bound above must be what leaves work for later,
+/// not the drain answering nothing at all:
+/// with the shipped bound the same
+///  records run and settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, HOUSEKEEPING_OF_ONE_ROUND); expect(names(DONE)).toHaveLength(1);
+/// ```
+#[test]
+fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
+    let repo: Repo = repo("work-housekeeping-run");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        CLAIM_LEASE,
+        Renewal::Timed,
+        &mut replanning,
+        &SERVICE_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ))
+    .expect("the process runtime runs the drain");
+    assert_eq!(looked_again, None, "a round that left nothing behind asks for no extra look");
+    assert_eq!(names(&repo, DONE).len(), items.len(), "the housekeeping the round had room for ran");
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
 }
 

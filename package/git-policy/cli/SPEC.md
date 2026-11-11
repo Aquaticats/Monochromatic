@@ -6612,8 +6612,19 @@ now inside these bounds:
   The beat is written before the note it carries,
   and a note still unanswered one beat later is left for the next beat
   (`service_reply.rs`),
-  so a journal read that storage holds costs a note and never a beat,
-  and the connection keeps that read (`StuckNotice`,
+  because that note is a read of the journal through the blocking pool,
+  and a round of the after-commit work holds that pool while it removes a trash:
+  a beat written after its note waited 27 to 32 s in the record of 2026-11-10
+  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
+  and the client gave up on a commit that had landed.
+  A trash's entry removals take every place of that pool but one (`places_a_round_may_take`,
+  `foundation/blocking_jobs_within_the_budget.rs`),
+  so the steps that answer a client run beside a round:
+  the check of which instance a commit belongs to,
+  a
+  withdrawal's decision,
+  and that note.
+  The connection keeps that read (`StuckNotice`,
   `service_server_connection_handling.rs`):
   the beat behind a slow read waits for the same read and the words it answers with are written then,
   so a read that outlives many beats is made once and never queued behind itself,
@@ -6621,6 +6632,22 @@ now inside these bounds:
   (`open_regular_file`,
   `service_busy.rs`):
   a named pipe at a record's name is answered instead of waited on.
+  One round of the after-commit work starts housekeeping (upkeep,
+  prewarm,
+  subvolume deletes and trashes) for at most
+  `HOUSEKEEPING_OF_ONE_ROUND` (30 seconds,
+  `landing/housekeeping_of_one_round.rs`);
+  the rest of it goes back to `pending`,
+  is named in one journal line,
+  and the lane that runs those kinds looks at that repository again after `LOOK_AGAIN_AFTER_DEFERRING` (5 seconds,
+  `landing/service_work_slow_lane.rs`),
+  so the part of a backlog one look could not start is taken by the look after it.
+  An item a round has started is never interrupted,
+  because a removal stopped halfway would need a resume the trash does not keep;
+  the bound decides what a round starts,
+  and the first housekeeping item a round finds starts whatever its slice has spent,
+  so a round cannot leave every item to a later round that would spend its slice the same way.
+  The place the removals leave free and the beat are what serve a client while a started item lasts.
   The connection that carries the beats is accepted before the recovery of the batch an earlier service left open,
   so a service that is recovering still greets and still beats,
   and nothing is landed before that recovery is over because only the landing thread lands and it reads the queue after it
