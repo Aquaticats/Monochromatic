@@ -141,7 +141,7 @@ pub(crate) fn ignored_entries_alone_here(git: &GitContext, worktree: &Path, admi
         return Err(format!("Git cannot list the ignored files in {} ({said})", worktree.display()));
     }
     let mut alone: AloneHere = AloneHere::default();
-    for name in output.stdout.split(|byte: &u8| *byte == 0).filter(|name: &&[u8]| !name.is_empty()) {
+    for name in output.stdout.split(|byte: &u8| return *byte == 0).filter(|name: &&[u8]| return !name.is_empty()) {
         match alone_in_the_worktree(worktree, source, name) {
             Ok(true) => {
                 alone.count += 1;

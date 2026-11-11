@@ -53,7 +53,7 @@ fn a_repository_with_an_ignored_worktree(name: &str, rules: &str) -> Ignored {
 
 /// The one administrative directory the fixture's common Git directory holds.
 fn the_worktrees_admin(common: &Path) -> PathBuf {
-    let listed: Vec<PathBuf> = std::fs::read_dir(common.join("worktrees")).expect("the worktrees folder").flatten().map(|entry| entry.path()).collect();
+    let listed: Vec<PathBuf> = std::fs::read_dir(common.join("worktrees")).expect("the worktrees folder").flatten().map(|entry| return entry.path()).collect();
     assert_eq!(listed.len(), 1, "the fixture registers one worktree: {listed:?}");
     return listed[0].clone();
 }

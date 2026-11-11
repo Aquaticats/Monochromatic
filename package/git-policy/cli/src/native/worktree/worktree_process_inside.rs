@@ -143,10 +143,10 @@ pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Optio
 /// ```
 fn started_before(process_age: Option<Duration>, worktree_age: Option<Duration>) -> bool {
     // `match` on both ages: only two ages can decide it, and every other pair keeps the worktree.
-    let (Some(process_age), Some(worktree_age)) = (process_age, worktree_age) else {
+    let (Some(aged_process), Some(aged_folder)) = (process_age, worktree_age) else {
         return false;
     };
-    return process_age > worktree_age;
+    return aged_process > aged_folder;
 }
 
 /// The first field of the process table's `uptime`,
@@ -199,14 +199,14 @@ fn ticks_per_second() -> f64 {
 /// startedAgo(procRoot, pid, uptime) // Duration | undefined
 /// ```
 fn started_ago(proc_root: &Path, pid: u32, uptime: Option<Duration>) -> Option<Duration> {
-    let uptime: Duration = uptime?;
+    let up: Duration = uptime?;
     let stat: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
     // The second field is the program's name in parentheses and may hold spaces and parentheses, so the fields after it
     // are counted from the last closing parenthesis: the start time is the twentieth of those.
     let after_name: &str = stat.rsplit_once(')')?.1;
     let start_ticks: f64 = after_name.split_whitespace().nth(19)?.parse::<f64>().ok()?;
     let started: Duration = Duration::try_from_secs_f64(start_ticks / ticks_per_second()).ok()?;
-    return Some(uptime.saturating_sub(started));
+    return Some(up.saturating_sub(started));
 }
 
 /// What:

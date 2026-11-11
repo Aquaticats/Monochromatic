@@ -311,8 +311,8 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
 /// ```ts
 /// sweptAfterAMerge(window, identity, code); // nothing when this command was no merge
 /// ```
-fn swept_after_a_merge(window: Option<&(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)>, identity: &WorktreeIdentity, code: i32) {
-    let Some((context, window)) = window else {
+fn swept_after_a_merge(merge_window: Option<&(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)>, identity: &WorktreeIdentity, code: i32) {
+    let Some((context, window)) = merge_window else {
         return;
     };
     let _swept = crate::worktree_landed_after_a_merge::after_a_merge(context, identity, window, code);
