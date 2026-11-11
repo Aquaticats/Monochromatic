@@ -12709,6 +12709,14 @@ the push's stall window,
 the service's stop and the grace a stopped query gets,
 with its request on the standard input and an answer ceiling of one stage per name it asks for
 (`src/native/push/auto_push_reconcile_merge_commit.rs`),
+and the line merge's answer ceiling is four stages:
+the three stages it is given and the text Git settled,
+with the push report's own cap on top of them for the marker lines,
+because a merge of three stages is larger than each of them and the report's cap alone refused merges
+that resolve;
+room for about twenty-six thousand regions is what that cap adds,
+and an answer larger than the ceiling is refused and leaves the path as Git left it,
+for the person to resolve;
 so a merge driver that never returns ends the merge and is named as a stopped query,
 and the push worker,
 its claim and the drain of that repository are not held for good.
