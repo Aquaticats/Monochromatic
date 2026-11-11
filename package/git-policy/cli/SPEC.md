@@ -11602,7 +11602,8 @@ these private entries:
   which is never linked.
 
 The entries a commit reads are symbolic links to the real ones,
-and they are named (`shadow_links.rs`, `SHARED_ENTRY_NAMES`):
+and they are named (`shadow_links.rs`,
+`SHARED_ENTRY_NAMES`):
 `info`,
 `hooks`,
 `lfs`,

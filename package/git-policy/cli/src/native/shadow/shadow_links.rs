@@ -16,7 +16,8 @@
 //! `shallow`,
 //! `svn`,
 //! and the legacy fetch shorthands `branches` and `remotes`
-//! (`gitrepository-layout`, Git 2.56.0:
+//! (`gitrepository-layout`,
+//! Git 2.56.0:
 //!  these are the entries Git shares with `$GIT_COMMON_DIR`,
 //!  and the ones that decide what a hook,
 //! a filter or native Git reading the shadow can see).
@@ -360,6 +361,51 @@ pub fn has_worktree_config(git_dir: &Path) -> std::io::Result<bool> {
 }
 
 /// What:
+///  Whether one entry of a real `info` directory is the per-worktree pattern the shadow copies.
+/// Why:
+///   A linked worktree's `info/sparse-checkout` is its own,
+/// and the shadow's `info` gets the copy the creation makes instead of a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotThePerWorktreePattern = (entry) => entry.name !== 'sparse-checkout';
+/// ```
+fn is_not_the_per_worktree_pattern(entry: &std::fs::DirEntry) -> bool {
+    return entry.file_name() != std::ffi::OsStr::new("sparse-checkout");
+}
+
+/// What:
+///  Whether an entry's type, when it could be read, is a directory.
+/// Why:
+///   A type that cannot be read counts as not a directory,
+///  which only Windows tells apart:
+/// it copies a shared file and links a shared directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADirectory = (kind) => kind.isDirectory();
+/// ```
+fn is_a_directory(kind: std::fs::FileType) -> bool {
+    return kind.is_dir();
+}
+
+/// What:
+///  One entry of a real directory as the list of shared entries holds it.
+/// Why:
+///   The listing of a linked worktree's shared `info` needs the same shape the named
+///  entries of the common directory have,
+/// so both are linked by one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sharedEntryOf = (entry) => ({ name: entry.name, source: entry.path, directory: isADirectory(entry.type) });
+/// ```
+fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
+    let directory: bool = entry.file_type().is_ok_and(is_a_directory);
+    return SharedEntry { name: entry.file_name(), source: entry.path(), directory };
+}
+
+/// What:
 ///  Links the real common directory into the shadow and copies the per-worktree entries.
 /// Why:
 ///   A linked worktree's `info/sparse-checkout` lives outside the common directory,
@@ -387,11 +433,8 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     let shared: Vec<SharedEntry> = match std::fs::read_dir(shared_info.as_path()) {
         Ok(listed) => listed
             .flatten()
-            .filter(|entry| { return entry.file_name() != std::ffi::OsStr::new("sparse-checkout"); })
-            .map(|entry| {
-                let directory: bool = entry.file_type().is_ok_and(|kind| { return kind.is_dir(); });
-                return SharedEntry { name: entry.file_name(), source: entry.path(), directory };
-            })
+            .filter(is_not_the_per_worktree_pattern)
+            .map(shared_entry_of)
             .collect(),
         // Only an absent shared `info` is tolerated: a per-worktree sparse checkout is then the whole of it.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),

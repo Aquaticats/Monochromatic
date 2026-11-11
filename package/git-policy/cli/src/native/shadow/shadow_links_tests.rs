@@ -265,7 +265,8 @@ fn existing_shadow_entries_are_replaced_by_links() {
 /// Why:
 ///  `lfs` appears when somebody starts using it and can go again;
 /// a removal that lands inside a commit's creation must leave the commit building the shadow of a
-///  repository that does not hold the entry, never failing it.
+///  repository that does not hold the entry,
+/// never failing it.
 ///  Unix makes a link to a name whether or not that name is there,
 /// and Git reads a link to nothing as nothing,
 ///  which is what a creation of this moment holds.
