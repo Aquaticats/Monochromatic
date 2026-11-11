@@ -4330,6 +4330,23 @@ and "never discard user data"):
   A tree or a temporary index is not written for this read:
   it runs `git ls-files -v --stage -z` over the merge's own paths and
   `git hash-object --path` for the entries that carry a mark.
+  That hash is the clean-filtered form without `-w`,
+  so a question is not answered by writing an object,
+  and bytes that clean to the object the index records are no edit at all:
+  a path marked `text` whose worktree copy holds CRLF endings is not carried,
+  measured with Git 2.56.0,
+  where `git hash-object --path a.txt` of the CRLF copy equals the committed blob.
+  The mark itself is not carried:
+  the index records this merge writes hold the mode and the object of a layer and no flags,
+  so a path whose entry carried `assume-unchanged` or `skip-worktree` is left with a plain entry,
+  and `git status` then lists the person's edit where the mark had hidden it.
+  That is a deliberate divergence from Git's own update,
+  which clears an `assume-unchanged` mark of a path it writes and keeps a `skip-worktree` one
+  (measured with Git 2.56.0 on a fast-forward that writes the marked path:
+  `h` becomes `H` and `S` stays `S`);
+  the file the merge wrote is materialised either way,
+  so a kept `skip-worktree` mark would say "do not check out" about a path the merge just checked out,
+  and a flag is not the person's bytes.
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
   so `git merge --ff-only` takes them as it always did.
   Every one of their identities is read again before that call and again before each rename,

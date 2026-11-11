@@ -66,3 +66,68 @@ fn the_tags_git_prints_for_each_mark_are_read_and_no_other() {
     assert_eq!(marked[0].mode, "100644");
     assert_eq!(marked[0].object, "1111111111111111111111111111111111111111");
 }
+
+/// What:
+///  A mode the person set and no byte they changed is hidden work too.
+/// Why:
+///  The executable bit is theirs as the bytes are,
+/// and a merge that deletes the path would take it with the file;
+/// `SPEC.md`,
+/// "a mode the person set without touching the bytes is theirs as the bytes are".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync(path, 0o755); expect(pathsTheStatusHides(...)).toEqual([path]);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_marked_path_whose_mode_differs_is_hidden_work() {
+    use std::os::unix::fs::PermissionsExt;
+    let parent: PathBuf = fixture("merge-hidden-marks-mode");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"the branch's bytes\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    let mut permissions: std::fs::Permissions = std::fs::metadata(repo.join("a.txt")).expect("metadata").permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(repo.join("a.txt"), permissions).expect("the person's mode");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "", "Git's own status hides a mode the mark covers");
+    let touched: Vec<Vec<u8>> = vec![b"a.txt".to_vec()];
+    let hidden: Vec<Vec<u8>> = paths_the_status_hides(&context_in(repo.as_path()), repo.as_path(), touched.as_slice()).expect("the marks are read");
+    assert_eq!(hidden, vec![b"a.txt".to_vec()], "a mode the person set is work to carry");
+    remove(parent.as_path());
+}
+
+/// What:
+///  Bytes that clean to the object the index records are no edit,
+///  so a path marked text in a checkout with CRLF line
+///  endings is not carried.
+/// Why:
+///  A comparison of raw worktree bytes with the index would report every such file as edited and carry
+/// it,
+/// while Git's own refresh reads the cleaned form and reports nothing;
+/// the clean-filtered object is what makes the answer Git's
+///  (measured with Git 2.56.0:
+/// `git hash-object --path a.txt` of the CRLF copy equals the committed blob,
+///  and `--no-filters` does not).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync('a.txt', 'one\r\ntwo\r\n'); expect(pathsTheStatusHides(...)).toEqual([]);
+/// ```
+#[test]
+fn crlf_bytes_that_clean_to_the_index_object_are_no_hidden_work() {
+    let parent: PathBuf = fixture("merge-hidden-marks-crlf");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join(".gitattributes"), b"*.txt text eol=lf\n").expect("attributes");
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("file");
+    git(repo.as_path(), &["add", "--", ".gitattributes", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), b"one\r\ntwo\r\n").expect("the same text with CRLF endings");
+    let touched: Vec<Vec<u8>> = vec![b"a.txt".to_vec()];
+    let hidden: Vec<Vec<u8>> = paths_the_status_hides(&context_in(repo.as_path()), repo.as_path(), touched.as_slice()).expect("the marks are read");
+    assert!(hidden.is_empty(), "the cleaned bytes are the index's own object, so nothing is carried: {hidden:?}");
+    remove(parent.as_path());
+}

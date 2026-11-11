@@ -2753,6 +2753,12 @@ Now the merge runs and the person's work is carried across it:
   so the wrapper compares the worktree copy with the index entry itself
   (`src/native/merge/merge_isolation_marks_the_status_hides.rs`).
   A marked path with no worktree file is no edit of yours and stays Git's own answer.
+  The mark is not carried:
+  after the merge,
+  `git status` lists your edit where the mark had hidden it,
+  because the merge wrote the file.
+  Bytes that only differ in line endings the path's attributes clean away are no edit either,
+  so a file marked `text` with CRLF endings in the checkout is left as it is.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
   Each path is read again just before the write that replaces it,
