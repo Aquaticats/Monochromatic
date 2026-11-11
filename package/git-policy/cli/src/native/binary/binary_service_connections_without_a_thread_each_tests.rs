@@ -84,7 +84,13 @@ fn greeting(stream: &UnixStream) -> ServiceMessage {
 /// Many connections that wait on the service,
 /// each greeted,
 /// add far fewer threads than connections:
-/// a connection is a task and not a thread.
+/// a connection is a task and not a thread,
+/// so the count of the process stays below the count it had before them plus half of them.
+/// It is that ceiling and not a difference:
+/// a service starts some threads of its own that end again
+/// (the plan and the watch of an earlier service are read on a thread of their own,
+/// after the acceptor starts and before it settles),
+/// so the count after the connections may be below the one before them.
 #[test]
 fn connections_held_open_cost_the_service_no_thread_each() {
     let fixture: Fixture = fixture("service-connections-tasks");
@@ -100,8 +106,8 @@ fn connections_held_open_cost_the_service_no_thread_each() {
         assert!(matches!(greeting(&stream), ServiceMessage::Welcome { .. }), "every connection is greeted while the others wait");
         held.push(stream);
     }
-    let growth: usize = threads_of(service.0.id()) - before;
-    assert!(growth < CONNECTIONS / 2, "{CONNECTIONS} waiting connections added {growth} threads: a connection must not hold a thread");
+    let after: usize = threads_of(service.0.id());
+    assert!(after < before + CONNECTIONS / 2, "{CONNECTIONS} waiting connections took the service from {before} to {after} threads: a connection must not hold a thread");
     drop(held);
     drop(first);
     super::commit::remove_settled(&fixture);
