@@ -251,8 +251,12 @@ pub fn dirty_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     let what: &str = match command {
         GuardedCommand::Clean => "changes to tracked files or untracked files",
-        GuardedCommand::CleanIgnored => "changes to tracked files, untracked files or ignored files",
-        GuardedCommand::CleanIgnoredOnly => "ignored files",
+        // An ignored file is not a reason to refuse this clean in a linked worktree, so the text names only what
+        //  the worktree holds and this clean loses.
+        GuardedCommand::CleanIgnored => "changes to tracked files or untracked files",
+        // Only the spelling that carries its own `-e`/`--exclude` patterns is asked about, and what those patterns
+        //  pull in is a path the worktree does not itself ignore.
+        GuardedCommand::CleanIgnoredOnly => "work that only its own -e/--exclude patterns call ignored",
         _ => "changes to tracked files",
     };
     return format!(

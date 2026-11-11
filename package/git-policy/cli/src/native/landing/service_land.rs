@@ -226,6 +226,11 @@ mod owed_index_tests;
 #[path = "service_land_finish_git_failure_tests.rs"]
 mod finish_git_failure_tests;
 
+/// Controls for a restart that settles a held batch and then decides about it stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_finish_held_settlement_tests.rs"]
+mod finish_held_settlement_tests;
+
 /// Controls for the stat data of the index a landing installs stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_index_stat_tests.rs"]

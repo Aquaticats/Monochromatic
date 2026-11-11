@@ -41,7 +41,8 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DecidedForm = { kind: 'guarded'; command: GuardedCommand } | { kind: 'audited'; command: AuditedCommand };
+/// type DecidedForm = { kind: 'guarded'; command: GuardedCommand } | { kind: 'audited'; command: AuditedCommand }
+///   | { kind: 'shared-remote' };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DecidedForm {
@@ -49,14 +50,20 @@ pub enum DecidedForm {
     Guarded(GuardedCommand),
     /// A form the policy only records.
     Audited(AuditedCommand),
+    /// A write to the remote settings every worktree of the repository shares,
+    ///  which only the hatch of its refusal lets through.
+    ///  The arguments of the line name the setting,
+    /// so this word says the kind of change and no more.
+    SharedRemote,
 }
 
 impl DecidedForm {
     /// The word written to the record.
-    pub fn word(self) -> String {
+    pub fn word(&self) -> String {
         return match self {
             DecidedForm::Guarded(command) => format!("{command:?}"),
             DecidedForm::Audited(command) => format!("{command:?}"),
+            DecidedForm::SharedRemote => String::from("SharedRemote"),
         };
     }
 }

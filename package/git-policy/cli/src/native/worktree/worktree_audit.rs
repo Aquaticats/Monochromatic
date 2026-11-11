@@ -34,6 +34,8 @@
 
 use crate::discard_audit_facts::AuditFact;
 use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+/// A pathname from the bytes a pointer file holds.
+use crate::hooks_path_values::path_answer;
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
@@ -66,26 +68,28 @@ const POINTER_BYTES: u64 = 4096;
 ///  resolving a relative pointer against the process's directory
 ///  would read
 ///       another worktree's facts or none.
+///  The line is read as bytes and the path it names is built from them,
+///  because a Git directory whose own path is not UTF-8 is still the one this worktree uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeGitDirectory(target: string): string | undefined;
+/// function worktreeGitDirectory(target: Buffer): Buffer | undefined;
 /// ```
 fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
-    let pointer: String = read_pointer_file(target.join(".git").as_path())?;
-    let named: &str = pointer.trim().strip_prefix("gitdir:")?.trim();
+    let pointer: Vec<u8> = read_pointer_file(target.join(".git").as_path())?;
+    let named: &[u8] = pointer.trim_ascii().strip_prefix(b"gitdir:")?.trim_ascii();
     if named.is_empty() {
         return None;
     }
-    let directory: &Path = Path::new(named);
+    let directory: PathBuf = path_answer(named);
     if directory.is_absolute() {
-        return Some(directory.to_path_buf());
+        return Some(directory);
     }
     return Some(target.join(directory));
 }
 
 /// What:
-///  The text of a pointer file,
+///  The bytes of a pointer file,
 ///  or nothing when the path is not a regular file or cannot be read.
 /// Why:
 ///   Opening a FIFO with no writer waits for ever,
@@ -93,12 +97,14 @@ fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
 ///  the type is checked
 ///  first and the open cannot wait,
 ///  so a best-effort fact never holds the command.
+///  The bytes are returned as they are,
+///  because the path the file names may hold bytes that are not UTF-8.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readPointerFile(path: string): string | undefined;
+/// function readPointerFile(path: Buffer): Buffer | undefined;
 /// ```
-fn read_pointer_file(path: &Path) -> Option<String> {
+fn read_pointer_file(path: &Path) -> Option<Vec<u8>> {
     // `metadata` follows a link, so a link to a regular file is still a regular file; anything else is not read.
     let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
     if !metadata.is_file() {
@@ -108,7 +114,7 @@ fn read_pointer_file(path: &Path) -> Option<String> {
     let mut bytes: Vec<u8> = Vec::new();
     // `.take(n)` bounds the read; a file longer than that is not a pointer file.
     opened.take(POINTER_BYTES).read_to_end(&mut bytes).ok()?;
-    return String::from_utf8(bytes).ok();
+    return Some(bytes);
 }
 
 /// What:
@@ -152,7 +158,8 @@ fn open_without_waiting(path: &Path) -> std::io::Result<std::fs::File> {
 pub fn worktree_head(target: &Path) -> Option<String> {
     // The Git directory the worktree's own `.git` names; a main worktree names none a removal could take.
     let directory: PathBuf = worktree_git_directory(target)?;
-    let head: String = read_pointer_file(directory.join("HEAD").as_path())?;
+    // `HEAD` names a ref or a commit, which is text; a pointer file names a pathname, which is bytes.
+    let head: String = String::from_utf8(read_pointer_file(directory.join("HEAD").as_path())?).ok()?;
     let trimmed: &str = head.trim();
     let named: &str = trimmed.strip_prefix("ref: ").unwrap_or(trimmed);
     if named.is_empty() {

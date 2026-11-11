@@ -681,18 +681,18 @@ fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     let root: PathBuf = fixture("recovery-pending-check");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    recover_pending_worktree_copies(common.as_path(), &mut Vec::new()).expect("nothing pending");
+    recover_pending_worktree_copies(common.as_path(), &git_context(), &mut Vec::new()).expect("nothing pending");
     assert!(!journal_root(common.as_path()).exists(), "the check creates no journal root");
     let snapshot: StagedSnapshot =
         stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
     let live: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal of this process");
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a live owner's journal is skipped");
+    recover_pending_worktree_copies(common.as_path(), &git_context(), &mut notices).expect("a live owner's journal is skipped");
     assert!(live.path.exists(), "a live owner keeps the journal for itself");
     assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
     assert!(Path::new(live.journal.stage_container.as_path()).exists(), "its stage stays");
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a dead owner's journal is recovered");
+    recover_pending_worktree_copies(common.as_path(), &git_context(), &mut notices).expect("a dead owner's journal is recovered");
     assert!(!dead.path.exists());
     assert!(live.path.exists(), "the live journal is still whole after the dead one went");
     remove(root.as_path());
@@ -756,7 +756,7 @@ fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
         std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
     }
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("reaped");
+    recover_pending_worktree_copies(common.as_path(), &git_context(), &mut notices).expect("reaped");
     assert!(live.container().exists(), "a live copy may still be staging");
     assert!(!dead.container().exists(), "a dead owner's stage is reaped");
     assert!(stage_claims_exist(common.as_path()).expect("claims"), "the live claim stays");
