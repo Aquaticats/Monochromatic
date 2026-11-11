@@ -336,30 +336,30 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
 /// What:
 ///  The limits from `low` to the smallest under which a commit lands,
 ///  each run once with the sweep's own breadth,
-///  and that smallest landing limit run once more on its own,
-///  the way the search that found it ran it.
+///  and one case on its own at twice that smallest landing limit,
+///  with the recovery checked.
 /// Why:
 ///  The smallest limit under which a commit lands is the limit at which the outcome flips,
-///  and the search that finds it runs one case at a time;
-///  `SWEEP_WIDTH` cases at once hold more of the descriptors a landing needs at its peak on a machine whose disk is stalling,
-///  so the same limit can refuse in the batch.
-///  Measured on 2026-11-10:
-///  the search landed at its smallest landing limit,
-///  and the batch of that limit's own range refused every one of its limits,
-///  in two gates of one commit while the repository's disk was jammed.
-///  The landing this control needs is therefore witnessed where the search observed it,
-///  one case at a time and with the recovery checked,
-///  and the batch proves the rest of the promise:
+///  and the flip is one descriptor wide:
+///  measured on a loaded host on 2026-11-11,
+///  a commit run one at a time refused at 23 twice and landed at 24 twice.
+///  The flip moves with everything else that holds a descriptor while a commit runs,
+///  because a step that waits holding one keeps it held into the next step,
+///  so the search that finds it can answer a limit that the next case refuses,
+///  and `SWEEP_WIDTH` cases at once move it further still.
+///  The landing this control needs is therefore asked for at twice the limit the search landed at,
+///  where a commit needs the same descriptors it needed at the boundary and the limit leaves as much room again,
+///  which is a landing rather than the boundary's coin flip;
+///  the batch proves the rest of the promise:
 ///  every limit fails with a message or lands,
 ///  and the repository recovers after each.
-///  The witness runs at the very limit the search landed at,
-///  so no margin is a number this control invents.
+///  Twice a figure the search measured is the only margin this control states.
 fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> (usize, usize) {
     let values: Vec<u64> = (low..=lands_at).collect();
     let (landed, refused): (usize, usize) = sweep(label, values.as_slice(), limits_for, false);
-    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(lands_at);
-    let alone: Case = run_case(format!("{label}-smallest-landing-{lands_at}").as_str(), service.as_slice(), wrapper.as_slice(), false, true);
-    assert!(alone.verdict.is_ok(), "the smallest landing limit left the repository unrecovered: {:?}", alone.verdict);
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(lands_at.saturating_mul(2));
+    let alone: Case = run_case(format!("{label}-twice-the-smallest-landing-{lands_at}").as_str(), service.as_slice(), wrapper.as_slice(), false, true);
+    assert!(alone.verdict.is_ok(), "twice the smallest landing limit left the repository unrecovered: {:?}", alone.verdict);
     return (landed + usize::from(alone.landed), refused + usize::from(!alone.landed));
 }
 
@@ -373,7 +373,7 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
     let lands_at: u64 = smallest_working(3, 1024, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
     let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused both in the sweep and on its own)");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// A descriptor limit of each size on the commit service,
@@ -388,7 +388,7 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_re
     let lands_at: u64 = smallest_working(starts_at, 1024, &|value| { return lands_with("nofile-service", value, service_descriptors); });
     let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-service", starts_at, lands_at, service_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused both in the sweep and on its own)");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`),
