@@ -82,13 +82,15 @@ fn the_lowering_cannot_be_carried_to_another_thread() {
     struct IfCarriedToAnotherThread;
 
     /// What:
-    ///  The one method every value offers, under each marker the value qualifies for.
+    ///  The one method every value offers,
+    /// under each marker the value qualifies for.
     trait Offered<Marker> {
         fn offered() {}
     }
 
     /// What:
-    ///  The marker every value qualifies for, which is the one the ask names when nothing else does.
+    ///  The marker every value qualifies for,
+    /// which is the one the ask names when nothing else does.
     impl<T: ?Sized> Offered<()> for T {}
 
     /// What:
