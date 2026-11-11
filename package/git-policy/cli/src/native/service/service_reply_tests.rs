@@ -189,9 +189,12 @@ fn beats_and_answers_never_interleave_their_bytes_and_keep_their_order() {
     });
 }
 
-/// The question asked before a beat may wait,
+/// The question asked at a beat may wait,
 /// and a beat that waits on it does not stop the runtime:
 /// a note source that takes a while to answer leaves the other tasks their turns.
+/// The beat itself goes first and the note follows it,
+/// because a note may wait for a place of the blocking pool that a round's removals hold,
+/// and a waiting client ends a service it has heard nothing from for `HEARTBEAT_SILENCE`.
 #[test]
 fn a_note_that_takes_a_while_leaves_the_other_tasks_their_turns() {
     /// A note source that answers after a pause and says so.
@@ -211,8 +214,8 @@ fn a_note_that_takes_a_while_leaves_the_other_tasks_their_turns() {
         };
         let (reply, mut messages) = Reply::new();
         let writer = tokio::spawn(async move { write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut SlowNote).await; });
-        assert_eq!(next(&mut client).await, ServiceMessage::Waiting { text: String::from("slow") }, "the note comes before the beat");
-        assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat);
+        assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat, "the beat never waits for the note that rides on it");
+        assert_eq!(next(&mut client).await, ServiceMessage::Waiting { text: String::from("slow") }, "the note follows the beat that carried it");
         drop(reply);
         drop(client);
         writer.await.expect("the writer ends");

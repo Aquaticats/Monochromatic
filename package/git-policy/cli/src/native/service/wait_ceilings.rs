@@ -747,6 +747,26 @@ pub fn notice_after_of(setting: Option<&str>) -> Duration {
 ///  is optional beside the command's own result.
 pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 
+/// The longest a beat waits for the note it may write after itself,
+/// so the note a waiting client is told can never be what keeps the next beat from it.
+///  One beat's own interval
+/// (`service_protocol_messages_and_name_checks.rs`,
+/// `HEARTBEAT_EVERY`):
+/// the note reads the landing's board out of the journal through the blocking pool,
+///  which a round's removals can hold for as long as they run.
+/// Measured on 2026-11-10 in the service's own journal:
+/// 27 to 32 s between two lines of one waiting client while a round was busy
+///  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
+/// and a client ends a service it has heard nothing from for `HEARTBEAT_SILENCE`,
+///  five seconds.
+/// The worst a note can then add to the silence between two beats is this interval,
+/// which keeps the pair at two
+///  seconds,
+/// under two fifths of that window,
+/// and a note that is not read in time is asked for again at the next
+///  beat.
+pub const NOTE_OF_A_BEAT_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_EVERY;
+
 /// The longest a read of the health report's own file system facts may take:
 /// the hook directories it scans,
 /// the shim

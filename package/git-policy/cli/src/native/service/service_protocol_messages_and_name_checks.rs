@@ -75,21 +75,6 @@ pub const HEARTBEAT_EVERY: std::time::Duration = std::time::Duration::from_secs(
 ///  its identity and answers without landing it twice.
 pub const HEARTBEAT_SILENCE: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// The longest a beat waits for the note it may write before itself,
-/// so the note a waiting client is told can never be what keeps the next beat from it.
-///  One beat's own interval:
-/// the note reads the landing's board from the journal through the blocking pool,
-/// which a round's removals can hold for as
-///  long as they run (measured 2026-11-10,
-/// 27 to 32 s between two beats of one waiting client,
-/// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
-/// so a note that cannot be read within this waits for the next beat instead.
-/// The worst a note can then add to the silence between two beats is this interval,
-/// which keeps the pair
-///  (`HEARTBEAT_EVERY` plus this) at two seconds,
-/// under two fifths of `HEARTBEAT_SILENCE`.
-pub const NOTE_OF_A_BEAT_CEILING: std::time::Duration = HEARTBEAT_EVERY;
-
 /// The 99th percentile of the lengths of the paths changed by the 21,696 non-merge commits of this repository since 2026-09-01
 ///  (176,042 changed paths read with `git log --no-merges --format=@%H --name-only --all`):
 /// 118 characters.

@@ -112,3 +112,30 @@ fn the_standing_notice_variable_is_the_one_the_client_reads() {
     let source: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
     assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
 }
+
+/// What:
+///  The beat's note waits at most one interval,
+/// and the beat goes before it,
+/// so two beats are always inside the window a waiting client measures silence in.
+/// Why:
+///   The note reads the landing's board out of the journal through the blocking pool,
+/// and a round's trash removals hold that pool,
+///  so a note in front of a beat was a beat missing for the whole removal
+/// (27 to 32 s measured on 2026-11-10,
+///  `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(EVERY + NOTE_CEILING).toBeLessThan(SILENCE); expect(reply.indexOf('Heartbeat')).toBeLessThan(reply.indexOf('note()'));
+/// ```
+#[test]
+fn the_note_of_a_beat_waits_at_most_one_interval_and_the_beat_goes_first() {
+    use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE};
+    assert_eq!(NOTE_OF_A_BEAT_CEILING, HEARTBEAT_EVERY, "the note may hold a beat no longer than one interval");
+    let between_two_beats: Duration = HEARTBEAT_EVERY + NOTE_OF_A_BEAT_CEILING;
+    assert!(between_two_beats < HEARTBEAT_SILENCE, "two beats are {between_two_beats:?} apart at worst, inside the {HEARTBEAT_SILENCE:?} a client waits in");
+    let writer: &str = include_str!("service_reply.rs");
+    let beat: usize = writer.find("write_line(stream, &ServiceMessage::Heartbeat)").expect("the writer writes the beat");
+    let note: usize = writer.find("note.note()").expect("the writer asks for the note");
+    assert!(beat < note, "the beat is written before the note that may wait for a place of the blocking pool");
+}

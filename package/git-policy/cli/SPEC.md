@@ -5161,6 +5161,12 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   308 s;
   1.6 times the longest whole commit,
   751 s).
+- `NOTE_OF_A_BEAT_CEILING` one second:
+  the longest a beat waits for the note it may carry,
+  so a note whose read waits for a place of the blocking pool can never be what keeps the next beat from a waiting
+  client (see the heartbeat entry of this list;
+  one interval keeps two beats at most two seconds apart,
+  under two fifths of `HEARTBEAT_SILENCE`).
 - `WITHDRAW_CEILING` 10 minutes:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
@@ -5812,6 +5818,34 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The beat is written before the note it may carry (what the landing thread is stuck in),
+  and that note is asked for no longer
+  than `NOTE_OF_A_BEAT_CEILING` (one interval,
+  `service/wait_ceilings.rs`),
+  because the note is a job of the blocking pool
+  and a round of the after-commit work holds that pool while it removes a trash:
+  a beat written after its note waited 27 to 32 s in the record of 2026-11-10
+  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
+  and the client gave up on a commit that had landed.
+  A trash's entry removals take every place of that pool but one (`places_a_round_may_take`,
+  `foundation/blocking_jobs_within_the_budget.rs`),
+  so the steps that answer a client run beside a round:
+  the check of which instance a commit belongs to,
+  a
+  withdrawal's decision,
+  and that note.
+  A round starts housekeeping (upkeep,
+  prewarm,
+  subvolume deletes and trashes) for at most
+  `HOUSEKEEPING_OF_ONE_ROUND` (30 seconds,
+  `landing/housekeeping_of_one_round.rs`);
+  the rest of it goes back to `pending` for a later round,
+  is named in one journal line,
+  and is woken for after `LOOK_AGAIN_AFTER_DEFERRING` (5 seconds).
+  An item a round has started is never interrupted,
+  because a removal stopped halfway would need a resume the trash does not keep;
+  the bound decides what a round starts,
+  and the place the removals leave free and the beat are what serve a client while that item lasts.
   The connection that carries the beats is accepted before the recovery of the batch an earlier service left open,
   so a service that is recovering still greets and still beats,
   and nothing is landed before that recovery is over because only the landing thread lands and it reads the queue after it

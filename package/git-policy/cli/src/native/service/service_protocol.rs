@@ -21,7 +21,7 @@
 /// The message types and name checks,
 /// re-exported under the path they had in this file.
 pub use crate::service_protocol_messages_and_name_checks::{
-    PROTOCOL_VERSION, RELEASE, HEARTBEAT_EVERY, HEARTBEAT_SILENCE, NOTE_OF_A_BEAT_CEILING, P99_CHANGED_PATH_CHARACTERS, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, is_object_name, is_plain_path, SCRATCH_PREFIX, is_scratch_path,
+    PROTOCOL_VERSION, RELEASE, HEARTBEAT_EVERY, HEARTBEAT_SILENCE, P99_CHANGED_PATH_CHARACTERS, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, is_object_name, is_plain_path, SCRATCH_PREFIX, is_scratch_path,
 };
 /// The line writers,
 /// re-exported under the path they had in this file.

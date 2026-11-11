@@ -23,7 +23,8 @@
 //! const [reply, messages] = makeReply(); queue.push({ request, reply }); await writeUntilAnswered(socket, messages, HEARTBEAT_EVERY);
 //! ```
 
-use crate::service_protocol::{NOTE_OF_A_BEAT_CEILING, ServiceMessage, encode_service};
+use crate::service_protocol::{ServiceMessage, encode_service};
+use crate::wait_ceilings::NOTE_OF_A_BEAT_CEILING;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
@@ -183,7 +184,8 @@ impl NoteSource for NothingToSay {
 /// so the notice rides on it and is asked for at most once a beat.
 /// The beat goes first and the note is asked for no longer than `NOTE_OF_A_BEAT_CEILING`,
 /// because a note that waits
-///  (its read is a job of the blocking pool, which a round's removals can hold) must never be what keeps a waiting client
+///  (its read is a job of the blocking pool,
+/// which a round's removals can hold) must never be what keeps a waiting client
 /// from hearing that the
 ///  service lives:
 /// a client that hears nothing for `HEARTBEAT_SILENCE` takes the service for stopped and sends its

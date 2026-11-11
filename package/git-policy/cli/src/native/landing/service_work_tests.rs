@@ -1380,7 +1380,8 @@ fn journal_of(body: impl FnOnce()) -> Vec<String> {
 
 /// What:
 ///  A round that has spent its share of housekeeping leaves the rest of it pending for a later round,
-/// names them in one journal line, and asks to be woken again.
+/// names them in one journal line,
+/// and asks to be woken again.
 /// Why:
 ///   A trash of one removed worktree is hundreds of thousands of removals,
 /// and a service that logged 15 of them spent 1 h 37 min in one round without making the person's

@@ -774,6 +774,13 @@ Read-only commands,
    earlier release wrote is emptied by the same handler with the same checks,
      so a repository that ran one keeps its promise,
    and a trash an earlier add left in the source is moved into this add's trash and covered by its record.
+   A trash the service's round does not reach in the thirty seconds it gives its upkeep and removals together is not
+   dropped: its record goes back to pending,
+     the service writes one line naming it and the time the round spent,
+     and the round that
+   follows (five seconds later) claims it again
+     (`HOUSEKEEPING_OF_ONE_ROUND`,
+   `landing/housekeeping_of_one_round.rs`).
    A trash the service cannot empty is reported by the service with its reason and its record settles as failed;
      every
    later command run in that worktree,
@@ -2975,6 +2982,26 @@ none is waited out or retried on the moved head yet:
    Five seconds without a word ask the service again with the same
    commit,
   and a service that does not answer then ends the command with "The commit service stopped answering".
+   That silence is measured against a service that beats once a second while it works,
+  and the beats never wait for the
+   background work the same service does:
+   a beat is written before the note that may follow it,
+  that note is given at most one interval to answer
+  (`NOTE_OF_A_BEAT_CEILING`,
+   `service/wait_ceilings.rs`),
+   and the removals of a trash leave one thread of the service's blocking pool free,
+   which is where the work that answers you runs.
+   One round of upkeep,
+   prewarm,
+  subvolume deleting and trash removing starts at most `HOUSEKEEPING_OF_ONE_ROUND` (30 seconds) of it,
+   and what the round does not reach goes back to wait for a later round,
+   which comes five seconds later and finds it by
+   name in the service's journal.
+   Before 2026-11-11 the beat waited for its note and a trash took every thread of that pool,
+   so a busy round left a
+   waiting command with no word for up to 32 s,
+   and a commit that had landed was reported as not known
+   (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with

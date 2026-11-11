@@ -20,7 +20,9 @@ use std::path::Path;
 /// The instance this control's service serves.
 const INSTANCE: &str = "an-instance";
 
-/// The places this control gives the process: two, because a pool of one thread is not the pool an ordinary service runs,
+/// The places this control gives the process:
+/// two,
+/// because a pool of one thread is not the pool an ordinary service runs,
 /// and a round that takes every place of it is what the controls of the waiting path must survive.
 const CONTROL_PLACES: usize = 2;
 
@@ -35,7 +37,8 @@ fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
     return (shared, jobs);
 }
 
-/// A connection's share for a service that was named for one worktree, which is the shipped shape.
+/// A connection's share for a service that was named for one worktree,
+/// which is the shipped shape.
 fn shared_serving(name: &str, own_git_dir: PathBuf) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let (mut shared, jobs) = shared_in(name);
     shared.own_git_dir = Some(own_git_dir);
@@ -140,12 +143,14 @@ fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
     });
 }
 
-/// A request the fake services below never look at, so it needs no repository.
+/// A request the fake services below never look at,
+/// so it needs no repository.
 fn a_request_of(id: &str) -> crate::service_protocol::CommitRequest {
     return a_request_at(Path::new("/nowhere/repo/gitdir"), id);
 }
 
-/// The same request, naming the Git directory it is about.
+/// The same request,
+/// naming the Git directory it is about.
 fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequest {
     return crate::service_protocol::CommitRequest {
         id: String::from(id),
@@ -235,7 +240,8 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
 
 /// What:
 ///  A commit that names this worktree's own Git directory exactly reaches the landing where the system refuses every
-/// thread: the instance it belongs to is decided without asking the filesystem.
+/// thread:
+/// the instance it belongs to is decided without asking the filesystem.
 /// Why:
 ///   The ask that resolves a directory's real path sits on the answering path of every commit and every wake,
 /// and under a
@@ -322,7 +328,8 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
 }
 
 /// POSITIVE CONTROL of the check itself:
-/// with threads available, a commit naming another worktree is refused `Rejected`,
+/// with threads available,
+/// a commit naming another worktree is refused `Rejected`,
 /// so the queueing above comes from the
 ///  name and not from the check being skipped for every request.
 #[test]
@@ -355,7 +362,8 @@ async fn a_line<Reader: AsyncBufRead + Unpin>(reader: &mut Reader) -> ServiceMes
 ///  Holds every place of the process's blocking pool with a job that waits,
 /// as a round of the after-commit work holds them while it empties a trash.
 /// Why:
-///  The state the control needs is "the pool is full", not a duration,
+///  The state the control needs is "the pool is full",
+/// not a duration,
 /// so each job says it has its place and waits for the barrier the caller holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -387,7 +395,8 @@ async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
 ///  A client is greeted and beaten within its own silence window while every place of the process's blocking pool is held,
 /// as a round of the after-commit work holds them while it empties a trash.
 /// Why:
-///   The beat asks the landing's board for the note it writes, and that read is a job of the blocking pool
+///   The beat asks the landing's board for the note it writes,
+/// and that read is a job of the blocking pool
 /// (`service_busy.rs`);
 /// a round's trash removals are jobs of the same pool,
 /// one per entry
@@ -419,16 +428,16 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
         let gate: Arc<std::sync::Barrier> = hold_every_place(places).await;
         // The client connects and sends a commit that names this worktree's own Git directory, which is the shape every
         //  commit of a service that knows its worktree has: the check of whose the request is asks no thread.
-        let (service, client) = UnixStream::pair().expect("a connected pair");
-        let (client_read, mut client_write) = client.into_split();
+        let (service, client_stream) = UnixStream::pair().expect("a connected pair");
+        let (client_read, mut client_write) = client_stream.into_split();
         let mut client = BufReader::new(client_read);
         let serving = tokio::spawn(handle_connection(service, shared));
         let greeting = tokio::time::timeout(HEARTBEAT_SILENCE, a_line(&mut client)).await.expect("the service greets the client while every place is held");
         assert!(matches!(greeting, ServiceMessage::Welcome { .. }), "the greeting is the first line, whatever the pool is doing");
         client_write.write_all(request_line.as_bytes()).await.expect("the client sends its request");
         // The beat is the proof of life the client's wait rests on, so it is the first thing this control asks for.
-        let beat = tokio::time::timeout(HEARTBEAT_SILENCE, a_line(&mut client)).await;
-        let beat: ServiceMessage = beat.expect("a beat arrives while every place of the pool is held, though the note of a beat cannot be read");
+        let beaten = tokio::time::timeout(HEARTBEAT_SILENCE, a_line(&mut client)).await;
+        let beat: ServiceMessage = beaten.expect("a beat arrives while every place of the pool is held, though the note of a beat cannot be read");
         assert_eq!(beat, ServiceMessage::Heartbeat, "the beat never waits for a place the round's work holds");
         let queued = tokio::time::timeout(HEARTBEAT_SILENCE, jobs.recv()).await.expect("the request reaches the landing although every place is held");
         let Job::Commit(_request, reply, _arrival) = queued.expect("a commit request is queued") else {

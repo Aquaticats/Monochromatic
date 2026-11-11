@@ -2,7 +2,8 @@
 //!  How long one round of the service's after-commit work may go on starting housekeeping,
 //!  and what is left of a round's housekeeping when that is spent.
 //! Why:
-//!   A round drains one repository's records in the order: the person's pushes,
+//!   A round drains one repository's records in the order:
+//! the person's pushes,
 //! the upkeep,
 //! the prewarms,
 //! the subvolume deletions,
@@ -32,7 +33,8 @@
 
 use std::time::{Duration, Instant};
 
-/// How long one round of the after-commit work may spend starting housekeeping: thirty seconds.
+/// How long one round of the after-commit work may spend starting housekeeping:
+/// thirty seconds.
 /// Measured and reasoned:
 /// the longest answer wait of a commit in the service's journal of 2026-11-03 was 308,267 ms and the longest landing 3,194 ms,
 /// and a person's push that arrives while a round works waits for that round to end
@@ -48,7 +50,8 @@ use std::time::{Duration, Instant};
 /// open to the owner's veto.
 pub const HOUSEKEEPING_OF_ONE_ROUND: Duration = Duration::from_secs(30);
 
-/// How soon a round that left housekeeping for later asks to be woken again: five seconds.
+/// How soon a round that left housekeeping for later asks to be woken again:
+/// five seconds.
 /// It is the client's own silence window (`HEARTBEAT_SILENCE`),
 /// which is as long as this service lets anything wait without a word,
 /// and it keeps the trash of a removed worktree moving while no
@@ -93,7 +96,8 @@ impl HousekeepingOfOneRound {
         return !self.may_start();
     }
 
-    /// How long this round has spent on housekeeping so far, in milliseconds,
+    /// How long this round has spent on housekeeping so far,
+    /// in milliseconds,
     /// for the line that names what was left.
     pub fn spent_ms(&self) -> u128 {
         return self.began.elapsed().as_millis();

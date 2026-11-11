@@ -365,6 +365,10 @@ pub mod housekeeping_of_one_round;
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
 
+/// What one verdict of a claimed item does to its record,
+/// to the retry plan and to the person's notices.
+pub mod service_work_settles_claims;
+
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;

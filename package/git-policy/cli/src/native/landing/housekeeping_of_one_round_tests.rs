@@ -9,7 +9,8 @@
 
 use super::*;
 
-/// A slice that has just begun may start housekeeping, and reports the bound it was given.
+/// A slice that has just begun may start housekeeping,
+/// and reports the bound it was given.
 #[test]
 fn a_slice_that_has_not_spent_its_bound_may_start() {
     let slice: HousekeepingOfOneRound = HousekeepingOfOneRound::starting_now(HOUSEKEEPING_OF_ONE_ROUND);
