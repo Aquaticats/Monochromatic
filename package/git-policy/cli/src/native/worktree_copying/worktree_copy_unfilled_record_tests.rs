@@ -103,7 +103,8 @@ fn a_standing_worktree_is_named_on_every_pass() {
 
 /// Git keeps a worktree's directory object when it moves it,
 /// so the record of the copy that ended in that worktree still names the worktree after the move:
-/// the pass names where it stands now, with the command that settles it there,
+/// the pass names where it stands now,
+/// with the command that settles it there,
 /// and keeps the record while that worktree stands.
 #[cfg(unix)]
 #[test]
