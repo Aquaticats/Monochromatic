@@ -37,7 +37,7 @@ use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
-    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes, remove_record,
+    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting, remove_record,
 };
 use crate::merge_isolation_index_reading::{entries_by_path, index_entries_awaiting, standing_of_index};
 /// The maps of records a settling asks by path.
@@ -85,7 +85,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
-    put_back_stranded_takes(root, place.git_dir.as_path(), changes.as_slice(), out);
+    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
     // The installed state is read once here too,
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what

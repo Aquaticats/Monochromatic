@@ -2674,6 +2674,37 @@ Now the merge runs and the person's work is carried across it:
   and carries them when it did.
   A layer the person saved again while the merge ran stays as they left it,
   and is named.
+- What Git's own update left at each path is written beside the merge's record
+  (`<transaction id>.landed`) once the checkout moved and before the carry,
+  so the command that finishes a killed merge judges each path against the file Git left
+  rather than against its bytes alone.
+  A save that arrives after the kill and holds the merge's own bytes therefore stands,
+  and is named,
+  where reading by bytes alone would take it for the merge's own file
+  and write the person's older layer over it.
+- A file the merge set aside and could not put back is a copy beside its path,
+  named `.cli-git-recovery-<key>-<process>-<count>-<moment>`,
+  and it is never dropped while its bytes are the person's alone.
+  A copy whose path is empty and whose merge is unfinished goes back into the checkout.
+  A copy whose bytes the person's file holds again,
+  or the branch's own commit holds for that path,
+  is removed,
+  and the line says which of the two it was.
+  Any other copy stays where it is,
+  and its line names the copy,
+  `mv -- <copy> <path>` to put it back,
+  `rm -- <copy>` to drop it,
+  and the end a later command performs by itself once `<path>` holds its bytes again.
+  Every copy a merge keeps is recorded under
+  `.git/monochromatic-git-policy-cli-kept-copies/`,
+  so every later command that runs the merge recovery decides it again,
+  even when no merge touches its path.
+  A copy an earlier release of this program left carries no merge key in its name,
+  so its bytes decide it:
+  a copy of the branch's own file,
+  or of the person's own captured file,
+  goes back while a merge is unfinished,
+  and anything else is kept and named rather than put back on a guess.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
@@ -4480,6 +4511,18 @@ which the next command drops as already landed,
 or one whose branch moved,
 which it settles as it would settle any such record.
 The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
+What Git's own update left at each path of a merge that carries work travels beside the record as
+`<transaction id>.landed`,
+so a command that finishes a killed merge reads the same entries the command that moved the checkout read;
+it goes with the record and is never read by a command the record is gone from.
+A file a merge kept beside a path is recorded in `monochromatic-git-policy-cli-kept-copies` in the worktree's Git directory,
+one small file per copy naming the copy and the path it belongs to.
+It is not a record a command refuses anything for:
+a copy whose bytes the person's file holds again,
+or the branch's commit holds them,
+is removed and the line says which,
+a copy an unfinished merge names goes back,
+and any other copy is named again on every command that runs the recovery until one of those holds.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
