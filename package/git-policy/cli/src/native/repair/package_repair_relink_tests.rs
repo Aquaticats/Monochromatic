@@ -41,15 +41,31 @@ fn no_reach() -> Reach<'static> {
 
 /// What:
 ///  A worktree that needs both tools round-trips through the payload,
-/// with the order the report has always named them in.
+/// with the order the report has always named them in,
+/// and with each of the three answers the add's search path can be.
 /// Why:
 ///   The record is the only thing the service reads,
-/// so what it carries must survive being written and read back.
+/// so what it carries must survive being written and read back;
+/// the three answers are three spellings of one field,
+/// and a writer that lost one would have the service search its own path for an add that held none,
+/// or search the person's for a record written before this release.
 #[test]
 fn both_tools_round_trip_through_the_payload() {
-    let written: RelinkEntry = entry(Path::new("/w/topic"));
-    let text: String = encode(&written).expect("the payload");
-    assert_eq!(decode(text.as_str()).expect("the entry"), written);
+    use std::ffi::OsString;
+    let answers: [SearchPathOfTheAdd; 3] = [
+        SearchPathOfTheAdd::NotRecorded,
+        SearchPathOfTheAdd::Unset,
+        SearchPathOfTheAdd::Set(OsString::from("bin:/usr/bin:/bin")),
+    ];
+    for search_path in answers {
+        let written: RelinkEntry = RelinkEntry {
+            root: PathBuf::from("/w/topic"),
+            search_path: search_path.clone(),
+            tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain],
+        };
+        let text: String = encode(&written).expect("the payload");
+        assert_eq!(decode(text.as_str()).expect("the entry"), written, "{text} did not come back as it went");
+    }
 }
 
 /// What:
@@ -387,6 +403,9 @@ fn a_hand_over_with_no_service_leaves_its_record_queued() {
 /// started from another directory:
 /// a record carrying the text `bin` makes the service search its own `bin`,
 /// so the program the add resolved may never start and the worktree is left unrelinked.
+/// The control compares the record with the directory it runs in,
+/// which is the one the add's relative entry named,
+/// so a record that named the worktree's own `bin` instead would fail it too.
 #[test]
 fn a_relative_search_path_is_recorded_against_the_adds_directory() {
     use std::ffi::OsString;
@@ -401,6 +420,7 @@ fn a_relative_search_path_is_recorded_against_the_adds_directory() {
     let SearchPathOfTheAdd::Set(recorded_path) = recorded else { panic!("the record carries a search path: {recorded:?}") };
     let named: PathBuf = PathBuf::from(recorded_path);
     assert!(named.is_absolute(), "the record names a search path that means nothing outside the add's directory: {}", named.display());
-    assert!(named.ends_with("bin"), "{}", named.display());
+    let add: PathBuf = std::env::current_dir().expect("the directory this control runs in");
+    assert_eq!(named, add.join("bin"), "the record names a directory other than the one the add resolved the entry in");
     remove(root.as_path());
 }

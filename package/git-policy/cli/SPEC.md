@@ -4014,6 +4014,13 @@ of which the two that rewrite link layouts in place are the service's work whene
   so the service searches nowhere instead of searching its own:
   with no path,
   the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`.
+  An empty entry is recorded as it stands,
+  because it means the working directory of whatever runs,
+  which no record can name for another process,
+  and no repair starts a program found there.
+  A record written before this change carries a relative entry as it was written,
+  so the service reads that entry from its own directory,
+  which is what the release that wrote the record did with it.
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.
