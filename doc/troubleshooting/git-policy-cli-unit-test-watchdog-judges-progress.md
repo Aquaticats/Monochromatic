@@ -898,7 +898,7 @@ against 9 of 10 before it.
 
 The audit of `426c4022f4` and `bbee0cd9e8`, against worktree commit `add48522c2`,
 confirmed the read order and found separate gaps on read-error paths.
-The statements preceding the caller's `io` read are memory operations:
+The caller's `io` is the first filesystem read:
 `the_readers` clones the mutex-protected vector (`run_progress.rs:187`),
 and `look` formats paths and copies reader identifiers before opening `io` (`run_progress.rs:501` to `514`).
 
