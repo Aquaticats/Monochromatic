@@ -29,9 +29,10 @@ import { sessionFileOfRun, } from './session-file-of-a-run.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
 
 /**
- The folder the process table is read from.
+ The folder the process table is read from, which is where a Linux machine keeps it. A test points this at a folder of its own,
+ so no test counts the processes of the machine it runs on.
  */
-const PROCESS_FOLDER = '/proc';
+const PROCESS_FOLDER = env.PI_RUNS_PROCESS_FOLDER ?? '/proc';
 
 /**
  What this run of the command was asked for.
