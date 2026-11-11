@@ -135,7 +135,9 @@ Two were reproduced here and two are read from the code.
   the failing run left the older captured line in the file,
   `left: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\nthe person's own line\n")`
   against `right: Some("one main\ntwo\nthree feature\nfour\nfive\nsix\nseven\neight\n")`,
-  at `binary_merge_carries_edits_kill_tests.rs:271`.
+  at the `assert_eq!` of `binary_merge_carries_edits_kill_tests.rs` whose message reads
+  "the newer save stands,
+  and the older captured line does not come back".
   The review's program printed `REPRODUCED` on the reverted binary and `NOT REPRODUCED` on this one,
   which left the newer save alone and said the path changed while the merge ran.
   A record written before that reading carries none:
