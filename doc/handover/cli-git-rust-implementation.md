@@ -174,6 +174,20 @@ fixed by `44bd759bc5` (the verdict is published by one rename without a flush, w
 `doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 Nine branches, mostly the area fixes and round-139 follow-ups cut from `5686c7bb29`,
 went back to their agents to merge the new tip (round 150).
+
+The 860 nearly filled overnight:
+free space fell from 256G at 20:20 to 29G at 01:00 on 2026-11-11,
+while about 25 agents each built the wrapper in their own Cargo build tree.
+`cargo-shadow lean run --only trees`, started early at 23:35,
+hit its 90-minute deadline while the host build base went from 93.57 to 28.99 GiB free,
+so building outran removal.
+The coordinator stopped the 16 opencode-go agents
+(names in `~/temp/agent/pi-runs/paused-for-disk-2026-11-11.txt`, 14 of them the Kimi-findings fixers;
+their worktrees keep their work)
+and reran lean with a 240-minute deadline.
+The structural cause is the open item from `wrapper-cleans-up-after-its-own-worktrees-1`:
+a removed worktree's build tree stays until lean finds its workspace gone,
+and lean's pass over 154 checkouts is slower than agents fill the disk.
 Next:
 merge the resolved branches,
 gate,
