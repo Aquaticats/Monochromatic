@@ -4034,11 +4034,10 @@ While another Git holds that reference's lock,
 Git delivers the push,
 prints `cannot lock ref '...'`,
 and exits `0`,
-so the service would record a push as made while every later question about the branch's remote is answered from a reference
-that names an older commit (`src/native/push/push_tracking_ref_repair.rs`).
+so the service would record a push as made while every later question about the branch's remote is answered from a reference that names an older commit (`src/native/push/push_tracking_ref_repair.rs`).
 The push repeats itself while that refusal is in its output,
-and the repeat writes the reference as a side effect of finding nothing to deliver (`PUSH_LOCK_RETRIES`, 3, and
-`PUSH_LOCK_PAUSE`, 250 ms).
+and the repeat writes the reference as a side effect of finding nothing to deliver:
+`PUSH_LOCK_RETRIES` is 3 and `PUSH_LOCK_PAUSE` is 250 ms.
 A lock that outlives those repeats is the case the repair is for:
 the wrapper writes the reference itself after the push answered,
 with the reflog message `update by push`,
@@ -4046,7 +4045,8 @@ the same retries,
 and the value it read as the expected old value,
 so a write never replaces another writer's value.
 The write names the reference's full name,
-because `git update-ref origin/main <commit>` is accepted and changes nothing (Git 2.56.0, measured 2026-11-11),
+because `git update-ref origin/main <commit>` is accepted and changes nothing
+(measured with Git 2.56.0 on 2026-11-11),
 and a name that is not under `refs/` is never written.
 A lock that refuses the write through every retry is not cleared,
 since nothing may clear another Git's lock without a proof that its holder is gone (see "Reference locks left by a Git that was killed");
