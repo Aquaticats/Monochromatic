@@ -537,12 +537,46 @@ fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
     cargo_control("repair-real-cargo-default", false);
 }
 
+/// The workspace member the committed lock lacks,
+/// which Cargo's rewrite of that lock adds.
+const LATE_MEMBER: &str = "extra";
+
+/// What:
+///  The bytes kept for each `Cargo.lock` a repair's clean displaced,
+/// under the repository's Git directory.
+/// Why:
+///   The copies sit under a directory named by the lock's own path in hexadecimal,
+/// whose names are split to fit a file system,
+///  so the control reads them by walking rather than by rebuilding that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptLockCopies = (repo) => walk(join(repo, '.git', DISPLACED_DIRECTORY)).map(readFile);
+/// ```
+fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
+    let mut found: Vec<Vec<u8>> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory) else { continue };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if let Ok(bytes) = std::fs::read(path.as_path()) {
+                found.push(bytes);
+            }
+        }
+    }
+    return found;
+}
+
 /// With real Cargo and a committed `Cargo.lock` that no longer matches a manifest (the state of several workspaces of this
 ///  repository),
 /// the clean needs Cargo to resolve and Cargo would rewrite the lock;
 /// the add must leave the tracked file as
 ///  checked out,
 /// so `git status` of the new worktree stays clean,
+/// must keep the bytes that rewrite displaced,
 /// and must not report a failure.
 #[test]
 fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
@@ -553,13 +587,13 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     }
     let repo: PathBuf = cargo_repository(&fixture, false);
     // A new member that `app` now depends on, committed without regenerating the lock.
-    std::fs::create_dir_all(repo.join("extra/src")).expect("extra");
-    std::fs::write(repo.join("extra/Cargo.toml"), b"[package]\nname = \"extra\"\nversion = \"0.1.0\"\nedition = \"2024\"\n").expect("extra manifest");
-    std::fs::write(repo.join("extra/src/lib.rs"), b"pub const EXTRA: u8 = 1;\n").expect("extra source");
-    std::fs::write(repo.join("Cargo.toml"), b"[workspace]\nmembers = [\"app\", \"lib\", \"extra\"]\nresolver = \"3\"\n").expect("workspace");
+    std::fs::create_dir_all(repo.join(LATE_MEMBER).join("src")).expect("the late member");
+    std::fs::write(repo.join(LATE_MEMBER).join("Cargo.toml"), format!("[package]\nname = \"{LATE_MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the late member's manifest");
+    std::fs::write(repo.join(LATE_MEMBER).join("src/lib.rs"), format!("pub const {}: u8 = 1;\n", LATE_MEMBER.to_uppercase())).expect("the late member's source");
+    std::fs::write(repo.join("Cargo.toml"), format!("[workspace]\nmembers = [\"app\", \"lib\", \"{LATE_MEMBER}\"]\nresolver = \"3\"\n")).expect("workspace");
     let app: String = std::fs::read_to_string(repo.join("app/Cargo.toml")).expect("app manifest");
-    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}extra = {{ path = \"../extra\" }}\n")).expect("app manifest with extra");
-    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", "extra"]);
+    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}{LATE_MEMBER} = {{ path = \"../{LATE_MEMBER}\" }}\n")).expect("app manifest with the late member");
+    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", LATE_MEMBER]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
@@ -570,5 +604,18 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
+    // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
+    // (`package_repair_cargo_lock.rs`).
+    let kept: Vec<Vec<u8>> = kept_lock_copies(repo.as_path());
+    assert_eq!(kept.len(), 1, "the bytes the clean displaced were not kept: {kept:?}");
+    let written: &[u8] = kept[0].as_slice();
+    assert_ne!(written, before.as_slice(), "the kept copy is the checked-out lock itself, so no rewrite was kept");
+    let late_member_line: String = format!("name = \"{LATE_MEMBER}\"");
+    assert!(
+        String::from_utf8_lossy(written).contains(late_member_line.as_str()),
+        "the kept copy is not the lock the clean wrote: {}",
+        String::from_utf8_lossy(written)
+    );
     remove(&fixture);
 }
