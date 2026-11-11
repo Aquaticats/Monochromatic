@@ -564,6 +564,8 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 ///  The settlement runs first with the clearing a landing may do,
 ///  and a record that is still there says the batch waits:
 ///  nothing is decided about it until a command finds the lock gone.
+///  Nothing is answered when the record is gone: the batch is then either finished (nothing is owed and its intent is
+///  marked done) or still open, and the caller reads the batch's own record to say which and to report it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
