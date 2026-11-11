@@ -3,8 +3,7 @@
 A brief for a Pi run names this file and tells the agent to read it first.
 It holds the rules that bind every run on this machine,
 so a brief itself only has to say what its own task needs.
-The rules are stated as the project's own:
-a prompt to Pi never implies that a person is waiting on it or watching it.
+Each rule is the project's own requirement.
 
 ## Rules that bind the run
 

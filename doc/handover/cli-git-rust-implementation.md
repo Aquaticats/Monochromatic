@@ -126,6 +126,31 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Prompts to Pi imply no human owner (2026-11-11T18:30:00-05:00)
+
+The owner, at about 18:12:
+"From now on, in prompts to Pi, don't imply there is a human owner."
+It covers everything the coordinator sends a Pi run: briefs, inbox notes, wake notes and the shared rules a brief points at.
+A requirement is stated as the project's own, with the path of its record when one helps,
+never as a person's words, wishes or approval ("the owner said", "its owner requires", "I will review").
+What changed:
+
+- The shared rules a brief points at are now `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`,
+  in the workspace and without an owner in them;
+  new briefs name that file, by its path in the main checkout,
+  in place of `~/temp/agent/pi-runs/shared-rules-for-pi-briefs.md` (left as it is for the runs that already read it).
+- The round 231 review briefs are written one by one by a starter that was already running,
+  each with "Its owner requires:" and "the owner's session bus".
+  A one-time job rewrites each as it appears, before its review reads it
+  (`~/temp/agent/reword-round-231-review-briefs/`);
+  the seven reviews that had already started read the old wording.
+- Runs briefed before 18:12 keep the briefs they have.
+- Not covered by this change, and Pi still reads them: `AGENTS.md`, this handover and other repository docs, which speak of the owner throughout.
+  Whether those change is the owner's call (asked).
+- The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
+  They may no longer be edited where they are, so their output is reworded as data before a run starts,
+  until the brief writers live in the workspace package.
+
 ### Superseded work is culled every hour (first pass 2026-11-11T18:03:00-05:00)
 
 The owner, at about 18:00:
@@ -146,7 +171,14 @@ First pass, with 50 `pi-*` and `launch-*` units running:
 - Reframed, round 212's driver-port agent: the pool and gate files went to round 230, by inbox note.
 - Superseded, nothing to stop: `fix/git-policy-cli-open-issues-next-batch` was ported as `fix/git-policy-cli-open-issues-fourth-pass` (merged),
   and the review starter refused it on its own ("nothing to review").
-  The branch is deletable once the owner allows it.
+  The coordinator first reported it as "deletable when you allow it"; the owner, at about 18:15:
+  "uh, I said to auto delete."
+  So a superseded branch is deleted by the coordinator without asking,
+  once its content is shown to live elsewhere (the earlier note that branch deletion needs permission each time was wrong).
+  This one's four commits were all documentation,
+  its planning file `doc/planning/git-wrapper-open-issues-round-4.md` is in the integration in a newer form (`7f84c90b1b`),
+  no worktree held it,
+  and it was deleted here and on the remote at 18:20.
 - Superseded, already stopped: round 224 (driver-side 429 handling) and the two Kimi reviews of the launcher port (rounds 212 and 221), whose worktrees the landed sweep removed when the port was merged into its landing branch.
 - Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
 - Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
