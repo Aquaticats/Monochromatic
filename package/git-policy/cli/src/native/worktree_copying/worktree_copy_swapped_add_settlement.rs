@@ -50,7 +50,7 @@ use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, StageClaim};
 use crate::worktree_copy_stage_reaping_proof_and_words::still_there;
-use crate::worktree_copy_stage_made_object::{MadeObject, read_made};
+use crate::worktree_copy_stage_made_object::{MadeObject, is_the_recorded_object, read_made};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -232,6 +232,10 @@ fn completed_swap_of(claim: &Path, container: &Path) -> Result<Option<CompletedS
     if made.container.as_path() != container {
         return Ok(None);
     }
+    // A record that names no object is the one a command writes before it creates the container, and the exchange
+    //  this function proves happens after the record that names the object it made, so such a record proves no
+    //  exchange: the reaping's own answer for a folder its record cannot account for stands.
+    let Some(made_object) = made.object else { return Ok(None) };
     let stands: bool = still_there(container)?;
     let destination_identity: Option<ObjectId> = path_identity(binding.destination.as_path());
     let at_the_destination: AtTheDestination = judge_the_destination(destination_identity, made.object);

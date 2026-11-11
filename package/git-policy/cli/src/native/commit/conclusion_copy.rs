@@ -137,6 +137,9 @@ fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<Stri
 /// "What each part of a commit's private repository is for,
 /// and how many commits need it"),
 ///  and an absent directory is the same answer to the landing as an empty one.
+///  The entries a commit does carry are published without a flush:
+/// the copies are read by this commit's own transaction alone,
+/// and a merge would otherwise wait for the disk eight times where a plain commit waits none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,14 +188,17 @@ pub fn copy_conclusion_state(
         return Ok(());
     }
     io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
-    // What: The shadow's copies and the comparison copies are written without a flush of the disk.
-    // Why:  The shadow's copy is read by this process's own `git commit` immediately after it is written, and the comparison
-    //       copy by the landing this same command asks for; the service copies what the cleanup compares into the batch's
-    //       journal before the branch moves (`conclusion_state_copy.rs`), so nothing recovers either from this directory. A
-    //       copy a power cut never gave back keeps the worktree's own entry instead of removing it, so no content is lost.
-    //       The flush was the whole cost of a conclusion commit on this host: eight client fsyncs of these throwaway files,
-    //       2 to 53 s over native Git in ten rounds, five of ten over native plus five seconds
-    //       (`doc/planning/cli-git-commit-latency-under-many-agents.md`, "A conclusion commit's copies wait for no flush").
+    // Why no copy is flushed, and what that removal was worth: the shadow's copy is read by this process's own
+    // `git commit` immediately after it is written, and the comparison copy by the landing this same command asks for.
+    // The service copies what the cleanup compares into the batch's journal before the branch moves
+    // (`conclusion_state_copy.rs`), and a power loss ends this commit's own transaction without a verdict
+    // (`doc/planning/cli-git-spawn-and-sync-reduction.md`, the tearing table), so a flush finds no reader it did not
+    // already have from the page cache. A copy a power cut never gave back keeps the worktree's own entry instead of
+    // removing it, so no content is lost. A merge leaves `MERGE_HEAD`, `MERGE_MSG`, `MERGE_MODE` and `AUTO_MERGE`
+    // behind, so a flush per publish waited for the disk eight times on the merge commits this repository lands and
+    // never on a plain commit of the same paths: eight client fsyncs of these throwaway files, 2 to 53 s over native
+    // Git in ten rounds, five of ten over native plus five seconds
+    // (`doc/planning/cli-git-commit-latency-under-many-agents.md`, "A merge commit's conclusion copies no longer flush").
     for (name, bytes) in entries {
         io_step(
             "copying a conclusion entry into the shadow",

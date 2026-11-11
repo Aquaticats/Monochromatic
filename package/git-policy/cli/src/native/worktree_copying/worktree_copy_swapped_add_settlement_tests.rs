@@ -503,8 +503,9 @@ fn the_scene_records_the_object_it_made() {
     let scene: Exchanged = exchanged_add("swap-scene-recorded");
     let made = read_made(scene.claim.as_path()).expect("the record of the stage's creation");
     assert_eq!(made.container, scene.container, "the record names the stage container");
+    let recorded: crate::fs_beneath::ObjectId =
+        made.object.expect("the record names the object the creation made, not only the creation to come");
     assert!(made_record_beside_claim(scene.claim.as_path()).exists(), "the record stands beside the claim");
-    assert!(made.object.is_some(), "the scene's record names the object it made");
-    assert_eq!(path_identity(scene.destination.as_path()), made.object, "the snapshot is at the destination after the exchange");
+    assert_eq!(path_identity(scene.destination.as_path()), Some(recorded), "the snapshot is at the destination after the exchange");
     remove(scene.root.as_path());
 }
