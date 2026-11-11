@@ -251,7 +251,20 @@ fn reused_of(raw: Vec<u8>) -> Option<(String, String)> {
     return Some((author.to_string(), message.to_string()));
 }
 
-/// `reused_commit`'s subject question and the reading of its answer, shared by both faces.
+/// What:
+///  The subject Git puts after `fixup! ` for the commit `revision` names.
+/// Why:
+///  A `--fixup` commit's message is that prefix and another commit's subject,
+/// so a commit Git cannot resolve gives
+///  nothing and native `git commit` builds the line.
+/// Both faces ask one question (`the_subject_of`) and read one answer
+///  (`subject_answered_by`),
+/// so neither can name another commit's subject than the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await subjectOf(git, cwd, '-C' value)
+/// ```
 fn subject_of(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<String>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);

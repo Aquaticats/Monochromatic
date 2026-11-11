@@ -6,6 +6,7 @@
 use super::*;
 use crate::commit_index::list_unmerged_index_paths;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use std::path::PathBuf;
 
 /// The lines of `git ls-files --stage` for one index:
 /// every entry the index holds and the stage it holds it at.
