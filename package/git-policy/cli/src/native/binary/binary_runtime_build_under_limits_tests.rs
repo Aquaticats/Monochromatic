@@ -27,7 +27,7 @@
 //! if (git.code === 0) expect(probe.code).toBe(0);
 //! ```
 
-use super::support::{Fixture, Observed, direct, fixture, hermetic, observe, remove, wrapper_first_path};
+use super::support::{Fixture, Observed, direct_held, fixture, hermetic, observe, remove, wrapper_first_path};
 use super::support_resource_limits::LimitKind;
 use std::os::unix::process::CommandExt as _;
 use std::process::{Child, Command, Stdio};
@@ -91,8 +91,12 @@ fn probe_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> Observed {
 /// Real Git's `--version` under the same limit:
 /// the native control.
 /// Git completes where the system leaves it enough.
+/// Not under `timeout`, for the reason `probe_under` gives:
+///  `timeout` forks,
+/// and a process limit of one refuses that fork,
+/// so the command this control limits must be Git itself.
 fn git_completes_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> bool {
-    let mut command: Command = direct(fixture);
+    let mut command: Command = direct_held(fixture);
     command.arg("--version");
     if let Some((kind, soft)) = limit {
         let hard: u64 = kind.current_hard();
