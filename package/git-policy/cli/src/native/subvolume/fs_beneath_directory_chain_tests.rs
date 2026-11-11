@@ -1,13 +1,14 @@
 //! Controls for the chain of directories a walk keeps open:
 //! a deeper path after a sibling keeps the part it shares,
+//! a path too deep to keep is walked without holding one descriptor per component,
 //! a link and a mount are still refused,
 //! and a directory on another filesystem is refused there too.
 
-use super::DirectoryChain;
+use super::{DirectoryChain, MOST_DIRECTORIES_HELD};
 use crate::fs_beneath::{device_of, identity_of, open_directory_beneath, open_root};
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, open_descriptors, remove, restore_limit, set_soft_limit};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::MetadataExt;
@@ -23,6 +24,93 @@ fn open_directory(path: &Path) -> std::io::Result<File> {
 /// for the chain's argument.
 fn names(components: &[&str]) -> Vec<OsString> {
     return components.iter().map(OsString::from).collect();
+}
+
+/// The identity of a directory an answer names,
+/// as its encoded text,
+/// so an assertion compares text and the borrow of the chain ends with the answer.
+///
+/// Why:
+/// an identity is what tells two directories apart,
+/// and encoded text needs no borrow to be compared.
+fn identity_text(found: &File) -> String {
+    return identity_of(found).expect("an identity").encode();
+}
+
+/// A directory `depth` deep below `root`,
+/// one character per component,
+/// and the names that lead to it.
+///
+/// Why:
+/// this is the plain shape of a deeply nested checkout:
+/// one-letter components keep the whole pathname below `PATH_MAX` at a depth no descriptor limit allows.
+fn deeply_nested(root: &Path, depth: usize) -> Vec<OsString> {
+    let mut deepest: PathBuf = root.to_path_buf();
+    let mut component_names: Vec<OsString> = Vec::with_capacity(depth);
+    for _ in 0..depth {
+        let next: PathBuf = deepest.join("d");
+        std::fs::create_dir(next.as_path()).expect("a directory of the deep fixture");
+        deepest = next;
+        // The same one-letter name, the next level down.
+        component_names.push(OsString::from("d"));
+    }
+    return component_names;
+}
+
+/// A path deeper than a chain may keep every ancestor of is walked one descriptor at a time,
+/// so a valid depth is answered rather than refused at the process's descriptor limit.
+#[test]
+fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
+    // Deeper than the 1024 descriptors a service commonly allows, and short enough that 1100 one-character
+    //  components still fit the 4096-byte pathname limit.
+    const DEPTH: usize = 1100;
+    // The room the walk gets beyond the descriptors this process already holds: a walk that keeps one
+    //  directory open at a time needs two at its peak, the one it holds and the one it is opening.
+    const ROOM: u64 = 3;
+    let root: PathBuf = fixture("chain-deep");
+    let component_names: Vec<OsString> = deeply_nested(root.as_path(), DEPTH);
+    let held: File = open_directory(root.as_path()).expect("the root of the deep fixture");
+    let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
+    let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + ROOM);
+    // The walk under test, with only `ROOM` descriptors left free; it answers the identity of the directory so the
+    //  borrow of the chain ends here.
+    let walked = chain.directory(component_names.as_slice()).map(identity_text);
+    restore_limit(before);
+    let from_the_chain: String = walked.expect("a path deeper than the chain may keep is still answered");
+    let direct: File = open_directory_beneath(&held, component_names.as_slice()).expect("the same path, one directory at a time");
+    assert_eq!(from_the_chain, identity_text(&direct), "the chain answers the directory the names lead to");
+    remove(root.as_path());
+}
+
+/// The chain keeps every directory of a path exactly as deep as its bound,
+/// and keeps nothing of a path one directory deeper.
+#[test]
+fn a_path_at_the_bound_is_kept_and_one_past_it_is_not() {
+    let root: PathBuf = fixture("chain-bound");
+    let at_bound: Vec<OsString> = deeply_nested(root.as_path(), MOST_DIRECTORIES_HELD);
+    let mut one_past: Vec<OsString> = at_bound.clone();
+    // The one component past the bound, made inside the deepest directory the fixture has.
+    one_past.push(OsString::from("d"));
+    let mut deeper: PathBuf = root.clone();
+    for name in &one_past {
+        deeper.push(name.as_os_str());
+    }
+    std::fs::create_dir(deeper.as_path()).expect("one directory past the bound");
+    let held: File = open_directory(root.as_path()).expect("the root of the fixture");
+    let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
+    let kept: String = chain.directory(at_bound.as_slice()).map(identity_text).expect("a path at the bound is answered");
+    assert_eq!(chain.held_names().len(), MOST_DIRECTORIES_HELD, "the chain keeps every directory of a path at its bound");
+    let walked: String = chain.directory(one_past.as_slice()).map(identity_text).expect("a path past the bound is answered");
+    assert_eq!(chain.held_names().len(), 0, "the chain keeps nothing of a path past its bound");
+    assert_ne!(kept, walked, "the two paths end in different directories");
+    // The answer a path past the bound left is not the one a shallower path gets afterwards: the chain opens that path
+    //  again and keeps it, so nothing of the deep walk leaks into it.
+    let shallow: Vec<OsString> = at_bound.iter().take(2).cloned().collect();
+    let resumed: String = chain.directory(shallow.as_slice()).map(identity_text).expect("a shallow path after a deep one is answered");
+    assert_eq!(chain.held_names().len(), 2, "the chain keeps the two directories of the shallow path");
+    let direct_shallow: File = open_directory_beneath(&held, shallow.as_slice()).expect("the shallow path, directly");
+    assert_eq!(resumed, identity_text(&direct_shallow), "the shallow path answers the directory its names lead to");
+    remove(root.as_path());
 }
 
 /// A path deeper than the one before is opened from the part the two share,

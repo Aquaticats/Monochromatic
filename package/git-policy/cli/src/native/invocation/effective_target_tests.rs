@@ -13,13 +13,19 @@
 /// Import the classification under test and shared fixtures.
 use super::{
     EffectiveTarget, ToolCacheDirectory, cargo_build_script_output_dir, classify_effective_target,
-    default_allowed_worktree_dirs, is_allowed_worktree_dir, matching_allowed_worktree_dir, mise_data_dir,
-    uv_cache_dir,
+    default_allowed_worktree_dirs, matching_allowed_worktree_dir,
+    matching_allowed_worktree_dir_for_repository, mise_data_dir, uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// One path's whole-segment answer,
+///  the question each path of a repository is asked.
+fn allowed(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
+    return matching_allowed_worktree_dir(&[candidate], allowed_dirs).is_some();
+}
 
 /// One uv or mise directory as the variable named it.
 fn named(path: &str, named_by: &'static str) -> Option<ToolCacheDirectory> {
@@ -229,13 +235,13 @@ fn allowlist_matches_whole_segments_through_links() {
         (root.clone(), false),
     ] {
         assert_eq!(
-            is_allowed_worktree_dir(candidate.as_path(), through_link.as_slice()),
+            allowed(candidate.as_path(), through_link.as_slice()),
             expected,
             "{candidate:?}"
         );
     }
-    assert!(!is_allowed_worktree_dir(cache.as_path(), &[]));
-    assert!(!is_allowed_worktree_dir(
+    assert!(!allowed(cache.as_path(), &[]));
+    assert!(!allowed(
         cache.as_path(),
         &[ToolCacheDirectory {
             path: root.join("missing"),
@@ -244,15 +250,22 @@ fn allowlist_matches_whole_segments_through_links() {
     ));
     // The matched entry is the one whose variable is reported.
     assert_eq!(
-        matching_allowed_worktree_dir(cache.join("git/checkout/.git").as_path(), through_link.as_slice())
+        matching_allowed_worktree_dir(&[cache.join("git/checkout/.git").as_path()], through_link.as_slice())
             .map(|found| return found.named_by),
         Some("XDG_CACHE_HOME")
     );
     remove(root.as_path());
 }
 
-/// Each identity maps to its target,
-///  and an allowlisted Git directory exempts main and linked worktrees.
+/// What:
+///  Each identity maps to its target,
+///  and the exemption needs the worktree itself inside the same allowed directory as its Git directory.
+/// Why:
+///  A linked worktree keeps its Git directory in the main clone
+///  (`<clone>/.git/worktrees/<name>`)
+///  while its files stand wherever the person asked for them,
+///  so a Git directory alone would exempt a checkout outside an allowed directory
+///  and lose the uncommitted work there.
 #[test]
 fn identities_map_to_targets() {
     let root: PathBuf = fixture("targets");
@@ -277,10 +290,24 @@ fn identities_map_to_targets() {
         git_dir: cache.join("clone/.git"),
         worktree_root: cache.join("clone"),
     };
+    // A linked worktree of the cached clone that the build step itself keeps inside the cache.
     let cached_linked: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
         common_dir: cache.join("clone/.git"),
         git_dir: cache.join("clone/.git/worktrees/w"),
-        worktree_root: PathBuf::from("/elsewhere"),
+        worktree_root: cache.join("clone/worktrees/w"),
+    };
+    // The same clone's linked worktree checked out where the person works: its Git directory is still
+    //  inside the cache, and its files are not.
+    let linked_outside_the_cache: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: cache.join("clone/.git"),
+        git_dir: cache.join("clone/.git/worktrees/w"),
+        worktree_root: root.join("the-persons-worktree"),
+    };
+    // The mirror image: files inside the cache, Git directory outside it.
+    let linked_with_a_git_directory_outside_the_cache: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: PathBuf::from("/r/.git"),
+        git_dir: PathBuf::from("/r/.git/worktrees/w"),
+        worktree_root: cache.join("clone/worktrees/w"),
     };
     let bare: WorktreeIdentity = WorktreeIdentity::BareRepository {
         common_dir: cache.join("clone/.git"),
@@ -296,6 +323,11 @@ fn identities_map_to_targets() {
         (&linked, EffectiveTarget::LinkedWorktree),
         (&cached_main, EffectiveTarget::Allowlisted),
         (&cached_linked, EffectiveTarget::Allowlisted),
+        (&linked_outside_the_cache, EffectiveTarget::LinkedWorktree),
+        (
+            &linked_with_a_git_directory_outside_the_cache,
+            EffectiveTarget::LinkedWorktree,
+        ),
     ] {
         assert_eq!(
             classify_effective_target(identity, allowed.as_slice()),
@@ -311,6 +343,15 @@ fn identities_map_to_targets() {
     assert_eq!(
         classify_effective_target(&cached_linked, &[]),
         EffectiveTarget::LinkedWorktree
+    );
+    // The main checkout of the cached clone is exempt through its own worktree top too, not only its Git directory.
+    assert_eq!(
+        matching_allowed_worktree_dir_for_repository(&cached_main, allowed.as_slice()).map(|found| return found.named_by),
+        Some("UV_CACHE_DIR")
+    );
+    assert_eq!(
+        matching_allowed_worktree_dir_for_repository(&linked_outside_the_cache, allowed.as_slice()).map(|found| return found.named_by),
+        None
     );
     remove(root.as_path());
 }

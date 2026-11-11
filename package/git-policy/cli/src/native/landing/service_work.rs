@@ -119,6 +119,9 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 ///  is reported as failed,
 /// as for handlers that do not retry.
 /// The service's rounds use `drain_planned` instead.
+/// It claims every kind the service runs (`SERVICE_KINDS`),
+/// because no lane runs beside it as it does beside a round
+///  (`landing/service_work_slow_lane.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +167,7 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
 /// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
 /// ```
 pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainPlanned", format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str());
@@ -230,7 +233,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
 /// ```
 pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainCommonRecords", format!("the drain of the common records of {} was not run: {refusal}", git_dir.display()).as_str());
@@ -566,6 +569,53 @@ impl WorkHandlers for GitHandlers {
     /// ```
     fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
         return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
+    /// What:
+    ///  Make one snapshot of a worktree ahead of the next add,
+    /// where the caller has no runtime to hand a job to.
+    /// Why:
+    ///   The call is one btrfs ioctl and starts no child,
+    /// so a synchronous caller blocks here itself;
+    /// the round
+    ///  awaits it on the blocking pool through `snapshot_ahead_awaiting`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAhead(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
+    }
+
+    /// What:
+    ///  Make a snapshot of a worktree ahead of the next add,
+    /// on a thread of the blocking pool.
+    /// Why:
+    ///  The ioctl waits for a btrfs transaction commit of the whole filesystem,
+    /// so a worker of the runtime must not hold it:
+    /// the
+    ///  commits queued behind this one would wait on it too.
+    /// The service's own thread is what takes the wait,
+    /// and the
+    ///  add that asked for the snapshot waits for the answer instead of for the kernel
+    /// (`worktree_snapshot_ahead.rs`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAheadAwaiting(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let held: WorkItem = item.clone();
+            return match crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+                Ok(verdict) => verdict,
+                // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
+                Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),
+            };
+        });
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {

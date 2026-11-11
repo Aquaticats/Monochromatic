@@ -21,6 +21,12 @@
 //! "Merges and commits never fail",
 //! "A merge whose paths hold the person's own work carries it forward",
 //! and the owner's rule "never discard user data").
+//!  A file below it that the merge deletes is the branch's own by its path,
+//! so the directory is judged again by what
+//!  those files hold:
+//! a person's edit or staged entry there is theirs,
+//! and the merge stops for it too rather than
+//!  deleting it with the directory.
 //!  That is the answer the recovery of a killed merge already gives such a directory,
 //! so a directory the merge meets
 //!  now is judged the same way before the merge runs.
@@ -32,9 +38,12 @@
 //! ```
 
 use crate::auto_push_dirty_paths::listed;
-use crate::merge_isolation_carry_reads::changes_between;
+use crate::lazy_runtime::run_on_runtime;
+use crate::merge_isolation_carry_reads::{changes_between, path_argument, run_bytes_awaiting};
 use crate::merge_isolation_changes::{Change, the_directory_holds_only_what_the_merge_deletes, worktree_path};
-use crate::transaction_git::GitContext;
+use crate::transaction_git::{GitContext, GitOutput};
+/// `OsString` spells a path Git reads as bytes that need not be text.
+use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -57,14 +66,26 @@ pub struct InTheWay {
 
 /// What:
 ///  The directory a merge would replace with a file,
-/// when it holds anything the merge does not delete itself.
+/// when it holds anything the merge does not delete itself,
+/// or anything of the person's own that the merge
+///  would delete with it.
 /// Why:
 ///   A path the merge changes is a path a merge of the two commits writes,
 /// so a directory standing there is in the
 ///  merge's way;
-/// it is the branch's own only when the merge deletes every file below it,
-/// and otherwise it is
-///  someone else's and nothing may be written over it.
+/// it is the branch's own only when the merge deletes every file below it and every one of
+///  those files still holds what `HEAD` holds,
+/// and otherwise it is someone else's and nothing may be written over it.
+///  A file whose bytes or whose index entry the person changed is theirs even though the branch deletes that path,
+/// so
+///  the merge would delete their work with the directory;
+/// measured,
+/// a staged edit there was gone with its index entry
+///  while the command exited 0 with an empty status
+/// (a cross-vendor review,
+/// round 133,
+/// its first finding;
+///  owner's rule "never discard user data").
 ///  A path the merge only deletes holds nothing to replace,
 /// so a directory there is left where it is.
 ///
@@ -103,7 +124,9 @@ pub fn a_directory_the_merge_would_replace(
         if !change.exists_after() {
             continue;
         }
-        if the_directory_holds_only_what_the_merge_deletes(change, changes.as_slice(), root) {
+        if the_directory_holds_only_what_the_merge_deletes(change, changes.as_slice(), root)
+            && the_directory_holds_only_the_branchs_own_bytes(context, root, change.path.as_slice())
+        {
             continue;
         }
         let entries: Vec<String> = the_entries_below(root, path.as_slice());
@@ -126,6 +149,54 @@ fn change_named<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
         }
     }
     return None;
+}
+
+/// What:
+///  Whether everything below one directory still holds what `HEAD` holds,
+///  in the worktree and in the index.
+/// Why:
+///   A file the branch deletes is named as a deletion by the tree difference,
+/// so by its name it is the branch's own;
+///  a person who edited or staged that file has work there that the merge would delete with the directory,
+/// and no
+///  layer of the carry can hold a path the merge puts a file over.
+///  A read that answers nothing is not proof,
+/// so it counts as a change and the merge stops with the person's
+///  files where they are
+/// (a cross-vendor review,
+/// round 133,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theDirectoryHoldsOnlyTheBranchsOwnBytes(context, root, path): boolean; // git diff-index --quiet HEAD -- <path>
+/// ```
+fn the_directory_holds_only_the_branchs_own_bytes(context: &GitContext, root: &Path, path: &[u8]) -> bool {
+    let arguments: Vec<OsString> = vec![
+        OsString::from("diff-index"),
+        OsString::from("--quiet"),
+        OsString::from("HEAD"),
+        OsString::from("--"),
+        path_argument(path),
+    ];
+    let output: GitOutput = match run_on_runtime(run_bytes_awaiting(context, root, arguments.as_slice(), None)) {
+        Ok(Ok(found)) => found,
+        Ok(Err(refusal)) => {
+            crate::diagnostic_log::debug(
+                "theDirectoryHoldsOnlyTheBranchsOwnBytes",
+                format!("the difference could not be read, so the directory counts as changed: {refusal}").as_str(),
+            );
+            return false;
+        }
+        Err(refusal) => {
+            crate::diagnostic_log::debug(
+                "theDirectoryHoldsOnlyTheBranchsOwnBytes",
+                format!("the runtime refused the read, so the directory counts as changed: {refusal}").as_str(),
+            );
+            return false;
+        }
+    };
+    return output.code == Some(0);
 }
 
 /// Whether what stands at `location` is a directory.

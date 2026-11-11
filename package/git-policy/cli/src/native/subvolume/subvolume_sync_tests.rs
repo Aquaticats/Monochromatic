@@ -709,7 +709,7 @@ fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
 
 /// A pass over `source` and `destination` that the controls below drive one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
-    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
 }
 
 /// The destination directory of a relative path,

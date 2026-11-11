@@ -76,9 +76,10 @@ fn an_empty_operand_names_no_directory() {
 
 /// A name that ends one registered worktree path at a directory boundary names that worktree,
 /// because Git matches the last path components before it reads the name as a path.
-/// ASCII case is ignored,
-/// as Git's match does;
-/// a name two registrations end in is Git's ambiguous case and is left to Git,
+/// The comparison is byte for byte,
+/// as Git's own is unless `core.ignorecase` folds the case;
+/// a name that differs only by case is therefore Git's own decision and is left to Git.
+/// A name two registrations end in is Git's ambiguous case and is left to Git,
 /// and so is a name no registration ends in.
 #[test]
 fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
@@ -92,12 +93,16 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
     let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
     for (arguments, typed) in [
         (vec!["worktree", "remove", "topic"], "topic"),
-        (vec!["worktree", "remove", "TOPIC"], "TOPIC"),
         (vec!["worktree", "remove", "--", "topic"], "topic"),
     ] {
         let plan = parse_remove_plan(os_arguments(arguments.as_slice()).as_slice(), 0, repo.as_path(), Some(common.as_path()));
         assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(typed), force: false }), "{arguments:?}");
     }
+    assert_eq!(
+        parse_remove_plan(os_arguments(&["worktree", "remove", "TOPIC"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        None,
+        "Git's byte comparison picks no worktree for a name that differs only by case, and no directory stands at it"
+    );
     assert_eq!(
         parse_remove_plan(os_arguments(&["worktree", "remove", "absent"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
         None,

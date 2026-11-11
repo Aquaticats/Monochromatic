@@ -1,8 +1,8 @@
 //! Binary-level controls for the ways a configuration could still make a Git the wrapper started run a program that a
 //!  hook is:
 //! an alias that carries its own `-c` options and the editor of `git config --edit`;
-//! and the control that
-//!  `core.fsmonitor` is left as configured.
+//! and the controls that the wrapper's own Git never runs the program `core.fsmonitor` names,
+//!  while the command the person typed still does.
 //! Each control has a positive control that runs the same setup through real Git started directly and must write the
 //!  marker,
 //! so an empty marker file proves the wrapper's options,
@@ -93,26 +93,44 @@ fn an_alias_that_carries_hook_options_cannot_bring_a_hook_back() {
     remove_settled(&fixture);
 }
 
-/// `core.fsmonitor` is left as configured:
-/// a program it names is Git's own feature,
-/// not a hook of the wrapper's
-///  report,
-/// and the per-event switch `hook.fsmonitor-watchman.enabled=false` the wrapper passes does not stop it.
+/// The wrapper's own Git,
+/// its landing step and every internal step never run the program `core.fsmonitor` names:
+/// the option that switches the monitor off is part of the argument vector every such start carries.
 #[test]
-fn a_core_fsmonitor_program_is_left_as_configured() {
-    let fixture: Fixture = fixture("hooks-off-fsmonitor");
+fn a_wrapped_commit_never_runs_the_core_fsmonitor_program() {
+    let fixture: Fixture = fixture("hooks-off-fsmonitor-commit");
     let scene: Scene = scene(&fixture);
     let monitor: PathBuf = program(&fixture, &scene, "fsmonitor", "fsmonitor", "exit 1");
     git(&fixture, scene.repo.as_path(), &["config", "core.fsmonitor", monitor.to_str().expect("UTF-8")]);
-    let control = direct(&fixture).current_dir(&scene.repo).args(["status", "--short"]).output().expect("git starts");
-    assert!(control.status.success());
-    let direct_runs: String = markers(&scene);
-    assert!(direct_runs.contains("fsmonitor"), "real Git must run the program");
-    std::fs::remove_file(&scene.markers).expect("clear the markers");
-    let switched: Observed = wrapped(&fixture, &scene, &["status", "--short"]);
-    assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
-    assert_eq!(markers(&scene), direct_runs, "the wrapper must leave the program exactly as configured");
-    assert!(!stderr_of(&switched).contains("external-hooks-unsupported"), "{}", stderr_of(&switched));
+    std::fs::write(scene.repo.join("a.txt"), b"one\n").expect("a.txt");
+    git(&fixture, scene.repo.as_path(), &["add", "--", "a.txt"]);
+    // Positive control: real Git started directly runs the program and makes the commit.
+    let control = direct(&fixture).current_dir(&scene.repo).args(["commit", "--quiet", "--message=control", "--", "a.txt"]).output().expect("git starts");
+    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    assert!(markers(&scene).contains("fsmonitor"), "real Git must run the program: {:?}", markers(&scene));
+    // The same commit through the wrapper, with the index staged again and the record cleared.
+    git(&fixture, scene.repo.as_path(), &["reset", "--quiet", "--soft", "HEAD~1"]);
+    std::fs::remove_file(&scene.markers).expect("clear the record of the control");
+    let committed: Observed = wrapped(&fixture, &scene, &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    assert_eq!(committed.code, Some(0), "{}", stderr_of(&committed));
+    assert_eq!(markers(&scene), "", "no Git the wrapper started itself may ask the monitor");
+    remove_settled(&fixture);
+}
+
+/// A command the person typed keeps the person's setting:
+/// the forwarded `git status` runs the program `core.fsmonitor` names.
+/// The positive control inside the same scene is that command through real Git,
+/// so a record that appears proves the forwarded run wrote it.
+#[test]
+fn a_forwarded_command_runs_the_core_fsmonitor_program() {
+    let fixture: Fixture = fixture("hooks-off-fsmonitor-forward");
+    let scene: Scene = scene(&fixture);
+    let monitor: PathBuf = program(&fixture, &scene, "fsmonitor", "fsmonitor", "exit 1");
+    git(&fixture, scene.repo.as_path(), &["config", "core.fsmonitor", monitor.to_str().expect("UTF-8")]);
+    std::fs::remove_file(&scene.markers).ok();
+    let forwarded: Observed = wrapped(&fixture, &scene, &["status", "--short"]);
+    assert_eq!(forwarded.code, Some(0), "{}", stderr_of(&forwarded));
+    assert!(markers(&scene).contains("fsmonitor"), "a forwarded command must keep the person's monitor: {:?}", markers(&scene));
     remove_settled(&fixture);
 }
 

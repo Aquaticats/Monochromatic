@@ -498,7 +498,6 @@ pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, l
         new_oid: merge_oid.to_owned(),
         side_ref: None,
         carried: None,
-        landed: Vec::new(),
     };
     let record: PathBuf = write_merge_intent(dir, &intent).ok()?;
     return Some((record, intent));

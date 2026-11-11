@@ -12,11 +12,8 @@
 //! written and synced before Git starts,
 //! lets the next command decide whether
 //!  the merge never started (discard it) or must be completed.
-//!  Records are created once,
-//! like the commit transaction's own state files,
-//! and the one field a later step adds
-//!  is published by a single rename,
-//! so a reader sees either the record as it was or the whole new one.
+//!  Records are created once and never rewritten,
+//! like the commit transaction's own state files.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,17 +26,13 @@ use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object
 /// The person's own work in the paths a merge changes,
 /// as the record holds it.
 use crate::merge_isolation_carry_parts::{Capture, decode, encode};
-/// What Git's own update left at each path a merge changes,
-/// as the record holds it.
-use crate::merge_isolation_carry_landed::{LandedFile, decode_landed, encode_landed};
 /// The owner of a record.
 use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_owner::TransactionOwner;
 /// Exclusive,
 /// synced,
-/// private files and directories,
-/// and the one writer that replaces a record whole.
-use crate::private_storage::{create_private_directory, replace_private_file_unsynced, sync_directory, write_exclusive_synced};
+/// private files and directories.
+use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced};
 /// The fail-closed recovery failure.
 use crate::recovery_error::{RecoveryError, io_failure};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -54,10 +47,6 @@ pub const MERGE_INTENT_DIRECTORY: &str = MERGE_INTENT_FOLDER.current;
 ///  Version 2 adds the capture of the person's own work in the paths the merge changes;
 /// a record of version 1 holds none,
 /// and both are read.
-/// What Git's own update left is an optional field of version 2 and not a version of its own:
-/// a release that does not read it ignores it and judges a path by its bytes,
-/// so a downgrade after a kill still recovers the merge,
-/// while a version it does not know stops every command in the worktree.
 pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 2;
 
 /// The versions an earlier release wrote,
@@ -107,17 +96,6 @@ pub struct MergeIntent {
     /// or nothing for a merge whose paths held none of it
     /// (`merge_isolation_carry_parts.rs`).
     pub carried: Option<Capture>,
-    /// What Git's own update left at each path the merge changes,
-    /// read as soon as the branch moved,
-    /// or empty for a record written before that reading
-    /// and for a record of a release that read none.
-    /// A recovery has no reading of its own,
-    ///  so a save that accepts the whole merge is told apart from Git's own
-    ///  write by this one
-    /// (`merge_isolation_carry_landed.rs`;
-    /// `doc/handover/cli-git-rust-implementation.md`,
-    /// section `2026-11-10T15:43:18-05:00`).
-    pub landed: Vec<LandedFile>,
 }
 
 /// What:
@@ -180,11 +158,6 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
     }
     if let Some(carried) = &intent.carried {
         writer.raw("carried", encode(carried).as_str());
-    }
-    // The reading goes in only where the apply made one, so the record a crash before the branch moved leaves is the record
-    //  this release wrote before.
-    if !intent.landed.is_empty() {
-        writer.raw("landed", encode_landed(intent.landed.as_slice()).as_str());
     }
     return format!("{}\n", writer.finish());
 }
@@ -261,11 +234,6 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
             Some(value) => Some(decode(value)?),
             None => None,
         },
-        // A record written before the branch moved holds none, and a recovery there judges a path by its bytes.
-        landed: match map.get("landed") {
-            Some(value) => decode_landed(value)?,
-            None => Vec::new(),
-        },
     });
 }
 
@@ -295,32 +263,6 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 }
 
 /// What:
-///  Record what Git's own update left,
-///  once the branch moved and before the carry,
-///  so a command that kills the merge there leaves the next one the reading it cannot make itself.
-/// Why:
-///   A recovery that judged a path by its bytes alone replaced a save whose bytes accepted the whole merge
-///  with the older captured layer
-/// (a cross-vendor review of round two,
-/// its first finding).
-///   The bytes are staged beside the record and published by one rename that replaces it,
-/// and nothing is flushed:
-///  a machine crash then leaves the record as it was before this step,
-/// which every reader treats as the state before the merge
-///  wrote anything,
-/// and the recovery of a killed command judges the path by its bytes as it always did.
-/// The merge's own answer waits on no disk flush here,
-///  as native Git's does not.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function rewriteMergeIntent({ path, intent }): Promise<void>; // stage beside, rename over
-/// ```
-pub fn rewrite_merge_intent(path: &Path, intent: &MergeIntent) -> std::io::Result<()> {
-    return replace_private_file_unsynced(path, encode_merge_intent(intent).as_bytes());
-}
-
-/// What:
 ///  Remove an intent record once the merge ended,
 /// without flushing the directory.
 /// Why:
@@ -344,6 +286,9 @@ pub fn rewrite_merge_intent(path: &Path, intent: &MergeIntent) -> std::io::Resul
 /// await rm(path, { force: true }); // no syncDirectory: the next command settles a record this brought back
 /// ```
 pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
+    // What Git's update left travels beside the record, so it goes with it: a reading that outlived its merge would name a
+    //  checkout state the next command never made (`merge_isolation_carry_landed.rs`).
+    let _landed: Result<(), _> = std::fs::remove_file(path.with_extension("landed"));
     return match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

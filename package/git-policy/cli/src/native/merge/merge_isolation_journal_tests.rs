@@ -21,7 +21,6 @@ fn intent(namespace: Option<&str>, target: Option<&str>) -> MergeIntent {
         new_oid: String::from("b".repeat(40)),
         side_ref: None,
         carried: None,
-        landed: Vec::new(),
     };
 }
 
@@ -228,63 +227,6 @@ fn a_damaged_capture_is_refused() {
         text.replace("612e747874", ""),
         text.replace("\"paths\":[", "\"paths\":[{\"index\":{\"mode\":\"100644\",\"oid\":\"ff\"}},"),
     ] {
-        assert_eq!(parse_merge_intent(broken.as_bytes()), None, "{broken}");
-    }
-}
-
-/// What:
-///  A record keeps what Git's own update left at each path a merge changes,
-///  and a path whose entry is not text is kept as bytes.
-/// Why:
-///   The carry after a kill asks whether the file standing there is still the one Git wrote,
-/// and the record is the only place
-///  a recovery can read that from
-/// (a cross-vendor review of round two,
-/// its first finding).
-#[test]
-fn a_record_keeps_what_git_wrote_at_each_path() {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-    let landed: Vec<LandedFile> = vec![
-        LandedFile {
-            path: b"a.txt".to_vec(),
-            identity: Some(crate::merge_isolation_changes::FileIdentity {
-                device: 2049,
-                inode: 1_234_567,
-                size: 19,
-                mode: 33_188,
-                modified_seconds: 1_760_000_000,
-                modified_nanos: 123_456_789,
-            }),
-            changed_seconds: 1_760_000_001,
-            changed_nanos: 987_654_321,
-        },
-        LandedFile { path: OsStr::from_bytes(b"gone \xff.txt").as_bytes().to_vec(), identity: None, changed_seconds: 0, changed_nanos: 0 },
-    ];
-    let original: MergeIntent = MergeIntent { landed: landed.clone(), ..intent(None, Some("refs/heads/main")) };
-    let text: String = encode_merge_intent(&original);
-    assert_eq!(parse_merge_intent(text.as_bytes()), Some(original), "the reading reads back whole");
-    assert!(text.contains("\"landed\""), "the record names the reading: {text}");
-}
-
-/// What:
-///  A record whose reading is damaged is refused,
-///  rather than read as a merge that read nothing.
-/// Why:
-///   Reading damage as nothing makes the next command judge a path by its bytes alone,
-/// which is what replaces a save that
-///  accepts the whole merge.
-#[test]
-fn a_damaged_reading_is_refused() {
-    let landed: Vec<LandedFile> = vec![LandedFile {
-        path: b"a.txt".to_vec(),
-        identity: Some(crate::merge_isolation_changes::FileIdentity { device: 2049, inode: 7, size: 19, mode: 33_188, modified_seconds: 1, modified_nanos: 2 }),
-        changed_seconds: 3,
-        changed_nanos: 4,
-    }];
-    let text: String = encode_merge_intent(&MergeIntent { landed, ..intent(None, Some("refs/heads/main")) });
-    assert!(parse_merge_intent(text.as_bytes()).is_some(), "{text}");
-    for broken in [text.replace("\"inode\":7", "\"inode\":\"seven\""), text.replace("\"changedNanos\":4", "\"changedNanos\":null"), text.replace("\"pathHex\":\"612e747874\"", "")] {
         assert_eq!(parse_merge_intent(broken.as_bytes()), None, "{broken}");
     }
 }

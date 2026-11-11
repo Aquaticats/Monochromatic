@@ -28,7 +28,7 @@ use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig};
 use crate::markdown_linter_guard::GuardFailure;
 use crate::markdown_linter_output::{EXPLANATION_LIMIT, LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, wait_until};
 use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -314,15 +314,25 @@ const WORKING_WINDOW: Duration = Duration::from_millis(1200);
 /// a multiple of the window in all.
 const WORKING_ROUNDS: u32 = 15;
 
+/// The file the working fix writes after its last round.
+/// Why:
+///  A control that abandons the fix leaves it running on its own thread,
+/// still writing into the fixture,
+/// so the control removes the fixture only once this file says the writes are over;
+/// a removal that raced a write failed with "Directory not empty".
+const WORKING_FINISHED: &str = "linter-finished";
+
 /// A fix that keeps working (it writes a file a round,
 /// with a pause between) and then answers,
-/// with no busy loop.
+/// with no busy loop;
+/// its last write is `WORKING_FINISHED`.
 fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
     let scratch: PathBuf = request.top_level.join("linter-progress");
     for round in 0..WORKING_ROUNDS {
         std::fs::write(&scratch, round.to_string()).expect("the fixture writes its progress");
         std::thread::sleep(Duration::from_millis(200));
     }
+    std::fs::write(request.top_level.join(WORKING_FINISHED), b"").expect("the fixture says its writes are over");
     return echoes(request);
 }
 
@@ -357,6 +367,9 @@ fn a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file() {
     assert!(reason.contains("markdown/autofix") && reason.contains("by hand"), "{reason}");
     let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
     assert_eq!(later, ABANDONED_REASON);
+    // The abandoned fix is still writing into the fixture on its own thread.
+    let finished: PathBuf = root.join(WORKING_FINISHED);
+    assert!(wait_until(&|| return finished.exists()), "the abandoned fix ended its writes");
     remove(root.as_path());
 }
 

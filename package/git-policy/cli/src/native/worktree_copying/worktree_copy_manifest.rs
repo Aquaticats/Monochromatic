@@ -17,6 +17,7 @@
 
 use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{by_repository_path_order, filesystem_path, join_repository_path};
 use crate::worktree_copy_vanished_entry::{lstat_or_absent, names_or_absent};
@@ -224,7 +225,7 @@ pub fn collect_entry_manifest(
     excluded_roots: &[PathBuf],
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     let mut skipped: Vec<Vec<u8>> = Vec::new();
-    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut skipped);
+    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut skipped, &CopyCeiling::unbounded());
 }
 
 /// What:
@@ -246,6 +247,7 @@ pub fn collect_pruned_manifest(
     excluded_roots: &[PathBuf],
     prune: Prune,
     unreadable: &mut Vec<Vec<u8>>,
+    ceiling: &CopyCeiling,
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     // The stack is filled in reverse so the lexically first root is popped first.
     let mut pending: Vec<WalkItem> = Vec::new();
@@ -257,6 +259,11 @@ pub fn collect_pruned_manifest(
     }
     let mut entries: Vec<WorktreeCopyEntry> = Vec::new();
     while let Some(item) = pending.pop() {
+        // The walk is one increment per entry, so the first entry past the ceiling a command holds for a copy it did not
+        //  start stops it rather than the size of the checkout.
+        if ceiling.reached() {
+            return Err(ceiling.stopped_error());
+        }
         if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_slice()) {
             continue;
         }

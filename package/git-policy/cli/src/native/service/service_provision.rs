@@ -79,6 +79,9 @@ use crate::service_messages::ClientFailure;
 pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, STOP_TIMEOUT_SECONDS, platform_without_manager, runtime_unit_dir};
 use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
+use crate::service_provision_refusals_before_the_wait::{
+    in_plain_words, refuse_a_path_no_socket_address_can_carry, refuse_a_service_that_listens_elsewhere,
+};
 use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
@@ -193,6 +196,10 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
 /// await provisionWith(host, manager)
 /// ```
 pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
+    // What: An address no socket can carry ends the provision before anything is written or asked for.
+    // Why:  The manager would bind the unit's address and fail, and the client would then wait out the start ceiling for a
+    //       service that can never answer (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_path_no_socket_address_can_carry(host)?;
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
@@ -200,7 +207,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     reload |= clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     if let Err(error) = std::fs::create_dir_all(&directory) {
-        return Err(ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())));
+        return Err(ClientFailure::CouldNotStart(format!(
+            "{} cannot be created ({}), and the commit service keeps its settings there, so set XDG_RUNTIME_DIR to a runtime \
+             directory this account can write or make that one writable",
+            directory.display(),
+            in_plain_words(&error)
+        )));
     }
     let texts: [(&'static str, String); 2] = unit_texts(host);
     // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
@@ -214,7 +226,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             continue;
         }
         if let Err(error) = write_atomically(&path, text.as_str()) {
-            return Err(ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())));
+            return Err(ClientFailure::CouldNotStart(format!(
+                "{} cannot be written ({}), and the commit service keeps its settings there, so set XDG_RUNTIME_DIR to a runtime \
+                 directory this account can write or make that one writable",
+                path.display(),
+                in_plain_words(&error)
+            )));
         }
         written.push(path);
         reload |= existed;
@@ -245,6 +262,11 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    // What: A service the manager made listen somewhere this command does not look ends the provision here.
+    // Why:  The unit's address is built from the manager's own runtime directory, so a command given another one waits out
+    //       the whole start ceiling for a service that is running, healthy and out of reach
+    //       (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_service_that_listens_elsewhere(host, manager)?;
     // What: The manager now holds exactly these texts.
     // Why:  The record is written after the manager accepted the reload and never before, so it is the manager's own answer and
     //       the next commit can take the fast path. A record that cannot be written costs one reload per commit and never a
@@ -376,6 +398,10 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
         return Ok(());
     }
+    // What: An address no socket can carry is refused before the bus is even reached for.
+    // Why:  The manager is the one that would fail to bind it, and a bus that cannot be reached would otherwise answer
+    //       first with a remedy about user services, which says nothing about the runtime directory that is too long.
+    refuse_a_path_no_socket_address_can_carry(host)?;
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
         Ok(connected) => connected,
         Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),

@@ -16,6 +16,11 @@
 //!  The rule is a handful of directory names rather than a list of paths,
 //! so a reader can predict it
 //!  (`doc/planning/cli-git-main-worktree-ignored-copy.md` measures the set it leaves out).
+//! A folder that held nothing but a container is no state either:
+//! the tree walk of a conversion
+//!  leaves it out whole and the comparison that follows does not demand it,
+//! so the converted worktree gains no empty
+//!  folder nothing names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,8 +30,10 @@
 //! ```
 
 /// The prefix of every stage container any rung makes beside its destination.
+use crate::path_bytes::path_bytes_of;
 use crate::worktree_copy_selection::{STAGE_PREFIX, is_separator_byte};
 use crate::worktree_trash_manifest::is_trash_name;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -206,6 +213,60 @@ pub fn names_a_private_stage(relative_path: &[u8]) -> bool {
     return false;
 }
 
+/// What:
+///  Whether everything a folder holds is another command's stage container,
+///  at any depth.
+/// Why:
+///   A container holds the whole ignored state another worktree's copy is filling and no copy carries it,
+/// so the folders
+///  that held nothing else are no state of the tree either:
+/// a copy leaves them out and a comparison must not demand them.
+///  Everything else is state,
+/// an empty folder included,
+/// so such a folder is kept.
+/// A folder this
+///  user cannot list is not proven to hold nothing but a container,
+/// so it is kept as well.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsOnlyPrivateStages('.claude/worktrees')
+/// // true when that folder holds only `.cli-git-worktree-copy-*` folders and the folders around those
+/// ```
+pub fn holds_only_private_stages(directory: &Path) -> bool {
+    // The walk uses a work stack, not recursion, so a deep tree cannot overflow the stack.
+    let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        let listing: std::fs::ReadDir = match std::fs::read_dir(current.as_path()) {
+            Ok(found) => found,
+            Err(_unreadable) => return false,
+        };
+        let mut holds_entry: bool = false;
+        for item in listing {
+            let entry: std::fs::DirEntry = match item {
+                Ok(found) => found,
+                Err(_unreadable) => return false,
+            };
+            holds_entry = true;
+            let file_name: std::ffi::OsString = entry.file_name();
+            // The rule for a name is the one `names_a_private_stage` states, read on the one component this entry is.
+            if names_a_private_stage(path_bytes_of(Path::new(file_name.as_os_str()))) {
+                continue;
+            }
+            // Only a folder can hold nothing but a container further down; a link is not followed, because the folder it
+            // names is somewhere else and is nobody's to leave out.
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() => pending.push(current.join(file_name)),
+                _ => return false,
+            }
+        }
+        if !holds_entry {
+            return false;
+        }
+    }
+    return true;
+}
+
 impl Prune {
     /// What:
     ///  The rule the main checkout uses,
@@ -255,10 +316,7 @@ impl Prune {
             return false;
         };
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&[u8]> = match index.checked_sub(1) {
-                Some(before) => Some(components[before]),
-                None => None,
-            };
+            let parent: Option<&[u8]> = index.checked_sub(1).map(|before| return components[before]);
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
