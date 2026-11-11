@@ -752,7 +752,7 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
         std::thread::sleep(LOOK);
     };
     end(child);
-    let metered: u64 = std::fs::metadata(meter_file.as_path()).map(|about| about.len()).unwrap_or(0);
+    let metered: u64 = std::fs::metadata(meter_file.as_path()).map(|about| return about.len()).unwrap_or(0);
     assert!(metered > 0, "the holder wrote its meter, so the tree moved bytes");
     let Some(StopCause::Stalled(report)) = cause else {
         panic!("a tree whose only movement is the holder's own meter was not ended within {:?}", began.elapsed())

@@ -5,8 +5,8 @@ fixed on 2026-11-11 in `package/git-policy/cli` (`push_progress.rs`,
 `bounded_push.rs`,
 `stop_cause_and_words.rs`),
 with controls in `push_progress_tests.rs` and `push_slow_server_tests.rs`.
-Every face measured,
-including a Git LFS upload that keeps reconnecting,
+Every face this audit measured,
+the Git LFS upload that keeps reconnecting included,
 is bounded;
 the measurements are at the end of this file.
 
