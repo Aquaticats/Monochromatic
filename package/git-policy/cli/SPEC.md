@@ -4299,6 +4299,22 @@ The isolated merge takes the one head `FETCH_HEAD` lists for merging (`handle_fe
  `builtin/merge.c`)
 and words the message from the whole file,
 as `git merge FETCH_HEAD` does.
+What the settings state is Git's own reading of them,
+not the raw text of the configuration:
+ the wrapper asks `git config --bool --get` for `branch.<name>.rebase` and then for `pull.rebase`
+(`config_get_rebase`),
+so the last of several values decides,
+as it does for Git,
+and every spelling Git reads as false (`00`,
+`0x0`,
+`0k`,
+the empty value)
+selects the split,
+while a value Git reads as a rebase,
+or one it refuses,
+leaves the whole pull native.
+That start runs only when the command line does not already state a merge,
+which `--no-rebase` always does.
 Everything else is native Git's whole pull:
 a rebase,
 `--ff-only`,

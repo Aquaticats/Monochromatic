@@ -2971,6 +2971,16 @@ or `--ff` or `--no-ff`) and every option
  then the merge of `FETCH_HEAD` through the path of a typed `git merge`
  that carries the pull's own merge options,
  so the editor opens on a terminal exactly where `git pull` opens it.
+Whether a setting says false is Git's own reading of it:
+ the wrapper asks `git config --bool --get` for the branch's setting and then for `pull.rebase`,
+ so the last of several values decides,
+ and every spelling Git reads as false (`00`,
+`0x0`,
+`0k`,
+the empty value) takes this path.
+A value Git reads as a rebase,
+or refuses,
+leaves the pull whole to Git.
 When the pull the wrapper completes cannot move the working tree along,
 the report keeps Git's own words
 (`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
