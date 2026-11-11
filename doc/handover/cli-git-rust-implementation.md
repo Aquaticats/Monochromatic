@@ -160,6 +160,8 @@ this worktree, host load average 117 to 165 on eight CPUs
     Summary [  86.078s] 158 tests run: 158 passed, 6717 skipped
   native:test:host, this branch's controls and the integration's protected-branch ones
     Summary [  85.869s] 11 tests run: 11 passed (5 slow), 6864 skipped
+  native:test:host, the modules the integration side brought into the merge
+    Summary [  50.091s] 51 tests run: 51 passed, 6824 skipped
   native:test:host, the whole library suite, no fail fast
     Summary [1921.062s] 6856 tests run: 6842 passed (14 slow, 1 leaky), 14 failed, 19 skipped
   native:test:host, those 14 alone at load average 30
