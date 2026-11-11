@@ -101,6 +101,73 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### 0.6.1-alpha.9 installed; the next integration is being built (2026-11-10T20:18:00-05:00)
+
+Release `0.6.1-alpha.9` (bump `64989e5e89`) shipped:
+the `crate-release` run `42935168319` passed its release and publish jobs,
+and the `cargo-publish` run `42935721432` built the archives and created the GitHub release
+`monochromatic-git-policy-cli-v0.6.1-alpha.9` at 2026-11-11T01:07:58Z.
+It is installed through `toolchain:update`;
+the repository lock commit `68937a8e22` took 5,331 ms,
+the service upgrade included.
+
+Two defects showed on the way, both open:
+
+- `native:release:wait` printed "RELEASE RUN FAILED: no publish was started" for run `42935168319`,
+  which had succeeded;
+  the archives come from the separate `cargo-publish` workflow.
+  The waiter is `package/crate-release/cli/bin/await-release.ts`.
+- After the install,
+  every `git` call printed `mpm-shadow`'s older-lock warning,
+  because the machine-global lock still named `0.6.1-alpha.8`.
+  Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  does not run: no `mpm-shadow` is on `PATH`.
+  The coordinator ran the installed binary by its full path
+  (`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.10-x86_64-unknown-linux-gnu/mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  "updated cargo:monochromatic-git-policy-cli 0.6.1-alpha.8 -> 0.6.1-alpha.9"),
+  and the warning stopped.
+  Agent `mpm-shadow-printed-global-lock-remedy-runs-as-printed` is fixing the printed remedies.
+  The first integration suite run overlapped the warning,
+  so a failure there that reads `git`'s stderr is checked again on the rerun.
+
+Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
+built from `main` by the coordinator's script,
+which tries each branch with `git merge-tree --write-tree` first and merges only the clean ones:
+36 of 53 merged,
+17 conflicted.
+The 17 went back to their own agents to merge the integration branch and resolve.
+Five compile errors where merged branches met were fixed in `5686c7bb29`
+(three tests lacked the new `holder` field of `CommitRequest`,
+one closure lacked its explicit `return`,
+one test bound a value it never used);
+Clippy is clean on it,
+and both test suites run on it in unit `integrate-jam-fixes-suites`.
+Four branches whose runs ended before finishing are left out until resumed agents finish them:
+`commits-that-stop-after-their-add-steps`,
+`pushes-of-main-that-stalled-today`,
+`wrapper-suite-failures-on-main-tip`
+and `gate-flakes-scratch-sweep-and-descriptor-limit`.
+Kimi reviews each merged branch's own change on the integration branch's code (rule `KRV`).
+
+At 2026-11-10T21:50-05:00 a second pass had merged five more (41 of 53),
+one more missing `holder` was fixed in `171edd1c00`,
+and Clippy is clean there.
+Both suites on `5686c7bb29`, rerunning only the failures, left 33 failing tests
+(11 in `invocation::entry` and one source guard, 8 around stage containers,
+5 in the service and landing, 6 commit budgets, the 3 host-only settle controls);
+four agents on branches cut from `5686c7bb29` fix them by area
+(`fix/git-policy-cli-integration-failures-*-after-alpha-9`).
+Agent capacity that night was set by Neuralwatt, not by the session's slot numbers:
+6 DeepSeek requests at once while the subscription is in overage,
+7 flex requests per model,
+and Pi ends a run on either 429;
+`.agents/skills/pi-as-subagent/SKILL.md` records the numbers and three launcher defects fixed then.
+Next:
+merge the resolved branches,
+gate,
+land on `main`,
+release `0.6.1-alpha.10`.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
@@ -184,6 +251,45 @@ Next action:
 review and merge this branch;
 then the same two windows want a run of the whole binary suite,
 which this branch ran only for the merge modules.
+
+### Sonnet audit of jams on add, commit and merge (2026-11-10, against `e498914475`)
+
+The full report is `~/temp/agent/sonnet-audits/jams-on-add-commit-merge/findings.md`,
+with its reproduction scripts and logs beside it.
+Its one finding,
+F1:
+an uncontended commit took a median of 0.9 to 14.4 s,
+p90 up to 26.2 s and at most 46.8 s,
+where plain Git took 16 to 46 ms,
+on a host with load average 120 to 170.
+No commit waited on another.
+The time sat in the commit service's index-lock step (`lock_stage_kind=pre`,
+`queued_behind=0`),
+and under `strace -f -T` six service threads' `fsync` calls took 8 to 12.5 s each,
+behind which the `renameat2` placing `index.lock` stalled.
+The audit names `src/native/landing/service_durable.rs`,
+`service_index_placement.rs`,
+`service_index_prestage.rs`,
+`service_index_lock.rs` and `service_index_attempts.rs`.
+The owner's bound is "commits vs native git should not take 5s longer."
+
+Agent `wrapper-never-waits-on-btrfs-commits` has it.
+The owner's rule on syncs,
+2026-11-10:
+"I only say things that are already on remote doesn't deserve strong data protection against power outage and stuff."
+The index lock marker and the landing records protect things that are not on the remote,
+so the agent takes their syncs off the commit's waiting path where the protection stays the same,
+and asks the owner before removing any of them.
+
+Nothing else reproduced as one command waiting on another:
+commits during an add were as slow as F1 alone,
+and commits,
+adds and merges killed with `SIGKILL` left the next commands working,
+with a rerun merge keeping unsaved and staged edits.
+The audit did not exercise the snapshot add route,
+clients sharing one checkout,
+or kills at a chosen state.
+
 ### Trying Kimi K3.1 Pro as auditor and reviewer (2026-11-10T05:53:55-05:00)
 
 The owner:
@@ -10587,7 +10693,20 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   their findings become follow-up fixes and later releases.
 - Release order for the wrapper:
   gate passes (`gate-exit-status=0` and the nextest summary),
-  merge to main,
+  except that an alpha ships over known flaky failures.
+  The owner,
+  2026-11-10,
+  after the next alpha had waited a day on one flaky test of 7,192:
+  "It's been a whole day and you still haven't released any of the jam fixes?"
+  and "Standing rule. Alphas don't even have to resolve all flakes."
+  A gate whose only failures are tests already known to fail intermittently does not hold an alpha;
+  each such failure gets its own fix as follow-up work.
+  The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
+  on nine failing tests outside its three btrfs controls;
+  since `50161f7161` it refuses only when a required control fails, is missing or did not run,
+  or the run timed out, was stopped or failed without naming a test,
+  and prints other failing tests as notices above the pass.
+  Then: merge to main,
   `native:clippy` clean on main,
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
