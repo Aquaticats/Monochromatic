@@ -578,6 +578,58 @@ media ids absent.
   (384,000 catalog versus 393,216 documented)
   resolves to the catalog row;
   it truncates 2.4% of the documented output room at worst.
+- The sibling `package/dsh-plugin/neuralwatt` mount refresh carries the
+  identical fire-and-forget write shape
+  (`void refreshNeuralWattRoute(...)` from `apply`),
+  so a manager re-trigger there hits the same nested reload-transaction
+  refusal this package fixed under "Live DSH mount writes".
+  Out of this build's scope (the request named `qwen-token-plan-individual`);
+  its fix is the same deferral seam.
+
+## Measured gates
+
+Recorded 2026-11-11, live web profile and owner pi home.
+
+- pi override probe (`pi --list-models`):
+  serves exactly the 14 `MEASURED_SERVICEABLE_IDS`
+  under `qwen-token-plan-individual`
+  (`deepseek-v4.1-flash-1017` and `qwen4-max-preview` present),
+  and the builtin catalog's stale-only ids are gone.
+- Live smoke (`pi --print --model qwen-token-plan-individual/qwen3.8-max`):
+  returns `pong`.
+- Effort-level dispatch check
+  (real request body captured through the provider's `onPayload` seam):
+  selecting `xhigh` sends `reasoning_effort: "xhigh"`,
+  `enable_thinking: true`,
+  `model: "qwen3.8-max"`.
+- Never-persist guard:
+  `models.json` byte-identical
+  (`59578396b8cdf1a83040cf06103261c280f114a6d4556ea12d352450b4a25927`),
+  and `models-store.json` byte-identical across `pi --list-models` runs
+  (`3eef809415afce8cabca02cc04bda00b36e628b2c497f83b9894da4979b0238e`
+  before and after).
+  The store's `qwen-token-plan-individual` section holds exactly the
+  builtin 10 rows,
+  never the live 14;
+  its own conditional-fetch cache fields (`checkedAt`, `etag`)
+  mark it as pi's catalog cache,
+  which self-refreshes independently of this extension
+  (its baseline hash drifts that way,
+  so the guard is read as "our refresh changes it not",
+  not as "the file is frozen").
+  `enabledModels` lives in pi's `settings.json`;
+  this extension never writes any of the three
+  (only the disposable test fixture writes,
+  and only into throwaway homes).
+- Offline gate (network denied via `unshare -rn`),
+  with its positive control being the networked runs above:
+  pi's listing serves exactly the 14 snapshot ids
+  and a completion fails gracefully
+  (`Connection error.: AggregateError (ENETUNREACH)`, exit 1);
+  the DSH side,
+  booted from a stale two-model route block on a disposable profile,
+  lands exactly the 14 snapshot ids
+  and logs `listing GET failed ... keeping the served snapshot`.
 
 ## Out of scope
 
@@ -593,12 +645,18 @@ media ids absent.
 
 ## Next action
 
-The DSH live route gate has passed
-(the full 14-id set lands and serves on the live web profile,
-as recorded under "Live DSH mount writes").
-Remaining gates from "Verification":
-the pi-side override probe (`pi --list-models`),
-the live smoke on `qwen-token-plan-individual/qwen3.8-max`
-with its effort-level wire-spelling dispatch check,
-the never-persist guard hashes,
+Every gate in "Verification" is measured
+(see "Live DSH mount writes" and "Measured gates"):
+the DSH live route gate,
+the pi override probe,
+the live smoke with its dispatch check,
+the never-persist guard,
 and the offline gate with its positive control.
+Open follow-ups,
+none blocking this build:
+the sibling neuralwatt plugin's identical deferral defect
+(under "Accepted risks and limits"),
+and the fact-table drift
+`refresh-snapshot` prints
+as the endpoint adds models
+(under "Accepted risks and limits").
