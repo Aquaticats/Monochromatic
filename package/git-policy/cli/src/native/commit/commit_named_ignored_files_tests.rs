@@ -261,6 +261,8 @@ fn a_named_file_of_the_selected_worktree_is_refused_where_the_invocation_directo
     assert_eq!(plain.status.code(), Some(1), "nothing ignores the file the commit takes: {}", String::from_utf8_lossy(plain.stdout.as_slice()));
     let untracked_add: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--update", "--", "selected.js"]].concat().as_slice());
     assert_ne!(untracked_add.status.code(), Some(0), "the staging a pattern takes cannot reach the untracked file: {}", String::from_utf8_lossy(untracked_add.stderr.as_slice()));
+    let plain_update: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--update", "--", "plain.txt"]].concat().as_slice());
+    assert_ne!(plain_update.status.code(), Some(0), "the staging a pattern takes cannot reach the file nothing ignores either: {}", String::from_utf8_lossy(plain_update.stderr.as_slice()));
     let context: GitContext = GitContext {
         global_prefix: [OsString::from("--git-dir"), OsString::from(git_dir.as_str()), OsString::from("--work-tree"), OsString::from(work_tree.as_str())].to_vec(),
         ..git_context()
