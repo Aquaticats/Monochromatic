@@ -443,8 +443,8 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
         attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
     }
     // Under `push.default=matching` this one push carried every branch the remote has, so Git's status is the worst of them: a
-    //  sibling the remote refused makes it non-zero while this branch arrived. The repository says which, and a delivery it proves
-    //  is not reported as a failure nor retried.
+    //  sibling the remote refused makes it non-zero while this branch arrived. The remote says which, and a delivery it proves is
+    //  not reported as a failure nor retried.
     let delivered: bool = delivered_although_git_failed(
         git,
         &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid },
