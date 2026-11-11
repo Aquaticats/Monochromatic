@@ -44,6 +44,18 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::Unavailable,
         ClientFailure::ProgramMissing(String::from("/opt/monochromatic-git-policy-cli/cli-git-service")),
         ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
+        ClientFailure::SocketPathTooLong {
+            path: String::from("/home/a/temp/agent/a-long-folder/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
+            length: 113,
+            longest: 107,
+            longest_runtime: 40,
+        },
+        ClientFailure::ServiceElsewhere {
+            made: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
+            looked_for: String::from("/home/a/temp/agent/rt/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
+            manager_runtime: String::from("/run/user/1000"),
+            client_runtime: String::from("/home/a/temp/agent/rt"),
+        },
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
@@ -87,6 +99,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::StepTooSlow => 22,
         ClientFailure::StillWithService { .. } => 20,
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
+        ClientFailure::SocketPathTooLong { .. } => 28,
+        ClientFailure::ServiceElsewhere { .. } => 29,
     };
 }
 
@@ -132,7 +146,12 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::PermissionDenied(String::new())) + 1;
+    let expected: usize = variant_index(&ClientFailure::ServiceElsewhere {
+        made: String::new(),
+        looked_for: String::new(),
+        manager_runtime: String::new(),
+        client_runtime: String::new(),
+    }) + 1;
     assert_eq!(covered.len(), expected);
 }
 

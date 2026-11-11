@@ -125,7 +125,8 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
-///  Give this user back the read, write and search permission on every directory of a tree that has lost it,
+///  Give this user back the read,
+/// write and search permission on every directory of a tree that has lost it,
 ///  without following a symbolic link.
 /// Why:
 ///   A control that writes a directory its owner may not write (`0500`,
@@ -364,6 +365,22 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
 /// Create one empty fixture directory owned by this test process and test name.
 pub(crate) fn fixture(name: &str) -> PathBuf {
     return fixture_with_prefix("native-unit", name);
+}
+
+/// What:
+///  Take a directory this test thread made under the thread's own cleanup,
+/// so it is removed when the thread ends however the test ended.
+/// Why:
+///   A fixture root under the build directory is deep,
+/// and a socket name cannot be longer than a socket address holds,
+/// so a control of the wrapper's sockets keeps its runtime directory somewhere short and asks for this cleanup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trackForThisThread(runtimeDirectory) // removed with the thread's fixtures
+/// ```
+pub(crate) fn track_for_this_thread(root: &Path) {
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
 }
 
 /// What:
