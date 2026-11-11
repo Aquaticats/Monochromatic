@@ -172,6 +172,41 @@ fn a_thread_inside_two_waits_is_left_out_of_the_run_once() {
     assert_eq!(after.bytes, before.bytes, "a thread's own readings are not the run's work, however many waits it is inside");
 }
 
+/// What:
+///  A look this thread takes without keeping a registration of its own does not count its own readings
+///  as the run's work at the look after it,
+///  so a run that only reads it is ended.
+/// Why:
+///   A control's wait may look at the run without an outer `Reading`,
+/// which the comment of `look_now` says is the case it covers;
+/// a registration that ends with its look would forget the bytes that look read,
+///  so every look would count them as the run's work and a stopped run would never be judged quiet.
+#[test]
+fn a_look_without_a_registration_does_not_count_its_own_readings_as_work() {
+    if current_thread_id().is_none() {
+        eprintln!("skipped: this system numbers no thread, so nothing is measured");
+        return;
+    }
+    // The first look counts this thread's whole counter, because no look of this thread came before it.
+    let _primed: Look = look_now().expect("this system counts its tasks' work");
+    let before: Look = look_now().expect("still readable");
+    let after: Look = look_now().expect("still readable");
+    assert_eq!(
+        after.bytes, before.bytes,
+        "the readings the look before took are the run's work, so an idle thread looks busy at every look"
+    );
+    // The judge on the same evidence: an idle run that is only read is quiet after its window.
+    let window: Duration = Duration::from_secs(1);
+    let mut judge: Judge = Judge::new(window);
+    assert_eq!(judge.observe(Duration::ZERO, look_now()), None, "the first look moved");
+    assert_eq!(judge.observe(Duration::from_millis(500), look_now()), None, "the window has not passed");
+    assert_eq!(
+        judge.observe(window, look_now()),
+        Some(Ending::Quiet(window)),
+        "a run that only reads it showed no sign of work for the window"
+    );
+}
+
 /// Where this system counts no task's work the window is a fixed deadline,
 /// and the ending says so rather than claiming the run showed nothing.
 #[test]
@@ -268,9 +303,24 @@ const CHILD_DEADLINE: Duration = Duration::from_secs(45);
 /// ```ts
 /// const child = spawn(exe, args, { stdio: ['ignore', 'pipe', stderr] });
 /// const status = await withDeadline(child, CHILD_DEADLINE); // kill and return undefined when it passes
-/// return status === undefined ? undefined : { status, stdout: await read(child.stdout) };
+/// return status === undefined ? undefined : { status, stdout: drain(child.stdout) };
 /// ```
 fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Option<std::process::Output> {
+    return run_child_with_stderr_within(name, stderr, CHILD_DEADLINE);
+}
+
+/// What:
+///  `run_child_with_stderr_until` with the deadline the caller states.
+/// Why:
+///   The control of the output collection needs a deadline it can reach in a moment,
+/// and every other control wants the slowest
+///  child start measured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = await withDeadline(child, deadline); // kill and return undefined when it passes
+/// ```
+fn run_child_with_stderr_within(name: &str, stderr: std::process::Stdio, deadline: Duration) -> Option<std::process::Output> {
     let mut child: std::process::Child = std::process::Command::new(this_test_binary().expect("the test binary"))
         .args(["--exact", child_path(name).as_str(), "--ignored", "--nocapture", "--test-threads=1"])
         .stdin(std::process::Stdio::null())
@@ -279,15 +329,61 @@ fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Optio
         .spawn()
         .expect("the child test starts");
     let started: Instant = Instant::now();
-    loop {
+    let status: std::process::ExitStatus = loop {
         match child.try_wait().expect("the child is waited for") {
-            Some(_ended) => return Some(child.wait_with_output().expect("the child's output")),
-            None if started.elapsed() >= CHILD_DEADLINE => {
+            Some(ended) => break ended,
+            None if started.elapsed() >= deadline => {
                 child.kill().expect("the child that outlived the deadline is killed");
                 let _reaped = child.wait();
                 return None;
             }
             None => std::thread::sleep(Duration::from_millis(100)),
+        }
+    };
+    let stdout: Vec<u8> = read_a_pipe_until_it_ends(child.stdout.take());
+    let stderr: Vec<u8> = read_a_pipe_until_it_ends(child.stderr.take());
+    return Some(std::process::Output { status, stdout, stderr });
+}
+
+/// What:
+///  Every byte a pipe still holds once the child that wrote it has ended,
+/// read without waiting for the pipe to end.
+/// Why:
+///   A process the child started inherits the child's standard output and error,
+/// and the pipe ends only when every process holding it lets go,
+///  which one that never ends never does;
+/// so a read that waits for the end of the pipe waits for a process the control never started to watch,
+///  where everything the child wrote is already in the pipe when the child ends.
+/// The read is non-blocking for that reason,
+/// and it stops at the first moment the pipe has nothing left to give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function drain(pipe) { const bytes = []; for (;;) { const chunk = read(pipe, { nonBlocking: true }); if (chunk.length === 0) return bytes; bytes.push(...chunk) } }
+/// ```
+fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRawFd>) -> Vec<u8> {
+    let Some(mut pipe) = pipe else { return Vec::new() };
+    let descriptor: std::os::fd::RawFd = pipe.as_raw_fd();
+    // SAFETY: the descriptor belongs to `pipe`, which outlives both calls, and neither takes a pointer.
+    let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    if flags < 0 {
+        eprintln!("skipped: this system would not say how the child's output pipe is read (errno {flags})");
+        return Vec::new();
+    }
+    // The flag is set on this copy of the descriptor only, and its read end is closed with the child that held it.
+    // SAFETY: as above.
+    let _set: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    let mut collected: Vec<u8> = Vec::new();
+    let mut buffer: [u8; 8_192] = [0; 8_192];
+    loop {
+        match pipe.read(buffer.as_mut_slice()) {
+            // The pipe ended, so everything the child wrote has been read.
+            Ok(0) => return collected,
+            Ok(read) => collected.extend_from_slice(buffer.get(..read).unwrap_or(buffer.as_slice())),
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            // Nothing is there now, and the child has ended, so nothing of the child's will come later.
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return collected,
+            Err(_) => return collected,
         }
     }
 }
@@ -469,6 +565,72 @@ fn child_that_waits_under_the_watchdog() {
     let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     // The wait reads the run itself at every look, and those reads are not the run's work.
     let _held: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor { window: Duration::from_secs(600), done: &|| { return false; } });
+}
+
+/// How long the child of the control below leaves a process holding its output open.
+/// It is far longer than the start of a child test on this host (measured at up to 11 s under load),
+/// so a collection that waits for the end of the pipe cannot pass by accident,
+/// and the control ends that process itself, so nothing of the run outlives it.
+const PIPE_HOLDER_LIFE: Duration = Duration::from_secs(60);
+
+/// How long the control below lets the collection of a child's output take before it counts the wait as unbounded.
+/// A child that has ended has written its whole report,
+/// so collecting what is in the pipe needs no more than the time a read of it takes.
+const OUTPUT_COLLECTION_ALLOWED: Duration = Duration::from_secs(20);
+
+/// Child of the control below:
+/// a run whose direct child ends while a process it started holds the child's output pipe open.
+#[test]
+#[ignore = "started by a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output in a process of its own"]
+fn child_that_leaves_a_pipe_holder() {
+    forbid_core_dumps();
+    let holder: std::process::Child = std::process::Command::new("sleep")
+        .arg(PIPE_HOLDER_LIFE.as_secs().to_string())
+        .spawn()
+        .expect("a process that holds this child's output starts");
+    // The parent ends this process once it has read this line, so nothing of the run outlives the control.
+    println!("holder {}", holder.id());
+}
+
+/// What:
+///  A child that ends before its deadline is collected within the time a read of what it wrote takes,
+///  though a process it started still holds the pipe its output comes on.
+/// Why:
+///   The pipe of a child's output ends only when every process holding it lets go,
+/// and a process the child started keeps it open after the child ends;
+/// a control that read until the end of the pipe waited for that process's whole life,
+/// and one whose holder never ends waits for ever.
+#[test]
+fn a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output() {
+    let started: Instant = Instant::now();
+    let ended: Option<std::process::Output> = run_child_with_stderr_within(
+        "child_that_leaves_a_pipe_holder",
+        std::process::Stdio::piped(),
+        CHILD_DEADLINE,
+    );
+    let elapsed: Duration = started.elapsed();
+    let output: std::process::Output = ended.expect("the direct child ended before its deadline");
+    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    // The child's line lands where libtest's own line ends, so the figure is taken from the words of the output.
+    let held: Option<i32> = ran
+        .split_whitespace()
+        .skip_while(|word: &&str| { return *word != "holder"; })
+        .nth(1)
+        .and_then(|figure: &str| { return figure.parse::<i32>().ok(); });
+    if let Some(pid) = held {
+        // Nothing of the run outlives this control: the holder is this child's own descendant.
+        let _ended: libc::c_int = unsafe { libc::kill(pid, libc::SIGKILL) };
+    }
+    assert!(output.status.success(), "the direct child ended on its own:\n{ran}");
+    assert!(
+        ran.contains(child_path("child_that_leaves_a_pipe_holder").as_str()),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
+    assert!(held.is_some(), "the child named the process that holds its output:\n{ran}");
+    assert!(
+        elapsed < OUTPUT_COLLECTION_ALLOWED,
+        "the collection of a child's output waited for a process that holds the pipe after the child ended: it returned after {elapsed:?}, its whole life being {PIPE_HOLDER_LIFE:?}"
+    );
 }
 
 /// A thread inside a control's wait does not keep the watchdog alive:
