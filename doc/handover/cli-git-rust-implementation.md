@@ -5673,6 +5673,9 @@ Open:
 the two seconds are a pick under this brief,
 with no measurement of how long a service with nothing in flight takes to end,
 and stand open to the owner's veto (`wait_ceilings.rs`);
+those pauses come out of the one exchange budget the sweep sets for all its instances (`EXCHANGE_WAIT`),
+so a sweep whose services each outlive their stop spends up to two seconds of it per instance,
+and one ask can take what is left of it from a manager that stops answering;
 a `.done` record also goes by count,
 because `prune_done` keeps the newest `DONE_RETAINED` (1024) at each landing and at service start,
 so a burst of that many landings inside the window above would take a record a lost answer still reads:
