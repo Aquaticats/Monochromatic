@@ -44,7 +44,8 @@
 //!  The oldest entry of the branch's own reflog names the commit it was made at,
 //!  and a branch whose tip is that commit has no commit of its own;
 //!  a repository that keeps no reflog for it proves nothing,
-//!  and the branch stays a candidate as it did before.
+//!  and the branch stays a candidate as it did before
+//!  (`worktree_branch_reflog.rs`).
 //!  A branch that has moved holds no commit of its own either when another branch this merge did not land on had already
 //!  moved onto the same commit:
 //!  its own reflog records that move from another commit,
