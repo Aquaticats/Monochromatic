@@ -196,7 +196,8 @@ async fn restore_awaiting(retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
     };
 }
 
-/// The plan a read came to nothing for, owed again after a longer pause.
+/// The plan a read came to nothing for,
+/// owed again after a longer pause.
 fn unread_again(mut retries: PushRetries) -> PushRetries {
     retries.restore_came_to_nothing();
     return retries;

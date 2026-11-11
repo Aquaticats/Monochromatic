@@ -763,7 +763,8 @@ fn a_common_directory_that_gives_no_answer_does_not_hold_the_rounds_worker() {
 
 /// How long the control of a drain's step lets the whole measurement run before it calls the step lost.
 /// Why:
-///  The control has to fail where the defect is, and the defect is a wait with no end:
+///  The control has to fail where the defect is,
+/// and the defect is a wait with no end:
 /// a control that waited on that one would be ended by the runner's per-test limit instead of saying what it found.
 /// The work itself reaches its own answers within a second on any host,
 /// so this is the control's deadline,
@@ -784,7 +785,8 @@ const THE_STEPS_CEILING: Duration = Duration::from_millis(200);
 ///  (`blocking_jobs_within_the_budget.rs`).
 /// The drain's storage steps awaited a place without an end,
 /// so one stalled read with the process held to one place left the round waiting for ever:
-/// no later push, no upkeep round,
+/// no later push,
+/// no upkeep round,
 /// and the idle exit never ran
 ///  (finding 4 of the review of `5686c7bb29`).
 /// The place the control's read holds is the process's only one,

@@ -98,12 +98,12 @@ fn plan_name(plan: &StoredPlan) -> String {
 /// Why:
 ///   The record's own instant is read back with the plan,
 /// so a forget a round applies is judged against the round it belongs to and never against the clock of its removal;
-/// a filesystem's timestamps also depend on the mount, while this field is the writer's.
+/// a filesystem's timestamps also depend on the mount,
+/// while this field is the writer's.
 ///
 pub fn micros_now() -> u64 {
-    return std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .map_or(0, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX); });
+    let Ok(elapsed) = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH) else { return 0 };
+    return u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
 }
 
 /// The text of a plan file,
@@ -119,7 +119,9 @@ fn encode_at(plan: &StoredPlan, saved: u64) -> String {
     return format!("{}\n", Value::Object(fields));
 }
 
-/// The text of a plan file written now.
+/// The text of a plan file written now,
+/// for a control that must write one as an earlier release wrote it.
+#[cfg(test)]
 fn encode(plan: &StoredPlan) -> String {
     return encode_at(plan, micros_now());
 }
@@ -247,7 +249,8 @@ pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &
 /// so a statement written since is not taken either.
 /// Answers whether a plan of the branch that this removal covers is still there,
 /// which is what a caller that tries the removal again reads:
-/// a file it left because it is newer, unreadable or another branch's is not one it covers.
+/// a file it left because it is newer,
+/// unreadable or another branch's is not one it covers.
 fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String], written_before: Option<u64>) -> bool {
     let Ok(listing) = std::fs::read_dir(directory) else { return false };
     let mut left: bool = false;
@@ -259,7 +262,9 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
         let path: PathBuf = entry.path();
         let Some(saved): Option<u64> = saved_of_the_branch(path.as_path(), git_dir, branch_ref) else { continue };
         // A plan written at or since the forget was asked is a newer statement than the one that forget read.
-        if written_before.is_some_and(|asked: u64| saved >= asked) {
+        if let Some(asked) = written_before
+            && saved >= asked
+        {
             continue;
         }
         if std::fs::remove_file(path).is_err() {

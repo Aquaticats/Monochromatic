@@ -288,7 +288,7 @@ pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &st
     {
         // A record that was not written leaves the item to its lease, and the next round tells the person.
         Ok(answer) => answer,
-        Err(said) => Err(said),
+        Err(refusal) => Err(refusal),
     };
 }
 
@@ -314,7 +314,7 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
     .await
     {
         Ok(answer) => answer,
-        Err(said) => Err(said),
+        Err(refusal) => Err(refusal),
     };
 }
 
@@ -402,3 +402,8 @@ pub(crate) async fn instance_of_awaiting(git_dir: &Path) -> Result<String, crate
         }
     };
 }
+
+/// Storage-step controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_storage_awaited_tests.rs"]
+mod tests;

@@ -88,8 +88,11 @@ fn a_plan_job_given_no_answer_keeps_the_retry_its_worker_promised() {
 /// Why:
 ///   The job of a round's own plan writes is a clone of the plan,
 /// and a caller that stops waiting for it keeps a clone of its own and goes on;
-/// the job is never cancelled, so it may write long after the round ended.
-/// A later wake drains the same branch, its push fails retryably, and its worker writes the newer plan.
+/// the job is never cancelled,
+/// so it may write long after the round ended.
+/// A later wake drains the same branch,
+/// its push fails retryably,
+/// and its worker writes the newer plan.
 /// A forget of the abandoned round names only the plans of its own round,
 /// so it must not take a statement it never read:
 /// otherwise a kill after the late removal leaves nothing for a restart to retry,
@@ -125,18 +128,21 @@ fn a_forget_of_an_abandoned_round_keeps_the_plan_a_later_round_wrote() {
 }
 
 /// What:
-///  A forget a round could not write is written by a later round, and the round keeps a wake until it is.
+///  A forget a round could not write is written by a later round,
+/// and the round keeps a wake until it is.
 /// Why:
 ///   A plan job the system gave no thread for,
 /// or one whose answer cannot be read,
 /// changes the plan in memory only,
-/// and the worker's plan stays on disk, which is what a kill needs.
+/// and the worker's plan stays on disk,
+/// which is what a kill needs.
 /// A forget asks for the plan to go,
 /// so a forget left only in memory is a statement on disk that says the opposite:
 /// a service started after a kill would restore the plan and run the push that had landed,
 /// which is why the plan of a push that ended must not outlive the round that forgot it.
 /// The round therefore names the branch for a new write,
-/// and the next round writes it, with a wake until it does.
+/// and the next round writes it,
+/// with a wake until it does.
 #[test]
 fn a_forget_a_round_could_not_write_is_written_by_a_later_round() {
     use crate::push_retry_store::{load, micros_now};

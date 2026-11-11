@@ -95,7 +95,7 @@ fn a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling() {
     };
     let _pause: Duration = retries.schedule(here.as_path(), &item, 1, Instant::now());
     let kept: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(plan.as_path());
-    assert!(kept.iter().any(|saved| saved.item.branch_ref == item.branch_ref), "a retry planned after the timeout is kept for a restart");
+    assert!(kept.iter().any(|saved| return saved.item.branch_ref == item.branch_ref), "a retry planned after the timeout is kept for a restart");
     crate::test_support::remove(root.as_path());
 }
 

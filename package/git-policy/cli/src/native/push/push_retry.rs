@@ -40,7 +40,7 @@
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, micros_now, name_of, remove_except, save};
+use crate::push_retry_store::{StoredPlan, load, micros_now, remove_except, save};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -50,6 +50,26 @@ use std::time::{Duration, Instant};
 /// in whole seconds,
 /// the pause before the first new try of a stopped push.
 pub const RETRY_VARIABLE: &str = "CLI_GIT_PUSH_RETRY_SECONDS";
+
+/// What a worker is handed about a branch's new try and what it hands back,
+/// in `push_retry_worker_values.rs`.
+pub use crate::push_retry_worker_values::{Due, RetryChange, Retrying};
+/// The changes one round asked of the plan,
+/// read by the loop that applies them.
+use crate::push_retry_worker_values::{last_plan_after, planned_again_after};
+/// The bound a control puts on `apply`,
+/// which a killed service leaves half applied.
+#[cfg(test)]
+pub(crate) use crate::push_retry_worker_values::stop_after_in_a_control;
+#[cfg(test)]
+use crate::push_retry_worker_values::stopped_after;
+
+/// The failures no retry can mend,
+/// their words and the person's account of each,
+/// kept beside the schedule in `push_retry_final_failure.rs`.
+pub use crate::push_retry_final_failure::{
+    CONFLICT_PHRASE, FinalFailure, HOOK_DECLINED, LOGIN_PHRASES, REMOTE_REJECTED, final_failure, needs_the_person, plain_words, unrecognised_rejection,
+};
 
 /// Directory,
 /// under the service instance's journal,
@@ -64,10 +84,6 @@ pub const FIRST_PAUSE: Duration = Duration::from_secs(10);
 /// The longest pause between two tries:
 /// a push that keeps failing is tried about this often for as long as it fails.
 pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
-
-/// The words of the reconcile's report of a conflict,
-/// the one failure that retrying cannot mend.
-pub const CONFLICT_PHRASE: &str = " conflicts in: ";
 
 /// What:
 ///  The first pause for a value of the variable.
@@ -104,139 +120,6 @@ pub fn pause_before(attempt: u32, first: Duration) -> Duration {
     return first.saturating_mul(1_u32 << doublings).min(LONGEST_PAUSE);
 }
 
-/// Why a failed push cannot pass by itself.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FinalFailure {
-    /// The reconcile reported a conflict.
-    Conflict,
-    /// The remote asked for a login the service does not have.
-    Login,
-    /// A hook on the server declined the push.
-    Declined,
-}
-
-/// The mark of a line in which the server rejected one reference;
-/// Git prints it for every refused reference
-/// (`transport.c`,
-/// `print_ref_status('!', "[remote rejected]", ...)`,
-/// Git 2.56.0).
-pub const REMOTE_REJECTED: &str = "[remote rejected]";
-
-/// The words every hook decline of Git's own server side carries in the rejection's reason:
-/// `"pre-receive hook declined"` and
-/// `"push-to-checkout hook declined"` and `"hook declined"` (the update hook) in `builtin/receive-pack.c`,
-/// Git 2.56.0;
-/// a hosting
-/// service's own reason that names a hook,
-/// such as `protected branch hook declined`,
-/// ends the same way.
-pub const HOOK_DECLINED: &str = "hook declined";
-
-/// The words with which Git and the programs it runs say that the remote wanted a login the push did not have,
-/// each from a
-/// fixture run of `git push` from Git 2.56.0 on 2026-11-03:
-/// - `remote-curl.c` `die(_("Authentication failed for '%s'"))`:
-///   a 401 and no usable password;
-/// - `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`:
-///   a 401 with no user name and no prompt allowed;
-/// - `http.c` `"The requested URL returned error: %ld"` with 401 or 403:
-///   the server refused the login or the permission;
-/// - OpenSSH's `Permission denied (publickey).`,
-///   which Git relays when the key is refused.
-pub const LOGIN_PHRASES: [&str; 5] = ["Authentication failed for", "terminal prompts disabled", "returned error: 401", "returned error: 403", "Permission denied ("];
-
-/// The lines of an output in which the server rejected a reference.
-fn rejection_lines(output: &str) -> Vec<&str> {
-    let mut rejected: Vec<&str> = Vec::new();
-    for line in output.lines() {
-        let trimmed: &str = line.trim();
-        if trimmed.contains(REMOTE_REJECTED) {
-            rejected.push(trimmed);
-        }
-    }
-    return rejected;
-}
-
-/// The failure of a push that no retry can mend,
-/// from Git's own words;
-/// nothing for a failure that can pass (a stall,
-/// the
-/// network,
-/// a held lock) and for a rejection whose reason this release does not know.
-pub fn final_failure(output: &str) -> Option<FinalFailure> {
-    if output.contains(CONFLICT_PHRASE) {
-        return Some(FinalFailure::Conflict);
-    }
-    for line in rejection_lines(output) {
-        if line.contains(HOOK_DECLINED) {
-            return Some(FinalFailure::Declined);
-        }
-    }
-    for phrase in LOGIN_PHRASES {
-        if output.contains(phrase) {
-            return Some(FinalFailure::Login);
-        }
-    }
-    return None;
-}
-
-/// The first line in which the server rejected the push for a reason this release does not know,
-/// or nothing:
-/// a push with such a
-/// line stays retried,
-/// and the journal names the line so that the reason can be learned.
-pub fn unrecognised_rejection(output: &str) -> Option<String> {
-    if final_failure(output).is_some() {
-        return None;
-    }
-    let rejected: Vec<&str> = rejection_lines(output);
-    if let Some(line) = rejected.first() {
-        return Some((*line).to_string());
-    }
-    return None;
-}
-
-/// What:
-///  The plain words the person's failure record starts with for a failure that stops the retry,
-/// or nothing for a conflict,
-/// whose
-///  report already says what to do.
-/// Why:
-///   The owner's decision is that a login failure and a server hook's decline stop until the next commit
-///  ("Offline is retried,
-/// but auth and server hook declines stop until your next commit.");
-/// the person is told which one it was,
-///  in words,
-/// above Git's own.
-///  A decline is the server's answer at that moment and nothing about a later try,
-/// so its words promise no outcome and say that a push by hand may succeed
-///  (GitHub refused a push of `main` with `GH006` at `2026-11-09T23:30:11-05:00` and a plain `git push` of the same commit then succeeded:
-/// `doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// plainWords(cause) // 'monochromatic-git-policy-cli: the remote wants a login ...'
-/// ```
-pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
-    return match cause {
-        FinalFailure::Conflict => None,
-        FinalFailure::Login => Some(
-            "monochromatic-git-policy-cli: the remote refused this push because it wants a login that the commit service does not have, or because the login it has lacks \
-             permission, so the commit service stops pushing this branch until your next commit. Log in in a way the service can use (a credential \
-             helper, or an SSH key without a passphrase that its environment reaches) and make sure that login may push, then push by hand or commit again.",
-        ),
-        FinalFailure::Declined => Some(
-            "monochromatic-git-policy-cli: the server refused this push: a hook on the server (a check the server runs before it accepts a push) declined it, with the message shown below. The commit service stops pushing this branch \
-             until your next commit. A push by hand may succeed if the cause has cleared: fix what the message names, or wait, then push by hand or commit again.",
-        ),
-    };
-}
-
-/// Whether a failed push's output says something stopped it that only the person can resolve.
-pub fn needs_the_person(output: &str) -> bool {
-    return final_failure(output).is_some();
-}
-
 /// One branch waiting for a new try.
 #[derive(Clone, Debug)]
 struct Waiting {
@@ -261,187 +144,6 @@ fn without_branch(waiting: Vec<Waiting>, git_dir: &Path, branch_ref: &str) -> Ve
         }
     }
     return kept;
-}
-
-/// A push that is due again.
-#[derive(Clone, Debug)]
-pub struct Due {
-    /// The Git directory whose service pushes;
-    /// the plan is keyed by it.
-    pub git_dir: PathBuf,
-    /// The item to push again.
-    pub item: WorkItem,
-    /// The number of this try.
-    pub attempt: u32,
-}
-
-/// What:
-///  What the worker of one directory is handed about retries:
-/// the first pause (nothing when its handlers do not retry) and the
-///  pushes of that directory that are due again.
-/// Why:
-///   The plan belongs to the service loop alone.
-/// A worker never reads it:
-/// it gets its own copy of what is due for its directory,
-///  as an owned value inside its request,
-/// so no worker shares the plan with another and nothing waits for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Retrying = { first?: number; due: Due[] };
-/// ```
-#[derive(Clone, Debug, Default)]
-pub struct Retrying {
-    /// The pause before the first new try;
-    /// nothing when a retryable failure is to be reported as a failed push.
-    pub first: Option<Duration>,
-    /// The pushes due again,
-    /// each naming the directory it belongs to.
-    pub due: Vec<Due>,
-    /// The directory a plan is kept in,
-    /// so that a drain can keep one on disk before it tells the person a retry is coming;
-    /// nothing for a plan kept in memory only.
-    pub plans: Option<PathBuf>,
-}
-
-/// Methods over a request.
-impl Retrying {
-    /// A request for a drain that keeps no plan:
-    /// a push that could pass is reported as failed,
-    /// as it is for handlers that do not retry.
-    pub fn none() -> Self {
-        return Self { first: None, due: Vec::new(), plans: None };
-    }
-}
-
-/// What:
-///  One change a worker asks of the plan:
-/// plan a try,
-/// or drop the plan of a branch.
-/// Why:
-///   A worker cannot change the plan (it does not hold it),
-/// so it returns what it did and the service loop applies the changes
-///  on its own thread,
-/// in the order they were made,
-/// which is how the last plan of a branch wins.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; asked } };
-/// ```
-#[derive(Clone, Debug)]
-pub enum RetryChange {
-    /// Try the branch of `item` again as try number `attempt`,
-    /// at `due`,
-    /// replacing any plan of the same branch.
-    Plan {
-        /// The Git directory whose service pushes.
-        git_dir: PathBuf,
-        /// The newest push item of the branch.
-        item: WorkItem,
-        /// The number of the try that is planned.
-        attempt: u32,
-        /// When it is due.
-        due: Instant,
-    },
-    /// The branch needs no new try:
-    /// its push landed,
-    /// or the person must act.
-    Forget {
-        /// The Git directory whose service pushes.
-        git_dir: PathBuf,
-        /// The branch reference.
-        branch_ref: String,
-        /// When the worker asked for the branch's plans to end,
-        /// in microseconds since the epoch.
-        /// Why:
-        ///   A forget is applied by a job that is never cancelled,
-        /// so it may be written long after the round that asked for it ended;
-        /// this instant is what tells the plans it read from the ones a later round wrote,
-        /// which stay.
-        asked: u64,
-    },
-}
-
-// The number of changes a control lets `apply` apply before it stops, as a killed service leaves the round half applied;
-// nothing outside a control.
-#[cfg(test)]
-thread_local! {
-    /// The bound of the control running on this thread.
-    static STOP_AFTER: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
-}
-
-/// Stops `apply` after `changes` changes on this thread until the guard drops.
-#[cfg(test)]
-pub(crate) fn stop_after_in_a_control(changes: usize) -> StopAfterGuard {
-    STOP_AFTER.with(|slot| { slot.set(Some(changes)); });
-    return StopAfterGuard;
-}
-
-/// Ends the control's bound when dropped.
-#[cfg(test)]
-pub(crate) struct StopAfterGuard;
-
-#[cfg(test)]
-impl Drop for StopAfterGuard {
-    fn drop(&mut self) {
-        STOP_AFTER.with(|slot| { slot.set(None); });
-    }
-}
-
-/// Whether a control's bound is reached after `applied` changes.
-#[cfg(test)]
-fn stopped_after(applied: usize) -> bool {
-    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| { return applied >= bound; }); });
-}
-
-/// What:
-///  Whether the round plans the same branch of the same Git directory again after `at`.
-/// Why:
-///   The last plan of a branch is the round's statement about it;
-/// publishing an earlier one would remove the
-///  file the worker of the last one already wrote.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// changes.slice(at + 1).some((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef)
-/// ```
-fn planned_again_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> bool {
-    for change in &changes[at + 1..] {
-        if let RetryChange::Plan { git_dir: planned_dir, item, .. } = change
-            && planned_dir == git_dir
-            && item.branch_ref == branch_ref
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  The file name of the last plan the changes after `at` write for one branch of one Git directory,
-/// or nothing.
-/// Why:
-///   A forget replayed before that plan must not remove it,
-/// and the name is known before the plan is written;
-///  only the last plan of a branch is ever published,
-/// so its name is the one to keep.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// changes.slice(at + 1).filter((c) => c.plan && sameBranch(c.plan)).map(planName).at(-1)
-/// ```
-fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> Option<String> {
-    let mut name: Option<String> = None;
-    for change in &changes[at + 1..] {
-        if let RetryChange::Plan { git_dir: planned_dir, item, attempt, .. } = change
-            && planned_dir == git_dir
-            && item.branch_ref == branch_ref
-        {
-            name = Some(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
-        }
-    }
-    return name;
 }
 
 /// What:
@@ -629,9 +331,7 @@ impl PushRetries {
         let mut found: Vec<PathBuf> = Vec::new();
         for saved in load(directory) {
             let branch: &str = saved.item.branch_ref.as_str();
-            if self.waiting.iter().any(|held| held.git_dir == saved.git_dir && held.item.branch_ref == branch)
-                || self.unwritten.iter().any(|owed| owed.git_dir == saved.git_dir && owed.branch_ref == branch)
-            {
+            if self.holds_or_owes(saved.git_dir.as_path(), branch) {
                 continue;
             }
             let due: Instant = now + pause_before(saved.attempt, self.first);
@@ -643,6 +343,33 @@ impl PushRetries {
         self.restore_pending = false;
         self.restore_failures = 0;
         return found;
+    }
+
+    /// What:
+    ///  Whether this list already holds `branch` of `git_dir`,
+    ///  or owes the removal of its plan.
+    /// Why:
+    ///   A read of the journal must not replace a plan the list already has,
+    /// which is newer than the file,
+    /// nor one whose removal this round owes,
+    /// which is the newer statement about that branch.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// retries.holdsOrOwes(gitDir, branch)
+    /// ```
+    fn holds_or_owes(&self, git_dir: &Path, branch: &str) -> bool {
+        for held in &self.waiting {
+            if held.git_dir == git_dir && held.item.branch_ref == branch {
+                return true;
+            }
+        }
+        for owed in &self.unwritten {
+            if owed.git_dir == git_dir && owed.branch_ref == branch {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// A list for a service that starts now,
@@ -744,9 +471,11 @@ impl PushRetries {
     ///   A task of the runtime may not write storage itself,
     /// and a job that gave no answer may have written or not,
     /// so the list keeps what the workers asked.
-    /// A plan a worker asked for is already on disk, because the worker writes it before the person is told a retry comes;
+    /// A plan a worker asked for is already on disk,
+    /// because the worker writes it before the person is told a retry comes;
     ///  a forget is not,
-    /// so the branch is named for a later round's write, which is what keeps a killed service from restoring the plan of a
+    /// so the branch is named for a later round's write,
+    /// which is what keeps a killed service from restoring the plan of a
     ///  push that had landed.
     ///
     /// In TS you'd write (pseudocode):

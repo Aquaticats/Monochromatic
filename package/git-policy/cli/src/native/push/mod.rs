@@ -42,6 +42,14 @@ pub mod push_retry;
 /// so that a restarted service keeps trying the pushes it was trying.
 pub mod push_retry_store;
 
+/// The failures of a push that no retry can mend,
+/// their words in Git's output and the account the person gets of each.
+pub mod push_retry_final_failure;
+
+/// What a worker is handed about a branch's new try,
+/// and what it hands back to the loop that owns the plan.
+pub mod push_retry_worker_values;
+
 /// The per-branch file name of the push failure notice:
 /// a reversible,
 /// flat,

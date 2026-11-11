@@ -355,7 +355,8 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
 }
 
 /// A service whose start read the journal too slowly to read it:
-/// its plan is in `plans` and unread, which is what a journal that stopped answering leaves.
+/// its plan is in `plans` and unread,
+/// which is what a journal that stopped answering leaves.
 fn start_service_that_could_not_read_its_plan<'scope>(
     scope: &'scope std::thread::Scope<'scope, '_>,
     handlers: &'scope GitHandlers,
@@ -485,8 +486,10 @@ const DELIVERY_AFTER_A_REREAD: Duration = Duration::from_secs(PAUSE.as_secs() * 
 /// so a journal that stopped answering leaves the service with the journal's directory and no plans.
 /// The plan the earlier service kept is a promise the person's failure record already made,
 /// and a service that waited for the next restart to read it again would break that promise for the whole of its life
-/// (kimi finding 1 of round 133, tokio-next-step-on-the-runtime).
-/// No wake is sent: the read is what makes the push due.
+/// (kimi finding 1 of round 133,
+/// tokio-next-step-on-the-runtime).
+/// No wake is sent:
+/// the read is what makes the push due.
 #[test]
 fn a_plan_the_start_could_not_read_is_read_again_and_delivered() {
     let stage: Stage = stage("push-retry-restore-read-again");

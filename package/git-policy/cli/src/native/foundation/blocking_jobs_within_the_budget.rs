@@ -179,12 +179,14 @@ where
 }
 
 /// What:
-///  `run_blocking_job_within_the_budget`'s work, once its place of the bound is taken.
+///  `run_blocking_job_within_the_budget`'s work,
+/// once its place of the bound is taken.
 /// Why:
 ///   A caller that may not wait without an end takes the place under a ceiling of its own
 /// (`run_a_job_once_awaited_no_longer_than`),
 /// and the rest of the job is the same for both:
-///  the claim, the pool's thread and the place that goes back when the work ends.
+///  the claim,
+/// the pool's thread and the place that goes back when the work ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -377,7 +379,8 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 /// (`blocking_jobs_within_the_budget.rs`).
 /// A caller that waited for a place without one would then wait for a place nothing gives back,
 /// which is the unbounded wait the owner forbids:
-///  a service that never leaves its round runs no later push, no upkeep round and never exits idle
+///  a service that never leaves its round runs no later push,
+/// no upkeep round and never exits idle
 /// (finding 4 of the review of `5686c7bb29`).
 /// The two waits are told apart because they mean different things:
 /// no place within the ceiling proves the job never started and changed nothing,
