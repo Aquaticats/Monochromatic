@@ -46,6 +46,36 @@ fn a_creation_is_what_a_member_must_be() {
     remove(root.as_path());
 }
 
+/// A per-worktree configuration that differs from the one a creation would copy is refused,
+/// byte for byte:
+/// two files whose bytes differ in a way that decodes to the same text are still two configurations,
+/// and a commit that took the older one would run the editor,
+/// the hook or the command the person has since changed.
+/// Why:
+///   The copy a creation makes is the bytes of the file,
+/// so the comparison over them is the one that answers whether
+///  the member is what a creation would have made.
+#[test]
+fn a_worktree_configuration_is_compared_by_its_bytes() {
+    let root: PathBuf = fixture("shadow-pool-member-worktree-configuration");
+    let repo: PathBuf = repository_of(root.as_path());
+    git(repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
+    // Git reads the per-worktree file as bytes, so an editor path that is not text is a configuration it accepts.
+    let first: &[u8] = b"[core]\n\teditor = \x80\n";
+    let second: &[u8] = b"[core]\n\teditor = \x81\n";
+    std::fs::write(repo.join(".git/config.worktree").as_path(), first).expect("the per-worktree file");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(refusal(&template, shadow.as_path()).expect("checked"), None, "the copy a creation made is a member");
+    std::fs::write(repo.join(".git/config.worktree").as_path(), second).expect("another editor, in bytes");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")),
+        "two configurations that decode to the same text are still two configurations"
+    );
+    remove(root.as_path());
+}
+
 /// A leftover of a use is refused,
 /// and the refusal names it rather than guessing.
 #[test]
