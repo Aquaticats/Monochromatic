@@ -200,7 +200,7 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
     }
     // The answer is a pathname, so it is read as the bytes Git printed it as; a spelling of it named a directory
     //  that does not exist when the name was not UTF-8, and the route then had no instance to reach.
-    let printed: &[u8] = without_the_terminator(output.stdout.as_slice()).trim_ascii();
+    let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
     return if printed.is_empty() { None } else { Some(path_answer(printed)) };
 }
 

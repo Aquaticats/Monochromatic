@@ -28,8 +28,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-/// A pathname from the bytes Git printed for it.
-use crate::hooks_path_values::path_answer;
+use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::iso_time::now_iso;
 use crate::service_client::{START_WAIT, wake};
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
@@ -324,8 +323,9 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
     if !output.succeeded() {
         return Err(format!("git could not name the repository's common directory: {}", output.error_text()));
     }
-    // Git ends the path with one line feed; every other byte is the path's own, so nothing but whitespace goes.
-    let named: &[u8] = output.stdout.trim_ascii();
+    // Git ends the path with one line feed; every other byte is the path's own, so only that terminator goes.
+    //  A directory whose name ends in a space is that directory, and the record is queued there.
+    let named: &[u8] = without_the_terminator(output.stdout.as_slice());
     return if named.is_empty() {
         Err(String::from("git named no common directory for the worktree"))
     } else {
