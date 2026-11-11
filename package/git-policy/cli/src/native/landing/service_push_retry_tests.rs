@@ -24,7 +24,7 @@ use crate::push_retry::{Due, PushRetries, RetryChange};
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
-use crate::push_failure_notice::notice_directory;
+use crate::push_failure_notice::{notice_directory, push_failures};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
@@ -87,6 +87,17 @@ fn stage(name: &str) -> Stage {
 /// a new commit landed,
 /// its work item written.
 fn stage_with(name: &str, hook_name: &str) -> Stage {
+    return stage_installing(name, Some(hook_name));
+}
+
+/// The same stage with no hook on the remote at all,
+/// for a control that installs the one it needs after the setup's own push.
+fn stage_without_a_hook(name: &str) -> Stage {
+    return stage_installing(name, None);
+}
+
+/// Build the stage, installing the stalling hook `hook_name` when one is named.
+fn stage_installing(name: &str, hook_name: Option<&str>) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
@@ -97,10 +108,12 @@ fn stage_with(name: &str, hook_name: &str) -> Stage {
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
-    let marker: PathBuf = root.join("stalled-once");
-    let hook: PathBuf = remote.join("hooks").join(hook_name);
-    std::fs::write(hook.as_path(), format!("#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exec sleep 600; fi\nexit 0\n", marker.display(), marker.display())).expect("hook");
-    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    if let Some(hook_name) = hook_name {
+        let marker: PathBuf = root.join("stalled-once");
+        let hook: PathBuf = remote.join("hooks").join(hook_name);
+        std::fs::write(hook.as_path(), format!("#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exec sleep 600; fi\nexit 0\n", marker.display(), marker.display())).expect("hook");
+        std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    }
     std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
     git(repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
     let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
@@ -164,6 +177,65 @@ fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
     assert_eq!(remote_tip(&stage), stage.landed, "the retry delivered the commit");
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(second, None, "nothing is left to try again");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  The server's own words for a push it accepted reach the person.
+/// Why:
+///   `SPEC.md` "Reconcile and bounds" says a successful push shows its `remote:` lines,
+/// and the commit command returned long before the service's push ended,
+/// so the record the next command shows is the only way those words can arrive.
+/// A `post-receive` hook that prints and accepts is the server saying something.
+#[test]
+fn an_accepted_push_leaves_the_servers_own_remote_lines_for_the_person() {
+    const SERVER_LINE: &str = "REMOTE-SERVER-MESSAGE-THAT-MUST-REACH-THE-PERSON";
+    let stage: Stage = stage_without_a_hook("push-remote-output");
+    let hook: PathBuf = stage.remote.join("hooks").join("post-receive");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{SERVER_LINE}' >&2\nexit 0\n").as_str()).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the control's push delivered the commit, so the hook really spoke");
+    let shown: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(
+        shown.contains(SERVER_LINE),
+        "the accepted push's server line was discarded; the person was shown {shown:?}"
+    );
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push that delivered but could not update its remote-tracking reference tells the person.
+/// Why:
+///   Git exits `0` because the commits arrived,
+/// and the refusal it printed is the only sign that the local view stayed behind:
+/// without it `git status` reports the branch ahead of a remote that already has the commits and nothing says why
+/// (`SPEC.md` "Reconcile and bounds").
+/// The lock is held by this control and by nothing else,
+/// so it is still there at the end, which is what keeps the reference behind.
+#[test]
+fn a_delivered_push_whose_tracking_reference_was_locked_tells_the_person() {
+    let stage: Stage = stage_without_a_hook("push-tracking-lock");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let lock: PathBuf = git_dir.join("refs").join("remotes").join("origin").join("main.lock");
+    std::fs::create_dir_all(lock.parent().expect("the lock has a directory")).expect("tracking reference directories");
+    std::fs::write(lock.as_path(), b"a foreign process holds this reference\n").expect("lock");
+    let tracking_before: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]).trim().to_owned();
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the push delivered the commit while the lock was held");
+    assert!(lock.exists(), "the foreign lock was left where it was");
+    let tracking_after: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]).trim().to_owned();
+    assert_eq!(tracking_after, tracking_before, "the tracking reference stayed behind, so Git's refusal is still true");
+    let shown: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(
+        shown.contains("cannot lock ref"),
+        "Git's tracking-reference refusal was discarded; the person was shown {shown:?}"
+    );
     remove(stage.root.as_path());
 }
 
