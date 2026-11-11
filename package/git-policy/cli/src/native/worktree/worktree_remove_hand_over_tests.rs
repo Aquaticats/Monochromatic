@@ -195,10 +195,8 @@ impl RemoveOperations for HandingOverStand {
 struct Linked {
     /// The fixture directory that holds the repository and the worktree.
     root: PathBuf,
-    /// The main checkout,
-    /// whose Git starts run the removal.
-    repo: PathBuf,
-    /// Its common Git directory.
+    /// Its common Git directory,
+    /// which is where the record waits and where Git is started.
     common: PathBuf,
     /// The linked worktree.
     worktree: PathBuf,
@@ -216,29 +214,41 @@ fn a_repository_with_a_linked_worktree(name: &str) -> Linked {
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", written.to_str().expect("utf8")]);
     let worktree: PathBuf = std::fs::canonicalize(written.as_path()).expect("canonical");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return Linked { root, repo, common, worktree };
+    return Linked { root, common, worktree };
 }
 
 /// What:
 ///  The record a removal writes for a whole worktree names Git's own removal,
-///  and its id comes from the path,
-///  so two removals of one worktree are one record.
+///  and its id comes from the path and the registration being removed,
+///  so two sweeps of one landing are one record and a worktree added again at the same path is a new one.
 /// Why:
 ///  The queue keys an item by its id,
 /// and a person reading two merges that both found the same worktree must read one record,
-///  not two that two service rounds race on.
+///  not two that two service rounds race on;
+///  a `done` record is never removed,
+///  so a worktree added again at the same path must not be taken for the one that went.
 #[test]
-fn a_worktree_removal_record_is_keyed_by_its_path_and_names_git() {
-    let one: WorkItem = worktree_removal_item(Path::new("/r/.git"), Path::new("/r"), Path::new("/r/topic"));
-    let again: WorkItem = worktree_removal_item(Path::new("/r/.git"), Path::new("/r"), Path::new("/r/topic"));
-    let other: WorkItem = worktree_removal_item(Path::new("/r/.git"), Path::new("/r"), Path::new("/r/elsewhere"));
+fn a_worktree_removal_record_is_keyed_by_its_path_and_registration_and_names_git() {
+    let root: PathBuf = fixture("worktree-removal-record");
+    let registration: PathBuf = root.join("registration");
+    std::fs::create_dir(registration.as_path()).expect("a registration");
+    let target: PathBuf = root.join("topic");
+    let one: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), registration.as_path());
+    let again: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), registration.as_path());
+    let other: WorkItem = worktree_removal_item(Path::new("/r/.git"), root.join("elsewhere").as_path(), registration.as_path());
+    // A worktree added again at the same path has a registration of its own, with an identity of its own.
+    let added_again: PathBuf = root.join("registration-again");
+    std::fs::create_dir(added_again.as_path()).expect("the registration a second worktree at one path gets");
+    let second: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), added_again.as_path());
+    assert_ne!(one.id(), second.id(), "a worktree added again at one path is a new removal");
+    remove(root.as_path());
     assert_eq!(one.id(), again.id(), "one worktree is one record");
     assert_ne!(one.id(), other.id(), "two worktrees are two records");
     assert_eq!(one.oid.len(), 40, "the id keeps the shape every reader of a record requires: {}", one.oid);
     assert!(one.oid.as_bytes().iter().all(u8::is_ascii_hexdigit), "{}", one.oid);
     assert_eq!(one.branch_ref, WORKTREE_REMOVAL_REFERENCE, "the record says the removal is Git's own");
-    assert_eq!(one.parent, "/r/topic", "the record names the worktree to remove");
-    assert_eq!(one.repository, PathBuf::from("/r"), "the record names the worktree Git is started in");
+    assert_eq!(one.parent, target.display().to_string(), "the record names the worktree to remove");
+    assert_eq!(one.repository, PathBuf::from("/r/.git"), "the record names the directory Git is started in, which outlives the merge");
     assert_eq!(one.kind, WorkKind::SubvolumeDelete);
 }
 
@@ -258,7 +268,8 @@ fn a_handed_over_worktree_is_recorded_before_it_is_told() {
         woken.borrow_mut().push(git_dir.to_path_buf());
         return Err(String::from("no service answers here"));
     };
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.repo.as_path(), linked.worktree.as_path(), &told).expect("handed over");
+    let registration: PathBuf = linked.common.join("worktrees").join("topic");
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), &told).expect("handed over");
     assert_eq!(woken.borrow().clone(), vec![linked.common.clone()], "the service of the queue the record is in is told");
     let pending: PathBuf = pending_record_path(linked.common.as_path(), &item);
     assert!(pending.is_file(), "the record outlives the command: {}", pending.display());
@@ -280,7 +291,8 @@ fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-service");
     let pool: PathBuf = pool_root_for(linked.common.as_path(), &linked.common.join("worktrees/topic"));
     std::fs::create_dir_all(pool.join("member").join("objects")).expect("a pool as a fill leaves it");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.repo.as_path(), linked.worktree.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); })
+    let registration: PathBuf = linked.common.join("worktrees").join("topic");
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "Git removes the worktree the record names");
     assert!(!linked.worktree.exists(), "the worktree directory is gone");
@@ -302,7 +314,8 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-refused");
     let notes: PathBuf = linked.worktree.join("notes.txt");
     std::fs::write(notes.as_path(), b"what I was in the middle of\n").expect("a file the person wrote");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.repo.as_path(), linked.worktree.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); })
+    let registration: PathBuf = linked.common.join("worktrees").join("topic");
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
     let verdict: Verdict = delete_subvolume_of(&item);
     match &verdict {

@@ -465,7 +465,7 @@ fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Resu
         RemoveOutcome::Refused(report) | RemoveOutcome::Incomplete(report) => return Err(report),
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = hand_over_worktree_removal(place.context, place.git_dir, place.cwd, one.worktree.as_path(), place.told)?;
+    let record: WorkItem = hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.told)?;
     return Ok(Removed::ByTheService(record));
 }
 

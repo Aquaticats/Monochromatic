@@ -128,23 +128,28 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
 ///  so it is the step that may not be run twice and may run for minutes on a large tree:
 ///  the person's command must not wait for it,
 ///  and the record is what outlives that command.
-///  The id is a digest of the path,
-/// so two removals of one worktree are one record,
+///  The id is a digest of the path and of the registration's own identity,
+///  so two sweeps of one landing write one record,
+///  a worktree added again at the same path is a new one,
 ///  and the `oid` field keeps the shape every reader of a record requires.
-///  The repository is the worktree the merge ran in,
-///  not the directory holding the one to remove:
+///  The repository is the repository's own Git directory,
+///  which is the one directory the record names that outlives the worktree the merge ran in:
+///  a record whose `repository` is no directory is refused by the service,
+///  and a merge's worktree can be removed by a later merge.
 ///  Git is started there,
-///  and a directory outside every worktree answers `not a git repository`.
+///  and Git reads a Git directory as the repository it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const worktreeRemovalItem = ({ gitDir, target }) => ({ kind: 'subvolume-delete', repository: dirname(target), gitDir, ref: WORKTREE_REMOVAL_REFERENCE, oid: sha1(pathBytes(target)), parent: target, created: now, tries: 0 });
 /// ```
-pub fn worktree_removal_item(git_dir: &Path, repository: &Path, target: &Path) -> WorkItem {
-    let named: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(crate::subvolume_sha::sha1(path_bytes(target).as_slice()).as_slice());
+pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path) -> WorkItem {
+    let named: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(crate::subvolume_sha::sha1(removal_key(target, registration).as_slice()).as_slice());
     return WorkItem {
         kind: WorkKind::SubvolumeDelete,
-        repository: repository.to_path_buf(),
+        // The repository's own Git directory, which is the one directory the record names that outlives the worktree the
+        //  merge ran in: `is_acceptable` refuses a record whose `repository` is no directory, and Git runs from there.
+        repository: git_dir.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
         branch_ref: String::from(WORKTREE_REMOVAL_REFERENCE),
         oid: named,
@@ -337,23 +342,53 @@ fn is_directory(path: &Path) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await handOverWorktreeRemoval({ context, gitDir, repository, target, told }); // record, then wake; a wake that fails leaves the record
+/// await handOverWorktreeRemoval({ context, gitDir, target, registration, told }); // record, then wake; a wake that fails leaves the record
 /// ```
 /// # Errors
 ///
 /// The words for a record that cannot be written,
 /// and for a worktree whose path is not absolute.
-pub fn hand_over_worktree_removal(context: &GitContext, git_dir: &Path, repository: &Path, target: &Path, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<WorkItem, String> {
+pub fn hand_over_worktree_removal(context: &GitContext, git_dir: &Path, target: &Path, registration: &Path, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<WorkItem, String> {
     if !target.is_absolute() {
         return Err(format!("the removal of {} names no absolute path", target.display()));
     }
-    let item: WorkItem = worktree_removal_item(git_dir, repository, target);
+    let item: WorkItem = worktree_removal_item(git_dir, target, registration);
     enqueue(work_directory(git_dir).as_path(), &item)?;
     debug(TAG, format!("the removal of {} waits for the commit service's own Git at {}", target.display(), pending_record_path(git_dir, &item).display()).as_str());
     if let Err(why) = told(context, git_dir) {
         warn(TAG, format!("the removal of {} is recorded and not woken ({why})", target.display()).as_str());
     }
     return Ok(item);
+}
+
+/// What:
+///  The bytes one worktree removal is keyed by:
+///  its path,
+///  and the identity the filesystem gives the registration that is being removed.
+/// Why:
+///  A record's id is its idempotency key,
+///  so two sweeps of one landing must write one record,
+///  and two worktrees added one after another at the same path must not share one:
+///  a `done` record is never removed,
+///  and a second removal keyed by the path alone would be taken for the first
+///  and never run.
+///  A registration that cannot be read leaves the path alone,
+///  which is the record this release wrote before the identity was added.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removalKey = (target, registration) => concat(pathBytes(target), identityBytes(stat(registration)));
+/// ```
+fn removal_key(target: &Path, registration: &Path) -> Vec<u8> {
+    let mut key: Vec<u8> = path_bytes(target);
+    use std::os::unix::fs::MetadataExt as _;
+    if let Ok(found) = std::fs::metadata(registration) {
+        key.extend_from_slice(found.dev().to_le_bytes().as_slice());
+        key.extend_from_slice(found.ino().to_le_bytes().as_slice());
+        key.extend_from_slice(found.ctime().to_le_bytes().as_slice());
+        key.extend_from_slice(found.ctime_nsec().to_le_bytes().as_slice());
+    }
+    return key;
 }
 
 /// What:

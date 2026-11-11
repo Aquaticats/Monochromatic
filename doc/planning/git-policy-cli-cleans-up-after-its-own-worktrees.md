@@ -870,8 +870,17 @@ A kernel has no reverse lookup from a directory to the processes holding it open
  and the answer `LeftToGit` no longer runs `git worktree remove` here.
  It writes a `subvolume-delete` work item whose reference is
  `worktree_remove_hand_over.rs` `WORKTREE_REMOVAL_REFERENCE`,
- keyed by a SHA-1 of the worktree's path,
+ keyed by a SHA-1 of the worktree's path and of the registration's own identity
+ (its device,
+ its inode and its change time),
  and wakes the commit service of the repository's common Git directory.
+ The identity is in the key because a `done` record is never removed:
+ keyed by the path alone,
+ a worktree added again at the same path and landed again would be taken for the one that went,
+ and nothing would remove it.
+ The record's `repository` is that common Git directory too,
+ because the service refuses a record whose `repository` is no directory,
+ and the worktree the merge ran in can itself be removed by a later merge.
  The merge's own thread does one record write and one greeting,
  and its line names the record,
  where `done` means the worktree is gone and `failed` means Git kept it.

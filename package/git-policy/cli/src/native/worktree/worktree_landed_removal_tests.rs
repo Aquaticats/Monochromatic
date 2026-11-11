@@ -586,7 +586,8 @@ fn a_landed_worktree_is_handed_to_the_commit_service_instead_of_being_removed_by
     let item: &crate::work_item::WorkItem = &handed.record;
     assert_eq!(item.kind, crate::work_item::WorkKind::SubvolumeDelete);
     assert_eq!(item.parent, landed.worktree.display().to_string(), "the record names the worktree to remove");
-    assert_eq!(item.git_dir, landed.common, "the record is read from the queue of the worktree the merge ran in");
+    assert_eq!(item.git_dir, landed.common, "the record is read from the queue of the common Git directory");
+    assert_eq!(item.repository, landed.common, "the record names a directory that outlives the worktree the merge ran in");
     assert_eq!(item.branch_ref, crate::worktree_remove_hand_over::WORKTREE_REMOVAL_REFERENCE, "the record says the removal is Git's own");
     let pending: PathBuf = crate::worktree_remove_hand_over::pending_record_path(landed.common.as_path(), item);
     assert!(pending.is_file(), "the record outlives the command: {}", pending.display());
