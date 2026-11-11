@@ -30,7 +30,7 @@ use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, remove_start};
 use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_server_land_group::{forget_the_pushes_of, forget_what_a_batch_owes};
+use crate::service_server_land_group::forget_what_a_batch_owes;
 use crate::service_timing::LandTiming;
 use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
 use std::ffi::OsString;
@@ -113,9 +113,11 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
     match hold(holding) {
         Ok(held_batch) => {
             refused.timing.hold += refused.held_at.elapsed();
-            // Nothing landed, so no push of this batch may run: the records are taken again when the branch actually moves
-            //  (`held_commit_settle.rs`), and one left here would say a commit no branch names waits for a push.
-            forget_the_pushes_of(refused.intent);
+            // Nothing landed, so nothing of this batch is owed: no push of it may run, and no index update is owed, since its
+            //  branch has not moved. Both records are taken again when the branch actually moves (`held_commit_settle.rs`), and
+            //  one left here would say a commit no branch names waits for a push, or that a commit that landed did not finish
+            //  the index when no commit landed at all.
+            forget_what_a_batch_owes(refused.intent);
             crate::service_log!("batch {} is held behind a reference lock: {}", refused.seq, refused.words);
             let objects: PathBuf = refused.first.common_dir.join("objects");
             let short: String = short_name(refused.git, refused.repository, objects.as_path(), None, refused.new);
@@ -244,8 +246,24 @@ pub struct DropTheBatch<'a> {
 /// rm(intent); forgetWhatABatchOwes(intent); rm(start); updateRef(['-d', scratch])
 /// ```
 pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
+    forget_the_batch_that_will_not_land(drop);
+    let _deleted = crate::service_land_git_steps_and_import_stream::run(drop.git, drop.repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", drop.scratch], None);
+}
+
+/// What:
+///  The intent, what the batch owes and the witness it saw: everything a batch that will never land gives back,
+///  except the side reference that holds what it built.
+/// Why:
+///   A landing that gives up before its branch move removes those three as its last step;
+///  a step ended at its ceiling keeps the commit the reference holds first (`keep_what_an_ended_step_built`),
+///  so that caller takes this and leaves the reference where the keeping reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm(intent); forgetWhatABatchOwes(intent); rm(start)
+/// ```
+pub(crate) fn forget_the_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
     let _intent_removed = std::fs::remove_file(batch_path(drop.context.journal.as_path(), drop.seq, OPEN_EXTENSION));
     forget_what_a_batch_owes(drop.intent);
     remove_start(drop.context.journal.as_path(), drop.seq);
-    let _deleted = crate::service_land_git_steps_and_import_stream::run(drop.git, drop.repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", drop.scratch], None);
 }

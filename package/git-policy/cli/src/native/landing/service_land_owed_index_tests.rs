@@ -1452,3 +1452,106 @@ fn a_notice_reaches_standard_error_while_its_shared_lock_is_held() {
     let _joined = worker.join();
     assert!(delivered, "the notice needed the lock a synchronous writer holds");
 }
+
+/// The longest a control waits for the landing of another thread to say what it waits for.
+const A_NOTICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The ceiling a control gives a landing whose lock a program holds and keeps.
+const A_SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// What:
+///  An announcer that hands every notice of a batch to the control that reads them.
+/// Why:
+///   The wait for another program's `index.lock` is what these controls watch,
+/// and the notices are its only statement that it began.
+struct Told(std::sync::mpsc::Sender<crate::service_index_lock::Announce>);
+
+impl crate::service_index_lock::Announcer for Told {
+    fn announce(&self, note: crate::service_index_lock::Announce) {
+        let _sent = self.0.send(note);
+    }
+}
+
+/// What:
+///  A program of this test that takes the worktree's index lock and keeps it open,
+/// as another program's `git` does while it writes the index.
+/// Why:
+///   A lock nothing holds is removed by the landing's own rule,
+/// so only a held one makes the wait last.
+/// The holder lets go when `release` appears,
+/// which keeps a control from waiting out a sleep.
+fn hold_the_index(world: &World, release: &Path) -> PathBuf {
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    let script: PathBuf = world.root.join("hold-the-index.sh");
+    crate::test_support::executable(
+        script.as_path(),
+        format!(
+            "#!/bin/sh\nexec 9>\"$1\"\nwhile [ ! -e \"$2\" ]; do /usr/bin/sleep 0.02; done\nrm -f \"$1\"\n",
+        )
+        .as_bytes(),
+    );
+    let _holder = crate::test_support::spawn_owned(std::process::Command::new(script.as_path()).arg(lock.as_path()).arg(release))
+        .expect("the holder of the index runs");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !lock.exists() {
+        assert!(began.elapsed() < A_NOTICE_WITHIN, "the holder did not take {}", lock.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    return lock;
+}
+
+/// The number of push records the worktree holds where nothing runs them.
+fn held_push_records(world: &World) -> usize {
+    let directory: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(world.repo.join(".git").as_path()).as_path(), crate::work_item::HELD);
+    return std::fs::read_dir(directory.as_path()).map(|entries| { return entries.flatten().count(); }).unwrap_or(0);
+}
+
+/// Owner's rule "never discard user data", and the SPEC's "a batch that never landed owes nothing":
+/// a batch withdrawn at the index lock's ceiling never moved the branch,
+/// so it owes no index update and no push,
+/// and every command of the worktree must not read a record of it.
+/// The records are taken after the lock, before the branch moves,
+/// so only the paths that can land take them.
+#[test]
+fn a_batch_withdrawn_at_the_index_lock_ceiling_owes_nothing() {
+    let mut world: World = world("service-land-owed-withdrawn-at-the-lock");
+    world.context.lock_ceiling = A_SHORT_CEILING;
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let waited: CommitRequest = request(&world, "waited", "one.txt", "one\n");
+    let _lock: PathBuf = hold_the_index(&world, world.root.join("release-the-index").as_path());
+    let landing = land_batch(&world.context, 1, std::slice::from_ref(&waited));
+    assert_eq!(landing.err(), Some(FailureCode::IndexInUse), "the commit is withdrawn at its ceiling");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch did not move");
+    assert!(!owed_of(&world, 1).exists(), "a batch that never landed owes no index update: {}", owed_of(&world, 1).display());
+    assert_eq!(held_push_records(&world), 0, "a batch that never landed held no push");
+    remove(world.root.as_path());
+}
+
+/// A batch that waits for another program's `index.lock` owes nothing yet:
+/// its branch has not moved,
+/// so a commit prepared meanwhile must not read a record of it,
+/// and must not say that a commit that landed did not finish updating the index.
+#[test]
+fn a_batch_that_waits_for_the_index_lock_owes_nothing_yet() {
+    let world: World = world("service-land-owed-nothing-while-the-lock-is-waited-for");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let waited: CommitRequest = request(&world, "waited", "one.txt", "one\n");
+    let release: PathBuf = world.root.join("release-the-index");
+    let _lock: PathBuf = hold_the_index(&world, release.as_path());
+    let (told, heard): (std::sync::mpsc::Sender<crate::service_index_lock::Announce>, std::sync::mpsc::Receiver<crate::service_index_lock::Announce>) = std::sync::mpsc::channel();
+    let context: LandContext = world.context.clone();
+    let batch: Vec<CommitRequest> = vec![waited];
+    let landing = std::thread::spawn(move || { return land_batch_announcing(&context, 1, &batch, &Told(told)); });
+    let notice: crate::service_index_lock::Announce = heard.recv_timeout(A_NOTICE_WITHIN).expect("the landing says what it waits for");
+    assert!(matches!(notice, crate::service_index_lock::Announce::Waiting(_)), "{notice:?}");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the batch has not landed while it waits");
+    let owed: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(world.repo.join(".git").as_path());
+    assert!(owed.is_empty(), "a batch that has not landed owes nothing, so nothing of it is read: {owed:?}");
+    assert_eq!(held_push_records(&world), 0, "a batch that has not landed holds no push");
+    std::fs::write(release.as_path(), b"let go\n").expect("the holder is told to let go");
+    let outcomes = landing.join().expect("the landing of the other thread").expect("the batch lands once the lock is free");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert!(!owed_of(&world, 1).exists(), "the landed batch installed its index, so it owes nothing any more");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the worktree's index agrees with the branch");
+    remove(world.root.as_path());
+}

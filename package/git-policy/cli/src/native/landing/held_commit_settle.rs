@@ -537,6 +537,11 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
                 Err(settled) => return settled,
             }
         };
+        // What: Everything the batch owes is taken here, before the branch moves.
+        // Why:  A kill between the move and the index install leaves the record of the index update and the held push of
+        //  every commit the move lands, and the push is held before the branch names it (`work_item_holding.rs`).
+        //  A settlement that is refused takes them back below, because a branch that did not move owes nothing.
+        crate::service_server_land_group::what_a_batch_owes(&written);
         match move_branch(git, held, &written, commit.as_str(), current.as_str()) {
             Ok(true) => {
                 let waits: bool = finish(git, held, &written, lock.take());
@@ -547,8 +552,13 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
             //  The record this round wrote is read back by the next one, so the decision is made from the branch and the record
             //  as they are then, and the witness recorded under the lock describes the index that is about to be read again;
             //  nothing was staged meanwhile because the lock is still held.
-            Ok(false) => {}
-            Err(said) => return Settled::Cannot { commit, because: format!("Git refused the branch write ({said}), and the settlement waits for the next command") },
+            Ok(false) => {
+                crate::service_server_land_group::forget_what_a_batch_owes(&written);
+            }
+            Err(said) => {
+                crate::service_server_land_group::forget_what_a_batch_owes(&written);
+                return Settled::Cannot { commit, because: format!("Git refused the branch write ({said}), and the settlement waits for the next command") };
+            }
         }
     }
     return Settled::Cannot { commit: intent.new.clone(), because: String::from("the branch kept moving while its write was being made") };

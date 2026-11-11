@@ -201,13 +201,6 @@ pub(crate) fn land_batch_body(
             index: first.index.clone(),
             git_dir: first.git_dir.clone(),
         };
-        // The index update is owed from this instant, and its own record is written before the branch moves: a kill between the
-        //  move and the index install leaves it where the person's next command reads it (`owed_index_update.rs`).
-        // Everything the batch owes is taken here, before the branch moves, so a kill after the move leaves the record of the index
-        //  update and the held push of every commit it would land (`work_item_holding.rs`).
-        let owed_began: Instant = Instant::now();
-        crate::service_server_land_group::what_a_batch_owes(&intent);
-        timing.reads_split.owed += owed_began.elapsed();
         // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
         //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
         let conclusion_began: Instant = Instant::now();
@@ -240,6 +233,15 @@ pub(crate) fn land_batch_body(
                 Err(code) => Err(code),
             };
         }
+        // What: Everything this batch owes is taken now, before the branch moves and with the index lock held.
+        // Why:  A kill between the move and the index install leaves the record of the index update and the held push of
+        //  every commit the batch lands (`owed_index_update.rs`, `work_item_holding.rs`), and a batch that never moves its
+        //  branch owes nothing: taken any earlier, a wait that is withdrawn at its ceiling, a lock that is never given up or a
+        //  write Git never starts would leave records of a landing that did not happen, and every later command of the worktree
+        //  would read them (a held push of a commit no branch names, and an owed update for a commit that landed).
+        let owed_began: Instant = Instant::now();
+        crate::service_server_land_group::what_a_batch_owes(&intent);
+        timing.reads_split.owed += owed_began.elapsed();
         // The index file now, under the lock, is what a replay of this batch must still find before it resets a path: a replay is
         //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness
         //  needs no list of paths. A record that cannot be written leaves a batch no replay is made for, and this landing
@@ -282,7 +284,28 @@ pub(crate) fn land_batch_body(
             } else {
                 format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)
             });
-            run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes()))?
+            match run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes())) {
+                Ok(output) => output,
+                // Git never started, so the branch did not move and nothing of this batch lands: what the batch took is given
+                //  back, so no record of a landing that did not happen outlives it. A step ended at a ceiling keeps the commit
+                //  the reference holds first (`land_batch_timed`), so that reference is left for it.
+                Err(code) => {
+                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> = crate::service_land_hold_a_batch::DropTheBatch {
+                        git: &git,
+                        context,
+                        repository,
+                        seq,
+                        intent: &intent,
+                        scratch: scratch.as_str(),
+                    };
+                    if code == FailureCode::StepTooSlow {
+                        crate::service_land_hold_a_batch::forget_the_batch_that_will_not_land(&drop);
+                    } else {
+                        crate::service_land_hold_a_batch::drop_the_batch(&drop);
+                    }
+                    return Err(code);
+                }
+            }
         };
         timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
