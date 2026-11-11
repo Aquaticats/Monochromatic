@@ -56,6 +56,19 @@ The build folder is in a different place in the two environments:
   the build folder is `/work/package/git-policy/cli/target`,
   which is inside the wrapper crate.
 
+That difference is host configuration,
+not repository configuration.
+`doc/decision/cargo-build-dir-host-cache.md` records the setting this host carries
+(`[build] build-dir = "{cargo-cache-home}/build/{workspace-path-hash}"` in `~/.cargo/config.toml`)
+and says of it:
+"It does not travel with a clone.
+A fresh machine,
+ a new contributor,
+ or a container build needs the same two lines,
+ or intermediates go back into `<package>/target/`."
+The container gate is that container build,
+so its fixture root is inside the wrapper crate.
+
 The wrapper crate is a workspace root of its own
 (`[workspace]` in `package/git-policy/cli/Cargo.toml`).
 Cargo therefore walks up from a manifest that declares no workspace and no `package.workspace`
