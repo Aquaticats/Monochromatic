@@ -2904,6 +2904,13 @@ by that name at any depth,
 because it holds the whole ignored state another worktree's copy is filling,
 credentials included,
 and nothing in the new worktree would name it.
+A folder of the source whose every entry is left out that way is not made in the destination,
+and neither is a folder above it that holds nothing else,
+so a conversion of a worktree that holds a stage container and no other ignored state leaves no `.claude/worktrees`
+behind for state it never carried;
+a folder of the source that holds no entry at all is still copied as it is.
+A deletion pass leaves a stage container in the destination where it stands,
+because it belongs to the command filling it.
 The repository root's own `.cache` is kept,
 because tasks read the tools and generated inputs it holds.
 Dependencies,

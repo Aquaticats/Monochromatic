@@ -23,7 +23,7 @@ use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_sync_attrs::{AttributeFailure, AttributeLosses};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
@@ -182,6 +182,9 @@ pub(crate) struct Pass<'a> {
     /// Several copies
     ///  exist when the destination cannot link across a boundary (two subvolumes).
     pub(crate) links: HashMap<(u64, u64), Vec<PathBuf>>,
+    /// The directories this pass made in the destination,
+    /// so one whose every entry was left out can go again.
+    pub(crate) made_here: HashSet<PathBuf>,
 }
 
 /// Whether the destination entry already equals the source file:

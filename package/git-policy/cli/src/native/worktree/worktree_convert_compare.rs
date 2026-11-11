@@ -49,6 +49,8 @@
 //! ```
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
+/// Another command's stage container is no state of the old tree, so it is not a difference.
+use crate::worktree_copy_prune::names_a_private_stage;
 use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
@@ -177,6 +179,36 @@ fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, o
 }
 
 /// What:
+///  Whether a directory of the old tree holds nothing a copy carries,
+///  because every entry under it is another command's stage container or a folder of those alone.
+/// Why:
+///   A copy leaves a stage container out wherever it stands,
+/// and it does not make a folder whose every entry was left out
+///  (`subvolume_sync.rs`, `remove_a_directory_that_holds_nothing`);
+/// the comparison must read the same rule,
+///  or it demands an entry the copy never makes and keeps the old tree on every run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const carriesNothing = (old, relative) => readdir(join(old, relative)).every((name) => namesAPrivateStage(name) cycle)
+/// ```
+fn holds_nothing_a_copy_carries(old: &Path, relative: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(old.join(relative)) else { return false };
+    for entry in entries.flatten() {
+        let inside: PathBuf = relative.join(entry.file_name());
+        if names_a_private_stage(inside.as_os_str().as_encoded_bytes()) {
+            continue;
+        }
+        let Ok(kind) = entry.file_type() else { return false };
+        if kind.is_dir() && holds_nothing_a_copy_carries(old, inside.as_path()) {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+/// What:
 ///  Why the installed tree does not hold the old tree's entry `inside` at all,
 /// naming the entry and,
 ///  for an entry the copy never recreates,
@@ -258,12 +290,22 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
         for item in std::fs::read_dir(old.join(&relative))? {
             let entry: std::fs::DirEntry = item?;
             let inside: PathBuf = relative.join(entry.file_name());
+            // Another command's stage container is in neither tree's state: an `add` stages the ignored state it fills in a
+            //  `.cli-git-worktree-copy-<id>` directory, one that was killed leaves it behind, and no copy carries it into the
+            //  installed tree. Demanding it would keep the old tree on every run and ask a person to settle a version that
+            //  exists on one side only.
+            if names_a_private_stage(inside.as_os_str().as_encoded_bytes()) {
+                continue;
+            }
             let before: std::fs::Metadata = std::fs::symlink_metadata(old.join(&inside))?;
             if before.dev() != device {
                 return Ok(Some(format!("{} is a subvolume or a mount point inside the old tree, which this command does not delete", inside.display())));
             }
             let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside)) {
                 Ok(found) => found,
+                // A folder the copy left out because every entry under it is another command's stage container is no
+                //  difference: the copy makes no such folder, so demanding it kept the old tree on every run.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound && before.file_type().is_dir() && holds_nothing_a_copy_carries(old, inside.as_path()) => continue,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside)))),
                 Err(error) => return Err(error),
             };

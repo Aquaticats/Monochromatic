@@ -51,6 +51,8 @@ use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
+/// Another command's stage container is no state of the source, so a pass never enters one and never removes one.
+use crate::worktree_copy_prune::names_a_private_stage;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
@@ -142,6 +144,12 @@ impl Pass<'_> {
             if self.options.excluded.contains(&relative.join(entry.file_name())) {
                 continue;
             }
+            // Another command's stage container holds the ignored state a worktree's copy is filling, credentials included,
+            //  and nothing names it in the destination: a pass that carried it would leave that state in a worktree on another
+            //  branch for good, and one that deleted it would delete a copy in progress.
+            if names_a_private_stage(relative.join(entry.file_name()).as_os_str().as_encoded_bytes()) {
+                continue;
+            }
             match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
                 Ok(Some(metadata)) => children.push((entry.file_name(), metadata)),
                 Ok(None) => {}
@@ -177,6 +185,11 @@ impl Pass<'_> {
             if self.options.excluded.contains(&relative.join(item.file_name())) {
                 continue;
             }
+            // The same rule as the source side: a stage container belongs to the command filling it, so a deletion pass leaves
+            //  it where it is.
+            if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
+                continue;
+            }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;
             self.stats.deleted += 1;
         }
@@ -210,6 +223,7 @@ impl Pass<'_> {
             };
             if !is_directory_now {
                 MigrateError::from_io_result(std::fs::DirBuilder::new().mode(0o700).create(&destination), "create the directory", self.shown(relative.as_path()).as_path())?;
+                self.made_here.insert(relative.clone());
             }
             self.stats.directories += 1;
             stack.push(Work::Finish(relative.clone(), metadata));
@@ -229,6 +243,37 @@ impl Pass<'_> {
         return Ok(());
     }
 
+    /// What:
+    ///  Remove a directory this pass made when every entry of the source's directory was left out.
+    /// Why:
+    ///   A stage container is left out wherever it stands,
+    /// and a worktree's ignored state may hold nothing else,
+    /// so a copy
+    ///  would otherwise leave `.claude/worktrees` and the folders above it behind as empty directories nothing names,
+    ///  in a tree whose source has no state there;
+    /// a person comparing the two trees then sees entries that exist on one side
+    ///  only.
+    /// A directory of the source that holds no entry at all is a directory in its own right,
+    /// and a copy makes it and
+    ///  keeps it.
+    fn remove_a_directory_that_holds_nothing(&mut self, relative: &Path) -> Result<(), MigrateError> {
+        if relative.as_os_str().is_empty() || !self.made_here.contains(relative) {
+            return Ok(());
+        }
+        // Only a source directory whose entries were all left out answers this; one with no entry at all is copied.
+        let source_holds_an_entry: bool = std::fs::read_dir(self.source.join(relative)).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_some(); });
+        if !source_holds_an_entry {
+            return Ok(());
+        }
+        let made_holds_nothing: bool = std::fs::read_dir(self.destination.join(relative)).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_none(); });
+        if !made_holds_nothing {
+            return Ok(());
+        }
+        remove_entry(self.destination.join(relative).as_path(), self.shown(relative).as_path())?;
+        self.made_here.remove(relative);
+        self.stats.directories = self.stats.directories.saturating_sub(1);
+        return Ok(());
+    }
 }
 
 /// What:
@@ -248,7 +293,7 @@ pub fn sync_tree(
     options: SyncOptions<'_>,
     interrupt: &Interrupt,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), made_here: HashSet::new() };
     let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
     let mut stack: Vec<Work> = vec![Work::Finish(PathBuf::new(), root_metadata), Work::Visit(PathBuf::new())];
     while let Some(work) = stack.pop() {
@@ -259,6 +304,9 @@ pub fn sync_tree(
                 let shown: PathBuf = pass.shown(relative.as_path());
                 attribute_result(preserve_on_descriptor(source.join(&relative).as_path(), anchor.file(), &metadata, !options.update_only, &mut pass.stats.losses)
                     , shown.as_path())?;
+                // A directory this pass made whose whole content was left out is not a copy of anything, so it goes once
+                //  its entries have been handled and none was copied.
+                pass.remove_a_directory_that_holds_nothing(relative.as_path())?;
             }
         }
     }
