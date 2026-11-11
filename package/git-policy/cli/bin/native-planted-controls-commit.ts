@@ -44,7 +44,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     file: "src/native/commit/commit_index.rs",
     from: "if !selection.stage_into_index {",
     to: "if false {",
-    failing: "commit::commit_index::tests::index_without_staging_matches_the_real_index",
+    // The index commit this guard serves names paths, so the control names the test that builds one; the plain index
+    // commit stages nothing either way, so a control naming it catches no removal of this guard.
+    failing: "commit::commit_index::tests::an_index_commit_without_staging_stages_none_of_the_paths_it_names",
   },
   {
     name: "a branch base is written to the shadow branch",
@@ -63,8 +65,8 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: "the sequencer is copied into the shadow",
     file: "src/native/commit/conclusion_copy.rs",
-    from: "if recovery_step(path_present(sequencer.as_path()))? {",
-    to: "if false && recovery_step(path_present(sequencer.as_path()))? {",
+    from: "    if sequencer_present {",
+    to: "    if false {",
     failing: "commit::conclusion_copy::tests::sequencer_is_copied_recursively",
   },
   {
