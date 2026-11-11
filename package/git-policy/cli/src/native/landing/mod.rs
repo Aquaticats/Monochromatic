@@ -366,6 +366,9 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// Which items of one batch of that drain run at once and how many of them.
+pub mod service_work_items_side_by_side;
+
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
 
