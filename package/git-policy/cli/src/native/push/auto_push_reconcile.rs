@@ -42,7 +42,7 @@
 /// its command builder,
 /// queries and error type.
 use crate::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, git_output,
+    PushAttempt, PushGit, SingleFlightError,
 };
 /// The auto-push's bounded `git push` with the Git LFS upload.
 use crate::lfs_bounded_push::run_push;
@@ -365,14 +365,21 @@ pub fn integrate_and_push(
 /// an exhausted retry budget and every failure of a command are
 ///  reported,
 /// and only the first leaves the original rejection unchanged.
+///   `local` is the commit the push was allowed to send,
+/// fixed before the worktree's verdicts were read:
+/// merging it, and never
+///  the branch's reference, is what keeps a commit that landed after that reading out of the merge this publishes, because
+///  that commit's own gate may still refuse it.
+/// A branch that moved since is left where it is and the report says why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function reconcileDivergentPush({ git, branchRef, rejected }): Promise<PushAttempt>;
+/// async function reconcileDivergentPush({ git, branchRef, local, rejected }): Promise<PushAttempt>;
 /// ```
 pub fn reconcile_divergent_push(
     git: &PushGit,
     branch_ref: &str,
+    local: &str,
     rejected: PushAttempt,
 ) -> Result<PushAttempt, SingleFlightError> {
     if !was_rejected_as_stale(&rejected.output) {
@@ -385,13 +392,9 @@ pub fn reconcile_divergent_push(
         );
         return Ok(rejected);
     };
-    let local = git_output(
-        git,
-        &argv(&["rev-parse", "--verify", &format!("{branch_ref}^{{commit}}")]),
-    )?;
     let plan = Reconcile {
         destination,
-        local,
+        local: local.to_owned(),
         branch_ref: Some(branch_ref),
         label: "auto-push",
         explicit: false,

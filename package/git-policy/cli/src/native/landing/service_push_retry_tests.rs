@@ -1009,6 +1009,11 @@ fn an_offline_push_is_still_tried_again() {
 ///  (`builtin/receive-pack.c`),
 /// which is no hook and no login,
 /// so it stands for a reason nobody has listed.
+/// The line Git prints names the refspec's source,
+/// and the automatic push sends the commit the branch named before it read the worktree rather than the
+///  branch's reference (`push/auto_push.rs`,
+/// `source_of`),
+/// so the line names that commit and the branch it goes to.
 #[test]
 fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal() {
     use crate::journald_native::Priority;
@@ -1032,7 +1037,8 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
     assert!(matches!(verdict, Some(Verdict::Retry(_))), "{verdict:?}");
     let named = entries.iter().find(|entry| { return entry.message.contains("a reason this release does not know"); }).expect("the journal names the rejection");
     assert_eq!(named.priority, Priority::Warning);
-    assert!(named.message.contains("[remote rejected] main -> main (deny updating a hidden ref)"), "{}", named.message);
+    assert!(named.message.contains(item.oid.as_str()), "the line names the commit the push sent: {}", named.message);
+    assert!(named.message.contains("-> main (deny updating a hidden ref)"), "the line names the branch the commit goes to and the server's reason: {}", named.message);
     remove(stage.root.as_path());
 }
 

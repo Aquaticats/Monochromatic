@@ -4053,20 +4053,40 @@ since no push can publish an object it does not have.
 The base is the newest commit no verdict forbids,
 so the commits below the deepest blocked one still reach GitHub in the same push.
 
+The commit a push sends is fixed before that push reads the worktree's verdicts.
+A commit's record is written before its branch moves,
+so every commit of the branch at that reading has a verdict in it,
+while a commit that lands after it has none.
+A push that no verdict holds back therefore names that commit and never the branch's reference,
+so a commit whose own gate is still running is published by its own push alone,
+after its gate has answered.
+The one push that gives a branch its upstream names the branch,
+because Git sets an upstream only from a refspec that names a branch
+(measured with Git 2.56.0:
+`git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves `branch.new.merge` unset),
+and every later push of that branch is fixed again.
+A reconcile publishes a merge made from the same commit:
+a commit that lands while a reconcile runs goes out with its own push,
+and the branch that moved is left where it is with the report saying why.
+
 Limits.
 A blocked commit that is a merge publishes only the first-parent side below it until it is fixed,
 because one refspec names one commit and no commit is invented for the other side;
 a blocked commit with no parent has nothing below it,
 so that push sends nothing.
 A push under `push.default=matching` names no refspec at all,
-so a stop cannot be expressed there and the push sends nothing.
+so a stop cannot be expressed there and the push sends nothing,
+and no commit is fixed for a push no verdict holds back either:
+a commit that lands while such a push runs is published by it,
+and a refusal written afterwards cannot take it back.
 The upstream tracking ref can lag the remote,
 so a verdict already on the remote but not yet fetched still holds the branch back;
 that costs a push that could have run and publishes nothing it should not.
 
 A held-back push is never reconciled:
-the merge a reconcile publishes is made above the local tip,
-so it would carry the blocked commit.
+the merge a reconcile publishes is made above the commit this push read the branch at,
+which still holds the blocked commit,
+so it would carry that commit past the stop.
 The push therefore stays a plain fast-forward of the base,
 and the service keeps trying the branch on its own retry plan,
 so the branch resumes without waiting for the next commit once the blocked commit is off its way out.
