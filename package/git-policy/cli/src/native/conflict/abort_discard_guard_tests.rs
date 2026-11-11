@@ -57,7 +57,8 @@ impl Drop for Scene {
     }
 }
 
-/// The limits of the saved copies: no test waits on the pass.
+/// The limits of the saved copies:
+/// no test waits on the pass.
 fn limits() -> Limits {
     return Limits::default();
 }

@@ -126,7 +126,7 @@ pub fn state_from_presence(present: [bool; 7]) -> OperationState {
 pub fn presence_facts(answer: &[u8]) -> Result<[bool; 7], String> {
     let names: usize = OPERATION_STATE_NAMES.len() + 1;
     let mut paths: Vec<&[u8]> = Vec::<&[u8]>::with_capacity(names);
-    for line in answer.split(|byte| { return *byte == b'\n'; }) {
+    for line in answer.split(is_line_feed) {
         if line.is_empty() {
             continue;
         }
@@ -142,6 +142,19 @@ pub fn presence_facts(answer: &[u8]) -> Result<[bool; 7], String> {
         present[index] = as_path(path).exists();
     }
     return Ok(present);
+}
+
+/// Whether a byte of the state query's answer ends a path.
+/// Why:
+///   The answer is one path per line,
+///  and a named predicate reads as the one test it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeed = (byte: number): boolean => byte === 0x0a;
+/// ```
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
 /// What:
@@ -334,7 +347,8 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     return Ok(AbortDiscard::Waiting { operation: waiting, paths });
 }
 
-/// The queries, their readings and the paths they name.
+/// The queries,
+/// their readings and the paths they name.
 #[cfg(test)]
 #[path = "repository_facts_abort_discard_tests.rs"]
 mod tests;

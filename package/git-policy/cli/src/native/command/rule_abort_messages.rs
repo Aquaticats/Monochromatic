@@ -67,7 +67,7 @@ fn copies_directory(copies: &[SavedCopy]) -> Option<PathBuf> {
 ///  `&[SavedCopy]` borrows the copies the save step made.
 /// Why:
 ///   The person learns where their work went,
-///  and that the operation's own state (conflict markers, the staged merge result) is not among it,
+///  and that the operation's own state (its conflict markers and the staged merge result) is not among it,
 ///  because that state is what the abort exists to let go.
 ///
 /// In TS you'd write (pseudocode):

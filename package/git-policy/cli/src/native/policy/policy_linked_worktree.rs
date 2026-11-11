@@ -49,7 +49,9 @@ use crate::discarded_prune::Limits;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
-/// The abort carve-out: the operation's own state is what an abort lets go, the person's own work is saved first.
+/// The abort carve-out:
+/// the operation's own state is what an abort lets go,
+/// the person's own work is saved first.
 use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;

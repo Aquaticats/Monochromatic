@@ -150,11 +150,15 @@ fn a_merge_finished_in_a_linked_worktree_leaves_no_conflict_entry_behind() {
     );
 }
 
-/// Where rerere is off, nothing writes `MERGE_RR` at all:
-/// not the `git merge` that stopped, and not the finish the wrapper runs after its second pass,
+/// Where rerere is off,
+/// nothing writes `MERGE_RR` at all:
+/// not the `git merge` that stopped,
+/// and not the finish the wrapper runs after its second pass,
 /// in a linked worktree as in the main one.
-/// A cache left there would be the wrapper's own, because native Git writes none:
-/// measured with Git 2.56.0 on a conflicted merge, `MERGE_RR` is absent with
+/// A cache left there would be the wrapper's own,
+/// because native Git writes none:
+/// measured with Git 2.56.0 on a conflicted merge:
+/// `MERGE_RR` is absent with
 /// `rerere.enabled` false and holds one entry per conflicted path with it true.
 #[test]
 fn a_merge_finished_in_a_linked_worktree_writes_no_rerere_cache_where_rerere_is_off() {

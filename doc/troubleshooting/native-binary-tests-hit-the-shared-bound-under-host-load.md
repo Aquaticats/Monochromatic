@@ -1596,3 +1596,47 @@ fixed on `bound-supervisor-r2` with a control and a hand-applied mutant that tur
   no deterministic way to force a reuse exists
   without privileges,
   so the pin is tested by what it refuses.
+
+## A merge the wrapper finishes waits for its landing, which the bound does not exempt
+
+2026-11-11T19:53-05:00,
+host load average about 110,
+`native:test:binary:host -- abort_during_an_operation merge_rr_cleanup` (eleven tests in parallel):
+two of the four `merge_rr_cleanup` controls failed in 45.0 s and 63.8 s,
+each with the supervisor's own line
+`the harness supervisor ended the command ... /bin/git merge --no-edit topic ...: no progress for 5.0 s`
+(and 5.1 s for the second),
+and the tree it printed held two processes:
+`timeout` and the wrapper's link named `git`,
+waiting in `unix_stream_read_generic`.
+The service's record in the same log names what it was waiting for:
+
+```text
+monochromatic-git-policy-cli-service: answered request=... outcome=landed ... total_ms=10178
+monochromatic-git-policy-cli-service: the background sync of 1 records of a landing took 9181 ms
+```
+
+The comment line after the record names one `git update-ref` of 75 ms inside it,
+and the whole answer took 9.6 s,
+so the wrapper stood in a socket read for longer than the window while its own commit was being landed.
+Run alone immediately afterwards,
+the same four controls passed in 6.3 s
+(`Summary [   6.263s] 4 tests run: 4 passed, 958 skipped`).
+
+The exemptions the supervisor has are for a command that *is* a commit
+(`COMMIT_BOUND_SECONDS`,
+`shared_bound_misuse` in `binary_support.rs`)
+and for a manual page.
+A wrapped `git merge` that ends the merge through its own commit is neither:
+whether it finishes the merge at all is decided after the command starts,
+and the commit it makes waits on the service,
+which is a program outside the watched tree,
+so no sign of life reaches the supervisor while the landing syncs.
+
+No mechanism was added here.
+The gate runs this suite in its own container on a fresh volume,
+where a landing that takes ten seconds is the host's own write latency.
+A fix would need either a hold around the landing
+(the rule above says a command that waits on an external service that is making progress needs one)
+or a per-command cgroup,
+which the gate container does not offer.

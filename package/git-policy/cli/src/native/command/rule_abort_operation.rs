@@ -98,7 +98,8 @@ pub struct OperationState {
     /// `REVERT_HEAD` exists.
     pub revert_head: bool,
     /// The `rebase-merge` directory exists:
-    ///  `git rebase` waits, whichever backend started it.
+    ///  `git rebase` waits,
+    ///  whichever backend started it.
     pub rebase_merge: bool,
     /// `rebase-apply/rebasing` exists:
     ///  a `git rebase` with the apply backend waits.
@@ -185,7 +186,8 @@ pub fn restored_revision(operation: AbortOperation) -> &'static OsStr {
     };
 }
 
-/// The operations, the state facts and the names.
+/// The operations,
+/// the state facts and the names.
 #[cfg(test)]
 #[path = "rule_abort_operation_tests.rs"]
 mod tests;

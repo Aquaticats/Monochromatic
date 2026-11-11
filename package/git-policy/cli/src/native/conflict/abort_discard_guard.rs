@@ -89,7 +89,8 @@ fn copy_failed(operation: AbortOperation, failure: &SaveFailure) -> String {
 }
 
 /// What:
-///  The worktree root, the common directory and the identity of the repository the command runs in,
+///  The worktree root,
+///  the common directory and the identity of the repository the command runs in,
 ///  or nothing when the identity has no worktree (which the guard rejects before this point).
 /// Why:
 ///   A copy is written below the common Git directory and read from the worktree,
