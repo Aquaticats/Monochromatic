@@ -7155,6 +7155,32 @@ in-process reader can) gives every value of the multi-valued keys.
   a branch the remote lacks is left alone,
   and Git's own failure ("No refs in common and none specified")
   is a failed push reported with Git's words.
+  One such push carries several branches,
+  so Git's exit status is the worst fate among them:
+  a sibling the remote refused makes it non-zero while the recorded branch arrived.
+  The recorded branch's fate is therefore asked of the remote,
+  never read from that status:
+  after a matching push that failed,
+  `git remote get-url --push --all <remote>` names the URLs the push went to,
+  one `git ls-remote --refs <url> refs/heads/<name>` per URL names the object that ref holds there,
+  and a push is reported as published only when every one of them names the commit it sent,
+  while the service journal names the refused sibling from Git's own line for it,
+  since nothing else would.
+  A refused sibling is then no failure of this branch and plans no retry.
+  Neither the remote-tracking ref nor the remote's fetch URL can answer this:
+  the tracking ref lags the remote,
+  so it still names a commit whose branch the remote deleted and reads a push to an unreachable
+  remote as delivered,
+  and `remote.<name>.pushurl` can name a repository that never received the push.
+  A push remote that is a URL rather than a name the repository holds
+  (`branch.<name>.pushRemote` or `remote.pushDefault`)
+  is asked as that URL,
+  since `git remote get-url` answers nothing for one
+  and the setting is where it is written down.
+  A push URL that cannot be asked,
+  or that names another object,
+  proves nothing and leaves the push the failure it was,
+  so the retry that publishes the branch is still planned.
 
 #### Reconcile and bounds
 

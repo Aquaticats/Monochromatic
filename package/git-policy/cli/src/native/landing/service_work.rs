@@ -466,6 +466,11 @@ impl WorkHandlers for GitHandlers {
             //  service keeps, and the words go to the person's record with the promise that plan keeps.
             Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
             Ok(result) if result.exit_code == 0 => {
+                // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
+                //  refused sibling is published nowhere, so the journal is the only place a person can learn it.
+                for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(result.shown.as_str()) {
+                    crate::service_warn!("a branch of this push was refused and was not published: {line}");
+                }
                 // A push that reconciled a moved remote published a merge and said what became of the local branch in its own
                 //  output; the command that ran the push returned long before it ended, so those words go to a record the next
                 //  command shows once. A push that simply landed says nothing and leaves no record.
