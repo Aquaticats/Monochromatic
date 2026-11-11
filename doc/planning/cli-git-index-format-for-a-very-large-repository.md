@@ -534,7 +534,9 @@ with no new switch and no new configuration key
 Controls,
 each of which failed before the change and passes after it:
 
-- `index::index_settings::tests::feature_manyfiles_sets_git_s_defaults_and_explicit_keys_win`
+- `index::index_settings::tests::feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins`,
+  which the amendment of 2026-11-11T00:31:00-05:00 renamed from
+  `..._and_explicit_keys_win` and widened to the `keep` case
 - `index::index_settings::tests::index_skiphash_is_read_as_git_reads_it`
 - `index::index_full_write::tests::a_skipped_hash_writes_zeros_where_the_checksum_would_be`
 - `index::index_reset_file::tests::a_repository_with_feature_manyfiles_equals_git`,
