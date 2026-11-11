@@ -4577,6 +4577,38 @@ and "never discard user data"):
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
   The objects are written and the ref exists before the first byte of the checkout changes.
+  That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
+  Git's own status,
+  `git diff-files`,
+  `git diff-index` and `git ls-files --modified` read either mark as "do not compare the
+  worktree copy",
+  so a marked path is compared with its index entry here,
+  by the clean-filtered object of the bytes and
+  the mode the worktree entry has
+  (`src/native/merge/merge_isolation_marks_the_status_hides.rs`).
+  A marked path whose worktree file is gone is no edit of the person's:
+  a `skip-worktree` entry with no file is a sparse checkout's own state,
+  and a missing worktree file is one Git's own update writes back.
+  A tree or a temporary index is not written for this read:
+  it runs `git ls-files -v --stage -z` over the merge's own paths and
+  `git hash-object --path` for the entries that carry a mark.
+  That hash is the clean-filtered form without `-w`,
+  so a question is not answered by writing an object,
+  and bytes that clean to the object the index records are no edit at all:
+  a path marked `text` whose worktree copy holds CRLF endings is not carried,
+  measured with Git 2.56.0,
+  where `git hash-object --path a.txt` of the CRLF copy equals the committed blob.
+  The mark itself is not carried:
+  the index records this merge writes hold the mode and the object of a layer and no flags,
+  so a path whose entry carried `assume-unchanged` or `skip-worktree` is left with a plain entry,
+  and `git status` then lists the person's edit where the mark had hidden it.
+  That is a deliberate divergence from Git's own update,
+  which clears an `assume-unchanged` mark of a path it writes and keeps a `skip-worktree` one
+  (measured with Git 2.56.0 on a fast-forward that writes the marked path:
+  `h` becomes `H` and `S` stays `S`);
+  the file the merge wrote is materialised either way,
+  so a kept `skip-worktree` mark would say "do not check out" about a path the merge just checked out,
+  and a flag is not the person's bytes.
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
   so `git merge --ff-only` takes them as it always did.
   Every one of their identities is read again before that call and again before each rename,
@@ -4749,6 +4781,29 @@ and an index that holds unmerged entries,
 are not one edit anybody can merge:
 the command is native Git's whole,
 which refuses such a checkout itself.
+A named pipe,
+a socket or a device at a path the merge writes or deletes holds no bytes a merge can carry either,
+and reading one is worse than refusing it:
+opening a named pipe for reading waits until a writer appears,
+and nothing promises one,
+so the merge would wait without an end while it holds the checkout
+(owner's rule "nothing should ever wait forever or indefinitely";
+measured with the built wrapper,
+a tracked path whose worktree copy was a named pipe kept the merge waiting until a five-second deadline killed it).
+Git's own update of the checkout would also remove such an entry without a copy of it,
+which takes away a pipe another process still writes into.
+So the merge stops before the merge commit is created and before the first byte of the worktree,
+the index or the branch changes,
+and the line names every such path,
+says what stands there,
+that nothing was changed,
+and that the entries are still in the checkout
+(`src/native/merge/merge_isolation_a_special_file_the_merge_changes.rs`).
+No worktree read ever opens one:
+the bytes of a captured path come from a handle that can only be a plain file,
+and a name swapped for a pipe between the type check and the open is refused
+(`crate::plain_file`,
+`src/native/merge/merge_isolation_carry.rs`).
 The move the auto-push makes after a published reconcile merge names its branch instead,
 because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
 an ancestry question,
