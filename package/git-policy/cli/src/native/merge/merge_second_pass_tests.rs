@@ -251,6 +251,195 @@ fn paths_the_pass_must_not_touch_are_left_with_their_reason() {
     remove(world.root.as_path());
 }
 
+/// What:
+///  A line merge whose answer is larger than the bytes one captured step keeps reaches the pass whole,
+///  so the file it merges keeps its beginning.
+/// Why:
+///  The pass re-merges a stage at its own limit,
+///  and Git's answer for a conflicted one is larger than that stage:
+///  the same text,
+///  the other two sides of the region and four marker lines
+///  (`STEP_OUTPUT_LIMIT` in `src/native/process/output_capture.rs` keeps the last 8 MiB of a step that is not ended).
+///  A pass that reads only the tail cuts its answer in the middle of the file,
+///  finds the one region that tail holds,
+///  and stages the file without its start:
+///  the person's bytes are gone from the file the index records
+///  (cross-vendor review of round 133,
+///  finding 1).
+#[test]
+fn a_line_merge_larger_than_the_captured_tail_keeps_the_start_of_the_file() {
+    let limit: usize = LARGEST_BLOB_BYTES;
+    let start: &[u8] = b"THE START OF THIS FILE MUST SURVIVE THE SECOND PASS\n";
+    let last: &[u8] = b"alpha one\n";
+    // One long line of filler, then the line both sides changed. The answer is the stage's own bytes, the other two
+    // sides of that line and four marker lines, which is more than the bytes a captured step keeps.
+    let mut base: Vec<u8> = Vec::with_capacity(limit);
+    base.extend_from_slice(start);
+    base.resize(limit - last.len() - 1, b'x');
+    base.push(b'\n');
+    base.extend_from_slice(last);
+    assert_eq!(base.len(), limit, "the fixture is exactly the largest stage the pass takes");
+    let mut ours: Vec<u8> = base[..base.len() - last.len()].to_vec();
+    ours.extend_from_slice(b"alpha uno\n");
+    let mut theirs: Vec<u8> = base[..base.len() - last.len()].to_vec();
+    theirs.extend_from_slice(b"ALPHA one\n");
+    let world: World = world(
+        "second-pass-at-the-limit",
+        &[("a.md", base.as_slice())],
+        &[("a.md", Change::Write(ours.as_slice()))],
+        &[("a.md", Change::Write(theirs.as_slice()))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let summary: Vec<String> = verdicts
+        .iter()
+        .map(|verdict| {
+            return match verdict {
+                Verdict::Merged(file) => format!("merged, {} bytes", file.bytes.len()),
+                Verdict::Left { why, .. } => format!("left: {why:?}"),
+            };
+        })
+        .collect();
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    assert!(
+        file.bytes.starts_with(start),
+        "the start of the file is kept: {} bytes beginning {:?}",
+        file.bytes.len(),
+        String::from_utf8_lossy(&file.bytes[..file.bytes.len().min(start.len() + 16)])
+    );
+    assert_eq!(file.bytes.len(), limit, "the merged file is as long as the stage, not the tail of Git's answer: {} bytes", file.bytes.len());
+    remove(world.root.as_path());
+}
+
+/// What:
+///  Marker-shaped text the person's file already held is kept,
+///  even when Git reports the conflict count its exit status saturates at.
+/// Why:
+///  Cutting Git's answer cannot tell Git's delimiters from identical lines the file already held,
+///  so the region count against Git's exit status is what catches a wrong cut,
+///  and that status is the count truncated to 127:
+///  at 127 the comparison was skipped,
+///  a literal `zdiff3` example block at the start of the file became one more region,
+///  and the word pass replaced it,
+///  so the file was staged resolved without the person's text
+///  (cross-vendor review of round 133,
+///  finding 2).
+#[test]
+fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
+    // Git's exit status is the number of conflicts, truncated to this value.
+    const GIT_CONFLICT_STATUS_LIMIT: usize = 127;
+    let example: &[u8] = b"<<<<<<< documented-example\nalpha uno\n||||||| documented-example\nalpha one\n=======\nALPHA one\n>>>>>>> documented-example\n";
+    let mut base_lines: Vec<String> = String::from_utf8(example.to_vec()).expect("text").lines().map(str::to_owned).collect();
+    for index in 0..GIT_CONFLICT_STATUS_LIMIT {
+        base_lines.push(format!("shared {index} before"));
+        base_lines.push(format!("alpha one {index}"));
+        base_lines.push(format!("shared {index} after"));
+    }
+    // Neither side may touch the example block:
+    // it is the file's own text, and only the numbered lines are a choice.
+    let as_ours = |line: &str| -> String {
+        return match line.strip_prefix("alpha one ") {
+            Some(rest) => format!("alpha uno {rest}"),
+            None => line.to_owned(),
+        };
+    };
+    let as_theirs = |line: &str| -> String {
+        return match line.strip_prefix("alpha one ") {
+            Some(rest) => format!("ALPHA one {rest}"),
+            None => line.to_owned(),
+        };
+    };
+    let ours: Vec<String> = base_lines.iter().map(|line| { return as_ours(line.as_str()); }).collect();
+    let theirs: Vec<String> = base_lines.iter().map(|line| { return as_theirs(line.as_str()); }).collect();
+    let as_bytes = |lines: &[String]| -> Vec<u8> { return format!("{}\n", lines.join("\n")).into_bytes(); };
+    let world: World = world(
+        "second-pass-marker-shaped-text",
+        &[("a.md", as_bytes(base_lines.as_slice()).as_slice())],
+        &[("a.md", Change::Write(as_bytes(ours.as_slice()).as_slice()))],
+        &[("a.md", Change::Write(as_bytes(theirs.as_slice()).as_slice()))],
+    );
+    // The fixture must reach the status at which Git stops counting, or it proves nothing about it.
+    let (_, conflicts) = merge_tree_of(&world);
+    let stage = |side: Option<&Stage>| -> String {
+        return match side {
+            Some(found) => found.oid.clone(),
+            None => String::from("none"),
+        };
+    };
+    let [conflict] = conflicts.as_slice() else { panic!("expected one conflicted path: {conflicts:?}") };
+    let oracle = git_output(
+        world.repo.as_path(),
+        &[
+            "merge-file",
+            "--stdout",
+            "--object-id",
+            "--zdiff3",
+            "-L",
+            "ours",
+            "-L",
+            "base",
+            "-L",
+            "theirs",
+            stage(conflict.ours.as_ref()).as_str(),
+            stage(conflict.base.as_ref()).as_str(),
+            stage(conflict.theirs.as_ref()).as_str(),
+        ],
+    );
+    assert_eq!(
+        oracle.status.code(),
+        Some(i32::try_from(GIT_CONFLICT_STATUS_LIMIT).expect("a conflict count fits the exit status")),
+        "the fixture reaches the count Git's status saturates at"
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let summary: Vec<String> = verdicts
+        .iter()
+        .map(|verdict| {
+            return match verdict {
+                Verdict::Merged(file) => format!("merged, {} bytes", file.bytes.len()),
+                Verdict::Left { why, .. } => format!("left: {why:?}"),
+            };
+        })
+        .collect();
+    // Every one of the 127 conflicts is word-resolvable, so the file is merged and the person's block is not the only
+    // thing that has to survive: a fix that refused at the status ceiling would leave the file for the person and fail here.
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    assert!(
+        file.bytes.starts_with(example),
+        "the literal block the file already held is kept: the merged file begins {:?}",
+        String::from_utf8_lossy(&file.bytes[..file.bytes.len().min(example.len() + 16)])
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A conflicted file whose lines end with a carriage return and a line feed is merged by word.
+/// Why:
+///  Git writes the markers of such a file with that ending too;
+///  a cut that accepts only a lone line feed reads no region,
+///  the region count then refuses the answer,
+///  and the file stays conflicted where the pass used to resolve it.
+#[test]
+fn a_file_whose_lines_end_with_both_bytes_is_merged() {
+    let world: World = world(
+        "second-pass-crlf",
+        &[("a.md", b"head\r\nalpha one\r\n")],
+        &[("a.md", Change::Write(b"head\r\nalpha uno\r\n"))],
+        &[("a.md", Change::Write(b"head\r\nALPHA one\r\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let summary: Vec<String> = verdicts
+        .iter()
+        .map(|verdict| {
+            return match verdict {
+                Verdict::Merged(file) => format!("merged, {} bytes: {:?}", file.bytes.len(), String::from_utf8_lossy(file.bytes.as_slice())),
+                Verdict::Left { why, .. } => format!("left: {why:?}"),
+            };
+        })
+        .collect();
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    assert_eq!(file.bytes, b"head\r\nALPHA uno\r\n".to_vec(), "the word merge of the two sides keeps the file's own line ending");
+    remove(world.root.as_path());
+}
+
 /// A path both sides added has no common ancestor stage and is left.
 #[test]
 fn a_path_both_sides_added_is_left_for_the_person() {

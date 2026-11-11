@@ -4758,13 +4758,31 @@ of the review call and of the whole review).
   a person's command that started it stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT` (7 seconds,
   the owner's
   "Class ceiling + 7 s (Recommended)") and says the result is not known.
-  `RERUNNABLE` names neither `symbolic-ref` nor `init`:
+  `RERUNNABLE` names neither `symbolic-ref`,
+  `merge-file` nor `init`:
   `symbolic-ref` may be run again as a read (`--quiet`,
   `--short`,
   one name) or,
   on a shadow repository the wrapper made,
   as a write
   of one name to one target with no option (identical in the experiment).
+  `merge-file` may be run again and ended only in the form the second pass runs it,
+  `--stdout --object-id` over three object names with the conflict style,
+  the labels,
+  the marker width and the quiet flag:
+  that form writes nothing,
+  while `merge-file` without `--stdout` writes the merged bytes into its first file,
+  a file of the person's.
+  Measured on Git 2.56.0 in a throwaway repository on 2026-11-11 under
+  `strace --trace=openat,creat,truncate,unlink,rename,mkdir,link,symlink`:
+  it opens nothing for writing (only `/dev/null`),
+  removes and renames nothing,
+  and leaves the repository byte-identical after a second run
+  (reflog,
+  refs,
+  index,
+  worktree,
+  objects and the Git directory compared).
   `init` is never run again in place (a cut leaves reftable
   tables the second run does not replace:
   50 of 104 cuts differed);
@@ -12794,6 +12812,12 @@ and `src/native/merge/word_merge.rs`
 the line merge is Git's own,
 `git merge-file --stdout --object-id --zdiff3` over the three stages,
 whose exit status is the number of conflicts;
+the line merge is a read:
+it writes nothing
+(`src/native/transaction/transaction_git_step_rerun_and_end_rules.rs`,
+`merge_file_reads_only`),
+so the wrapper may run it again after a refusal and end it at the ceiling of its class,
+and its whole answer is read rather than the tail a step that is never ended keeps;
 the regions it leaves are then diffed by word
 and by the bytes between words (the `similar` crate,
 Myers algorithm,
@@ -12823,11 +12847,22 @@ see the refusal below.
 A `--zdiff3` answer is cut into the text Git settled and the regions it left,
 and a region's line numbers for the report and the journal are found by searching its text forward from the end
 of the region before it.
+The markers of that answer carry labels made unguessable for every merge
+(`-L ours-<random> -L base-<random> -L theirs-<random>`):
+Git does not escape the markers it writes,
+so a block the file already held that looks exactly like a conflict would otherwise be taken for a region
+and replaced by the word pass.
+A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
+as Git writes that file's markers,
+so both endings are a marker's own and such a file is still merged.
 An answer that ends inside a region,
 that nests a region inside another,
-or whose region count differs from the conflict count Git reported is refused,
+or whose region count is other than the conflict count Git reported is refused,
 and its file stays exactly as Git left it:
 a region read wrongly would lose a side.
+Git's exit status stops counting at 127,
+so at that count the answer may hold more regions than Git counted and never fewer,
+and a shortfall is refused as any other difference is.
 
 Owner decision (2026-11-10),
 verbatim:
@@ -13345,6 +13380,14 @@ the push's stall window,
 the service's stop and the grace a stopped query gets,
 with its request on the standard input and an answer ceiling of one stage per name it asks for
 (`src/native/push/auto_push_reconcile_merge_commit.rs`),
+and the line merge's answer ceiling is four stages:
+the three stages it is given and the text Git settled,
+with the push report's own cap on top of them for the marker lines,
+because a merge of three stages is larger than each of them and the report's cap alone refused merges
+that resolve;
+room for about twenty-six thousand regions is what that cap adds,
+and an answer larger than the ceiling is refused and leaves the path as Git left it,
+for the person to resolve;
 so a merge driver that never returns ends the merge and is named as a stopped query,
 and the push worker,
 its claim and the drain of that repository are not held for good.
