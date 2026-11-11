@@ -3414,6 +3414,15 @@ and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`,
 and a restart of the service when no program uses the repository).
+A commit whose own batch is inside a write is told sooner,
+because its commit may be on the branch already:
+the service sends one line,
+`this commit is inside a write of the commit service`,
+as soon as the write starts
+(the owner chose this on 2026-11-04,
+"Short extra wait").
+That line is a normal part of a landing that outlasts a beat and not a failure:
+the command goes on waiting and then says whether the commit was made.
 The commit inside the stuck write waits 7 seconds
 past its `ANSWER_CEILING` and then reports that it is not known whether it was made,
 with `git log -1`,
