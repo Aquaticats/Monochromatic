@@ -1019,6 +1019,10 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    a worktree a person has just added and not committed in is never taken
    by someone else's merge,
    because a merge of another branch brings every branch sitting on its commits along;
+   a repository that keeps no reflog for that branch proves nothing about it,
+   so its worktree is examined as it was before this rule;
+- the worktree does not hold another worktree this repository registers,
+   whose files and whose own record a removal would take with it;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
