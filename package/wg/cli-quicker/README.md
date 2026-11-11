@@ -147,6 +147,26 @@ longest-prefix selection.
 An explicit numeric `Table` continues to receive routes without automatic policy rules.
 `Table = off` installs no routes.
 
+The main-table suppression rule that automatic routing adds
+(`table main suppress_prefixlength 0`) carries the protocol tag `201`,
+the tag the application-bypass routes and rules already carry,
+because that rule names no interface and no table and has no other identity.
+`down` removes exactly the tagged rule,
+and only for an interface whose fwmark names a policy table,
+which is the mark that automatic routing sets.
+A config with a numeric `Table` installs no policy rule,
+so its `down` and its rollback remove none,
+where they used to delete whichever `suppress_prefixlength 0` rule came first,
+including one another tunnel or an administrator had installed.
+A tunnel an earlier build set up carries the same rule without the tag;
+its own interface carries the fwmark,
+so removing a suppression whose tagged form is absent falls back to the untagged shape once.
+The rule this program writes is listed with the tag:
+
+```sh
+ip -4 rule show | grep 'suppress_prefixlength 0 protocol 201'
+```
+
 Before creating an interface,
 `wg-quicker` uses iproute2 JSON rule output to reject IVPN Desktop's exact split-tunnel rule
 (`fwmark 0xca6c`,

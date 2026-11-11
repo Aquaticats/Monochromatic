@@ -1,9 +1,13 @@
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import type { WireguardConfig, } from './config.ts';
 import {
   run,
   runAllowingFailure,
 } from './runner.ts';
 import { addExemptRule, } from './tunnel-bypass.ts';
+import { BYPASS_ROUTE_PROTOCOL, } from './tunnel-bypass-types.ts';
+import { isAbsentDelete, } from './ip-delete.ts';
 import { addKillSwitch, } from './tunnel-firewall.ts';
 import { readFwmark, } from './tunnel-fwmark.ts';
 import {
@@ -17,24 +21,14 @@ import {
 } from './tunnel-util.ts';
 
 /**
+ Module logger for the routing rules.
+ */
+const l = tagged({ tag: 'tunnel-route', },);
+
+/**
  Address-family flag accepted by the `ip` tool.
  */
 type Proto = '-4' | '-6';
-
-/**
- A `not fwmark`/`suppress_prefixlength` rule pair tracked for teardown.
- */
-type PolicyRule = {
-  /**
-   Address family the rule applies to.
-   */
-  readonly proto: Proto;
-
-  /**
-   Policy table number the `not fwmark` rule targets, absent for the suppress rule.
-   */
-  readonly table?: number;
-};
 
 
 /**
@@ -93,6 +87,20 @@ async function readAllowedPrefixes(
 
 
 /**
+ The protocol tag this program writes on the main-table suppression it installs.
+
+ A `suppress_prefixlength 0` rule has no other identity:
+ it names no interface and no table,
+ so without a tag a teardown cannot tell the rule this program created from one
+ another tunnel or an administrator installed,
+ and it used to delete whatever it found.
+
+ The tag is the one the bypass routes and rules already carry,
+ so the rules this program created are the ones carrying it.
+ */
+const POLICY_RULE_PROTOCOL = BYPASS_ROUTE_PROTOCOL;
+
+/**
  Adds one `not fwmark` and one `suppress_prefixlength` rule for a routed family.
  
  The main-table lookup preserves physical connected routes before the policy table,
@@ -141,8 +149,81 @@ async function addPolicyRules(
       'main',
       'suppress_prefixlength',
       '0',
+      'protocol',
+      String(POLICY_RULE_PROTOCOL,),
     ],
   },);
+}
+
+/**
+ Removes the main-table suppression of one family,
+ and only the rule this program created.
+
+ A tunnel an earlier build set up carries the same rule without the tag,
+ so an absent tagged rule whose interface still has a policy fwmark
+ is that earlier build's suppression and is removed by its shape.
+
+ @param proto - Address family whose suppression is removed.
+
+ @param automaticRouting - Whether the interface carries the fwmark that automatic routing sets,
+ which is what makes a main-table suppression this interface's own.
+
+ @example
+ ```ts
+ await removeSuppressRule({ proto: '-4', automaticRouting: true });
+ ```
+ */
+async function removeSuppressRule(
+  {
+    proto,
+    automaticRouting,
+  }: {
+    readonly proto: Proto;
+    readonly automaticRouting: boolean;
+  },
+): Promise<void> {
+  /**
+   What the exact, tagged delete ended with.
+   */
+  const tagged = await runAllowingFailure({
+    command: 'ip',
+    args: [
+      proto,
+      'rule',
+      'delete',
+      'table',
+      'main',
+      'suppress_prefixlength',
+      '0',
+      'protocol',
+      String(POLICY_RULE_PROTOCOL,),
+    ],
+  },);
+  if (tagged.exitCode === 0)
+    return;
+  if (!isAbsentDelete({ result: tagged, },)) {
+    l.warn(`could not remove the ${proto} main-table suppression: ${tagged.stderr.trim()}`,);
+    return;
+  }
+  if (!automaticRouting)
+    return;
+  /**
+   What removing the untagged rule of an earlier build ended with.
+   */
+  const untagged = await runAllowingFailure({
+    command: 'ip',
+    args: [
+      proto,
+      'rule',
+      'delete',
+      'table',
+      'main',
+      'suppress_prefixlength',
+      '0',
+    ],
+  },);
+  if ((untagged.exitCode !== 0) && (!isAbsentDelete({ result: untagged, },)))
+    l.warn(`could not remove the ${proto} main-table suppression of an earlier build: ${untagged.stderr.trim()}`,);
 }
 
 
@@ -266,48 +347,32 @@ export async function removePolicyRules(
    Live policy table for the interface, absent when no default was routed.
    */
   const fwmark = await readFwmark({ interfaceName, },);
-  /**
-   Rule descriptors to remove: per-family `not fwmark` then `suppress_prefixlength`.
-   */
-  const rules: PolicyRule[] = [];
-  if (fwmark.found) {
-    rules.push(
-      {
-        proto: '-4',
-        table: fwmark.table,
-      },
-      {
-        proto: '-6',
-        table: fwmark.table,
-      },
-    );
+  if (!fwmark.found) {
+    // A config with a numeric `Table` installs routes and no policy rule at all,
+    // so there is nothing of this interface's to remove,
+    // and a main-table suppression found here belongs to another tunnel or an administrator.
+    l.debug(`no policy routing to remove for ${interfaceName}`,);
+    return;
   }
-  rules.push(
-    { proto: '-4', },
-    { proto: '-6', },
-  );
-  await Promise.all(rules.map(function remove(rule,): Promise<unknown> {
-    /**
-     Base of the delete command, optionally naming a specific table.
-     */
-    const base: string[] = rule.table === undefined ? [
-      rule.proto,
-      'rule',
-      'delete',
-      'table',
-      'main',
-      'suppress_prefixlength',
-      '0',
-    ] : [
-      rule.proto,
-      'rule',
-      'delete',
-      'table',
-      String(rule.table,),
-    ];
-    return runAllowingFailure({
-      command: 'ip',
-      args: base,
-    },);
+  await Promise.all(([
+    '-4',
+    '-6',
+  ] as const).map(function remove(proto,): Promise<void> {
+    return (async function removeFamily(): Promise<void> {
+      await runAllowingFailure({
+        command: 'ip',
+        args: [
+          proto,
+          'rule',
+          'delete',
+          'table',
+          String(fwmark.table,),
+        ],
+      },);
+      await removeSuppressRule({
+        proto,
+        automaticRouting: true,
+      },);
+    })();
   },),);
 }
