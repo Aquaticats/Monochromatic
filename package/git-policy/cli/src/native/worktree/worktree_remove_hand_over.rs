@@ -58,7 +58,8 @@ const TAG: &str = "worktreeRemoveHandOver";
 /// and one the next commands report when it stays.
 pub const DELETING_PREFIX: &str = "cli-git-deleting-";
 
-/// The reference an item of this kind names, which is no branch:
+/// The reference an item of this kind names,
+/// which is no branch:
 /// an item carries a reference-shaped field so that every reader of a record keeps one shape,
 /// and no push is ever made for this kind.
 pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-delete";
@@ -177,7 +178,8 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 }
 
 /// What:
-///  Hand the subvolume of a proven, unlocked worktree to the service:
+///  Hand the subvolume of a proven,
+/// unlocked worktree to the service:
 /// record the item,
 /// rename the subvolume out of the
 ///  person's way,
@@ -332,12 +334,14 @@ fn by_id_unavailable(errno: i32) -> bool {
     return errno == libc::ENOTTY || errno == libc::EOPNOTSUPP || errno == libc::EINVAL;
 }
 
-/// The path of a pending record, for the words that name it.
+/// The path of a pending record,
+/// for the words that name it.
 pub fn pending_record_path(common_dir: &Path, inventory: &WorkItem) -> PathBuf {
     return state_directory(work_directory(common_dir).as_path(), PENDING).join(inventory.id());
 }
 
-/// The bytes of a path, for a control that checks the record names the same place twice.
+/// The bytes of a path,
+/// for a control that checks the record names the same place twice.
 pub fn path_bytes(path: &Path) -> Vec<u8> {
     return path.as_os_str().as_bytes().to_vec();
 }

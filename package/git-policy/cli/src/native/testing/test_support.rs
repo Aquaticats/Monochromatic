@@ -125,7 +125,8 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
-///  Give this user back the read, write and search permission on every directory of a tree that has lost it,
+///  Give this user back the read,
+/// write and search permission on every directory of a tree that has lost it,
 ///  without following a symbolic link.
 /// Why:
 ///   A control that writes a directory its owner may not write (`0500`,
