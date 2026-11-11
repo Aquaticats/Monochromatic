@@ -40,6 +40,16 @@ use crate::scratch_location::sweep_repository_scratch;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// The point at which a collection begins,
+/// for a control that holds one repository's collection open while another repository's is asked for
+/// (`service_fault_hooks_test_support.rs`).
+/// It names the directory,
+/// so a control of one repository never holds a collection of another.
+#[cfg(test)]
+pub(crate) fn collection_point(common_dir: &Path) -> String {
+    return format!("a-repository-scratch-collection-of-{}", common_dir.display());
+}
+
 /// Lock kept:
 ///  whether this service is already collecting,
 ///  which it sets and clears and nothing else touches:
@@ -71,6 +81,10 @@ pub fn start(common_dir: &Path) {
     let owned: PathBuf = common_dir.to_path_buf();
     let named: String = common_dir.display().to_string();
     let started = spawn_named("repository-scratch-sweep", move || {
+        // A control holds this collection at its beginning, on the thread that runs it, so "while it collects" is a state
+        //  and not a duration.
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(collection_point(owned.as_path()).as_str());
         // The flag is cleared however the collection ends, so one refused listing does not stop every later one.
         let removed: usize = sweep_repository_scratch(owned.as_path());
         COLLECTING.store(false, Ordering::Release);
