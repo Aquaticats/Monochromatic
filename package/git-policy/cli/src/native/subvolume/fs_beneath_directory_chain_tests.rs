@@ -4,7 +4,7 @@
 //! a link and a mount are still refused,
 //! and a directory on another filesystem is refused there too.
 
-use super::DirectoryChain;
+use super::{DirectoryChain, MOST_DIRECTORIES_HELD};
 use crate::fs_beneath::{device_of, identity_of, open_directory_beneath, open_root};
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -24,6 +24,17 @@ fn open_directory(path: &Path) -> std::io::Result<File> {
 /// for the chain's argument.
 fn names(components: &[&str]) -> Vec<OsString> {
     return components.iter().map(OsString::from).collect();
+}
+
+/// The identity of a directory an answer names,
+/// as its encoded text,
+/// so an assertion compares text and the borrow of the chain ends with the answer.
+///
+/// Why:
+/// an identity is what tells two directories apart,
+/// and encoded text needs no borrow to be compared.
+fn identity_text(found: &File) -> String {
+    return identity_of(found).expect("an identity").encode();
 }
 
 /// A directory `depth` deep below `root`,
@@ -63,11 +74,35 @@ fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
     let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + ROOM);
     // The walk under test, with only `ROOM` descriptors left free; it answers the identity of the directory so the
     //  borrow of the chain ends here.
-    let walked = chain.directory(component_names.as_slice()).map(|found| identity_of(found).expect("an identity").encode());
+    let walked = chain.directory(component_names.as_slice()).map(identity_text);
     restore_limit(before);
     let from_the_chain: String = walked.expect("a path deeper than the chain may keep is still answered");
     let direct: File = open_directory_beneath(&held, component_names.as_slice()).expect("the same path, one directory at a time");
-    assert_eq!(from_the_chain, identity_of(&direct).expect("an identity").encode(), "the chain answers the directory the names lead to");
+    assert_eq!(from_the_chain, identity_text(&direct), "the chain answers the directory the names lead to");
+    remove(root.as_path());
+}
+
+/// The chain keeps every directory of a path exactly as deep as its bound,
+/// and keeps nothing of a path one directory deeper.
+#[test]
+fn a_path_at_the_bound_is_kept_and_one_past_it_is_not() {
+    let root: PathBuf = fixture("chain-bound");
+    let at_bound: Vec<OsString> = deeply_nested(root.as_path(), MOST_DIRECTORIES_HELD);
+    let mut one_past: Vec<OsString> = at_bound.clone();
+    // The one component past the bound, made inside the deepest directory the fixture has.
+    one_past.push(OsString::from("d"));
+    let mut deeper: PathBuf = root.clone();
+    for name in &one_past {
+        deeper.push(name.as_os_str());
+    }
+    std::fs::create_dir(deeper.as_path()).expect("one directory past the bound");
+    let held: File = open_directory(root.as_path()).expect("the root of the fixture");
+    let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
+    let kept: String = chain.directory(at_bound.as_slice()).map(identity_text).expect("a path at the bound is answered");
+    assert_eq!(chain.held_names().len(), MOST_DIRECTORIES_HELD, "the chain keeps every directory of a path at its bound");
+    let walked: String = chain.directory(one_past.as_slice()).map(identity_text).expect("a path past the bound is answered");
+    assert_eq!(chain.held_names().len(), 0, "the chain keeps nothing of a path past its bound");
+    assert_ne!(kept, walked, "the two paths end in different directories");
     remove(root.as_path());
 }
 
