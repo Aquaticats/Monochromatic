@@ -540,17 +540,19 @@ belongs beside them and is not this record's.
   same cost,
   and it carries every consequence of B without B's one chance.
 - A claim run beside the commit's own preparation.
-  Two runs disagree about the same pair,
+  Two runs measured the same pair,
   with a stand-in for the stat pass in each:
-  one measured 74.349 ms alone,
+  one measured the pass alone at 74.349 ms,
   77.127 ms one after the other with today's claim,
   and 80.716 ms at the same time;
   the other measured 66.829,
-  68.738 and 67.738 ms,
-  so the claim's 1.9 ms was hidden there and cost 3.6 ms there.
-  Either way the claim is milliseconds at the median and the preparation is milliseconds,
-  so a claim that waits 5,623 ms cannot hide behind it,
-  and this is not a way off the wait.
+  68.738 and 67.738 ms.
+  So in one run the claim's 1.9 ms was hidden and in the other it cost 3.6 ms more than running alone,
+  which is the noise of this host and not a saving.
+  The pass is 66.829 to 74.349 ms,
+  so a claim that waits 5,623 ms would still leave seconds on the commit's wait behind it,
+  unless the pass were stalled too,
+  and then both waits would be waiting for the same volume.
 - A digest the claim verifies from the member's own bytes.
   It costs the member's listing and every question a check makes,
   which is today's sequence with a hash on the end,
