@@ -7747,7 +7747,12 @@ so no event is an exception.
 
 - The option is part of the argument vector,
   so it adds no system call and no process start.
-  The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
+  The three commit controls of `binary_budget_tests.rs` pass,
+  and this option is not why their wrapper syncs read two:
+  the held record's verdict flushes itself and its directory in every scenario
+  (`doc/planning/cli-git-spawn-and-sync-reduction.md`,
+  "Budgets",
+  "Raised on 2026-11-10").
 - It follows every global option of the caller and precedes the subcommand,
   so no `-c core.hooksPath=<directory>`,
   `-c hook.<event>.enabled=true` or `--config-env` of the caller can bring a hook back,
