@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-shared-subagent-driver",
-  "description": "Runs one Pi agent unattended over RPC: sends the prompt, declines dialogs, enforces its limits, records a feed and a summary, and delivers steering messages from an inbox folder. Two more commands watch the runs folder for a run that should have come back, and describe one that has not.",
+  "description": "Starts Pi agents in worktrees within the provider pools' room, runs one unattended over RPC, records a feed and a summary, and reads the runs folder afterwards: the runs that should have come back, and where one that has not stands.",
   "type": "module",
   "version": "0.0.1",
   "private": true,
@@ -17,7 +17,11 @@
   "bin": {
     "drive-pi-subagent": "dist/final/node/drive-pi-subagent.mjs",
     "watch-overdue-pi-runs": "dist/final/node/watch-overdue-pi-runs.mjs",
-    "check-in-on-pi-runs": "dist/final/node/check-in-on-pi-runs.mjs"
+    "check-in-on-pi-runs": "dist/final/node/check-in-on-pi-runs.mjs",
+    "start-pi-run-when-a-pool-has-room": "dist/final/node/start-pi-run-when-a-pool-has-room.mjs",
+    "start-pi-run-in-a-worktree": "dist/final/node/start-pi-run-in-a-worktree.mjs",
+    "retry-pi-run-start-until-a-pool-has-room": "dist/final/node/retry-pi-run-start-until-a-pool-has-room.mjs",
+    "start-pi-runs-from-a-batch-list": "dist/final/node/start-pi-runs-from-a-batch-list.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

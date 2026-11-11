@@ -214,3 +214,8 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The library surface of starting a run, kept in a file of its own so that neither list outgrows the line budget.
+ */
+export * from './index-of-starting-a-run.ts';
