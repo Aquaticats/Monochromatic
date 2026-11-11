@@ -17,10 +17,16 @@
 //! the place feeds the report's line numbers only,
 //! never the merged bytes,
 //! so a repeated passage can at worst name the earlier of two identical places.
+//!  A marker line is one only when it carries the labels the second pass gave the merge,
+//! which are made unguessable for every merge:
+//! a file can hold a line that looks exactly like a marker,
+//! and Git does not escape what it writes,
+//! so the labels are what tells Git's own delimiters from the person's text
+//! (`merge_second_pass_git_lines.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const { settled, regions } = cut(gitZdiff3Merge); // settled.length === regions.length + 1
+//! const { settled, regions } = cut(gitZdiff3Merge, labels); // settled.length === regions.length + 1
 //! ```
 
 /// One conflict region of a `--zdiff3` merge.
@@ -36,6 +42,18 @@ pub struct Region {
     /// The bytes the region holds in Git's answer,
     /// its markers included.
     pub markers: Vec<u8>,
+}
+
+/// The three labels the line merge's markers carry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MarkerLabels<'a> {
+    /// The first side's label,
+    /// as `-L` gave it.
+    pub ours: &'a [u8],
+    /// The common ancestor's label.
+    pub base: &'a [u8],
+    /// The second side's label.
+    pub theirs: &'a [u8],
 }
 
 /// A `--zdiff3` merge cut apart.
@@ -58,6 +76,9 @@ const MARKER_WIDTH: usize = 7;
 /// The byte that ends a line.
 const LINE_END: u8 = b'\n';
 
+/// The byte that comes before the line end of a file whose lines end with both.
+const CARRIAGE_RETURN: u8 = b'\r';
+
 /// Whether one byte ends a line.
 fn is_line_end(byte: &u8) -> bool {
     return *byte == LINE_END;
@@ -74,29 +95,48 @@ fn is_line_end(byte: &u8) -> bool {
 ///   Git writes a marker as its character repeated `MARKER_WIDTH` times and then a space and a label
 /// (`xdl_fill_merge_buffer`,
 /// `xdiff/xmerge.c`),
-/// so the run is what a parser can trust,
-/// not the label the caller chose.
+/// so the run and the label together are what a parser can trust,
+/// not the run alone.
+/// The second pass makes the labels unguessable for every merge
+/// (`merge_second_pass_git_lines.rs`),
+/// so a line of the person's file that happens to look like a marker is the file's own text.
+/// A file whose lines end with a carriage return and a line feed gets that ending in its markers too,
+/// so both endings are a marker's own.
+/// The split line carries no label,
+/// and a line of that shape inside a region is refused as out of order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const marker = (line) => /^(<{7}|={7}|\|{7}|>{7})( |$)/.exec(line)?.[1][0];
+/// const marker = (line, labels) => [[b'<', labels.ours], [b'|', labels.base], [b'=', b''], [b'>', labels.theirs]].find(([c, label]) => line.equals(Buffer.concat([Buffer.alloc(7, c), label.length ? Buffer.from(` ${label}\n`) : Buffer.from('\n')])))?.[0];
 /// ```
-fn marker_of(line: &[u8]) -> Option<u8> {
+fn marker_of(line: &[u8], labels: &MarkerLabels<'_>) -> Option<u8> {
     let character: u8 = *line.first()?;
-    if !matches!(character, b'<' | b'|' | b'=' | b'>') {
-        return None;
-    }
+    let label: &[u8] = match character {
+        b'<' => labels.ours,
+        b'|' => labels.base,
+        b'=' => b"",
+        b'>' => labels.theirs,
+        _ => return None,
+    };
     if line.len() < MARKER_WIDTH || line[..MARKER_WIDTH] != [character; MARKER_WIDTH] {
         return None;
     }
-    match line.get(MARKER_WIDTH) {
-        None | Some(b' ') | Some(b'\n') => return Some(character),
-        Some(_) => return None,
+    let mut rest: &[u8] = &line[MARKER_WIDTH..];
+    if !label.is_empty() {
+        rest = rest.strip_prefix(b" ")?;
     }
+    let tail: &[u8] = rest.strip_prefix(label)?;
+    // Git writes the marker of a file whose lines end with a carriage return and a line feed with that
+    // ending too, so both endings are a marker's own.
+    return match tail {
+        [] | [LINE_END] | [CARRIAGE_RETURN, LINE_END] => Some(character),
+        _ => None,
+    };
 }
 
 /// What:
-///  Cut a merge into the text Git settled and the conflict regions it left.
+///  Cut a merge into the text Git settled and the conflict regions it left,
+/// taking a marker line only when it carries the label `labels` names.
 /// Why:
 ///   The word pass takes each region whole or not at all,
 /// and the settled text is written exactly as Git wrote it.
@@ -105,22 +145,22 @@ fn marker_of(line: &[u8]) -> Option<u8> {
 /// is refused rather than guessed:
 /// a half-read region would lose a side.
 /// A line that only looks like a marker outside a region is the file's own text,
-/// because Git does not escape the markers it writes;
+/// because Git does not escape the markers it writes and the labels are the second pass's own;
 /// the caller compares the region count with the conflict count Git reported,
 /// so an answer that was cut apart wrongly is refused as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cut(merge: Uint8Array): { settled: Uint8Array[]; regions: Region[] } | { error: string };
+/// function cut(merge: Uint8Array, labels: MarkerLabels): { settled: Uint8Array[]; regions: Region[] } | { error: string };
 /// ```
-pub fn cut(merge: &[u8]) -> Result<Cut, String> {
+pub fn cut(merge: &[u8], labels: &MarkerLabels<'_>) -> Result<Cut, String> {
     let mut settled: Vec<Vec<u8>> = vec![Vec::new()];
     let mut regions: Vec<Region> = Vec::new();
     let mut open: Option<Region> = None;
     // 0 outside a region, 1 the first side, 2 the common ancestor, 3 the second side.
     let mut part: u8 = 0;
     for line in merge.split_inclusive(is_line_end) {
-        let marker: Option<u8> = marker_of(line);
+        let marker: Option<u8> = marker_of(line, labels);
         if part == 0 {
             match marker {
                 Some(b'<') => {

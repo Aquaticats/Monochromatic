@@ -48,6 +48,10 @@ pub mod work_item_recovery;
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
+/// The ids the queue still owes work for,
+/// asked by a producer that writes a record and by a consumer that takes a name away.
+pub mod work_item_queued_ids;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 

@@ -18,6 +18,8 @@
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Tool, finding_from, missing_tool};
+/// Whether the directory the relink writes in is still inside the worktree it serves.
+use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -107,21 +109,34 @@ enum PnpmRepair {
 /// Why:
 ///  Both faces decide it the same way before they wait,
 /// so neither can start a tool the other would not.
+/// A `node_modules` that a link carries out of the worktree is the checkout's state,
+/// not the worktree's,
+/// so no install runs for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function prepareRelink(destination: string, environment: RepairEnvironment): PnpmRepair;
 /// ```
 fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRepair {
-    if !destination.join(LOCKFILE).is_file() || !destination.join(MODULES).is_dir() {
+    let modules: PathBuf = destination.join(MODULES);
+    if !destination.join(LOCKFILE).is_file() || !modules.is_dir() {
         crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: no lockfile or no node_modules, nothing to relink", destination.display()).as_str());
+        return PnpmRepair::NothingToDo;
+    }
+    // A copied `node_modules` can be a link to the source checkout's, and an install here would rewrite that directory's
+    //  files in the checkout this repair does not serve.
+    if !is_inside_the_worktree(destination, modules.as_path()) {
+        crate::diagnostic_log::debug(
+            "packageRepairPnpm",
+            format!("{}: node_modules is a link that leaves the worktree, so the relink would rewrite another directory's files and nothing was started", destination.display()).as_str(),
+        );
         return PnpmRepair::NothingToDo;
     }
     let manual: String = manual_command(destination);
     let Some(program) = find_program(PROGRAM, environment.path()) else {
         return PnpmRepair::NoPnpm(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
     };
-    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: Vec::new() };
+    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: crate::package_repair_request::with_the_persons_path(environment) };
     return PnpmRepair::Relink(Relink { program, command, manual, limits: environment.limits() });
 }
 

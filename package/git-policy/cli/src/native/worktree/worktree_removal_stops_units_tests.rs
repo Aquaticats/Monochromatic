@@ -6,6 +6,7 @@
 use super::*;
 use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
 use crate::service_unit_manager_recorder_test_support::Recorder;
+use crate::service_units_of_removed_worktrees::record_worktree;
 use crate::test_support::{fixture, git, remove, repository};
 
 /// A repository with one linked worktree whose instance has a socket,
@@ -42,12 +43,14 @@ impl Fixture {
 
     /// The service journal of an instance,
     /// as the unit's `--journal` names it,
-    /// holding the records a service that committed leaves.
+    /// holding the records a service that committed leaves,
+    /// all of them older than any client of them can look.
     fn journal_of(&self, instance: &str) -> PathBuf {
         let wrapper_state: PathBuf = self.state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
         let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), instance);
         std::fs::create_dir_all(journal.join("busy")).expect("journal folder");
         std::fs::write(journal.join("1.done"), b"seq=1\n").expect("a finished batch");
+        crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
         return journal;
     }
 }
@@ -106,6 +109,65 @@ fn a_removed_worktrees_journal_goes_with_its_units() {
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
     assert!(!journal.exists(), "the journal of the removed worktree is removed with its units");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal whose service the manager does not yet report gone keeps the journal that service writes,
+///  and the note and the socket file that name the instance,
+///  so the next sweep finishes what this removal could not.
+/// Why:
+///   A stop answers when the manager queued the job,
+/// so removing the journal then can take a record the service published in between
+///  or make its next write fail;
+/// without the note the instance is never surveyed again.
+#[test]
+fn a_removal_whose_service_may_still_run_keeps_the_journal_and_the_files_that_name_it() {
+    let fixture: Fixture = fixture_with_units("removal-units-still-running");
+    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
+    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let journal: PathBuf = fixture.journal_of(about.instance.as_str());
+    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let mut running: Recorder = Recorder::default();
+    running.report_state_of(service_unit_instance(about.instance.as_str()).as_str(), Some("active"));
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut running).expect("stopped"));
+    assert!(journal.exists(), "the journal of a service that may still write to it stays");
+    assert!(note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note stays, so the next sweep finds the instance");
+    assert!(socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the socket file stays with the note");
+    // The service ends, and the next sweep finishes what this removal could not.
+    let mut ended: Recorder = Recorder::default();
+    ended.report_state_of(service_unit_instance(about.instance.as_str()).as_str(), Some("inactive"));
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut ended).expect("stopped"));
+    assert!(!journal.exists(), "the journal goes once the manager reports its service gone");
+    assert!(!note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note goes with it on that sweep");
+    assert!(!socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the socket file goes with it on that sweep");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal that finds a record of a batch that did not land keeps the whole journal,
+///  and the note goes with the units that were stopped,
+///  because the person is told the journal is there.
+/// Why:
+///   A journal that holds unresolved work is work a person may still want,
+/// and naming it to them is what makes leaving it honest;
+/// the files that name the instance go so nothing counts the instance again.
+#[test]
+fn a_removal_that_leaves_unresolved_work_keeps_the_journal_and_names_it() {
+    let fixture: Fixture = fixture_with_units("removal-units-unresolved");
+    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
+    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let journal: PathBuf = fixture.journal_of(about.instance.as_str());
+    let intent: PathBuf = journal.join("7.intent");
+    std::fs::write(intent.as_path(), b"seq=7\n").expect("a batch that did not land");
+    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let mut recorder: Recorder = Recorder::default();
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
+    assert!(journal.exists(), "the journal of a batch that did not land stays whole");
+    assert!(intent.exists(), "the record of the batch that did not land stays");
+    assert!(!note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note goes, because the person is told about the journal");
     remove(fixture.root.as_path());
 }
 

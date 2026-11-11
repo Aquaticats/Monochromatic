@@ -137,6 +137,11 @@ pub struct ChildWatch {
     /// How long one wait may last in all (shared with the watcher),
     /// in microseconds.
     ceiling: Arc<AtomicU64>,
+    /// How long the command waits for a step it never ends before it stops waiting and leaves it running (shared with the
+    /// watcher),
+    /// in microseconds,
+    /// or zero when it waits for as long as the step lives.
+    left_running_after: Arc<AtomicU64>,
     /// Whether the child was ended because the ceiling passed.
     ceiling_hit: Arc<AtomicBool>,
     /// Raised by the watcher task when it ended the child because the service was stopped.
@@ -215,6 +220,7 @@ impl ChildWatch {
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let longest: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
         let ceiling: Arc<AtomicU64> = Arc::new(AtomicU64::new(u64::MAX));
+        let left_running_after: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
         let ceiling_hit: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stopped: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let flags: WatchFlags = WatchFlags {
@@ -224,6 +230,7 @@ impl ChildWatch {
             ceiling: Arc::clone(&ceiling),
             ceiling_hit: Arc::clone(&ceiling_hit),
             stopped: Arc::clone(&stopped),
+            left_running_after: Arc::clone(&left_running_after),
         };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
@@ -256,7 +263,7 @@ impl ChildWatch {
                 Some(refusal)
             }
         };
-        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped, unwatched, could_end_the_step };
+        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, left_running_after, ceiling_hit, stopped, unwatched, could_end_the_step };
     }
 
     /// Whether nothing watches this child,
@@ -312,6 +319,21 @@ impl ChildWatch {
     pub fn within(self, ceiling: Duration) -> Self {
         self.ceiling.store(u64::try_from(ceiling.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
         return self;
+    }
+
+    /// Say the bound a notice of this child names:
+    /// the command waits `after` for a step it never ends and then leaves it running,
+    /// with the result not known.
+    /// Why:
+    ///   A step the wrapper never ends is not ended for being slow,
+    /// but nothing waits without a bound either:
+    ///  a notice that said such a step is waited for as long as it lives said so of a write whose wait ended at 127
+    ///  seconds (2026-11-11,
+    ///  the release gate of 0.6.1-alpha.11).
+    ///  The watcher says what the waiting thread does,
+    /// and it is told here.
+    pub fn stops_waiting_after(&self, after: Duration) {
+        self.left_running_after.store(u64::try_from(after.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
     }
 
     /// Whether the watcher ended the child because the service was stopped.

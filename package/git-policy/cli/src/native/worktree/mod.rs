@@ -235,6 +235,11 @@ pub mod worktree_slow_route;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
+/// The record of the trash a snapshot's leave-out made,
+/// written before the rung that published the worktree returns.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_trash_record;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
 /// and its proof.
 #[cfg(target_os = "linux")]
@@ -269,6 +274,10 @@ pub mod worktree_convert_inspection;
 /// The journaled phases of one worktree conversion.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
 
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
@@ -352,6 +361,11 @@ pub mod worktree_trash_remove;
 /// The record that says the wrapper made one linked worktree,
 /// which every automatic removal asks for first.
 pub mod worktree_added_by_the_wrapper;
+
+/// Whether a directory is one of this repository's linked worktrees,
+/// proved from the pointer and the registration Git wrote there,
+/// which every command that changes state in a recorded worktree asks for first.
+pub mod worktree_registration_proof;
 
 /// The commit and the branch one merge stood between,
 /// and the sweep of the worktrees whose branches it landed.

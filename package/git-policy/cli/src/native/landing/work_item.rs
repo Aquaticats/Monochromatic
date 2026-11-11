@@ -256,7 +256,8 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     return Ok(*answer);
 }
 
-pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict};
+pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up};
+pub use crate::work_item_queued_ids::queued_ids;
 
 /// What:
 ///  Write every item of one producer's round as a pending record,
