@@ -210,15 +210,48 @@ and a machine that refuses a thread takes nothing.
 So a sweep never waits,
 which is what keeps a commit from waiting for another command's leftovers,
 and its count is the removals it finished and not the entries that are stale.
-What it promises is which entries remain.
-A control that asserted the count therefore failed in a gate of 2026-11-10
-(the sweep answered 0 where the control expected the 2 entries it had just made stale,
-while the same control passed in the gate before it and in 960 runs beside seven other test processes),
-and the only entry in that gate's log this behaviour can explain.
-The controls now sweep again until the expected entries are what remains
+What it promises is which entries remain,
+so the controls state those entries,
+sweep again until they are what remains
 (`scratch_location_tests.rs`,
 `sweep_until`),
-and the count is reported in their messages and never asserted.
+and report the count in their messages instead of asserting it.
+
+## Why a sweep answered nothing for two stale entries
+
+The gate of 2026-11-10T17:10:21-05:00 failed
+`the_sweep_removes_only_stale_entries_and_never_follows_links`
+at the control's second count:
+the sweep of the file and the link two days later answered 0 where it expected 2,
+inside a test that took 0.022 s,
+while the control passed in the gate of 2026-11-10T16:33:54-05:00 on another commit and in 960 runs beside seven other test processes.
+A duration of 0.022 s rules out both a stalled device and a removal cut short by the ceiling:
+either would have cost the test the ceiling.
+
+The cause was the place a removal takes, measured in the gate's image with the gate's limits
+(`--cpus=2`, so `available_parallelism()` answers 2 and `budgeted_blocking_jobs()` gives a test process two places)
+on 2026-11-11T01:48:22+00:00,
+with four measurements at once on the gate's two processors:
+
+- A removal's place was given back after its caller was told what became of the removal,
+  so a caller holding `Removal::Finished` could find that place still taken:
+  208 and 202 of 20,000 removals of one small file each left it held.
+- A place was still held when the second sweep of the control's shape began in 288 to 316 of 20,000 rounds,
+  and the second sweep then answered 1 of 2 in one round and 0 of 2 in another:
+  a sweep refuses instead of waiting when it finds every place taken.
+- The control's own two count assertions, run in the same conditions, failed in every one of six measurements:
+  two printed the gate's message, `left: 0` and `right: 2`, and four printed `left: 1` and `right: 2`.
+
+So the product was wrong:
+`Removal::Finished` promised the entry was gone and the place it took was not yet back
+(`scratch_entry_removal.rs`,
+`remove_within`).
+The place is now given back when the removal's own work ends and before the answer is sent,
+and the control that states it holds it
+(`scratch_entry_removal_tests.rs`,
+`a_removal_reported_finished_has_given_its_place_back`).
+The same measurements after that change held no place in 80,000 removals,
+and the control's two counts held in every one of 360,000 rounds across six measurements at once.
 
 ## Controls
 

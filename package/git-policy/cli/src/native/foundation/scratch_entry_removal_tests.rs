@@ -66,6 +66,46 @@ fn a_tree_of(root: &Path, name: &str, entries: usize) -> PathBuf {
     return tree;
 }
 
+/// How many removals one control makes before it has met the state it watches for,
+/// so a place that comes back late is met rather than hoped for.
+/// Why:
+///  A place stayed held after its removal answered finished in about one removal in a hundred
+///  (208 of 20,000 removals of one small file each,
+///  measured in the gate's image on 2026-11-11),
+///  so a thousand removals meet that state about ten times
+///  and the loop still costs a fraction of a second.
+const REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE: usize = 1000;
+
+/// What:
+///  A removal that answers `Finished` has already given its place back.
+/// Why:
+///  A sweep that follows one whose removals were just reported finds the places those removals took;
+///  a place still held there is a sweep that starts nothing and answers 0
+///  where the entries it had just made stale were 2,
+///  which is how the gate of 2026-11-10 failed
+///  (`doc/planning/cli-git-scratch-locations.md`,
+///  "Why a sweep answered nothing for two stale entries").
+///  The answer is the promise: a caller told a removal finished
+///  may start the next sweep without waiting for anything.
+#[test]
+fn a_removal_reported_finished_has_given_its_place_back() {
+    let root: PathBuf = fixture("scratch-removal-place-back");
+    std::fs::create_dir_all(root.as_path()).expect("fixture");
+    let held_before: usize = unfinished_removals();
+    for at in 0..REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE {
+        let entry: PathBuf = root.join(format!("entry-{at}"));
+        std::fs::write(&entry, b"x").expect("an entry");
+        let removal: Removal = remove_within(entry.as_path(), SCRATCH_REMOVAL_CEILING);
+        assert!(removal.finished(), "a removal of one small file finished: {removal:?}");
+        assert_eq!(
+            unfinished_removals(),
+            held_before,
+            "the place of the removal reported finished at round {at} is back before its caller is told"
+        );
+    }
+    remove(root.as_path());
+}
+
 /// A removal that outlasts its ceiling keeps its thread,
 /// so the number of places those threads may take is bounded:
 ///  a removal that finds every place held takes none,

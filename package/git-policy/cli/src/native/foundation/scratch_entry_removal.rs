@@ -15,6 +15,8 @@
 //!  The threads such a removal leaves behind are bounded:
 //!  every removal that has not finished holds one of the process's places for blocking work,
 //!  and a removal that finds none leaves its entry to a later sweep instead of waiting.
+//!  The place of one removal comes back when its work ends and before its caller is told what became of it,
+//!  so a caller that has just swept can sweep again and find the places its own removals took.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -85,7 +87,7 @@ static UNFINISHED_REMOVALS: AtomicUsize = AtomicUsize::new(0);
 
 /// What:
 ///  The place one removal that outlasted its ceiling took,
-///  given back when its thread ends.
+///  given back when the removal's own work ends and before the caller is told what became of it.
 /// Why:
 ///   The caller stops waiting at the ceiling and its budget slot goes back,
 ///  so without this place the threads of stalled removals would gather with nothing bounding them
@@ -176,9 +178,14 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
-        // The place travels with the thread, so it is given back when the removal ends, never when the caller stops waiting.
-        let _place = place;
-        let _sent = ended.send(remove_entry(&target));
+        // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
+        let outcome: std::io::Result<()> = remove_entry(&target);
+        // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that
+        //  followed one whose removals had just been reported would otherwise find every place held by that sweep's own
+        //  work and start nothing (measured on 2026-11-11: 0 of 2 entries removed in the gate's image, `left: 0, right: 2`
+        //  in a gate of 2026-11-10).
+        drop(place);
+        let _sent = ended.send(outcome);
     });
     let removal: Removal = match started {
         Err(error) => Removal::Failed(error),
