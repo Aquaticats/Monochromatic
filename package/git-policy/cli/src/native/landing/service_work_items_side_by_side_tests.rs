@@ -343,6 +343,13 @@ const MEASURED_WORKTREES: usize = 4;
 
 const MEASURED_ENTRIES: usize = 500;
 
+/// How many of the queue's trashes are already claimed and running when the push is written.
+/// Why:
+///   The measured case is a push that arrives while slow work holds the service,
+/// so the queue must be in flight before the push exists;
+/// half of the queue is a state a drain reaches quickly and that cannot be confused with an empty one.
+const INTO_THE_QUEUE: usize = MEASURED_WORKTREES / 2;
+
 /// What:
 ///  Plant a trash below the worktree `worktree` and answer the manifest a leave-out would have written for it.
 /// Why:
@@ -434,23 +441,30 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
         created: String::from("2026-11-11T08:50:59.000Z"),
         tries: 0,
     };
-    enqueue(work.as_path(), &push).expect("the push is written");
     let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
-    let begun: Instant = Instant::now();
+    let began: Instant = Instant::now();
     wake.send((git_dir.clone(), None)).expect("the queue's wake");
+    // The push is written once the queue is in flight, which is the case the coordinator measured: slow work claimed and
+    //  running, then a landing that must reach the remote anyway.
+    assert!(
+        wait_until(&|| {
+            return claimed(&held_world(&staged, work.as_path()), WorkKind::Trash) >= INTO_THE_QUEUE;
+        }),
+        "{INTO_THE_QUEUE} trashes of the queue are claimed and running"
+    );
+    let asked: Instant = Instant::now();
+    enqueue(work.as_path(), &push).expect("the push is written");
+    wake.send((git_dir.clone(), None)).expect("the push's wake");
     assert!(wait_until(&|| { return remote_tip(&staged) == staged.landed; }), "the push landed");
-    let push_wait: Duration = begun.elapsed();
-    let pending_then: usize = state_directory(work.as_path(), crate::work_item::PENDING).read_dir().map_or(0, |listing| { return listing.flatten().count(); });
-    let claimed_then: usize = state_directory(work.as_path(), crate::work_item::CLAIMED).read_dir().map_or(0, |listing| { return listing.flatten().count(); });
-    assert!(wait_until(&|| { return settled(&staged_world(&staged, work.as_path()), DONE) >= MEASURED_WORKTREES; }), "every trash of the queue was emptied");
-    let drained: Duration = begun.elapsed();
-    let begun_ms: u128 = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).map(|since| { return since.as_millis(); }).unwrap_or_default()
-        - drained.as_millis()
-        - push_wait.as_millis();
+    let push_wait: Duration = asked.elapsed();
+    let claimed_then: usize = claimed(&held_world(&staged, work.as_path()), WorkKind::Trash);
+    assert!(wait_until(&|| { return settled(&held_world(&staged, work.as_path()), DONE) >= MEASURED_WORKTREES; }), "every trash of the queue was emptied");
+    let drained: Duration = began.elapsed();
     println!(
-        "measure queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={} push_wait_ms={} begun_ms={begun_ms} slow_records_pending_when_the_push_landed={pending_then} slow_records_claimed_when_the_push_landed={claimed_then}",
+        "measure queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={} push_wait_ms={} push_written_after_ms={} slow_records_claimed_when_the_push_landed={claimed_then}",
         drained.as_millis(),
-        push_wait.as_millis()
+        push_wait.as_millis(),
+        asked.duration_since(began).as_millis()
     );
     drop(wake);
     assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
@@ -461,8 +475,8 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
 }
 
 /// The world whose work directory is `work`,
-/// for the counters of the measurement.
-fn staged_world(staged: &Stage, work: &Path) -> World {
+/// for the counters of the measurement and of the controls.
+fn held_world(staged: &Stage, work: &Path) -> World {
     return World { root: staged.root.clone(), common: staged.repo.join(".git"), work: work.to_path_buf() };
 }
 
@@ -605,7 +619,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
     let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(lane).expect("the runtime starts the lane");
     assert!(wait_until(&|| { return stand_ins.inside.load(Ordering::SeqCst) > 0; }), "a slow item of the lane is running");
     // The claims the lane holds are its own, and the push's round takes only the pushes.
-    assert!(wait_until(&|| { return claimed(&staged, WorkKind::Review) > 0; }), "the review waits claimed, as the measured service held it");
+    assert!(wait_until(&|| { return claimed(&held_world(&staged, work.as_path()), WorkKind::Review) > 0; }), "the review waits claimed, as the measured service held it");
     let asked: Instant = Instant::now();
     let assignments: Vec<Assignment> = vec![Assignment::plain(staged.repo.join(".git"))];
     let _waits: Vec<(PathBuf, Duration)> =
@@ -619,9 +633,9 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
     remove(staged.root.as_path());
 }
 
-/// How many records of `kind` are claimed in the stage's work directory.
-fn claimed(staged: &Stage, kind: WorkKind) -> usize {
-    let listing = state_directory(work_directory(staged.repo.join(".git").as_path()).as_path(), crate::work_item::CLAIMED);
+/// How many records of `kind` are claimed in a work directory.
+fn claimed(world: &World, kind: WorkKind) -> usize {
+    let listing = state_directory(world.work.as_path(), crate::work_item::CLAIMED);
     return listing.read_dir().map_or(0, |entries| {
         return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().starts_with(kind.name()); }).count();
     });
