@@ -133,7 +133,8 @@ pub fn set_nested_repositories_aside(
 /// ```
 #[derive(Debug)]
 pub struct SaveStopped {
-    /// What the system refused, in words a person can act on.
+    /// What the system refused,
+    /// in words a person can act on.
     pub failure: SaveFailure,
     /// The repositories a put-back could not return,
     ///  each with the place it is.
@@ -167,7 +168,8 @@ struct Moved {
 /// Why:
 ///  The refusal keeps the worktree as the command found it,
 ///  so the person can fix what the system refused and run the same command again;
-///  a repository a put-back cannot return is the one exception, and it travels with its place.
+///  a repository a put-back cannot return is the one exception,
+/// and it travels with its place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -141,7 +141,8 @@ fn queries_pass_arguments_and_overlay_and_close_stdin() {
 ///  and a translated word is not the word it matches
 ///  (`Supprimerait nested/` under `fr_FR`),
 /// so a localized Git used to have every nested repository deleted unsaved.
-///  The locale is a setting of the read, never of the command Git runs for the person.
+///  The locale is a setting of the read,
+/// never of the command Git runs for the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

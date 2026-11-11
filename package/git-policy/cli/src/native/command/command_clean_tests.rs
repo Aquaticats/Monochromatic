@@ -284,7 +284,8 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
 /// What:
 ///  A dry run that never answered is told apart from Git's own refusal of the clean.
 /// Why:
-///  Git's refusal means nothing would be deleted, so the clean can run and Git says why;
+///  Git's refusal means nothing would be deleted,
+/// so the clean can run and Git says why;
 ///  a read that ended without an exit status says nothing at all,
 ///  and a clean that ran on that assumption deleted a nested repository no copy held.
 ///

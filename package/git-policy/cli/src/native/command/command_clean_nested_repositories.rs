@@ -190,7 +190,8 @@ pub fn nested_repositories_the_clean_deletes(
 ///  and moving the outermost one takes every repository inside it,
 ///  so the walk opens no directory below one.
 ///  It opens no symbolic link either:
-///  a link is removed as the link, so nothing behind it is deleted.
+///  a link is removed as the link,
+/// so nothing behind it is deleted.
 ///  A directory that went away between Git's answer and this look holds nothing,
 ///  and a directory the wrapper cannot open is a failure naming that directory.
 ///

@@ -155,7 +155,10 @@ pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
 ///  the repository stays where it is,
 ///  the menu offers exactly what the clean deletes,
 ///  and the person is told which repository that is and the two ways to delete it deliberately:
-///  the same clean without `-i`, which saves it whole first, and the escape hatch, which deletes it with the rest.
+///  the same clean without `-i`,
+/// which saves it whole first,
+/// and the escape hatch,
+/// which deletes it with the rest.
 ///  Nothing is written to the audit for this,
 ///  because the line already names the command the person typed.
 ///
@@ -188,7 +191,8 @@ pub fn kept_out_of_an_interactive_menu_notice(repositories: &[Vec<u8>]) -> Strin
     );
 }
 
-/// The notices and the rejection, and the paths they name.
+/// The notices and the rejection,
+/// and the paths they name.
 #[cfg(test)]
 #[path = "rule_linked_worktree_nested_repository_messages_tests.rs"]
 mod tests;

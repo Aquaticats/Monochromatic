@@ -730,7 +730,8 @@ fn the_escape_hatch_still_deletes_a_nested_repository() {
 
 //region The shapes Git hides from the wrapper's two dry-run answers (2026-11-11 review findings)
 
-/// A repository and one linked worktree, both ignoring the entries `ignore` names.
+/// A repository and one linked worktree,
+/// both ignoring the entries `ignore` names.
 struct LinkedWorktree {
     /// The main checkout,
     ///  which holds the audit file every worktree writes to.
