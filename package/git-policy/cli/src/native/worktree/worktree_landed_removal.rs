@@ -15,6 +15,7 @@
 //!  so this runs after that merge and answers with what it removed and what it left.
 //!  A worktree is removed only when all of these hold:
 //!  the wrapper recorded that it made it (`worktree_added_by_the_wrapper.rs`),
+//!  the branch it has checked out holds a commit of its own,
 //!  it is not the worktree the command runs in,
 //!  it is not locked,
 //!  no merge,
@@ -30,6 +31,16 @@
 //!  The source is the proof available (`worktree_landed_ignored_files.rs`):
 //!  an ignored file this repository's worktree holds with the same kind, mode and bytes is state the repository already has,
 //!  and one it does not hold that way may be the person's, so the worktree stays and the file is named.
+//!  A branch that has never moved since it was made holds no commit of its own,
+//!  and no merge brought any of its work in:
+//!  a merge that brings in another branch's commits brings every branch sitting on those commits along in the same set,
+//!  so `git merge main` inside a feature worktree removed a worktree a person had just added
+//!  (a cross-vendor audit of `574063773d`,
+//! finding F4).
+//!  The oldest entry of the branch's own reflog names the commit it was made at,
+//!  and a branch whose tip is that commit has no commit of its own;
+//!  a repository that keeps no reflog for it proves nothing,
+//!  and the branch stays a candidate as it did before.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
 //!  What is left is Git's own decision in Git's own words:
 //!  the removal runs real `git worktree remove` unless the btrfs destroy applies,
@@ -153,18 +164,34 @@ pub struct LandedSweep {
 }
 
 
+/// One branch a Git query named,
+/// with the commit it points at.
+/// Why:
+///   Which worktrees a merge landed is decided from the branches its new head contains and the commit each one holds:
+///  a branch's own commits are what says it landed,
+///  and a name alone cannot answer that.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct Landing {
+    /// The full reference name.
+    reference: String,
+    /// The commit it points at now.
+    tip: String,
+}
+
 /// What:
-///  The branches that are fully contained in `commit`.
+///  The branches that are fully contained in `commit`,
+///  each with the commit it points at.
 /// Why:
 ///   A branch has landed when every commit it holds is in the branch that received the merge,
-///  which one Git start answers for every branch.
+///  which one Git start answers for every branch,
+///  and the commit each one points at is what says whether it holds a commit of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const merged = branchesMergedInto(context, commit); // throws the reason
 /// ```
-fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<String>, String> {
-    let arguments: Vec<OsString> = ["for-each-ref", "--merged", commit, "--format=%(refname)", "refs/heads"].map(OsString::from).to_vec();
+fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Landing>, String> {
+    let arguments: Vec<OsString> = ["for-each-ref", "--merged", commit, "--format=%(refname)%09%(objectname)", "refs/heads"].map(OsString::from).to_vec();
     let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Err(format!("Git cannot list the branches merged into {commit} ({error})")),
@@ -172,7 +199,53 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Str
     if output.code != Some(0) {
         return Err(format!("Git cannot list the branches merged into {commit}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim()));
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).lines().map(str::to_owned).collect());
+    let mut found: Vec<Landing> = Vec::new();
+    for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
+        let (reference, tip) = line.split_once('\t').unwrap_or((line, ""));
+        found.push(Landing { reference: reference.to_owned(), tip: tip.to_owned() });
+    }
+    return Ok(found);
+}
+
+/// The commit the branch named by `reference` was made at,
+/// read from the oldest entry of its own reflog,
+/// or nothing when this repository keeps no reflog for it.
+/// Why:
+///  Every reflog line begins with the commit the reference named before the entry and the one it names after it,
+///  and the oldest line of a branch's reflog is the entry the branch was made in:
+///  `git worktree add -b` writes it as surely as `git branch` does.
+///  The line is read as bytes because a branch name's bytes are the person's,
+///  and its two commit fields are hexadecimal whatever they hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// branchMadeAt(commonDir, 'refs/heads/feature') // 'dfc6c4e...' | undefined
+/// ```
+fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
+    let path: PathBuf = common_dir.join("logs").join(reference);
+    let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
+    let oldest: &[u8] = text.split(|byte| *byte == b'\n').next()?;
+    let made: &[u8] = oldest.split(|byte| *byte == b' ').nth(1)?;
+    return std::str::from_utf8(made).ok().map(str::to_owned);
+}
+
+/// Whether the branch holds a commit of its own,
+/// which is false only when its reflog says it has not moved since it was made.
+/// Why:
+///   A branch made at a commit another branch holds and left there did no work of its own,
+///  so nothing of it can land,
+///  and a merge that brings that other branch in must not take its worktree
+///  (a cross-vendor audit of `574063773d`,
+///  finding F4).
+///  A repository that keeps no reflog for the branch proves nothing about it,
+///  so it stays a candidate as it was before this rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsItsOwnCommits(commonDir, 'refs/heads/task-z', 'dfc6c4e...') // false when its reflog begins at that commit
+/// ```
+fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool {
+    return branch_made_at(common_dir, reference) != Some(tip.to_owned());
 }
 
 /// What:
@@ -181,8 +254,10 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Str
 /// Why:
 ///   The event that ends a worktree's use is its branch landing,
 ///  so the set is the branches contained in the new head and not those already contained in the head before the merge:
-///  a branch that merely sat on an older commit of the landed branch is not work this merge brought in.
-///  A branch with no commits of its own is in both sets and is therefore never a candidate.
+///  a branch that merely sat on an older commit of the landed branch is not work this merge brought in,
+///  and neither is one that has never moved since it was made:
+///  the commits it points at came from another branch,
+///  which the merge brought in on its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,7 +265,7 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Str
 /// ```
 pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, landed_branch: &str) -> LandedSweep {
     let mut sweep: LandedSweep = LandedSweep { landed_branch: String::from(landed_branch), ..LandedSweep::default() };
-    let landed: Vec<String> = match branches_merged_into(place, now) {
+    let landed: Vec<Landing> = match branches_merged_into(place, now) {
         Ok(found) => found,
         Err(reason) => {
             sweep.failed = Some(reason);
@@ -198,17 +273,21 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
     };
     let earlier: HashSet<String> = match branches_merged_into(place, before) {
-        Ok(found) => found.into_iter().collect(),
+        Ok(found) => found.into_iter().map(|one| one.reference).collect(),
         Err(reason) => {
             sweep.failed = Some(reason);
             return sweep;
         }
     };
     let mut candidates: HashSet<String> = HashSet::new();
-    for branch in landed {
-        if !earlier.contains(branch.as_str()) {
-            candidates.insert(branch);
+    for one in landed {
+        if earlier.contains(one.reference.as_str()) {
+            continue;
         }
+        if !holds_its_own_commits(place.common_dir, one.reference.as_str(), one.tip.as_str()) {
+            continue;
+        }
+        candidates.insert(one.reference);
     }
     if candidates.is_empty() {
         return sweep;

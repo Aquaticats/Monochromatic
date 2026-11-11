@@ -1014,6 +1014,11 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 
 - this program recorded that it made that worktree,
    which it does when its own `git worktree add` succeeds;
+- the branch it has checked out holds a commit of its own,
+   which its reflog proves by beginning at an earlier commit;
+   a worktree a person has just added and not committed in is never taken
+   by someone else's merge,
+   because a merge of another branch brings every branch sitting on its commits along;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1051,6 +1056,12 @@ Every merge that lands a branch names each worktree it kept,
  giving the path,
  the branch,
  and the reason nothing was removed.
+A worktree whose branch holds no commit of its own is no candidate at all,
+ so a merge that brings in another branch's commits leaves it where it is.
+When no kept reference can be written for a commit a reference lock holds,
+ the removal is stopped and the notice names the `git worktree remove` line that finishes it:
+ running the merge again removes nothing,
+ because a branch that already landed makes that merge up to date.
 Nothing is removed in silence,
  and nothing is removed while a person is working in it.
 
@@ -2694,6 +2705,7 @@ A merge that lands a branch also removes the worktrees that hold it.
 After the branch moved,
  every linked worktree whose checked-out branch this merge brought in is removed by itself when
  it is recorded as one this program made,
+ its branch holds a commit of its own,
  it is not the worktree the merge runs in,
  it is not locked,
  no operation is in progress in it,
