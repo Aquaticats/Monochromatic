@@ -46,6 +46,23 @@ fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
     });
 }
 
+/// The words of the write a client's own request is inside name the command and what the write does, and no moment:
+/// the client says them once the person's wait has mattered, so a moment taken when the write began would be false by then.
+#[test]
+fn the_words_of_the_write_a_request_is_inside_carry_no_moment() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board_stuck_after(NEVER);
+        use_on_this_thread(Arc::clone(&record));
+        assert_eq!(record.begin_group(ids(&["mine"]).as_slice()), GroupAdmission::default());
+        let _detail = detail(String::from("it moves refs/heads/main to abc"));
+        let _step = enter_step(String::from("git update-ref --stdin in /repo"));
+        let (_key, words): (String, String) = record.inside_notice("mine").expect("the request is in the group and a write runs");
+        assert!(words.contains("git update-ref --stdin") && words.contains("refs/heads/main"), "{words}");
+        assert!(words.contains("never ends a write"), "the words say why it matters: {words}");
+        assert!(!words.contains("ago"), "no moment is named: {words}");
+    });
+}
+
 /// A step younger than the threshold is not described:
 /// only a write that has outlasted what writes take is stuck.
 #[test]
