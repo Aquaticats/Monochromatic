@@ -6,7 +6,7 @@
 
 /// Files,
 /// times,
-/// and the pipe a suite of controls needs.
+/// and the pipes and channels the controls of a call that must answer need.
 use std::{fs, fs::File, path::{Path, PathBuf}, sync::mpsc, time::{Duration, UNIX_EPOCH}};
 
 /// The pipe a name is given.
@@ -26,8 +26,8 @@ pub const NOW: i64 = 1_800_000_000;
 
 /// The longest a call that must answer at once may take in these tests:
 /// a call that waits for the other end of a pipe never answers.
-/// Ten seconds is longer than any answer on this host and short enough that a control that hangs fails the suite
-/// rather than holding it.
+/// Ten seconds is far longer than the answers these fixtures take and short enough that a control that hangs fails
+/// the suite rather than holding it.
 pub const ANSWER_WITHIN: Duration = Duration::from_secs(10);
 
 /// What:
