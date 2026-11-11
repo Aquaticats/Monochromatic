@@ -173,6 +173,24 @@ fn a_link_at_the_staging_name_never_rewrites_the_file_it_names() {
     assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name the link was at became the record");
 }
 
+/// A hard link at the staging name is a second name for a file this run does not own,
+/// so that name is replaced rather than the file truncated through it.
+#[test]
+fn a_hard_link_at_the_staging_name_never_rewrites_the_file_it_shares() {
+    let root = scratch();
+    let victim: PathBuf = root.path().join("a-file-of-the-user");
+    let original: &str = "unrelated user data that must survive\n";
+    fs::write(&victim, original).expect("the user's file");
+    fs::hard_link(&victim, root.path().join(STAGING_FILE_NAME)).expect("a second name for the user's file at the staging name");
+    let mut progress: Progress = Progress::default();
+    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
+    progress.save(root.path()).expect("the position is still recorded");
+    assert_eq!(fs::read_to_string(&victim).expect("the user's file"), original, "the record is never written through another name of a file: {}", victim.display());
+    let (read, notes) = crate::lean_progress::read(root.path());
+    assert!(notes.is_empty(), "{notes:?}");
+    assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name became the record");
+}
+
 /// A pipe at the staging name is removed,
 /// so the record is still written and no open waits for a reader.
 #[test]
