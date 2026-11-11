@@ -17,7 +17,7 @@
 //!  or a command or person's newer write,
 //! and nothing at that moment can tell the two apart.
 //! A comparison of the file with the snapshot cannot say who wrote it,
-//!  so the bytes that stand there are kept whole under the worktree's Git directory
+//!  so the bytes that stand there are kept whole under the repository's Git directory
 //!  before the checked-out ones are put back
 //! (the owner's rule "never discard user data";
 //! a review of `ee545033ad`,
@@ -171,8 +171,8 @@ fn put_back(path: &Path, before: Option<&[u8]>) {
 /// Why:
 ///   The copy is outside the worktree,
 ///  so the checked-out tree stays clean,
-///  and inside its Git directory,
-///  so it belongs to the worktree that lost them.
+///  and inside the repository's Git directory,
+///  so a removal of the worktree that lost them does not take it with it.
 /// Its name is the lock's own path in hexadecimal
 ///  under a directory per path,
 ///  so two workspaces of one worktree never write over each other,

@@ -3699,7 +3699,7 @@ of which the two that rewrite link layouts in place are the service's work whene
   The clean runs in a worktree another command may already be working in,
   and nothing read after it can tell Cargo's own rewrite of that lock from a command's or person's newer write,
   so the bytes standing there when the clean ends are kept whole before the checked-out ones go back:
-  under the worktree's Git directory,
+  under the repository's Git directory,
   in `monochromatic-git-policy-cli-displaced-locks`,
   under a directory named by the lock's own path in hexadecimal,
   one file per displacement,

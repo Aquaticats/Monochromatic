@@ -1967,7 +1967,7 @@ the two tools that rewrite link layouts in place are the commit service's work w
   so the worktree is not dirty).
   The clean runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
-   so the bytes standing there when the clean ends are kept whole under the worktree's Git directory,
+   so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
    under a directory named by the lock's path in hexadecimal,
    and the success line names each copy.
@@ -2007,7 +2007,7 @@ a lock does not match or the run exceeds its limit,
  such as `pnpm --dir <worktree> install --offline --frozen-lockfile`.
 Another process changing files while a worktree is copied or repaired is your risk and is not defended against,
 except for the `Cargo.lock` a repair's clean rewrites:
-the bytes that clean displaces are kept under the worktree's Git directory and the success line names them.
+the bytes that clean displaces are kept under the repository's Git directory and the success line names them.
 Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
  section "Package-manager state of a new worktree".
 
