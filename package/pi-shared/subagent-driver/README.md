@@ -144,6 +144,13 @@ and a refusal under the floor names that room,
 the floor,
 and the run it did not start.
 
+Two environment variables exist so the gate's own tests read nothing of the machine they run on:
+`PI_RUNS_PROCESS_FOLDER` points the process table at a folder the test made,
+and `PI_RUNS_FREE_SPACE_BYTES` gives the build volume's room in bytes instead of reading the disk.
+A caller starting real runs sets neither.
+Either one can only make the gate count a run that is not there,
+or start a run it would refuse.
+
 ### `start-pi-run-in-a-worktree`
 
 - `--name`,

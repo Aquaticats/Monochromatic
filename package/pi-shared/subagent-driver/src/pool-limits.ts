@@ -62,15 +62,15 @@ export const CLOSED_POOL_LIMIT = 0;
 
  The owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen itself. Please replace the
  neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So default runs go here first,
- where they went to standard Neuralwatt, with the 18 slots that pool had. The plan's concurrency limit is neither stated nor
+ where they went to standard Neuralwatt, with the 18 slots that pool had. The plan's own concurrency limit is neither stated nor
  measured: a 429 that names one sets the real number, as it did for Neuralwatt.
 
- The 18 is two below Neuralwatt's plan limit of 20, per the owner, 2026-11-11T17:0x-05:00: "Change flex concurrency to 22-2=20
- per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot frees up
- a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"." Neuralwatt's 429
- of 2026-11-11T01:19Z, "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ... Your subscription is
- in overage with auto-renew off, so pay-as-you-go limits apply until it renews.", ended 16 runs while the pool read 20, so the
- slot that frees a moment late is what those two spare slots cover.
+ Those 18 are the size the owner had just given the pool this replaced, 2026-11-11T17:0x-05:00: "Change flex concurrency to
+ 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot
+ frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
+ Neuralwatt's 429 of 2026-11-11T01:19Z, "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
+ Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews.", ended 16 runs while the
+ pool read 20, so the slot that frees a moment late is what the two spare slots cover.
  */
 export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
   name: 'qwen-plan-deepseek',
@@ -143,9 +143,9 @@ export const OPENCODE_GO: ProviderPool = {
 
  The owner, 2026-11-10: "Neuralwatt rate limits are per model." and "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now,
  until upstream clarifies or we hit something." The 7 that a 2026-11-11 Kimi flex 429 named ("max 7 in flight at once") was an
- assumption never measured, and the owner restored 22 the same night with "Why did you downgrade everything to 6 and 7?". It is
- 20 since the two slots the words beside {@link NEURALWATT_DEEPSEEK_FLEX} leave free, because 20 of 28 reviews on it ended at
- turn 16 to 37 while the table read 22. Only a measured refusal seen since sets any lower number.
+ assumption never measured, and the owner restored 22 the same night with "Why did you downgrade everything to 6 and 7?". The
+ owner then set every flex pool with "Change flex concurrency to 22-2=20 per model", which is where 20 comes from: 20 of 28
+ reviews on it ended at turn 16 to 37 while the table read 22. Only a measured refusal seen since sets any lower number.
  */
 export const NEURALWATT_KIMI_FLEX: ProviderPool = {
   name: 'neuralwatt-kimi-flex',
