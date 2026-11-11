@@ -629,6 +629,22 @@ the tunnel fr-par-fr1 is still fully up; nothing was removed
 fix: <what to do>, then run `wg-quicker down fr-par-fr1` again
 ```
 
+A `down` of an interface that is already gone does the removals that do not need the link,
+because another tool can delete a link while the application bypass is active.
+The bypass routes,
+rules and state,
+the route watcher,
+the kill switch and the OpenSnitch allowance all outlive the link,
+and leaving them kept host rules selecting the physical bypass table and a watcher refreshing them.
+Only two steps read the link and are skipped without it:
+removing the policy rules,
+whose table comes from the interface's own fwmark,
+and deleting the interface.
+The traffic block is removed last,
+and the command still reports the missing interface,
+and any cleanup step that failed,
+so an ordinary typo is still an error and a real leftover is named.
+
 The block is installed before any routing is removed and lifted after the interface is verified gone,
 so traffic cannot go outside the tunnel from a tunnel that looks up at any point of the removal:
 not when a step fails,
