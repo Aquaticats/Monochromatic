@@ -109,7 +109,7 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
         if let Some(verdict) = refusal_of_a_replaced_or_unregistered_worktree(item, &entry, &held) {
             return verdict;
         }
-        match relink_one(*tool, entry.root.as_path(), &as_the_add_left_it).await {
+        match relink_one(*tool, held.path(), &as_the_add_left_it).await {
             // The worktree no longer needs this tool, which a person's own command may have seen to.
             None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
             Some(Finding { outcome: Outcome::Repaired { .. }, .. }) => repaired += 1,

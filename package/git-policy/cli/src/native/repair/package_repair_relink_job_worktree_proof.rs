@@ -105,6 +105,9 @@ pub(super) struct HeldWorktree {
     directory: std::fs::File,
     /// The identity the directory had when it was opened.
     identity: crate::fs_beneath::ObjectId,
+    /// The canonical path the descriptor was opened on,
+    /// which is what the tools run in and what their root variable names.
+    named: PathBuf,
 }
 
 impl HeldWorktree {
@@ -122,17 +125,30 @@ impl HeldWorktree {
     /// const held = HeldWorktree.open(root);
     /// ```
     pub(super) fn open(root: &Path) -> Result<HeldWorktree, RegistrationRefusal> {
-        let directory: std::fs::File = match crate::fs_beneath::open_root(root) {
+        // The record carries the path the add wrote, which a person may spell through a link or a relative segment; the
+        //  proof is about one directory, so the path it is about is resolved once and named from there on.
+        let named: PathBuf = match std::fs::canonicalize(root) {
+            Ok(resolved) => resolved,
+            Err(error) if is_absent(&error) => return Err(RegistrationRefusal::NotThisRepository(format!("{} does not exist ({error})", root.display()))),
+            Err(error) => return Err(RegistrationRefusal::Undecided(format!("{} cannot be resolved ({error})", root.display()))),
+        };
+        let directory: std::fs::File = match crate::fs_beneath::open_root(named.as_path()) {
             Ok(opened) => opened,
             Err(error) if is_absent(&error) || error.kind() == std::io::ErrorKind::InvalidInput => {
-                return Err(RegistrationRefusal::NotThisRepository(format!("{} is no directory of this repository ({error})", root.display())))
+                return Err(RegistrationRefusal::NotThisRepository(format!("{} is no directory of this repository ({error})", named.display())))
             }
-            Err(error) => return Err(RegistrationRefusal::Undecided(format!("{} cannot be opened ({error})", root.display()))),
+            Err(error) => return Err(RegistrationRefusal::Undecided(format!("{} cannot be opened ({error})", named.display()))),
         };
         return match crate::fs_beneath::identity_of(&directory) {
-            Ok(identity) => Ok(HeldWorktree { directory, identity }),
-            Err(error) => Err(RegistrationRefusal::Undecided(format!("{} cannot be examined ({error})", root.display()))),
+            Ok(identity) => Ok(HeldWorktree { directory, identity, named }),
+            Err(error) => Err(RegistrationRefusal::Undecided(format!("{} cannot be examined ({error})", named.display()))),
         };
+    }
+
+    /// The canonical directory the proof is about,
+    /// which the tools run in.
+    pub(super) fn path(&self) -> &Path {
+        return self.named.as_path();
     }
 
     /// What:
@@ -163,23 +179,27 @@ impl HeldWorktree {
     ///   The proof about the registration is a proof about one directory,
     /// so a tool may only start in it:
     /// a directory removed and replaced at the same path is another directory, whatever its pointer says.
-    /// Two questions are asked because neither answers alone:
+    /// Three questions are asked because none answers alone:
     /// the descriptor's own name says whether the directory it holds is still the one at that path
     /// (a removed one reads `<path> (deleted)`,
     /// and a renamed one reads its new path),
+    /// the record's spelling of the path says whether it still resolves to that directory,
     /// and the identity says whether that name holds the same directory rather than another one whose inode the
     /// filesystem reused.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const same = readlink(held.descriptor) === root && identityOfPath(root) === held.identity;
+    /// const same = readlink(held.descriptor) === held.named && realpath(root) === held.named && identityOfPath(held.named) === held.identity;
     /// ```
     pub(super) fn still_at(&self, root: &Path) -> bool {
-        let held_named: PathBuf = self.descriptor();
-        let Ok(named_at) = std::fs::read_link(held_named.as_path()) else { return false };
-        if named_at.as_os_str() != root.as_os_str() {
+        let descriptor: PathBuf = self.descriptor();
+        let Ok(named_at) = std::fs::read_link(descriptor.as_path()) else { return false };
+        if named_at.as_os_str() != self.named.as_os_str() {
             return false;
         }
-        return crate::worktree_add_binding::path_identity(root).as_ref() == Some(&self.identity);
+        if std::fs::canonicalize(root).ok().as_deref() != Some(self.named.as_path()) {
+            return false;
+        }
+        return crate::worktree_add_binding::path_identity(self.named.as_path()).as_ref() == Some(&self.identity);
     }
 }
