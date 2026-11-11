@@ -552,3 +552,8 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
         promote_snapshot(common_dir, snapshot.as_path(), problems);
     }
 }
+
+/// Finish controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_removal_interrupted_destroy_tests.rs"]
+mod tests;
