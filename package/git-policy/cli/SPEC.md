@@ -13923,9 +13923,16 @@ Repositories under an allowlisted tool cache are exempt.
 The list is chosen by the invocation's own environment:
 uv's cache (`UV_CACHE_DIR`,
 else `XDG_CACHE_HOME/uv`,
-else `HOME/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`,
+else `HOME/.cache/uv`),
+mise's data directory (`MISE_DATA_DIR`,
 else `XDG_DATA_HOME/mise`,
-else `HOME/.local/share/mise`).
+else `HOME/.local/share/mise`),
+and Cargo's build-script output directory (`OUT_DIR`,
+which Cargo sets for every build script and passes on to what it starts).
+The third is where a crate that vendors another project clones that project
+(`libghostty-vt-sys` cloned Ghostty into it) and runs Git in that clone,
+so the clone is the build step's checkout and not the person's work.
+An empty value of any of these variables counts as unset.
 A repository whose Git directory lies inside one of them is exempt,
 and the wrapper says so on standard error before Git runs,
 naming the variable and the directory it points at,
