@@ -45,12 +45,18 @@ use std::path::{Path, PathBuf};
 /// reset a failed unit,
 /// start,
 ///  stop,
+/// restart a unit the manager already holds,
 /// and read a unit's state.
 /// Nothing that enables,
 /// links,
 /// presets,
 /// masks or changes the default target is on it.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
+/// A restart neither writes a `[Install]` line nor links a unit into a `*.wants` folder:
+/// it is the manager's own stop and start of a unit this wrapper asked for,
+/// and it is how a command answers a unit whose program stopped inside its own process
+/// (`SPEC.md`,
+/// the wait for the commit service).
+const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "StopUnit", "RestartUnit", "ResetFailedUnit", "GetUnit", "Get"];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,
