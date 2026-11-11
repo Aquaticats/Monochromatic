@@ -41,6 +41,9 @@ pub enum WorkKind {
     /// Deleting the subvolume of a removed worktree,
     /// which the removal no longer waits for.
     SubvolumeDelete,
+    /// Making a snapshot of a worktree ahead of the next add,
+    /// which the add would otherwise force on the person's thread.
+    SnapshotAhead,
 }
 
 /// Methods over a kind.
@@ -55,12 +58,13 @@ impl WorkKind {
             WorkKind::Trash => "trash",
             WorkKind::Prewarm => "prewarm",
             WorkKind::SubvolumeDelete => "subvolume-delete",
+            WorkKind::SnapshotAhead => "snapshot-ahead",
         };
     }
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete] {
+        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
             if kind.name() == name {
                 return Some(kind);
             }

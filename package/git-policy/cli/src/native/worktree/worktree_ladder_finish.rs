@@ -134,8 +134,14 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
+    // The service that makes the snapshots ahead is this repository's commit service, and the add asks it for one only when
+    //  it can reach it: a control hands in a service that reaches nothing, and then the add takes its own snapshot.
+    let ask = || { return crate::worktree_snapshot_ahead::ask_for_one(context, source); };
+    let hand_over = |stale: &[std::ffi::OsString]| { return crate::worktree_snapshot_ahead::hand_over_to_the_service(context, source, stale); };
+    let service: crate::worktree_snapshot_ahead::AheadService<'_> =
+        crate::worktree_snapshot_ahead::AheadService { ask: &ask, hand_over: &hand_over, ceiling: crate::wait_ceilings::SNAPSHOT_AHEAD_CEILING };
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &service);
     end_step(take_snapshot_entered);
     let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {

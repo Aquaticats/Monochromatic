@@ -1745,6 +1745,7 @@ fn killed_snapshot_add(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
         &bound.admin,
         bound.binding.pointer.as_slice(),
         &crate::fixture_content_decision::content_environment(),
+        &crate::worktree_snapshot_ahead::AheadService::nothing(),
     )
     .expect("the snapshot");
     assert!(crate::fs_kind::is_subvolume_root(container.as_path()).expect("probe"), "the stage is a subvolume");

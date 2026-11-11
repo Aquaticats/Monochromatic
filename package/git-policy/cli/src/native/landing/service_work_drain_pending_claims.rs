@@ -102,6 +102,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut prewarms: Vec<Claimed> = Vec::new();
         let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
+        let mut ahead: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
             match item.item.kind {
@@ -110,6 +111,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 WorkKind::Prewarm => prewarms.push(item),
                 WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
+                WorkKind::SnapshotAhead => ahead.push(item),
                 _ => upkeep.push(item),
             }
         }
@@ -175,6 +177,22 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 );
             }
             match settle_after_the_push(held, work_dir.as_path(), git_dir, &members, verdict, pushing_since, replanning).await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
+        // A snapshot the wrapper makes ahead of the next add is the one piece of work here that a person's command is
+        //  waiting for, so it runs before the upkeep and everything that frees space.
+        let ahead_now: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), ahead).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in ahead_now {
+            let verdict: Verdict = handlers.snapshot_ahead_awaiting(&item.item).await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "snapshot ahead").await {
                 Some(back) => held = back,
                 None => break 'round,
             }
@@ -392,6 +410,8 @@ async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed,
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
                 "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
+                "subvolume delete" => crate::service_warn!("the subvolume {} could not be deleted: {reason}", item.item.parent),
+                "snapshot ahead" => crate::service_warn!("the snapshot ahead of {} could not be made: {reason}", item.item.repository.display()),
                 _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
             }
             return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
@@ -400,6 +420,8 @@ async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed,
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
                 "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
+                "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
+                "snapshot ahead" => crate::service_log!("the snapshot ahead of {} was not made: {reason}", item.item.repository.display()),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
