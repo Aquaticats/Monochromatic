@@ -145,6 +145,36 @@ fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
     remove(root.as_path());
 }
 
+/// A registration whose `gitdir` is gone for a moment names no root,
+/// so nothing proves where the worktree the record names stands:
+/// the record is kept and named by a later pass,
+/// never settled on a guess.
+#[cfg(unix)]
+#[test]
+fn a_record_of_an_unreadable_registration_is_kept() {
+    let root: PathBuf = fixture("unfilled-record-unreadable-registration");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let source: PathBuf = root.join("source");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8 source")]);
+    let source_root: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
+    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
+    let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
+    remember_unfilled(journal.as_path(), source_root.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    let moved: PathBuf = root.join("moved");
+    git(main.as_path(), &["worktree", "move", source_root.to_str().expect("utf8 source"), moved.to_str().expect("utf8 moved")]);
+    let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
+    let admin: PathBuf = match crate::worktree_copy_registration_naming::registration_naming(common.as_path(), moved_root.as_path()) {
+        crate::worktree_copy_registration_naming::NamedRegistration::Named(admin) => admin,
+        other => panic!("the registration is there: {other:?}"),
+    };
+    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the registration's gitdir is gone while it is written again");
+    let named: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
+    assert_eq!(named, Vec::<String>::new(), "a registration that cannot be read names no line: {named:?}");
+    assert!(unfilled_path_of(journal.as_path()).exists(), "a record whose worktree stands somewhere unproven is kept");
+    remove(root.as_path());
+}
+
 /// A record whose worktree is gone settles without a word,
 /// and so does one whose path now names a different object.
 #[test]

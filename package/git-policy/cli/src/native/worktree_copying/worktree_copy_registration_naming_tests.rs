@@ -172,9 +172,8 @@ fn a_moved_worktree_is_found_by_the_object_its_record_captured() {
     let moved: PathBuf = root.join("moved");
     git(source.as_path(), &["worktree", "move", topic.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
     let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
-    assert_eq!(
-        registered_root_with_identity(common.as_path(), identity),
-        Some(moved_root),
+    assert!(
+        matches!(&registered_object(common.as_path(), identity), RegisteredObject::Root(found) if found.as_path() == moved_root.as_path()),
         "the registration names the worktree where it stands now"
     );
     remove(root.as_path());
@@ -189,23 +188,22 @@ fn an_object_no_registration_holds_is_answered_as_none() {
     let stranger: PathBuf = root.join("stranger");
     std::fs::create_dir(stranger.as_path()).expect("a directory nobody registered");
     let stranger_identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(stranger.as_path()).expect("the stranger's identity");
-    assert_eq!(registered_root_with_identity(common.as_path(), stranger_identity), None);
+    assert!(matches!(registered_object(common.as_path(), stranger_identity), RegisteredObject::None));
     let unregistered: PathBuf = root.join("empty-common");
     std::fs::create_dir(unregistered.as_path()).expect("a common directory with no worktrees");
-    assert_eq!(
-        registered_root_with_identity(unregistered.as_path(), stranger_identity),
-        None,
+    assert!(
+        matches!(registered_object(unregistered.as_path(), stranger_identity), RegisteredObject::None),
         "a repository with no registration holds no object"
     );
     remove(root.as_path());
 }
 
-/// A registration whose `gitdir` is gone for a moment names no root,
-/// and the scan answers without it rather than on a guess:
+/// A registration whose `gitdir` is gone for a moment proves nothing about the object it registered,
+/// so the scan answers that the object's registration is unknown rather than that there is none:
 /// a record it would have named is kept,
 /// never settled.
 #[test]
-fn a_registration_whose_gitdir_is_gone_is_skipped() {
+fn a_registration_whose_gitdir_is_gone_proves_nothing_about_an_object() {
     let root: PathBuf = fixture("registration-naming-gitdir-gone-object");
     let (_source, common, topic) = repository_with_a_linked_worktree(root.as_path(), "repo");
     let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(topic.as_path()).expect("the topic's identity");
@@ -214,10 +212,9 @@ fn a_registration_whose_gitdir_is_gone_is_skipped() {
         other => panic!("the registration is there: {other:?}"),
     };
     std::fs::remove_file(admin.join("gitdir").as_path()).expect("the registration's gitdir is gone while it is written again");
-    assert_eq!(
-        registered_root_with_identity(common.as_path(), identity),
-        None,
-        "a gitdir that is not there names no root"
+    assert!(
+        matches!(registered_object(common.as_path(), identity), RegisteredObject::Unknown),
+        "a gitdir that is not there proves nothing about the worktree it registered"
     );
     remove(root.as_path());
 }

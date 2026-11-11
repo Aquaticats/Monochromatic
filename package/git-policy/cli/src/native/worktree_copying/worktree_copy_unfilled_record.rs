@@ -472,6 +472,32 @@ pub struct StandingRecord {
 }
 
 /// What:
+///  Where the worktree a record names stands,
+///  or why that cannot be told.
+/// Why:
+///   `git worktree move` renames the worktree's directory and keeps its object,
+/// so the recorded path names nothing from then on while the worktree still stands;
+/// the identity the record captured is the proof that names it either way,
+/// and the path it stands at now is the one every line and command about it must name.
+///   A record whose object stands nowhere describes a worktree that is gone or was replaced,
+/// and one whose registration cannot be read describes a worktree nobody has proven gone,
+/// so the answer that proves nothing is kept apart from the answer that proves absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Standing = { path: string } | 'nowhere' | 'unproven';
+/// ```
+enum Standing {
+    /// The worktree stands at this path.
+    At(PathBuf),
+    /// The worktree is gone or was replaced.
+    Nowhere,
+    /// A registration that could name the worktree cannot be read,
+    /// so where it stands is unknown.
+    Unproven,
+}
+
+/// What:
 ///  Where the worktree a record names stands now:
 ///  the path the record wrote while the object it recorded is there,
 ///  else the root of the registration of this repository that is that object.
@@ -484,14 +510,18 @@ pub struct StandingRecord {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const standingAt = (commonDir, copy) => identityAt(copy.destination) === copy.destinationIdentity ? copy.destination : registeredRootWithIdentity(commonDir, copy.destinationIdentity);
+/// const standingAt = (commonDir, copy) => identityAt(copy.destination) === copy.destinationIdentity ? { path: copy.destination } : registeredObject(commonDir, copy.destinationIdentity);
 /// ```
-fn standing_at(common_dir: &Path, copy: &UnfilledCopy) -> Option<PathBuf> {
+fn standing_at(common_dir: &Path, copy: &UnfilledCopy) -> Standing {
     // The recorded path answers for every worktree that was never moved, so no registration is read then.
     if crate::worktree_add_binding::path_identity(copy.destination.as_path()) == Some(copy.destination_identity) {
-        return Some(copy.destination.clone());
+        return Standing::At(copy.destination.clone());
     }
-    return crate::worktree_copy_registration_naming::registered_root_with_identity(common_dir, copy.destination_identity);
+    return match crate::worktree_copy_registration_naming::registered_object(common_dir, copy.destination_identity) {
+        crate::worktree_copy_registration_naming::RegisteredObject::Root(root) => Standing::At(root),
+        crate::worktree_copy_registration_naming::RegisteredObject::None => Standing::Nowhere,
+        crate::worktree_copy_registration_naming::RegisteredObject::Unknown => Standing::Unproven,
+    };
 }
 
 /// What:
@@ -541,7 +571,13 @@ fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCo
         let Some(copy) = read_unfilled(path.as_path())? else { continue };
         // Only a worktree that is still the object the record captured is one it describes: one that was removed or
         // replaced settles the record instead, and one Git moved is still described, at the path it stands at now.
-        let Some(destination) = standing_at(common_dir, &copy) else { continue };
+        // A record nobody has proven either way is not one this caller can hold a copy back with, and it is not settled.
+        let Some(destination) = (match standing_at(common_dir, &copy) {
+            Standing::At(destination) => Some(destination),
+            Standing::Nowhere | Standing::Unproven => None,
+        }) else {
+            continue;
+        };
         standing.push(StandingRecord {
             path,
             destination,
@@ -577,13 +613,15 @@ pub fn report_unfilled_records(common_dir: &Path) -> Result<Vec<String>, Worktre
         if !token_owner_is_dead(copy.owner.as_deref(), path.as_path())? {
             continue;
         }
-        // `match` on where the worktree stands: one that is gone or was replaced settles the record, and one that still
-        // stands is named where it is now, which a `git worktree move` changed from the path the record wrote.
+        // `match` on where the worktree stands: one that is gone or was replaced settles the record, one that still
+        // stands is named where it is now, which a `git worktree move` changed from the path the record wrote, and one
+        // whose registration cannot be read is kept for a later pass rather than settled on a guess.
         match standing_at(common_dir, &copy) {
-            None => {
+            Standing::Nowhere => {
                 remove_file_if_present(path.as_path())?;
             }
-            Some(destination) => notices.push(unfilled_notice(&copy, destination.as_path())),
+            Standing::At(destination) => notices.push(unfilled_notice(&copy, destination.as_path())),
+            Standing::Unproven => {}
         }
     }
     return Ok(notices);
