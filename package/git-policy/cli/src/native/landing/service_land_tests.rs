@@ -1965,7 +1965,7 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
     // Positive control: this withdrawal had the marker's flush to hand over, so a landing that stopped queueing it fails here.
-    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| what == "lock-marker");
+    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what == "lock-marker");
     assert_eq!(markers, vec![String::from("lock-marker")], "the marker's flush is handed to the background task: {events:?}");
     let mut forced: Vec<String> = waited.clone();
     let mut asked: Vec<String> = records;
