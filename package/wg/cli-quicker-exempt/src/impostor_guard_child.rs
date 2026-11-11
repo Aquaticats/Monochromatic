@@ -27,6 +27,9 @@ pub const GUARD_COMMAND: &str = "__impostor-guard";
 pub struct GuardSetup {
     /// The user whose bus is guarded.
     pub uid: u32,
+    /// That user's primary group,
+    /// which the re-execution of the manager drops to.
+    pub gid: u32,
     /// How often the owner is checked when no event arrives.
     pub poll_interval: Duration,
     /// The least time between two re-executions.
@@ -77,7 +80,7 @@ pub fn run_child_watching(setup: &GuardSetup, steps: &mut dyn GuardSteps, input:
     let ended = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let watched = std::sync::Arc::clone(&ended);
     let _watching = std::thread::Builder::new().name("guard-input".to_string()).spawn(move || return note_input_end(input, watched))?;
-    let mut guard = Guard { steps, memory: GuardMemory::new(setup.reexec_gap) };
+    let mut guard = Guard { steps, memory: GuardMemory::new(setup.reexec_gap), gid: setup.gid };
     println!("wg-quicker-exempt: guarding {MANAGER_BUS_NAME} on the session bus of user {}", setup.uid);
     loop {
         if ended.load(std::sync::atomic::Ordering::Relaxed) {
@@ -140,6 +143,7 @@ pub fn spawn(uid: u32, gid: u32) -> Result<GuardHandle, String> {
             executable.to_string_lossy().into_owned(),
             GUARD_COMMAND.to_string(),
             uid.to_string(),
+            gid.to_string(),
             POLL_INTERVAL.as_millis().to_string(),
             REEXEC_GAP.as_millis().to_string(),
         ])

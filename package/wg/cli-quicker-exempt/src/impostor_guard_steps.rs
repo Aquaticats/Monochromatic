@@ -150,13 +150,19 @@ pub fn kill_proven(
     return signal.send(pid);
 }
 
-/// Running a bounded `systemctl` as the user.
-fn systemctl_user(uid: u32, arguments: &[&str]) -> Result<(), String> {
+/// The arguments `setpriv` gets to run one `systemctl --user` as the watched user.
+///
+/// The group is the account's primary group,
+/// which is not its user id on every system:
+/// `setpriv --regid <uid>` asks for a group that need not exist,
+/// and an unprivileged caller cannot switch to a group it does not belong to,
+/// so the re-execution failed exactly on the hosts that most needed it.
+pub fn setpriv_arguments(uid: u32, gid: u32, arguments: &[&str]) -> Vec<OsString> {
     let mut full: Vec<OsString> = vec![
         OsString::from("--reuid"),
         OsString::from(uid.to_string()),
         OsString::from("--regid"),
-        OsString::from(uid.to_string()),
+        OsString::from(gid.to_string()),
         OsString::from("--clear-groups"),
         OsString::from("--no-new-privs"),
         OsString::from("systemctl"),
@@ -165,6 +171,13 @@ fn systemctl_user(uid: u32, arguments: &[&str]) -> Result<(), String> {
     for argument in arguments {
         full.push(OsString::from(argument));
     }
+    return full;
+}
+
+/// Running a bounded `systemctl` as the user,
+/// with the user's own primary group.
+fn systemctl_user(uid: u32, gid: u32, arguments: &[&str]) -> Result<(), String> {
+    let full = setpriv_arguments(uid, gid, arguments);
     let output = run_bounded("setpriv", &full, COMMAND_TIMEOUT)?;
     if !output.success {
         return Err(format!("systemctl --user {} exited with {}: {}", arguments.join(" "), output.status, output.stderr.trim()));
@@ -261,8 +274,9 @@ impl GuardSteps for RealSteps {
         return kill_proven(&mut lookup, &PidfdSignal, unique, pid);
     }
 
-    /// Asks the manager to take the name again.
-    fn reexec(&self, uid: u32) -> Result<(), String> {
-        return systemctl_user(uid, &["daemon-reexec"]);
+    /// Asks the manager to take the name again,
+    /// as the watched user with that user's primary group.
+    fn reexec(&self, uid: u32, gid: u32) -> Result<(), String> {
+        return systemctl_user(uid, gid, &["daemon-reexec"]);
     }
 }

@@ -323,14 +323,15 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if command == impostor_guard::GUARD_COMMAND {
-        if args.len() != 4 {
+        if args.len() != 5 {
             return ExitCode::from(2);
         }
-        let (Ok(uid), Ok(poll_millis), Ok(reexec_millis)) = (args[1].parse::<u32>(), args[2].parse::<u64>(), args[3].parse::<u64>()) else {
+        let (Ok(uid), Ok(gid), Ok(poll_millis), Ok(reexec_millis)) = (args[1].parse::<u32>(), args[2].parse::<u32>(), args[3].parse::<u64>(), args[4].parse::<u64>()) else {
             return ExitCode::from(2);
         };
         let setup = impostor_guard::GuardSetup {
             uid,
+            gid,
             poll_interval: std::time::Duration::from_millis(poll_millis),
             reexec_gap: std::time::Duration::from_millis(reexec_millis),
         };

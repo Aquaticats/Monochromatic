@@ -159,8 +159,9 @@ pub trait GuardSteps {
     /// Ends the process that holds the name,
     /// after proving that `unique` still names `pid`.
     fn kill(&mut self, uid: u32, unique: &str, pid: i32) -> Result<(), String>;
-    /// Asks the manager to take the bus name again.
-    fn reexec(&self, uid: u32) -> Result<(), String>;
+    /// Asks the manager to take the bus name again,
+    /// as the watched user with the primary group `gid`.
+    fn reexec(&self, uid: u32, gid: u32) -> Result<(), String>;
 }
 
 /// One line the guard says about what it did,
@@ -181,6 +182,9 @@ pub struct Guard<'a> {
     pub steps: &'a mut dyn GuardSteps,
     /// What it remembers between checks.
     pub memory: GuardMemory,
+    /// The user's primary group,
+    /// which the re-execution drops to beside the user id.
+    pub gid: u32,
 }
 
 /// Running one check.
@@ -209,7 +213,7 @@ impl Guard<'_> {
                         "no process holds {MANAGER_BUS_NAME} on the session bus, so every `systemctl --user` call there fails; asking the user's manager (pid {expected}) to take the name again"
                     ),
                 });
-                match self.steps.reexec(uid) {
+                match self.steps.reexec(uid, self.gid) {
                     Ok(()) => reports.push(GuardReport {
                         loud: false,
                         text: format!("the user's manager (pid {expected}) re-executed and takes {MANAGER_BUS_NAME} again"),
@@ -232,7 +236,7 @@ impl Guard<'_> {
                     Err(error) => reports.push(GuardReport { loud: true, text: format!("pid {pid} holds {MANAGER_BUS_NAME} and could not be killed: {error}") }),
                 }
                 if reexec {
-                    match self.steps.reexec(uid) {
+                    match self.steps.reexec(uid, self.gid) {
                         Ok(()) => reports.push(GuardReport {
                             loud: false,
                             text: format!("the user's manager (pid {expected}) re-executed and takes {MANAGER_BUS_NAME} again"),

@@ -659,6 +659,15 @@ in order:
    the journal
    and the desktop of the watched user.
 
+The guard runs as the watched user,
+and the re-execution it asks for drops to that user's own primary group,
+never to the user id taken as a group id:
+a host whose accounts have a primary group number other than the user id,
+or no group numbered like the user at all,
+made `setpriv --regid <uid>` fail,
+so the manager was never asked to take the name again after an impostor had been killed.
+`the_reexecution_drops_to_the_users_primary_group` covers it.
+
 Every call to that bus ends at a deadline measured from its start,
 and not only at the socket timeout:
 a bus that answers with a message of another serial,

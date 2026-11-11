@@ -16,6 +16,10 @@ use std::time::{Duration, Instant};
 const MANAGER_PID: i32 = 4242;
 /// The impostor the fixtures report.
 const IMPOSTOR_PID: i32 = 777;
+/// The watched user's primary group in these fixtures,
+/// which differs from its user id,
+/// as it does on a host where accounts start at another number.
+const OWN_GID: u32 = 1500;
 /// Steps the test scripts.
 struct ScriptedSteps {
     /// The main process the system manager reports,
@@ -28,6 +32,8 @@ struct ScriptedSteps {
     /// What the kill was asked to do:
     /// the unique connection name and the pid.
     killed: Option<(String, i32)>,
+    /// The user and the group the re-execution was asked to drop to.
+    reexeced: std::cell::Cell<Option<(u32, u32)>>,
 }
 
 /// The scripted steps.
@@ -58,15 +64,17 @@ impl GuardSteps for ScriptedSteps {
         return Ok(());
     }
 
-    /// Records the re-execution.
-    fn reexec(&self, _uid: u32) -> Result<(), String> {
+    /// Records the re-execution,
+    /// with the user and the group it was asked to drop to.
+    fn reexec(&self, uid: u32, gid: u32) -> Result<(), String> {
+        self.reexeced.set(Some((uid, gid)));
         return Ok(());
     }
 }
 
 /// Builds the scripted steps.
 fn steps(expected: Option<i32>, ownership: Ownership) -> ScriptedSteps {
-    return ScriptedSteps { expected, ownership, kill_fails: false, killed: None };
+    return ScriptedSteps { expected, ownership, kill_fails: false, killed: None, reexeced: std::cell::Cell::new(None) };
 }
 
 /// The unique connection name the fixtures report.
@@ -111,8 +119,8 @@ impl crate::impostor_guard::steps::SignalSend for RecordingSignal {
 /// The manager owning the name needs nothing done.
 #[test]
 fn the_manager_owning_the_name_needs_nothing() {
-    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(MANAGER_PID), kill_fails: false, killed: None };
-    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(MANAGER_PID), kill_fails: false, killed: None, reexeced: std::cell::Cell::new(None) };
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
     assert!(guard.check(1000, Instant::now()).is_empty());
 }
 
@@ -122,7 +130,7 @@ fn the_manager_owning_the_name_needs_nothing() {
 #[test]
 fn an_impostor_is_killed_and_the_manager_takes_the_name_again() {
     let mut steps = steps(Some(MANAGER_PID), owner(IMPOSTOR_PID));
-    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
     let reports = guard.check(1000, Instant::now());
     assert!(reports.iter().any(|report| return report.loud && report.text.contains(&IMPOSTOR_PID.to_string()) && report.text.contains(&MANAGER_PID.to_string())), "{reports:?}");
     assert!(reports.iter().any(|report| return report.text.contains("re-executed")), "{reports:?}");
@@ -168,7 +176,7 @@ fn an_unknown_owner_changes_nothing() {
 #[test]
 fn no_main_process_is_reported_and_nothing_is_killed() {
     let mut steps = steps(None, owner(IMPOSTOR_PID));
-    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
     let reports = guard.check(1000, Instant::now());
     assert_eq!(reports.len(), 1);
     assert!(reports[0].loud && reports[0].text.contains("no main process"));
@@ -201,8 +209,8 @@ fn the_impostor_is_killed_with_the_signal_it_cannot_handle() {
 /// and the manager is still asked to take the name again.
 #[test]
 fn a_kill_that_fails_is_reported() {
-    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(IMPOSTOR_PID), kill_fails: true, killed: None };
-    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let mut steps = ScriptedSteps { expected: Some(MANAGER_PID), ownership: owner(IMPOSTOR_PID), kill_fails: true, killed: None, reexeced: std::cell::Cell::new(None) };
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
     let reports = guard.check(1000, Instant::now());
     assert!(reports.iter().any(|report| return report.loud && report.text.contains("could not be killed")), "{reports:?}");
 }
@@ -250,7 +258,7 @@ fn a_pid_the_bus_still_names_is_signalled() {
 #[test]
 fn the_guard_kills_the_connection_it_read() {
     let mut steps = steps(Some(MANAGER_PID), owner(IMPOSTOR_PID));
-    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP) };
+    let mut guard = Guard { steps: &mut steps, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
     let _reports = guard.check(1000, Instant::now());
     assert_eq!(steps.killed, Some((IMPOSTOR_UNIQUE.to_string(), IMPOSTOR_PID)));
 }
@@ -264,6 +272,7 @@ fn the_guard_ends_when_its_watcher_closes_its_input() {
     let setup = crate::impostor_guard::GuardSetup {
         uid: 1000,
         poll_interval: Duration::from_millis(20),
+        gid: OWN_GID,
         reexec_gap: REEXEC_GAP,
     };
     let steps = ScriptedSteps {
@@ -271,6 +280,7 @@ fn the_guard_ends_when_its_watcher_closes_its_input() {
         ownership: owner(MANAGER_PID),
         kill_fails: false,
         killed: None,
+        reexeced: std::cell::Cell::new(None),
     };
     let mut watching = Some(std::thread::spawn(move || {
         let mut steps_in_thread = steps;
@@ -285,4 +295,38 @@ fn the_guard_ends_when_its_watcher_closes_its_input() {
         std::thread::sleep(Duration::from_millis(20));
     }
     assert!(thread.is_finished(), "closing the watcher's end ended the guard");
+}
+
+/// The word after one flag in an argument list,
+/// or nothing when the flag is absent.
+fn after_flag(arguments: &[String], flag: &str) -> Option<String> {
+    let at = arguments.iter().position(|argument| return argument == flag)?;
+    return arguments.get(at + 1).cloned();
+}
+
+/// The re-execution drops to the user's own primary group,
+/// and not to the user's id taken as a group id.
+///
+/// A host whose accounts have a primary group number other than the user id,
+/// or no group numbered like the user at all,
+/// made `setpriv --regid <uid>` fail:
+/// the unprivileged guard cannot switch to a group it does not belong to,
+/// so the manager was never asked to take the name again
+/// after an impostor had been killed.
+#[test]
+fn the_reexecution_drops_to_the_users_primary_group() {
+    use crate::impostor_guard::steps::setpriv_arguments;
+    /// The watched user of this test,
+    /// whose primary group is not its id.
+    const WATCHED_UID: u32 = 1000;
+    let mut scripted = steps(Some(MANAGER_PID), owner(IMPOSTOR_PID));
+    let mut guard = Guard { steps: &mut scripted, memory: GuardMemory::new(REEXEC_GAP), gid: OWN_GID };
+    let _reports = guard.check(WATCHED_UID, Instant::now());
+    assert_eq!(scripted.reexeced.get(), Some((WATCHED_UID, OWN_GID)), "the re-execution kept the wrong group");
+    let arguments: Vec<String> = setpriv_arguments(WATCHED_UID, OWN_GID, &["daemon-reexec"])
+        .into_iter()
+        .map(|argument| return argument.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(after_flag(&arguments, "--reuid"), Some(WATCHED_UID.to_string()), "{arguments:?}");
+    assert_eq!(after_flag(&arguments, "--regid"), Some(OWN_GID.to_string()), "the user id is used as a group id: {arguments:?}");
 }
