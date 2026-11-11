@@ -144,7 +144,12 @@ Also seen at 06:42: the commit service's auto-push of `main` (`6e62e0aafe`) was 
 one minute after another session pushed `7731b5fbe6`;
 a push by hand at 06:44 went through as a fast-forward.
 `main`'s protection requires signed commits (the commit is signed, `G`) and has no required checks.
-The cause is unmeasured.
+The cause on GitHub's side is unmeasured.
+The wrapper gave up because `final_failure` in `package/git-policy/cli/src/native/push/push_retry.rs` calls every `[remote rejected]` line with `hook declined` final,
+`protected branch hook declined` included.
+The owner, 2026-11-11: "Make the wrapper auto retry on  GH006".
+Agent `push-retries-a-protected-branch-refusal` (round 165, branch `fix/git-policy-cli-push-retries-a-protected-branch-refusal`) makes GH006 retried within the service's bounded retry,
+with a plain report once the bound is spent, for alpha.11.
 
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
