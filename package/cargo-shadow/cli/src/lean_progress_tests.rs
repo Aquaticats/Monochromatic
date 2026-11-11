@@ -1,12 +1,56 @@
 //! The tests of the record of where a pass stopped:
 //! a position is read back,
 //! a list continues after it,
-//! and a record that is missing or unreadable means the front of the list.
+//! a record that is missing or unreadable means the front of the list,
+//! and neither name of the record is ever followed through a link or opened on a pipe.
 
-use std::{fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}, sync::mpsc, time::Duration};
 
-use crate::lean_progress::{LongPass, Progress, PROGRESS_FILE_NAME, resume_index, state_directory};
+use rustix::fs::{CWD, FileType, Mode, mknodat};
+
+use crate::lean_progress::{LongPass, Progress, PROGRESS_FILE_NAME, STAGING_FILE_NAME, resume_index, state_directory};
 use crate::test_scratch::scratch;
+
+/// The longest a save or a read of the record may take in these tests:
+/// a record that is a pipe must answer at once rather than wait for the other end.
+const ANSWER_WITHIN: Duration = Duration::from_secs(10);
+
+/// What:
+/// `fn make_pipe(path: &Path)` makes a named pipe with no reader and no writer.
+/// Why:
+/// A pipe at one of the record's names is the shape that holds a blocking open forever,
+/// and only a pipe tests what a symbolic link or another file cannot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const makePipe = (path: string): void => execFileSync('mkfifo', [path]);
+/// ```
+fn make_pipe(path: &Path) {
+    mknodat(CWD, path, FileType::Fifo, Mode::from_raw_mode(0o600), 0).expect("a pipe at the record's name");
+}
+
+/// What:
+/// `fn within<F, T>(work: F) -> T` is the work's answer,
+/// and a failure when the work has not answered inside `ANSWER_WITHIN`.
+/// Why:
+/// The defect these controls guard is a call that never returns,
+/// so the control cannot wait for it in the test's own thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function within<T>(work: () => T, limitMs: number): Promise<T>
+/// ```
+fn within<F, T>(work: F) -> T
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    return receiver.recv_timeout(ANSWER_WITHIN).expect("the call answered instead of waiting for the other end of a pipe");
+}
 
 /// Three keys in the order a pass walks them.
 fn keys() -> Vec<PathBuf> {
@@ -109,4 +153,48 @@ fn the_state_directory_is_the_state_home_or_the_home_for_that() {
     if let Some(found) = state_directory() {
         assert!(found.ends_with("cargo-shadow"), "{}", found.display());
     }
+}
+
+/// A link at the staging name is the tool's own name to use, and never a way into the file it names.
+#[test]
+fn a_link_at_the_staging_name_never_rewrites_the_file_it_names() {
+    let root = scratch();
+    let victim: PathBuf = root.path().join("a-file-of-the-user");
+    let original: &str = "unrelated user data that must survive\n";
+    fs::write(&victim, original).expect("the user's file");
+    std::os::unix::fs::symlink(&victim, root.path().join(STAGING_FILE_NAME)).expect("a link at the staging name");
+    let mut progress: Progress = Progress::default();
+    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
+    progress.save(root.path()).expect("the position is still recorded");
+    assert_eq!(fs::read_to_string(&victim).expect("the user's file"), original, "the record is never written through a link: {}", victim.display());
+    let (read, notes) = crate::lean_progress::read(root.path());
+    assert!(notes.is_empty(), "{notes:?}");
+    assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name the link was at became the record");
+}
+
+/// A pipe at the staging name is removed, so the record is still written and no open waits for a reader.
+#[test]
+fn a_pipe_at_the_staging_name_does_not_wait_for_a_reader() {
+    let root = scratch();
+    make_pipe(&root.path().join(STAGING_FILE_NAME));
+    let mut progress: Progress = Progress::default();
+    progress.set(LongPass::Trees, Some(PathBuf::from("/base/00/bbbb")));
+    let directory: PathBuf = root.path().to_path_buf();
+    let saved = within(move || { return progress.save(&directory); });
+    saved.expect("the position is still recorded");
+    let (read, notes) = crate::lean_progress::read(root.path());
+    assert!(notes.is_empty(), "{notes:?}");
+    assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")));
+}
+
+/// A pipe at the record's own name is not a record this version reads, and reading it waits for nothing.
+#[test]
+fn a_pipe_at_the_record_name_does_not_wait_for_a_writer() {
+    let root = scratch();
+    make_pipe(&root.path().join(PROGRESS_FILE_NAME));
+    let directory: PathBuf = root.path().to_path_buf();
+    let (read, notes) = within(move || { return crate::lean_progress::read(&directory); });
+    assert_eq!(read.after(LongPass::Trees), None, "a pipe says nothing about where a pass stopped");
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("starts at the front"), "{notes:?}");
 }

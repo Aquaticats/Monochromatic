@@ -35,6 +35,10 @@ pub const STATE_DIRECTORY_NAME: &str = "cargo-shadow";
 /// The file a run records where each pass stopped in.
 pub const PROGRESS_FILE_NAME: &str = "lean-progress";
 
+/// The file a run writes the record into before one rename replaces the record with it:
+/// the record's name and `.new`.
+pub const STAGING_FILE_NAME: &str = "lean-progress.new";
+
 /// The first line of the record,
 /// so a file of another shape is not read as this one.
 const HEADER: &str = "cargo-shadow lean progress 1";
@@ -285,7 +289,7 @@ impl Progress {
             text.push_str(&format!("{UNITS_TAG} {}\n", escape(units)));
         }
         let path: PathBuf = directory.join(PROGRESS_FILE_NAME);
-        let staging: PathBuf = directory.join(format!("{PROGRESS_FILE_NAME}.new"));
+        let staging: PathBuf = directory.join(STAGING_FILE_NAME);
         if let Err(error) = fs::write(&staging, text) {
             return Err(format!("{}: {error}", staging.display()));
         }
