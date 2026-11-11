@@ -113,8 +113,12 @@ fn each_difference_is_refused_with_its_reason() {
     remove(root.as_path());
 }
 
-/// An entry written in the same second as the index proves nothing by its stat fields,
+/// An entry whose recorded time is not earlier than the index file's own,
+/// as Git reads a file written in the same second as the index,
+/// proves nothing by its stat fields,
 /// so it is refused.
+/// The index is aged behind the entry it records,
+/// so the entry is racy however long the two Git commands took.
 #[test]
 fn a_racy_entry_is_refused() {
     let root: PathBuf = fixture("clean-racy");
@@ -122,6 +126,7 @@ fn a_racy_entry_is_refused() {
     std::fs::write(repo.join("fresh.txt"), b"fresh\n").expect("fresh");
     git(repo.as_path(), &["add", "fresh.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=fresh"]);
+    age(repo.join(".git/index").as_path());
     let refusal: CleanRefusal = check(repo.as_path()).expect_err("racy");
     assert!(refusal.reason.contains("as new as the index"), "{refusal}");
     assert_eq!(refusal.kind, CleanRefusalKind::Racy);

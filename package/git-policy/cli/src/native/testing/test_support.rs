@@ -371,7 +371,8 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 /// Why:
 ///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again),
 /// so a
-///  control that needs a provably clean worktree ages its files before the index records them.
+///  control that needs a provably clean worktree ages its files before the index records them,
+/// and one that needs an entry the index cannot vouch for ages the index file instead.
 pub(crate) fn age(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");

@@ -20,7 +20,7 @@
 
 /// Import the shared fixtures and the commit controls' helpers.
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
-use super::support::{Fixture, Observed, fixture, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, repository, run_wrapped, stderr_of, without_wait_notices};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -78,7 +78,10 @@ fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
     assert_nothing_left(&fixture, repo.as_path());
     std::fs::write(repo.join("package.json"), CATALOG).expect("fixed manifest");
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
-    assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    // A loaded host stretches the service's branch write past a beat, and the client then reads the service's
+    //  notice about the write it is inside; this control means the policy's words, so it drops that notice.
+    assert_eq!(without_wait_notices(stderr_of(&landed).as_bytes()), b"", "a commit the policy lets through prints nothing of its own: {}", stderr_of(&landed));
     assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), CATALOG);
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);

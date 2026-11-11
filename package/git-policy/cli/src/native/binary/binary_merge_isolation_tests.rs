@@ -21,8 +21,9 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, WAIT_NOTICE_PREFIX, direct, executable, fixture, git, observe, pseudo_terminal_slave_name,
-    repository, without_hint_fields, without_wait_notices, TIMED_OUT_SIGNAL,
+    Fixture, Observed, SERVICE_INSIDE_WRITE_NOTICE_PREFIX, SERVICE_STUCK_WRITE_NOTICE_PREFIX, WAIT_NOTICE_PREFIX,
+    direct, executable, fixture, git, is_a_wait_notice, observe, pseudo_terminal_slave_name, repository,
+    without_hint_fields, without_wait_notices, TIMED_OUT_SIGNAL,
 };
 use git_policy_cli::merge_isolation_journal::{MergeIntent, write_merge_intent};
 use git_policy_cli::transaction_owner::TransactionOwner;
@@ -125,18 +126,31 @@ fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 }
 
 /// Wait notices go and nothing else does,
-/// so the comparisons above still see every other diagnostic.
+/// so the comparisons above still see every other diagnostic;
+/// that includes the two the commit service sends about the write it is inside,
+/// which a loaded host prints even when the commit lands.
 #[test]
 fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     let notice: String = format!(
         "{}git commit-tree (process 7) after 10 seconds; it is ended only after 300 seconds with no sign of work.\n",
         String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
     );
+    let inside: String = format!(
+        "{}`git update-ref --stdin in /repo` (it moves refs/heads/main to a commit), begun 0 seconds ago. The service never ends a write in the middle.\n",
+        String::from_utf8_lossy(SERVICE_INSIDE_WRITE_NOTICE_PREFIX)
+    );
+    let stuck: String = format!(
+        "{}for 1 minutes and has not heard back: `git update-ref --stdin`. The service never ends a write in the middle.\n",
+        String::from_utf8_lossy(SERVICE_STUCK_WRITE_NOTICE_PREFIX)
+    );
     let other: &str = "monochromatic-git-policy-cli: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";
-    let mixed: String = format!("{notice}{other}{notice}");
+    let mixed: String = format!("{notice}{other}{notice}{inside}{stuck}");
     assert_eq!(without_wait_notices(mixed.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(other.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(b"no newline at the end"), b"no newline at the end");
+    for line in [notice.as_str(), inside.as_str(), stuck.as_str()] {
+        assert!(is_a_wait_notice(line.as_bytes()), "{line}");
+    }
 }
 
 /// Run native Git directly,
