@@ -4590,6 +4590,25 @@ and "never discard user data"):
   Every such finding exits 0:
   the merge is made,
   and the person's work is theirs to judge.
+- The branch itself may move while the carry runs,
+  because another command lands a commit on it.
+  The carry then finds the merge's paths holding that commit's content,
+  and the record and the ref that keep the person's layers are the only copy left of them.
+  So the branch is read once more after the carry,
+  and a commit built on this merge is what the captured layers are merged with and written to the files,
+  exactly as the recovery of a killed merge carries them onto a moved head
+  (`carry_onto_awaiting` in `src/native/merge/merge_isolation_recovery_carry.rs`,
+  asked by `src/native/merge/merge_isolation_apply_moved.rs`):
+  the later commit stands,
+  the person's work is merged with it,
+  and the record and the ref go only once that write finished.
+  A branch that moved away from the merge is never written over:
+  the record and the ref stay,
+  the command names them,
+  and the next git command in the worktree puts the person's work back.
+  A branch that could not be read leaves the same record and ref.
+  Every one of these endings exits 0,
+  and the line that names the moved commit is printed before the per-path lines of the carry onto it.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
   a layer written after the capture holds bytes newer than the capture and is left as it is and named,
@@ -14179,6 +14198,19 @@ A checkout holding the merge's file for one path and the branch's content for th
 stopped between two files,
 so it is put back to the moved head like every other path of a begun merge,
 and the line naming the moved branch is true of the checkout it leaves.
+Whether the branch was built on the merge is `git merge-base --is-ancestor`'s exit status:
+`0` is yes,
+`1` is no,
+and any other exit,
+and a command that never started,
+is a read that failed.
+The status is read and never the failure's wording,
+because a `1` and a start that failed are worded alike
+(`is_ancestor_awaiting` in `src/native/merge/merge_isolation_recovery.rs`,
+the same reading as `ancestry_of` in `src/native/push/auto_push_reconcile_basics_and_limits.rs`),
+so a branch another command reset away from the merge is settled as moved rather than refused as partly installed.
+A read that fails keeps the record,
+and the next command decides from a reading it makes itself.
 A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
 nothing is set aside for it,
 the merge's own deletions empty it before the checkout,

@@ -260,6 +260,12 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
+/// Another command landing a commit on the branch while a landed merge still carries:
+/// the later commit stands,
+/// and the person's work is merged onto the branch as it is now.
+#[path = "binary_merge_carries_edits_moved_tests.rs"]
+mod merge_carries_edits_moved;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
