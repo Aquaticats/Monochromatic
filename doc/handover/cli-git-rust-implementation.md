@@ -117,11 +117,18 @@ Two defects showed on the way, both open:
   which had succeeded;
   the archives come from the separate `cargo-publish` workflow.
   The waiter is `package/crate-release/cli/bin/await-release.ts`.
-- The machine-global lock still names `0.6.1-alpha.8`,
-  so every `git` call prints `mpm-shadow`'s older-lock warning.
+- After the install,
+  every `git` call printed `mpm-shadow`'s older-lock warning,
+  because the machine-global lock still named `0.6.1-alpha.8`.
   Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
   does not run: no `mpm-shadow` is on `PATH`.
+  The coordinator ran the installed binary by its full path
+  (`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.10-x86_64-unknown-linux-gnu/mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  "updated cargo:monochromatic-git-policy-cli 0.6.1-alpha.8 -> 0.6.1-alpha.9"),
+  and the warning stopped.
   Agent `mpm-shadow-printed-global-lock-remedy-runs-as-printed` is fixing the printed remedies.
+  The first integration suite run overlapped the warning,
+  so a failure there that reads `git`'s stderr is checked again on the rerun.
 
 Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
 built from `main` by the coordinator's script,
