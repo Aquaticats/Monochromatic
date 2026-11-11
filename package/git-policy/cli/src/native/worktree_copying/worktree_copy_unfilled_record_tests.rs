@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::json_record::quote;
-use crate::test_support::{dead_copy_owner, fixture, remove};
+use crate::test_support::{dead_copy_owner, fixture, git, remove, repository};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use std::os::unix::fs::PermissionsExt;
@@ -98,6 +98,49 @@ fn a_standing_worktree_is_named_on_every_pass() {
     assert!(first[0].contains("git worktree remove --force"), "{}", first[0]);
     assert!(first[0].contains("/source/tree"), "{}", first[0]);
     assert!(unfilled_path_of(journal.as_path()).exists(), "the record stays while the worktree stands");
+    remove(root.as_path());
+}
+
+/// Git keeps a worktree's directory object when it moves it,
+/// so the record of the copy that ended in that worktree still names the worktree after the move:
+/// the pass names where it stands now, with the command that settles it there,
+/// and keeps the record while that worktree stands.
+#[cfg(unix)]
+#[test]
+fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
+    let root: PathBuf = fixture("unfilled-record-moved");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let source: PathBuf = root.join("source");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8 source")]);
+    let source: PathBuf = std::fs::canonicalize(source).expect("canonical source");
+    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("identity");
+    let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
+    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    let moved: PathBuf = root.join("moved");
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "move",
+            source.to_str().expect("utf8 source"),
+            moved.to_str().expect("utf8 moved"),
+        ],
+    );
+    let moved: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
+    let named: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
+    assert_eq!(named.len(), 1, "the worktree still stands, so its record names it: {named:?}");
+    assert!(
+        named[0].contains(quote(moved.to_string_lossy().as_ref()).as_str()),
+        "the line names where the worktree stands now: {}",
+        named[0]
+    );
+    assert!(
+        !named[0].contains(quote(source.to_string_lossy().as_ref()).as_str()),
+        "the line names no path the worktree has left: {}",
+        named[0]
+    );
+    assert!(unfilled_path_of(journal.as_path()).exists(), "a worktree that still stands keeps its record");
     remove(root.as_path());
 }
 

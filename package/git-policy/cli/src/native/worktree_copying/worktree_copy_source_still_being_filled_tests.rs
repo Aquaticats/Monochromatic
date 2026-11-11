@@ -224,6 +224,38 @@ fn a_source_a_copy_ended_unfilled_is_not_staged_from() {
     remove(root.as_path());
 }
 
+/// Git keeps a worktree's directory object when it moves it,
+/// so the record of the copy that ended in that worktree still names it after the move:
+/// the moved source holds less than its own source ignores,
+/// and a copy staged from it would carry that state on as a success.
+#[cfg(unix)]
+#[test]
+fn a_moved_source_a_copy_ended_in_is_not_staged_from() {
+    let root: PathBuf = fixture("source-readiness-unfilled-moved");
+    let (source, main, common) = repository_with_a_source(root.as_path());
+    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
+    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("the source's identity");
+    let owner: String = dead_copy_owner().token();
+    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
+    let moved: PathBuf = root.join("moved");
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "move",
+            source.to_str().expect("utf8 source"),
+            moved.to_str().expect("utf8 moved"),
+        ],
+    );
+    let moved: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
+    assert_eq!(
+        source_is_still_being_filled(common.as_path(), moved.as_path()).expect("judged"),
+        Some(UnfinishedCopy::LeftUnfilled),
+        "the record still names the worktree Git moved"
+    );
+    remove(root.as_path());
+}
+
 /// A record that names a worktree a copy ended in, standing where that worktree is not,
 /// says nothing about the worktree at that path now:
 /// the worktree it described is gone or was replaced,
