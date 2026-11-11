@@ -10092,7 +10092,7 @@ and each shown to fail against the shape it replaces:
     as `common_dir_of` and `signs_commits` already were.
     The reconcile chain is awaited in production from here.
     `is_ancestor` is the one of the five that is not gated at the merged tip,
-    and the bullet below says why.
+    and the notes on merging `integrate/git-policy-cli-jam-fixes-after-alpha-9` say why.
   - `push/push_stacking.rs`:
     the planner type a stacked push carries
     (`MergePush`)
@@ -10121,6 +10121,32 @@ and each shown to fail against the shape it replaces:
     (`subvolume/subvolume_sync_tests.rs`).
     The integration's own fix commit `5686c7bb29` makes both changes,
     so the merge takes its text.
+  - This branch's bridge thread is a finding of the integration's own guard.
+    `source_guard/blocking_code_off_the_runtime_tests.rs` reads every thread start
+    in the release sources and fails on `push/auto_push_reconcile.rs`'s,
+    which no tree held beside that guard before this merge.
+    `ALLOWED` gains one `thread-start` entry for that file,
+    saying why the thread stays,
+    and that an awaited planner for the stacked push removes it
+    (converting `gated_merge_push` to an awaited planner).
+    The T13 section's forty-five sites therefore stand at forty-six here,
+    eighteen of them threads.
+- What the integration's later commits needed,
+  read at 2026-11-10T22:35:48-05:00:
+  no conflicted hunk.
+  The integration moved from `589252a055` to `171edd1c00`
+  while the merge at `589252a055` was being made,
+  so it was merged again over its thirty-five later commits.
+  Both sides changed three files in that range:
+  this plan's log,
+  `package/git-policy/cli/README.md`
+  and
+  `package/git-policy/cli/SPEC.md`.
+  Every line each side added or removed is in the merged files,
+  counted per file against both sides;
+  the README keeps this branch's paragraph on the one loop beside the integration's
+  edits of the same bullet,
+  and the SPEC keeps both faces of the reconcile beside its new claims.
 - The one bridge that stays,
   and what removes it:
   `push_stacking`'s merge push is `gated_merge_push`,
@@ -10136,7 +10162,7 @@ and each shown to fail against the shape it replaces:
   `integrate_and_push` answers `Integrated::NotDivergent`,
   the push's own report stands,
   and nothing is published,
-  which the control below pins.
+  which the control `a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_it_was` pins.
 - What the controls pin,
   and what each was shown to catch:
   - `a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_inside_it`
@@ -10176,6 +10202,37 @@ and each shown to fail against the shape it replaces:
     `package/git-policy/cli/src/native/foundation` and
     `package/git-policy/cli/doc/closure-lint-suppressions.md`:
     no finding.
+  - What the merge's own runs found,
+    on the merged tree:
+    `//package/git-policy/cli:native:test:host -- --no-run`
+    and `native:test:binary:host -- --no-run` build,
+    and `native:clippy` is clean.
+    One `native:test:host` run filtered to the resolved files and this branch's change
+    (`auto_push_reconcile`,
+    `service_scratch_ref_of_a_dropped_batch`,
+    `service_server_connection_handling`,
+    `greets_before_the_journal`,
+    `subvolume_sync`,
+    `worktree_copy_unfilled`,
+    `blocked_commit`,
+    `source_guard`),
+    in a `systemd-run --user --scope` at `CPUQuota=600%`,
+    `MemoryMax=20G` and `TasksMax=4000`:
+    224 tests run,
+    223 passed.
+    The guard's finding that the merge notes record was the one failure this merge caused,
+    and its `ALLOWED` entry fixes it
+    (the guard's own nineteen tests pass after that).
+    The failure left is
+    `subvolume_sync::tests::another_commands_stage_container_is_left_out_of_a_pass`,
+    which fails on the integration tip itself:
+    the four controls `a66b3cbcc2` adds are made to pass by `ca2723271a`,
+    and that commit is not in `171edd1c00`
+    (it is on `fix/git-policy-cli-integration-failures-stage-containers-after-alpha-9`).
+    The `subvolume`,
+    `worktree_copying`
+    and `worktree` files of this tree are identical to `171edd1c00`'s,
+    so nothing this merge decided is in them.
   - Not run:
     the whole `native:test:host` suite,
     the container gate,
