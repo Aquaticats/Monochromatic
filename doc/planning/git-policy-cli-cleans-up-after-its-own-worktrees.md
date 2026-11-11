@@ -667,7 +667,10 @@ That file was taken back from `HEAD`,
 
 Each of the review's four findings was reproduced again through the wrapper this worktree built,
  in a throwaway repository with its own `HOME` and `XDG_RUNTIME_DIR` under the run folder,
- and read on the base first and on this branch after:
+ and read twice:
+ on this branch,
+ and with the base's behaviour,
+ which for findings 1 and 2 was a build of `ee545033ad` and for findings 3 and 4 the base's own rule planted back.
 
 - Finding 1,
  an ignored `.env` written after the add:
@@ -702,15 +705,20 @@ Each of the review's four findings was reproduced again through the wrapper this
   the add exits 0,
   and the worktree is still there,
   with no removal line for it.
-  With the registration window planted out
-  (`if false` in place of `place.registered_before.holds`),
+  With the base's rule planted back
+  (`if false` in place of `place.registered_before.holds`,
+  the registration window),
   the same run ends with the sweep's removal line naming that worktree and the worktree gone,
   which is the defect.
   The positive control in the same script adds the worktree before the merge and the sweep removes it,
   so a kept worktree is not a sweep that never ran.
 - Finding 4,
  a process whose working folder cannot be read:
-  on `ee545033ad` the merge exited 0 and removed the worktree under the live child;
+  with the base's rule planted back
+  (`Err(_refused) => continue`,
+  which skips every process whose `/proc/<pid>/cwd` cannot be read),
+  the merge exited 0 and removed the worktree under the live child,
+  which was still running in it;
   now the worktree stays and the reason names the process,
   that it belongs to this account,
   that it hides its working folder,
