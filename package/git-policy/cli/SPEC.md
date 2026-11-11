@@ -9429,13 +9429,32 @@ not a refusal,
 because `Restart=on-failure` would start a refused unit again,
 and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
 The instance's service journal goes with the socket and the note when it holds nothing else:
-the records of the batches that landed and an empty landing record are the memory of a service that is never served again,
+the records of the batches that landed,
+once no client of the instance can still read them,
+and an empty landing record are the memory of a service that is never served again,
 while a batch that did not land,
 a batch whose objects a scratch reference may hold,
 a record that was written and not published,
 a landing or withdrawal record,
 and a file this release does not know keep the whole journal and are logged,
 never discarded.
+A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
+(20 minutes,
+7 seconds and 10 seconds:
+the whole wait a client may spend on an answer,
+the short extra wait inside it,
+and the look for its commit),
+because a client whose answer was lost reads that record to learn which commit its request became,
+and sends the same request again to be told it already landed.
+A journal kept only for those clients,
+or for a service the manager does not yet report gone,
+keeps the note and the socket file instead of being logged:
+nothing in it is a person's business yet,
+and the next sweep removes it when both are over.
+A stop of a removed worktree's units answers when the manager queued the job,
+so the sweep and the removal ask for the service unit's state and wait `SERVICE_GONE_AFTER_A_STOP`
+(two seconds) for the manager to report no process,
+and a unit that outlasts that keeps the journal and the files that name the instance for the next sweep.
 Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 

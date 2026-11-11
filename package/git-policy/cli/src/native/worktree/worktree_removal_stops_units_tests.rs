@@ -42,12 +42,14 @@ impl Fixture {
 
     /// The service journal of an instance,
     /// as the unit's `--journal` names it,
-    /// holding the records a service that committed leaves.
+    /// holding the records a service that committed leaves,
+    /// all of them older than any client of them can look.
     fn journal_of(&self, instance: &str) -> PathBuf {
         let wrapper_state: PathBuf = self.state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
         let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), instance);
         std::fs::create_dir_all(journal.join("busy")).expect("journal folder");
         std::fs::write(journal.join("1.done"), b"seq=1\n").expect("a finished batch");
+        crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
         return journal;
     }
 }
