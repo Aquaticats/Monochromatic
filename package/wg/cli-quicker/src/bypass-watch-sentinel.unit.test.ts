@@ -126,7 +126,7 @@ await describe({
   name: judgeWatcherEnd.name,
   children: [
     it({
-      name: 'calls the end expected when the record is gone or names another watcher, unexpected when it still names this one, and unknown when it cannot be read',
+      name: 'calls the end expected when the record is gone, holds no identity or names another watcher, unexpected when it still names this one, and unknown when it cannot be read at all',
       fn: async () => {
         /**
          Judgement over a fake record reader.
@@ -141,10 +141,12 @@ await describe({
          read through the real reader.
          */
         expect(await judgeWatcherEnd({ statePath: '/nonexistent-directory/wgtest.json', identity: IDENTITY, },),).toEqual({ kind: 'expected', },);
-        expect(await judge({ ...IDENTITY, },),).toEqual({ kind: 'unexpected', },);
-        expect(await judge({ ...IDENTITY, pid: 4_243, },),).toEqual({ kind: 'expected', },);
-        expect(await judge({ ...IDENTITY, startTime: '9002', },),).toEqual({ kind: 'expected', },);
-        expect(await judge({ ...IDENTITY, ownerId: 'owner-2', },),).toEqual({ kind: 'expected', },);
+        expect(await judge({ kind: 'identity', identity: { ...IDENTITY, }, },),).toEqual({ kind: 'unexpected', },);
+        expect(await judge({ kind: 'identity', identity: { ...IDENTITY, pid: 4_243, }, },),).toEqual({ kind: 'expected', },);
+        expect(await judge({ kind: 'identity', identity: { ...IDENTITY, startTime: '9002', }, },),).toEqual({ kind: 'expected', },);
+        expect(await judge({ kind: 'identity', identity: { ...IDENTITY, ownerId: 'owner-2', }, },),).toEqual({ kind: 'expected', },);
+        // A fragment left by a killed writer names no watcher, so it is not this watcher's record either.
+        expect(await judge({ kind: 'unreadable', path: '/run/wg-quicker/x.watcher.json', reason: 'SyntaxError', },),).toEqual({ kind: 'expected', },);
         expect(
           await judge(new Error('EACCES: permission denied',),),
         ).toEqual({ kind: 'unknown', reason: 'Error: EACCES: permission denied', },);

@@ -3,7 +3,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { shellQuote, } from './shell-quote.ts';
 import { bypassStatePath, } from './tunnel-bypass-path.ts';
-import { readWatcherIdentity, } from './tunnel-bypass-watcher-sidecar.ts';
+import { readWatcherRecord, } from './tunnel-bypass-watcher-sidecar.ts';
 import {
   readClearnet,
   type Clearnet,
@@ -119,10 +119,10 @@ async function readableWatcherPid(
   try {
     /**
      Identity the record holds,
-     or the sentinel for no record.
+     absent when it holds none.
      */
-    const identity = await readWatcherIdentity({ statePath, },);
-    return (typeof identity) === 'object' ? { routeWatcherPid: identity.pid, } : {};
+    const record = await readWatcherRecord({ statePath, },);
+    return record.kind === 'identity' ? { routeWatcherPid: record.identity.pid, } : {};
   }
   catch (error) {
     l.error(`the record of the route watcher could not be read for the by-hand steps: ${String(error,)}`,);

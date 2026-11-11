@@ -3,6 +3,7 @@ import { createHash, } from 'node:crypto';
 import { once, } from 'node:events';
 import {
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -15,13 +16,43 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { readLinuxProcessIdentity, } from '../dist/final/node/linux-process-identity.mjs';
 import {
-  stopBypassWatcher,
   waitForWatcherStop,
   watcherIsRunning,
-} from '../dist/final/node/tunnel-bypass-watch-service.mjs';
+} from '../dist/final/node/tunnel-bypass-watch-process-group.mjs';
+import { stopBypassWatcher, } from '../dist/final/node/tunnel-bypass-watch-service.mjs';
+
+/**
+ Module logger for this file.
+ */
+const l = tagged({ tag: 'tunnel-bypass-watch-service-test', },);
+
+/**
+ Says whether a file is there.
+
+ @param path - File to look for.
+
+ @returns `present` or `removed`.
+
+ @example
+ ```ts
+ await presenceOf('/run/wg-quicker/interface-x.json.watcher.json');
+ ```
+ */
+async function presenceOf(path: string,): Promise<'present' | 'removed'> {
+  try {
+    await readFile(path, 'utf8',);
+    return 'present';
+  }
+  catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return 'removed';
+    throw error;
+  }
+}
 
 /**
  Reader of the live process as the function under test declares it.
@@ -222,7 +253,180 @@ await describe({
 
 await describe({
   name: stopBypassWatcher.name,
+  // One at a time: each case owns the runtime directory of the process.
+  concurrency: 1,
   children: [
+    it({
+      name: 'stops cleanly when the record holds no identity, keeps the fragment beside it, and lets the next stop and start through, where a kill during the write used to wedge every later lifecycle',
+      fn: async () => {
+        /**
+         Scratch runtime directory standing in for /run/wg-quicker.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-record-',),);
+        /**
+         Runtime directory the process had before this test,
+         and the search path the signal `isRunning` would need.
+         */
+        const previous = process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+        process.env.WG_QUICKER_RUNTIME_DIRECTORY = directory;
+        await using cleanup = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            if (previous === undefined)
+              delete process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+            else
+              process.env.WG_QUICKER_RUNTIME_DIRECTORY = previous;
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        /**
+         State path of the fixture interface.
+         */
+        const statePath = join(directory, `interface-${createHash('sha256',).update('wgfixture',).digest('hex',).slice(0, 32,)}.json`,);
+        /**
+         The state a completed up leaves behind.
+         */
+        const state = {
+          version: 2,
+          interfaceName: 'wgfixture',
+          mark: 100,
+          table: 52_000,
+          preference: 50,
+          ownerId: 'owner-1',
+          routes: [],
+        } as const;
+        await writeFile(statePath, JSON.stringify(state,),);
+        // The first byte of a record whose writer was killed, as the earlier in-place write left it.
+        await writeFile(`${statePath}.watcher.json`, `{"ownerId":"owner-1"`,);
+        await stopBypassWatcher({
+          state,
+          watcherPath: '/nonexistent/bypass-watch.mjs',
+        },);
+        // A start calls the stop first, so the second call is what a later up does.
+        await stopBypassWatcher({
+          state,
+          watcherPath: '/nonexistent/bypass-watch.mjs',
+        },);
+        /**
+         What the runtime directory holds now.
+         */
+        const left = await readdir(directory,);
+        expect(left.filter((name,) => name.includes('.watcher.json.unreadable-',),).length,).toBe(1,);
+        expect(left.includes(`${statePath.split('/').at(-1)}.watcher.json`,),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'ends the process group of a watcher whose leader was killed, so the route monitor it started does not outlive it',
+      fn: async () => {
+        /**
+         Scratch runtime directory standing in for /run/wg-quicker.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-group-',),);
+        /**
+         Runtime directory the process had before this test.
+         */
+        const previous = process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+        process.env.WG_QUICKER_RUNTIME_DIRECTORY = directory;
+        /**
+         The stand-in leader's pid,
+         zero until it is started,
+         so this test can end its group however the test ends.
+         */
+        const leader = { pid: 0, };
+        await using cleanup = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            if (previous === undefined)
+              delete process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+            else
+              process.env.WG_QUICKER_RUNTIME_DIRECTORY = previous;
+            if (leader.pid !== 0) {
+              try {
+                process.kill(-leader.pid, 'SIGKILL',);
+              }
+              catch (error: unknown) {
+                l.debug(`the stand-in group was already gone: ${String(error,)}`,);
+              }
+            }
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        /**
+         State path of the fixture interface.
+         */
+        const statePath = join(directory, `interface-${createHash('sha256',).update('wgfixture',).digest('hex',).slice(0, 32,)}.json`,);
+        /**
+         The state a completed up leaves behind.
+         */
+        const state = {
+          version: 2,
+          interfaceName: 'wgfixture',
+          mark: 100,
+          table: 52_000,
+          preference: 50,
+          ownerId: 'owner-1',
+          routes: [],
+        } as const;
+        await writeFile(statePath, JSON.stringify(state,),);
+        /**
+         A stand-in watcher: a detached group leader with a child of its own,
+         the shape the watcher and its `ip monitor route` have.
+         */
+        const script = join(directory, 'stand-in-watcher.cjs',);
+        await writeFile(script, `
+const { spawn } = require('node:child_process');
+const child = spawn('sleep', ['60'], { stdio: 'ignore' });
+process.stdout.write(String(child.pid));
+setInterval(() => {}, 1000);
+`,);
+        const started = spawn(process.execPath, [script,], { detached: true, stdio: ['ignore', 'pipe', 'pipe'], },);
+        leader.pid = started.pid ?? 0;
+        /**
+         What the stand-in leader said besides its first line,
+         which is how a stand-in that could not start its child explains itself.
+         */
+        const diagnostics = { text: '', };
+        started.stderr.on('data', (chunk) => {
+          diagnostics.text += String(chunk,);
+        });
+        /**
+         The child's pid, read from the leader's first line.
+         The wait is bounded, so a silent stand-in fails this test instead of holding it.
+         */
+        const childPid = Number(await new Promise(function firstLineOrEnd(resolve,) {
+          const timer = setTimeout(() => resolve('0',), 5000,);
+          started.stdout.once('data', (chunk,) => {
+            clearTimeout(timer,);
+            resolve(String(chunk,).trim());
+          },);
+          started.once('close', () => {
+            clearTimeout(timer,);
+            resolve('0',);
+          },);
+        },));
+        if (childPid === 0)
+          throw new Error(`The stand-in leader named no child (exit ${String(started.exitCode,)}): ${diagnostics.text}`,);
+        /**
+         Identity of the running leader.
+         */
+        const live = await readLinuxProcessIdentity({ pid: started.pid ?? 0, },);
+        if ((typeof live) === 'symbol')
+          throw new Error('The stand-in leader is not in procfs.',);
+        await writeFile(`${statePath}.watcher.json`, JSON.stringify({
+          ownerId: state.ownerId,
+          pid: started.pid,
+          startTime: live.startTime,
+        },),);
+        // Only the leader dies, as with SIGKILL to the watcher alone.
+        process.kill(started.pid ?? 0, 'SIGKILL',);
+        await once(started, 'close',);
+        await stopBypassWatcher({ state, watcherPath: script, },);
+        /**
+         What became of the child the leader started.
+         */
+        const child = await readLinuxProcessIdentity({ pid: childPid, },);
+        expect((typeof child) === 'symbol' ? 'gone' : child.state,).toBe('gone',);
+        expect(await presenceOf(`${statePath}.watcher.json`,),).toBe('removed',);
+      },
+    },),
     it({
       name: 'stops a real watcher whose state and record are in the format the build that started the live tunnel wrote, and removes its record',
       fn: async () => {
@@ -292,7 +496,7 @@ await describe({
          */
         const after = await readLinuxProcessIdentity({ pid, },);
         expect(['gone', 'Z',],).toContain((typeof after) === 'symbol' ? 'gone' : after.state,);
-        expect(await readFile(`${statePath}.watcher.json`, 'utf8',).then(() => 'present', () => 'removed',),).toBe('removed',);
+        expect(await presenceOf(`${statePath}.watcher.json`,),).toBe('removed',);
       },
     },),
   ],

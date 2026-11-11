@@ -1,10 +1,14 @@
-import { readFile, } from 'node:fs/promises';
+import {
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 
 import {
   BypassRouteError,
   isErrnoException,
 } from './errors.ts';
-import { PROCESS_ABSENT, } from './linux-process-identity.ts';
 
 /**
  Persisted watcher process identity resistant to PID reuse.
@@ -14,6 +18,52 @@ export type WatcherProcessIdentity = {
   readonly pid: number;
   readonly startTime: string;
 };
+
+/**
+ What the watcher record says.
+
+ `unreadable` is a record that is there and holds no identity:
+ a kill during the write left a fragment there in builds that wrote the record in place,
+ and no watcher of that record is running any more.
+ A caller treats it as no identity at all, and says so,
+ because refusing the whole lifecycle over a fragment wedged `down` and `up` for good.
+ */
+export type WatcherRecord =
+  | {
+    /**
+     A record holding an identity.
+     */
+    readonly kind: 'identity';
+
+    /**
+     The persisted identity.
+     */
+    readonly identity: WatcherProcessIdentity;
+  }
+  | {
+    /**
+     No record at all.
+     */
+    readonly kind: 'absent';
+  }
+  | {
+    /**
+     A record that holds no identity.
+     */
+    readonly kind: 'unreadable';
+
+    /**
+     The record's path,
+     for the report.
+     */
+    readonly path: string;
+
+    /**
+     What is wrong with it,
+     in the words of the parser.
+     */
+    readonly reason: string;
+  };
 
 /**
  Resolves watcher identity sidecar for state path.
@@ -120,32 +170,120 @@ function parseWatcherIdentity(
 }
 
 /**
- Reads watcher identity sidecar when present.
- 
- @param statePath - Persisted bypass state path.
- 
- @returns Validated identity or absence.
- 
+ The text of the watcher record, or that there is no record.
+
+ @param path - The record's path.
+
+ @returns The text, or absence.
+
  @example
  ```ts
- await readWatcherIdentity({ statePath: '/run/wg-quicker/interface.json' });
+ await recordText({ path: '/run/wg-quicker/interface-x.json.watcher.json' });
  ```
  */
-export async function readWatcherIdentity(
-  { statePath, }: { readonly statePath: string; },
-): Promise<WatcherProcessIdentity | typeof PROCESS_ABSENT> {
+async function recordText(
+  { path, }: { readonly path: string; },
+): Promise<{ readonly kind: 'text'; readonly text: string; } | { readonly kind: 'absent'; }> {
   try {
-    return parseWatcherIdentity({
-      text: await readFile(
-        watcherIdentityPath({ statePath, },),
-        'utf8',
-      ),
-      statePath,
-    },);
+    return { kind: 'text', text: await readFile(path, 'utf8',), };
   }
   catch (error) {
     if (isErrnoException(error,) && (error.code === 'ENOENT'))
-      return PROCESS_ABSENT;
+      return { kind: 'absent', };
+    throw error;
+  }
+}
+
+/**
+ Reads the watcher record and says which of its three states it is in.
+ 
+ A read error other than absence is thrown:
+ a record that cannot be read is not a record that holds no identity.
+
+ @param statePath - Persisted bypass state path.
+ 
+ @returns The identity, its absence, or that the record holds none.
+
+ @example
+ ```ts
+ await readWatcherRecord({ statePath: '/run/wg-quicker/interface.json' });
+ ```
+ */
+export async function readWatcherRecord(
+  { statePath, }: { readonly statePath: string; },
+): Promise<WatcherRecord> {
+  /**
+   The record's path,
+   for the unreadable answer.
+   */
+  const path = watcherIdentityPath({ statePath, },);
+  /**
+   What the record holds.
+   */
+  const record = await recordText({ path, },);
+  if (record.kind === 'absent')
+    return { kind: 'absent', };
+  try {
+    return {
+      kind: 'identity',
+      identity: parseWatcherIdentity({ text: record.text, statePath, },),
+    };
+  }
+  catch (error) {
+    if (error instanceof BypassRouteError)
+      return { kind: 'unreadable', path, reason: error.message, };
+    throw error;
+  }
+}
+
+/**
+ Writes the watcher record so that a kill cannot leave half a record behind.
+ 
+ The text goes to a temporary file beside the record and is renamed over it:
+ a rename is atomic, so a reader sees the whole record or none of it.
+ A record that is already there is replaced, which is what a start does after it stopped the watcher of the record before.
+
+ @param statePath - Persisted bypass state path.
+ 
+ @param identity - What the watcher records about itself.
+
+ @param path - Record path to write,
+ replaceable in tests.
+ 
+ @example
+ ```ts
+ await writeWatcherRecord({ statePath: '/run/wg-quicker/interface.json', identity });
+ ```
+ */
+export async function writeWatcherRecord(
+  {
+    statePath,
+    identity,
+    path = watcherIdentityPath({ statePath, },),
+  }: {
+    readonly statePath: string;
+    readonly identity: WatcherProcessIdentity;
+    readonly path?: string;
+  },
+): Promise<void> {
+  /**
+   Temporary file beside the record,
+   named after this process so two writers never share one.
+   */
+  const temporary = `${path}.${String(process.pid,)}.tmp`;
+  await writeFile(
+    temporary,
+    JSON.stringify(identity,),
+    {
+      flag: 'wx',
+      mode: 0o600,
+    },
+  );
+  try {
+    await rename(temporary, path,);
+  }
+  catch (error) {
+    await rm(temporary, { force: true, },);
     throw error;
   }
 }

@@ -1492,6 +1492,31 @@ The same texts stay on the terminal during `up`.
 `wg-quicker-exempt` delivers its own failures the same way,
 under the identifier `wg-quicker-exempt`.
 
+### The watcher's record and the process group it leads
+
+A watcher leads its own process group (`setsid`),
+and `ip monitor route` and the watcher's own `ip` calls are children in that group.
+A stop signals the group and not only the leader, which is what reaches the monitor.
+A `SIGKILL` to the leader alone leaves the monitor behind,
+so a stop whose recorded leader is already gone signals the recorded group as well:
+`down` ends the orphaned monitor instead of leaving it with its netlink socket
+(the audit of these packages reproduced the leak before that change).
+A pid the kernel has given to another process is never signalled:
+while a process group exists its number cannot be reused,
+so a live process at that pid with another start time belongs to another group.
+
+The record that names the watcher (`<state>.watcher.json`) is written to a temporary file
+beside it and renamed over it,
+so a kill can leave the whole record or none of it and never half of one.
+A record that holds no identity is a fragment of a watcher that was killed while an earlier build wrote it in place,
+and no watcher of it runs.
+`down` and `up` therefore move such a fragment aside instead of refusing for ever:
+the file is kept beside the record as `<record>.unreadable-<milliseconds since the epoch>`,
+a warning names both paths and says that a watcher of an earlier build may still run,
+and the lifecycle goes on.
+Before that change the parse failure was raised by every later stop and start,
+so a kill in the wrong moment wedged the interface's lifecycle for good.
+
 ### When the route watcher itself dies
 
 The watcher cannot report its own death when `SIGKILL`,

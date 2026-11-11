@@ -1,263 +1,39 @@
 import { spawn as spawnChild, } from 'node:child_process';
-import {
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { rm, } from 'node:fs/promises';
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import {
-  BypassRouteError,
-  isErrnoException,
-} from './errors.ts';
+import { BypassRouteError, } from './errors.ts';
 import {
   PROCESS_ABSENT,
   processArgumentsMatch,
   readLinuxProcessIdentity,
-  type LinuxProcessIdentity,
 } from './linux-process-identity.ts';
 import { bypassStatePath, } from './tunnel-bypass-path.ts';
 import type { BypassState, } from './tunnel-bypass-types.ts';
 import {
-  readWatcherIdentity,
-  watcherIdentityPath,
+  readWatcherRecord,
   type WatcherProcessIdentity,
+  watcherIdentityPath,
+  writeWatcherRecord,
 } from './tunnel-bypass-watcher-sidecar.ts';
+import { identityOrNone, } from './tunnel-bypass-watch-record.ts';
+import {
+  PROCESS_WAIT_ATTEMPTS,
+  PROCESS_WAIT_DELAY_MS,
+  signalWatcherProcessGroup,
+  stopLeftoverGroup,
+  waitForWatcherStop,
+  WATCHER_PATH,
+  watcherIsRunning,
+} from './tunnel-bypass-watch-process-group.ts';
 import { startSentinelOrReport, } from './bypass-watch-sentinel-launch.ts';
 
 /**
- Source or built watcher filename adjacent to current artifact.
+ Module logger for the watcher record and the watcher's process group.
  */
-const WATCHER_FILENAME = import.meta.url
-  .endsWith('.ts',)
-  ? 'bypass-watch.ts'
-  : 'bypass-watch.mjs';
-
-/**
- Absolute watcher entry path.
- */
-const WATCHER_PATH = new URL(
-  WATCHER_FILENAME,
-  import.meta.url,
-).pathname;
-
-/**
- Readiness and shutdown retry count.
- */
-const PROCESS_WAIT_ATTEMPTS = 100;
-
-/**
- Delay between bounded process identity probes.
- */
-const PROCESS_WAIT_DELAY_MS = 10;
-
-/**
- Checks live process has exact watcher script and state arguments.
-
- A process that is exiting is not a different command:
- once the kernel has released its address space,
- `/proc/PID/cmdline` reads empty while the state still reads as live
- (measured: a `node` process holding 200 MB showed state `R` with an empty command line for hundreds of consecutive reads, in four of six runs),
- and that window falls inside the shutdown wait after a `SIGTERM`.
- Reading it as another command made `down` refuse a watcher it had just stopped
- and leave a half-removed tunnel
- (live incident of 2026-10-31).
- Its start time already identifies the process,
- so an empty command line counts as a watcher that is no longer running,
- and the shutdown wait still waits for its process group to disappear.
-
- @param identity - Persisted watcher identity.
-
- @param statePath - Exact state argument expected in command line.
-
- @param watcherPath - Exact watcher script expected in command line,
- replaceable in tests.
-
- @param read - Reader of the live process,
- replaceable in tests.
-
- @returns Whether same watcher remains live.
-
- @throws {@link BypassRouteError} when PID names another live command.
-
- @example
- ```ts
- await watcherIsRunning({ identity, statePath: '/tmp/state' });
- ```
- */
-export async function watcherIsRunning(
-  {
-    identity,
-    statePath,
-    watcherPath = WATCHER_PATH,
-    read = readLinuxProcessIdentity,
-  }: {
-    readonly identity: WatcherProcessIdentity;
-    readonly statePath: string;
-    readonly watcherPath?: string;
-    readonly read?: typeof readLinuxProcessIdentity;
-  },
-): Promise<boolean> {
-  /**
-   Current process at persisted PID.
-   */
-  const live = await read({ pid: identity.pid, },);
-  if ((live === PROCESS_ABSENT)
-    || (live.startTime !== identity.startTime)
-    || (live.state === 'Z')) {
-    return false;
-  }
-  if (live.commandLine
-    .length
-    === 0)
-    return false;
-  if (!processArgumentsMatch({
-    identity: live,
-    expected: [
-      watcherPath,
-      statePath,
-    ],
-  },)) {
-    throw new BypassRouteError(
-      `Refusing to signal PID ${String(identity.pid,)} because command is not bypass watcher for ${statePath}. `
-        + `It runs ${JSON.stringify(live.commandLine,)} and the watcher is expected to run its node binary, ${JSON.stringify(watcherPath,)} and ${JSON.stringify(statePath,)}.`,
-    );
-  }
-  return true;
-}
-
-/**
- Signals detached watcher process group while tolerating disappearance.
- 
- Watcher PID is validated before conversion to group target.
- Route-monitor and transient `ip` children inherit this process group.
- 
- @param pid - Positive watcher group-leader PID.
- 
- @param signal - Signal name.
- 
- @example
- ```ts
- signalWatcherProcessGroup({ pid: 123, signal: 'SIGTERM' });
- ```
- */
-function signalWatcherProcessGroup(
-  {
-    pid,
-    signal,
-  }: {
-    readonly pid: number;
-    readonly signal: NodeJS.Signals;
-  },
-): void {
-  if ((!Number.isSafeInteger(pid,)) || (pid <= 0))
-    throw new BypassRouteError(`Refusing to signal invalid watcher group PID ${String(pid,)}.`,);
-  try {
-    process.kill(
-      -pid,
-      signal,
-    );
-  }
-  catch (error) {
-    if (isErrnoException(error,) && (error.code === 'ESRCH'))
-      return;
-    throw error;
-  }
-}
-
-/**
- Reports whether detached watcher process group still has members.
- 
- @param pid - Positive process-group leader identity.
- 
- @returns Whether kernel still resolves process group.
- 
- @example
- ```ts
- watcherProcessGroupExists({ pid: 123 });
- ```
- */
-export function watcherProcessGroupExists(
-  { pid, }: { readonly pid: number; },
-): boolean {
-  if ((!Number.isSafeInteger(pid,)) || (pid <= 0))
-    throw new BypassRouteError(`Invalid watcher process-group identifier: ${String(pid,)}`,);
-  try {
-    process.kill(
-      -pid,
-      0,
-    );
-    return true;
-  }
-  catch (error) {
-    if (isErrnoException(error,) && (error.code === 'ESRCH'))
-      return false;
-    throw error;
-  }
-}
-
-/**
- Waits bounded interval for exact watcher group to disappear.
- 
- @param identity - Watcher identity being stopped.
- 
- @param statePath - Expected command state argument.
-
- @param watcherPath - Expected watcher script argument,
- replaceable in tests.
-
- @param isRunning - Identity check,
- replaceable in tests.
-
- @param groupExists - Process-group check,
- replaceable in tests.
-
- @param pause - Wait between checks,
- replaceable in tests.
-
- @returns Whether watcher disappeared before bound.
-
- @example
- ```ts
- await waitForWatcherStop({ identity, statePath: '/tmp/state' });
- ```
- */
-export async function waitForWatcherStop(
-  {
-    identity,
-    statePath,
-    watcherPath = WATCHER_PATH,
-    isRunning = watcherIsRunning,
-    groupExists = watcherProcessGroupExists,
-    pause = wait,
-  }: {
-    readonly identity: WatcherProcessIdentity;
-    readonly statePath: string;
-    readonly watcherPath?: string;
-    readonly isRunning?: typeof watcherIsRunning;
-    readonly groupExists?: typeof watcherProcessGroupExists;
-    readonly pause?: (milliseconds: number,) => Promise<unknown>;
-  },
-): Promise<boolean> {
-  /**
-   Bounded process-stop cursor.
-   */
-  const cursor = { attempt: 0, };
-  while (cursor.attempt < PROCESS_WAIT_ATTEMPTS) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Exact process identity must be rechecked after each bounded delay.
-    if ((!(await isRunning({
-      identity,
-      statePath,
-      watcherPath,
-    },))) && (!groupExists({ pid: identity.pid, })))
-      return true;
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Bounded shutdown wait avoids busy spin.
-    await pause(PROCESS_WAIT_DELAY_MS,);
-    cursor.attempt += 1;
-  }
-  return false;
-}
-
+const l = tagged({ tag: 'tunnel-bypass-watch-service', },);
 /**
  Registers current watcher identity and removes it on exit.
  
@@ -291,28 +67,24 @@ export async function registerBypassWatcher(
    Sidecar path owned by this watcher.
    */
   const path = watcherIdentityPath({ statePath, },);
-  await writeFile(
-    path,
-    JSON.stringify({
+  await writeWatcherRecord({
+    statePath,
+    identity: {
       ownerId,
       pid: process.pid,
       startTime: live.startTime,
-    },),
-    {
-      flag: 'wx',
-      mode: 0o600,
     },
-  );
+  },);
   return {
     async [Symbol.asyncDispose](): Promise<void> {
       /**
        Current sidecar identity before owner removal.
        */
-      const current = await readWatcherIdentity({ statePath, },);
-      if ((current !== PROCESS_ABSENT)
-        && (current.ownerId === ownerId)
-        && (current.pid === process.pid)
-        && (current.startTime === live.startTime)) {
+      const record = await readWatcherRecord({ statePath, },);
+      if ((record.kind === 'identity')
+        && (record.identity.ownerId === ownerId)
+        && (record.identity.pid === process.pid)
+        && (record.identity.startTime === live.startTime)) {
         await rm(path,);
       }
     },
@@ -323,7 +95,9 @@ export async function registerBypassWatcher(
  Stops detached watcher only when owner,
  PID start time,
  and complete command identity match.
- 
+ A watcher whose leader is already gone has its process group ended,
+ so the route monitor it spawned does not outlive it.
+
  @param state - Persisted bypass state.
 
  @param watcherPath - Expected watcher script argument,
@@ -348,9 +122,10 @@ export async function stopBypassWatcher(
    */
   const statePath = bypassStatePath({ interfaceName: state.interfaceName, },);
   /**
-   Registered watcher when present.
+   Registered watcher when present,
+   with a record that holds no identity moved aside instead of refusing the stop for ever.
    */
-  const identity = await readWatcherIdentity({ statePath, },);
+  const identity = await identityOrNone({ statePath, },);
   if (identity === PROCESS_ABSENT)
     return;
   if (identity.ownerId !== state.ownerId) {
@@ -361,6 +136,14 @@ export async function stopBypassWatcher(
     statePath,
     watcherPath,
   }))) {
+    // The leader is gone, and a route monitor it spawned can outlive it:
+    // the monitor and every `ip` call of the watcher are children in the leader's process group,
+    // and nothing else ever ends that group.
+    await stopLeftoverGroup({
+      identity,
+      statePath,
+      watcherPath,
+    },);
     await rm(
       watcherIdentityPath({ statePath, },),
       { force: true, },
@@ -381,6 +164,11 @@ export async function stopBypassWatcher(
       statePath,
       watcherPath,
     }))) {
+      await stopLeftoverGroup({
+        identity,
+        statePath,
+        watcherPath,
+      },);
       await rm(
         watcherIdentityPath({ statePath, },),
         { force: true, },
@@ -469,7 +257,7 @@ export async function startBypassWatcher(
      Registration sidecar observed during bounded readiness wait.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- Registration sidecar is asynchronous child readiness boundary.
-    const identity = await readWatcherIdentity({ statePath, },);
+    const identity = await identityOrNone({ statePath, },);
     if ((identity !== PROCESS_ABSENT)
       && (identity.ownerId === state.ownerId)
       && (identity.pid === pid)) {
@@ -517,18 +305,10 @@ export async function startBypassWatcher(
     identity,
     statePath,
   }))) {
-    await writeFile(
-      watcherIdentityPath({ statePath, },),
-      JSON.stringify({
-        ownerId: identity.ownerId,
-        pid: identity.pid,
-        startTime: identity.startTime,
-      },),
-      {
-        flag: 'wx',
-        mode: 0o600,
-      },
-    );
+    await writeWatcherRecord({
+      statePath,
+      identity,
+    },);
     throw new BypassRouteError(`Timed-out bypass watcher group ${String(pid,)} survived SIGKILL; ownership retained.`,);
   }
   throw new BypassRouteError('Bypass route watcher did not register process identity.',);
