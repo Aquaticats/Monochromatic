@@ -24,7 +24,8 @@
     "latest-pi-run-reports": "dist/final/node/latest-pi-run-reports.mjs",
     "send-note-to-running-pi-runs": "dist/final/node/send-note-to-running-pi-runs.mjs",
     "stop-pi-runs-not-on-the-wrapper": "dist/final/node/stop-pi-runs-not-on-the-wrapper.mjs",
-    "start-kimi-reviews": "dist/final/node/start-kimi-reviews.mjs"
+    "start-kimi-reviews": "dist/final/node/start-kimi-reviews.mjs",
+    "list-recent-pi-run-ends": "dist/final/node/list-recent-pi-run-ends.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

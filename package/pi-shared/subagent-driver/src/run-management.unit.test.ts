@@ -12,6 +12,7 @@ import {
   readdir,
   readFile,
   rm,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -45,7 +46,12 @@ import {
   NO_WORKTREE_BRANCH,
   parseBatchList,
   parseKimiReviewList,
+  parseNamedReportOptions,
+  parseRunEndOptions,
   PI_POOLS,
+  recentRunEndsOf,
+  reportOfANamedRun,
+  RunEndOptionsError,
   poolNamed,
   poolWithRoom,
   retryAStartUntilASlotFrees,
@@ -790,6 +796,157 @@ await describe({
             expect(lines[0],).toBe('=== copy-route-2: idle, 4 turns',);
             expect(lines,).toContain('the second report',);
             expect(lines,).toContain('=== never-finished: no finished run',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: reportOfANamedRun.name,
+      children: [
+        it({
+          name: 'prints the named run\'s end, its line count and the lines the caller asked for, cut to the width',
+          fn: async () => {
+            await using folder = await scratch();
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'copy-route-3',
+              summary: {
+                endReason: 'model-error',
+                modelError: '429 Too many requests',
+                turns: 7,
+                lastAssistantText: 'first line\nsecond line\nthird line which is long',
+              },
+            },);
+            const lines = await reportOfANamedRun({
+              runsFolder: folder.path,
+              runFolder: 'copy-route-3',
+              from: 2,
+              to: 3,
+              width: 10,
+            },);
+            expect(lines[0],).toBe('=== copy-route-3: model-error 429 Too many requests turns 7',);
+            expect(lines[1],).toBe('(report has 3 lines)',);
+            expect(lines.slice(2,),).toEqual(['second lin', 'third line',],);
+          },
+        },),
+        it({
+          name: 'refuses a command line with no run folder, with an unknown option, and with two counts for one option',
+          fn: async () => {
+            let noRun: unknown;
+            try {
+              parseNamedReportOptions([],);
+            }
+            catch (error) {
+              noRun = error;
+            }
+            expect((noRun as Error).message,).toContain('--run',);
+            let unknown: unknown;
+            try {
+              parseNamedReportOptions(['--run=a-1', '--wibble=1',],);
+            }
+            catch (error) {
+              unknown = error;
+            }
+            expect((unknown as Error).message,).toContain('no option of this command',);
+            let twice: unknown;
+            try {
+              parseNamedReportOptions(['--run=a-1', '--to=1', '--to=2',],);
+            }
+            catch (error) {
+              twice = error;
+            }
+            expect((twice as Error).message,).toContain('takes one value',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: recentRunEndsOf.name,
+      children: [
+        it({
+          name: 'lists the runs that finished in the window, with their end, turns and whether a later attempt exists',
+          fn: async () => {
+            await using folder = await scratch();
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'copy-route-1',
+              summary: { endReason: 'model-error', modelError: '520 from the provider', turns: 12, },
+            },);
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'copy-route-2',
+              summary: { endReason: 'idle', turns: 4, },
+            },);
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'an-old-run-1',
+              summary: { endReason: 'idle', turns: 2, },
+            },);
+            /**
+             A moment far before the window, which the old run's summary is given.
+             */
+            const longAgo = new Date(Date.now() - (10 * 24 * 60 * 60_000),);
+            await utimes(
+              join(
+                folder.path,
+                'an-old-run-1',
+                'summary.json',
+              ),
+              longAgo,
+              longAgo,
+            );
+            await mkdir(join(folder.path, 'still-running-1',), { recursive: true, },);
+            const lines = await recentRunEndsOf({
+              runsFolder: folder.path,
+              sinceMinutes: 40,
+              endReasons: [],
+              now: Date.now(),
+            },);
+            expect(lines.toSorted(),).toEqual([
+              'copy-route-1\tmodel-error\t520 from the provider\tturns=12\tlaterRun=true',
+              'copy-route-2\tidle\t\tturns=4\tlaterRun=false',
+            ],);
+            /**
+             The folders the window leaves out and the one that never finished, which the reader must not report as ends.
+             */
+            const reported = lines.map(function folderOf(line,) {
+              return line.split('\t',)[0];
+            },);
+            expect(reported,).not.toContain('an-old-run-1',);
+            expect(reported,).not.toContain('still-running-1',);
+          },
+        },),
+        it({
+          name: 'keeps only the ends the caller asked for, and refuses a window that is no number above zero',
+          fn: async () => {
+            await using folder = await scratch();
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'a-1',
+              summary: { endReason: 'model-error', turns: 1, },
+            },);
+            await writeRun({
+              runsFolder: folder.path,
+              name: 'b-1',
+              summary: { endReason: 'idle', turns: 1, },
+            },);
+            const lines = await recentRunEndsOf({
+              runsFolder: folder.path,
+              sinceMinutes: 40,
+              endReasons: ['model-error',],
+              now: Date.now(),
+            },);
+            expect(lines.map(function folderOf(line,) {
+              return line.split('\t',)[0];
+            },),).toEqual(['a-1',],);
+            let caught: unknown;
+            try {
+              parseRunEndOptions(['--since-minutes=zero',],);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(RunEndOptionsError,);
           },
         },),
       ],

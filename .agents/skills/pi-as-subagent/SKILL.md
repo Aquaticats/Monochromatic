@@ -336,7 +336,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     which is when to start it again from the same session file as step 7 says.
    `latest-pi-run-reports <agent>...` prints each agent's newest finished report,
    with its end, its turns and a slice of the text,
-   and says so when an agent has finished none.
+   and says so when an agent has finished none;
+   add `--run=<folder> --from=<n> --to=<n>` to read one named attempt's slice.
+   `list-recent-pi-run-ends --end=model-error` lists what the provider ended lately,
+   with each run's end and whether a later attempt exists.
 
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,

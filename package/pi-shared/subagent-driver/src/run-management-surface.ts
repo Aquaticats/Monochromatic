@@ -135,6 +135,13 @@ export {
   REPORTS_USAGE,
 } from './final-reports-of-pi-runs.ts';
 export {
+  NamedReportOptionsError,
+  NAMED_REPORT_USAGE,
+  type NamedReportOptions,
+  parseNamedReportOptions,
+  reportOfANamedRun,
+} from './report-of-a-named-run.ts';
+export {
   A_USABLE_NAME,
   noteNameProblemOf,
   notesToRuns,
@@ -204,3 +211,16 @@ export {
   releaseFinishedWorktree,
   type WorktreeRelease,
 } from './release-finished-worktree.ts';
+
+/**
+ The runs that finished lately, with how each ended and whether it was started again.
+ */
+export {
+  DEFAULT_SINCE_MINUTES,
+  parseRunEndOptions,
+  type RecentRunEnd,
+  recentRunEndsOf,
+  type RunEndOptions,
+  RunEndOptionsError,
+  RUN_ENDS_USAGE,
+} from './recent-pi-run-ends.ts';

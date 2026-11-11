@@ -25,8 +25,9 @@ import { isWholeNumberText, } from './whole-number-text.ts';
 /**
  The command's command line, for the error message.
  */
-export const REPORTS_USAGE =
-  'latest-pi-run-reports [--lines=<n>] [--width=<n>] [--runs-folder=<folder>] <agent>...';
+export const REPORTS_USAGE: string =
+  'latest-pi-run-reports [--lines=<n>] [--width=<n>] [--runs-folder=<folder>] <agent>...'
+    + '\n  or latest-pi-run-reports --run=<folder>... [--from=<n>] [--to=<n>] [--width=<n>] [--runs-folder=<folder>]';
 
 /**
  The summary a finished run leaves last.

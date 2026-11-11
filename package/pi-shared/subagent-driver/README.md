@@ -679,6 +679,28 @@ latest-pi-run-reports --lines=30 --width=420 copy-route other-agent
 An agent with no finished run answers `=== <name>: no finished run`,
 which is how an agent that never started reads apart from one that started and failed.
 
+`--run=<folder>` reads that exact attempt instead,
+which is what a line of `watch-overdue-pi-runs` or `list-recent-pi-run-ends` names,
+and `--from` and `--to` choose the lines of its report,
+one to forty by default.
+
+```sh
+latest-pi-run-reports --run=copy-route-3 --from=1 --to=60
+```
+
+### `list-recent-pi-run-ends`
+
+One line per run that finished lately: how it ended, what the model said when it ended on an error,
+how many turns it took, and whether a later attempt of the same run exists.
+
+```sh
+list-recent-pi-run-ends --since-minutes=40 --end=model-error
+```
+
+`--since-minutes` defaults to 40, which is one incident's worth,
+and `--end` narrows the lines to the ends it names, so `--end=model-error` is the runs a provider ended.
+A run still going has no summary and is not listed.
+
 ### `send-note-to-running-pi-runs`
 
 One note, published into the inbox of every run that is going.
@@ -747,8 +769,9 @@ Each of these commands is the package's version of scratch scripts in
   `start-pi-run-in-worktree.ts`.
 - `retry-start-pi-run-until-a-slot-frees`: `retry-start-until-a-slot-frees.ts`.
 - `start-a-batch-of-pi-runs`: `start-batch-with-retries.ts` and `start-agents-in-a-staggered-batch.ts`.
-- `latest-pi-run-reports`: `latest-reports.ts`, and the per-run slice of
-  `show-pi-run-reports.ts`.
+- `latest-pi-run-reports`: `latest-reports.ts`, and `show-pi-run-reports.ts` through
+  `--run`, `--from` and `--to`.
+- `list-recent-pi-run-ends`: `list-runs-ended-by-provider.ts`.
 - `send-note-to-running-pi-runs`: `send-to-every-running-pi.ts`,
   `tell-running-wrapper-agents.ts`, `tell-running-agents-never-print-the-environment.ts`,
   `send-environment-rule-to-running-agents.ts`, and the inbox half of `send-corrections-to-runs.ts`.
