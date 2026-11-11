@@ -555,15 +555,27 @@ Git reads the two keys the other way round (`repo-settings.c` of Git 2.56.0):
 and the only values that replace that default are the ones `git_parse_maybe_bool` accepts;
 `keep` is not one of them (its value is below zero),
 so `keep` leaves the added default in place.
-Measured with real Git 2.56.0 in a fixture whose index has no `UNTR` extension and carries
-`feature.manyFiles=true` and `core.untrackedCache=keep`:
-`git reset --no-refresh <commit> -- a` adds `UNTR`,
-with `core.untrackedCache` absent and with it set to `keep` alike (both `true` and `2` also add it,
-`false` removes it,
-and an empty value is what Git's string reader refuses,
-which leaves the default too).
+Measured on 2026-11-11 with real Git 2.56.0 in this worktree's fixtures,
+with the configuration set after the index's last write so that the index has no `UNTR` extension,
+and again with a cache already in the index;
+`git reset --no-refresh <commit> -- a` adds `UNTR` with `feature.manyFiles=true`,
+with `core.untrackedCache` absent and with it set to `keep` alike,
+and for `true` and for `2`;
+a cache already there is kept in those cases;
+`keep` alone,
+without the feature,
+adds nothing and keeps what is there;
+`false` and an empty value remove the cache (`git_parse_maybe_bool` reads an empty value as false,
+and a number above zero as true);
+and a bare `core.untrackedCache` key stops Git itself,
+with `missing value for 'core.untrackedcache'`.
 So the landing installed an index without the cache real Git adds,
 which is exactly the decline this record already promises for "an untracked cache it would have to add".
+At the user boundary,
+a commit through a debug build of the fix whose commit service runs by hand in a
+throwaway repository (configuration set after staging) leaves an index that is byte for byte the file
+`git reset --no-refresh HEAD -- a` writes there;
+the build before the change left `DIRC` alone where Git's own reset adds `UNTR`.
 
 What changed:
 `src/native/index/index_settings.rs` resolves the untracked mode as Git does,

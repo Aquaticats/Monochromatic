@@ -147,8 +147,8 @@ fn configuration_the_update_does_not_reproduce_is_left_to_git() {
 ///  which ends with Git's own index.
 /// Why:
 ///  Git sets the untracked-cache default from `feature.manyFiles` before it reads `core.untrackedCache`,
-///  and `keep` is a value its boolean reader refuses, so it leaves that default alone (`repo-settings.c` of Git
-///  2.56.0).
+///  and `keep` is a value its boolean reader refuses,
+///  so it leaves that default alone (`repo-settings.c` of Git 2.56.0).
 ///  A landing that read `keep` as "leave the file's extensions as they are" installed an index without the cache
 ///  Git adds,
 ///  so the person's index stopped being the file Git writes.
