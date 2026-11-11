@@ -42,6 +42,13 @@ use std::process::{Command, Output};
 // The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
 //  only when the real index no longer describes the worktree, and every repository here has an index Git has just
 //  written, so the `update-index` counts are the ones measured before that refresh existed.
+// `wrapper_syncs` is 2, not 0, since 2026-11-10 (`77e8348a84`): once the commit's own post-commit gate approves the
+//  backup, the wrapper writes the verdict the gate reached into the push record the service held for the commit before
+//  the branch moved (`service_handoff.rs`, `promote_the_push`; `work_item_holding.rs`, `record_pass`), and
+//  `private_storage::replace_private_file` makes that durable as one sync of the staged record and one of the folder
+//  holding it. A command killed between its gate and that step leaves a record whose own words say what it decided
+//  (`held_push_holder_and_verdict.rs`), which is why the write comes first, and every scenario here commits through
+//  that gate. These are a commit's only sync-class calls; no Git child of any scenario makes one.
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
 // Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance
@@ -94,7 +101,7 @@ const NO_HOOKS: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 0,
+    wrapper_syncs: 2,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -133,7 +140,7 @@ const CONFIGURED_HOOK: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 0,
+    wrapper_syncs: 2,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -169,7 +176,7 @@ const AMEND: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 0,
+    wrapper_syncs: 2,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -213,7 +220,7 @@ const WARM: Budget = Budget {
         ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 0,
+    wrapper_syncs: 2,
     git_syncs: &[("index-pack", 0), ("multi-pack-index write", 0), ("pack-objects", 0)],
 };
 //endregion
