@@ -296,7 +296,8 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 ///   Written when the wait ends,
 /// not with the answer,
 /// so a landing that fails afterwards still leaves what it waited for.
-/// It says the total,
+/// It names the repository the batch is in,
+/// the total,
 /// how it split between flushing the marker and waiting for a holder,
 /// how many times the lock was found held,
 /// and what the first and the last look found (`lock_found`,
@@ -304,14 +305,15 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// waitLine(seq, total, notes, taken) // 'waited batch=7 result=taken lock_wait_ms=5629 ...' | undefined
+/// waitLine(seq, repository, total, notes, taken) // 'waited batch=7 repository=/repo result=taken ...' | undefined
 /// ```
-pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+pub fn wait_line(seq: u64, repository: &Path, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
     if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
         return None;
     }
     return Some(format!(
-        "waited for the index lock batch={seq} result={} lock_wait_ms={}{}",
+        "waited for the index lock batch={seq} repository={} result={} lock_wait_ms={}{}",
+        repository.display(),
         if taken { "taken" } else { "refused" },
         total.as_millis(),
         lock_notes_fields(notes)

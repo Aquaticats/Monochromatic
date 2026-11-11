@@ -361,7 +361,7 @@ fn the_intent_of_a_landing_that_has_not_moved_the_branch_yet_is_left_on_disk() {
     let context: LandContext = new_context(&world, state.as_path());
     let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays: {reports:?}");
-    assert!(reports.contains(&RecoveryReport { seq: 2, decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
+    assert!(reports.contains(&RecoveryReport { seq: 2, repository: world.repo.clone(), decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
     assert!(batch_path(world.context.journal.as_path(), 2, INDEXED_EXTENSION).exists(), "its record stays");
     drop(held);
     remove(world.root.as_path());

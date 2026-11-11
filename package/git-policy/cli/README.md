@@ -6605,7 +6605,7 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   so a sum can fall short of its total by less than one per term.
   The line never holds the commit's message,
   its author or its address.
-- `waited for the index lock batch=<n> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
+- `waited for the index lock batch=<n> repository=<worktree root> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
   found held or when flushing the marker or waiting took a second or more,
   at the moment the wait ends;
   it carries the same `lock_*` fields as the `answered` line,

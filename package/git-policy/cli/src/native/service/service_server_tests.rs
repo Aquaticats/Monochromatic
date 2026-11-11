@@ -219,7 +219,8 @@ fn a_restart_says_each_batch_it_settled() {
     assert!(entries[0].message.starts_with(format!("{named} is not on its branch, so its commit ").as_str()), "{}", entries[0].message);
     assert!(entries[0].message.contains(" is kept at refs/cli-git/kept/41"), "{}", entries[0].message);
     assert_eq!(entries[1].priority, Priority::Warning);
-    assert!(entries[1].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[1].message);
+    let settled_words: String = format!("settled the batch an earlier service left open in the repository at {} batch=41 decision=", worktree.display());
+    assert!(entries[1].message.starts_with(settled_words.as_str()), "the line about the settled batch names the repository: {}", entries[1].message);
     assert!(entries[1].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[1].fields);
     crate::test_support::remove(root.as_path());
 }

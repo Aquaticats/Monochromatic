@@ -558,6 +558,7 @@ pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent)
     }
     return Some(crate::service_land_finish::RecoveryReport {
         seq,
+        repository: held.repository.clone(),
         decision: crate::service_journal::Recovery::Hold,
         handled: crate::service_land_finish::Handled::Held,
     });

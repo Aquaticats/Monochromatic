@@ -126,7 +126,7 @@ fn a_landing_killed_at_its_branch_move_leaves_what_it_owes() {
     std::fs::write(world.repo.join("other.txt"), "other\n").expect("write");
     git(world.repo.as_path(), &["add", "other.txt"]);
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert_eq!(reports, vec![RecoveryReport { seq: 1, decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
+    assert_eq!(reports, vec![RecoveryReport { seq: 1, repository: world.repo.clone(), decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
     assert!(owed_of(&world, 1).exists(), "the record outlives the finished batch");
     let commit_index: PathBuf = commit_index_of(&world);
     assert_eq!(exclude(&world, Some(commit_index.as_path())), vec![String::from("one.txt")], "the commit leaves the landed path out");
@@ -253,7 +253,7 @@ fn a_batch_finished_with_its_index_written_meanwhile_keeps_what_it_owes() {
     std::fs::write(world.repo.join("other.txt"), "other\n").expect("write");
     git(world.repo.as_path(), &["add", "other.txt"]);
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert_eq!(reports, vec![RecoveryReport { seq: 1, decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
+    assert_eq!(reports, vec![RecoveryReport { seq: 1, repository: world.repo.clone(), decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
     assert_eq!(git_text(world.repo.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "D\tone.txt\nA\tother.txt", "the index still describes the branch before the landing");
     assert!(owed_of(&world, 1).exists(), "what the batch owes outlives the batch, where the next commit reads it");
     let commit_index: PathBuf = commit_index_of(&world);
@@ -449,7 +449,7 @@ fn recovery_settles_the_record_of_an_installation_it_finds_recorded() {
     std::fs::write(batch_path(world.context.journal.as_path(), 1, crate::service_journal::INDEXED_EXTENSION), format!("{installed}\n")).expect("the completion record");
     assert!(owed_of(&world, 1).exists(), "the kill left the record");
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert_eq!(reports, vec![RecoveryReport { seq: 1, decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
+    assert_eq!(reports, vec![RecoveryReport { seq: 1, repository: world.repo.clone(), decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
     assert!(!owed_of(&world, 1).exists(), "nothing is owed, so the record is settled");
     // A later staging of that path is committed, not left out.
     std::fs::write(world.repo.join("one.txt"), "mine\n").expect("write");

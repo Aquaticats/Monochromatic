@@ -37,7 +37,7 @@ use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The index entries a batch's intent names.
 pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
@@ -324,6 +324,10 @@ pub enum Handled {
 pub struct RecoveryReport {
     /// The batch.
     pub seq: u64,
+    /// The repository whose batch it is,
+    /// which the line about it names:
+    /// a journal read across a machine cannot say it otherwise.
+    pub repository: PathBuf,
     /// What was decided.
     pub decision: Recovery,
     /// What was done about it.
@@ -559,10 +563,7 @@ settled from the worktree's own record of it, and the file may be removed once t
             continue;
         };
         // With an instance named, only the batches of that instance's worktree are recovered.
-        let selected: bool = match instance {
-            Some(named) => instance_of(intent.git_dir.as_path()) == named,
-            None => true,
-        };
+        let selected: bool = instance.is_none_or(|named| return instance_of(intent.git_dir.as_path()) == named);
         if !selected {
             continue;
         }
@@ -636,7 +637,7 @@ settled; its owed index update is settled from the worktree's own record of it",
                 }
             }
         };
-        reports.push(RecoveryReport { seq: intent.seq, decision, handled });
+        reports.push(RecoveryReport { seq: intent.seq, repository: intent.repository.clone(), decision, handled });
     }
     // A landing killed between its import and its intent leaves its batch's scratch reference with no intent to settle it, and
     //  the record it wrote is the only thing that names that reference's worktree: the sweep keeps the commit it holds and then

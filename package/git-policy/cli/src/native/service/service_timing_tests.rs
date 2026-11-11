@@ -18,6 +18,7 @@
 /// The lines and the phase arithmetic.
 use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, index_update_ms_of, retire_line, stamped_line, started_line, wait_line};
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// Milliseconds each phase is given in the controls;
@@ -380,14 +381,14 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
 #[test]
 fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_free_one() {
     let notes: WaitNotes = landing().lock_notes;
-    let line: String = wait_line(7, Duration::from_millis(990), &notes, true).expect("a held lock is written down");
-    assert!(line.starts_with("waited for the index lock batch=7 result=taken lock_wait_ms=990 "), "{line}");
+    let line: String = wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, true).expect("a held lock is written down");
+    assert!(line.starts_with("waited for the index lock batch=7 repository=repo result=taken lock_wait_ms=990 "), "{line}");
     assert!(line.contains("lock_found=") && line.contains("lock_last="), "{line}");
-    assert!(wait_line(7, Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
+    assert!(wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
     let quick: WaitNotes = WaitNotes { staging: Duration::from_millis(3), ..WaitNotes::default() };
-    assert_eq!(wait_line(8, Duration::from_millis(5), &quick, true), None);
+    assert_eq!(wait_line(8, Path::new("repo"), Duration::from_millis(5), &quick, true), None);
     let slow_flush: WaitNotes = WaitNotes { staging: SLOW_LOCK_STEP, ..WaitNotes::default() };
-    let slow: String = wait_line(9, SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
+    let slow: String = wait_line(9, Path::new("repo"), SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
     assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
 }
 

@@ -392,7 +392,14 @@ fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
         };
         log_entry(
             Priority::Warning,
-            format!("{what} batch={} decision={} journal={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }, journal.display()).as_str(),
+            format!(
+                "{what} {} batch={} decision={} journal={}",
+                crate::service_timing::in_the_repository_at(report.repository.as_path()),
+                report.seq,
+                if report.decision == Recovery::Finish { "finish" } else { "drop" },
+                journal.display()
+            )
+            .as_str(),
             &[("CLI_GIT_BATCH", report.seq.to_string())],
         );
     }
