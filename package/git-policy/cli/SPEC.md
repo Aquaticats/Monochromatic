@@ -6179,6 +6179,38 @@ on the commit path:
   A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown,
   and the message says so and gives
   `git log -1` and `git status`.
+- A commit the person interrupts while it waits is not made.
+  The client watches the two signals a waiting commit answers,
+  the interrupt a terminal sends and a stop's `SIGTERM`,
+  notes which one came,
+  and wakes the read it is inside even when the kernel delivers the signal to another thread of the process
+  (`src/native/service/service_client_interrupted.rs`).
+  It then withdraws its request exactly as a wait that reached its ceiling does,
+  and the service's answer decides the ending:
+  a request that landed before the signal came is reported as the commit it made,
+  and the command succeeds;
+  one the service gave up ends the command with the words that the commit was not made and that nothing lands later by itself,
+  by the signal's own status,
+  which a shell reports as `128 + the signal`,
+  and the timing record names the signal (`client-signal`).
+  A second signal ends the command at once.
+  A kill that no process can catch is withdrawn by nobody,
+  and the service's own rule about a request whose client is gone decides it:
+  the request makes no commit when its connection closed before its batch landed.
+- A request whose client is gone before its commit lands is dropped,
+  and its commit is not made.
+  The service asks this where the client's answer is written,
+  when the group of requests is formed,
+  and the landing asks it again where the branch has still not moved:
+  before the objects of its attempt are written and with the index lock held,
+  which is where the interrupt of a commit that waits for another program's lock lands
+  (`src/native/landing/service_land_batch_body.rs`).
+  A request whose client went away is answered nothing and committed nothing,
+  and the rest of the batch is built again without it,
+  so one command's interrupt costs no other command's commit.
+  The tree such a request named stays where it is,
+  because a client that reconnects sends the same request again and reads it,
+  and the sweep takes it by age otherwise (`SCRATCH_TREE_ABANDONED_AFTER`).
 - A Git step of the landing that reaches its ceiling is ended,
   unless it is a step that cannot be run twice,
   which
@@ -8336,8 +8368,12 @@ the index,
 the message the branch move writes in the reflog,
 the locks that stood and the instant the commit was held,
 in `monochromatic-git-policy-cli/held-commits/<batch>.held` below the worktree's own Git directory.
-The batch's held push records are given back,
-because no branch names the commit yet.
+The batch's held push records and the record of the index update the batch would owe are given back,
+because no branch names the commit yet and a batch whose branch has not moved owes nothing;
+the settlement that moves the branch takes both again before that move,
+so a kill between the move and its index install still leaves what the next command reads
+(`src/native/service/service_server_land_group_owed_pushes.rs`,
+`src/native/landing/held_commit_settle.rs`).
 The answer is `ServiceMessage::Held` with the words,
 the client prints them and exits `0`,
 and the commit is on the side reference.
@@ -12310,7 +12346,7 @@ No rule distinguishes a stopped command from a killed one,
 because the only fact that would (a process that still exists)
 is exactly the fact that cannot be acted on:
 the tree of a killed client whose request is queued belongs to a process that is gone,
-and a landing is still reading it.
+and the landing that read it may still be running.
 The window is therefore the whole of a stop longer than two hours,
 and not only the moment between creating the tree and writing anything into it.
 The wrapper accepts losing that tree.
@@ -12330,21 +12366,16 @@ a commit in another linked worktree then prepares the shared repository scratch 
 and the sweep takes the queued request's tree on its age alone,
 because the one decision that removes a commit tree (`may_go`,
 `service_scratch_abandonment.rs`) has no other evidence to go by.
-When the service resumes it lands the request,
-and the conclusion cleanup after the branch move needs the directory the request named:
-`remove_conclusion_state` (`service_land_follow.rs`) finds neither it nor the copy the
-journal keeps,
-which is written only once the landing begins,
-so it removes nothing and writes one warning to the service journal that names the state it
-left as it is.
+When the service resumes it does not land the request:
+a request whose client is gone before its commit lands makes no commit,
+so the landing of that group finds the connection closed and drops the request
+(`src/native/service/service_server_land_group.rs`),
+and no conclusion cleanup runs at all.
 What the person sees:
-the commit in the other worktree is unaffected and the request lands with no client left
-to read its answer,
-so nothing on that command's terminal says anything;
-after going back to that worktree,
-`git status` still reports the merge or cherry-pick as in progress,
-because the state the cleanup could not compare was left where it was,
-and the next commit there concludes the same merge again.
+the commit in the other worktree is unaffected,
+nothing on the killed command's terminal says anything because that command is gone,
+and the worktree that prepared the commit still reports its merge or cherry-pick in progress,
+because nothing landed to remove that state.
 An operating service lands a queued request long before its tree reaches that age,
 so the sequence needs the stop,
 which is why the age rule stays.

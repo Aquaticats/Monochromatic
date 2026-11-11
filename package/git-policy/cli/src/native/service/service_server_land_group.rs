@@ -88,6 +88,17 @@ impl Announcer for AnnounceToStreams<'_> {
             }
         }
     }
+
+    /// Whether the client of the request at `place` of the batch is gone:
+    /// its channel is closed when the task that writes its
+    /// connection ends,
+    /// which it does when the connection breaks.
+    fn client_is_gone(&self, place: usize) -> bool {
+        return match self.fresh.get(place) {
+            Some((_, stream, _)) => stream.client_is_gone(),
+            None => false,
+        };
+    }
 }
 
 /// The place each request of a batch is told,
@@ -180,6 +191,30 @@ pub(crate) fn land_group(
             repeats.push(queued);
         }
     }
+    if fresh.is_empty() {
+        return;
+    }
+    // What:
+    //  A request whose client is gone before its commit lands is not made.
+    // Why:
+    //  A commit exists for the person who asked for it,
+    //  and nothing reads the answer of a client that went away,
+    //  while native Git makes no commit for a command that was ended.
+    // This is the first of the two places the landing asks:
+    //  the body asks again while it waits for another program's index lock,
+    //  which is where a person's interrupt lands.
+    //  The tree stays for a client that reconnects and sends the same request again,
+    //  and the sweep takes it by age otherwise (`service_prepare_ready_shapes.rs`).
+    let mut present: Vec<Queued> = Vec::with_capacity(fresh.len());
+    for queued in fresh {
+        if queued.1.client_is_gone() {
+            crate::service_log!("dropped the request {} whose client is gone before its commit landed", queued.0.id);
+            handed_back.insert(queued.0.id.clone());
+        } else {
+            present.push(queued);
+        }
+    }
+    fresh = present;
     if fresh.is_empty() {
         return;
     }
@@ -298,6 +333,13 @@ pub(crate) fn land_group(
                         //  commit on the branch as it is now.
                         handed_back.insert(request.id.clone());
                         "branch-moved"
+                    }
+                    // The client went away before its commit landed, so the commit is not made and no answer is written for a
+                    //  reader that is not there: its tree stays where a client that reconnects reads it, and the sweep takes it
+                    //  by age otherwise.
+                    Outcome::ClientGone => {
+                        handed_back.insert(request.id.clone());
+                        "client-gone"
                     }
                 };
                 log_answer(&times, request, arrival, position + 1, word);

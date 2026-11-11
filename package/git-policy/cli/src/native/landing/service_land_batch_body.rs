@@ -13,19 +13,18 @@
 //! ```
 
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run, run_words};
+use crate::service_land_git_steps_and_import_stream::{checked, requests_that_land, run, run_words};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
-use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
+use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_start};
 use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
-use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
 use std::path::Path;
@@ -71,6 +70,9 @@ pub(crate) fn land_batch_body(
     }
     let scratch: String = scratch_ref(seq);
     let mut outcomes: Vec<Outcome>;
+    // The places of the batch whose client went away before its commit landed: nothing reads an answer written for them, so
+    //  their commits are not made and the rest of the batch is built again without them.
+    let mut gone: Vec<usize> = Vec::new();
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // When the branch write was first refused while the branch stood still: every wait for a reference lock that refused
     //  it shares this one bound, so a lock that keeps being taken again cannot hold the landing past it.
@@ -120,10 +122,26 @@ pub(crate) fn land_batch_body(
         // One tree comparison per distinct base: the paths that changed on the branch since then.
         outcomes = vec![Outcome::RetryPrepare { base: old.clone() }; requests.len()];
         let changed_began: Instant = Instant::now();
-        let landing: Vec<(usize, &CommitRequest)> = requests_that_land(&git, repository, requests, old.as_str())?;
+        let landing: Vec<(usize, &CommitRequest)> = crate::service_land_requests_whose_client_is_gone::places_still_wanted(
+            requests_that_land(&git, repository, requests, old.as_str())?,
+            gone.as_slice(),
+        );
         timing.reads_split.changed += changed_began.elapsed();
         if landing.is_empty() {
             return Ok(outcomes);
+        }
+        // What:
+        //  A request whose client went away before its commit landed is not made,
+        //  and the rest of the batch is built again without it.
+        // Why:
+        //  A commit exists for the person who asked for it,
+        //  and nothing reads the answer of a client that is gone.
+        // Nothing of this attempt is written yet,
+        //  so the batch is built again from the rest.
+        match crate::service_land_requests_whose_client_is_gone::take(&mut outcomes, &mut gone, &landing, announce, requests.len()) {
+            crate::service_land_requests_whose_client_is_gone::Wanted::All => {}
+            crate::service_land_requests_whose_client_is_gone::Wanted::Some => continue,
+            crate::service_land_requests_whose_client_is_gone::Wanted::None => return Ok(outcomes),
         }
         let mut batch: Vec<&CommitRequest> = Vec::new();
         for (_index, request) in &landing {
@@ -155,70 +173,17 @@ pub(crate) fn land_batch_body(
         if let Some(seam) = &context.on_objects_written {
             seam();
         }
-        // What the reflog row says: the kind of commit and the first line of its message, as native Git words both
-        // (`builtin/commit.c`, `update_head_with_reflog` in `sequencer.c`). A landing answers a batch with one branch move, so
-        // the row names the commit that landed last, which is the value the branch now holds.
-        let last_request: &CommitRequest = batch.last().copied().unwrap_or(first);
-        let content: Option<crate::service_built_checks::CommitContent> = crate::service_built_checks::commit_content(first.common_dir.as_path(), new.as_str());
-        let parents: usize = match &content {
-            Some(read) => read.parents.len(),
-            None => 0,
-        };
-        let copy: Option<std::path::PathBuf> =
-            crate::service_land_reflog::conclusion_copy(context.journal.as_path(), seq, first.cleanup.is_some());
-        let initial: bool = unborn || is_zero_object(old.as_str());
-        let committed: crate::service_land_reflog::Committed = crate::service_land_reflog::kind(last_request.amend, initial, parents, copy.as_deref());
-        let subject: Vec<u8> = match content {
-            Some(read) => read.message,
-            None => last_request.message.clone().into_bytes(),
-        };
-        let reflog: std::ffi::OsString = crate::service_land_reflog::message(committed, subject.as_slice());
-        // A commit Git built carries no list of changes: its index entries are the paths that differ from the old branch.
-        let derived: bool = first.commit.is_some();
-        let paths: Vec<Vec<u8>> = if derived {
-            Vec::new()
-        } else {
-            let mut named: Vec<Vec<u8>> = Vec::new();
-            for request in &batch {
-                for change in &request.changes {
-                    named.push(crate::path_bytes::path_bytes_of(change.path.as_path()).to_vec());
-                }
-            }
-            named
-        };
-        let intent: Intent = Intent {
+        let (intent, reflog): (Intent, std::ffi::OsString) = crate::service_land_record_the_batch::of(crate::service_land_record_the_batch::TheBatch {
+            context,
+            timing,
             seq,
-            repository: first.repository.clone(),
-            common_dir: first.common_dir.clone(),
-            reference: first.reference.clone(),
-            old: old.clone(),
-            new: new.clone(),
-            ids: ids_of(&batch),
-            commits: commits.clone(),
-            paths,
-            derived,
-            cleanup: first.cleanup.clone(),
-            index: first.index.clone(),
-            git_dir: first.git_dir.clone(),
-        };
-        // The index update is owed from this instant, and its own record is written before the branch moves: a kill between the
-        //  move and the index install leaves it where the person's next command reads it (`owed_index_update.rs`).
-        // Everything the batch owes is taken here, before the branch moves, so a kill after the move leaves the record of the index
-        //  update and the held push of every commit it would land (`work_item_holding.rs`).
-        let owed_began: Instant = Instant::now();
-        crate::service_server_land_group::what_a_batch_owes(&intent);
-        timing.reads_split.owed += owed_began.elapsed();
-        // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
-        //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
-        let conclusion_began: Instant = Instant::now();
-        crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
-        timing.reads_split.conclusion += conclusion_began.elapsed();
-        let journal_began: Instant = Instant::now();
-        let written = write_intent(context.journal.as_path(), &intent);
-        timing.journal += journal_began.elapsed();
-        if let Err(error) = written {
-            return Err(storage_failure(&error));
-        }
+            first,
+            batch: batch.as_slice(),
+            commits: commits.as_slice(),
+            old: old.as_str(),
+            new: new.as_str(),
+            unborn,
+        })?;
         reach("after-intent");
         // Git's own rule: the index lock is held before the branch is moved and given up when the new index is in place, so
         //  a foreign `git` that holds it finishes first and this landing builds on what it left. Everything that can be done
@@ -240,6 +205,39 @@ pub(crate) fn land_batch_body(
                 Err(code) => Err(code),
             };
         }
+        // What:
+        //  The same question is asked with the index lock held,
+        //  because the wait for another program's lock is where a person's interrupt lands.
+        // Why:
+        //  That wait can last a minute,
+        //  and a commit whose client went away in it is not made either.
+        //  What this attempt took is given back and the batch is built again from the rest.
+        let left: crate::service_land_requests_whose_client_is_gone::Wanted =
+            crate::service_land_requests_whose_client_is_gone::take(&mut outcomes, &mut gone, &landing, announce, requests.len());
+        if left != crate::service_land_requests_whose_client_is_gone::Wanted::All {
+            drop(held);
+            crate::service_land_hold_a_batch::drop_the_batch(&crate::service_land_hold_a_batch::DropTheBatch {
+                git: &git,
+                context,
+                repository,
+                seq,
+                intent: &intent,
+                scratch: scratch.as_str(),
+            });
+            if left == crate::service_land_requests_whose_client_is_gone::Wanted::None {
+                return Ok(outcomes);
+            }
+            continue;
+        }
+        // What: Everything this batch owes is taken now, before the branch moves and with the index lock held.
+        // Why:  A kill between the move and the index install leaves the record of the index update and the held push of
+        //  every commit the batch lands (`owed_index_update.rs`, `work_item_holding.rs`), and a batch that never moves its
+        //  branch owes nothing: taken any earlier, a wait that is withdrawn at its ceiling, a lock that is never given up or a
+        //  write Git never starts would leave records of a landing that did not happen, and every later command of the worktree
+        //  would read them (a held push of a commit no branch names, and an owed update for a commit that landed).
+        let owed_began: Instant = Instant::now();
+        crate::service_server_land_group::what_a_batch_owes(&intent);
+        timing.reads_split.owed += owed_began.elapsed();
         // The index file now, under the lock, is what a replay of this batch must still find before it resets a path: a replay is
         //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness
         //  needs no list of paths. A record that cannot be written leaves a batch no replay is made for, and this landing
@@ -282,7 +280,24 @@ pub(crate) fn land_batch_body(
             } else {
                 format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)
             });
-            run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes()))?
+            match run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes())) {
+                Ok(output) => output,
+                // Git never started, so the branch did not move and nothing of this batch lands: what the batch took is given
+                //  back, so no record of a landing that did not happen outlives it. A step ended at a ceiling keeps the commit
+                //  the reference holds first (`land_batch_timed`), so that reference is left for it.
+                Err(code) => {
+                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> = crate::service_land_hold_a_batch::DropTheBatch {
+                        git: &git,
+                        context,
+                        repository,
+                        seq,
+                        intent: &intent,
+                        scratch: scratch.as_str(),
+                    };
+                    crate::service_land_hold_a_batch::end_a_batch_the_write_never_started(&drop, code);
+                    return Err(code);
+                }
+            }
         };
         timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
