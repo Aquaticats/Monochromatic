@@ -41,7 +41,7 @@ the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
 Minutes later: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 So the opencode-go pool's limit is 0 (no new run goes there) until the owner says the week has reset;
 the one run already on it continues, and if the cap ends it, it resumes on Neuralwatt.
-At about 17:55 the same day, on the qwen plan (which the 16:35 answer had kept for qwen4-max-preview alone):
+At about 17:45 the same day, on the qwen plan (which the 16:35 answer had kept for qwen4-max-preview alone):
 "I think there's no point to withholding all Qwen quota to Qwen itself.
 Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017"
 So default runs go first to the pool `qwen-plan-deepseek` (`qwen-token-plan-individual`, `deepseek-v4.1-flash-1017`, 18 slots, the size of the pool it replaces),
@@ -126,9 +126,34 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T18:15:00-05:00)
+### Superseded work is culled every hour (first pass 2026-11-11T18:03:00-05:00)
 
-The owner, at about 18:05, after the coordinator had again edited scratch scripts:
+The owner, at about 18:00:
+"Please take a look at in flight and queued work now and cull or reframe anything that's superseded.
+In fact, make this an hourly cron lasting for 12h."
+Cron `4c1ff2ae` fires hourly until 2026-11-12T06:40-05:00 (`c921d8d2` deletes it then);
+both live only in the coordinator's session, so a restart loses them and they are made again.
+Each pass looks at running `pi-*` units, `launch-*` batch units, retry loops waiting for a slot and briefs not started,
+against owner decisions and landed work since those runs were briefed, and records here what it stopped or reframed and why.
+
+First pass, with 50 `pi-*` and `launch-*` units running:
+
+- Reframed, the alpha.11 release itself:
+  it no longer waits for the full gate, for round 213's two test fixes, or for `native:clippy` on `main`
+  (the owner's answers of 17:58 under "Pi tooling lives in the workspace, and alphas run no extra release work").
+  It needs a tip that builds (round 216), the merge pass, the merge into `main`, the release and the install;
+  the gate starts on the release commit and is read afterwards.
+- Reframed, round 212's driver-port agent: the pool and gate files went to round 230, by inbox note.
+- Superseded, nothing to stop: `fix/git-policy-cli-open-issues-next-batch` was ported as `fix/git-policy-cli-open-issues-fourth-pass` (merged),
+  and the review starter refused it on its own ("nothing to review").
+  The branch is deletable once the owner allows it.
+- Superseded, already stopped: round 224 (driver-side 429 handling) and the two Kimi reviews of the launcher port (rounds 212 and 221), whose worktrees the landed sweep removed when the port was merged into its landing branch.
+- Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
+- Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
+
+### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T17:55:17-05:00)
+
+The owner, at about 17:50, after the coordinator had again edited scratch scripts:
 "I've said to fold pi-runs set of scripts into a proper workspace package before.
 I believe there is also a launcher already as a proper workspace package.
 I don't wanna see you edit pi-runs outside the workspace again.
@@ -154,7 +179,7 @@ a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an al
 round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
 This narrows the owner's 2026-11-10 choice "Before each release (Recommended)"
 ("A wrapper release waits for that run, and a skipped test fails it."): the coordinator reads it as holding for every release but an alpha.
-The owner's answers of 2026-11-11T18:25-05:00, through the question tool, each asked with its options and a ranking:
+The owner's answers of 2026-11-11T17:58-05:00, through the question tool, each asked with its options and a ranking:
 
 - qwen4-max-preview in long audits: "Not used for audits".
   The result put to him: on Kimi's own audit prompts over three areas of the alpha.10 wrapper code,
