@@ -44,6 +44,7 @@ const REVIEWED_ENVIRONMENT: Readonly<Record<string, string>> = {
   WG_QUICKER_TEST_SUDO_RECORD: 'Used by a fake sudo in tests only.',
   WG_QUICKER_EXEMPT_TEST_FORCE_PIN_INVALID: 'Debug builds only (cfg(debug_assertions)); compiled out of release builds, and it makes marking fail loudly.',
   WG_QUICKER_EXEMPT_TEST_FAIL_AFTER_ATTACH: 'Debug builds only (cfg(debug_assertions)); compiled out of release builds, and it makes the holder fail loudly.',
+  WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT: 'Debug builds only (cfg(debug_assertions)); compiled out of release builds, and it points the watcher state at a test scratch directory so a stop can be driven without root. No policy reads it.',
   TMPDIR: 'Locates the private temporary directory of the sudo hand-off only.',
 };
 
@@ -83,6 +84,7 @@ const POLICY_WORD_EXCEPTIONS: Readonly<Record<string, string>> = {
   WG_QUICKER_EXEMPT_TEST_FORCE_PIN_INVALID: REVIEWED_ENVIRONMENT.WG_QUICKER_EXEMPT_TEST_FORCE_PIN_INVALID ?? '',
   WG_QUICKER_TEST_SUDO_RECORD: REVIEWED_ENVIRONMENT.WG_QUICKER_TEST_SUDO_RECORD ?? '',
   WG_QUICKER_EXEMPT_TEST_FAIL_AFTER_ATTACH: REVIEWED_ENVIRONMENT.WG_QUICKER_EXEMPT_TEST_FAIL_AFTER_ATTACH ?? '',
+  WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT: REVIEWED_ENVIRONMENT.WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT ?? '',
 };
 
 /**
