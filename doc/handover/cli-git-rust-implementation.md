@@ -419,6 +419,47 @@ then rerelease;
 and measure what the carry pays for its holder scan before the next alpha,
 as this branch's section says.
 
+### The integration moved on, and one control moved with it (2026-11-10T22:59:46-05:00)
+
+`integrate/git-policy-cli-jam-fixes-after-alpha-9` then advanced from `5686c7bb29` to `b17817f15d`,
+and that tip was merged into this branch again (`ce403354a8`).
+One file conflicted,
+`merge_isolation_recovery_tests.rs`,
+because both sides had moved the same control off the remedy the wrapper used to print:
+this branch to `git restore --no-enforce-worktree --staged`
+and the integration to the whole command,
+`git restore --no-enforce-worktree --staged --worktree`,
+which is what `merge_isolation_recovery_cleanup.rs:220` emits for a worktree that switched.
+The integration's assertion contains the text this branch asserted,
+so the merged control is the integration's,
+and the merged file is byte-identical to the integration's.
+
+The four files the earlier merge resolved do not conflict again,
+and the integration changed none of them after `5686c7bb29`:
+two hold the integration's own text
+(`merge_isolation_carry_apply_tests.rs` and `service_server_connection_handling.rs`),
+and two hold that text plus this branch's own additions
+(the test module of the placement controls in `merge_isolation_carry_place.rs`,
+and the reasons both callers share in `merge_isolation_take_asides.rs`).
+The wrapper printed no hunk-resolution warning of its own;
+the commit printed `Recorded resolution for` the one file.
+
+Measured on the merged tree,
+one run of each:
+
+```text
+native:test:host -- --no-run             Finished `test` profile in 2m 21s
+native:test:binary:host -- --no-run      Finished `test` profile in 1m 26s
+native:clippy                            Finished `dev` profile in 59.85s
+native:test:host -- -E 'test(merge::) | test(service_server_connection_handling) | test(held_settlement)'
+  Summary [  87.398s] 251 tests run: 251 passed, 6290 skipped
+```
+
+Next action:
+land this branch;
+the red tests the earlier section lists are still the integration's,
+and nothing this branch resolved reaches them.
+
 ### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
