@@ -158,7 +158,8 @@ the merge with `integrate/git-policy-cli-jam-fixes-after-alpha-9` kept
 `drop_the_aside_awaiting`,
 which fills a `kept: &mut Vec<PathBuf>` the caller reads,
 and dropped this branch's `Placed::Written { kept: Option<PathBuf> }`
-(the section "The jam-fix integration merged in, and the red tests it brings" records what changed).
+(the section "The jam-fix integration merged in,
+and the red tests it brings" records what changed).
 Guarantees:
 `README.md` "Merging",
 "Carrying the person's own work",
@@ -332,16 +333,20 @@ because it asks the same proofs at the same places and the branches after it are
   both now take the merge's identifier and the `held` list,
   and each asserts that the placement hands out the private name it kept.
 - `merge_isolation_take_asides.rs`:
-  one proof, under the integration's name `may_remove_the_aside_awaiting`,
+  one proof,
+  under the integration's name `may_remove_the_aside_awaiting`,
   with both sides' reasons for it.
 - `service_server_connection_handling.rs`,
   `service_server_connection_handling_tests.rs`:
   the merged answer is the integration's single ownership check beside the beats,
   held by `service_fault_hooks_test_support.rs::hold_on_any_thread`.
   This branch's `service_server_connection_handling_directory_check_hold_test_support.rs` and the control it served
-  are removed, because the integration's
+  are removed,
+  because the integration's
   `a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits` asks the same question
-  (a beat arrives while the read waits, the refusal follows it, and nothing reaches the landing).
+  (a beat arrives while the read waits,
+  the refusal follows it,
+  and nothing reaches the landing).
 - `merge_isolation_carry_writes.rs` is the one file Git's own pass resolved wrongly:
   it kept both sides' notices and this branch's `Placed::Written` arms beside the integration's `held` list,
   so the merged step is the integration's and its notice says the path was written,
@@ -386,22 +391,25 @@ and none of it is reached from a file this merge resolved:
 - three `worktree_copying::worktree_copy_stage_claim` tests,
   which assert a remedy ending `reset --hard` where the shipped text now reads
   `reset --no-enforce-worktree --hard`.
-- three stage-container tests under `worktree::worktree_convert`, `worktree::worktree_convert_compare` and
+- three stage-container tests under `worktree::worktree_convert`,
+  `worktree::worktree_convert_compare` and
   `subvolume::subvolume_sync`,
   where a conversion of a tree that holds a stage container reports an entry missing from the installed worktree.
 - `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`,
   because `service/service_fault_hooks_test_support.rs` holds a `Mutex` that the inventory does not list.
 - `landing::service_index_lock::tests::the_flush_of_the_marker_is_the_operating_systems`,
-  `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`, and
-  `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
+  `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`,
+  and `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
 
 `mise run //package/git-policy/cli:lint:monochromatic-lint` reports 22 errors in 13 files on the merged tree and
 27 in 14 on `5686c7bb29`:
 this branch's rewrapped prose in `service_server_connection_handling_tests.rs` removed five
 `markdown/semantic-line-breaks` errors,
 and nothing this merge resolved is named.
-The rest are `markdown/semantic-line-breaks` in `README.md`, `SPEC.md` and files under `native/worktree/`,
-`native/testing/`, `native/landing/` and `native/worktree_copying/`,
+The rest are `markdown/semantic-line-breaks` in `README.md`,
+`SPEC.md` and files under `native/worktree/`,
+`native/testing/`,
+`native/landing/` and `native/worktree_copying/`,
 and two `rust/max-lines` errors in `native/testing/test_support.rs` and
 `native/landing/service_work_drain_pending_claims.rs`.
 
