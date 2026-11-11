@@ -50,11 +50,32 @@ function standInSystemd(states: readonly string[],): {
        */
       const state = states[Math.min(asked.count, states.length) - 1] ?? '';
       return {
-        status: command === 'systemctl' && words.includes('--property=ActiveState',) ? 0 : 1,
+        status: ((command === 'systemctl') && words.includes('--property=ActiveState',)) ? 0 : 1,
         stdout: `${state}\n`,
         stderr: '',
       };
     },
+  };
+}
+
+/**
+ A systemd stand-in that refuses every question, as one with no bus to talk to does.
+
+ @returns what a systemd with no bus prints
+
+ @example
+ ```ts
+ const shown = await refuseTheQuestion({ command: 'systemctl', words: [], });
+ ```
+ */
+async function refuseTheQuestion(request: {
+  readonly command: string;
+  readonly words: readonly string[];
+}): Promise<CommandOutput> {
+  return {
+    status: 1,
+    stdout: '',
+    stderr: `Failed to connect to bus: ${request.command} ${request.words.join(' ',)}`,
   };
 }
 
@@ -71,18 +92,8 @@ await describe({
               run: standInSystemd(['active',],).run,
               unitName: 'pi-a.service',
             },),).toBe('active',);
-            /**
-             A manager that refused the question.
-             */
-            const refusing: RunCommand = async function systemd() {
-              return {
-                status: 1,
-                stdout: '',
-                stderr: 'Failed to connect to bus',
-              };
-            };
             expect(await unitStateOf({
-              run: refusing,
+              run: refuseTheQuestion,
               unitName: 'pi-a.service',
             },),).toBe('',);
           },
