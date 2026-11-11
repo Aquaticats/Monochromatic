@@ -471,6 +471,23 @@ pub fn push_once(
         std::thread::sleep(PUSH_LOCK_PAUSE * pause);
         attempt = run_push_command(git, argument_views.as_slice())?;
     }
+    // The push delivered, and Git may have been refused the update of the branch's remote-tracking reference while another Git
+    //  held its lock. The repeats above bring the reference up to date when that lock went in the meantime, and one that outlives
+    //  them leaves the reference behind, so it is written here and the state is said when it could not be
+    //  (`push_tracking_ref_repair.rs`). Nothing a person asked for waits on it: the push is over.
+    let mut note: String = String::new();
+    if attempt.exit_code == 0
+        && let Some(of) = pushed_tracking_ref(upstream.as_deref(), &sent, pushed_ref.as_str())
+    {
+        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref.
+        let full: String = match crate::push_tracking_ref_repair::resolve(git, of) {
+            Some(named) => named,
+            None => of.to_owned(),
+        };
+        if !crate::push_tracking_ref_repair::bring_up_to_date(git, full.as_str(), source.as_str()) {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        }
+    }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
     //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
@@ -489,7 +506,39 @@ pub fn push_once(
             landed_oid: sent_up_to,
         },
     )?;
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), err);
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), err);
+}
+
+/// What:
+///  The remote-tracking reference a push of this shape updates,
+///  or nothing when no single reference is its.
+/// Why:
+///   The reference is written by hand only where the push sends the branch to its own name on the remote the branch tracks,
+/// because that is the one case in which Git updates the branch's upstream ref:
+/// a push that matches the branches
+///  itself,
+/// a push to another destination,
+/// and a push whose remote is not the branch's tracked remote
+///  (`branch.<name>.pushRemote` and `push.default=current`) all leave that reference to Git,
+/// and writing it there would name a
+///  commit the other remote never received.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ref = (upstream, sent, branchRef) => [sent.remote + '/' + short, 'refs/remotes/' + sent.remote + '/' + short].includes(upstream) && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
+/// ```
+pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, branch_ref: &str) -> Option<&'a str> {
+    let of: &'a str = upstream?;
+    let target: &String = sent.targets.first()?;
+    if sent.targets.len() != 1 || target.as_str() != branch_ref {
+        return None;
+    }
+    let short: &str = branch_ref.strip_prefix("refs/heads/")?;
+    // The push plan asks Git for the upstream and keeps the name Git answers with, which is the abbreviated `origin/main`; the
+    //  full form is accepted as well, because a reader that spells it out names the same reference.
+    let full: String = format!("refs/remotes/{}/{short}", sent.remote);
+    let abbreviated: String = format!("{}/{short}", sent.remote);
+    return (of == full || of == abbreviated).then_some(of);
 }
 
 /// What:
@@ -511,7 +560,7 @@ pub fn push_once(
 /// ```ts
 /// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, note: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
     let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
@@ -520,11 +569,19 @@ pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePus
         WhereThePushStops::Unanswered(stopped) => Some(unanswered_line(branch_ref, stopped)),
     };
     let said: String = filter_push_output(&attempt.output, attempt.exit_code);
-    let shown: String = match (held_back.clone(), said.is_empty()) {
+    let mut shown: String = match (held_back.clone(), said.is_empty()) {
         (None, _) => said,
         (Some(line), true) => line,
         (Some(line), false) => format!("{line}\n{said}"),
     };
+    // A push that delivered but could not write the branch's tracking reference is said even when it printed nothing: silence
+    //  there is a reference that disagrees with the remote until a push or a fetch writes it.
+    if !note.is_empty() {
+        shown = match shown.is_empty() {
+            true => note.to_owned(),
+            false => format!("{shown}\n{note}"),
+        };
+    }
     if !shown.is_empty() {
         writeln!(err, "{shown}").map_err(SingleFlightError::Io)?;
     }

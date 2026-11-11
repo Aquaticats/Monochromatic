@@ -35,6 +35,7 @@ fn intent_of(sequence: u64, old: &str, new: &str, commits: &[&str]) -> Intent {
         new: new.to_string(),
         ids: vec![String::from("request-1")],
         commits: commits.iter().map(|commit| { return commit.to_string(); }).collect(),
+        holders: Vec::new(),
         paths: vec![b"f.txt".to_vec()],
         derived: false,
         cleanup: None,

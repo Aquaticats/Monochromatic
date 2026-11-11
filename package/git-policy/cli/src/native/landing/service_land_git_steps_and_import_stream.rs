@@ -482,6 +482,26 @@ pub(crate) fn ids_of(batch: &[&CommitRequest]) -> Vec<String> {
 }
 
 /// What:
+///  The command each request of a batch says will decide its commit's post-commit checks,
+///  in the order of the commits.
+/// Why:
+///   The intent of a batch is the only record a restart has of the command that will promote the landed commits'
+///  held pushes,
+/// and a hold that names no command says a published commit may still be held (`held_push_holder_and_verdict.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// batch.map((request) => request.holder)
+/// ```
+pub(crate) fn holders_of(batch: &[&CommitRequest]) -> Vec<String> {
+    let mut holders: Vec<String> = Vec::new();
+    for request in batch {
+        holders.push(request.holder.clone());
+    }
+    return holders;
+}
+
+/// What:
 ///  Whether a change of the request touches a path that changed on the branch since the request's base.
 /// Why:
 ///  A request whose paths changed meanwhile is sent back to be prepared again against the new tip.

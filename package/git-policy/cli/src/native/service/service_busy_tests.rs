@@ -264,6 +264,7 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
         new: "1".repeat(40),
         ids: vec![String::from(id)],
         commits: vec!["1".repeat(40)],
+        holders: vec![String::new()],
         paths: Vec::new(),
         derived: false,
         cleanup: None,

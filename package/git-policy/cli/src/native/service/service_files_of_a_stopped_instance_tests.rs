@@ -236,6 +236,7 @@ fn a_landed_batch(commit: &str, request: &str) -> Intent {
         new: String::from(commit),
         ids: vec![String::from(request)],
         commits: vec![String::from(commit)],
+        holders: vec![String::new()],
         paths: Vec::new(),
         derived: true,
         cleanup: None,

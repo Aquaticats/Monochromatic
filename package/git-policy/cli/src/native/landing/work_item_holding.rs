@@ -55,6 +55,12 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
     if is_blocked(work_dir, item.id().as_str()) {
         return Ok(());
     }
+    // Work the queue has already settled is work that was done: a batch replayed after a restart must not hold it again.
+    //  A hold of a settled id outlives the command that could have promoted it, so every command in the worktree would name a
+    //  commit that was already pushed (`held_push_line`, `service_handoff.rs`).
+    if settled_or_taken(work_dir, item.id().as_str()) {
+        return Ok(());
+    }
     if let Err(error) = create_private_directory_all(state_directory(work_dir, HELD).as_path()) {
         return Err(format!("creating the {HELD} directory failed: {error}"));
     }
@@ -518,6 +524,33 @@ fn blocked_verdict_of(text: &str, commit: &str) -> Option<BlockedVerdict> {
 /// Whether the gate of this commit kept it local.
 fn is_blocked(work_dir: &Path, id: &str) -> bool {
     return state_directory(work_dir, BLOCKED).join(id).exists();
+}
+
+/// What:
+///  Whether the queue has already finished with this id,
+///  or another instance is running it now.
+/// Why:
+///   `done` is the answer that the work was done,
+/// and `failed` the answer that it was given up on,
+/// with a retry kept by the branch's retry plan when one can pass;
+/// `claimed` and `recovering` are another holder's work.
+/// A hold written over any of them is a second record nothing can promote,
+/// because the command that would have promoted it answered before it was written,
+///  and no round drains a held record
+/// (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+/// `held_push_line`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = exists(join(workDir, 'done', id)) || exists(join(workDir, 'failed', id)) || findClaim(workDir, id) !== undefined;
+/// ```
+fn settled_or_taken(work_dir: &Path, id: &str) -> bool {
+    // `done` and `failed` name the record itself, so they are one look each.
+    if state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists() {
+        return true;
+    }
+    // A claim is named by its id and the generation and reading of its holder, so it is found by its id.
+    return crate::work_item::find_claim(work_dir, id).is_some();
 }
 
 /// What:

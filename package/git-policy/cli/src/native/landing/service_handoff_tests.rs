@@ -473,13 +473,14 @@ fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
 }
 
 /// What:
-///  A held push whose command died before any verdict names that command and what sends the commit.
+///  A held push whose command died before any verdict names that command and what carries the commit instead.
 /// Why:
-///   The commit stays local,
-/// as the owner decided,
-/// and the line must say why nothing here publishes it and what the person
-///  can do instead,
-/// rather than promising a next push that nothing in this worktree would make.
+///   The record states no verdict,
+/// so nothing stops a push of the branch and the next push carries the commit;
+/// the line says that
+///  rather than claiming the commit stays local,
+/// and it names the command whose answer will never come and what the person
+///  can do instead.
 #[test]
 fn a_held_push_whose_command_is_gone_says_so_and_names_what_sends_it() {
     let root: std::path::PathBuf = fixture("handoff-held-gone");
@@ -493,8 +494,15 @@ fn a_held_push_whose_command_is_gone_says_so_and_names_what_sends_it() {
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(format!("process {pid}").as_str()), "the command is named by its number: {}", said[0]);
     assert!(said[0].contains("ended before its checks ran"), "{}", said[0]);
+    assert!(said[0].contains("this record pushes nothing"), "the line claims what the record does and no more: {}", said[0]);
+    assert!(
+        said[0].contains("the next automatic push of refs/heads/main carries the commit if it is not published yet"),
+        "the line names what carries the commit, because nothing stops that push: {}",
+        said[0]
+    );
     assert!(said[0].contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", said[0]);
-    assert!(held.exists(), "no verdict was written, so nothing here publishes the commit");
+    assert!(!said[0].contains("nothing here publishes it"), "the line claims no publication state a lagging ref could make false: {}", said[0]);
+    assert!(held.exists(), "no verdict was written, so the record stays where the commit's checks left it");
     assert!(woken.0.borrow().is_empty(), "and nothing is woken for it");
     remove(root.as_path());
 }

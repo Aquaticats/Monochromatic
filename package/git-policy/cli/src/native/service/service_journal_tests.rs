@@ -19,6 +19,7 @@ fn intent(seq: u64) -> Intent {
         new: String::from("b".repeat(40)),
         ids: vec![String::from("id-1"), String::from("id-2")],
         commits: vec![String::from("c".repeat(40)), String::from("d".repeat(40))],
+        holders: vec![String::from("1/2/3"), String::new()],
         paths: vec![b"src/a b.txt".to_vec(), b"c.txt".to_vec()],
         derived: false,
         index: PathBuf::from("/work/repo/.git/index"),

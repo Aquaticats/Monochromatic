@@ -315,6 +315,28 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // The review of a commit runs before the steps that free space: it is bounded by its own ceiling (`REVIEW_CEILING`), it
+        //  decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round
+        //  emptied the trashes of removed worktrees ahead of them, one of which can run for many minutes
+        //  (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
+        let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in reviewed {
+            let review_began: Instant = Instant::now();
+            let verdict: Verdict = handlers.review_awaiting(&item.item).await;
+            if matches!(verdict, Verdict::Done) {
+                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
+            }
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
         // The whole deletion step of this round is one call, so a round with no housekeeping left defers the step itself rather
@@ -330,8 +352,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 }
             }
         }
-        // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
-        //  reviews: freeing them is a bounded, local job.
+        // The left-out files of a snapshot-made worktree are emptied last: freeing them is a local job nothing waits for, and a
+        //  trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
         let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
             Some((back, mine)) => {
                 held = back;
@@ -346,25 +368,6 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
-        }
-        // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
-        let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
-            Some((back, mine)) => {
-                held = back;
-                mine
-            }
-            None => break 'round,
-        };
-        for item in reviewed {
-            let review_began: Instant = Instant::now();
-            let verdict: Verdict = handlers.review_awaiting(&item.item).await;
-            if matches!(verdict, Verdict::Done) {
-                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
-            }
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
                 Some(back) => held = back,
                 None => break 'round,
             }

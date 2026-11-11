@@ -371,6 +371,12 @@ mod tests;
 /// the sentence says exactly that and names what sends the
 ///  commit,
 /// so a hold is never silent and never waits for something nobody will do.
+///  The sentence never claims a commit stays local when nothing stops a push:
+/// a record with no verdict holds no branch back (`push_held_back_by_a_blocked_commit.rs`),
+/// so the next automatic push of the branch carries the commit,
+/// and a record that names no command or whose command ended can only say that and what a person's own push does.
+/// A ref that lags the remote cannot make this line false,
+/// because the line claims no publication state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -383,24 +389,36 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
     if holding.verdict == Verdict::Blocked {
         return a_refusal_that_could_not_be_kept(reference, commit, holding.reason.as_str());
     }
-    let held: String = match (holding.holder.is_empty(), gone) {
-        // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
-        (true, _) => format!("the commit {commit} is held: no command has said whether its checks passed, so nothing here publishes it"),
-        // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
-        (false, true) => format!(
-            "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so nothing here publishes it",
-            pid_text(holding.holder.as_str())
-        ),
-        // The command still runs: the wait is its own, and it ends with that command's answer.
-        (false, false) => format!(
+    // The command still runs: the wait is its own, the automatic push stops before the commit, and it ends with that command's answer.
+    if !holding.holder.is_empty() && !gone {
+        let waited: String = format!(
             "the commit {commit} is held: the command that landed it (process {}) has not finished its checks, and the push goes out when it does",
+            pid_text(holding.holder.as_str())
+        );
+        return match reference.is_empty() {
+            true => format!("{waited}, and a push you make yourself sends it"),
+            false => format!("{waited}, and a push you make of {reference} sends it"),
+        };
+    }
+    // A record that names no command, and one whose command ended, holds nothing back: no push stops before the commit, so the next
+    //  push of the branch carries it, and the line says that instead of claiming the commit stays local.
+    let carried: String = match reference.is_empty() {
+        true => String::from(
+            "the next automatic push of this repository carries the commit if it is not published yet, and a push you make yourself sends it the same way",
+        ),
+        false => format!(
+            "the next automatic push of {reference} carries the commit if it is not published yet, and a push you make of {reference} sends it the same way"
+        ),
+    };
+    return match holding.holder.is_empty() {
+        // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
+        true => format!("the commit {commit} is held: no command has said whether its checks passed, so this record pushes nothing; {carried}"),
+        // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
+        false => format!(
+            "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so this record pushes nothing; {carried}",
             pid_text(holding.holder.as_str())
         ),
     };
-    if reference.is_empty() {
-        return format!("{held}, and a push you make yourself sends it");
-    }
-    return format!("{held}, and a push you make of {reference} sends it");
 }
 
 /// What:

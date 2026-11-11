@@ -578,6 +578,29 @@ Read-only commands,
    and a commit whose command died before its check ran holds nothing back:
   it has no verdict,
    so the next push of the branch carries it.
+  The line such a record prints says exactly that:
+  it says the record pushes nothing,
+  that the next automatic push of the branch carries the commit if it is not published yet,
+  and that a push the person makes sends it the same way.
+  A record that names no command prints the same shape of line,
+  whether an earlier release wrote it or a batch wrote it before recording a command,
+  so no line ever claims a commit stays local while nothing stops a push of its branch.
+  When Git delivered a push but was refused the update of the branch's remote-tracking reference,
+  because another Git held that reference's lock,
+  the wrapper writes the reference itself once the push is over,
+  with the reflog message `update by push`,
+  the same bounded retries and the value it read,
+  so a write never replaces another writer's value.
+  The write names the reference's full name:
+  `git update-ref origin/main <commit>` is accepted and changes nothing
+  (measured with Git 2.56.0),
+  so a write from the name a branch's upstream is reported as would leave the reference behind.
+  A lock that refuses the write through every retry is not cleared,
+  because nothing may clear another Git's lock without a proof that its holder is gone:
+  the push then says that it delivered the commit and that the reference names an older commit until a push or a fetch writes it.
+  The line about a commit that is not published yet reads the same reference,
+  so it never claims a publication state:
+  a reference that lags a remote Git already holds changes nothing about what the line says.
    A commit whose check is still running holds the push back the same way a refusal does,
   because that check may refuse it:
   the push stops before it,
@@ -6741,6 +6764,13 @@ Guard tests keep it so:
   after the command returned,
   and appends one entry to the repository's review log,
   `<common Git directory>/monochromatic-git-policy-cli/standards-review-shadow.md`.
+  The review decides nothing about publication:
+  a commit is pushed as soon as its post-commit gate allows the push,
+  whatever the review later says,
+  and a review item that waits behind other work of the service holds no push back.
+  A commit's review runs before the steps that free space,
+  which can take many minutes,
+  so it ends within the review's own time limit rather than behind a trash of a removed worktree.
   That log is untracked and inside the Git directory,
   so no
   checkout shows it as a change;

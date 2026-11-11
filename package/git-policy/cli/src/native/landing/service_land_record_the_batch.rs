@@ -23,7 +23,7 @@ use crate::service_built_checks::commit_content;
 use crate::service_journal::{Intent, write_intent};
 use crate::service_land_context::LandContext;
 use crate::service_land_follow::storage_failure;
-use crate::service_land_git_steps_and_import_stream::ids_of;
+use crate::service_land_git_steps_and_import_stream::{holders_of, ids_of};
 use crate::service_land_reflog::{Committed, conclusion_copy, kind, message};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::service_timing::LandTiming;
@@ -104,7 +104,10 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
         old: old.to_string(),
         new: new.to_string(),
         ids: ids_of(batch),
+        // The command that will run each commit's post-commit gate, recorded with the batch so a restart's hold of that
+        //  commit's push names the command that will decide it (`held_push_holder_and_verdict.rs`).
         commits: commits.to_vec(),
+        holders: holders_of(batch),
         paths,
         derived,
         cleanup: first.cleanup.clone(),

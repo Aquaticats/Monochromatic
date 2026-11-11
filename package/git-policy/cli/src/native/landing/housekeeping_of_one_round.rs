@@ -6,9 +6,12 @@
 //! the person's pushes,
 //! the upkeep,
 //! the prewarms,
+//! the reviews,
 //! the subvolume deletions,
-//! the trashes,
-//! the reviews.
+//! the trashes.
+//!  The reviews come before the steps that free space, because each is bounded by its own ceiling and none of them decides a
+//! push, while a trash of a removed worktree can run for many minutes
+//! (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 //! The pushes are the round that answers a wake,
 //! and every other kind is the slow lane's
 //!  (`landing/service_work_slow_lane.rs`),

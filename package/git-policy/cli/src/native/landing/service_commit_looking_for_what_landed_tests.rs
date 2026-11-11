@@ -30,6 +30,7 @@ fn a_record(seq: u64, reference: &str, old: &str, new: &str, ids: &[&str], commi
         new: String::from(new),
         ids: ids.iter().map(|id| { return String::from(*id); }).collect(),
         commits: commits.iter().map(|commit| { return String::from(*commit); }).collect(),
+        holders: Vec::new(),
         paths: Vec::new(),
         derived: true,
         cleanup: None,
