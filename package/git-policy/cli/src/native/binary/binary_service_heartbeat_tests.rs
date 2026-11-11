@@ -477,6 +477,17 @@ fn fake_reload(_bus: &Path) -> bool {
     return true;
 }
 
+/// How many times the fake manager was asked to restart the unit.
+static RESTART_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+
+/// The fake manager takes a request to restart the unit and counts it.
+/// Its answer never says `active` here,
+/// so no control of this file reaches a restart by being wedged.
+fn fake_restart(_bus: &Path, _unit: &str) -> bool {
+    RESTART_REQUESTS.fetch_add(1, Ordering::SeqCst);
+    return true;
+}
+
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
     let watch: ManagerWatch = ManagerWatch {
@@ -487,6 +498,7 @@ fn watched(name: &str) -> ClientConfig {
         state: fake_manager,
         start: fake_start,
         reset: fake_reset,
+        restart: fake_restart,
         reload: fake_reload,
     };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };

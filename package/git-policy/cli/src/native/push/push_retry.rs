@@ -3,7 +3,8 @@
 //! the pause before each new try,
 //! the list of branches waiting
 //!  for one,
-//! and the test for the one failure no retry can mend.
+//! and the test for the one failure no retry can mend,
+//! and the line of Git's own words that a record names as the cause.
 //! Why:
 //!  The owner's rule is that auto-push must land (`SPEC.md`,
 //! "Merges and commits never fail").

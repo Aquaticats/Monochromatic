@@ -35,7 +35,8 @@ use crate::command_clean::{
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use crate::effective_target::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target, matching_allowed_worktree_dir,
+    EffectiveTarget, ToolCacheDirectory, classify_effective_target,
+    matching_allowed_worktree_dir_for_repository,
 };
 /// The guarded decision about the command Git will run,
 /// alias expansion included.
@@ -70,9 +71,11 @@ use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange}
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
-/// The Git directories of an identity,
-///  for naming the exempted directory and the file every worktree shares.
-use crate::worktree_identity::{common_directory, git_directory, worktree_root};
+/// The common Git directory,
+///  for naming the file every worktree shares,
+///  and the worktree top level,
+///  for the directory a command runs in.
+use crate::worktree_identity::{common_directory, worktree_root};
 /// The reader that turns the bytes Git printed into a path,
 ///  whose form differs per platform.
 use crate::git_metadata::path_from_git_bytes;
@@ -350,8 +353,10 @@ pub(crate) fn check_linked_worktree(
     if target == EffectiveTarget::Allowlisted {
         // The environment chose this exemption, so the person is told which variable did it and where it points,
         //  before Git runs and before anything could be lost.
+        // The exemption is judged on the repository the command runs in, so the notice names the entry that held both
+        //  its Git directory and its worktree top.
         let exemption: Option<&ToolCacheDirectory> =
-            matching_allowed_worktree_dir(git_directory(&location.identity).unwrap_or(Path::new("")), allowed_worktree_dirs);
+            matching_allowed_worktree_dir_for_repository(&location.identity, allowed_worktree_dirs);
         let mut why: Vec<AuditFact> = Vec::<AuditFact>::new();
         if let Some(found) = exemption {
             why.push(AuditFact::Text("exemptedBy", found.named_by.to_string()));

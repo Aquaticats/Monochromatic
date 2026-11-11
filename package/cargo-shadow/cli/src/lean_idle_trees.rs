@@ -6,7 +6,8 @@
 //! (`doc/decision/cargo-build-dir-host-cache.md`,
 //! "Throwaway worktree builds outlive their worktree").
 //! A tree is removed only when all hold:
-//! its workspace is gone (or it belongs to a retired toolchain,
+//! its workspace is gone (confirmed absent,
+//! or it belongs to a retired toolchain,
 //! or nothing identifies its workspace and it has been idle
 //! longer),
 //! it has been idle longer than the period for its case,
@@ -34,8 +35,9 @@ use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_
 use crate::lean_keyed_folder::read_ledger;
 /// The proof and the removal.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
-/// Imports the names this file uses from `crate::lean_identity`.
-use crate::lean_identity::Deadline;
+/// Imports `missing` from `crate::lean_identity`:
+/// an entry is gone only when its absence is confirmed.
+use crate::lean_identity::{Deadline, missing};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};
 /// Imports the names this file uses from `crate::lean_removal`.
@@ -129,9 +131,9 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
     };
     let (needed, why): (i64, String) = match workspace {
         _ if toolchain_retired => (policy.idle_seconds, String::from("its toolchain is retired")),
-        Workspace::Known(root) if root.exists() => return Err(format!("its workspace {} exists", root.display())),
+        Workspace::Known(root) if !missing(root) => return Err(format!("its workspace {} exists or cannot be shown to be gone", root.display())),
         Workspace::Known(root) => (policy.idle_seconds, format!("its workspace {} is gone", root.display())),
-        Workspace::Lead(source) if source.exists() => return Err(format!("the source {} that its dependency information names exists", source.display())),
+        Workspace::Lead(source) if !missing(source) => return Err(format!("the source {} that its dependency information names exists or cannot be shown to be gone", source.display())),
         Workspace::Lead(source) => (policy.idle_seconds, format!("the source {} that its dependency information names is gone (a lead, not proof)", source.display())),
         Workspace::Unidentified => (policy.unidentified_idle_seconds, String::from("nothing identifies its workspace")),
     };
@@ -142,7 +144,8 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 }
 
 /// What:
-/// `pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)>` is every tree among them whose ledger names a workspace,
+/// `pub fn ledger_roots(trees: &[Tree], deadline: &Deadline) -> Vec<(PathBuf, PathBuf)>` is every tree among them whose ledger names
+/// a workspace,
 /// with that workspace.
 /// Why:
 /// The guard against removing a tree that holds another tree's workspace must cover the whole base.
@@ -151,14 +154,21 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 /// Only the ledger is read,
 /// never the dependency information,
 /// so a guard costs one small file read where identifying an unlabelled tree costs a walk over its dependency files.
+/// Reading stops at the deadline:
+/// a guard list that grew after it passed would guard trees the pass no longer judges,
+/// which it does not need,
+/// because a pass past its deadline judges nothing and so removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const ledgerRoots = (trees: Tree[]): [string, string][] => trees.flatMap((tree) => { const root = readLedger(tree.path); return root === undefined ? [] : [[tree.path, root]]; });
+/// export const ledgerRoots = (trees: Tree[], deadline: Deadline): [string, string][] => trees.flatMap((tree) => { if (deadline.passed()) return []; const root = readLedger(tree.path); return root === undefined ? [] : [[tree.path, root]]; });
 /// ```
-pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
+pub fn ledger_roots(trees: &[Tree], deadline: &Deadline) -> Vec<(PathBuf, PathBuf)> {
     let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
     for tree in trees {
+        if deadline.passed() {
+            break;
+        }
         if let Some(root) = read_ledger(&tree.path) {
             roots.push((tree.path.clone(), root));
         }
@@ -183,8 +193,9 @@ pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
 /// ```
 fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf> {
     let Workspace::Known(root) = workspace else { return None };
-    // A workspace that is gone holds nothing, so its record guards nothing.
-    if !root.exists() {
+    // A workspace whose absence is confirmed holds nothing, so its record guards nothing.
+    // An answer other than absence (a directory this user may not search) may hide the workspace, so the record stays a guard.
+    if missing(root) {
         return None;
     }
     for list in trees {
@@ -330,7 +341,7 @@ pub fn collect_idle_trees(
     // The trees this pass does not judge are guards all the same, so their records are read first:
     // a resumed pass starts in the middle of the list, and a tree before that position may record a workspace
     // inside a tree this pass would otherwise remove.
-    let mut roots: Vec<(PathBuf, PathBuf)> = ledger_roots(earlier);
+    let mut roots: Vec<(PathBuf, PathBuf)> = ledger_roots(earlier, deadline);
     // Read once and kept: the same answer decides whether a tree holds another tree's workspace,
     // and whether the tree itself qualifies.
     let mut workspaces: Vec<Workspace> = Vec::with_capacity(trees.len());

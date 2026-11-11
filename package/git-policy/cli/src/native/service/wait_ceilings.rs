@@ -59,6 +59,47 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// One minute is 58 times that.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
+/// already written:
+/// the trash an add sets aside,
+/// the subvolume a remove renamed out of the way,
+/// and a push record.
+///  Why:
+///   The record is durable and every later command of the repository wakes the same service,
+/// so an answer that does not come costs one later wake and never the work;
+/// this wait is what a person waits for nothing,
+/// and the owner's rule is that no command waits on a service it does not need (`AGENTS.md`,
+/// "Agents should never wait on each other on commits or merges").
+/// A command whose next step depends on the answer (a relink or a prewarm the command must otherwise run itself)
+/// keeps the longer `START_WAIT`.
+///  Measured:
+/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
+/// and a service that is already running greets in well under a millisecond,
+/// so two seconds is twice the slowest start this repository has recorded.
+pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
+
+/// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
+/// it.
+///  Why:
+///  A service greets a connection before it restores anything
+/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+/// so a unit the manager calls `active` that has greeted nothing is not starting:
+/// it is stopped inside its own process (a frozen control group,
+/// a debugger,
+/// a suspended machine,
+/// a kernel wait
+/// nothing ends),
+/// and no start brings it back while the manager believes it runs.
+/// Restarting is the one repair of that state,
+/// and the commit is what needs the answer.
+///  Measured:
+/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
+/// so three seconds is nearly three times the slowest start,
+/// and it is under the owner's 5,000 ms bound on what a commit may add to native Git
+/// (`native:perf`,
+/// "commits vs native git should not take 5s longer").
+pub const SERVICE_GREETING_SILENCE: Duration = Duration::from_secs(3);
+
 /// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
 ///  earlier helper's journal counts the answer as "a service may be running".
 /// A read of another process's command line waits
@@ -446,6 +487,25 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 /// because both are the same kind of read and a step that outlasts either is one the answer Git
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
+
+/// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
+/// where,
+/// and until when.
+///  Why:
+///  A tool that hangs showed nothing at all:
+/// an add whose `pnpm` never ended printed its last line at two seconds and nothing for the next 613 s,
+/// though the quiet window that ends it and the ceiling above that were both running.
+/// The line is a notice threshold,
+/// not a bound:
+/// nothing ends at it,
+/// and the quiet window (600 s) and `REPAIR_TOOL_CEILING` (18 minutes) stay what ends the tool.
+///  Measured:
+/// the longest `pnpm install` stage of the add timing log took 53.1 s and the longest `mpm-shadow install` stage 30.0 s
+/// (`REPAIR_TOOL_CEILING`),
+/// so a tool still running after two seconds is one the person is waiting for and should hear about;
+/// two seconds is twice the slowest of 52 cold service starts,
+/// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
+pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,

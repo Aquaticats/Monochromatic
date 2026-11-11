@@ -4,7 +4,7 @@
 //! and what the person can do with it.
 
 use super::*;
-use crate::merge_isolation_carry_kept_path::{Holds, MergeHolds};
+use crate::merge_isolation_carry_kept_path::{Holds, MergeHolds, Staged};
 
 /// What:
 ///  A conflict line names the file and says what to do with the markers,
@@ -32,7 +32,7 @@ fn a_kept_line_names_the_file_its_reason_and_the_way_back() {
         why: "the merge deletes it",
         worktree: Holds::File,
         merge: MergeHolds::Nothing,
-        in_the_index: false,
+        staged: Staged::Nothing,
     };
     let report: Report = Report { kept: vec![kept], ..Report::default() };
     let lines: Vec<String> = report_lines("feature", &report);
@@ -70,6 +70,61 @@ fn a_changed_line_claims_nothing_about_what_stands_at_the_path() {
     let lines: Vec<String> = report_lines("feature", &report);
     assert!(lines[0].contains("a.txt"), "{}", lines[0]);
     assert!(!lines[0].contains("the file holds what was written then"), "{}", lines[0]);
+}
+
+/// What:
+///  A command in a line names a path with a space as one shell word,
+/// so the person can run it as it stands.
+/// Why:
+///  `git add -- dir/a b.txt` stages the files `dir/a` and `b.txt`,
+/// which is not the path the line is about
+///  (review `merge-notice-for-a-deleted-file` round 133,
+/// finding 1).
+#[test]
+fn a_command_in_a_line_quotes_a_path_with_a_space() {
+    let report: Report = Report { conflicts: vec![b"dir/a b.txt".to_vec()], ..Report::default() };
+    let lines: Vec<String> = report_lines("feature", &report);
+    assert!(lines[0].contains("`git add -- 'dir/a b.txt'`"), "{}", lines[0]);
+    let touched: Report = Report { changed: vec![b"dir/a b.txt".to_vec()], ..Report::default() };
+    let touched_lines: Vec<String> = report_lines("feature", &touched);
+    assert!(touched_lines[0].contains("`git diff HEAD -- 'dir/a b.txt'`"), "{}", touched_lines[0]);
+}
+
+/// What:
+///  A path a write left alone keeps one line,
+/// the one that says the merge wrote nothing to it,
+///  and loses the line its own step built.
+/// Why:
+///  The earlier line says what the path held when it was judged,
+/// and the checkout the command leaves holds
+///  the newer bytes,
+/// so the two lines disagree about it
+/// (review `merge-notice-for-a-deleted-file` round 133,
+/// finding 3).
+#[test]
+fn a_path_a_write_left_alone_keeps_one_line() {
+    let kept: Kept = Kept {
+        path: b"a.txt".to_vec(),
+        why: "nothing stood there when the merge captured it, and the merge changes it",
+        worktree: Holds::Nothing,
+        merge: MergeHolds::Version,
+        staged: Staged::Nothing,
+    };
+    let mut report: Report = Report {
+        kept: vec![kept],
+        merged: vec![b"b.txt".to_vec()],
+        conflicts: vec![b"c.txt".to_vec()],
+        ..Report::default()
+    };
+    report.a_path_written_again(vec![b"a.txt".to_vec(), b"b.txt".to_vec(), b"c.txt".to_vec()]);
+    let lines: Vec<String> = report_lines("feature", &report);
+    assert_eq!(lines.len(), 3, "one line for each path a write left alone: {lines:?}");
+    for line in &lines {
+        assert!(line.contains("changed while the merge ran"), "{line}");
+        assert!(!line.contains("holds nothing of yours"), "{line}");
+        assert!(!line.contains("by word"), "{line}");
+        assert!(!line.contains("conflict markers"), "{line}");
+    }
 }
 
 /// What:

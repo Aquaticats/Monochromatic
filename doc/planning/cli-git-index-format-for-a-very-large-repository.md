@@ -511,8 +511,12 @@ with no new switch and no new configuration key
 `src/native/index/index_reset_file.rs`):
 
 - `feature.manyFiles` is resolved into the three defaults Git makes of it,
-  and an explicit `core.untrackedCache` or `index.skipHash` beside it still wins,
-  as Git sets those defaults only where nothing set the value.
+  and an explicit boolean `core.untrackedCache` or `index.skipHash` beside it still wins,
+  as Git sets those defaults before it reads the keys that can replace them.
+  Amended 2026-11-11T00:31:00-05:00:
+  the sentence above said an explicit `core.untrackedCache` always wins,
+  which is not what Git does with `keep`;
+  the amendment recorded below states what the two keys do together.
 - `index.skipHash` is read as Git reads it,
   a bare key included,
   and the writer ends the file with zeros of the checksum's own length when it is on,
@@ -530,13 +534,71 @@ with no new switch and no new configuration key
 Controls,
 each of which failed before the change and passes after it:
 
-- `index::index_settings::tests::feature_manyfiles_sets_git_s_defaults_and_explicit_keys_win`
+- `index::index_settings::tests::feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins`,
+  which the amendment of 2026-11-11T00:31:00-05:00 renamed from
+  `..._and_explicit_keys_win` and widened to the `keep` case
 - `index::index_settings::tests::index_skiphash_is_read_as_git_reads_it`
 - `index::index_full_write::tests::a_skipped_hash_writes_zeros_where_the_checksum_would_be`
 - `index::index_reset_file::tests::a_repository_with_feature_manyfiles_equals_git`,
   which compares the update's bytes with `git reset --no-refresh`'s byte for byte,
   and asserts the file is version 4 with a trailer of zeros
 - `index::index_reset_file::tests::a_repository_with_a_skipped_hash_equals_git`
+
+## The amendment of 2026-11-11T00:31:00-05:00: `keep` beside `feature.manyFiles`
+
+Found by a cross-vendor review of this branch (`index-format-for-a-very-large-repository-round-133`)
+and reproduced here in a throwaway fixture of this worktree's own tests.
+
+What the branch got wrong:
+it read `core.untrackedCache=keep` as "leave the file's extensions as they are",
+whatever `feature.manyFiles` says.
+Git reads the two keys the other way round (`repo-settings.c` of Git 2.56.0):
+`feature.manyFiles` sets the untracked cache to **add** before `core.untrackedCache` is read,
+and the only values that replace that default are the ones `git_parse_maybe_bool` accepts;
+`keep` is not one of them (its value is below zero),
+so `keep` leaves the added default in place.
+Measured on 2026-11-11 with real Git 2.56.0 in this worktree's fixtures,
+with the configuration set after the index's last write so that the index has no `UNTR` extension,
+and again with a cache already in the index;
+`git reset --no-refresh <commit> -- a` adds `UNTR` with `feature.manyFiles=true`,
+with `core.untrackedCache` absent and with it set to `keep` alike,
+and for `true` and for `2`;
+a cache already there is kept in those cases;
+`keep` alone,
+without the feature,
+adds nothing and keeps what is there;
+`false` and an empty value remove the cache (`git_parse_maybe_bool` reads an empty value as false,
+and a number above zero as true);
+and a bare `core.untrackedCache` key stops Git itself,
+with `missing value for 'core.untrackedcache'`.
+So the landing installed an index without the cache real Git adds,
+which is exactly the decline this record already promises for "an untracked cache it would have to add".
+At the user boundary,
+a commit through a debug build of the fix whose commit service runs by hand in a
+throwaway repository (configuration set after staging) leaves an index that is byte for byte the file
+`git reset --no-refresh HEAD -- a` writes there;
+the build before the change left `DIRC` alone where Git's own reset adds `UNTR`.
+
+What changed:
+`src/native/index/index_settings.rs` resolves the untracked mode as Git does,
+from the `feature.manyFiles` default,
+with `keep` leaving it alone.
+The steady state is unaffected:
+when the index already holds a cache,
+the in-process update still runs and writes Git's file.
+
+Controls,
+the first two of which failed before the change:
+
+- `index::index_settings::tests::feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins`,
+  which was `feature_manyfiles_sets_git_s_defaults_and_explicit_keys_win` before the change
+- `index::index_reset_file::fallback_tests::feature_manyfiles_with_an_untracked_cache_kept_lets_git_add_the_cache`,
+  which runs real Git's reset first to state what this configuration does,
+  then requires the landing to decline and the follow-up's fallback to end with the cache
+- `index::index_reset_file::tests::a_repository_with_manyfiles_and_a_kept_untracked_cache_equals_git`,
+  a guard that passes before and after the change:
+  a control that declined every `keep` beside the feature would pass the first two and lose the
+  in-process update in the steady state
 
 ## What would break
 

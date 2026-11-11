@@ -2,12 +2,16 @@
 //!  The words one landed sweep prints,
 //!  one line per worktree it removed,
 //!  left,
-//!  or could not prove it made.
+//!  or could not prove it made,
+//!  and one for each commit a removal would have deleted.
 //! Why:
 //!   A command that removed a person's worktree by itself must say so,
 //!  and one that left a landed worktree must say what kept it:
 //!  the space a snapshot holds is invisible otherwise,
 //!  and a person who expected a removed worktree needs to know it is still there and why.
+//!  A commit held behind a reference lock lives in the worktree's own Git directory,
+//!  so a removal deletes the only thing that names it;
+//!  the line about it comes before the removal's line and names where this repository keeps it.
 //!  Every line names the worktree,
 //!  its branch,
 //!  the branch that received the landed commits,
@@ -47,9 +51,13 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
         lines.push(format!("{PREFIX}no landed worktree was looked at after this merge, because {reason}."));
         return lines;
     }
+    // A held commit is said before the removal it would not survive, so a person reading the same output knows where it went.
+    for kept in &sweep.kept_commits {
+        lines.push(format!("{PREFIX}{kept}"));
+    }
     for removed in &sweep.removed {
         lines.push(format!(
-            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the files Git ignores there went with the worktree, which is what frees the space its snapshot held.",
+            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held. A directory Git ignores went with it unread, so anything you kept inside one went with the worktree too; reading every file below such a directory would cost the whole tree on every merge.",
             removed.worktree.display(),
             removed.branch,
             sweep.landed_branch
