@@ -46,7 +46,7 @@ use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit}
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, metadata_differs_from_entry, metadata_verdict};
 use crate::worktree_clean_stat_verdicts::{ASSUME_VALID, file_changed};
-pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_by_content};
+pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, paths_whose_content_differs, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_by_content};
 use crate::worktree_clean_tree_walk::{tree_differs_from_index_by_content, tree_refusal};
 use crate::subvolume_index::{StoredStat, be32, walk_entries};
 use crate::subvolume_index_files::repository_hash_length;

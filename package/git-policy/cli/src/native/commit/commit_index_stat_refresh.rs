@@ -57,13 +57,14 @@ use crate::private_index_request::indexed_request;
 /// One Git start,
 /// its output,
 /// and the context it runs in.
-use crate::transaction_git::{GitContext, GitOutput, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// What a commit stages from the worktree,
 /// which decides whose recorded stat data still matters.
 use crate::commit_index_stat_staleness::WorktreeStaging;
-/// Whether the index still records the worktree's stat data,
-/// answered without starting Git.
-use crate::commit_index_stat_staleness::index_stat_data_needs_refresh;
+/// What the walk found about the index's stat data,
+/// answered without starting Git,
+/// and the paths a refresh has to look at.
+use crate::commit_index_stat_staleness::{StaleStatData, stale_stat_data};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -82,6 +83,36 @@ pub enum StatRefresh {
     /// or it could not start.
     NotKept,
 }
+
+/// One stale path in this many entries of the index is the most a refresh names before it refreshes the whole index.
+/// Citation:
+/// measured,
+/// and the measurement is repeated here because the number is a cost,
+/// not a limit.
+/// One fixture of 2,000 files,
+/// an index whose entries hold the stat data of their files,
+/// and every entry's
+///  modification time moved but its content untouched,
+/// so the walk names exactly the paths that were moved.
+/// The
+///  whole-index form (`update-index --refresh`) cost 4,031 `newfstatat` and 166 to 230 ms whatever was named.
+/// The
+///  named form (`add --refresh` with the paths it is given) cost 31 questions plus three for each named path
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// the section this constant was measured for):
+///  34 for one path,
+/// 331 for a hundred,
+/// 1,531 for half the index,
+/// 6,031 for the whole of it.
+/// So the named form wins
+///  while its paths are at most two thirds of the entries,
+/// and half of them is named here,
+/// with the margin the
+///  measurement's shape leaves.
+/// The stale paths are the files the person changed since the landing that refreshed the
+///  index,
+/// so a commit normally names one or two.
+pub const REFRESH_NAMES_ONE_PATH_IN: usize = 2;
 
 /// The exit statuses of `git update-index --refresh` that leave the index holding the worktree's stat data:
 /// zero,
@@ -107,6 +138,49 @@ const STATUSES_THAT_KEEP_THE_REFRESH: [i32; 2] = [0, 1];
 /// ```
 fn keeps_the_refresh(code: i32) -> bool {
     return STATUSES_THAT_KEEP_THE_REFRESH.contains(&code);
+}
+
+/// What:
+///  Refreshes the stat data `index` records for `paths`,
+/// and answers whether Git kept the refresh in that file.
+/// Why:
+///  `git add --refresh` refreshes exactly the entries its pathspecs name,
+/// and one question per named path is what a
+///  commit needs:
+/// the whole-index form asks about every entry of the index,
+/// which on a worktree of this repository is
+///  tens of thousands of questions the commit waits on for no answer it uses.
+///  `:(top,literal)` names each path as the index stores it,
+/// from the worktree's top level,
+/// whatever directory the
+///  command runs in and whatever byte the path holds.
+///  A path Git cannot match is a refresh that did not happen,
+/// which is the answer the whole-index form gives when it
+///  cannot start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runGit(['add', '--refresh', '--pathspec-from-file=-', '--pathspec-file-nul'], { indexFile: index, input: paths.map((p) => ':(top,literal)' + p).join('\\0') });
+/// ```
+pub fn refresh_named_stat_data(context: &GitContext, cwd: &Path, index: &Path, paths: &[Vec<u8>]) -> bool {
+    let mut input: Vec<u8> = Vec::new();
+    for path in paths {
+        input.extend_from_slice(b":(top,literal)");
+        input.extend_from_slice(path);
+        input.push(0);
+    }
+    let arguments: [&str; 4] = ["add", "--refresh", "--pathspec-from-file=-", "--pathspec-file-nul"];
+    let mut request: GitRequest = indexed_request(context, cwd, &arguments, Some(index), None);
+    request.input = Some(input);
+    let output: GitOutput = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return without_the_refresh(index, error.to_string().as_str()),
+    };
+    if output.code.is_some_and(keeps_the_refresh) {
+        crate::diagnostic_log::debug("refreshStatData", format!("{} holds the stat data of {} paths now", index.display(), paths.len()).as_str());
+        return true;
+    }
+    return without_the_refresh(index, String::from_utf8_lossy(output.stderr.as_slice()).trim());
 }
 
 /// What:
@@ -167,15 +241,18 @@ fn without_the_refresh(index: &Path, why: &str) -> bool {
 pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StatRefresh {
     // What:
     //  The in-process question,
-    //  whose answer decides whether Git runs at all.
+    //  whose answer decides whether Git runs at all, and what it is asked to look at.
     // Why:
-    //  A refresh Git ran would take the real index's lock even when it writes nothing.
+    //  A refresh Git ran would take the real index's lock even when it writes nothing,
+    //  and the paths the walk names are the whole of what it has to look at.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (!indexStatDataNeedsRefresh({ context, cwd, index, staging })) return 'not-needed';
+    // const answer = staleStatData({ context, cwd, index, staging });
+    // if (answer.kind === 'current') return 'not-needed';
+    // if (answer.kind === 'stale' && answer.paths.length * REFRESH_NAMES_ONE_PATH_IN <= answer.entries) return await refreshNamedStatData(...);
     // ```
-    if !index_stat_data_needs_refresh(context, cwd, index, staging) {
+    let named: Option<Vec<Vec<u8>>> = match stale_stat_data(context, cwd, index, staging) {
         // What:
         //  The answer for an index that already describes the worktree.
         // Why:
@@ -186,29 +263,35 @@ pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Pa
         // ```ts
         // return 'not-needed';
         // ```
-        return StatRefresh::NotNeeded;
-    }
+        StaleStatData::Current => return StatRefresh::NotNeeded,
+        // What:
+        //  The paths Git is asked to refresh,
+        //  and nothing when naming them would cost more than the whole index.
+        // Why:
+        //  Git matches every pathspec against the index, so a list as long as the index itself costs more than
+        //  refreshing everything (`REFRESH_NAMES_ONE_PATH_IN`).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const named = answer.kind === 'stale' && answer.paths.length * REFRESH_NAMES_ONE_PATH_IN <= answer.entries ? answer.paths : undefined;
+        // ```
+        StaleStatData::Stale { paths, entries } => (paths.len() * REFRESH_NAMES_ONE_PATH_IN <= entries).then_some(paths),
+        StaleStatData::Unknown => None,
+    };
     // What:
-    //  The refresh Git runs on the real index.
+    //  The refresh Git runs, over the paths the walk named or over the whole index.
     // Why:
     //  The copies made after it carry the worktree's stat data,
     //  and the real index keeps them for the next commit.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const kept: boolean = await refreshStatData({ gitPath, cwd, indexFile: index });
+    // const kept = named === undefined ? await refreshStatData({...}) : await refreshNamedStatData({..., paths: named});
     // ```
-    let kept: bool = refresh_stat_data(context, cwd, index);
-    // What:
-    //  The answer of the refresh Git ran.
-    // Why:
-    //  The caller decides whether the private index needs the refresh instead,
-    //  and a refresh that was not kept is the only case that does.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return kept ? 'kept' : 'not-kept';
-    // ```
+    let kept: bool = match named {
+        Some(paths) => refresh_named_stat_data(context, cwd, index, paths.as_slice()),
+        None => refresh_stat_data(context, cwd, index),
+    };
     return if kept { StatRefresh::Kept } else { StatRefresh::NotKept };
 }
 

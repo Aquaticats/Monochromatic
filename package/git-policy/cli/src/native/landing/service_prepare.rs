@@ -142,7 +142,6 @@ pub fn prepare<F: RepositoryFacts>(
     // The worktree Git answered for this invocation, which the selection's relative pathspecs are read from, whichever way
     //  the caller named it (`pathspec_base`).
     let worktree_root: &Path = capture.layout.repository_root.as_path();
-    part.next("stagedDeletions");
     let unborn: bool = matches!(capture.base, Base::Unborn);
     // Read from the snapshot the layout already holds, so nothing starts Git for the message or the identities before the
     //  cheap decisions above are made, and before a service is provisioned.
@@ -158,20 +157,6 @@ pub fn prepare<F: RepositoryFacts>(
         pathspecs.push(region_arguments[*at].clone());
     }
     let retry: Option<&Retry<'_>> = inputs.replay.as_ref();
-    if named && retry.is_none() {
-        // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
-        let present: Option<TransactionResult> = staged_deletion_ending(
-            context,
-            cwd,
-            capture.layout.repository_root.as_path(),
-            capture.layout.real_index_path.as_path(),
-            base.as_str(),
-            pathspecs.as_slice(),
-        )?;
-        if let Some(ending) = present {
-            return Ok(Prepared::Ended(ending));
-        }
-    }
     part.next("scratch");
     let amends: bool = region.amend;
     // The tree goes where the sweep of the repository scratch directory covers it, so a command killed at any instruction leaves
@@ -195,6 +180,23 @@ pub fn prepare<F: RepositoryFacts>(
         stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
+    part.next("stagedDeletions");
+    if named && retry.is_none() {
+        // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
+        //  The selection is asked as one thing, so a path a `--pathspec-from-file` names reaches this guard exactly as a
+        //  path on the command line does (finding `commit-only/staged-deletion-worktree-present`).
+        let present: Option<TransactionResult> = staged_deletion_ending(
+            context,
+            cwd,
+            capture.layout.repository_root.as_path(),
+            capture.layout.real_index_path.as_path(),
+            base.as_str(),
+            &index_selection,
+        )?;
+        if let Some(ending) = present {
+            return Ok(Prepared::Ended(ending));
+        }
+    }
     part.next("index");
     // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
     let mut word_merge_events: Option<PolicyEvent> = None;

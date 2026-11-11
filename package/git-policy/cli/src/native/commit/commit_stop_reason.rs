@@ -55,6 +55,10 @@ pub const KIND_GIT_STEP: &str = "git-step";
 /// Real Git declined the command and exited with its own status.
 pub const KIND_NATIVE_EXIT: &str = "native-exit";
 
+/// The person stopped the command with a signal while it waited for the commit service,
+/// so the commit was not made.
+pub const KIND_CLIENT_SIGNAL: &str = "client-signal";
+
 /// What:
 ///  What the record states when no step,
 /// no policy,
@@ -108,41 +112,50 @@ pub struct CommitStopReason {
     /// The status that step exited with;
     /// absent when the step never exited by itself.
     status: Option<i32>,
+    /// The signal the person sent to stop the command;
+    /// absent unless the person stopped it.
+    signal: Option<i32>,
 }
 
 impl CommitStopReason {
     /// A policy's error finding.
     pub fn policy(name: &str) -> Self {
-        return Self { kind: KIND_POLICY, policy: Some(name.to_string()), core: None, code: None, step: None, status: None };
+        return Self { kind: KIND_POLICY, policy: Some(name.to_string()), core: None, code: None, step: None, status: None, signal: None };
     }
 
     /// A fixed transform's rejection,
     /// named by the transform and by its own code.
     pub fn core_finding(core: &'static str, code: &'static str) -> Self {
-        return Self { kind: KIND_CORE_FINDING, policy: None, core: Some(core), code: Some(code), step: None, status: None };
+        return Self { kind: KIND_CORE_FINDING, policy: None, core: Some(core), code: Some(code), step: None, status: None, signal: None };
     }
 
     /// The wrapper's own engine failing,
     /// named by its stable code.
     pub fn engine_failure(code: &'static str) -> Self {
-        return Self { kind: KIND_ENGINE_FAILURE, policy: None, core: None, code: Some(code), step: None, status: None };
+        return Self { kind: KIND_ENGINE_FAILURE, policy: None, core: None, code: Some(code), step: None, status: None, signal: None };
     }
 
     /// A Git step that failed,
     /// named by the step and by the status it exited with.
     pub fn git_step(step: &str, status: Option<i32>) -> Self {
-        return Self { kind: KIND_GIT_STEP, policy: None, core: None, code: None, step: Some(step.to_string()), status };
+        return Self { kind: KIND_GIT_STEP, policy: None, core: None, code: None, step: Some(step.to_string()), status, signal: None };
     }
 
     /// Real Git declining the command,
     /// named by the step it ran and by its own status.
     pub fn native_exit(step: &str, status: i32) -> Self {
-        return Self { kind: KIND_NATIVE_EXIT, policy: None, core: None, code: None, step: Some(step.to_string()), status: Some(status) };
+        return Self { kind: KIND_NATIVE_EXIT, policy: None, core: None, code: None, step: Some(step.to_string()), status: Some(status), signal: None };
     }
 
     /// A commit whose route named nothing a reader can check.
     pub fn unidentified() -> Self {
-        return Self { kind: KIND_UNIDENTIFIED, policy: None, core: None, code: None, step: None, status: None };
+        return Self { kind: KIND_UNIDENTIFIED, policy: None, core: None, code: None, step: None, status: None, signal: None };
+    }
+
+    /// The person stopping the command with a signal,
+    /// named by the signal.
+    pub fn client_signal(signal: i32) -> Self {
+        return Self { kind: KIND_CLIENT_SIGNAL, policy: None, core: None, code: None, step: None, status: None, signal: Some(signal) };
     }
 
     /// What the reason says,
@@ -172,6 +185,9 @@ impl CommitStopReason {
         }
         if let Some(status) = self.status {
             members.push(format!("\"status\":{status}"));
+        }
+        if let Some(signal) = self.signal {
+            members.push(format!("\"signal\":{signal}"));
         }
         return format!("{{{}}}", members.join(","));
     }
@@ -225,6 +241,7 @@ pub fn reason_of_stop(stop: &TransactionStop, failed: Option<FailedStep>) -> Com
             Some(step) => CommitStopReason::git_step(step.name.as_str(), step.status),
             None => CommitStopReason::engine_failure(engine_failure_code_name(*code)),
         },
+        TransactionStop::EndedBySignal { signal, .. } => CommitStopReason::client_signal(*signal),
     };
 }
 

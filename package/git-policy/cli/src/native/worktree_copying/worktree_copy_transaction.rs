@@ -174,6 +174,7 @@ pub fn snapshot_from_journal(
         stage_container: pending.journal.stage_container.clone(),
         stage_root: stage_root.to_path_buf(),
         unreadable: Vec::new(),
+        uncopiable: Vec::new(),
         unsettled: Vec::new(),
     });
 }

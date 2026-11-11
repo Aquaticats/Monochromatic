@@ -3,12 +3,15 @@
 //! names what it does not,
 //! the Git runs are exactly the two the design lists,
 //! the ignored files of the source survive a commit that ignores nothing,
+//! an edit the reset cannot see is replaced by the commit's bytes,
 //! and a restore never runs in the source.
 
 use super::*;
-use crate::test_support::{REAL_GIT, fixture, git, git_context, remove, repository};
+use crate::test_support::{REAL_GIT, fixture, git, git_context, git_output, remove, repository};
 use crate::worktree_copy::{GitStatus, GitStep};
 use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_ladder_test_support::hide_an_edit;
+use crate::worktree_snapshot_index_step::install_index;
 use std::path::{Path, PathBuf};
 
 /// The words every step starts with:
@@ -56,6 +59,27 @@ fn copy_files(from: &Path, to: &Path) {
             std::fs::copy(entry.path(), copy.as_path()).expect("a copied file");
         }
     }
+}
+
+/// What:
+///  A repository beside the fixture,
+/// and its Git directory,
+/// to be the source a restore is told about.
+/// Why:
+///   The restore's content decision reads the source's configuration and attributes files,
+/// so the source it is
+///  handed must be a real repository;
+/// the stage's own directory and the new worktree's Git directory are both
+///  taken by the test,
+/// so the source is a third one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gitDir = join(repository(root, 'elsewhere'), '.git');
+/// ```
+fn elsewhere_git_dir(root: &Path) -> PathBuf {
+    let repo: PathBuf = repository(root, "elsewhere");
+    return repo.join(".git");
 }
 
 /// What:
@@ -170,11 +194,12 @@ fn the_restore_runs_read_tree_through_the_runner_and_a_clean_without_quiet_in_th
         environments.push(environment.iter().map(|(name, value)| { return (name.to_string_lossy().into_owned(), value.to_string_lossy().into_owned()); }).collect());
         return Ok(GitStatus { code: Some(0) });
     };
-    let other_root: PathBuf = PathBuf::from("/nonexistent-source-root");
+    let elsewhere_git: PathBuf = elsewhere_git_dir(root.as_path());
+    let other_root: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
     let source = SnapshotSource {
         root: other_root.clone(),
-        git_dir: other_root.join(".git"),
-        common_dir: other_root.join(".git"),
+        git_dir: elsewhere_git.clone(),
+        common_dir: elsewhere_git.clone(),
         clean: crate::worktree_clean::CleanSource { head_commit: target.commit.clone(), head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
         nested: Vec::new(),
         config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
@@ -182,7 +207,10 @@ fn the_restore_runs_read_tree_through_the_runner_and_a_clean_without_quiet_in_th
         dirty: None,
     };
     let (recording, log) = crate::recording_git::recording_context(root.as_path());
-    restore_dirty(&source, &target, stage.as_path(), &mut runner, &recording).expect("the proof holds for a worktree that equals its commit");
+    restore_dirty(&source, &target, stage.as_path(), &mut runner, &recording, &crate::fixture_content_decision::content_environment()).unwrap_or_else(|reason| {
+        let differences: std::process::Output = git_output(stage.as_path(), &["diff-files"]);
+        panic!("the proof holds for a worktree that equals its commit: {reason}; Git says {} and the file holds {:?}", String::from_utf8_lossy(differences.stdout.as_slice()), std::fs::read(stage.join("a.txt")))
+    });
     let words = |step: &Vec<String>| -> Vec<String> { return step[LEADING_WORDS..].to_vec(); };
     let expected: Vec<Vec<String>> = vec![["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec()];
     assert_eq!(seen.iter().map(words).collect::<Vec<Vec<String>>>(), expected, "exactly this step goes through the runner");
@@ -217,10 +245,10 @@ fn a_restore_never_runs_in_the_source() {
             dirty: None,
         };
     };
-    let in_source = restore_dirty(&source(repo.clone(), repo.join(".git")), &target, repo.as_path(), &mut runner, &git_context()).expect_err("the stage is the source");
+    let in_source = restore_dirty(&source(repo.clone(), repo.join(".git")), &target, repo.as_path(), &mut runner, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the stage is the source");
     assert!(in_source.contains("source's own directory"), "{in_source}");
     let elsewhere: PathBuf = root.join("elsewhere");
-    let in_git_dir = restore_dirty(&source(elsewhere.clone(), repo.join(".git")), &target, elsewhere.as_path(), &mut runner, &git_context()).expect_err("the Git directory is the source's");
+    let in_git_dir = restore_dirty(&source(elsewhere.clone(), repo.join(".git")), &target, elsewhere.as_path(), &mut runner, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the Git directory is the source's");
     assert!(in_git_dir.contains("source's own directory"), "{in_git_dir}");
     remove(root.as_path());
 }
@@ -232,11 +260,12 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
     let root: PathBuf = crate::test_support::fixture("restore-failure");
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
-    let other_root: PathBuf = PathBuf::from("/nonexistent-source-root");
+    let elsewhere_git: PathBuf = elsewhere_git_dir(root.as_path());
+    let other_root: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
     let source = SnapshotSource {
         root: other_root.clone(),
-        git_dir: other_root.join(".git"),
-        common_dir: other_root.join(".git"),
+        git_dir: elsewhere_git.clone(),
+        common_dir: elsewhere_git.clone(),
         clean: crate::worktree_clean::CleanSource { head_commit: target.commit.clone(), head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
         nested: Vec::new(),
         config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
@@ -244,7 +273,7 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
         dirty: None,
     };
     let mut failing = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(128) }); };
-    assert!(restore_dirty(&source, &target, repo.as_path(), &mut failing, &git_context()).expect_err("the reset failed").contains("read-tree"));
+    assert!(restore_dirty(&source, &target, repo.as_path(), &mut failing, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the reset failed").contains("read-tree"));
     let mut succeeding = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(0) }); };
     std::fs::write(repo.join("left.txt"), b"left").expect("a file the clean left behind");
     // A Git whose `clean` does nothing, so the file stays and the proof is what finds it.
@@ -253,7 +282,7 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
     crate::test_support::executable(idle_clean.as_path(), script.as_bytes());
     let mut leaving: GitContext = git_context();
     leaving.real_git = idle_clean;
-    assert!(restore_dirty(&source, &target, repo.as_path(), &mut succeeding, &leaving).expect_err("the proof fails").contains("left.txt"));
+    assert!(restore_dirty(&source, &target, repo.as_path(), &mut succeeding, &leaving, &crate::fixture_content_decision::content_environment()).expect_err("the proof fails").contains("left.txt"));
     remove(root.as_path());
 }
 
@@ -314,7 +343,7 @@ fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
         dirty: None,
     };
     let mut steps = real_steps(root.as_path());
-    let outcome: Result<(), String> = restore_dirty(&source, &target, stage.as_path(), &mut steps, &git_context());
+    let outcome: Result<(), String> = restore_dirty(&source, &target, stage.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
     assert_eq!(outcome, Ok(()), "the restore and its proof hold");
     assert_eq!(std::fs::read(stage.join("cache/data.bin")).expect("the ignored file is still there"), b"ignored bytes\n");
     assert_eq!(std::fs::read(stage.join("tracked.txt")).expect("the tracked file is the commit's"), b"first\n");
@@ -363,5 +392,82 @@ fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
     std::fs::write(repo.join("cache/other.txt"), b"o").expect("a file the restore did not carry");
     let refused: String = prove_restored(&git_context(), &target, repo.as_path(), carried.as_slice()).expect_err("a directory holding a file that was not carried");
     assert!(refused.contains("cache/"), "the refusal names the directory Git reported: {refused}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A restore replaces a file an edit changed in a way the reset cannot see with the commit's bytes,
+/// and its
+///  proof holds.
+/// Why:
+///   The stage is a snapshot of the main checkout:
+/// its index and its files are one instant,
+/// and an edit made
+///  afterwards of the same length,
+/// in the same second as the entry that recorded the file,
+/// keeps every field
+///  `git read-tree --reset -u` compares,
+/// so the reset leaves the edited bytes and `git diff-files --quiet`
+///  reports nothing.
+/// Native `git worktree add` writes the commit's bytes into an empty destination,
+/// so a worktree
+///  holding the edit is one a later commit would publish as a change nobody reviewed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stage = repo; hideAnEdit(stage, 'a.txt', 'first\n', 'other\n');
+/// installIndex({ source, stage, admin, ownIndex: readFileSync(join(stage, '.git/index')) });
+/// await restoreDirty({ source, target, stage, runGit, context, conversion });
+/// expect(readFileSync(join(stage, 'a.txt'))).toBe('first\n');
+/// ```
+#[test]
+fn a_restore_replaces_an_edit_that_keeps_its_files_size_and_times() {
+    let root: PathBuf = fixture("restore-hidden-edit");
+    let original: &[u8] = b"first\n";
+    let edited: &[u8] = b"other\n";
+    let repo: PathBuf = repository(root.as_path(), "stage");
+    std::fs::write(repo.join("a.txt"), original).expect("the tracked file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let admin: PathBuf = admin_of(root.join("topic").as_path());
+    // The edit is made after the index recorded the file, and Git's own check cannot see it.
+    assert!(hide_an_edit(repo.as_path(), "a.txt", original, edited), "the fixture hides its edit from Git's stat check");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the edit"), edited);
+    assert!(git_output(repo.as_path(), &["diff-files", "--quiet"]).status.success(), "the fixture's edit is hidden from Git's own check");
+    let seed: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index the snapshot carries");
+    let head: String = commit_of(repo.as_path(), "HEAD");
+    let elsewhere_git: PathBuf = elsewhere_git_dir(root.as_path());
+    let elsewhere: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
+    let source = SnapshotSource {
+        root: elsewhere.clone(),
+        git_dir: elsewhere_git.clone(),
+        common_dir: elsewhere_git.clone(),
+        clean: crate::worktree_clean::CleanSource { head_commit: head.clone(), head_tree: Vec::new(), tracked: 1, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: seed.clone() },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: head, differs: false, line: String::new() };
+    let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory opens");
+    install_index(&source, repo.as_path(), &held, Some(seed.as_slice()), &crate::fixture_content_decision::content_environment(), None).expect("the index installs");
+    drop(held);
+    let mut steps = real_steps(root.as_path());
+    let outcome: Result<(), String> = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
+    assert_eq!(outcome, Ok(()), "the restore and its proof hold");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the restored file"), original, "the copy holds the commit's bytes, as Git's own checkout makes them");
+    // The stage carries the new worktree's Git pointer in the product, so Git reads the installed index there and not
+    //  the source's own.
+    let in_the_stage: [String; 4] = ["--git-dir", admin.to_string_lossy().as_ref(), "--work-tree", repo.to_string_lossy().as_ref()].map(String::from);
+    let differences: Vec<String> = in_the_stage.iter().cloned().chain(["diff-files"].map(String::from)).collect();
+    let after: std::process::Output = git_output(repo.as_path(), differences.as_slice());
+    let recorded: Vec<String> = in_the_stage.iter().cloned().chain(["ls-files", "--debug"].map(String::from)).collect();
+    assert!(
+        after.status.success() && after.stdout.is_empty(),
+        "the restored worktree is clean, but Git says {}; the index records {}",
+        String::from_utf8_lossy(after.stdout.as_slice()),
+        String::from_utf8_lossy(git_output(repo.as_path(), recorded.as_slice()).stdout.as_slice())
+    );
     remove(root.as_path());
 }

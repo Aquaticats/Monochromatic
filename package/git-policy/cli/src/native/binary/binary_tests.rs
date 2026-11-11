@@ -260,6 +260,12 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
+/// Another command landing a commit on the branch while a landed merge still carries:
+/// the later commit stands,
+/// and the person's work is merged onto the branch as it is now.
+#[path = "binary_merge_carries_edits_moved_tests.rs"]
+mod merge_carries_edits_moved;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -450,6 +456,13 @@ mod push_scope;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// The configuration of a push,
+/// given on its command line,
+/// reaches the real `git-lfs` upload,
+/// so an object reaches the remote the ref is published to.
+#[path = "binary_lfs_command_scope_tests.rs"]
+mod lfs_command_scope;
 
 /// Traditional hooks never run through the wrapper,
 /// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
@@ -680,6 +693,12 @@ mod service_lane;
 /// removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
 
 /// A pooled shadow member the commit refuses:
 /// nothing on the terminal,

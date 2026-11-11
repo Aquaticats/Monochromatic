@@ -386,6 +386,69 @@ fn include_stages_the_named_path_into_the_copy_only() {
     remove(root.as_path());
 }
 
+/// An exclusion subtracts the exact file it names from the commit's selection,
+/// exactly as native Git takes no path from `a.txt ':(exclude)a.txt'`.
+#[test]
+fn an_exclusion_removes_the_exact_path_it_names() {
+    let root: PathBuf = fixture("commit-index-exclude-exact");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from(":(exclude)a.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
+    remove(root.as_path());
+}
+
+/// An exclusion narrows the exact files the caller named and never widens the selection to a path nobody named:
+/// `a.txt b.txt ':(exclude)b.txt'` stages the edit of `a.txt` alone.
+#[test]
+fn an_exclusion_narrows_the_exact_paths_without_staging_another() {
+    let root: PathBuf = fixture("commit-index-exclude-narrows");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from("b.txt"), OsString::from(":(exclude)b.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// A selection of nothing but exclusions keeps native Git's reading of it:
+/// every path except those,
+/// with no positive element to narrow it.
+#[test]
+fn a_selection_of_exclusions_alone_stages_every_other_path() {
+    let root: PathBuf = fixture("commit-index-exclude-alone");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from(":(exclude)b.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// A directory element and an exclusion are one selection:
+/// the tracked paths below the directory,
+/// minus the excluded one.
+#[test]
+fn an_exclusion_inside_a_directory_selection_is_honoured() {
+    let root: PathBuf = fixture("commit-index-exclude-directory");
+    let (repo, indexes, _initial) = committed_repository(root.as_path());
+    std::fs::create_dir(repo.join("dir")).expect("dir");
+    std::fs::write(repo.join("dir").join("c.txt"), "c\n").expect("c");
+    git(repo.as_path(), &["add", "--", "dir/c.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=directory"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("dir").join("c.txt"), "changed\n").expect("change c");
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let pathspecs: Vec<OsString> = vec![OsString::from("dir"), OsString::from(":(exclude)dir/c.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
+    remove(root.as_path());
+}
+
 /// A pathspec file read with NUL records stages each of its paths.
 #[test]
 fn pathspec_file_with_nul_records_selects_each_path() {

@@ -34,8 +34,8 @@ use crate::merge_isolation_recovery_carry::{
 /// Running Git for the ancestry question,
 /// on the runtime the caller runs on.
 use crate::lazy_runtime::run_on_runtime;
-use crate::transaction_git::GitRequest;
-use crate::transaction_git_awaiting::run_git_checked_awaiting;
+use crate::transaction_git::{GitOutput, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
 use crate::merge_isolation_recovery_steps::{
@@ -244,7 +244,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 if action != MergeRecoveryAction::BranchMoved {
                     return Ok(action);
                 }
-                if !carry_onto_awaiting(place, root, intent, head, out).await? {
+                if !carry_onto_awaiting(place, root, intent, head, intent.target_ref.as_deref().unwrap_or("HEAD"), out).await? {
                     return Ok(MergeRecoveryAction::IndexHeld);
                 }
                 if let Err(error) = drop_record(record) {
@@ -355,18 +355,34 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
 ///   The two cases of a moved branch are unlike:
 /// a branch built on the merge holds its content,
 /// and one that was reset away does not.
+/// A merge whose own carry runs asks the same question about the branch it landed on
+///  (`merge_isolation_apply_moved.rs`).
+///  `git merge-base --is-ancestor` answers `0` for yes and `1` for no;
+/// any other exit, and a command that never
+///  started, is a read that failed.
+/// The exit status is read here rather than the failure's wording,
+/// as `ancestry_of` reads the
+///  same command (`push/auto_push_reconcile_basics_and_limits.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function isAncestor(place, root, ancestor, commit): boolean; // git merge-base --is-ancestor
+/// function isAncestor(place, root, ancestor, commit): boolean | undefined; // git merge-base --is-ancestor
 /// ```
-async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
+pub(crate) async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
     let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
-    return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
-        Ok(_) => Ok(true),
-        // `git merge-base --is-ancestor` answers 1 for "no" and anything else is a failure to read.
-        Err(error) if error.to_string().contains("exit") => Ok(false),
-        Err(error) => Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true }),
+    let output: GitOutput = match run_git_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        Ok(finished) => finished,
+        Err(error) => {
+            return Err(MergeRefusal { error: RecoveryError(format!("git merge-base --is-ancestor could not start: {error}")), began: true });
+        }
+    };
+    return match output.code {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(MergeRefusal {
+            error: RecoveryError(format!("git merge-base --is-ancestor failed: {}", output.error_text())),
+            began: true,
+        }),
     };
 }
 

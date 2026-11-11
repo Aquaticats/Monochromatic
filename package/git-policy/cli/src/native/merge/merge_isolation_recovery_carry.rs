@@ -77,12 +77,22 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ///   A carry onto the old merge's own commit would leave the moved head's later changes out of the files,
 /// and a
 ///  carry onto the moved head keeps them.
+///  Each line names the command the person typed,
+/// which is the merge itself for a command that is still running
+///  and the branch a recovery finished the merge on otherwise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function carryOnto({ place, root, intent, end, out }): Promise<boolean>;
+/// async function carryOnto({ place, root, intent, end, command, out }): Promise<boolean>;
 /// ```
-pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut W) -> Result<bool, MergeRefusal> {
+pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+    end: &str,
+    command: &str,
+    out: &mut W,
+) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let mut changes: Vec<Change> =
         changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end).await.map_err(the_changes_could_not_be_read)?;
@@ -101,7 +111,7 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
     //  the paths here: each one is judged by its bytes.
     match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
+            for line in report_lines(command, &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
             }
             return Ok(true);

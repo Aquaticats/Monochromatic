@@ -20,11 +20,11 @@
 use crate::commit_index_selection::IndexSelection;
 use crate::commit_named_ignored_files::{NAMED_IGNORED_CODE, NAMED_IGNORED_CORE_ID, named_ignored_files, named_ignored_message};
 use crate::commit_pathspec_matching_nothing::{PATHSPEC_MATCHING_NOTHING_CODE, PATHSPEC_MATCHING_NOTHING_CORE_ID, pathspec_matching_nothing_message};
+use crate::commit_selection_staging::selection_elements;
 use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
 use crate::commit_transaction::TransactionResult;
 use crate::policy_events::PolicyEvent;
 use crate::transaction_git::{GitContext, GitFailure};
-use std::ffi::OsString;
 use std::path::Path;
 
 /// What:
@@ -65,10 +65,16 @@ pub(crate) fn named_ignored_ending(
 ///  and the finding names the paths and both ways forward
 /// (`commit_staged_deletions.rs`,
 /// issue 472).
+///  The selection is asked as one thing,
+/// so the paths a `--pathspec-from-file` names reach this guard exactly as the paths on the command line do:
+///  a guard reading only the command line let the file's paths through,
+/// and the commit then recorded the worktree bytes over a deletion the person had staged.
+///  A pathspec file this reader cannot take is left to Git,
+/// which reports it when the private staging opens it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const present = stagedDeletionsPresentOnDisk(...); return present.length > 0 ? found(STAGED_DELETION, message) : null;
+/// const elements = selectionElements(selection) ?? []; const present = stagedDeletionsPresentOnDisk(..., elements); return present.length > 0 ? found(STAGED_DELETION, message) : null;
 /// ```
 pub(crate) fn staged_deletion_ending(
     context: &GitContext,
@@ -76,9 +82,10 @@ pub(crate) fn staged_deletion_ending(
     repository_root: &Path,
     real_index: &Path,
     base_revision: &str,
-    pathspecs: &[OsString],
+    selection: &IndexSelection<'_>,
 ) -> Result<Option<TransactionResult>, GitFailure> {
-    let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(context, cwd, repository_root, real_index, base_revision, pathspecs)?;
+    let Some(elements) = selection_elements(selection) else { return Ok(None) };
+    let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(context, cwd, repository_root, real_index, base_revision, elements.as_slice())?;
     if present.is_empty() {
         return Ok(None);
     }

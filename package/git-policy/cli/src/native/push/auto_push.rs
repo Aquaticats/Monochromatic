@@ -14,7 +14,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await pushOnce({ gitPath, cwd }, branchRef, landedOid);
+//! await pushOnce({ gitPath, cwd }, branchRef, sentUpTo, blocked, undecided);
 //! ```
 
 /// Where a plain push of a named branch goes.
@@ -36,6 +36,8 @@ use crate::blocked_commit_questions::QueueHistory;
 use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops};
 /// The blocked verdicts of the worktree the push is for.
 use crate::work_item_holding::BlockedVerdict;
+/// Whether a push Git reported as failed published the recorded branch all the same.
+use crate::matching_push_delivered_the_recorded_branch::{MatchingPush, delivered_although_git_failed};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 /// Owned OS strings for Git arguments.
@@ -262,11 +264,23 @@ pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> V
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sourceOf = (stop, sent, branchRef) => stop.kind === 'nothing' ? branchRef : stop.pushable;
+/// const sourceOf = (stop, sent, sentUpTo) => stop.kind === 'nothing' ? sentUpTo : stop.pushable;
 /// ```
-pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, branch_ref: &str) -> Option<String> {
+///   A push that no verdict holds back sends the commit the branch named before this push read the worktree's verdicts,
+/// never the branch's reference:
+/// a commit that landed after that reading has no verdict in it,
+/// its own gate may still
+///  refuse it,
+/// and sending the reference would publish it before that answer.
+/// The one push that gives a branch its upstream names the branch instead,
+/// because Git sets an upstream
+///  only from a refspec that names a branch;
+/// the caller that builds the refspec decides that,
+/// and every later
+///  push of the branch is fixed.
+pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, sent_up_to: &str) -> Option<String> {
     return match stop {
-        WhereThePushStops::Nothing => Some(branch_ref.to_owned()),
+        WhereThePushStops::Nothing => Some(sent_up_to.to_owned()),
         WhereThePushStops::Before(stopped) | WhereThePushStops::Undecided(stopped) => match sent.targets.is_empty() {
             true => None,
             false => stopped.pushable.clone(),
@@ -404,15 +418,20 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
 ///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
 ///  branch into this single call,
 /// so it needs no lock.
+///   `sent_up_to` is the commit the branch named before `blocked` and `undecided` were read,
+/// and it is what a push that no verdict holds back sends:
+/// the branch may move between that reading and this push,
+/// a commit that lands in between has no verdict in the reading,
+/// and sending the branch's reference would publish it before its own gate answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const result = await pushOnce({ gitPath, cwd }, landedOid);
+/// const result = await pushOnce({ gitPath, cwd }, branchRef, sentUpTo, blocked, undecided);
 /// ```
 pub fn push_once(
     git: &PushGit,
     branch_ref: &str,
-    landed_oid: &str,
+    sent_up_to: &str,
     blocked: &[BlockedVerdict],
     undecided: &[String],
     err: &mut dyn Write,
@@ -427,13 +446,21 @@ pub fn push_once(
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
     //  and so does a commit whose own checks still run: its answer may keep it local, and a push of the tip would publish it.
     let stop: WhereThePushStops = where_the_push_stops(&QueueHistory { git }, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided);
-    let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
+    let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
+    };
+    // Git sets a branch's upstream only from a refspec that names a branch, and a push of a commit gives the branch none
+    //  (measured with Git 2.56.0: `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves
+    //  `branch.new.merge` unset). The one push that gives a branch its upstream therefore sends the branch, and every other push
+    //  sends the commit that push was allowed to send.
+    let source: String = match set_upstream {
+        true => pushed_ref.clone(),
+        false => pinned,
     };
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
     let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
+    debug(TAG, &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
     // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
     //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
@@ -447,9 +474,16 @@ pub fn push_once(
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
     //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
-        attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
+        attempt = reconcile_divergent_push(git, &pushed_ref, sent_up_to, attempt)?;
     }
-    return reported(attempt, &stop, pushed_ref.as_str(), err);
+    // Under `push.default=matching` this one push carried every branch the remote has, so Git's status is the worst of them: a
+    //  sibling the remote refused makes it non-zero while this branch arrived. The remote says which, and a delivery it proves is
+    //  not reported as a failure nor retried.
+    let delivered: bool = delivered_although_git_failed(
+        git,
+        &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid },
+    )?;
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), err);
 }
 
 /// What:
@@ -462,13 +496,17 @@ pub fn push_once(
 /// the person reads one line that names the commit and the
 ///  check,
 /// and Git's own lines follow it when there are any.
+///  `delivered` is the repository's proof that this branch arrived although Git's status says the push failed
+/// (`matching_push_delivered_the_recorded_branch.rs`),
+///  and a push it proves says `Pushed` with exit code `0` while Git's own lines about the
+///  branches that were refused stay in the report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reported = (attempt, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
+/// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
-    let failed: bool = attempt.exit_code != 0;
+pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+    let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
         WhereThePushStops::Before(stopped) => Some(held_back_line(branch_ref, stopped)),
@@ -493,7 +531,10 @@ pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_re
             (false, true) => AutoPushOutcome::HeldBack,
             (false, false) => AutoPushOutcome::Pushed,
         },
-        exit_code: attempt.exit_code,
+        exit_code: match delivered {
+            true => 0,
+            false => attempt.exit_code,
+        },
         shown,
     });
 }
