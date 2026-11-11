@@ -451,6 +451,12 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
+/// The configuration of a push, given on its command line,
+/// reaches the real `git-lfs` upload,
+/// so an object reaches the remote the ref is published to.
+#[path = "binary_lfs_command_scope_tests.rs"]
+mod lfs_command_scope;
+
 /// Traditional hooks never run through the wrapper,
 /// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
 #[path = "binary_hooks_off_tests.rs"]

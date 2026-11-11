@@ -38,7 +38,7 @@ use crate::bounded_push::{
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
-use crate::child_environment::{environment_value, prompting_disabled};
+use crate::child_environment::{environment_value, environment_value_by_name_bytes, environment_with_overlay, prompting_disabled};
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
@@ -100,10 +100,48 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
 }
 
 /// What:
-///  The variables that carry the global options of a push into a child that reads Git's configuration.
+///  The configuration pair a `--config-env` parameter names,
+/// read from the environment of the invocation,
+/// or nothing when
+///  Git itself refuses the option as it stands.
+/// Why:
+///   `git-lfs` reads Git's configuration through the numbered variables only,
+/// so an option that names an environment variable must be
+///  resolved here.
+///  Git 2.56.0 takes the text before the last `=` as the key and the variable name after it
+/// (`command_status_tests.rs` holds the real-Git control),
+/// and the name is compared as the bytes the operating system holds.
+///  `None` covers exactly the parameters Git refuses:
+/// no `=`, an empty variable name,
+///  or a variable the invocation's environment does not hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pair = configEnvPair(parameter, environment); // undefined when Git would refuse the option
+/// ```
+fn config_env_pair(parameter: &[u8], environment: &[(OsString, OsString)]) -> Option<(OsString, OsString)> {
+    // `.rposition` is the last `=`, which is where Git ends the key.
+    let at: usize = parameter.iter().rposition(|byte| { return *byte == b'='; })?;
+    let variable: &[u8] = &parameter[at + 1..];
+    // An empty name is the option Git refuses as "missing environment variable name".
+    if variable.is_empty() {
+        return None;
+    }
+    let value: OsString = environment_value_by_name_bytes(environment, variable)?;
+    // SAFETY: the slice starts at the parameter's own start and ends right before an ASCII `=`, so both are code point
+    //  boundaries of the encoded string the bytes came from.
+    let key: OsString = unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(&parameter[..at]) }.to_os_string();
+    return Some((key, value));
+}
+
+/// What:
+///  The variables that carry the global options of a push into a child that reads Git's configuration,
+/// or nothing when the
+///  prefix names a configuration Git itself refuses.
 /// Why:
 ///   `-c name=value` becomes `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` after any pairs the environment already holds
 ///  (a `-c` without `=` is the boolean true),
+/// `--config-env=<name>=<variable>` as the pair the variable's own value sets,
 /// `--git-dir`,
 /// `--work-tree` and `--namespace` become `GIT_DIR`,
 ///  `GIT_WORK_TREE` and `GIT_NAMESPACE`;
@@ -111,18 +149,26 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
 ///  No shell is involved,
 /// and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
 ///  Git that used to run the hook.
+/// Gotcha:
+///  `None` is a `--config-env` whose variable is unset,
+///  or that names no variable or no variable name.
+///  Git refuses that
+///  command line itself,
+///  so the push never runs and the upload must not either:
+///  an object sent now would travel to whichever server the setting
+///  that could not be read does not name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function prefixVariables(globalPrefix: string[], environment): [string, string][];
+/// function prefixVariables(globalPrefix: string[], environment): [string, string][] | undefined;
 /// ```
-pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<Vec<(OsString, OsString)>> {
     let mut pairs: Vec<(OsString, OsString)> = Vec::new();
     let mut variables: Vec<(OsString, OsString)> = Vec::new();
     let mut tokens = global_prefix.iter();
     while let Some(token) = tokens.next() {
-        let text: String = token.to_string_lossy().into_owned();
-        if text == "-c" {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"-c" {
             if let Some(setting) = tokens.next() {
                 let setting_text: String = setting.to_string_lossy().into_owned();
                 let (name, value) = setting_text.split_once('=').unwrap_or((setting_text.as_str(), "true"));
@@ -130,6 +176,20 @@ pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, Os
             }
             continue;
         }
+        // What: `--config-env=<name>=<variable>` sets a pair from the environment, in both of Git's spellings.
+        // Why:  Git refuses an option that names no answerable variable, so a parameter that cannot become a pair ends the answer.
+        if bytes == b"--config-env" {
+            // An option with no value is one Git refuses, and `?` ends the whole answer here.
+            let parameter: &OsString = tokens.next()?;
+            pairs.push(config_env_pair(parameter.as_encoded_bytes(), environment)?);
+            continue;
+        }
+        if let Some(named) = bytes.strip_prefix(b"--config-env=") {
+            // The text after the option is the whole parameter: `<name>=<variable>`.
+            pairs.push(config_env_pair(named, environment)?);
+            continue;
+        }
+        let text: String = token.to_string_lossy().into_owned();
         for (option, variable) in [("--git-dir", "GIT_DIR"), ("--work-tree", "GIT_WORK_TREE"), ("--namespace", "GIT_NAMESPACE")] {
             if text == option {
                 if let Some(value) = tokens.next() {
@@ -148,7 +208,7 @@ pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, Os
         variables.push((OsString::from(format!("GIT_CONFIG_KEY_{}", existing + offset)), name));
         variables.push((OsString::from(format!("GIT_CONFIG_VALUE_{}", existing + offset)), value));
     }
-    return variables;
+    return Some(variables);
 }
 
 /// Why a run with captured standard error did not produce an outcome.
@@ -359,6 +419,16 @@ pub fn run_upload_interactive(
     // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
     //  failed login says what the wrapper did about prompting.
     let prompting_is_disabled: bool = prompting_disabled(overlay);
+    // What: The child's numbered configuration, settled by the overlay before the caller's own pairs are numbered after it.
+    // Why:  The overlay appends the wrapper's own pair (`core.lockfilePid`) in the next slot; a caller's pair numbered before it
+    //  took that slot and was overwritten, so `-c remote.origin.pushurl=...` never reached `git-lfs` and the object of the
+    //  published pointer went to the fetch remote. Numbered after the overlay, both are read, and a caller's setting of the
+    //  same key still wins as later numbered entries do in Git.
+    let settled: Vec<(OsString, OsString)> = environment_with_overlay(environment, overlay);
+    let Some(carried) = prefix_variables(global_prefix, settled.as_slice()) else {
+        // A `--config-env` Git refuses ends the push itself, so no object may travel to the server its absence points at.
+        return None;
+    };
     // A server error (an HTTP 5xx answer of the LFS server) is not run again here: it is outside our control, like a network that
     //  is down, and the commit service's push retry plan tries the push again by itself (pick 12 of
     //  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation). A typed push ends and says so.
@@ -369,7 +439,7 @@ pub fn run_upload_interactive(
                 .current_dir(directory)
                 .args(arguments.as_slice())
                 .env("PATH", path_with_real_git_first(environment, real_git));
-            for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+            for (name, value) in overlay.iter().cloned().chain(carried.iter().cloned()) {
                 command.env(name, value);
             }
             let (ended, relayed): (UploadEnd, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {

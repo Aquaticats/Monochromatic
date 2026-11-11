@@ -8888,10 +8888,15 @@ The step:
   `-C` cannot make the file that was checked differ from the file that runs).
   It runs in the directory a `-C`
   option selects and receives the global options as Git would pass them:
-  `-c` pairs as `GIT_CONFIG_COUNT` variables
-  after any pairs already set,
+  `-c` pairs and `--config-env` pairs as `GIT_CONFIG_COUNT` variables
+  after any pairs already set and after the pair the wrapper adds for its own lock ownership,
+  so a caller's setting of the same key still wins,
   `--git-dir`,
   `--work-tree` and `--namespace` as their variables.
+  A `--config-env` whose variable is unset, or that names none,
+  is a command line Git refuses,
+  so the push never runs and the upload does not start:
+  an object sent now would travel to whichever server the setting that could not be read does not name.
   A signal sent to the
   wrapper is relayed to it.
   The child's standard error goes to a private anonymous file;
