@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  expandQwenTokenPlanThinkingLevelMap,
   mapQwenTokenPlanIndividualProviders,
   qwenTokenPlanIndividualFacts,
   qwenTokenPlanIndividualListingSnapshot,
@@ -15,6 +16,9 @@ import {
   type QwenTokenPlanListingEntry,
   type QwenTokenPlanModelFacts,
 } from '../dist/final/node/index.mjs';
+import {
+  piAiQwenTokenPlanIndividualCatalog,
+} from '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing/test-fixtures';
 import {
   MEASURED_MEDIA_IDS,
   MEASURED_SERVICEABLE_IDS,
@@ -275,5 +279,53 @@ await describe({
     },),
 
     //endregion Three reasoning states
+
+    //region Builtin row equality
+
+    describe({
+      name: 'projected facts against the builtin catalog rows',
+      children: Object.values(piAiQwenTokenPlanIndividualCatalog)
+        .map(function byRow(row) {
+          return it({
+            name: `equals the builtin row field for field on ${row.id}`,
+            fn: async () => {
+              const model = servedModelOf(row.id);
+              if (model === undefined) {
+                throw new Error(`expected a served model profile for ${row.id}`);
+              }
+              expect(row.provider).toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE);
+              expect(row.api).toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_API);
+              expect(model.id).toBe(row.id);
+              expect(model.name).toBe(row.name);
+              expect(model.contextWindow).toBe(row.contextWindow);
+              expect(model.maxTokens).toBe(row.maxTokens);
+              expect(model.input).toEqual(row.input);
+              expect(model.compat).toEqual(row.compat);
+              if (row.thinkingLevelMap !== undefined) {
+                /**
+                 Efforts the served profile declares for a builtin row that
+                 carries a thinking-level map; expanding it must reproduce that
+                 map byte for byte.
+                 */
+                const efforts = model.reasoningEfforts;
+                if ((efforts === undefined) || (efforts === false)) {
+                  throw new Error(`expected a declared efforts dict for ${row.id}`);
+                }
+                expect(expandQwenTokenPlanThinkingLevelMap({ efforts, }))
+                  .toEqual(row.thinkingLevelMap);
+              } else if (row.reasoning) {
+                expect(Object.hasOwn(
+                  model,
+                  'reasoningEfforts'
+                ),).toBe(false);
+              } else {
+                expect(model.reasoningEfforts).toBe(false);
+              }
+            },
+          },);
+        },),
+    },),
+
+    //endregion Builtin row equality
   ],
 },);

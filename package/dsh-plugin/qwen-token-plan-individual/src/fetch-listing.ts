@@ -30,10 +30,11 @@ export {
  Credentials service shape the key resolution reads: the one `resolve` call the
  installed llm-pi-ai adapter makes per operation. Structurally typed around the
  reference-name string, so the real `CredentialProvider` and test fakes both
- satisfy it without this package importing the branding module: a reference is
- a POSIX environment-variable name at runtime, and the `credentialRef` brand
- the service's own call sites add is a compile-time cast that returns its input
- unchanged.
+ satisfy it without this package importing the branding module: `credentialRef`
+ validates the reference name (throwing `TypeError` on a malformed one) and
+ applies a compile-time brand that `brandString` implements as identity, so for
+ the compile-time constant this seam passes, the branded call and the raw string
+ resolve identically.
  */
 export type QwenTokenPlanIndividualCredentialsTarget = {
   resolve(ref: string): Promise<{
