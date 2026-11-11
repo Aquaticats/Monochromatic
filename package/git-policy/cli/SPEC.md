@@ -3372,6 +3372,10 @@ The owner answered the choice between naming such a folder for ever and keeping 
 "Keep removing,
 fix the check" (2026-11-11):
 nothing at the name is deleted on the shape of a folder alone.
+What this proves is when the folder was made and which subvolume it was taken from,
+never who made it:
+a snapshot another party makes between that read and this command's own creation carries a later transaction too,
+and it must then also be renamed onto the reserved stage name before the reaping runs.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
