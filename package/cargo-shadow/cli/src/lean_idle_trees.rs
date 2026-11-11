@@ -166,6 +166,37 @@ pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
 }
 
 /// What:
+/// `fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf>` is the tree of the
+/// base,
+/// other than the one given,
+/// that the recorded workspace of the tree given lies inside.
+/// Why:
+/// Such a record is the only thing that keeps the other tree from being removed,
+/// so a tree that holds it cannot go before the workspace inside that other tree is gone:
+/// the record goes with the tree,
+/// and the next pass would have nothing to guard with and would delete the live workspace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordsWorkspaceInside = (workspace: Workspace, trees: Tree[][], own: string): string | undefined
+/// ```
+fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf> {
+    let Workspace::Known(root) = workspace else { return None };
+    // A workspace that is gone holds nothing, so its record guards nothing.
+    if !root.exists() {
+        return None;
+    }
+    for list in trees {
+        for tree in *list {
+            if tree.path != own && root.starts_with(&tree.path) {
+                return Some(tree.path.clone());
+            }
+        }
+    }
+    return None;
+}
+
+/// What:
 /// `fn holds_other_workspace(tree: &Path, roots: &[(PathBuf, PathBuf)]) -> Option<PathBuf>` finds another tree whose recorded
 /// workspace lies inside this tree.
 /// Why:
@@ -339,6 +370,11 @@ pub fn collect_idle_trees(
         };
         if let Some(inside) = holds_other_workspace(&tree.path, &roots) {
             collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(format!("the workspace of {} lies inside it", inside.display())) });
+            continue;
+        }
+        // The record this tree holds may be what keeps another tree from being removed, so it stays while it does.
+        if let Some(guarded) = records_a_workspace_inside(&workspaces[index], &[trees, earlier], &tree.path) {
+            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(format!("the workspace it records lies inside {}, whose guard that record is", guarded.display())) });
             continue;
         }
         if dry_run {

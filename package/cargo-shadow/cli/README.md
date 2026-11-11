@@ -1150,6 +1150,11 @@ Six mechanisms
   and no process uses anything under it.
   "Other tree" means every tree of the base, including the ones a pass that continues after a recorded position
   does not judge again.
+  A tree is also kept while the workspace its own ledger names lies inside another tree of the base and still exists,
+  even when its toolchain is retired:
+  that ledger is the only thing that keeps the other tree from being removed,
+  and the ledger goes with the tree,
+  so removing it first would let a later pass delete the live workspace inside that other tree.
 - D,
   retention of verification run records under `target/verification`:
   records (`RECORD_PREFIXES` in `src/lean_run_records.rs` names every program of this repository that writes one,
