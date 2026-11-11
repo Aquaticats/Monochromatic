@@ -115,8 +115,9 @@ pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) 
         (_no_place, None) => None,
         (None, Some(_bytes)) => {
             return Some(format!(
-                "the {LOCK_FILE} of {} changed while the clean ran, and the Git directory to keep those bytes in was not named, so the file is \
-                 left exactly as it is found and the worktree shows the difference",
+                "the {LOCK_FILE} of {} changed while the clean ran, and no Git directory was named to keep those bytes in, so the file is left \
+                 exactly as it is found; `git diff -- {LOCK_FILE}` in that worktree shows what changed, and the branch holds the bytes it was \
+                 checked out with",
                 path.display()
             ));
         }
@@ -125,7 +126,8 @@ pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) 
             Err(reason) => {
                 return Some(format!(
                     "the {LOCK_FILE} of {} changed while the clean ran, and the bytes that changed it could not be kept ({reason}), so the file \
-                     is left exactly as it is found and the worktree shows the difference",
+                     is left exactly as it is found; `git diff -- {LOCK_FILE}` in that worktree shows what changed, and the branch holds the \
+                     bytes it was checked out with",
                     path.display()
                 ));
             }
