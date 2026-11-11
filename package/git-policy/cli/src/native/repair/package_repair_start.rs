@@ -86,7 +86,7 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
     match tokio::time::timeout(ceiling, job).await {
         // The system refused the thread the fork needed. The pool had already queued the job, so the closure may still
         // run there later; a child it starts then finds no receiver and is stopped.
-        Ok(Err(refusal)) => return ToolStart::Refused(format!("no thread could start it ({refusal})")),
+        Ok(Err(refusal)) => return ToolStart::Refused(format!("the pool could not make its start ({refusal})")),
         Ok(Ok(())) => {}
         Err(_past_the_ceiling) => return ToolStart::NoAnswer,
     }
