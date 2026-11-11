@@ -95,8 +95,8 @@ and from the unit's `ExecStart` once the launcher has gone,
 so a launcher that has not made its unit yet still holds its slot.
 An audit (`sol-`) and a Kimi run on a provider no pool holds are counted in no pool,
 because neither competes for those slots.
-A run whose pool cannot be read at all is counted in `opencode-go`,
-which is what the launcher this replaced did.
+A run whose unit's own command line could not be read is counted in `opencode-go`,
+which is where the launcher this replaced counted every unit whose launcher had gone.
 
 ### The room a new run needs
 
