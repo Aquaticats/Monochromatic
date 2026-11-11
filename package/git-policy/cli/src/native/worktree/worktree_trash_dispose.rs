@@ -36,7 +36,7 @@
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
-use crate::idle_io_priority::with_idle_io_priority;
+use crate::idle_io_priority::LoweredIoPriority;
 use crate::service_work::{Verdict, work_directory};
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
@@ -207,6 +207,20 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 }
 
 /// What:
+///  Whether a record's age is past the lease a claim of it would have been renewed within.
+/// Why:
+///   The lease is the drain's own (`CLAIM_LEASE`),
+/// so the age a record is judged stale at and the age the service renews a claim at are one number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPastAClaimLease = (age) => age > CLAIM_LEASE_MS;
+/// ```
+fn is_past_a_claim_lease(age: std::time::Duration) -> bool {
+    return age > crate::service_work::CLAIM_LEASE;
+}
+
+/// What:
 ///  Whether this record has been pending for longer than one claim lease without being claimed.
 /// Why:
 ///   The lease is the one the drain already keeps (`CLAIM_LEASE`),
@@ -225,7 +239,7 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 fn waited_longer_than_a_claim(record: &Path) -> bool {
     let Ok(found) = std::fs::metadata(record) else { return false };
     let Ok(written) = found.modified() else { return false };
-    return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
+    return written.elapsed().is_ok_and(is_past_a_claim_lease);
 }
 
 /// What:
@@ -568,7 +582,11 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    path_failure(with_idle_io_priority(|| return remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    let removal: std::io::Result<()> = {
+        let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
+        remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)
+    };
+    path_failure(removal, inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()

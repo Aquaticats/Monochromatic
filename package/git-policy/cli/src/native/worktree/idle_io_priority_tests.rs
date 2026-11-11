@@ -30,3 +30,18 @@ fn a_lowered_stretch_inside_another_restores_the_outer_class() {
     assert_eq!(inside, Some(IDLE_CLASS), "the outer stretch is still lowered after the inner one");
     assert_eq!(class_here(), before, "and the thread's own class is back afterwards");
 }
+
+/// A stretch whose work unwinds still gives the thread its own class back:
+/// a removal can panic,
+/// and the pool reuses the thread it ran on.
+#[test]
+fn a_stretch_that_unwinds_gives_the_thread_its_own_class_back() {
+    let before = class_here();
+    let Some(lowered) = with_idle_io_priority(class_here) else { return };
+    assert_eq!(lowered, IDLE_CLASS, "the emptying asks for the lowest I/O class Linux offers");
+    let unwound: std::thread::Result<()> = std::panic::catch_unwind(|| {
+        return with_idle_io_priority(|| -> () { panic!("the work of one stretch unwinds") });
+    });
+    assert!(unwound.is_err(), "the work's own panic reaches the caller");
+    assert_eq!(class_here(), before, "the thread is left as it was found, panic included");
+}

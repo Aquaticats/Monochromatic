@@ -24,6 +24,7 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::idle_io_priority::LoweredIoPriority;
 use crate::lazy_runtime::{RuntimeError, run_on_runtime};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::{Event, OrderedEvents};
@@ -153,12 +154,17 @@ struct RemoveEachEntry {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const removal = withIdleIoPriority(() => remove(inside, trash, entryName(entry), manifest.entries[entry]));
+/// const removal = removeOne(inside, trash, entryName(entry), manifest.entries[entry]); // at the lowest I/O priority
 /// ```
 fn remove_one(inside: &Path, trash: &File, manifest: &TrashManifest, remove: &RemoveOne, entry: usize) -> Result<Removal, String> {
     // The reason the removal gives is the person's, word for word: the entry's name is in it already, and a prefix would say it
     //  twice.
-    return crate::idle_io_priority::with_idle_io_priority(|| return remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry])));
+    let name: String = entry_name(entry);
+    let removal: Result<Removal, String> = {
+        let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
+        remove(inside, trash, OsStr::new(name.as_str()), Some(manifest.entries[entry]))
+    };
+    return removal;
 }
 
 impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {

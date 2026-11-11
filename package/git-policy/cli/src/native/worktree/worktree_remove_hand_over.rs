@@ -201,7 +201,7 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 /// await handOverRemoval({ context, commonDir, parent, parentPath, name, id });
 /// ```
 pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path) -> Result<(), String> {
-    return hand_over_with(common_dir, parent, parent_path, name, id, target, &|wake_at: &Path| { return wake_the_service(context, wake_at); });
+    return hand_over_with(context, common_dir, parent, parent_path, name, id, target, &wake_the_service);
 }
 
 /// What:
@@ -217,9 +217,9 @@ pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// handOverWith({ commonDir, parent, parentPath, name, id, target, told });
+/// handOverWith({ context, commonDir, parent, parentPath, name, id, target, told });
 /// ```
-pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn Fn(&Path) -> Result<(), String>) -> Result<(), String> {
+pub fn hand_over_with(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<(), String> {
     let item: WorkItem = record_the_removal(common_dir, parent_path, id)?;
     let deleting: OsString = deleting_name(id);
     if let Err(error) = rename_at(parent, name, parent, deleting.as_os_str(), false) {
@@ -227,11 +227,25 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
     }
     debug(TAG, format!("the subvolume of {} waits for the service's delete at {}", target.display(), Path::new(&item.parent).display()).as_str());
-    if let Err(why) = told(common_dir) {
+    if let Err(why) = told(context, common_dir) {
         // The record stays, and the next command of this repository wakes the service that reads it.
         warn(TAG, format!("the delete of {} is recorded and not woken ({why})", target.display()).as_str());
     }
     return Ok(());
+}
+
+/// What:
+///  Whether metadata the filesystem answered describes a directory.
+/// Why:
+///  The answer is asked of what was read once,
+/// so a path replaced between the two calls cannot make the proof about one object and the delete about another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADirectory = (found) => found.isDirectory();
+/// ```
+fn is_a_directory(found: std::fs::Metadata) -> bool {
+    return found.is_dir();
 }
 
 /// What:
@@ -246,7 +260,7 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
 /// lstat(path).isDirectory()
 /// ```
 fn is_directory(path: &Path) -> bool {
-    return std::fs::symlink_metadata(path).is_ok_and(|found| { return found.is_dir(); });
+    return std::fs::symlink_metadata(path).is_ok_and(is_a_directory);
 }
 
 /// What:
