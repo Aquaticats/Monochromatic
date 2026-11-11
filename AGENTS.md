@@ -209,6 +209,13 @@ commands,
 or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
+WDQ:
+ Wondering whether something we control is a defect?
+ It is:
+ fix it.
+Intended behavior that could confuse gets documented where its users meet it,
+ so they are not confused.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
@@ -571,6 +578,14 @@ FBN:
  A user saying a cost is fine or acceptable sets a bound,
  never a stop:
  keep improving it unless the user drops the goal.
+
+NHX:
+ Never rush an agent or give it a due date,
+ not even by hint ("asap",
+ "urgent",
+ a release waiting on it);
+ any sense of hurry lowers its work.
+Briefs ask for the best result.
 
 ## Before running a command
 
@@ -1754,9 +1769,10 @@ CPN:
 
 XSG:
  Tracked files:
- commit with `git commit -- <paths>` alone;
+ commit with `git commit --message <text> -- <paths>` alone,
+ options before `--`;
  a separate `git add` stays staged if the commit fails,
- and another session's commit in the shared checkout then takes it.
+ and another session's commit then takes it.
 
 XCM:
  External messages report results,

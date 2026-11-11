@@ -73,10 +73,10 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
-    if read_text(member.join("config").as_path())? != template.config_text() {
+    if read_bytes(member.join("config").as_path())? != template.config_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
-    if read_text(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_text() {
+    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_bytes() {
         return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
     }
     if read_text(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD {
@@ -159,6 +159,26 @@ fn read_text(path: &Path) -> std::io::Result<String> {
     return match std::fs::read(path) {
         Ok(bytes) => Ok(String::from_utf8_lossy(bytes.as_slice()).into_owned()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error),
+    };
+}
+
+/// What:
+///  The exact bytes of a file of a member,
+///  or nothing for an absent one.
+/// Why:
+///   A member's config and alternates name paths,
+///  and a path need not be UTF-8;
+///  a lossy text of them compared equal to a lossy text of another directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readIfExists(path) ?? Buffer.alloc(0)
+/// ```
+fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
+    return match std::fs::read(path) {
+        Ok(bytes) => Ok(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
         Err(error) => Err(error),
     };
 }

@@ -9,6 +9,8 @@ use crate::service_instance::instance_of;
 use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent};
 use crate::test_support::{REAL_GIT, fixture, isolated_overlay, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt as _;
 
 /// The command word the notes name.
 const COMMAND: &str = "git monochromatic-git-policy-cli service settle-earlier-batches";
@@ -167,6 +169,115 @@ fn run_process(world: &Setup, words: &[String]) {
         bytes.push(0);
     }
     std::fs::write(process.join("cmdline"), bytes).expect("command line");
+}
+
+/// What the kernel calls the fake process's program,
+/// as `/proc/77/comm` spells it.
+const FAKE_PROGRAM_NAME: &str = "unrelated-tool";
+
+/// Names the fake process's program,
+/// as every process on a machine has a name.
+fn name_the_process(world: &Setup) {
+    std::fs::write(world.proc_root.join("77/comm"), format!("{FAKE_PROGRAM_NAME}\n")).expect("the program's kernel name");
+}
+
+/// How long a command line of another program may be:
+/// a word is at most 32 pages (`MAX_ARG_STRLEN`,
+/// Linux `include/uapi/linux/binfmts.h`),
+/// and the kernel refuses a command line and environment together above 6 MiB (`fs/exec.c`,
+/// `bprm_stack_limits`).
+/// This control's line is 200 words of 1 KiB,
+/// 204,800 bytes:
+/// longer than the 65,536 bytes the look used to read whole,
+/// and far below what a program may carry.
+const LONG_COMMAND_LINE_WORD_BYTES: usize = 1024;
+const LONG_COMMAND_LINE_WORDS: usize = 200;
+
+/// The words of a long command line of a program that is no earlier helper:
+/// a commit whose message travels in its arguments,
+/// as a person's `git commit -m` does.
+fn long_command_line() -> Vec<String> {
+    let mut words: Vec<String> = vec![String::from("/usr/bin/git"), String::from("commit"), String::from("-m")];
+    for at in 0..LONG_COMMAND_LINE_WORDS {
+        words.push(format!("{at:07}").chars().cycle().take(LONG_COMMAND_LINE_WORD_BYTES).collect());
+    }
+    return words;
+}
+
+/// What:
+///  A program of the user whose command line is longer than the look's first limit holds nothing back:
+/// the command says the condition,
+/// examines the batch,
+/// and settles it.
+/// Why:
+///   A command line of tens of kilobytes is ordinary:
+/// a commit carries its message in its arguments,
+/// a script may be passed with `-e`,
+/// and a container run line carries its mounts,
+/// and one program's measured 44,174 bytes on this host on 2026-11-10,
+/// while the look read only 65,536.
+/// A process whose line was longer counted as one that may be the earlier helper,
+/// so it refused the command with the words of a look that ran out of time,
+/// for as long as that program ran,
+/// and no retry could clear it,
+/// because nothing about it changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(runSettleWithAProgramCarryingALongCommandLine()).toSettleTheBatch()
+/// ```
+#[test]
+#[cfg(unix)]
+fn a_program_whose_command_line_is_long_holds_nothing_back() {
+    let world: Setup = setup("settle-command-long-command-line");
+    world.leave_open_batches(1);
+    run_process(&world, long_command_line().as_slice());
+    name_the_process(&world);
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert!(!stderr.contains(crate::earlier_service_process_look::Hold::CannotLook.words()), "the look proved the line whole: {stderr}");
+    assert!(before.contains("no wrapper of the earlier release is in use in this worktree"), "the look passed, so the condition is said: {before}");
+    assert_eq!(code, 1, "the fixture's batch names a repository that is not there, which Git cannot answer for: {stdout}{stderr}");
+    assert!(stdout.contains("batch 1") && stdout.contains("could not be examined"), "the batch was examined: {stdout}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A process whose command line this check may not read is named,
+/// with what the kernel calls it and what the kernel answered,
+/// and with the two ways past it.
+/// Why:
+///   Such a process cannot be ruled out as the earlier commit service,
+/// so the command refuses;
+/// a refusal that
+///  names neither the process nor the answer leaves the person with "try again in a moment",
+/// which nothing
+///  about that process ever clears.
+/// The kernel's name of its program is shown,
+/// never a word of its command line,
+/// because any of those can be a secret.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain('could not read the command line of process 77')
+/// ```
+#[test]
+#[cfg(unix)]
+fn a_process_whose_command_line_cannot_be_read_is_named_with_the_answer_and_the_way_on() {
+    let world: Setup = setup("settle-command-names-an-unreadable-process");
+    world.leave_open_batches(1);
+    run_process(&world, [String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")].as_slice());
+    name_the_process(&world);
+    let cmdline: PathBuf = world.proc_root.join("77/cmdline");
+    std::fs::set_permissions(cmdline.as_path(), std::fs::Permissions::from_mode(0o0)).expect("a command line no one may read");
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""), "the command refused and acted on nothing: {stderr}");
+    assert!(stderr.contains(crate::earlier_service_process_look::Hold::CannotLook.words()), "the reason's words stay: {stderr}");
+    for wanted in ["could not read the command line of process 77", FAKE_PROGRAM_NAME, "Permission denied", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND] {
+        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    }
+    assert!(!stderr.contains("/gone/for/good"), "no word of a command line it may not read is shown: {stderr}");
+    assert_eq!(world.open_files(), 1, "nothing was settled");
+    remove(world.root.as_path());
 }
 
 /// A socket that listens,
