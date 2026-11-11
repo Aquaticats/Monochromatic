@@ -982,6 +982,23 @@ a manager restart,
 and a bug in the sentinel itself.
 The bypass route watcher of `wg-quicker` has its own sentinel.
 
+### Which marks stay
+
+A mark is exemption from the tunnel,
+so it stays attached only while the scan still selects its cgroup
+(`src/application_marks.rs`).
+A name-selected cgroup whose application has gone,
+and an executable-owned cgroup whose program has exited,
+lose their mark at the next reconciliation:
+the links are dropped,
+which is what the kernel unregisters the hooks with,
+and the cgroup's traffic belongs in the tunnel like every other cgroup's.
+Keeping the mark while the cgroup directory still existed
+left the bypass on after the application had exited,
+and the report that said the mark was not attached described the opposite of what was in force.
+A cgroup is reported once when its name claims an application it does not hold,
+and reported again after it regains the application and loses it later.
+
 ### Confirming a move
 
 An adoption is confirmed from `/proc/<pid>/cgroup`,

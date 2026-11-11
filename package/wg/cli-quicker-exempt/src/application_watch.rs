@@ -2,6 +2,9 @@
 
 /// Target discovery across named app-slice services and executable-owned processes.
 use crate::application_targets::{scan_application_targets, ScanRoots};
+/// Which marks stay attached after one scan,
+/// and what to say about a name that holds no program of its application.
+use crate::application_marks::{decide_marks, reports_that_still_apply};
 /// Process events and the update traffic policy.
 use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 /// Delivery of failures after startup.
@@ -31,7 +34,7 @@ use std::path::PathBuf;
 #[path = "watch_support.rs"]
 mod watch_support;
 /// The items of that module the watcher uses.
-use watch_support::{attach_target, attachment_directory_exists, create_inotify, drain_inotify, is_attached, ActiveAttachment};
+use watch_support::{attach_target, create_inotify, drain_inotify, is_attached, ActiveAttachment};
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
@@ -109,7 +112,8 @@ pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
     return since_last_scan >= FULL_SCAN_INTERVAL || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
 }
 
-/// Reconciles discovered targets and retains attached cgroups until directory removal.
+/// Reconciles discovered targets,
+/// and keeps a mark attached only while the scan still selects its cgroup.
 ///
 /// A name-selected cgroup that holds no program of the application the name claims is not marked,
 /// and the watcher says so once for each such cgroup,
@@ -117,23 +121,27 @@ pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
 /// The marks the watcher holds are also what the process watch treats as covered,
 /// so the two can never disagree about which cgroup carries the mark.
 fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
-    watch.active.retain(attachment_directory_exists);
     let scan = scan_application_targets(&watch.roots)?;
-    for target in scan.targets {
-        if is_attached(&watch.active, &target) {
+    // The cgroups whose mark the watcher holds now,
+    // and which of them stay after this scan reported what it found.
+    let attached: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    let decision = decide_marks(&attached, &scan, &watch.reported_without_application);
+    // A released mark is detached by dropping its links,
+    // which is what the kernel unregisters the hooks with.
+    watch.active.retain(|attachment| return decision.keep.contains(&attachment.path));
+    watch.reported_without_application = reports_that_still_apply(&watch.reported_without_application, &scan);
+    for target in &scan.targets {
+        if is_attached(&watch.active, target) {
             continue;
         }
-        if let Some(attachment) = attach_target(&target, watch.mark)? {
+        if let Some(attachment) = attach_target(target, watch.mark)? {
             watch.active.push(attachment);
         }
     }
     // The cgroup paths of the marks the watcher holds.
     let marked: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
     watch.routing.note_marked(&marked);
-    for cgroup in scan.without_application {
-        if watch.reported_without_application.contains(&cgroup) {
-            continue;
-        }
+    for cgroup in decision.report {
         watch.reported_without_application.push(cgroup.clone());
         watch.reporter.report_failure(
             "application unit without its program",

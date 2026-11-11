@@ -31,11 +31,6 @@ fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
     return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
 }
 
-/// Reports whether an attachment's cgroup directory still exists.
-pub fn attachment_directory_exists(attachment: &ActiveAttachment) -> bool {
-    return attachment.path.is_dir();
-}
-
 /// Reports whether `target` already has an attachment.
 pub fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
     for attachment in active {

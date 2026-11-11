@@ -41,6 +41,8 @@ mod process_events;
 mod scope_adoption;
 /// The lock an origin stop and a move share.
 mod adoption_gate;
+/// Which socket marks stay attached after one scan.
+mod application_marks;
 /// When one pass of the policy may spend another move.
 mod pass_gate;
 /// Builds the arguments of the calls to the user's service manager.
@@ -209,6 +211,9 @@ mod scope_naming_tests;
 /// Unit tests for the sweep of leftover scopes.
 #[cfg(test)]
 mod leftover_sweep_tests;
+/// Unit tests for which socket marks stay attached.
+#[cfg(test)]
+mod application_marks_tests;
 /// Unit tests for the lock an origin stop and a move share.
 #[cfg(test)]
 mod adoption_gate_tests;
