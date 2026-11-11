@@ -47,7 +47,7 @@ const COMMAND_DEADLINE_MILLISECONDS = 60_000;
  The error names the hook and the limit,
  so a hook that needs longer can be changed.
  */
-export const HOOK_DEADLINE_MILLISECONDS: number = 10 * 60_000;
+export const HOOK_DEADLINE_MILLISECONDS: number = 600_000;
 
 /**
  Sentinel standing for a program that was started,
@@ -208,7 +208,10 @@ async function execute(
    Settled by the close of the child,
    which follows a spawn failure as well as an ordinary end.
    */
-  const { promise: closed, resolve: resolveClosed, } = Promise.withResolvers<void>();
+  const {
+    promise: closed,
+    resolve: resolveClosed,
+  } = Promise.withResolvers<void>();
   child.once(
     'error',
     function noteSpawnFailure(error: Readonly<Error>,): void {
@@ -380,7 +383,7 @@ export async function run(
  await runAllowingFailure({ command: 'ip', args: ['link', 'delete', 'dev', 'wg0'] });
  ```
  */
-export async function runAllowingFailure(
+export function runAllowingFailure(
   {
     command,
     args,
