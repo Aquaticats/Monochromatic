@@ -29,7 +29,7 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure};
 /// The masks and the hosts a destination or a failure names.
-use crate::lfs_output_mask::{host_of, hosts_in, mask_userinfo_text};
+use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
 
 /// The most standard error text one run keeps and relays;
 /// the rest is dropped,
@@ -104,7 +104,7 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
     let from_destination: Option<String> = host_of(text.as_str());
     return match from_program.or(from_destination) {
         Some(host) => format!("the server `{host}`"),
-        None => format!("the destination `{}`", mask_userinfo_text(text.as_str())),
+        None => format!("the destination `{}`", mask_url_secrets_text(text.as_str())),
     };
 }
 
@@ -203,7 +203,7 @@ pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr, promp
     if attempt.exit_code == 0 {
         return None;
     }
-    let shown: String = mask_userinfo_text(attempt.output.as_str());
+    let shown: String = mask_url_secrets_text(attempt.output.as_str());
     return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination, prompting_disabled));
 }
 

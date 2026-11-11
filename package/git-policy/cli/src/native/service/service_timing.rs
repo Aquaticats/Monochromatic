@@ -26,7 +26,7 @@
 use crate::service_durable_syncs::{SyncFigure, syncs_held, syncs_waited_count, syncs_word};
 use crate::service_index_found::WaitNotes;
 use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 use crate::quiet_ledger::longest_healthy;
 use crate::transaction_step_durations::{StepFigure, steps_word};
 use std::sync::OnceLock;
@@ -592,7 +592,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     let at_ms: u128 = wall_millis();
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
-    let masked: String = mask_userinfo_text(line);
+    let masked: String = mask_url_secrets_text(line);
     let mut all: Vec<(&str, String)> = Vec::new();
     if let Some(context) = CONTEXT.get() {
         for (name, value) in context.iter() {
@@ -601,7 +601,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     }
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
     for (name, value) in fields {
-        all.push((*name, mask_userinfo_text(value.as_str())));
+        all.push((*name, mask_url_secrets_text(value.as_str())));
     }
     // A native entry carries the text as written (a newline in the length-prefixed form); the line on standard error is one line.
     let message: String = format!("{} at_ms={at_ms}", cut(masked.as_str(), MESSAGE_LIMIT));

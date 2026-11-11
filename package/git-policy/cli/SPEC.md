@@ -7239,7 +7239,8 @@ and `level` is `warn` for a decision the wrapper could not make or a hand-over t
 `no-route`,
 `handover-failed`) and `info` otherwise.
 `command-failed` names the branch and the tip it was at before the command in `detail`.
-The userinfo of any URL in `detail` is masked as `<credentials>`.
+The secrets of any URL in `detail` are masked as `<credentials>` (the rule is stated in "An LFS upload",
+above).
 The lines of a watch that could not start name the worktree but no branch.
 The reasons are stable words,
 one for each step:
@@ -7666,12 +7667,46 @@ in-process reader can) gives every value of the multi-valued keys.
   no total time ends a run that shows progress,
   and a run that holds an open connection is ended only by the connected window (pick 5,
   above).
+  What a tree with an open connection shows as work was measured on 2026-11-11,
+  and that measurement decided the rule:
+  `git-remote-http` was charged one processor tick every three seconds while it polled a server
+  that had taken the connection and never answered,
+  and moved not one byte,
+  so a clock that counts that tick never reaches its window (the audit's F8:
+  290 to 330 seconds of a service push with a 150 second window).
+  A second measurement the same day decided the rest:
+  `git-lfs` writes fourteen bytes of its upload meter to its standard error about every ten seconds
+  while it waits on a server that never answers,
+  the file belongs to the wrapper,
+  so each line is a byte the tree wrote,
+  and the window never fired in more than 260 seconds.
+  While a connection is open,
+  neither the processor time nor the bytes of the process that holds it are therefore work:
+  that process polls the socket and prints its own account of waiting.
+  What it really sends is on the connection,
+  whose carried bytes are counted,
+  and the work of every process that holds no connection is still work,
+  which is where a push keeps working while its connection stands open:
+  the pack it makes,
+  the delta search,
+  the listing of what to send.
+  A socket carries no progress on the look that first sees it,
+  because its counters then stand for this side's handshake and request,
+  and that is also why a client that reconnects on its own is bounded:
+  each new connection starts from nothing and its client is its holder,
+  so silence across reconnections still reaches the window (measured:
+  six connections of `git-lfs` thirty seconds apart ended one upload at 150 seconds).
   The cost,
   which the pick accepts:
-  a process that spins or polls,
-  or sits in state `D` for good,
-  shows a sign of work for ever and holds the service's push of its repository;
+  a process that sits in state `D` for good shows a sign of work for ever and holds the service's push of its
+  repository;
   nothing the code can observe tells that from work.
+  The connected window is fixed at 150 seconds for every shipped run;
+  a control that must see it fire cannot wait that long,
+  so `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`,
+  a positive whole number of seconds,
+  shortens it for every run of the process,
+  in the manner of the crate's other control-only variables.
   One limit applies,
   in whole seconds and ignored when zero,
   negative,
@@ -7702,6 +7737,13 @@ in-process reader can) gives every value of the multi-valued keys.
   or `limit=connected` when the connection to the remote was what was held open,
   and `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output,
   which the service journals.
+  A connected stop names the server it waited for,
+  as its host and port with any userinfo left out,
+  which the run reads from its destination only when a stop needs it:
+  a destination written as a URL answers with its own host,
+  and a remote name with one bounded `git remote get-url --push` query.
+  A push that lands reads nothing for the name,
+  and the wait line a live run prints says "the remote".
   The stall setting is named only where the stall window ended the run:
   the connected window is fixed,
   so a connected stop says that the variable does not change it and names the retry that settles it.
@@ -9376,8 +9418,34 @@ The step:
   wrapper is relayed to it.
   The child's standard error goes to a private anonymous file;
   the wrapper reads it back after each run and relays it
-  with the user and password of every `scheme://userinfo@host` URL replaced by `<credentials>` (standard output stays
+  with the secrets of every URL replaced by `<credentials>` (standard output stays
   the caller's).
+  What counts as a secret is one rule for every line the wrapper prints or journals,
+  in `src/native/lfs/lfs_output_mask.rs`:
+  the userinfo of the URL,
+  which ends at the last `@` of its authority;
+  every path segment that is not a plain label,
+  a label being the letters `a` to `z` and the separators `-`,
+  `.`,
+  `_` and `~` alone,
+  which is what `lfs`,
+  `objects`,
+  `batch` and `info` are,
+  so a capital,
+  a digit,
+  a percent encoding or another punctuation mark is hidden;
+  and every value of its query and of its fragment,
+  with a key kept only while it is a plain label,
+  as the incident's `lfs.<url>.locksverify` key name was not.
+  The punctuation that ends a URL in a sentence,
+  a comma or a closing bracket,
+  is printed after the mask,
+  so a URL written in parentheses keeps its bracket.
+  The owner's rule,
+  quoted:
+  "Never print or commit secrets".
+  A token made only of lowercase letters reads as a label and is not hidden;
+  whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
   When that file cannot be made,
   the push is refused with the ways forward.
   A run that fails is never run again by the wrapper,
@@ -12209,7 +12277,7 @@ and the wrapper records the words of a run it made while
 carrying out the person's command as one client entry in the journal (`journalctl --identifier=monochromatic-git-policy-cli`);
 both carry the field
 `CLI_GIT_INNER_COMMAND`,
-mask the userinfo of URLs,
+mask the secrets of URLs,
 and are made only when the run said something.
 The person's own streams carry what native Git's command prints:
 the isolated merge's fast-forward says "Updating a..b" and
@@ -14938,7 +15006,7 @@ Without `$JOURNAL_STREAM` (a terminal,
 a file,
 a test) the lines are plain on standard error.
 Every line ends with `at_ms=<epoch milliseconds>`,
-and the userinfo of any URL in it is replaced by `<credentials>`.
+and the secrets of any URL in it are replaced by `<credentials>`.
 The lines are:
 a `started` line before `ready`,
 an `answered` line for every request with the phases of its stay
@@ -16555,7 +16623,7 @@ a remote that moved says to run the push again;
 a remote whose refs could not be read says to check
 the network,
 the address and the credentials,
-and its message masks the userinfo of the address;
+and its message masks the secrets of the address;
 Git that cannot start or
 ends without a message says to run Git's own `--dry-run`;
 output the wrapper cannot read is reported as a defect with the
