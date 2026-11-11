@@ -894,6 +894,96 @@ against 9 of 10 before it.
   It measures its own descriptor budget while the fixture's watchdog reads `/proc`,
   and that race belongs to whoever owns that test.
 
+### Read-error accounting audit, 2026-11-11T09:15:03-05:00
+
+The audit of `426c4022f4` and `bbee0cd9e8`, against worktree commit `add48522c2`,
+confirmed the read order and found separate gaps on read-error paths.
+The statements preceding the caller's `io` read are memory operations:
+`the_readers` clones the mutex-protected vector (`run_progress.rs:187`),
+and `look` formats paths and copies reader identifiers before opening `io` (`run_progress.rs:501` to `514`).
+
+#### Root cause
+
+The stat reads only credit their bytes after `read_to_string` succeeds.
+The caller's path is `package/git-policy/cli/src/native/testing/run_progress.rs:324`:
+
+```rust
+// package/git-policy/cli/src/native/testing/run_progress.rs
+let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
+self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+```
+
+The same shape occurs at `run_progress.rs:346` and `run_progress.rs:356`.
+A Linux task name containing byte `0xff` makes this stat read consume bytes but fail UTF-8 decoding.
+Those consumed bytes never enter `read_bytes`,
+so the caller's next look judges them as work.
+This path remains even when another task's stat is readable and the look returns a snapshot.
+
+A separate return skips bookkeeping when no task's stat could be decoded,
+including the successful caller `io` read at `run_progress.rs:514` to `516`:
+
+```rust
+// package/git-policy/cli/src/native/testing/run_progress.rs:534
+if !tally.readable {
+    return None;
+}
+// The actual source has explanatory comments between this branch and the update.
+note_a_reader_s_own_reads(reader, tally.read_bytes);
+```
+
+The update is at `run_progress.rs:539`.
+Its position loses credit for successful reads too,
+so returning `None` does not preserve the reader's account for a later readable look.
+For successful registered looks,
+the accumulated account at `run_progress.rs:155` matches the first registration selected at `run_progress.rs:513`;
+a nested wait registers at `testing/test_support_wait_bounds.rs:142`
+and drops its last registration at `run_progress.rs:172`,
+preserving an outer registration's account.
+
+#### Verification
+
+The unmodified `testing::run_progress` family passed:
+`16 tests run: 16 passed, 6610 skipped`.
+This includes the own-stat-length control,
+the two-watchers control,
+and the wait-reader control.
+The two-watchers control passed in `1.731 s`.
+
+The [disposable probe patch](git-policy-cli-run-progress-failed-reads.patch)
+was committed only in an experimental worktree (`022e66b863`, then `b666149129`).
+It adds controls using the real `look` and real task records:
+
+- `a_non_utf8_stat_read_is_not_the_runs_work` failed with `after.bytes = 17881`
+  and `before.bytes = 17562`, a `319` byte increase caused by the observer's own failed stat decoding.
+- `an_unreadable_look_still_books_the_bytes_it_read` confirmed `look` returned `None`
+  after both harness task names were made undecodable,
+  then failed with `the unsuccessful look read io but booked 0 bytes, starting from 0`.
+
+Apply the patch in a disposable worktree of the audited source,
+then run the controls:
+
+```sh
+# doc/troubleshooting/git-policy-cli-run-progress-failed-reads.patch
+git apply doc/troubleshooting/git-policy-cli-run-progress-failed-reads.patch
+mise run //package/git-policy/cli:native:test:host -- --filter-expr \
+  'test(a_non_utf8_stat_read_is_not_the_runs_work) | test(an_unreadable_look_still_books_the_bytes_it_read)'
+```
+
+The result was `2 tests run: 0 passed, 2 failed, 6626 skipped`.
+Both processes restored their task names before reporting the assertion failure.
+No workaround was tested for either read-error path.
+These findings concern repository-owned accounting;
+an external upstream filing does not apply.
+
+The two-watchers child waits on its channel (`run_progress_tests.rs:384`)
+and its parent requires `SIGABRT` (`run_progress_tests.rs:402`),
+so the former normal-exit race is absent.
+The control still requires timely startup and completion:
+its reader-registration allowance is `5 s` (`run_progress_tests.rs:382`),
+and its parent kills the child after `CHILD_DEADLINE`,
+`45 s` (`run_progress_tests.rs:224`, `256` to `259`).
+A deadline failure alone does not prove observer reads kept the run alive.
+
 ## What does not work
 
 - Raising the wall clock:

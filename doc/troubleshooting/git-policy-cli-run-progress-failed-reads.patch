@@ -1,0 +1,76 @@
+diff --git a/package/git-policy/cli/src/native/testing/run_progress_tests.rs b/package/git-policy/cli/src/native/testing/run_progress_tests.rs
+index 1f58c43e43..85d2401047 100644
+--- a/package/git-policy/cli/src/native/testing/run_progress_tests.rs
++++ b/package/git-policy/cli/src/native/testing/run_progress_tests.rs
+@@ -501,3 +501,71 @@ fn a_wait_does_not_keep_the_watchdog_alive() {
+     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process:\n{said}");
+     assert!(said.contains("a test is stuck"), "{said}");
+ }
++
++/// What:
++///  Compare looks after making the reader's own task name contain a non-UTF-8 byte.
++/// Why:
++///  Reading its stat still consumes bytes when decoding fails, and those bytes must stay out of work.
++///
++/// In TS you'd write (pseudocode):
++/// ```ts
++/// renameWithBytes([255, 0]); const before = look(); const after = look(); assert.equal(after.bytes, before.bytes);
++/// ```
++#[test]
++fn a_non_utf8_stat_read_is_not_the_runs_work() {
++    // Use the kernel's signed thread identifier because look expects that identifier.
++    let reader: i32 = current_thread_id().expect("a Linux thread identifier");
++    // Keep the registration alive over both looks so their own_reads account is shared.
++    let _reading: Option<Reading> = Reading::begin();
++    // Borrow a terminated byte string whose first byte cannot appear alone in UTF-8.
++    assert!(rename_this_thread(b"\xff\0"), "the kernel accepts a byte-oriented thread name");
++    // Own the first snapshot; the harness's main thread still has a readable stat line.
++    let before: Look = look(reader).expect("the harness main thread is readable");
++    // Own the second snapshot without doing any reads or writes between the two looks.
++    let after: Look = look(reader).expect("the harness main thread stays readable");
++    // Restore a readable name before the assertion reports its result.
++    assert!(rename_this_thread(b"progress-probe\0"), "restore a UTF-8 task name");
++    // The only byte movement between snapshots is the look's own reading.
++    assert_eq!(after.bytes, before.bytes, "a stat read rejected after decoding is the reader's own reading");
++}
++
++/// What:
++///  Make both harness tasks' stat records undecodable while the caller's io stays readable.
++/// Why:
++///  An unsuccessful look must still book the bytes that it actually consumed.
++///
++/// In TS you'd write (pseudocode):
++/// ```ts
++/// const before = readers()[0].ownReads; invalidateStats(); look(); restoreStats(); assert(readers()[0].ownReads > before);
++/// ```
++#[test]
++fn an_unreadable_look_still_books_the_bytes_it_read() {
++    // Keep the thread identifier in the signed type that look accepts.
++    let reader: i32 = current_thread_id().expect("a Linux thread identifier");
++    // Hold the account open until its update has been compared.
++    let _reading: Option<Reading> = Reading::begin();
++    // Own the main task's path, since the test body runs on a separate task.
++    let main_name: String = format!("/proc/self/task/{}/comm", std::process::id());
++    // Own its original bytes so they can be restored even though the temporary name is undecodable.
++    let original: Vec<u8> = std::fs::read(main_name.as_str()).expect("the main task's name");
++    // Verify that the io file used by the look is available before invalidating the stat records.
++    assert!(std::fs::read_to_string(format!("/proc/self/task/{reader}/io")).is_ok());
++    // The main task's byte-oriented name makes its stat record fail UTF-8 decoding.
++    std::fs::write(main_name.as_str(), b"\xff").expect("the kernel accepts the main task's byte name");
++    // Give the caller an undecodable stat record as well.
++    assert!(rename_this_thread(b"\xff\0"), "the kernel accepts the reader's byte name");
++    // Copy the account before the look; an owned integer survives the later registry update.
++    let before: u64 = the_readers().first().expect("the registered reader").own_reads;
++    // Own the unsuccessful snapshot so it can be checked after restoring the task names.
++    let taken: Option<Look> = look(reader);
++    // Read the updated account without reading a file.
++    let after: u64 = the_readers().first().expect("the registered reader remains").own_reads;
++    // Restore the harness main task before reporting any assertion failure.
++    std::fs::write(main_name.as_str(), original).expect("restore the harness task's name");
++    // Restore the caller before reporting any assertion failure.
++    assert!(rename_this_thread(b"progress-probe\0"), "restore the reader's name");
++    // Validate that this fixture reached the path that reports no readable task.
++    assert!(taken.is_none(), "the harness's tasks were all made undecodable: {taken:?}");
++    // The io file was consumed even though neither stat could be decoded.
++    assert!(after > before, "the unsuccessful look read io but booked {after} bytes, starting from {before}");
++}
