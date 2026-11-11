@@ -9,6 +9,7 @@
 //! which catches that panic and gives `NoThreadToStart`.
 
 use super::*;
+use crate::service_fault::hooks::{self, HoldOnAnyThread};
 use crate::service_protocol::{decode_service, encode_client};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -253,6 +254,64 @@ fn where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_lan
             queued = jobs.recv() => queued,
         };
         assert!(matches!(answered, Some(Job::Commit(..))), "the request named this worktree and reached the landing");
+    });
+}
+
+/// What:
+///  A commit that arrives on a connection is beaten while the check that decides whose request it is waits,
+/// and the answer of that check is written after the beats.
+/// Why:
+///   A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
+/// `service_client.rs`) and sends the commit again,
+///  and the check resolves a Git directory's real path through the filesystem,
+/// which under a busy disk took thirty-two seconds in the record of
+///  2026-11-10T17:50:19Z.
+///  The control above proves that `queue_a_commit` beats beside a check it was handed;
+/// this one drives the path a real connection takes,
+///  where the answer of the first check of a commit used to be awaited before any writer existed,
+/// so a check that waited left the client silent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await nextLine(client)).toBe(heartbeat); // while the directory check is held
+/// ```
+#[test]
+fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
+    // Six beats: wide enough that no delay of this loaded machine passes for the wait itself.
+    let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
+    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    let (shared, mut jobs) = shared_serving("connection-held-directory-check", own);
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-check"))));
+    let ((), _ticks) = with_a_ticker_beside(async move {
+        let (_read_half, mut write_half, mut client) = connection();
+        // The read of the directory's instance answers only when this control lets it go, so "while the check waits" is a
+        //  state and not a duration.
+        let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
+        let (let_go, held) = std::sync::mpsc::channel::<()>();
+        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached, let_go: held });
+        let answering = async {
+            answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        };
+        let watching = async {
+            tokio::time::timeout(the_longest_a_beat_may_wait, reached_wait).await.expect("the check of the Git directory reaches its read").expect("the check says it reached its read");
+            let while_waiting = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await;
+            // The read is let go whatever came, so a run that saw no beat still ends and still reads the answer.
+            let_go.send(()).expect("the read is let go");
+            let answer: ServiceMessage = next_line(&mut client).await;
+            return (while_waiting, answer);
+        };
+        let ((), (while_waiting, answer)) = tokio::join!(answering, watching);
+        assert!(jobs.try_recv().is_err(), "a commit another instance serves never reaches the landing");
+        assert_eq!(
+            answer,
+            ServiceMessage::Failed { id: String::from("held-check"), code: FailureCode::Rejected },
+            "the answer of the check is written after the beats"
+        );
+        assert_eq!(
+            while_waiting.expect("a beat arrives while the check waits"),
+            ServiceMessage::Heartbeat,
+            "the beat comes while the check waits"
+        );
     });
 }
 
