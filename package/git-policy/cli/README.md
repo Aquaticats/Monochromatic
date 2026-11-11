@@ -4751,6 +4751,15 @@ A test that has to see the prompt program start (the controls in `src/native/lan
 `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens.
 
+The wrapper adds the same pair to a forwarded command whose process has no controlling terminal
+(`invocation_overlay` in `src/native/invocation/child_environment.rs`).
+A control that compares a forwarded command's environment builds the pair from the same reading,
+`control_terminal()`
+(`forward` in `src/native/invocation/entry_tests.rs`).
+A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
+an agent's shell or any container:
+on 2026-11-10 the `invocation::entry` group ran 36 tests and 10 of them failed on a clean tree.
+
 ### Controls that depend on timing
 
 WFR:
