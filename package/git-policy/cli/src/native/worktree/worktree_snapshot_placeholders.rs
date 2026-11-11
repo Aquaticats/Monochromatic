@@ -32,6 +32,16 @@
 //! because every other entry may be someone's data:
 //!  such a folder stays where it is,
 //! and only the stand-ins in it are removed one by one.
+//! A folder that is taken whole is looked at again in the trash,
+//! because a directory somebody made between the check and the
+//!  rename is never deleted with the stand-ins it replaced:
+//! such a folder goes back where it was,
+//! and when a directory took
+//!  that name meanwhile,
+//! it is kept under a name of this command's own beside the trash of the new worktree,
+//! and the warning names the
+//!  path it will have there,
+//! so nothing the add deletes afterwards can take it (`never discard user data`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -225,15 +235,21 @@ pub(crate) fn open_below_stand_ins(root: &File, names: &[OsString], shown: &str)
 /// Why:
 ///   A folder goes into the trash behind one rename and is checked before it,
 /// so only a moment between the check and
-///  the rename lets a control show what a directory made in that window comes to.
+///  the rename lets a control show what a directory made in that window comes to;
+/// and a folder that is no longer only
+///  stand-ins goes back where it was,
+/// so only a moment between the rename and that move lets a control show what
+///  comes of a name somebody took meanwhile.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FoldSeams = { beforeTake: () => void };
+/// type FoldSeams = { beforeTake: () => void; beforePutBack: () => void };
 /// ```
 pub(crate) struct FoldSeams<'a> {
     /// Called after every entry of a folder was checked and before the folder goes into the trash.
     pub(crate) before_take: &'a mut dyn FnMut(),
+    /// Called after the copy in the trash proved to hold more than stand-ins and before the folder goes back.
+    pub(crate) before_put_back: &'a mut dyn FnMut(),
 }
 
 /// What:
@@ -252,7 +268,9 @@ fn do_nothing() {}
 ///  The trash this step puts whole worktree folders into:
 /// the one the leave-out answered with,
 /// or one made here when
-///  the leave-out set nothing aside.
+///  the leave-out set nothing aside,
+/// and the worktree it is made at,
+/// which names where a folder that cannot go back is kept.
 /// Why:
 ///   One record names one trash,
 /// so a folder taken here joins the leave-out's trash rather than making a second one;
@@ -261,10 +279,15 @@ fn do_nothing() {}
 ///  the new worktree that Git does not ignore can be staged,
 /// and one add's ignored state must never reach another worktree's
 ///  index.
+/// A folder that cannot go back is kept in the trash parent,
+/// one rename inside the stage,
+/// because a folder that
+///  holds a stand-in of a nested subvolume cannot be renamed out of the snapshot at all,
+/// and the warning names the path it will have in the new worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HandOver = { carried?: TrashManifest; held?: Trash; taken: ObjectId[]; noTrashPlace: boolean };
+/// type HandOver = { carried?: TrashManifest; held?: Trash; taken: ObjectId[]; noTrashPlace: boolean; newWorktree?: string };
 /// ```
 pub(crate) struct HandOver {
     /// What the leave-out set aside;
@@ -279,6 +302,10 @@ pub(crate) struct HandOver {
     /// Whether this source has no place a trash could be made,
     /// so nothing is looked at again for one.
     no_trash_place: bool,
+    /// The new worktree this snapshot becomes,
+    /// when the sweep named it,
+    /// for the path a kept folder is named by.
+    new_worktree: Option<PathBuf>,
 }
 
 impl HandOver {
@@ -291,7 +318,19 @@ impl HandOver {
     /// and the add hands
     ///  the service one record of everything it left out.
     pub(crate) fn starting(carried: Option<TrashManifest>) -> HandOver {
-        return HandOver { carried, held: None, taken: Vec::new(), no_trash_place: false };
+        return HandOver { carried, held: None, taken: Vec::new(), no_trash_place: false, new_worktree: None };
+    }
+
+    /// What:
+    ///  Name the worktree this snapshot becomes,
+    /// so a folder kept inside it is named by the path the person will find.
+    /// Why:
+    ///   The name a folder came from can be taken between its rename into the trash and its put back,
+    /// and the folder is then kept in the
+    ///  trash parent of the stage,
+    /// which becomes that path once the add puts the stage in place.
+    pub(crate) fn name_the_new_worktree(&mut self, destination: &Path) {
+        self.new_worktree = Some(destination.to_path_buf());
     }
 
     /// The trash a whole folder may go into,
@@ -422,7 +461,8 @@ impl HandOver {
         // The check above and the rename are two steps, and a directory somebody made in between has to be seen before the
         //  service is told to delete the folder: the copy that arrived in the trash is looked at again.
         if !self.arrived_holding_only_stand_ins(to.as_str(), moved)? {
-            return self.take_the_folder_back(to.as_str(), parent, name, shown);
+            (seams.before_put_back)();
+            return self.take_the_folder_back(to.as_str(), moved, parent, name, shown);
         }
         self.taken.push(moved);
         let made: bool = subject_failure(make_directory_at(parent, name, mode), &shown.display(), "cannot be made again in the snapshot")?;
@@ -468,26 +508,99 @@ impl HandOver {
     ///   Its stand-ins may then be removed one by one,
     /// and the directory somebody made beside them keeps its place and its
     ///  bytes;
-    /// when the name it came from is taken,
-    /// the folder stays in the trash and is named,
-    /// and no record of
-    ///  the trash names it,
-    /// so the emptying leaves the trash where it is rather than deleting what is in it.
+    /// when the name it came from is taken meanwhile,
+    /// the folder is kept beside the trash under a name of this command's
+    ///  own and the warning names where,
+    /// because the add's own cleanup removes the stage and everything in it that this add did
+    ///  not keep.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// handOver.takeTheFolderBack({ to: 'd3', parent, name, shown }); // the folder stays
+    /// handOver.takeTheFolderBack({ to: 'd3', moved: id, parent, name, shown }); // the folder stays
     /// ```
-    fn take_the_folder_back(&self, to: &str, parent: &File, name: &OsStr, shown: &Path) -> Result<Option<usize>, String> {
+    fn take_the_folder_back(&self, to: &str, moved: ObjectId, parent: &File, name: &OsStr, shown: &Path) -> Result<Option<usize>, String> {
         match self.put_back(to, parent, name, shown) {
             Ok(()) => {
                 debug(TAG, format!("{} changed after it was checked, so it stays and its stand-ins are removed one by one", shown.display()).as_str());
             }
             Err(reason) => {
-                warn(TAG, format!("{reason}; {} stays in {} and nothing is told to delete it", shown.display(), Path::new(TRASH_PARENT).join(to).display()).as_str());
+                let why_it_cannot_go_back: String = format!("{reason}; {} changed after it was checked, so it is not deleted with its stand-ins", shown.display());
+                match self.keep_the_folder(to, moved, shown) {
+                    Ok(Some(kept)) => warn(TAG, format!("{why_it_cannot_go_back}, and it is kept whole at {}; its stand-ins are removed from there one by one", self.shown(&kept)).as_str()),
+                    Ok(None) => warn(TAG, format!("{why_it_cannot_go_back}, and the trash no longer holds the folder this add set aside, so it is left where it is").as_str()),
+                    Err(cannot_keep) => warn(
+                        TAG,
+                        format!(
+                            "{why_it_cannot_go_back}, and it cannot be kept beside the trash ({cannot_keep}), so it stays in {}, which the cleanup of the stage this add ends without serving removes with the rest; copy it out before the add ends",
+                            self.shown_trash_entry(to)
+                        )
+                        .as_str(),
+                    ),
+                }
             }
         }
         return Ok(None);
+    }
+
+    /// What:
+    ///  The path to print for the trash entry `to`:
+    /// the trash's own name and the entry's inside it.
+    /// Why:
+    ///   A person who has to copy a folder out of a trash needs the path it is at,
+    /// and an entry's name alone names no
+    ///  folder.
+    fn shown_trash_entry(&self, to: &str) -> String {
+        let Some(trash) = self.held.as_ref() else { return Path::new(TRASH_PARENT).join(to).display().to_string() };
+        return Path::new(TRASH_PARENT).join(trash.name()).join(to).display().to_string();
+    }
+
+    /// What:
+    ///  The path to print for the folder kept at `kept`:
+    /// the path it has in the new worktree when the sweep named one,
+    /// and the path it has now otherwise.
+    /// Why:
+    ///   A path inside the stage is the one that stops existing when the add puts the stage in place,
+    /// so the person is told the
+    ///  path the folder will have when the add serves it,
+    /// and the stage's own path only when the add ends without serving it.
+    fn shown(&self, kept: &Path) -> String {
+        return match self.new_worktree.as_ref() {
+            Some(worktree) => worktree.join(kept).display().to_string(),
+            None => kept.display().to_string(),
+        };
+    }
+
+    /// What:
+    ///  Move the folder the trash holds as `to` out of the trash,
+    /// under a name of this command's own in the trash parent,
+    /// and answer where it is now.
+    /// Why:
+    ///   A folder that changed after it was checked keeps the bytes somebody put in it (`never discard user data`),
+    /// and its
+    ///  name can be taken before it goes back,
+    /// so it cannot stay under the trash entry the manifest would name;
+    /// one rename inside the
+    ///  stage takes it out of that name without crossing a subvolume,
+    /// which a folder that holds a stand-in cannot do
+    ///  (`doc/troubleshooting/btrfs-snapshot-keeps-an-empty-placeholder-for-a-nested-subvolume.md`).
+    /// `None` means
+    ///  the trash no longer holds the folder that was set aside,
+    /// so there is nothing of this add's to keep.
+    fn keep_the_folder(&self, to: &str, moved: ObjectId, shown: &Path) -> Result<Option<PathBuf>, String> {
+        let Some(trash) = self.held.as_ref() else { return Ok(None) };
+        // Only the entry this add moved is taken out: one that is not there any more, or one that is another object,
+        //  belongs to whoever replaced it.
+        match trash.held_entry(to, moved) {
+            Ok(Some(_the_entry_this_add_moved)) => {}
+            Ok(None) => return Ok(None),
+            Err(another_object) => {
+                debug(TAG, format!("{another_object}; this add leaves the entry to whoever put it there").as_str());
+                return Ok(None);
+            }
+        }
+        let kept: String = kept_name()?;
+        trash.keep_beside(to, kept.as_str(), shown)?;
+        return Ok(Some(Path::new(TRASH_PARENT).join(kept.as_str())));
     }
 
     /// What:
@@ -510,6 +623,71 @@ impl HandOver {
             },
         };
     }
+}
+
+/// What:
+///  The prefix of a folder this step keeps when the name it came from is taken.
+/// Why:
+///   The name says which command made the folder,
+/// it begins with a dot so it is no worktree a person or Git could
+///  mistake for one,
+/// and no other command reads a name that begins this way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const KEPT_PREFIX = '.cli-git-worktree-kept-';
+/// ```
+const KEPT_PREFIX: &str = ".cli-git-worktree-kept-";
+
+/// What:
+///  A fresh name for a folder kept beside the trash;
+/// the reason is the error.
+/// Why:
+///   Two adds of one repository can keep a folder in the same instant,
+/// and a name nobody can guess keeps
+///  one from ever naming the other's folder;
+/// the digits are the object-name alphabet so the name is one plain
+///  component of printable bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptName = () => `.cli-git-worktree-kept-${randomHex(32)}`;
+/// ```
+fn kept_name() -> Result<String, String> {
+    let made: String = match crate::random_id::random_uuid() {
+        Ok(uuid) => uuid,
+        Err(error) => return Err(format!("a name for the kept folder could not be made: {error:?}")),
+    };
+    let digits: String = made.chars().filter(char::is_ascii_hexdigit).collect();
+    return Ok(format!("{KEPT_PREFIX}{}", digits.to_ascii_lowercase()));
+}
+
+/// What:
+///  The folders this step kept in the trash parent of the stage `stage`,
+/// read from the path of the stage.
+/// Why:
+///   The stage is destroyed when the snapshot rung ends without serving the add,
+/// and each of these folders holds bytes the add
+///  decided never to delete,
+/// so the cleanup that removes the stage asks this first and leaves it in place when anything is
+///  kept (`worktree_ladder_run.rs`, `discard_stage`).
+/// An unreadable trash parent holds nothing this can name,
+/// and the count the add reports is the count of a listing it could read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keptFolders(stage) // every <stage>/.claude/cli-git-trash/.cli-git-worktree-kept-* path
+/// ```
+pub(crate) fn kept_folders(stage: &Path) -> Vec<PathBuf> {
+    let Ok(listed) = std::fs::read_dir(stage.join(TRASH_PARENT)) else { return Vec::new() };
+    let mut kept: Vec<PathBuf> = Vec::new();
+    for entry in listed.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(KEPT_PREFIX) {
+            kept.push(entry.path());
+        }
+    }
+    return kept;
 }
 
 /// What:
@@ -623,7 +801,7 @@ fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_ove
 /// await removeSnapshotPlaceholders({ root, source, plan, handOver });
 /// ```
 pub(crate) fn remove_snapshot_placeholders(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver) -> Result<(), String> {
-    return remove_snapshot_placeholders_with(root, source, plan, hand_over, &mut FoldSeams { before_take: &mut do_nothing });
+    return remove_snapshot_placeholders_with(root, source, plan, hand_over, &mut FoldSeams { before_take: &mut do_nothing, before_put_back: &mut do_nothing });
 }
 
 /// What:
@@ -640,6 +818,9 @@ pub(crate) fn remove_snapshot_placeholders(root: &File, source: &SnapshotSource,
 pub(crate) fn remove_snapshot_placeholders_with(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver, seams: &mut FoldSeams<'_>) -> Result<(), String> {
     let mut removed: usize = 0;
     let folders_before: usize = hand_over.taken.len();
+    // A folder this sweep takes whole is kept in the trash parent when it cannot go back to the name it came from,
+    //  and the warning names the path it has once the stage is the new worktree.
+    hand_over.name_the_new_worktree(plan.destination.as_path());
     for folder in worktree_folders(source.nested.as_slice(), plan.destination.as_path(), source.root.as_path()) {
         removed += stand_ins_below(root, source, folder.as_path(), hand_over, seams)?;
     }
