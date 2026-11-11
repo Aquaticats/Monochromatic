@@ -3382,6 +3382,7 @@ place they were installed or built at.
 After every rung has filled a new worktree and the ignored files are in place,
 the wrapper starts each such tool's own offline
 repair in the new worktree,
+or writes the record that has the commit service run it there after this command returns,
 with no lock around it (the repairs touch only the new worktree and read
 the source,
 so another add never waits for them),
@@ -3402,7 +3403,7 @@ for a bare repository (nothing was copied),
 or after a copy that failed.
 
 The repairs,
-which run side by side:
+of which the two that rewrite link layouts in place are the service's work whenever a service answers:
 
 - pnpm,
   when the worktree holds `pnpm-lock.yaml` and a copied `node_modules`:
@@ -3416,6 +3417,10 @@ which run side by side:
   captured and shown only inside a failure.
   Scripts are not suppressed:
   the repository's own `allowBuilds` decides.
+  The add writes this tool in the `relink` record it hands to the commit service,
+  which runs it after the add returns,
+  and runs it here when no service took the record,
+  because a worktree whose copied links were never relinked resolves the source's packages without an error.
 - Cargo,
   for every Cargo workspace among the worktree's tracked `Cargo.toml` files (found with `git ls-files`,
   so no walk reads
@@ -3471,10 +3476,16 @@ which run side by side:
   copies another checkout still links;
   both are accepted consequences.
   The success line keeps mpm-shadow's own summary of what was installed.
+  The add writes this tool in the same `relink` record,
+  so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
   a timeout or a missing `mpm-shadow` never fails the add:
   the line names the reason and
   `mise run toolchain:install`.
+  A service that fails the install leaves the record failed,
+  and its journal names the worktree and the reason.
+  The worktree keeps the copied launchers until the install runs,
+  which is what the add itself left between the copy and the install.
 - The `pnpm` the repair starts is the first one on the person's `PATH`,
   which in this repository is the pnpm-shadow.
   The owner decided this on 2026-11-03:
@@ -3511,6 +3522,8 @@ The three repairs are waits of one task of the runtime,
 and neither the type check of each tracked manifest nor the read of the launcher records runs there:
 both are jobs of the process's blocking pool,
 so a filesystem that stops answering them holds no tool's quiet window or ceiling.
+The record that hands the relink over is written and woken by a job of that pool for the same reason:
+the task that polls the Cargo repair never waits on a socket or on a write.
 That has one limit:
 where the system refuses to start a pool thread (`ulimit -u`,
 the control group's `pids.max`),
