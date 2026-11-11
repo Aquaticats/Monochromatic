@@ -470,6 +470,40 @@ fn smallest_landing_below_the_ceiling(label: &str, low: u64, probe: &dyn Fn(u64)
     return None;
 }
 
+/// What:
+///  The landing search answers a landing below its ceiling,
+///  and answers nothing when the landing is the ceiling itself.
+/// Why:
+///  A landing at the ceiling is the branch that says the control did not run,
+///  and nothing else would ever run it:
+///  no machine this control has run on lands a commit anywhere near 1024 descriptors
+///  (`FURTHEST_DESCRIPTOR_LIMIT_SEARCHED`).
+#[test]
+fn the_landing_search_answers_below_the_ceiling_and_says_so_at_it() {
+    let halfway = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2; };
+    assert_eq!(
+        smallest_landing_below_the_ceiling("control-probe-below", 3, &halfway),
+        Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2),
+        "a landing below the search's ceiling is the landing the sweep examines"
+    );
+    let at_the_ceiling = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED; };
+    assert_eq!(
+        smallest_landing_below_the_ceiling("control-probe-ceiling", 3, &at_the_ceiling),
+        None,
+        "a landing at the ceiling itself is not the landing the sweep can examine"
+    );
+}
+
+/// What:
+///  A range in which no limit lands fails the control,
+///  naming the probed fact rather than claiming no commit landed under a limit nothing probed.
+#[test]
+#[should_panic(expected = "a commit landed at none of the descriptor limits")]
+fn the_landing_search_names_a_machine_where_no_limit_lands() {
+    let nothing = |_value: u64| -> bool { return false; };
+    let _answered: Option<u64> = smallest_landing_below_the_ceiling("control-probe-none", 3, &nothing);
+}
+
 /// A descriptor limit of each size on the wrapper,
 /// from the smallest under which a commit lands downward:
 /// the commit fails with a
