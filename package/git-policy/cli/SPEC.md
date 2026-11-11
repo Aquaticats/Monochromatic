@@ -4433,6 +4433,10 @@ and "never discard user data"):
 
 - The bytes of every path the merge changes that differs from `HEAD` in the worktree or the index,
   untracked files the merge adds included,
+  and the ignored untracked files of the person's that stand at those paths
+  (`git status` never lists them,
+  so they are read from `git ls-files --others --ignored --exclude-standard`
+  in `src/native/merge/merge_isolation_ignored_paths.rs`),
   are written as objects with `git hash-object -w`,
   the clean-filtered form beside the exact bytes,
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
@@ -4483,6 +4487,9 @@ and "never discard user data"):
   the merge's own content is written with their mode,
   and a staged mode stays staged over the merge's object
   (`plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  A mode at a path the merge deletes keeps the person's side whole and is named with the others,
+  because nothing of the merge's stands there to take it
+  (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`).
   A layer another program wrote keeps its bytes while the other layer of the same path is still carried.
   Every such finding exits 0:
   the merge is made,

@@ -231,6 +231,10 @@ pub mod merge_isolation_merge_tree;
 /// The questions an isolated merge asks Git and the terminal.
 pub mod merge_isolation_git_reads;
 
+/// The ignored untracked files of the person's that stand at the paths a merge writes,
+/// which `git status` never lists.
+pub mod merge_isolation_ignored_paths;
+
 /// The editor a merge opens for its message when the checkout holds the person's own work:
 /// the file it reads,
 /// the program Git resolves,

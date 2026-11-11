@@ -2853,6 +2853,9 @@ Now the merge runs and the person's work is carried across it:
   and kept on `refs/cli-git/carried/<n>`,
   before the first byte of the checkout changes;
   the merge's record names them.
+  An untracked file the merge writes over counts,
+  including one an ignore rule keeps out of `git status`,
+  because its bytes are no less the person's.
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
@@ -2876,6 +2879,7 @@ Now the merge runs and the person's work is carried across it:
 - A binary file,
   a symbolic link,
   a mode the pass cannot take,
+  a mode the person set at a path the merge deletes,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named,
