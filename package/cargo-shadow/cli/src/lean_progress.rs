@@ -16,8 +16,8 @@
 //! a lost position costs one pass over the front of the list,
 //! never a failed run.
 //! The state directory is `$XDG_STATE_HOME/cargo-shadow` or `$HOME/.local/state/cargo-shadow`,
-//! and the file is written by an atomic rename,
-//! so a run that is killed leaves the position it last recorded.
+//! and the file is written by an atomic rename of a name the run made for itself,
+//! so a run that is killed leaves the position it last recorded and a staging file this version never opens.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,10 +27,9 @@
 
 /// Files,
 /// paths,
-/// the descriptor the two record files are opened on,
-/// the rename that replaces the record,
-/// and the count of names a file has.
-use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+/// the descriptor the record files are opened on,
+/// and the count that makes each staging name this run's own.
+use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
 
 /// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
 /// both record files are opened with the flags that make a link and a pipe answer at once.
@@ -42,9 +41,22 @@ pub const STATE_DIRECTORY_NAME: &str = "cargo-shadow";
 /// The file a run records where each pass stopped in.
 pub const PROGRESS_FILE_NAME: &str = "lean-progress";
 
-/// The file a run writes the record into before one rename replaces the record with it:
+/// The staging name versions before this one wrote the record into before one rename replaced the record with it:
 /// the record's name and `.new`.
-pub const STAGING_FILE_NAME: &str = "lean-progress.new";
+/// A run of one of those that was killed leaves such a file behind,
+/// and this version writes the record into a name of its own and neither opens nor removes this one.
+pub const RETIRED_STAGING_FILE_NAME: &str = "lean-progress.new";
+
+/// What a staging name a run creates for itself starts and ends with.
+const STAGING_PREFIX: &str = "lean-progress.";
+const STAGING_SUFFIX: &str = ".new";
+
+/// How many staging names a save tries before it reports that it could not write the record:
+/// only a name a killed run of this same process left behind makes one try fail.
+const STAGING_TRIES: u32 = 8;
+
+/// The count that makes each staging name this process creates its own.
+static STAGING_COUNT: AtomicU64 = AtomicU64::new(0);
 
 /// The first line of the record,
 /// so a file of another shape is not read as this one.
@@ -278,37 +290,41 @@ pub enum LongPass {
 }
 
 /// What:
-/// `fn write_staging(staging: &Path, text: &str) -> std::io::Result<()>` writes the record into the staging file and leaves it
+/// `fn staging_name(directory: &Path) -> PathBuf` is a name under the state directory that this run has not used before.
+/// Why:
+/// A name this run made up cannot be an entry that was already there,
+/// so the open that creates it never writes into a file that existed before the run,
+/// which one check followed by a separate open cannot promise:
+/// between the two, another program can put a second name for one of the user's files at the name that was checked,
+/// and the open would then truncate the file through that other name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stagingName = (directory: string): string => join(directory, `lean-progress.${process.pid}-${count++}.new`);
+/// ```
+fn staging_name(directory: &Path) -> PathBuf {
+    let count: u64 = STAGING_COUNT.fetch_add(1, Ordering::Relaxed);
+    return directory.join(format!("{STAGING_PREFIX}{}-{count}{STAGING_SUFFIX}", std::process::id()));
+}
+
+/// What:
+/// `fn write_staging(staging: &Path, text: &str) -> std::io::Result<()>` creates the staging file with the record and leaves it
 /// there for the rename.
 /// Why:
-/// The staging name is fixed and lives in this tool's own state directory,
-/// so whatever else is at that name is not a file to write through:
-/// following a link would put this text into the file of the user's that it names,
-/// truncating a file another name shares would do the same through that other name,
-/// and opening a pipe would hold the run until a reader arrived.
-/// The open therefore never follows a link and never waits on a pipe,
-/// a name that is a link (symbolic or hard),
-/// a pipe or a socket is removed first so this run can create its own file,
-/// and the staging file a killed run left behind is a regular file with one name and is simply replaced.
-/// A name that is still not writable after that is reported and the run carries on without a position:
+/// The open creates the file and cannot open one that is already there,
+/// so nothing this run writes can reach the bytes of a file another name holds:
+/// the name is new,
+/// and a failure to create it is reported rather than written through.
+/// A name that cannot be created is reported and the run carries on without a position:
 /// a lost position costs one pass from the front,
 /// never the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeStaging = (staging: string, text: string): void => { rmSync(staging, { force: true }); writeFileSync(staging, text, { flag: 'wx', mode: 0o600 }); };
+/// const writeStaging = (staging: string, text: string): void => writeFileSync(staging, text, { flag: 'wx', mode: 0o600 });
 /// ```
 fn write_staging(staging: &Path, text: &str) -> io::Result<()> {
-    let replace: bool = match fs::symlink_metadata(staging) {
-        Ok(metadata) => !metadata.is_file() || metadata.nlink() > 1,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-        Err(error) => return Err(error),
-    };
-    if replace {
-        // Unlinking one name of a file another name shares leaves that other name its contents.
-        fs::remove_file(staging)?;
-    }
-    let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::TRUNC | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW;
+    let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC;
     let opened: OwnedFd = open(staging, flags, Mode::from_raw_mode(RECORD_MODE)).map_err(io::Error::from)?;
     let mut file: fs::File = fs::File::from(opened);
     file.write_all(text.as_bytes())?;
@@ -343,8 +359,10 @@ impl Progress {
     /// A run killed while writing leaves either the old record or the new one,
     /// never half of either,
     /// and a key that cannot be written exactly is left out rather than written wrong.
-    /// Neither file is written through a link or waited on as a pipe,
-    /// so a save cannot put this text into a file of the user's or hold the run.
+    /// The record is written into a name this run made for itself and creates,
+    /// so no link and no other name of a file is written through,
+    /// and no open waits on a pipe:
+    /// a save cannot put this text into a file of the user's or hold the run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -364,13 +382,18 @@ impl Progress {
             text.push_str(&format!("{UNITS_TAG} {}\n", escape(units)));
         }
         let path: PathBuf = directory.join(PROGRESS_FILE_NAME);
-        let staging: PathBuf = directory.join(STAGING_FILE_NAME);
-        if let Err(error) = write_staging(&staging, &text) {
-            return Err(format!("{}: {error}", staging.display()));
+        for _try in 0..STAGING_TRIES {
+            let staging: PathBuf = staging_name(directory);
+            match write_staging(&staging, &text) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(format!("{}: {error}", staging.display())),
+            }
+            return match fs::rename(&staging, &path) {
+                Ok(()) => Ok(()),
+                Err(error) => Err(format!("{}: {error}", path.display())),
+            };
         }
-        return match fs::rename(&staging, &path) {
-            Ok(()) => Ok(()),
-            Err(error) => Err(format!("{}: {error}", path.display())),
-        };
+        return Err(format!("{}: no name this run made was free to stage the record under", directory.display()));
     }
 }
