@@ -4280,11 +4280,19 @@ and a kill before that would leave a notice that says the service keeps trying a
 A plan that could not be written makes no promise:
 the notice then carries only Git's own words
 (`planned_retry`).
-Only the last plan a round makes for a branch is published:
-a plan the same round plans again later is not applied,
-and a forget keeps the name of that last plan,
-so neither the replay of an earlier plan nor the forget after it can take the newer plan
-(`PushRetries::apply`).
+The file of a branch that needs no new try goes the same way:
+the worker that decided it removes that branch's file as it decides
+(`Replanning::forget`),
+so the loop writes no plan's file at all and replays nothing onto the journal
+(`PushRetries::apply` changes only the list it owns).
+Each statement about a branch is therefore made once,
+when its worker decides it,
+so a round that reaches the journal late cannot take a later round's plan of the same branch away,
+and a round whose change never reached a thread cannot leave the plan of a push that already landed behind.
+A start whose read of that journal gave no answer within its ceiling keeps both directories,
+writes the plans and notes it makes there,
+and reads both again after a pause,
+so the pushes an earlier service promised are tried without waiting for a start nothing requires to arrive.
 
 #### Git steps, tools and checks end only on no progress
 

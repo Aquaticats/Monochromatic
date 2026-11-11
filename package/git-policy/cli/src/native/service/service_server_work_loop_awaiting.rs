@@ -315,7 +315,9 @@ pub async fn work_loop_awaiting(
         for directory in retries.take_due(Instant::now()) {
             if watch.key().as_ref() == Some(&directory) {
                 watch_due.push(directory);
-            } else if push_retries.needs_restore() && push_retries.plans() == Some(directory.as_path()) {
+            } else if push_retries.plans() == Some(directory.as_path()) {
+                // The plan's own directory is never a repository to drain, whatever the list has already read, so its wake is
+                //  taken here and a read that has nothing left to do says so by finding nothing.
                 plan_due = true;
             } else {
                 due.push(directory);
