@@ -38,7 +38,10 @@ use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_cop
 /// The lines a copy earns,
 /// which say what stands at its path and what ends it.
 use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
-use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, stale_carry_names_of};
+use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, merge_key_of_a_record, stale_carry_names_of};
+/// The records still there, and whether the merge each names still runs.
+use crate::merge_isolation_journal::{list_merge_intents, parse_merge_intent};
+use crate::transaction_owner::OwnerLiveness;
 /// Reading the bytes of a file through Git.
 use crate::merge_isolation_changes::{FileIdentity, file_identity};
 use crate::merge_isolation_take_asides::{CopyRemoval, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
@@ -537,9 +540,47 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
         if an_unfinished_merge_names_it_of(named.as_ref(), running) {
             continue;
         }
+        // A merge that wrote its record after the caller read the owners is not in `running`, and its copies are as much its
+        //  own as a running merge's: putting one back under the path it cleared makes its own checkout fail. The names are read
+        //  again here, beside the copy they decide, so a merge that started in between keeps what it took.
+        if named.is_some() && an_unfinished_merge_names_it_of(named.as_ref(), merges_whose_owner_runs(place.git_dir.as_path()).as_slice()) {
+            continue;
+        }
         settle_kept_copy_awaiting(&place.git, place.cwd.as_path(), place.git_dir.as_path(), &copy, named.as_ref(), None, None, live.as_slice(), out).await;
     }
     return;
+}
+
+/// What:
+///  The keys of the merges whose records are there at this instant and whose owner still runs.
+/// Why:
+///  A copy names the merge that took it,
+/// and only that merge may decide it while it runs:
+/// a command beside
+///  a live merge that put the copy back under the path the merge cleared would make its own checkout fail
+/// (`SPEC.md`,
+///  "a copy whose merge still runs is left for that merge to finish").
+/// The list a caller built is a reading of the
+///  records,
+/// and a merge that wrote its record after it is not in it,
+/// so the copy's own name is looked up against a reading taken here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergesWhoseOwnerRuns(gitDir: string): string[]; // listMergeIntents().filter(isAlive).map(nameKey)
+/// ```
+fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    let Ok(records) = list_merge_intents(git_dir) else { return keys };
+    for record in records {
+        let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
+        let Some(intent) = parse_merge_intent(bytes.as_slice()) else { continue };
+        let liveness = crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
+        if matches!(liveness, Ok(OwnerLiveness::Alive)) {
+            keys.push(merge_key_of_a_record(record.as_path()));
+        }
+    }
+    return keys;
 }
 
 /// What:
