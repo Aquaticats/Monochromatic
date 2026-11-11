@@ -5,7 +5,8 @@
 //! and its window is what a real sweep pays for a stuck one.
 //! A clock ended eighteen `fault_trace::` controls that were moving all the time
 //! (the suite of 2026-11-10,
-//! `${HOME}/temp/agent/plk/suite2.log`: 121 to 300 s of wall time each,
+//! `${HOME}/temp/agent/plk/suite2.log`:
+//! 121 to 300 s of wall time each,
 //! every one of them a working run under `strace`).
 //! These controls take a window of their own,
 //! so they prove the judgement in a moment rather than in two minutes.
