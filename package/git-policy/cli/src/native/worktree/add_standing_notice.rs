@@ -158,8 +158,70 @@ pub fn the_add_ended() {
 /// const notice = beginAddStandingNotice();
 /// ```
 pub fn begin() -> StandingNotice {
-    return begin_with(Box::new(write_to_standard_error));
+    return begin_for(false);
 }
+
+/// What:
+///  Start the notice for an add,
+/// which says nothing when the person asked for `--quiet`.
+/// Why:
+///   `--quiet` is the person asking for no lines,
+/// and every other line the add writes respects it,
+/// so the notice keeps its thread and prints nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notice = beginFor({ quiet: plan.quiet });
+/// ```
+pub fn begin_for(quiet: bool) -> StandingNotice {
+    return begin_quiet_after(quiet, Box::new(write_to_standard_error), add_standing_notice_after());
+}
+
+/// What:
+///  Start the notice for an add whose quietness,
+/// sink and wait are the caller's.
+/// Why:
+///   A control reads the line of a quiet add and of a loud one in one process,
+/// with a wait of one tick instead of the shipped seconds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notice = beginQuietAfter({ quiet, announce, wait });
+/// ```
+pub(crate) fn begin_quiet_after(quiet: bool, announce: Box<dyn FnMut(String) + Send>, wait: Duration) -> StandingNotice {
+    return begin_after(announcement(quiet, announce), wait);
+}
+
+/// What:
+///  What the notice does with a line,
+/// which is to write it unless the person asked for no lines.
+/// Why:
+///   The thread takes one answer for its whole life,
+/// so the quietness is read once and never again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const announcement = (quiet, announce) => quiet ? sayNothing : announce;
+/// ```
+fn announcement(quiet: bool, announce: Box<dyn FnMut(String) + Send>) -> Box<dyn FnMut(String) + Send> {
+    if quiet {
+        return Box::new(say_nothing);
+    }
+    return announce;
+}
+
+/// What:
+///  Do nothing with a line,
+/// for an add whose person asked for no lines.
+/// Why:
+///   The notice's thread prints through this answer,
+/// so a quiet add is one answer rather than a second loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sayNothing = (line) => undefined;
+/// ```
+fn say_nothing(_line: String) {}
 
 /// What:
 ///  Write one notice line to the standard error.

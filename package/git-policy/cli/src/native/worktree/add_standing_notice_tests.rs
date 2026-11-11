@@ -64,7 +64,7 @@ fn published() -> Option<(Option<String>, Instant)> {
 #[test]
 fn the_add_s_own_steps_are_what_the_notice_names() {
     let root: PathBuf = crate::test_support::fixture("add-standing-published");
-    add_timing::begin(root.join("common"));
+    add_timing::begin(root.join("common"), false);
     the_add_ended();
     assert_eq!(published(), None, "no step is published before one is entered");
     let outer: bool = add_timing::begin_step("copyIgnored");
@@ -88,7 +88,7 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
 #[test]
 fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
     let root: PathBuf = crate::test_support::fixture("add-standing-printed");
-    add_timing::begin(root.join("common"));
+    add_timing::begin(root.join("common"), false);
     let standing: bool = add_timing::begin_step("gitAdd");
     let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
     let notice: StandingNotice = begin_after(
@@ -128,4 +128,40 @@ fn the_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise() {
         assert_eq!(crate::wait_ceilings::notice_after_from(meaningless, ADD_STANDING_NOTICE_AFTER), ADD_STANDING_NOTICE_AFTER, "{meaningless:?}");
     }
     assert_eq!(crate::wait_ceilings::ADD_STANDING_NOTICE_VARIABLE, "CLI_GIT_ADD_NOTICE_SECONDS");
+}
+
+/// An add whose person asked for `--quiet` keeps the notice and prints nothing,
+/// where the same add without it prints the line.
+///
+/// Both notices run in one process with a wait of one tick,
+/// so the difference the control reads is the quietness and not the wait.
+#[test]
+fn a_quiet_add_prints_no_line_and_a_loud_one_does() {
+    let root: PathBuf = crate::test_support::fixture("add-standing-quiet");
+    add_timing::begin(root.join("common"), false);
+    let standing: bool = add_timing::begin_step("gitAdd");
+    let (quiet_lines, quiet_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
+    let quiet: StandingNotice = begin_quiet_after(
+        true,
+        Box::new(move |line: String| {
+            let _sent = quiet_lines.send(line);
+        }),
+        Duration::from_millis(1),
+    );
+    assert_eq!(read_lines(&quiet_heard, 1, Duration::from_millis(500)), Vec::<String>::new(), "a quiet add prints no line");
+    drop(quiet);
+    let (loud_lines, loud_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
+    let loud: StandingNotice = begin_quiet_after(
+        false,
+        Box::new(move |line: String| {
+            let _sent = loud_lines.send(line);
+        }),
+        Duration::from_millis(1),
+    );
+    let said: Vec<String> = read_lines(&loud_heard, 1, Duration::from_secs(10));
+    assert_eq!(said.len(), 1, "the same add without `--quiet` prints the line: {said:?}");
+    drop(loud);
+    add_timing::end_step(standing);
+    add_timing::finish(0);
+    crate::test_support::remove(root.as_path());
 }

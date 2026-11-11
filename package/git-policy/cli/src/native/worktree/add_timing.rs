@@ -287,7 +287,7 @@ thread_local! {
 /// Begin recording the add of the repository whose common Git directory is `common_dir`,
 /// replacing any earlier recording
 ///  of this thread.
-pub fn begin(common_dir: PathBuf) {
+pub fn begin(common_dir: PathBuf, quiet: bool) {
     ACTIVE.set(Some((Instant::now(), Recorder::new(common_dir))));
     // An add that is still running after a few seconds says which step it is in,
     // on a thread of its own,
@@ -296,7 +296,7 @@ pub fn begin(common_dir: PathBuf) {
     // "nothing should ever wait forever or indefinitely").
     // The steps published below are what it
     //  names, so the recording is what starts and ends it.
-    NOTICE.set(Some(crate::add_standing_notice::begin()));
+    NOTICE.set(Some(crate::add_standing_notice::begin_for(quiet)));
     if let Ok(mut work) = WORK.lock() {
         *work = Some(Vec::new());
     }

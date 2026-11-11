@@ -1587,7 +1587,7 @@ fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes
         git_dir: common.join("worktrees").join("older"),
         worktree_root: older.clone(),
     };
-    let mut stderr: Vec<u8> = Vec::new();
+    let mut recovery_stderr: Vec<u8> = Vec::new();
     let settled: Settlement = run_with_worktree_copy(
         &Invocation {
             identity,
@@ -1601,14 +1601,14 @@ fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes
             repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step: &GitStep<'_>| return Ok(GitStatus { code: Some(0) }),
-        &mut stderr,
+        &mut recovery_stderr,
     )
     .expect("settled");
     assert_eq!(exit_code(&settled), 0);
-    let text: String = String::from_utf8(stderr).expect("utf8");
+    let recovered_text: String = String::from_utf8(recovery_stderr).expect("utf8");
     assert!(
-        text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
-        "{text}"
+        recovered_text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
+        "{recovered_text}"
     );
     assert!(!dead.path.exists());
     assert_eq!(std::fs::read(older.join("cache/data")).expect("recovered copy"), b"payload");
