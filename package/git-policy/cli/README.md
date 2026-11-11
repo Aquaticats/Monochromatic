@@ -845,9 +845,12 @@ Read-only commands,
   What the command no longer does itself is delete the files:
      it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
    beside the path you typed,
-     writes a record of it, tells the worktree's commit service, and returns;
+     writes a record of it,
+     tells the worktree's commit service,
+     and returns;
      that service deletes the
-   subvolume in its own time, normally within a second,
+   subvolume in its own time,
+     normally within a second,
      so a busy volume's btrfs transaction or cleaner does not hold your
    command.
      The path you named is gone the moment the command returns;
@@ -859,8 +862,10 @@ Read-only commands,
      which is every
    commit and every add,
      and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
-   (a mount without `user_subvol_rm_allowed`, for one).
-     Nothing of yours is in it: a worktree is only removed
+   (a mount without `user_subvol_rm_allowed`,
+     for one).
+     Nothing of yours is in it:
+     a worktree is only removed
    after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that

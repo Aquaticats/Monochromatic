@@ -56,7 +56,8 @@ build trees and caches,
 and the wrapper's own records)
 the owner handed the choice to the coordinator,
 2026-11-10:
-"I think you can decide yourself on which fsync to remove and not have to ask me. Or do it with the advisor."
+"I think you can decide yourself on which fsync to remove and not have to ask me.
+Or do it with the advisor."
 The coordinator's rule,
 made with the advisor on 2026-11-10 and open to the owner's veto:
 
@@ -2500,7 +2501,8 @@ the source worktree and the selection its copy takes,
 so the `gitdir:` pointer of the destination's own `.git` file names the registration the proof reads,
 and an add killed between Git's registration and that record is reported and kept like a bound one.
 A record written before those two fields existed carries the destination alone,
-and its worktree is named rather than filled, because nothing says where its ignored state would come from.
+and its worktree is named rather than filled,
+because nothing says where its ignored state would come from.
 The pointer is read as Git reads it
 (`read_gitfile_gently`,
 `setup.c`):
@@ -3208,10 +3210,12 @@ whose destination is still a registration of this repository with a whole checko
 and whose stage no pending journal names,
 is filled from that source by the same staging,
 journaling and installation a creating command makes.
-Nothing is overwritten, because the installation accepts an exact entry and refuses a differing one,
+Nothing is overwritten,
+because the installation accepts an exact entry and refuses a differing one,
 so a worktree that gained anything since the add is named instead of written into.
 One command copies into one destination:
-before it stages, it creates a marker in the journal root whose name carries its owner,
+before it stages,
+it creates a marker in the journal root whose name carries its owner,
 one exclusive create of `<identifier>.<owner>.taking`,
 and a marker whose owner is dead is removed and taken over,
 so two commands that find the same dead claim never stage into one name.
