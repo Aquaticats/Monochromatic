@@ -2566,7 +2566,9 @@ No write to another file is rejected either:
 `--blob`,
 and a `--file` whose path is not the shared file:
 the path is resolved from the directory the command runs in,
+which the command's `-C` chain moves and `--work-tree` does not,
 so `git config --file ../repo/.git/config <key> <value>`,
+the same relative path under a `--work-tree` that names another directory,
 an absolute spelling,
 one written with `=` and one through a link are refused as the plain form is,
 while `git config --file other.config <key> <value>` and `git config --file other.config --edit` run.
@@ -2585,6 +2587,21 @@ A setting that is not a remote setting can always be named from the worktree:
 so it runs.
 The main checkout keeps today's behavior,
 and so do a bare repository and a repository under an allowlisted tool directory.
+
+One limit is worth knowing.
+The guard compares a path,
+and real Git opens that path a moment later.
+A process that replaces the path in between,
+by repointing a link or by putting a link where a file was,
+makes Git open a file the guard did not compare.
+No repeated comparison closes that,
+and every complete answer refuses more than Git does or takes the write away from Git,
+so the guard stops the command it was asked to stop,
+not a process that writes that file itself under `--no-enforce-worktree` or without Git.
+A link is resolved before the comparison,
+so a spelling that reaches the shared file through one is refused;
+a hard link is another name for those bytes and is no bypass,
+because Git replaces a hard link instead of writing through it.
 
 The rejection says that every worktree of the repository shares the setting,
 names the shared file and the main checkout,
