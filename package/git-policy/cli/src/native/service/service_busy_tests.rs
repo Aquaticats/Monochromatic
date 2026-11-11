@@ -46,8 +46,10 @@ fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
     });
 }
 
-/// The words of the write a client's own request is inside name the command and what the write does, and no moment:
-/// the client says them once the person's wait has mattered, so a moment taken when the write began would be false by then.
+/// The words of the write a client's own request is inside name the command and what the write does,
+/// and no moment:
+/// the client says them once the person's wait has mattered,
+/// so a moment taken when the write began would be false by then.
 #[test]
 fn the_words_of_the_write_a_request_is_inside_carry_no_moment() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {

@@ -32,7 +32,8 @@ use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
+use crate::service_client_waiting_words::{place_number, say_the_write_it_is_inside, say_where_it_stands};
+use crate::service_messages::{ClientFailure, SILENT_NOTICE};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -178,99 +179,6 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
         crate::scratch_location::renew(fresh.path.as_path());
         *last_renewed = Some(Instant::now());
     }
-}
-
-/// What:
-///  The number of the place the service named,
-/// which is the part of it the person is told.
-/// Why:
-///   A place says which commit it is (`number`) and how many the batch holds (`of`),
-/// and every wording of it derives from the number alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// placeNumber([3, 7]) // 3
-/// ```
-fn place_number(place: (usize, usize)) -> usize {
-    let (number, _of) = place;
-    return number;
-}
-
-/// What:
-///  Says where a waiting commit stands once it has waited long enough to matter:
-/// how many commits the service put before it,
-/// or that the service has not said where it stands.
-/// Why:
-///   Two commits waited 62 and 32 seconds and said nothing about themselves,
-/// and a person cannot tell a commit the service has not
-///  reached from one it has lost.
-/// The telling costs one clock read of the loop the client already runs and one line;
-/// it waits for nothing,
-///  takes no lock and writes no file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sayWhereItStands(notices, config, parked, place, told)
-/// ```
-fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
-    let Some(since) = parked else {
-        return;
-    };
-    if since.elapsed() < config.waiting_notice_after {
-        return;
-    }
-    // What the person was last told: the place the service named, or nothing when it named none.
-    let named: Option<usize> = place.map(place_number);
-    if *told == Some(named) {
-        return;
-    }
-    *told = Some(named);
-    let words: String = match place {
-        Some((number, of)) => position_notice(number, of),
-        // What the client knows and no more: the service named no place, and how long the commit has waited.
-        None => unplaced_notice(since.elapsed()),
-    };
-    let _written = writeln!(notices, "{words}");
-}
-
-/// What:
-///  Says that the command's own request is inside a write of the service,
-/// once the wait has mattered or the service's words about that write have changed.
-/// Why:
-///   The service says it the moment the write begins,
-/// because a client whose ceiling falls inside the write would otherwise
-///  miss it (sol-1);
-/// a write that takes what writes take is over in milliseconds,
-/// so a line said then reaches the person of a
-///  command that lands at once and says nothing else.
-/// The words therefore wait for the wait the place of a waiting commit waits for
-///  (`waiting_notice_after`),
-/// and words that differ from the ones already said are newer news,
-/// so they are said at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sayTheWriteItIsInside(notices, config, parked, words, told)
-/// ```
-fn say_the_write_it_is_inside(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, words: Option<&str>, told: &mut Option<String>) {
-    let Some(text) = words else {
-        return;
-    };
-    if told.as_deref() == Some(text) {
-        return;
-    }
-    // Words other than the ones already said are newer news: a write that has stayed stuck a new minute, said at once.
-    if told.is_none() {
-        let Some(since) = parked else {
-            return;
-        };
-        if since.elapsed() < config.waiting_notice_after {
-            return;
-        }
-    }
-    *told = Some(text.to_string());
-    // Terminal output error: a notice is advisory; a failed write must not stop the commit.
-    let _written = write!(notices, "{text}");
 }
 
 /// The sends and the waits of `submit_traced`.
