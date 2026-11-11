@@ -130,6 +130,46 @@ fn a_pull_into_a_clean_index_equals_native_gits() {
     remove_settled(&fixture);
 }
 
+/// A pull whose `pull.rebase` is written more than once,
+/// or as a number Git reads as zero,
+/// merges the way Git's own reading of that setting says,
+/// so it is completed over another session's staged work.
+/// Why:
+///   The wrapper read the first of several values and a short list of spellings,
+/// so a valid setting Git reads as false kept the pull native,
+/// where native Git's merge
+///  refused over staged work: the setting then decided the refusal,
+/// not the person's staged bytes.
+#[test]
+fn a_pull_whose_rebase_setting_is_written_twice_or_as_a_number_is_completed() {
+    let cases: [(&str, &[(&str, &str)]); 3] = [
+        ("duplicate", &[("pull.rebase", "true"), ("pull.rebase", "false")]),
+        ("numeric-zero", &[("pull.rebase", "00")]),
+        ("branch-duplicate", &[("branch.main.rebase", "true"), ("branch.main.rebase", "false")]),
+    ];
+    for (name, entries) in cases {
+        let fixture: Fixture = fixture(format!("pull-rebase-{name}").as_str());
+        let ours_repo: PathBuf = diverged_with_remote(&fixture);
+        for (key, value) in entries {
+            git(&fixture, ours_repo.as_path(), &["config", "--add", key, value]);
+        }
+        // Git's own reading of the setting, which is what the wrapped pull must follow.
+        assert_eq!(git_text(&fixture, ours_repo.as_path(), &["config", "--bool", "--get", entries[0].0]).trim(), "false", "{name}: the setting this control writes");
+        let clean_repo: PathBuf = copy_of(&fixture, ours_repo.as_path(), "clean");
+        stage_unrelated_work(&fixture, ours_repo.as_path());
+        let staged: Vec<String> = git_text(&fixture, ours_repo.as_path(), &["diff", "--cached", "--name-status"]).lines().map(String::from).collect();
+        let arguments: [&str; 2] = ["pull", "--no-edit"];
+        let theirs: Observed = native(&fixture, clean_repo.as_path(), &arguments);
+        assert_eq!(theirs.code, Some(0), "{name}: native Git merges into the clean copy: {}", String::from_utf8_lossy(theirs.stderr.as_slice()));
+        let ours: Observed = run(&fixture, ours_repo.as_path(), &arguments);
+        assert_eq!(ours.code, Some(0), "{name}: {}", String::from_utf8_lossy(ours.stderr.as_slice()));
+        assert_eq!(commit_shape(&fixture, ours_repo.as_path()), commit_shape(&fixture, clean_repo.as_path()), "{name}: the merge equals native Git's");
+        let after: Vec<String> = git_text(&fixture, ours_repo.as_path(), &["diff", "--cached", "--name-status", "HEAD"]).lines().map(String::from).collect();
+        assert_eq!(after, staged, "{name}: the other session's staged work is still staged and nothing else is");
+        remove_settled(&fixture);
+    }
+}
+
 /// A pull the wrapper does not read exactly,
 /// or that Git refuses by its own advice,
 /// is native Git's whole,
