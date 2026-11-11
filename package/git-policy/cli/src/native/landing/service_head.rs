@@ -63,8 +63,8 @@ const REFTABLE_PLACEHOLDER: &str = "refs/heads/.invalid";
 
 fn interpret(text: &[u8]) -> HeadFile {
     // The first line only, without the whitespace its end carries; a name that is not text is still a name.
-    let line: &[u8] = text.split(|byte| *byte == b'\n').next().unwrap_or(b"");
-    let line: &[u8] = trim_ascii_end(line);
+    let first: &[u8] = text.split(|byte| { return *byte == b'\n'; }).next().unwrap_or(b"");
+    let line: &[u8] = trim_ascii_end(first);
     if let Some(reference) = line.strip_prefix(b"ref: ") {
         if reference == REFTABLE_PLACEHOLDER.as_bytes() {
             return HeadFile::Unreadable;

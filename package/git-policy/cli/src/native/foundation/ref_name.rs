@@ -63,7 +63,7 @@ impl RefName {
     /// const refNameFromGit = (printed: Uint8Array) => ({ os: printed.subarray(0, printed.lastIndexOf(10)) })
     /// ```
     pub fn from_git_output(printed: &[u8]) -> Self {
-        let end: usize = printed.iter().rposition(|byte| *byte == b'\n').unwrap_or(printed.len());
+        let end: usize = printed.iter().rposition(|byte| { return *byte == b'\n'; }).unwrap_or(printed.len());
         return Self { os: os_from_path_bytes(&printed[..end]) };
     }
 

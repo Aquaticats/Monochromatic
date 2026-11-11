@@ -286,12 +286,12 @@ fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkIte
 pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &crate::ref_name::RefName, tip: &str, parent: &str) -> Result<(), ClientFailure> {
     // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
     //  whose name is not text has none; `hand_over_push` tells the person that instead.
-    let Some(reference) = reference.text() else { return Ok(()) };
+    let Some(name) = reference.text() else { return Ok(()) };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: repository.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
-        branch_ref: reference.to_string(),
+        branch_ref: name.to_string(),
         oid: tip.to_string(),
         parent: parent.to_string(),
         created: now_iso(),

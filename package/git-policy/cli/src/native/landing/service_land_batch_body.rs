@@ -84,8 +84,8 @@ pub(crate) fn land_batch_body(
         let branch_began: Instant = Instant::now();
         let mut branch_commit: std::ffi::OsString = first.reference.as_os_str().to_os_string();
         branch_commit.push("^{commit}");
-        let words: [std::ffi::OsString; 4] = [std::ffi::OsString::from("rev-parse"), std::ffi::OsString::from("--verify"), std::ffi::OsString::from("--quiet"), branch_commit.clone()];
-        let old: String = match checked(&git, repository, &words, None) {
+        let branch_value: [std::ffi::OsString; 4] = [std::ffi::OsString::from("rev-parse"), std::ffi::OsString::from("--verify"), std::ffi::OsString::from("--quiet"), branch_commit.clone()];
+        let old: String = match checked(&git, repository, &branch_value, None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
             Err(code) => return Err(code),
@@ -295,7 +295,7 @@ pub(crate) fn land_batch_body(
             //  it did not move, so something else refused the write, and a reference lock is what refuses it when one stands: the
             //  wrapper clears the ones nothing live holds, waits out a live holder within one bound, holds the commit behind the
             //  rest, and names them with the command that clears them. Neither a lock nor a wait for one is a branch that changed.
-            let standing: String = checked(&git, repository, &words, None).unwrap_or_default();
+            let standing: String = checked(&git, repository, &branch_value, None).unwrap_or_default();
             if standing == old {
                 // The index lock is given up while the wait runs, so another program's commit is not held behind this one.
                 drop(held);

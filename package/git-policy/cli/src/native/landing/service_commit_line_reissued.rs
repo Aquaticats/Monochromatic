@@ -45,11 +45,11 @@ const SEPARATOR: &str = "--";
 
 /// Short option letters a rebuilt line drops:
 /// the selection the private index already holds.
-const SELECTION_LETTERS: [u8; 2] = [b'p', b'i'];
+const SELECTION_LETTERS: &[u8] = b"pi";
 
 /// Short option letters whose value is attached,
 /// so that what follows is never read as a flag.
-const ATTACHED_VALUE_LETTERS: [u8; 2] = [b'S', b'u'];
+const ATTACHED_VALUE_LETTERS: &[u8] = b"Su";
 
 /// The authorship a commit reused from another commit,
 /// which a rebuild supplies itself.

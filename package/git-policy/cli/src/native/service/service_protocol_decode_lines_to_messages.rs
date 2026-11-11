@@ -146,7 +146,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && request.id.as_bytes().iter().all(is_identity_byte)
         // A detached head is moved as `HEAD` itself.
         && (request.reference.bytes().starts_with(b"refs/") || request.reference.is_head())
-        && !request.reference.bytes().iter().any(|byte| [0_u8, b'\n', b' '].contains(byte))
+        && !request.reference.bytes().iter().any(|byte| { return [0_u8, b'\n', b' '].contains(byte); })
         && is_object_name(&request.base)
         // A branch that does not exist yet has no commit to build the tree from, so only a commit built elsewhere names it.
         && (!is_zero_object(&request.base) || request.commit.is_some())

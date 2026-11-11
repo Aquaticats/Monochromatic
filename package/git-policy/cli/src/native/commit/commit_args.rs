@@ -79,7 +79,7 @@ const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
 
 /// Short commit options with an optional attached value (`-S[<keyid>]`,
 /// `-u[<mode>]`).
-const OPTIONAL_VALUE_LETTERS: [u8; 2] = [b'S', b'u'];
+const OPTIONAL_VALUE_LETTERS: &[u8] = b"Su";
 
 /// What:
 ///  Whether one token is one of `options`,
@@ -128,7 +128,7 @@ fn is_optional_value_letter(letter: &u8) -> bool {
 /// ```
 fn is_a_short_value_letter(letter: u8) -> bool {
     // The second byte of each spelling is the letter; the first is the dash.
-    return SHORT_VALUE_OPTIONS.iter().any(|option| option.as_bytes()[1] == letter);
+    return SHORT_VALUE_OPTIONS.iter().any(|option| { return option.as_bytes()[1] == letter; });
 }
 
 /// What:
@@ -332,7 +332,7 @@ fn global_name(token: &[u8]) -> &[u8] {
     if !token.starts_with(b"--") {
         return token;
     }
-    let Some(at) = token.iter().position(|byte| *byte == b'=') else {
+    let Some(at) = token.iter().position(|byte| { return *byte == b'='; }) else {
         return token;
     };
     return &token[..at];
