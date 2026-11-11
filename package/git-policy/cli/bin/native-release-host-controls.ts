@@ -6,6 +6,11 @@
  requirements name, so a run that silently skipped them is no evidence (rule `TRV` in `AGENTS.md`). The one `BTRFS
  CONTROL NOT RUN` line a btrfs host does print belongs to a control that needs a filesystem that is not btrfs; any other
  such line refuses the release.
+
+ A failing test that is not one of the required controls is printed as a notice and does not refuse: this gate judges the
+ btrfs controls, the container release gate judges the whole suite, and the owner set on 2026-11-10 "Standing rule.
+ Alphas don't even have to resolve all flakes." after a run on this busy host failed nine tests outside the controls and
+ held a release whose code the container gate had passed.
  */
 import { caughtValueText } from '@monochromatic-dev/caught-value-core/ts';
 
@@ -38,7 +43,11 @@ import {
 export type HostControlVerdict =
   | {
     readonly kind: 'green';
-    readonly testsRun: number
+    readonly testsRun: number;
+    /**
+     One line per failing test outside the required controls, printed before the pass and never refusing it.
+     */
+    readonly notices: readonly string[]
   }
     | {
       readonly kind: 'refused';
@@ -65,11 +74,55 @@ const refusalRemedies: readonly string[] = [
 ];
 
 /**
- The reasons a run that failed says nothing about the controls.
+ Why a failure outside the required controls does not refuse, in the owner's words, printed once above those notices.
+ */
+const outsideFailuresNote = 'These tests failed outside the btrfs controls this gate requires, so they do not hold the release: the container release gate judges the whole suite, and the owner set on 2026-11-10 "Standing rule. Alphas don\'t even have to resolve all flakes."';
+
+/**
+ Whether a named test is one of the controls the release waits for.
+
+ @param test - a test a status line named
+
+ @returns true for a required control
+ */
+function isRequiredControl(test: HostControlName): boolean {
+  return requiredHostControls.some(function isThisControl(required) {
+    return (required.suite === test.suite) && (required.test === test.test);
+  });
+}
+
+/**
+ The failing tests a run named, each once, though nextest prints a failing line again in its summary.
 
  @param run - the finished run and what it printed
 
- @returns one line per reason, empty when the run ended cleanly
+ @returns one entry per distinct failing test
+ */
+function distinctFailures(run: HostControlRun): readonly HostControlName[] {
+  /**
+   The failing tests keyed by binary and name, keeping the first line of each.
+   */
+  const byKey = new Map(namesIn({
+    output: run.output,
+    tag: failingTag,
+  })
+    .map(function keyed(test) {
+      return [
+        `${test.suite} ${test.test}`,
+        test
+      ] as const;
+    }));
+  return [...byKey.values()];
+}
+
+/**
+ The reasons a run that failed says nothing about the controls.
+
+ A failing test outside the required controls is no such reason; {@link noticesOf} names those.
+
+ @param run - the finished run and what it printed
+
+ @returns one line per reason, empty when the run ended cleanly or failed only outside the required controls
  */
 function failureReasons(run: HostControlRun): readonly string[] {
   if (run.timedOut)
@@ -86,17 +139,40 @@ function failureReasons(run: HostControlRun): readonly string[] {
   /**
    The failing tests the run named, if any.
    */
-  const failed = namesIn({
-    output: run.output,
-    tag: failingTag,
-  });
+  const failed = distinctFailures(run);
   if (failed.length > 0)
-    return failed.map(function namesTheTest(test) {
-      return `This test failed: ${test.suite} ${test.test}`;
-    });
+    return failed.filter(isRequiredControl)
+      .map(function namesTheControl(test) {
+        return `This required control failed: ${test.suite} ${test.test}`;
+      });
   return [`The run ended with status ${String(run.ending
     .status)} and named no failing test. Its last lines were: ${lastLines(run.output)
       .join(' | ')}`];
+}
+
+/**
+ The failing tests outside the required controls, which a green run prints before its pass.
+
+ @param run - the finished run and what it printed
+
+ @returns the note and one line per such test, empty when there are none
+ */
+function noticesOf(run: HostControlRun): readonly string[] {
+  /**
+   Failing tests that are not controls the release waits for.
+   */
+  const outside = distinctFailures(run)
+    .filter(function isNotRequired(test) {
+      return !isRequiredControl(test);
+    });
+  if (outside.length === 0)
+    return [];
+  return [
+    outsideFailuresNote,
+    ...outside.map(function namesTheTest(test) {
+      return `This test failed: ${test.suite} ${test.test}`;
+    }),
+  ];
 }
 
 /**
@@ -197,6 +273,7 @@ export function judgeHostControlRun(run: HostControlRun): HostControlVerdict {
         tag: passingTag,
       }),
     ),
+    notices: noticesOf(run),
   };
 }
 
@@ -234,6 +311,8 @@ function reportVerdict({
    */
   const verdict = judgeHostControlRun(run);
   if (verdict.kind === 'green') {
+    for (const notice of verdict.notices)
+      print(notice);
     print(`BTRFS CONTROLS PASSED ${String(verdict.testsRun)} tests ran here, and the ${String(requiredHostControls.length)} controls this gate requires each printed their passing status line.`);
     return 0;
   }

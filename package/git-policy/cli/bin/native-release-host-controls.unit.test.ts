@@ -212,7 +212,28 @@ await describe({
           },
         }),
         it({
-          name: 'refuses a run whose test failed, naming the suite and the test',
+          name: 'passes a run whose only failures are tests other than the required controls, naming each one as a notice',
+          fn: async function otherFailures() {
+            const flaky = {
+              suite: 'monochromatic-git-policy-cli::native_binary',
+              test: 'service::a_test_that_failed_under_load',
+            };
+            const verdict = judgeHostControlRun(run({
+              status: 100,
+              output: [
+                passingOutput(),
+                failingLine(flaky),
+              ].join('\n'),
+            }));
+            if (verdict.kind !== 'green')
+              throw new Error(`a failure outside the required controls holds no release, yet the gate refused: ${verdict.lines.join(' | ')}`);
+            const text = verdict.notices.join('\n');
+            expect(text).toContain(`${flaky.suite} ${flaky.test}`);
+            expect(text).toContain('Alphas don\'t even have to resolve all flakes.');
+          },
+        }),
+        it({
+          name: 'refuses a run whose required control failed, naming the suite and the test',
           fn: async function failing() {
             const [failed] = requiredHostControls;
             if (failed === undefined)
@@ -331,6 +352,35 @@ await describe({
             expect(printed[0]).toContain(hostControlTask);
             expect(printed[0]).toContain(`${String(hostControlLimitSeconds)} seconds`);
             expect(printed.join('\n')).toContain('BTRFS CONTROLS PASSED');
+          },
+        }),
+        it({
+          name: 'exits zero on a run whose only failures are outside the required controls, printing each as a notice before the pass',
+          fn: async function noticed() {
+            const printed: string[] = [];
+            const flaky = {
+              suite: 'monochromatic-git-policy-cli',
+              test: 'push::a_test_that_failed_under_load',
+            };
+            const status = await runHostControlGate({
+              filters: [],
+              runHostControls: async function runHostControls() {
+                return run({
+                  status: 100,
+                  output: [
+                    passingOutput(),
+                    failingLine(flaky),
+                  ].join('\n'),
+                });
+              },
+              print: function print(line) {
+                printed.push(line);
+              },
+            });
+            expect(status).toBe(0);
+            const text = printed.join('\n');
+            expect(text).toContain(`${flaky.suite} ${flaky.test}`);
+            expect(text.indexOf(`${flaky.suite} ${flaky.test}`)).toBeLessThan(text.indexOf('BTRFS CONTROLS PASSED'));
           },
         }),
         it({
