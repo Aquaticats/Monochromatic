@@ -3,13 +3,17 @@
 //! Why:
 //!  A clean may rewrite the lock file,
 //! and a new worktree must stay as checked out;
-//! the two steps need nothing from
-//!  either clean,
-//! so they live in a file of their own that both import:
-//! `package_repair_cargo.rs`,
-//! which cleans what the worktree already has,
-//! and `package_repair_prewarm_job.rs`,
-//! which cleans the copy the commit service fills a build directory from after the add returns.
+//! the two steps need nothing from the clean,
+//! so they live in a file of their own.
+//! The add's own clean is their one caller
+//! (`package_repair_cargo.rs`):
+//! it runs while the worktree it fills was made by the same command and nobody has it yet,
+//! which `SPEC.md` records as the reason its put-back stands
+//! ("A committed `Cargo.lock` that disagrees with its manifest").
+//! The service's filling of a later worktree's build directory does not use them:
+//! it runs after the add has returned and the person may be working in the worktree,
+//! so it tells the clean to leave the lock alone instead
+//! (`package_repair_prewarm_job.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,7 +29,7 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "packageRepairCargoLock";
 
 /// The lock file beside a workspace's root manifest.
-const LOCK_FILE: &str = "Cargo.lock";
+pub const LOCK_FILE: &str = "Cargo.lock";
 
 /// What:
 ///  The bytes of the workspace's `Cargo.lock`,

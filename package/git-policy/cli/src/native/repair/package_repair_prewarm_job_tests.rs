@@ -140,6 +140,10 @@ const MEMBER: &str = "own";
 /// which the copy exists to carry and must keep.
 const DEPENDENCY: &str = "serde";
 
+/// The dependency the lock fixture resolves from a directory of its own,
+/// so Cargo writes that fixture's lock without reading a registry.
+const DIRECTORY_DEPENDENCY: &str = "local-dependency";
+
 /// What:
 ///  The two Cargo settings the filling is checked under:
 ///  incremental compilation off,
@@ -254,37 +258,6 @@ fn the_filling_publishes_a_clean_copy_and_leaves_the_source_alone() {
 const LOCK_FILE: &str = "Cargo.lock";
 
 /// What:
-///  Write the fixture workspace `entry_of` names,
-/// and build it into the source build directory,
-/// so the entry has state worth copying.
-/// Why:
-///  The two controls below need a workspace a real Cargo resolves,
-/// and the copy exists only when the source holds dependency builds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function builtWorkspace(root: Path): PrewarmEntry;
-/// ```
-fn built_workspace(root: &Path) -> PrewarmEntry {
-    let named: PrewarmEntry = entry_of(root);
-    let entry: PrewarmEntry = PrewarmEntry { members: vec![String::from(MEMBER)], ..named };
-    std::fs::create_dir_all(entry.root.join("src")).expect("the workspace");
-    let manifest: String = format!("[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"{MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n{DEPENDENCY} = \"1\"\n");
-    std::fs::write(entry.root.join("Cargo.toml"), manifest).expect("the manifest");
-    std::fs::write(entry.root.join("src/lib.rs"), format!("pub fn {MEMBER}() -> &'static str {{ \"{MEMBER}\" }}\n")).expect("the crate");
-    let cargo: PathBuf = cargo_on_the_search_path();
-    let built: std::process::Output = std::process::Command::new(cargo)
-        .args(["build", "--offline", "--quiet"])
-        .current_dir(entry.root.as_path())
-        .env(BUILD_DIRECTORY_VARIABLE, entry.from.as_os_str())
-        .env(TARGET_DIRECTORY_VARIABLE, root.join("source-target").as_os_str())
-        .output()
-        .expect("cargo runs");
-    assert!(built.status.success(), "the fixture builds: {}", String::from_utf8_lossy(built.stderr.as_slice()));
-    return entry;
-}
-
-/// What:
 ///  The record of one worktree,
 /// as the add writes it:
 /// the repository's common directory,
@@ -333,6 +306,42 @@ fn identity_of(path: &Path) -> FileIdentity {
 }
 
 /// What:
+///  A fixture workspace with a lock Cargo itself resolved,
+///  and a source build directory for the copy to carry,
+///  without compiling anything.
+/// Why:
+///   The control below is about the lock file and about what the clean refuses,
+/// and a clean reads the manifest and the lock and writes only to directories of this job's own,
+/// so compiling the fixture would cost the gate a minute and prove nothing more.
+/// `cargo generate-lockfile` is what makes the lock one Cargo accepts as matching the manifest.
+/// The one dependency is a directory inside the fixture,
+/// so resolving the lock reads no registry and never waits on the package cache every other
+/// build on this host holds.
+fn a_workspace_with_a_resolved_lock(root: &Path) -> PrewarmEntry {
+    let named: PrewarmEntry = entry_of(root);
+    let entry: PrewarmEntry = PrewarmEntry { members: vec![String::from(MEMBER)], ..named };
+    std::fs::create_dir_all(entry.root.join("src")).expect("the workspace");
+    std::fs::create_dir_all(entry.root.join("dep/src")).expect("the dependency beside the workspace");
+    let manifest: String = format!(
+        "[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"{MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n{DIRECTORY_DEPENDENCY} = {{ path = \"dep\" }}\n"
+    );
+    std::fs::write(entry.root.join("Cargo.toml"), manifest).expect("the manifest");
+    std::fs::write(entry.root.join("src/lib.rs"), format!("pub fn {MEMBER}() -> &'static str {{ \"{MEMBER}\" }}\n")).expect("the crate");
+    std::fs::write(entry.root.join("dep/Cargo.toml"), format!("[package]\nname = \"{DIRECTORY_DEPENDENCY}\"\nversion = \"1.0.0\"\nedition = \"2024\"\n"))
+        .expect("the dependency's manifest");
+    std::fs::write(entry.root.join("dep/src/lib.rs"), "pub fn dependency() {}\n").expect("the dependency's crate");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let resolved: std::process::Output = std::process::Command::new(cargo_on_the_search_path())
+        .args(["generate-lockfile", "--offline", "--quiet"])
+        .current_dir(entry.root.as_path())
+        .output()
+        .expect("cargo resolves the fixture's lock");
+    assert!(resolved.status.success(), "the fixture's lock resolves: {}", String::from_utf8_lossy(resolved.stderr.as_slice()));
+    return entry;
+}
+
+/// What:
 ///  The filling never writes the worktree's `Cargo.lock`,
 /// in any of the three states a checked-out lock can be in,
 /// so a kill anywhere in the filling leaves the person's bytes as they were.
@@ -356,7 +365,7 @@ fn the_filling_never_writes_the_worktrees_lock() {
     const LOCK_STATES: [&str; 3] = ["matching", "stale", "absent"];
     for state in LOCK_STATES {
         let root: PathBuf = fixture(format!("prewarm-lock-never-written-{state}").as_str());
-        let entry: PrewarmEntry = built_workspace(root.as_path());
+        let entry: PrewarmEntry = a_workspace_with_a_resolved_lock(root.as_path());
         let lock: PathBuf = entry.root.join(LOCK_FILE);
         let left: Option<Vec<u8>> = if state == "absent" {
             std::fs::remove_file(lock.as_path()).expect("a worktree with no lock");
