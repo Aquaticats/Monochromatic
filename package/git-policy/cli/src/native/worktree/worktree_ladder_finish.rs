@@ -108,6 +108,9 @@ struct Served {
     /// The trash the snapshot left,
     /// when it left one.
     trash: Option<PendingTrash>,
+    /// The millisecond the name of the copy this add claimed says it was made in,
+    /// or nothing for a snapshot the add took itself.
+    claimed_at: Option<u128>,
 }
 
 /// What:
@@ -145,10 +148,10 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
     let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &service);
     end_step(take_snapshot_entered);
-    let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
+    let (state, trash, taken_over, claimed_at): (CopyState, Option<TrashManifest>, usize, Option<u128>) = match take_snapshot_outcome {
         Ok(taken) => {
             *made = Some(taken.stage);
-            (taken.state, taken.trash, taken.taken_over)
+            (taken.state, taken.trash, taken.taken_over, taken.claimed_at)
         }
         Err(failure) => {
             *made = failure.stage;
@@ -197,7 +200,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced_outcome {
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
-    return Ok(Served { line: target.line, placed, trash: handed_later });
+    return Ok(Served { line: target.line, placed, trash: handed_later, claimed_at });
 }
 
 /// What:
@@ -477,6 +480,11 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             }
             if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
+            }
+            // The ignored state of this worktree is the copy's instant, and every entry the source wrote after it is
+            // missing or older there: the person is told which ones, once.
+            if let Some(copied_at) = served.claimed_at {
+                crate::worktree_ignored_state_newer_than_the_copy::tell_what_the_copy_misses(context, source, plan.destination.as_path(), bound.binding.admin.as_path(), copied_at, note);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()), placed: Some(served.placed), trash: served.trash, claim: Some(claim) }
         }

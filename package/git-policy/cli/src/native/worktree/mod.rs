@@ -33,6 +33,10 @@ pub mod add_timing;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
+/// The ignored entries a snapshot an add installed is behind on, and the line that says so.
+#[cfg(unix)]
+pub mod worktree_ignored_state_newer_than_the_copy;
+
 /// The descriptor-bound look at one added path's worktree copy.
 pub mod worktree_completion_file_inspection;
 
