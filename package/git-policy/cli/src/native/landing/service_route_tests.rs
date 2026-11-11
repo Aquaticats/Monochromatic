@@ -199,6 +199,46 @@ fn the_worktree_git_directory_keeps_a_path_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  The worktree's Git directory asked of Git keeps a trailing space or line feed that is part of the directory's name.
+/// Why:
+///   An answer that is a pathname loses only Git's one terminator,
+///  so trimming whitespace after it removed a byte the name holds and named a directory that does not exist;
+///  the commit route then found no service for that path and stopped instead of reaching the service of the repository the
+///  person selected.
+#[test]
+fn the_worktree_git_directory_keeps_a_trailing_space_or_line_feed() {
+    let root: PathBuf = fixture("route-git-dir-trailing-whitespace");
+    for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
+        let worktree: PathBuf = root.join(format!("worktree-{label}"));
+        std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+        let metadata: PathBuf = root.join(name);
+        crate::test_support::git(
+            root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--initial-branch=main",
+                "--separate-git-dir",
+                metadata.to_str().expect("UTF-8 fixture name"),
+                worktree.to_str().expect("UTF-8 fixture path"),
+            ],
+        );
+        let context: GitContext = GitContext {
+            real_git: PathBuf::from(GIT),
+            overlay: crate::test_support::isolated_overlay(),
+            global_prefix: vec![std::ffi::OsString::from("--git-dir"), metadata.clone().into_os_string()],
+            common_dir: None,
+        };
+        assert_eq!(
+            worktree_git_dir(&context, root.as_path()),
+            Some(metadata),
+            "{label}: the Git directory keeps every byte of its name"
+        );
+    }
+    remove(root.as_path());
+}
+
 /// The status of a worktree whose Git directory cannot be resolved says the cause,
 /// and does not connect to any socket.
 #[test]

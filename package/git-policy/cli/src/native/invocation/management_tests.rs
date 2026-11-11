@@ -819,6 +819,41 @@ fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  A status asked of Git keeps a trailing space or line feed that is part of the Git directory's name.
+/// Why:
+///   An answer that is a pathname loses only Git's one terminator,
+///  so trimming whitespace after it named a different directory,
+///  and the status then counted no service for the worktree the person selected.
+#[test]
+fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
+    let root: PathBuf = fixture("management-status-trailing-whitespace");
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
+        let worktree: PathBuf = root.join(format!("worktree-{label}"));
+        std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+        let metadata: PathBuf = root.join(name);
+        git(
+            root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--initial-branch=main",
+                "--separate-git-dir",
+                metadata.to_str().expect("UTF-8 fixture name"),
+                worktree.to_str().expect("UTF-8 fixture path"),
+            ],
+        );
+        let selected: Vec<OsString> = vec![OsString::from("--git-dir"), metadata.clone().into_os_string()];
+        assert_eq!(
+            status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+            Selection::Found(std::fs::canonicalize(metadata.as_path()).expect("git directory")),
+            "{label}: the Git directory keeps every byte of its name"
+        );
+    }
+    remove(root.as_path());
+}
+
 /// The reader learns the system configuration file from the real Git,
 /// so a status that names none cannot tell a plain layout
 /// from one it must leave to Git:
