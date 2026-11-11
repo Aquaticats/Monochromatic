@@ -25,7 +25,7 @@
 use crate::add_timing::{begin_step, end_step};
 use crate::path_bytes_in_records::{hex_of_path, text_in_one_line};
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Binding, OwedCopy};
+use crate::worktree_add_binding::{Binding, OwedCopy, planned_record_with};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
 use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic, write_atomic_unsynced};

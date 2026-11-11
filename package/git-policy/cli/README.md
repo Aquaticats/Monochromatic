@@ -3658,6 +3658,10 @@ so the next command can tell a stage its own copy left,
 which it removes and fills again,
 from a directory another program put at that name,
 which it names and never removes.
+A directory holding nothing but that record,
+or the part of it a kill inside its write left,
+is a stage of that copy too,
+because no ignored file of the source is there yet.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
 
 Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.

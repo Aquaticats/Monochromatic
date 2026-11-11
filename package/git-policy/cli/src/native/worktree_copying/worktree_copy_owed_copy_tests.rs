@@ -114,7 +114,7 @@ fn a_copy_that_would_replace_what_the_worktree_gained_is_named_with_the_entry_in
     std::fs::write(destination.join("cache/data"), b"work started here").expect("their work");
     let said: String = told(repo.join(".git").as_path());
     assert_eq!(std::fs::read(destination.join("cache/data")).expect("the person's file"), b"work started here", "nothing the worktree gained is replaced");
-    assert!(said.contains("could not be made") && said.contains("git worktree remove --force"), "the line names the worktree and what settles it: {said}");
+    assert!(said.contains("holds less than") && said.contains("differing destination entry") && said.contains("git worktree remove --force"), "the line names the worktree, the entry that differs and what settles it: {said}");
     assert!(unfilled_records_exist(repo.join(".git").as_path()).expect("records"), "the record that names the unfilled worktree stays");
     // The same words come again, and no command stages the source again trying what just failed.
     let again: String = told(repo.join(".git").as_path());
@@ -150,6 +150,7 @@ fn a_source_that_is_no_worktree_ends_the_copy_with_the_reason() {
     std::mem::forget(claim);
     let said: String = told(repo.join(".git").as_path());
     assert!(said.contains("no longer a worktree of this repository"), "the line says why nothing was copied: {said}");
+    assert!(told(repo.join(".git").as_path()).contains("no longer a worktree of this repository"), "and every later command says the same");
     assert!(!destination.join("cache/data").exists(), "nothing was staged from a path that is no worktree");
     assert!(unfilled_records_exist(repo.join(".git").as_path()).expect("records"), "the worktree stays named");
     remove(root.as_path());

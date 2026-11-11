@@ -270,6 +270,30 @@ impl StageVerdicts {
     }
 }
 
+/// The suffix of the file one write is made in before its own temporary takes its name:
+/// a write cut off inside it leaves this rather than a temporary the sweep already knows.
+pub(crate) const SCRATCH_SUFFIX: &str = ".partial";
+
+/// What:
+///  The writer's owner token in the name of the file one write was making,
+/// or nothing for a name of another shape.
+/// Why:
+///   A write makes `<temporary>.<random>.partial` first,
+/// so the temporary's own name,
+/// with the writer in it,
+/// is what the sweep judges before removing it;
+/// a name of another shape names no writer and counts as a dead one's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const token = scratchWriterToken(name); // stem before the last dot, parsed as a temporary name
+/// ```
+fn scratch_writer_token(name: &str) -> Option<String> {
+    let stem: &str = name.strip_suffix(SCRATCH_SUFFIX)?;
+    let (temporary, _unique) = stem.rsplit_once('.')?;
+    return temporary_writer_token(temporary).map(str::to_string);
+}
+
 /// What:
 ///  Order two listed temporaries by name the way JavaScript's default sort does.
 /// Why:
@@ -324,14 +348,18 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(TEMPORARY_SUFFIX) {
+        if name.ends_with(TEMPORARY_SUFFIX) || name.ends_with(SCRATCH_SUFFIX) {
             temporaries.push((name, entry.path()));
         }
     }
     temporaries.sort_by(by_temporary_name);
     for (name, path) in temporaries {
         // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
-        if token_owner_is_dead(temporary_writer_token(name.as_str()), path.as_path())? {
+        let writer: Option<String> = match scratch_writer_token(name.as_str()) {
+            Some(token) => Some(token),
+            None => temporary_writer_token(name.as_str()).map(str::to_string),
+        };
+        if token_owner_is_dead(writer.as_deref(), path.as_path())? {
             verdicts.dead_temporaries.insert(name);
         }
     }

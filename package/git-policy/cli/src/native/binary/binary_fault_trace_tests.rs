@@ -42,7 +42,6 @@ use super::support::{Fixture, ServiceLaunch, fixture, hermetic, service_runtime,
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::os::unix::ffi::OsStrExt as _;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -915,33 +914,40 @@ fn ignored_state(where_: &Path) -> std::collections::BTreeMap<Vec<u8>, String> {
         return state;
     }
     let listed: Vec<u8> = real_git_text(where_, &["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
-    let mut visit = |relative: &Path, state: &mut std::collections::BTreeMap<Vec<u8>, String>| {
-        use std::os::unix::fs::MetadataExt as _;
-        let path: PathBuf = where_.join(relative);
-        let Ok(held) = std::fs::symlink_metadata(path.as_path()) else { return };
-        let name: Vec<u8> = relative.as_os_str().as_bytes().to_vec();
-        if held.file_type().is_symlink() {
-            state.insert(name, format!("link:{}", std::fs::read_link(path.as_path()).expect("target").to_string_lossy()));
-            return;
-        }
-        if held.is_dir() {
-            state.insert(name, format!("dir:{:o}", held.mode() & 0o7777));
-            for entry in std::fs::read_dir(path.as_path()).expect("directory").flatten() {
-                visit(relative.join(entry.file_name()).as_path(), state);
-            }
-            return;
-        }
-        let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
-        state.insert(name, format!("file:{:o}:{}:{}", held.mode() & 0o7777, bytes.len(), crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes.as_slice())));
-    };
     for name in listed.split(|byte| { return *byte == 0_u8; }) {
         if name.is_empty() {
             continue;
         }
         let text: &Path = Path::new(std::ffi::OsStr::from_bytes(name.strip_suffix(b"/").unwrap_or(name)));
-        visit(text, &mut state);
+        visit_ignored(where_, text, &mut state);
     }
     return state;
+}
+
+/// What one ignored entry of a checkout is,
+/// and every entry below it when it is a directory.
+/// Why:
+///   A comparison of two checkouts must see the files a copy installs,
+/// not the directory a listing collapses them into.
+fn visit_ignored(where_: &Path, relative: &Path, state: &mut std::collections::BTreeMap<Vec<u8>, String>) {
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::fs::MetadataExt as _;
+    let path: PathBuf = where_.join(relative);
+    let Ok(held) = std::fs::symlink_metadata(path.as_path()) else { return };
+    let name: Vec<u8> = relative.as_os_str().as_bytes().to_vec();
+    if held.file_type().is_symlink() {
+        state.insert(name, format!("link:{}", std::fs::read_link(path.as_path()).expect("target").to_string_lossy()));
+        return;
+    }
+    if held.is_dir() {
+        state.insert(name, format!("dir:{:o}", held.mode() & 0o7777));
+        for entry in std::fs::read_dir(path.as_path()).expect("directory").flatten() {
+            visit_ignored(where_, relative.join(entry.file_name()).as_path(), state);
+        }
+        return;
+    }
+    let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
+    state.insert(name, format!("file:{:o}:{}:{}", held.mode() & 0o7777, bytes.len(), git_policy_cli::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes.as_slice())));
 }
 
 /// After a worktree add killed anywhere:
@@ -953,17 +959,22 @@ fn ignored_state(where_: &Path) -> std::collections::BTreeMap<Vec<u8>, String> {
 /// so no worktree is left looking ordinary and holding less than its source ignores;
 /// and no journal,
 /// claim,
-/// record or stage of the copy stays.
+/// record or stage of a copy into it stays.
+/// A kill before Git made the destination leaves a record the recovery keeps until the window in which that Git may
+/// still be creating it has passed, and the same command works again.
 fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
         return Err(format!("the next command must succeed, exit {:?}: {} (the killed run: {:?})", status.code, String::from_utf8_lossy(status.stderr.as_slice()), killed.status));
     }
     let worktree: PathBuf = fixture.root.join("one");
+    // Whether Git made the worktree at all: a kill before its Git ran leaves a record whose Git process was never named,
+    // and the recovery keeps that record for the window in which that Git may still be creating the destination.
+    let made_by_git: bool = worktree.join(".git").exists();
     // What a recovery pass told the person: the first command in the repository settles a dead add's records and says
     // which worktree it filled or left unfilled, and a linked worktree runs such a pass before it forwards too.
     let mut told: String = String::from_utf8_lossy(status.stderr.as_slice()).into_owned();
-    if worktree.join(".git").exists() {
+    if made_by_git {
         let inside = run_unsettled(fixture, worktree.as_path(), &["rev-parse", "--is-inside-work-tree"]);
         if inside.code != Some(0) {
             return Err(format!("the worktree Git made must answer, exit {:?}: {}", inside.code, String::from_utf8_lossy(inside.stderr.as_slice())));
@@ -994,6 +1005,12 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
         let differing: Vec<String> = source_state.iter().filter(|(name, value)| { return worktree_state.get(*name).is_some_and(|found| { return found != *value; }); }).map(|(name, value)| { return format!("{}: {} is not {value}", String::from_utf8_lossy(name), worktree_state.get(name).cloned().unwrap_or_default()); }).collect();
         let extra: Vec<String> = worktree_state.keys().filter(|name| { return !source_state.contains_key(*name); }).map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
         return Err(format!("the worktree does not hold the ignored state of its source: missing {missing:?}, differing {differing:?}, extra {extra:?}; the next commands said {told:?}"));
+    }
+    // A record of an add whose Git never made its destination may stay: the recovery keeps a record that names no Git until
+    // the window in which that Git may still be creating the destination has passed, and settles it then, saying nothing
+    // about a worktree nothing needs.
+    if !made_by_git {
+        return Ok(());
     }
     let journal_root: PathBuf = repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1");
     let left: Vec<String> = names_in(journal_root.as_path());

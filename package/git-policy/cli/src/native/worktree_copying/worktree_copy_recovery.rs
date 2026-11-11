@@ -23,7 +23,6 @@ use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_registration_naming::{NamedRegistration, absent_path, registration_naming};
-use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_copy_stage_binding::{stage_binding, verify_stage_binding};
 use crate::worktree_copy_stage_claim_reaping::{StageVerdicts, judge_stage_owners, reap_judged_stages};
 use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
@@ -472,10 +471,9 @@ pub fn recover_pending_worktree_copies(
     context: &crate::transaction_git::GitContext,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
-    if read_pending_journals(common_dir)?.is_empty()
-        && !stage_claims_exist(common_dir)?
-        && !crate::worktree_copy_unfilled_record::unfilled_records_exist(common_dir)?
-    {
+    // Any item at all is work: a journal to resume, a claim or a record to settle, a stage to reap, or a temporary a
+    // killed write never renamed. An empty root costs this one listing and nothing else.
+    if !crate::worktree_copy_journal::journal_items_exist(common_dir)? {
         return Ok(());
     }
     // One judgement of every owner, before anything is changed: the copy an interrupted add owes is finished first,

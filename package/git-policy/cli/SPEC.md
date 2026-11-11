@@ -3039,9 +3039,11 @@ the claim names a stage by its path alone,
 which proves nothing about what stands there now,
 so the notice names the stage and says to remove it once nothing needs it.
 The one exception is a container that records the registration its copy was made for,
-in the stage binding a copy writes before the first payload entry:
-that container is provably that copy's own stage,
-so the pass above removes it and makes the copy again into that name.
+in the stage binding a copy writes before the first payload entry,
+or one that holds nothing but the parts of that record,
+which a kill inside its write leaves:
+such a container holds none of the source's ignored files,
+so the owed-copy pass removes it and makes the copy again into that name.
 A container of an add that records no binding, such as a snapshot's subvolume, is kept and named as before.
 For a claim no add recorded,
 recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
