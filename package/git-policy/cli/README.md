@@ -852,6 +852,106 @@ Read-only commands,
   A signal sent by another process is relayed to the Git child,
    and the wrapper then ends without leaving state of its own behind.
 
+## What a worktree snapshot holds, and when the wrapper removes one
+
+A `git worktree add` on btrfs is served by a snapshot of the worktree the command runs from,
+ usually the main checkout.
+A snapshot shares every data block with the tree it was taken from,
+ so it costs almost nothing at the moment it is made.
+What that means over time surprises people,
+ so this section says it plainly.
+
+**A snapshot keeps the files the source had at the moment of the add.**
+The new worktree sees its own copy of them,
+ but the blocks it shares are the ones the source held then.
+When the source later rewrites a file,
+ the new bytes go to new blocks and the old blocks stay,
+ kept alive by the snapshot,
+ until that worktree is removed.
+This holds for every file the add copied,
+ ignored ones included:
+ `node_modules/`,
+ each `package/*/*/target/`,
+ `dist/`,
+ and the repository's `.cache/`.
+So a finished worktree that nobody removes pins one generation of the source's files.
+The cost is invisible in any single worktree,
+ because no snapshot owns those blocks;
+ it shows up only as space that no file seems to use.
+
+**The wrapper removes a worktree by itself when the branch it holds lands.**
+When a `git merge` run through this wrapper lands a branch on the branch the merge ran in,
+ every linked worktree whose checked-out branch that merge brought in is removed,
+ provided all of these hold:
+
+- this program recorded that it made that worktree,
+   which it does when its own `git worktree add` succeeds;
+- the worktree is not the one the merge runs in,
+   and it is not locked;
+- no merge,
+   rebase,
+   cherry-pick,
+   revert or bisect is in progress in it;
+- no process is working in it or in a folder below it;
+- Git would remove that worktree without `--force`:
+   no tracked file is modified or staged there and no untracked file exists.
+
+On btrfs the removal destroys the worktree's subvolume in one call,
+ which is what gives the shared blocks back;
+ elsewhere,
+ or when the mount does not allow that call,
+ real `git worktree remove` runs instead.
+Either way,
+ **the branch is kept**,
+ and so is every commit on it;
+ only the checked-out copy goes.
+
+**What goes with the worktree.**
+The files Git ignores in it go too,
+ exactly as they do when a person runs `git worktree remove`:
+ a `node_modules/` and a `target/` are rebuilt by the next task,
+ and anything else ignored that you put there yourself is gone.
+That is the whole reason a worktree is removed only when this program made it:
+ a worktree you created by hand is never removed by itself,
+ because this program cannot know which ignored files in it are yours.
+A worktree this program cannot prove it made is named instead,
+ once per merge that lands its branch,
+ with the `git worktree remove` line that removes it.
+
+**What a worktree left behind says.**
+Every merge that lands a branch names each worktree it kept,
+ or could not prove it made,
+ giving the path,
+ the branch,
+ and the reason nothing was removed.
+Nothing is removed in silence,
+ and nothing is removed while a person is working in it.
+
+**Seeing what the snapshots hold.**
+The commands that answer this on this repository's filesystem,
+ each read-only:
+
+```sh
+# every linked worktree Git knows, with its branch
+git worktree list
+
+# the subvolumes under the worktrees folder, which is what a snapshot is
+btrfs subvolume list --sort=path .claude/worktrees
+
+# space per worktree: the total each one sees, and what only it holds
+btrfs filesystem du --summarize .claude/worktrees/<name>
+
+# what the whole set holds, and what the filesystem has left
+btrfs filesystem du --summarize --human-readable .claude/worktrees
+df --human-readable .
+```
+
+A worktree whose exclusive figure is small and whose total is large is one of many snapshots
+ sharing the source's blocks:
+ removing it alone frees little,
+ and removing all of them frees the generations they pinned.
+That is why the wrapper now removes them when their branches land.
+
 ## Other processes changing files
 
 The wrapper checks files,
@@ -2226,6 +2326,21 @@ The merge commit skips `pre-merge-commit`,
  like the merge the auto-push makes from objects;
  `post-merge` runs once.
 The branch reflog reads `merge <branch>: Fast-forward`.
+
+A merge that lands a branch also removes the worktrees that hold it.
+After the branch moved,
+ every linked worktree whose checked-out branch this merge brought in is removed by itself when
+ it is recorded as one this program made,
+ it is not the worktree the merge runs in,
+ it is not locked,
+ no operation is in progress in it,
+ no process works inside it,
+ and Git would remove it without `--force`.
+Each worktree the merge removes,
+ leaves,
+ or cannot prove it made is named on standard error with its branch and the reason.
+See "What a worktree snapshot holds,
+ and when the wrapper removes one".
 
 #### Carrying the person's own work
 
@@ -4013,6 +4128,16 @@ The copy writes its own record before its first entry and removes it when it com
 so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
 named instead of forgetting what is missing there.
 The line goes when the worktree is removed or is replaced by another one at the same path.
+
+A worktree this program made has one record of its own beside its registration in the common Git directory,
+ `monochromatic-git-policy-cli/worktrees/<name>/monochromatic-git-policy-cli-worktree-added`,
+ which names the worktree's path.
+It is written once the add that Git accepted has returned,
+ and it goes with the registration,
+ so nothing removes it on its own.
+It is the only proof a later command accepts that this program made that worktree,
+ and a merge uses it to remove the worktree once its branch has landed
+ (see "What a worktree snapshot holds, and when the wrapper removes one").
 
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
