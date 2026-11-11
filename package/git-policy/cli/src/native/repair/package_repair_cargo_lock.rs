@@ -20,7 +20,8 @@
 //!  so the bytes that stand there are kept whole under the worktree's Git directory
 //!  before the checked-out ones are put back
 //! (the owner's rule "never discard user data";
-//! a review of `ee545033ad`, finding 3,
+//! a review of `ee545033ad`,
+//! finding 3,
 //!  found the restore writing over a newer edit without a copy of it).
 //! A lock the clean left unchanged is not written at all,
 //!  and a lock whose displaced bytes cannot be kept is left exactly as it was found,
@@ -182,7 +183,9 @@ fn put_back(path: &Path, before: Option<&[u8]>) {
 /// ```
 fn keep_the_bytes(kept_in: &Path, lock: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
     let directory: PathBuf = copies_directory(kept_in, lock);
-    create_private_directory_all(directory.as_path()).map_err(|error| format!("{} could not be made ({error})", directory.display()))?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("{} could not be made ({error})", directory.display()));
+    }
     // A lock displaced once already keeps its first copy and this one stands beside it: the first copy is the oldest statement of
     //  what a clean found, and replacing it would lose the bytes of the earlier repair.
     for step in 0.. {
@@ -190,7 +193,9 @@ fn keep_the_bytes(kept_in: &Path, lock: &Path, bytes: &[u8]) -> Result<PathBuf, 
         let copy: PathBuf = directory.join(name);
         match write_exclusive_synced(copy.as_path(), bytes) {
             Ok(()) => {
-                sync_directory(directory.as_path()).map_err(|error| format!("{} could not be made durable ({error})", directory.display()))?;
+                if let Err(error) = sync_directory(directory.as_path()) {
+                    return Err(format!("{} could not be made durable ({error})", directory.display()));
+                }
                 return Ok(copy);
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}

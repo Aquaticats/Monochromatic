@@ -7,7 +7,8 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// The bytes the checkout left, which the person reads as the lock.
+/// The bytes the checkout left,
+/// which the person reads as the lock.
 const CHECKED_OUT: &[u8] = b"# the checked-out lock\n";
 
 /// The bytes a command that is not the clean wrote while the clean ran.

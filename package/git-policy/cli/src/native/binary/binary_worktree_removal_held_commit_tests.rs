@@ -2,7 +2,9 @@
 //!  Consumer-level controls for the commit a reference lock holds in a linked worktree,
 //!  through the built executable:
 //!  a removal or a prune keeps that commit where it cannot reach it,
-//!  and a removal stops, naming what is still held, when no reference can hold it.
+//!  and a removal stops,
+//! naming what is still held,
+//! when no reference can hold it.
 //! Why:
 //!  The wrapper hands the removal to Git and cannot look afterwards,
 //!  so only a command that starts the executable over a disposable repository
@@ -32,7 +34,8 @@ const EDITED: &str = "edited.txt";
 const SEQ: u64 = 7;
 
 /// Real Git's answer to a question,
-/// trimmed, as text.
+/// trimmed,
+/// as text.
 /// Why:
 ///  A control compares the reference name real Git reports,
 /// and the binary harness has no reader of a direct command's standard output.
@@ -78,7 +81,8 @@ impl HeldScene {
     }
 
     /// What real Git's own maintenance says about the commit:
-    /// its type, or nothing when no object holds it any more.
+    /// its type,
+    /// or nothing when no object holds it any more.
     fn object_type_after_maintenance(&self) -> String {
         git(&self.fixture, self.repo.as_path(), &["gc", "--prune=now"]);
         let asked: Observed = run_direct(&self.fixture, self.repo.as_path(), &["cat-file", "-t", self.held.as_str()]);
@@ -143,7 +147,10 @@ fn a_held_commit(label: &str) -> HeldScene {
 ///  The question about the kept reference and its write ran Git in the deleted checkout,
 ///  which Git cannot start in,
 ///  so the wrapper warned and handed the prune to Git:
-///  the record, the per-worktree reference and, with real Git's own maintenance, the commit went
+///  the record,
+/// the per-worktree reference and,
+/// with real Git's own maintenance,
+/// the commit went
 ///  (a review of `ee545033ad`,
 ///  finding 1).
 #[test]
@@ -166,7 +173,9 @@ fn a_prune_keeps_the_held_commit_of_a_checkout_that_is_gone() {
 ///  and the removal the person asked for still finishes.
 /// Why:
 ///  The wrapper reported the failed write and handed the removal to Git,
-///  which deleted the worktree's reference and, with real Git's own maintenance, the commit
+///  which deleted the worktree's reference and,
+/// with real Git's own maintenance,
+/// the commit
 ///  (a review of `ee545033ad`,
 ///  finding 2).
 #[test]
@@ -192,7 +201,8 @@ fn a_forced_removal_keeps_the_held_commit_beside_a_locked_kept_reference() {
 /// What:
 ///  When neither of the two names can be written,
 ///  the removal does not run:
-///  it exits 2, names the commit and the references it tried,
+///  it exits 2,
+/// names the commit and the references it tried,
 ///  says nothing was removed,
 ///  and gives the lock that stands in the way with the command that removes it.
 /// Why:

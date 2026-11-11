@@ -356,7 +356,8 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
 ///  so the record stays where it is and the line says what holds the commit and what still sends it.
 /// A push the person makes of their own branch is forwarded unchanged,
 /// which is the one thing that does send such a commit
-///  (`work_item_holding.rs`, `block`).
+///  (`work_item_holding.rs`,
+/// `block`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

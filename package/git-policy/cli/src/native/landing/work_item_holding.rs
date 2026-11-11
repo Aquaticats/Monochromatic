@@ -222,7 +222,8 @@ pub struct BlockedVerdict {
 /// a record forgotten beside a verdict that was not written leaves neither,
 /// `is_blocked` then reads false,
 /// and the next hold and push publish the commit the gate refused
-///  (a review of `ee545033ad`, finding 2).
+///  (a review of `ee545033ad`,
+/// finding 2).
 /// A verdict that cannot be written leaves the held record standing,
 /// which is the state that keeps the commit local,
 ///  and the failure is said rather than swallowed.
@@ -330,7 +331,13 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
     //  between the verdict and the verdict record, or that record could not be written. The commit must not be published by the
     //  branch's next push in that state either (`held_push_holder_and_verdict.rs`), and one verdict per commit is enough.
     for refusal in refused_while_held(work_dir) {
-        if !verdicts.iter().any(|verdict| return verdict.commit == refusal.commit) {
+        let mut recorded: bool = false;
+        for verdict in &verdicts {
+            if verdict.commit == refusal.commit {
+                recorded = true;
+            }
+        }
+        if !recorded {
             verdicts.push(refusal);
         }
     }
@@ -349,7 +356,8 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
 ///  the push of the branch is decided from the refusals this worktree can read,
 ///  and a held refusal is one of them.
 /// A record that cannot be read,
-///  or names a kind that is not a push, states no refusal a push of a branch must stop before.
+///  or names a kind that is not a push,
+/// states no refusal a push of a branch must stop before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
