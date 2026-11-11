@@ -126,6 +126,36 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T18:15:00-05:00)
+
+The owner, at about 18:05, after the coordinator had again edited scratch scripts:
+"I've said to fold pi-runs set of scripts into a proper workspace package before.
+I believe there is also a launcher already as a proper workspace package.
+I don't wanna see you edit pi-runs outside the workspace again.
+Please pick that up."
+So no script under `~/temp/agent/pi-runs` is created or edited any more;
+only data lives there (briefs, batch lists, inbox notes, run folders).
+The launcher is `package/pi-shared/subagent-driver`
+(`start-pi-run-in-a-worktree`, `start-pi-run-when-a-pool-has-room`, `retry-pi-run-start-until-a-pool-has-room`, `start-pi-runs-from-a-batch-list`),
+ported on `feat/pi-shared-subagent-driver-takes-the-launcher-fixes` and not yet on `main`.
+The coordinator lands it through `feat/pi-shared-subagent-driver-launcher-and-todays-pools-onto-main`
+(worktree `.claude/worktrees/coordinator-subagent-driver-launcher-onto-main`, the port merged at `d99ebfec76`).
+Its pool gate is behind the scratch gate (old limits, OpenCode Go open, no qwen pools, no free-space floor),
+so round 230 (`feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`) brings it level first;
+round 212's agent (`feat/pi-shared-subagent-driver-takes-the-remaining-scratch-scripts`) keeps the rest:
+a batch as its own unit, the after-run steps of a launcherless run, the finished-worktree remover's in-use check.
+Until both are on `main` the existing scratch scripts are still run, unedited, to start agents.
+
+The owner, minutes later, quoting the coordinator's "the release pipeline runs native:clippy on main":
+"make the release pipeline avoid running any extra work for alphas."
+The coordinator's own steps change at once: an alpha gets no `native:clippy` run on `main`.
+In the coded pipeline an alpha today still waits for the crate's `dispatchGate` (the btrfs controls, 3286 s when measured),
+a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an alpha never goes to crates.io;
+round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
+This narrows the owner's 2026-11-10 choice "Before each release (Recommended)"
+("A wrapper release waits for that run, and a skipped test fails it."): the coordinator reads it as holding for every release but an alpha.
+Open, to ask: whether an alpha still waits for the full test gate (`native:gate`), runs it without waiting, or skips it.
+
 ### Cleanup runs continuously, and what a Claude Code restart loses (2026-11-11T17:30:24-05:00)
 
 The owner, 2026-11-11 at about 17:2x:
