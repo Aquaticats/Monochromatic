@@ -9439,8 +9439,7 @@ a landing or withdrawal record,
 and a file this release does not know keep the whole journal and are logged,
 never discarded.
 A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
-(20 minutes,
-7 seconds and 10 seconds:
+(`ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`:
 the whole wait a client may spend on an answer,
 the short extra wait inside it,
 and the look for its commit),

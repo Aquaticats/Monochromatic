@@ -1331,8 +1331,7 @@ and a file that stayed would count the instance again.
 Its journal goes with them when it holds nothing else and no client of the instance can still read it:
 the records of the batches that landed,
 once they are older than the longest a client that lost its answer can look,
-and the remains of a write that was killed,
-are the memory of a service that will never run again,
+and an empty landing record are the memory of a service that will never run again,
 while a batch that did not land,
 a landing that was in flight,
 and a file this release does not know keep the whole journal,
