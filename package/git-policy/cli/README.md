@@ -1050,6 +1050,19 @@ A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
 
+**What a removal keeps.**
+A worktree's own Git directory also holds the push failures nobody has seen yet
+ and the pushes the service had not run,
+ and a removal deletes it.
+So a removal copies them first,
+ as `git worktree remove` does,
+ and the next command shows what the worktree could no longer say:
+ the failed push with Git's words,
+ and an unfinished push as one that may not have finished.
+A commit a reference lock held in that worktree is kept the same way,
+ on `refs/cli-git/kept/<batch>` of this repository,
+ before anything is removed.
+
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,
  or could not prove it made,

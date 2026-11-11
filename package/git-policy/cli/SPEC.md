@@ -2991,6 +2991,7 @@ as the wrapper does.
 The unshown push-failure notices and the unfinished push records of a linked worktree live in its own Git directory,
 which the removal deletes,
 so before `git worktree remove` or `git worktree prune` runs,
+and before the landed sweep removes a worktree by itself,
 the wrapper copies them into a snapshot under `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>`,
 last writing the Git directory it was taken from and first recording the process that took it
 (`src/native/worktree/worktree_removal_rescue.rs`).
@@ -3030,6 +3031,7 @@ and on the per-worktree reference `refs/worktree/cli-git-service/<batch>`,
 which the removal deletes as well,
 and the wrapper hands a `--force` removal to Git and cannot look afterwards:
 before `git worktree remove` or `git worktree prune` runs,
+and before the landed sweep removes a worktree by itself,
 every held commit of every linked worktree is kept on `refs/cli-git/kept/<batch>` of the common Git directory,
 and the person is told,
 before Git runs,
@@ -3040,7 +3042,9 @@ not in the worktree,
 because `git worktree prune` exists for the state a person leaves by deleting a checkout,
 and Git cannot answer a question asked in a directory that is not there.
 A kept reference that already names another commit is left alone and the person is told,
-and a removal Git then refuses leaves that reference naming the commit the batch still holds.
+and the commit is kept on `refs/cli-git/kept/<batch>-rescue` beside it,
+because a name that holds another commit keeps nothing of this one;
+a removal Git then refuses leaves that reference naming the commit the batch still holds.
 When `refs/cli-git/kept/<batch>` cannot be written at all (a lock standing on it,
 or a reference directory that refuses the write),
 the commit is kept on `refs/cli-git/kept/<batch>-rescue` and the person is told that name,
@@ -3052,8 +3056,12 @@ the command stops before Git runs,
 with status 2,
 saying which commit and branch are still held and where,
 that nothing was removed,
-that a `git gc --prune=now` run from another checkout would take those commits until the same command is run again,
+that a `git gc --prune=now` run from another checkout would take those commits until a reference of this repository holds them,
+which `git worktree remove` of the worktree that holds one does,
 and which lock file stands there with the command that removes a lock nothing holds.
+A merge run again never finishes that removal:
+a branch that already landed makes the merge up to date,
+so it looks at no worktree.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
