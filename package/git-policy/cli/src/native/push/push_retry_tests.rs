@@ -118,8 +118,24 @@ const PRE_RECEIVE_DECLINED: &str = "remote: protected: pushes to main need a rev
 const UPDATE_DECLINED: &str = "remote: update says no        \nremote: error: hook declined to update refs/heads/main        \nTo /srv/remote.git\n ! [remote rejected] main -> main (hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
 
 /// A hosting service's own reason in the same position,
-/// which names a hook.
+/// which names a hook and carries no code of its own.
+/// GitHub writes this reason with its own `GH006` line in front of it,
+/// so a refusal without the code is one nothing says is the protected-branch rule of a hosting service.
 const PROTECTED_BRANCH_DECLINED: &str = " ! [remote rejected] main -> main (protected branch hook declined)\n";
+
+/// What:
+///  GitHub's answer to the commit service's auto-push of `main`,
+///  word for word,
+/// at `2026-11-11T06:42-05:00`.
+/// Why:
+///   The wrapper printed this refusal as a server hook's decline and stopped pushing the branch until the next commit,
+/// and a plain `git push origin main` of the same commit two minutes later landed it
+///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+/// The `GH006` line is the only part of it that says the refusal is the hosting service's protected-branch rule:
+/// the reason beside it is the
+///  position where any server writes its own words,
+/// and the reason after the code is empty.
+const GITHUB_PROTECTED_BRANCH: &str = "remote: error: GH006: Protected branch update failed for refs/heads/main.\nremote: \nTo https://github.com/Aquaticats/Monochromatic\n ! [remote rejected]       main -> main (protected branch hook declined)\nerror: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'\n";
 
 /// `remote-curl.c` `die(_("Authentication failed for '%s'"))`,
 /// for a 401 with a user name and no usable password.
@@ -157,8 +173,32 @@ fn an_authentication_failure_is_not_tried_again() {
     }
 }
 
+/// What:
+///  A refusal GitHub answers with its protected-branch code is tried again,
+///  and named by nothing as an unknown reason.
+/// Why:
+///   A protected-branch refusal is the server's answer at that moment,
+///  never a property of the commit:
+/// GitHub refused `29bae9bb87` with `GH006` at `2026-11-09T23:30:11-05:00` and took it unchanged moments later,
+/// and refused the auto-push of `main` with it again at `2026-11-11T06:42-05:00`,
+/// which a push by hand landed two minutes later
+///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+///   The owner's decision of 2026-11-11 is to retry it,
+/// which the service's plan does within a fixed number of tries.
+#[test]
+fn a_github_protected_branch_refusal_is_tried_again() {
+    assert_eq!(final_failure(GITHUB_PROTECTED_BRANCH), None, "{GITHUB_PROTECTED_BRANCH}");
+    assert!(!needs_the_person(GITHUB_PROTECTED_BRANCH), "the person is not sent to push by hand for it: {GITHUB_PROTECTED_BRANCH}");
+    assert_eq!(
+        unrecognised_rejection(GITHUB_PROTECTED_BRANCH),
+        None,
+        "a refusal the release knows is not reported as a reason it does not: {GITHUB_PROTECTED_BRANCH}"
+    );
+}
+
 /// A server hook's decline is final,
-/// whichever hook declined and whoever wrote its reason.
+/// whichever hook declined and whoever wrote its reason,
+/// as long as no protected-branch code says what the refusal is.
 #[test]
 fn a_server_hook_decline_is_not_tried_again() {
     for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {

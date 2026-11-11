@@ -201,6 +201,16 @@ const SCRIPTED_PAUSE: Duration = Duration::from_millis(300);
 /// A directory standing for a repository,
 /// with a push item written for it.
 fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Arc<Scripted>, PushRetries) {
+    return scripted_world_paced(name, verdicts, SCRIPTED_PAUSE);
+}
+
+/// The same world,
+/// with a first pause the control chooses.
+/// Why:
+///   A control that counts tries reads the plan's pauses as waits,
+/// so a pause of a fraction of a second keeps it quick,
+///  while a control that measures the pauses asks for the world's own.
+fn scripted_world_paced(name: &str, verdicts: Vec<Verdict>, first: Duration) -> (PathBuf, PathBuf, Arc<Scripted>, PushRetries) {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("common");
     let worktree: PathBuf = root.join("worktree");
@@ -218,7 +228,60 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Arc<
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
     let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(verdicts), pushes: AtomicUsize::new(0) });
-    return (root, git_dir, handlers, PushRetries::with_first_pause(SCRIPTED_PAUSE));
+    return (root, git_dir, handlers, PushRetries::with_first_pause(first));
+}
+
+/// The first pause of the controls that count tries:
+/// short enough that the plan's doubling stays a few tens of milliseconds,
+/// long enough that a round's own work does not outlast it.
+const COUNTED_PAUSE: Duration = Duration::from_millis(1);
+
+/// How many rounds a control lets a plan run before it fails the plan as one that never ends:
+/// above the tries the service gives a refusal,
+/// and small enough that the pauses of a plan that keeps going do not outlast the control's own patience.
+/// The try count itself is asserted apart from this,
+/// so this figure never states the bound under test.
+const SAFETY_ROUNDS: u32 = 12;
+
+/// What:
+///  A protected-branch refusal that keeps coming back ends,
+///  and the person is told what the server said,
+///  how many tries the service gave it,
+///  and what to do.
+/// Why:
+///   The refusal can clear by itself,
+///  so it is not final,
+/// and a rule that refuses every push of the branch refuses every try as well:
+/// an unsigned commit on a branch that requires signed commits is one,
+/// and the service must
+///  stop trying it and ask the person rather than wait for ever (the owner's rules "nothing should ever wait forever or
+///  indefinitely" and "Commits should never fail.").
+///  The refusal below is GitHub's own shape,
+/// with its code,
+/// its words and the reason a server's protected-branch rule writes.
+#[test]
+fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person() {
+    let refusal: String = format!(
+        "remote: {GITHUB_PROTECTED_BRANCH_LINE}\nremote: \nTo /srv/remote.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n"
+    );
+    let script: Vec<Verdict> = (0..SAFETY_ROUNDS).map(|_round| { return Verdict::Retry(refusal.clone()); }).collect();
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
+        scripted_world_paced("push-retry-gh006-keeps-coming-back", script, COUNTED_PAUSE);
+    let mut rounds: u32 = 0;
+    let mut plan: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    loop {
+        let Some(wait) = plan else { break };
+        rounds += 1;
+        assert!(rounds < SAFETY_ROUNDS, "the service was still planning tries for a refusal that comes back every time: {rounds} rounds");
+        std::thread::sleep(wait);
+        plan = round_of(git_dir.as_path(), &handlers, &mut retries);
+    }
+    assert!(retries.directories().is_empty(), "no plan is left for a refusal that has used up its tries");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("GH006"), "the person is shown what GitHub said: {record}");
+    assert!(record.contains("stopped trying this branch"), "the person is told the service has stopped: {record}");
+    assert!(!record.contains("tries this push again"), "the record promises no try that is not coming: {record}");
+    remove(root.as_path());
 }
 
 /// Every failure that can pass is tried again,
@@ -810,6 +873,59 @@ fn a_push_a_server_hook_declines_is_not_tried_again() {
     let record: String = notice_text(&stage);
     assert!(record.contains(DECLINE_MESSAGE) && record.contains("hook declined"), "the person is told what the server said: {record}");
     assert!(record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
+    remove(stage.root.as_path());
+}
+
+/// The line GitHub's own server prints in a refused push when its protected-branch rule declines the update:
+/// the code it answers with,
+/// its words for it,
+/// and the reference it refused.
+const GITHUB_PROTECTED_BRANCH_LINE: &str = "error: GH006: Protected branch update failed for refs/heads/main.";
+
+/// What:
+///  A push a server refuses with GitHub's protected-branch code is landed by the commit service itself once the
+///  server takes it,
+/// with no new commit and with no push by hand.
+/// Why:
+///   At `2026-11-11T06:42-05:00` the auto-push of `main` was refused with `GH006` one minute after another session
+///  had pushed `main`,
+/// the wrapper stopped pushing the branch until the next commit,
+/// and a plain `git push origin main` of the same commit two minutes later landed it
+///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+/// The hook below answers as GitHub did on the first push and as it did on the second:
+/// the refusal is the server's answer
+///  at that moment,
+/// and the retry is the service's own.
+#[test]
+fn a_push_a_server_refuses_with_gh006_is_tried_again_and_lands_without_a_new_commit() {
+    let stage: Stage = stage("push-retry-gh006-clears");
+    let refused_once: PathBuf = stage.root.join("refused-once");
+    let hook: PathBuf = stage.remote.join("hooks").join("pre-receive");
+    // A hook's standard error reaches the client as `remote:` lines, so the code arrives in the push's output as GitHub's does.
+    std::fs::write(
+        hook.as_path(),
+        format!("#!/bin/sh\nif [ ! -e '{marker}' ]; then\n  echo '{GITHUB_PROTECTED_BRANCH_LINE}' >&2\n  : > '{marker}'\n  exit 1\nfi\nexit 0\n", marker = refused_once.display()),
+    )
+    .expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "the server refused the first push the service made");
+    assert_eq!(notices(&stage), 1, "the person is told the push was refused");
+    let record: String = notice_text(&stage);
+    assert!(
+        record.contains("tries this push again by itself") && record.contains("GH006"),
+        "the person is told GitHub's words and that the service tries again: {record}"
+    );
+    let wait: Duration = first.expect("the service says when to look at the repository again");
+    assert!(wait <= PAUSE + Duration::from_secs(5), "the wake is for the retry: {wait:?}");
+    std::thread::sleep(wait);
+    let second: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the service landed the commit on its own");
+    assert_eq!(notices(&stage), 0, "the record of the refusal is gone once the push landed");
+    assert_eq!(second, None, "nothing is left to try again");
+    let head: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    assert_eq!(head, stage.landed, "the push landed the commit that was already there, with no new one");
     remove(stage.root.as_path());
 }
 
