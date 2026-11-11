@@ -117,6 +117,13 @@ so pay-as-you-go limits apply until it renews."
 The rate-limit endpoint still answered `effective_concurrency` 20 then,
 so the 429 is what tells;
 Pi ends the run on it instead of retrying.
+The owner's `retry` group was read again on 2026-11-11 at 22:33Z and holds
+`enabled` true,
+`maxRetries` 8 and
+`baseDelayMs` 1000,
+so Pi's own retry makes its attempts at a 429 before the run ends,
+and the driver leaves every 429 to it
+(`package/pi-shared/subagent-driver/README.md`, section "Which layer retries what").
 The same night 20 of 28 Kimi reviews on Kimi flex ended on
 "You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 7 in flight at once).
 Flex requests have a separate per-account concurrency limit from standard requests."
