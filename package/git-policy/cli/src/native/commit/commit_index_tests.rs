@@ -415,7 +415,8 @@ fn an_exclusion_narrows_the_exact_paths_without_staging_another() {
 }
 
 /// A selection of nothing but exclusions keeps native Git's reading of it:
-/// every path except those, with no positive element to narrow it.
+/// every path except those,
+/// with no positive element to narrow it.
 #[test]
 fn a_selection_of_exclusions_alone_stages_every_other_path() {
     let root: PathBuf = fixture("commit-index-exclude-alone");
@@ -429,7 +430,8 @@ fn a_selection_of_exclusions_alone_stages_every_other_path() {
 }
 
 /// A directory element and an exclusion are one selection:
-/// the tracked paths below the directory, minus the excluded one.
+/// the tracked paths below the directory,
+/// minus the excluded one.
 #[test]
 fn an_exclusion_inside_a_directory_selection_is_honoured() {
     let root: PathBuf = fixture("commit-index-exclude-directory");

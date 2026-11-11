@@ -345,13 +345,19 @@ fn a_staged_deletion_outside_a_literal_pathspec_is_not_this_commit() {
         );
         let tree: String = git_text(&fixture, repo.as_path(), &["ls-tree", "--name-only", "HEAD"]);
         assert!(tree.contains("literal*.txt"), "{mode:?}: {tree}");
-        assert!(
-            !tree.contains("literal-other.txt"),
-            "{mode:?}: the deletion of a path this selection does not name stays staged: {tree}"
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:literal-other.txt"]),
+            "other base\n",
+            "{mode:?}: the unselected path keeps the content the base had"
+        );
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:literal*.txt"]),
+            "star edit\n",
+            "{mode:?}: the selected path holds its worktree content"
         );
         assert!(
             porcelain(&fixture, repo.as_path()).contains("D  literal-other.txt"),
-            "{mode:?}: {}",
+            "{mode:?}: the deletion of a path this selection does not name stays staged: {}",
             porcelain(&fixture, repo.as_path())
         );
         assert_nothing_left(&fixture, repo.as_path());
@@ -707,7 +713,8 @@ fn two_edited_files(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// An exclusion subtracts the exact path it names, so `a.txt ':(exclude)a.txt'` is a selection no path matches:
+/// An exclusion subtracts the exact path it names,
+/// so `a.txt ':(exclude)a.txt'` is a selection no path matches:
 /// nothing lands and both edits stay where the person left them.
 #[test]
 fn an_exclusion_of_an_exact_path_leaves_nothing_to_commit() {
@@ -755,8 +762,10 @@ fn an_exclusion_keeps_the_unselected_exact_path_out_of_the_commit() {
 }
 
 /// A `--pathspec-from-file` names the same paths the command line names,
-/// so a staged deletion whose file stays on disk gets the same finding: the commit is not made,
-/// the file keeps its bytes, and the deletion stays staged.
+/// so a staged deletion whose file stays on disk gets the same finding:
+/// the commit is not made,
+/// the file keeps its bytes,
+/// and the deletion stays staged.
 #[test]
 fn a_pathspec_file_of_a_staged_deletion_that_stays_on_disk_gets_the_finding() {
     let fixture: Fixture = fixture("commit-pathspec-file-staged-deletion");

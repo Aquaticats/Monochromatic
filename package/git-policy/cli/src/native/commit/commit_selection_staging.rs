@@ -145,10 +145,10 @@ fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items
             patterns.push(item);
         }
     }
-    let exclusions: Vec<&OsString> = patterns.iter().copied().filter(|item| { return excludes_paths(item.as_os_str()); }).collect();
+    let exclusions: Vec<&OsString> = patterns.iter().copied().filter(subtracts_paths).collect();
     // True while the patterns still name something: a directory, a pattern or additive magic. Only these keep the
     //  subtracting elements from reading as every path.
-    let names_a_pattern: bool = patterns.iter().any(|item| { return !excludes_paths(item.as_os_str()); });
+    let names_a_pattern: bool = patterns.iter().any(names_a_path);
     if !named_files.is_empty() {
         let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--")];
         for name in &named_files {
@@ -456,7 +456,7 @@ pub(crate) fn excludes_paths(token: &OsStr) -> bool {
     let Some(magic) = bytes.strip_prefix(b":") else { return false };
     if let Some(long) = magic.strip_prefix(b"(") {
         let Some(close) = long.iter().position(is_close_paren) else { return false };
-        return long.get(..close).unwrap_or(long).split(is_comma).any(|word| { return word == b"exclude"; });
+        return long.get(..close).unwrap_or(long).split(is_comma).any(is_exclude_word);
     }
     let mut at: usize = 0;
     while let Some(byte) = magic.get(at) {
@@ -467,6 +467,46 @@ pub(crate) fn excludes_paths(token: &OsStr) -> bool {
         }
     }
     return false;
+}
+
+/// Whether one borrowed element subtracts the paths it names.
+/// Why:
+///   The element lists below are read by path rather than by a closure,
+/// so each question is one named function (`rust/avoidable-closure`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const subtractsPaths = (element) => excludesPaths(element);
+/// ```
+fn subtracts_paths(element: &&OsString) -> bool {
+    return excludes_paths(element.as_os_str());
+}
+
+/// Whether one borrowed element names paths the selection takes.
+/// Why:
+///   The complement of `subtracts_paths`,
+/// read the same way:
+/// a pattern list that holds no naming element reads as every path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesAPath = (element) => !subtractsPaths(element);
+/// ```
+fn names_a_path(element: &&OsString) -> bool {
+    return !subtracts_paths(element);
+}
+
+/// Whether one long-form magic word is the subtraction word.
+/// Why:
+///   Git matches the word by its whole spelling in lower case,
+/// so `EXCLUDE` and `exclude-` are other magic and stay naming elements.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isExcludeWord = (word) => word === 'exclude';
+/// ```
+fn is_exclude_word(word: &[u8]) -> bool {
+    return word == b"exclude";
 }
 
 /// Whether one byte closes the long form of pathspec magic.
