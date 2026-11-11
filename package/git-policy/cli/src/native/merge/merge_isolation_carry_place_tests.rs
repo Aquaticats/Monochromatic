@@ -114,3 +114,52 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     holding.wait().expect("reaped");
     remove(root.as_path());
 }
+
+/// What:
+///  A file a carry deletes is removed from the path,
+///  and the entry it held is kept and nameable when a process can still write into it.
+/// Why:
+///  The removal path removes the private name of the entry it took aside,
+///  and that entry is the only name a write through a descriptor opened before the take can reach
+///  (a Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`,
+/// its first finding,
+/// which named the removal at line 353 as well as the placing).
+///  What the path loses is the merge's decision,
+///  never the bytes a program wrote into the entry beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = holderOf(location); const placed = await placeFile({ judged, write: { kind: 'remove' } }); expect(exists(location)).toBe(false); expect(asidesBesides(location)).toHaveLength(1); write(held, AN_EDIT); expect(read(asidesBesides(location)[0])).toEqual(AN_EDIT);
+/// ```
+#[test]
+fn a_file_a_process_holds_open_is_kept_when_a_carry_deletes_it() {
+    let root: PathBuf = fixture("carry-place-held-open-delete");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("f.txt"), BEFORE).expect("the branch's file");
+    git(repo.as_path(), &["add", "--", "f.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let location: PathBuf = repo.join("f.txt");
+    let object: String = git_text(repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
+    let judged: JudgedFile = JudgedFile { identity: file_identity(location.as_path()), content: Some(object) };
+    let mut writer: std::fs::File = std::fs::File::options().write(true).open(location.as_path()).expect("the writer's descriptor");
+    let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
+    let mut holder: std::process::Command = std::process::Command::new("sleep");
+    holder.arg("120").stdin(std::process::Stdio::from(held_open));
+    let mut holding: std::process::Child = holder.spawn().expect("a program holding the file open");
+    drop(holder);
+    let placed = crate::lazy_runtime::run_on_runtime(async {
+        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove).await;
+    })
+    .expect("the runtime runs the removal")
+    .expect("the removal goes through");
+    let said: String = format!("{placed:?}");
+    assert!(std::fs::symlink_metadata(location.as_path()).is_err(), "the path the merge deletes is free");
+    let kept: Vec<PathBuf> = asides_beside(location.as_path());
+    writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
+    writer.flush().expect("the write reaches the file");
+    assert_eq!(kept.len(), 1, "the entry the removal took aside is kept when a program holds it open: {kept:?} ({said})");
+    assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
+    holding.kill().expect("the holder ends");
+    holding.wait().expect("reaped");
+    remove(root.as_path());
+}

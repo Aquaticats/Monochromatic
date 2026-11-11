@@ -7,8 +7,37 @@
 use super::*;
 use crate::merge_isolation_carry::{capture_work, keep_capture};
 use crate::merge_isolation_carry_parts::Capture;
+use crate::merge_isolation_take_asides::ASIDE_PREFIX;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// The bytes a program that kept its descriptor writes into the entry a carry's take renamed.
+const THE_EDIT: &str = "an edit written through a descriptor that was opened before the take\n";
+
+/// The private names a take of `location` left in its directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asidesBeside = (location) => readdirSync(dirname(location)).filter((name) => name.startsWith(ASIDE_PREFIX));
+/// ```
+fn asides_beside(location: &Path) -> Vec<PathBuf> {
+    let Some(directory) = location.parent() else {
+        return Vec::new();
+    };
+    let Ok(listing) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(ASIDE_PREFIX) {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    return found;
+}
 
 /// Lines both sides start from.
 const LINES: &str = "one\ntwo\nthree\nfour\n";
@@ -166,5 +195,60 @@ fn a_path_changed_after_the_capture_is_left_alone() {
     let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::WhileFinishing, &mut out).expect("the carry");
     assert_eq!(report.changed, vec![b"a.txt".to_vec()]);
     assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"), "written by another program\n", "the later bytes stay");
+    remove(root.as_path());
+}
+
+/// What:
+///  A carried file a program holds open is written with the merged bytes,
+///  and the entry the take moved aside is kept and named rather than removed with its private name.
+/// Why:
+///  A program that opened the file before the carry keeps a descriptor to the inode the take renames,
+///  so removing the private name after the merge's entry is placed would leave its write on a file with
+///  no name at all
+///  (a Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`,
+/// its first finding).
+///  The carry asks the second pass's proof before it removes a private name,
+///  and says which one it kept,
+///  because a file a person cannot find is close to lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = holderOf(a); const report = await carry(...); expect(read(a)).toEqual(merged); expect(out).toContain(asides[0]); write(held, edit); expect(read(asides[0])).toEqual(edit);
+/// ```
+#[test]
+fn a_carried_file_a_program_holds_open_is_kept_and_named() {
+    let (root, repo, old, new) = diverged("carry-held-open");
+    let context = git_context();
+    let edited: String = format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main").replace("three", "three feature"));
+    let person: String = format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"));
+    std::fs::write(repo.join("a.txt"), person.as_str()).expect("the person's edit");
+    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
+    let mut out: Vec<u8> = Vec::new();
+    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::BeforeTheApply, &mut out).expect("the clear");
+    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    // A program that opened the file before this carry keeps a descriptor to the inode the take renames; the scan leaves
+    //  this process out, so the holder is a child of it, as an editor would be.
+    let location: PathBuf = repo.join("a.txt");
+    let mut writer: std::fs::File = std::fs::File::options().write(true).open(location.as_path()).expect("the writer's descriptor");
+    let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
+    let mut holder: std::process::Command = std::process::Command::new("sleep");
+    holder.arg("120").stdin(std::process::Stdio::from(held_open));
+    let mut holding: std::process::Child = holder.spawn().expect("a program holding the file open");
+    drop(holder);
+    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::WhileFinishing, &mut out).expect("the carry");
+    assert_eq!(report.conflicts.len(), 0, "nothing conflicts");
+    assert_eq!(std::fs::read_to_string(location.as_path()).expect("a.txt"), edited, "the merged line and the person's line");
+    let kept: Vec<PathBuf> = asides_beside(location.as_path());
+    let said: String = String::from_utf8(out).expect("the notices are UTF-8");
+    assert_eq!(kept.len(), 1, "the entry a program holds open is kept under its private name: {kept:?} ({said})");
+    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the private name is said: {said}");
+    assert!(said.contains("nothing of the person's was removed"), "the notice says nothing was removed: {said}");
+    // The write the program makes through its descriptor lands in the entry the carry kept.
+    writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
+    writer.flush().expect("the write reaches the file");
+    assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
+    holding.kill().expect("the holder ends");
+    holding.wait().expect("reaped");
     remove(root.as_path());
 }
