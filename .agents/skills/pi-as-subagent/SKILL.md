@@ -115,12 +115,20 @@ On 2026-11-11 from 01:19Z,
 Your subscription is in overage with auto-renew off,
 so pay-as-you-go limits apply until it renews."
 The rate-limit endpoint still answered `effective_concurrency` 20 then,
-so the 429 is what tells;
-Pi ends the run on it instead of retrying.
+so the 429 is what tells.
 The launcher's standard pool holds 6 runs until the owner turns auto-renew back on,
 which is the owner's billing decision.
-Restart a run that ended this way under its own name;
-its worktree keeps the work.
+Such a run now waits for a slot and goes on,
+instead of ending `model-error`:
+the driver reads the limit on requests running at once from the body's own words,
+waits with the delay and the ceiling the body names,
+and writes a `waiting-for-a-slot` line to its feed while it does
+(`package/pi-shared/subagent-driver/README.md`, "A provider whose pool is full").
+It gives up only after `--concurrency-wait-seconds`,
+so a run that still ended `model-error` on a slot wait says in its feed's `problem` line that the budget ran out;
+restart only those.
+A run waiting this way holds its worktree and its session,
+so nothing else starts in that slot meanwhile.
 The owner on 2026-11-10:
 "And you should almost always keep all slots filled."
 and
@@ -146,6 +154,10 @@ When Synthetic answers 429,
 the run moves to Neuralwatt's Kimi flex model and resumes its session there
 (`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
 under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+The driver does this move itself when the run ends on a Synthetic 429,
+resuming the session the ended Pi reported,
+so a coordinator starts no replacement
+(`package/pi-shared/subagent-driver/README.md`, "A spent Synthetic quota").
 Those runs take no DeepSeek slots,
 because "Neuralwatt rate limits are per model." (the owner,
 2026-11-10).

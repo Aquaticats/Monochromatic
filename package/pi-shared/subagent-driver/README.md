@@ -58,6 +58,16 @@ each written as `--name=value`:
   two seconds by default,
   which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
   The wait doubles with each attempt and never passes a minute.
+- `--concurrency-wait-seconds`:
+  how long a run waits, in all,
+  for a provider that says its limit on requests running at once is reached
+  to have a slot free,
+  two thousand four hundred seconds by default.
+  The number of attempts does not bound this wait,
+  because what it waits for is another run of the provider's pool finishing:
+  over the 1,052 finished runs in `${HOME}/temp/agent/pi-runs` on 2026-11-11,
+  a run lasts 1,744,872 ms at the median and 6,458,155 ms at the 90th percentile.
+  The run's own wall limit is the outer bound either way.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
@@ -265,6 +275,50 @@ not about a key that is wrong.
 A shape the driver does not recognise is left alone,
 which is how such a run ended before this existed:
 only a failure that is known to pass is waited out.
+
+### A provider whose pool is full
+
+A limit on requests running at once is one more shape another attempt can fix,
+and it is counted apart from other rate limits,
+because the wait it needs is the length of another run rather than a backoff.
+Neuralwatt writes one as HTTP 429 with `"code":"concurrent_budget_exceeded"`,
+`"limit_type":"concurrent"`,
+`"retry_strategy":{"suggested_initial_delay_s":1,"max_delay_s":30,"backoff":"exponential"}`
+and `"retryable":true`.
+The same body links a page under `/billing`,
+so Pi's own automatic retry reads it as a spent quota and never retries it
+(`NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN` in Pi 1.5.2's `dist/utils/retry.js`);
+this driver reads the words that name the limit instead,
+and those read before the billing words.
+
+The wait grows from the first delay the body names,
+doubling with each attempt and never past the ceiling it names,
+and the whole of it is bounded by `--concurrency-wait-seconds`.
+A reader of the run sees it begin:
+a `waiting-for-a-slot` line on `feed.jsonl` carries the wait about to be taken,
+the budget it sits under and the failure,
+written before the wait rather than after it,
+and the `retry` line that follows carries `withinMilliseconds` where a bounded by attempts run carries `of`.
+A run whose wait is spent with no slot free ends `model-error`,
+and its feed's `problem` line names the budget that ran out.
+
+### A spent Synthetic quota
+
+Synthetic sets no limit on runs at once,
+so its 429 means the quota is spent and no wait on Synthetic refills it.
+A run on Synthetic that ends on it is put away and started again
+on `--provider=neuralwatt --model=kimi-k3.1-pro-flex`
+with `--session` set to the session file the end of the last Pi reported,
+as the owner's rule of 2026-11-10 says:
+"Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s."
+The new Pi is given the work the failure left,
+not the original prompt again,
+and the feed records a `provider-switch` line naming both providers and the session.
+The run keeps its wall limit,
+its turn cap,
+its record and its exit status across both Pis,
+so it reads as one run that moved rather than as two that failed,
+and a spent quota on the fallback provider ends it rather than moving it again.
 
 That rule comes from the error texts the runs in `${HOME}/temp/agent/pi-runs` recorded on 2026-11-09.
 Six summaries ended `model-error`,
