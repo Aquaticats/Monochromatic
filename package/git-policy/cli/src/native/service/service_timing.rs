@@ -262,19 +262,36 @@ fn holder_field(who: &String) -> String {
 /// The words for what the wait for the lock found,
 /// empty when the lock was free at the first placement:
 /// the placements that found it held,
-/// the time spent flushing the marker and the time spent waiting,
+/// the time spent readying the acquisition (`lock_setup_ms`),
+/// flushing the marker (`lock_stage_ms`),
+/// waiting for a holder (`lock_place_ms`)
+/// and removing the staged file once the wait was decided (`lock_after_ms`),
 /// and the first and the last description of the held lock.
+/// Why the four figures are split:
+///  a wait whose whole is far longer than their sum has spent its time outside the acquisition's own work,
+///  which the line must let a reader see
+/// (the gate of 2026-11-11T10:29-05:00:
+/// one landing's wait took 95,277 ms while these parts accounted for 3,003 ms of it).
 pub fn lock_notes_fields(notes: &WaitNotes) -> String {
     if notes.looks == 0 {
-        return format!(" lock_stage_ms={} lock_stage_kind={} lock_place_ms={}", notes.staging.as_millis(), notes.stage_kind, notes.placing.as_millis());
+        return format!(
+            " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_setup_ms={} lock_after_ms={}",
+            notes.staging.as_millis(),
+            notes.stage_kind,
+            notes.placing.as_millis(),
+            notes.setup.as_millis(),
+            notes.after.as_millis()
+        );
     }
     let first: &str = notes.found.as_deref().unwrap_or("none");
     let last: &str = notes.last.as_deref().unwrap_or("none");
     return format!(
-        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
+        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_setup_ms={} lock_after_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
         notes.staging.as_millis(),
         notes.stage_kind,
         notes.placing.as_millis(),
+        notes.setup.as_millis(),
+        notes.after.as_millis(),
         notes.looks
     );
 }
@@ -302,7 +319,9 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 /// so a landing that fails afterwards still leaves what it waited for.
 /// It names the repository the batch is in,
 /// the total,
-/// how it split between flushing the marker and waiting for a holder,
+/// how it split between readying the acquisition,
+/// flushing the marker,
+/// waiting for a holder and removing the staged file,
 /// how many times the lock was found held,
 /// and what the first and the last look found (`lock_found`,
 /// `lock_last`).

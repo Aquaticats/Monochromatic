@@ -712,6 +712,12 @@ mod shadow_pool_refusal;
 #[path = "binary_service_withdraw_tests.rs"]
 mod service_withdraw;
 
+/// A commit service whose runtime build outlasted its deadline:
+/// the commit lands through it,
+/// and its log names the stand-in.
+#[path = "binary_service_late_runtime_build_tests.rs"]
+mod service_late_runtime_build;
+
 /// The client's wait for the commit service:
 /// heartbeats,
 /// silence,

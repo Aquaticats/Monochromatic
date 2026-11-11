@@ -133,6 +133,10 @@ pub mod service_server_land_group_owed_pushes;
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
 
+/// How the service's own runtime was built,
+/// and the words a task that cannot get a worker ends the service with.
+pub mod service_runtime_build_report;
+
 /// The acceptor of connections:
 /// one task that starts a task per connection.
 pub mod service_server_accept_connections_as_tasks;
