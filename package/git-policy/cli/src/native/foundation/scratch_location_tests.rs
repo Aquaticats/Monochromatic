@@ -537,21 +537,21 @@ fn a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps() {
 }
 
 /// How long the control below takes to remove the stale trees on its own thread:
-/// several times the look interval a helper that retried a fixed handful of times would spend,
+/// well past the 120 ms a helper that retried a fixed handful of times spent,
 /// so that helper ends before the thread does,
 /// while a helper that waits for a removal to finish on its thread sees the end.
 const SLOW_REMOVAL: Duration = Duration::from_millis(400);
 
-/// A control that hands the helper a sweep whose removals finish on a thread after the call returned:
-/// it must keep looking until they are gone,
-/// and the count it reports is never asserted.
+/// What:
+///  A control that hands the helper a sweep whose removals finish on a thread after the call returned:
+///  it must keep looking until they are gone,
+///  and the count it reports is never asserted.
 /// Why:
 ///  A sweep whose ceiling cuts its removals short answers before they are gone,
 ///  and they finish on their threads,
 ///  which on a slow device can take far longer than a handful of retries:
 ///  with a fixed window the cut-short control above failed while the product was right,
 ///  and no control could tell a slow device from a sweep that never finishes.
-/// What:
 ///  It waits as long as the ceiling the product gives one removal and no longer,
 ///  which is the wait the owner's "nothing should ever wait forever or indefinitely" allows.
 #[test]
