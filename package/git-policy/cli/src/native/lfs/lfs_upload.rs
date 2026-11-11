@@ -38,14 +38,17 @@ use crate::bounded_push::{
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
-use crate::child_environment::{environment_value, environment_value_by_name_bytes, environment_with_overlay, prompting_disabled};
+use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
+/// The caller's own command-line configuration,
+/// as the variables the child reads.
+pub use crate::lfs_upload_child_configuration::prefix_variables;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
@@ -99,117 +102,6 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
     return std::env::join_paths(directories).unwrap_or(existing);
 }
 
-/// What:
-///  The configuration pair a `--config-env` parameter names,
-/// read from the environment of the invocation,
-/// or nothing when
-///  Git itself refuses the option as it stands.
-/// Why:
-///   `git-lfs` reads Git's configuration through the numbered variables only,
-/// so an option that names an environment variable must be
-///  resolved here.
-///  Git 2.56.0 takes the text before the last `=` as the key and the variable name after it
-/// (`command_status_tests.rs` holds the real-Git control),
-/// and the name is compared as the bytes the operating system holds.
-///  `None` covers exactly the parameters Git refuses:
-/// no `=`, an empty variable name,
-///  or a variable the invocation's environment does not hold.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pair = configEnvPair(parameter, environment); // undefined when Git would refuse the option
-/// ```
-fn config_env_pair(parameter: &[u8], environment: &[(OsString, OsString)]) -> Option<(OsString, OsString)> {
-    // `.rposition` is the last `=`, which is where Git ends the key.
-    let at: usize = parameter.iter().rposition(|byte| { return *byte == b'='; })?;
-    let variable: &[u8] = &parameter[at + 1..];
-    // An empty name is the option Git refuses as "missing environment variable name".
-    if variable.is_empty() {
-        return None;
-    }
-    let value: OsString = environment_value_by_name_bytes(environment, variable)?;
-    // SAFETY: the slice starts at the parameter's own start and ends right before an ASCII `=`, so both are code point
-    //  boundaries of the encoded string the bytes came from.
-    let key: OsString = unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(&parameter[..at]) }.to_os_string();
-    return Some((key, value));
-}
-
-/// What:
-///  The variables that carry the global options of a push into a child that reads Git's configuration,
-/// or nothing when the
-///  prefix names a configuration Git itself refuses.
-/// Why:
-///   `-c name=value` becomes `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` after any pairs the environment already holds
-///  (a `-c` without `=` is the boolean true),
-/// `--config-env=<name>=<variable>` as the pair the variable's own value sets,
-/// `--git-dir`,
-/// `--work-tree` and `--namespace` become `GIT_DIR`,
-///  `GIT_WORK_TREE` and `GIT_NAMESPACE`;
-/// `-C` is the working directory and is applied by the caller.
-///  No shell is involved,
-/// and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
-///  Git that used to run the hook.
-/// Gotcha:
-///  `None` is a `--config-env` whose variable is unset,
-///  or that names no variable or no variable name.
-///  Git refuses that
-///  command line itself,
-///  so the push never runs and the upload must not either:
-///  an object sent now would travel to whichever server the setting
-///  that could not be read does not name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function prefixVariables(globalPrefix: string[], environment): [string, string][] | undefined;
-/// ```
-pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<Vec<(OsString, OsString)>> {
-    let mut pairs: Vec<(OsString, OsString)> = Vec::new();
-    let mut variables: Vec<(OsString, OsString)> = Vec::new();
-    let mut tokens = global_prefix.iter();
-    while let Some(token) = tokens.next() {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        if bytes == b"-c" {
-            if let Some(setting) = tokens.next() {
-                let setting_text: String = setting.to_string_lossy().into_owned();
-                let (name, value) = setting_text.split_once('=').unwrap_or((setting_text.as_str(), "true"));
-                pairs.push((OsString::from(name), OsString::from(value)));
-            }
-            continue;
-        }
-        // What: `--config-env=<name>=<variable>` sets a pair from the environment, in both of Git's spellings.
-        // Why:  Git refuses an option that names no answerable variable, so a parameter that cannot become a pair ends the answer.
-        if bytes == b"--config-env" {
-            // An option with no value is one Git refuses, and `?` ends the whole answer here.
-            let parameter: &OsString = tokens.next()?;
-            pairs.push(config_env_pair(parameter.as_encoded_bytes(), environment)?);
-            continue;
-        }
-        if let Some(named) = bytes.strip_prefix(b"--config-env=") {
-            // The text after the option is the whole parameter: `<name>=<variable>`.
-            pairs.push(config_env_pair(named, environment)?);
-            continue;
-        }
-        let text: String = token.to_string_lossy().into_owned();
-        for (option, variable) in [("--git-dir", "GIT_DIR"), ("--work-tree", "GIT_WORK_TREE"), ("--namespace", "GIT_NAMESPACE")] {
-            if text == option {
-                if let Some(value) = tokens.next() {
-                    variables.push((OsString::from(variable), value.clone()));
-                }
-            } else if let Some(value) = text.strip_prefix(format!("{option}=").as_str()) {
-                variables.push((OsString::from(variable), OsString::from(value)));
-            }
-        }
-    }
-    let existing: usize = environment_config_count(environment);
-    if !pairs.is_empty() {
-        variables.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from((existing + pairs.len()).to_string())));
-    }
-    for (offset, (name, value)) in pairs.into_iter().enumerate() {
-        variables.push((OsString::from(format!("GIT_CONFIG_KEY_{}", existing + offset)), name));
-        variables.push((OsString::from(format!("GIT_CONFIG_VALUE_{}", existing + offset)), value));
-    }
-    return Some(variables);
-}
 
 /// Why a run with captured standard error did not produce an outcome.
 enum CaptureError {

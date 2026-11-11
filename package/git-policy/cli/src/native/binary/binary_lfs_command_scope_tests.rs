@@ -5,7 +5,8 @@
 //!  A push publishes pointer files,
 //! and a pointer whose object sits on another server is a published pointer no collaborator can fetch.
 //! The fixture has two bare remotes with their own file-backed LFS stores:
-//! `origin`, which the push fetches from,
+//! `origin`,
+//! which the push fetches from,
 //! and a second remote named only by a command-scoped push URL.
 //! The wrapped push publishes the pointer commit to that second remote,
 //! so its object must be stored there,
@@ -143,7 +144,8 @@ fn a_command_scoped_push_url_carries_the_upload_to_the_push_remote() {
 }
 
 /// What:
-///  The same push, with the second remote named by `--config-env` instead of `-c`.
+///  The same push,
+/// with the second remote named by `--config-env` instead of `-c`.
 /// Why:
 ///   An environment-named configuration is the second way to select a push URL,
 /// and a translation that covered only `-c` would

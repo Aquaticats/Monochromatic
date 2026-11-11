@@ -451,7 +451,8 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
-/// The configuration of a push, given on its command line,
+/// The configuration of a push,
+/// given on its command line,
 /// reaches the real `git-lfs` upload,
 /// so an object reaches the remote the ref is published to.
 #[path = "binary_lfs_command_scope_tests.rs"]

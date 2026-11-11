@@ -8893,7 +8893,8 @@ The step:
   so a caller's setting of the same key still wins,
   `--git-dir`,
   `--work-tree` and `--namespace` as their variables.
-  A `--config-env` whose variable is unset, or that names none,
+  A `--config-env` whose variable is unset,
+  or that names none,
   is a command line Git refuses,
   so the push never runs and the upload does not start:
   an object sent now would travel to whichever server the setting that could not be read does not name.
