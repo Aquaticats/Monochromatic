@@ -10,7 +10,8 @@ fn words(list: &[&str]) -> Vec<OsString> {
     return list.iter().map(|word| { return OsString::from(*word); }).collect();
 }
 
-/// The settings that add steps the split pull does not mirror, as the keys present.
+/// The settings that add steps the split pull does not mirror,
+/// as the keys present.
 fn settings(list: &[&str]) -> Vec<String> {
     return list.iter().map(|key| { return String::from(*key); }).collect();
 }

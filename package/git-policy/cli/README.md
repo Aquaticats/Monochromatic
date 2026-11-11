@@ -2897,7 +2897,9 @@ Whether a setting says false is Git's own reading of it:
 `0x0`,
 `0k`,
 the empty value) takes this path.
-A value Git reads as a rebase, or refuses, leaves the pull whole to Git.
+A value Git reads as a rebase,
+or refuses,
+leaves the pull whole to Git.
 When the pull the wrapper completes cannot move the working tree along,
 the report keeps Git's own words
 (`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)

@@ -193,7 +193,8 @@ pub enum RebaseStatement {
     /// Neither setting is present,
     /// so a typed `--ff` or `--no-ff` is the only thing that states a merge.
     Unstated,
-    /// The setting Git reads says no: this pull merges.
+    /// The setting Git reads says no:
+    /// this pull merges.
     Merge,
     /// The setting says a rebase,
     /// a mode this does not mirror,
@@ -285,7 +286,8 @@ enum SettingAnswer {
 /// What:
 ///  What Git's own reading of one rebase setting says about the pull.
 /// Why:
-///   `git config --bool --get` answers with the value Git's pull reads: the last of several settings,
+///   `git config --bool --get` answers with the value Git's pull reads:
+/// the last of several settings,
 /// in every boolean spelling Git accepts (`0`,
 /// `00`,
 /// `0x0`,

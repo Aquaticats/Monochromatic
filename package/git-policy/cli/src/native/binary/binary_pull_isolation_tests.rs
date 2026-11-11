@@ -138,7 +138,8 @@ fn a_pull_into_a_clean_index_equals_native_gits() {
 ///   The wrapper read the first of several values and a short list of spellings,
 /// so a valid setting Git reads as false kept the pull native,
 /// where native Git's merge
-///  refused over staged work: the setting then decided the refusal,
+///  refused over staged work:
+/// the setting then decided the refusal,
 /// not the person's staged bytes.
 #[test]
 fn a_pull_whose_rebase_setting_is_written_twice_or_as_a_number_is_completed() {
