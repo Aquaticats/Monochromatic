@@ -318,13 +318,16 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
         // The whole deletion step of this round is one call, so a round with no housekeeping left defers the step itself rather
-        //  than start it and leave its records claimed.
-        if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-            left_for_a_later_round.append(&mut deletions);
-        } else {
-            match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
-                Some(back) => held = back,
-                None => break 'round,
+        //  than start it and leave its records claimed. A step with nothing in it neither starts nor spends the round's first
+        //  start: it is the items that are housekeeping and not the kinds.
+        if !deletions.is_empty() {
+            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
+                left_for_a_later_round.append(&mut deletions);
+            } else {
+                match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+                    Some(back) => held = back,
+                    None => break 'round,
+                }
             }
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow

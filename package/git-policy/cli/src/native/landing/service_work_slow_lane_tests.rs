@@ -455,9 +455,10 @@ fn the_lane_settles_the_trash_the_loop_was_woken_for() {
 }
 
 /// The slice one look of the lane's control may start housekeeping for:
-/// a moment,
-/// so the trash behind the one the look is held inside is left for the look that follows it.
-const A_SLICE_ONE_LOOK_SPENDS: Duration = Duration::from_millis(100);
+/// nothing,
+/// so a look has spent it before it reaches the housekeeping it finds and every item after the first of a look asks to be
+///  looked at again.
+const A_SLICE_ONE_LOOK_SPENDS: Duration = Duration::ZERO;
 
 /// The trash the lane's control holds its look inside.
 const THE_HELDS_TRASH: &str = "9999999999999999999999999999999999999999";
@@ -480,10 +481,17 @@ const THE_LEFT_TRASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 /// so a record it did not start goes back to `pending` and the drain names the pause it wants;
 /// the lane is the only thing that will look again,
 /// so a lane that dropped that answer would leave the trash waiting for the next wake of any kind.
+/// The slice here is nothing rather than a duration to wait out,
+/// because the state the control needs is "this look has spent its slice before the housekeeping",
+/// which a bound of nothing reaches at every look.
+/// The first item of a look starts all the same,
+/// and these records are all trashes,
+/// so a look that spent its first start on the empty deletion step would defer both of them for ever and the control would
+///  never see one settle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// lane.ask([gitDir, null]); await held; sleep(slice * 2); release(); expect(await settled(secondTrash)).toBe(true)
+/// lane.ask([gitDir, null]); await held; release(); expect(await settled(first)).toBe(true); expect(await settled(second)).toBe(true)
 /// ```
 #[test]
 fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
@@ -499,8 +507,7 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
         crate::merge_second_pass::tests::await_it(async move { return SlowLane::start_with_slice(&handlers, busy, A_SLICE_ONE_LOOK_SPENDS); });
     lane.ask((git_dir, None));
     assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the first trash");
-    // The slice runs out while that trash is held, so the trash behind it is not started by this look.
-    std::thread::sleep(A_SLICE_ONE_LOOK_SPENDS * 2);
+    // The slice is already spent while that trash is held, so the trash behind it is not started by this look.
     let _let_go = held.let_go.send(());
     // The step settles the record for what it holds, which is what this control reads.
     let settled = |oid: &str| -> bool {
@@ -509,7 +516,7 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
             return names_in_at(work.as_path(), *state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
         });
     };
-    assert!(wait_until(&|| { return settled(THE_HELDS_TRASH); }), "the trash the look was held inside is settled");
+    assert!(wait_until(&|| { return settled(THE_HELDS_TRASH); }), "the first trash of a look starts however spent its slice is");
     assert!(
         wait_until(&|| { return settled(THE_LEFT_TRASH); }),
         "the trash the first look did not start is run by the look the lane takes by itself, with no second wake"
