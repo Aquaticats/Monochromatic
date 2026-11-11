@@ -173,8 +173,8 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
     //  Whether the configuration asks for the set of defaults Git's `feature.manyFiles` is.
     // Why:
     //  `prepare_repo_settings` sets those three defaults before it reads the keys that can replace them,
-    //  so a boolean key beside it wins,
-    //  a key whose value Git's own boolean reader refuses leaves the default,
+    //  so a boolean key beside the feature wins,
+    //  `core.untrackedCache=keep` leaves the untracked-cache default alone,
     //  and a value Git dies on is left to Git.
     //
     // In TS you'd write (pseudocode):
@@ -189,15 +189,19 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
     //  What the update does with the untracked cache.
     // Why:
     //  Git's `feature.manyFiles` default is to add a cache,
-    //  and `core.untrackedCache` replaces it only when its value reads as a boolean: `keep`,
-    //  and every value `git_parse_maybe_bool` refuses,
-    //  leaves the default alone (`repo-settings.c` of Git 2.56.0).
-    //  Reading `keep` as "leave the file as it is" made the landing install an index without the cache Git adds.
+    //  and `core.untrackedCache` replaces that default only when its value reads as a boolean
+    //  (`git_parse_maybe_bool`, `repo-settings.c` of Git 2.56.0).
+    //  `keep` is a value that reader refuses,
+    //  so it leaves the default alone and a repository with the feature still adds the cache;
+    //  reading `keep` as "leave the file as it is" made the landing install an index without the cache Git adds.
+    //  Any other value the reader refuses makes the whole update decline and Git answer.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const untrackedDefault = manyFiles ? Write : Keep;
-    // const untracked = boolean(last('core.untrackedCache')) ?? untrackedDefault;
+    // const untracked = absentOrKept(last('core.untrackedCache'))
+    //   ? untrackedDefault
+    //   : readBoolean(last('core.untrackedCache')); // undefined: ask Git
     // ```
     let untracked_default: UntrackedMode = if many_files { UntrackedMode::Write } else { UntrackedMode::Keep };
     let untracked: UntrackedMode = match last_entry(listed, "core.untrackedcache") {
