@@ -27,8 +27,8 @@
 
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_handlers_replanning_and_acceptance::{
-    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, is_acceptable, is_bare_common_directory, keep_plans_while_unreachable, planned_retry,
-    work_directory,
+    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
+    keep_plans_while_unreachable, planned_retry, work_directory,
 };
 use crate::service_work_storage_awaited::{
     clear_push_failures_before_awaiting, instance_of_awaiting, next_claim_expiry_awaiting, record_push_failure_awaiting, record_push_skip_awaiting,
@@ -80,9 +80,19 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     renewal: Renewal<'_>,
     retrying: &Retrying,
 ) -> Drained {
-    // A directory that cannot be reached runs nothing and keeps its push plans (plan item W3).
+    // A directory that cannot be reached runs nothing,
+    // and what becomes of its push plans is what the filesystem still proves about it:
+    // a
+    //  repository that may return keeps them (plan item W3),
+    // and one that is gone ends them (`unreachable_git_dir_proven_gone.rs`).
     if let Err(unreachable) = instance_of_awaiting(git_dir).await {
-        return keep_plans_while_unreachable(git_dir, retrying, &unreachable);
+        // The worktree the plans of this directory name, which is how a Git directory that moved is told from a repository
+        //  that was deleted.
+        let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
+        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::TheMountTable::default()) {
+            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable),
+            crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
+        };
     }
     let work_dir: PathBuf = work_directory(git_dir);
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
@@ -93,6 +103,27 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning).await;
     let wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
     return Drained { wait, changes: replanning.changes };
+}
+
+/// What:
+///  The worktree the plans of `git_dir` name,
+/// which is the repository a missing Git directory may belong to.
+/// Why:
+///   A worktree that is still there is a repository whose own Git directory moved or is away,
+/// and the proof reads that
+///  difference (`unreachable_git_dir_proven_gone.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktree = retrying.due.find((due) => due.gitDir === dir)?.item.repository;
+/// ```
+fn worktree_named_by(retrying: &Retrying, git_dir: &Path) -> Option<PathBuf> {
+    for due in &retrying.due {
+        if due.git_dir == git_dir {
+            return Some(due.item.repository.clone());
+        }
+    }
+    return None;
 }
 
 /// What:

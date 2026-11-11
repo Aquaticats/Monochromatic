@@ -105,6 +105,15 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 ///  Every reason to decline answers with `None`,
 /// because a name left to Git costs one start,
 ///  where a name wrongly believed tracked would let the refusal return as an engine failure.
+///  A command line that selects a repository (`--git-dir`,
+/// `--work-tree`,
+/// `--bare`) is one this reading cannot answer for:
+/// the layout reader answers for the directory it is given,
+///  so the prefix it gives belongs to another worktree than the index does,
+/// and a name completed with it can match an entry the
+///  selected index does not hold.
+///  `capture_invocation.rs`
+/// (`capture_invocation_layout`) declines the same prefix read for a named repository.
 ///  The spellings are the selection's,
 /// so a token Git reads as a path relative to the top level (`/a.txt`)
 ///  is measured as the directory path it names and is then left to Git,
@@ -112,6 +121,7 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// if (repositorySelection(cwd, globalPrefix).length) return undefined;
 /// const layout = readLayoutIn(cwd, overlay); const entries = parseIndex(readRegularFile(realIndex), layout.objectFormat);
 /// return named.filter((path) => !entries.some((entry) => entry.path === layout.prefix + path));
 /// ```
@@ -121,6 +131,11 @@ fn untracked_among<'named>(
     real_index: &Path,
     named: &[&'named OsString],
 ) -> Option<Vec<&'named OsString>> {
+    // The readers answer for the directory they are given and cannot honour a repository the caller named, so a command line
+    //  that names one asks Git (`capture_invocation.rs`, `capture_invocation_layout`, decides the same way).
+    if !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty() {
+        return None;
+    }
     let overlay: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
     let layout: crate::repo_read_layout::RepoLayout = crate::repo_read_layout::read_layout_in(cwd, overlay.as_slice())?;
     // A repository nothing was ever staged in has no index, so no entry tracks any name and every name may be refused.

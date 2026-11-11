@@ -89,9 +89,32 @@ pub const IN_TREE_PROFILE_CAP_BYTES: u64 = 12 * GIB;
 pub const HOST_PROFILE_CAP_BYTES: u64 = 24 * GIB;
 
 /// The longest a whole `cargo-shadow lean run` may take:
-/// three hours.
-/// Measured 2026-11-07:
-/// listing 4313 images alone took 209 s,
-/// and the first run removes terabytes of build trees,
-/// so the bound is generous and every step also obeys it.
-pub const RUN_DEADLINE_SECONDS: u64 = 3 * 3_600;
+/// five hours.
+/// Measured 2026-11-10:
+/// the idle-trees pass judged 14,850 of 33,804 trees in 10,475 s,
+/// 0.71 s per tree including the removal of 511.49 GiB,
+/// so a pass over every tree costs about 6.6 h at today's size
+/// (`journalctl --user --unit=cargo-shadow-lean.service`,
+/// the run that ended 2026-11-10T07:37:24-05:00);
+/// the units pass judged 1,782 of 68,755 profile directories in the 921 s a planning pass had left after listing them,
+/// 0.52 s each,
+/// so a pass over every profile directory costs about 9.9 h
+/// (`lean run --dry-run --only units --deadline-minutes 30`,
+/// same day);
+/// and run records,
+/// toolchains and Podman took 24 s,
+/// under a second and 334 s in that journaled run,
+/// 193 s,
+/// 6 s and 1,944 s in the one before it.
+/// A whole pass over both lists is therefore about seventeen hours today,
+/// which no daily run may take on a volume a person also commits to,
+/// so the bound is set below it and the two passes record where they stopped
+/// (`lean_progress.rs`):
+/// a run ends by 09:30 local time from the timer's 04:30,
+/// the trees pass at 6.6 h needs a second night,
+/// which leaves that second run about 3.4 h for the units pass,
+/// and so on while a pass over both lists costs more than the bound.
+/// The run's own share of the disk is small beside that:
+/// systemd recorded `2min 22s CPU time over 3h 30min wall clock` for the run that ended 2026-11-09T08:00:00-05:00,
+/// and the unit holds `IOWeight=5` against the default 100 and `IOSchedulingClass=idle`.
+pub const RUN_DEADLINE_SECONDS: u64 = 5 * 3_600;

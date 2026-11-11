@@ -278,3 +278,60 @@ fn git_context_index_object(repo: &Path, name: &str) -> String {
     let _mode: Option<&str> = fields.next();
     return String::from(fields.next().expect("an object name"));
 }
+
+/// The real index is listed in the repository the caller's global options name,
+/// not in one the work tree's directory happens to discover:
+/// a Git directory beside its work tree has no `.git` inside the work tree,
+/// so a listing that names neither option reads no repository at all.
+#[test]
+fn the_real_index_is_listed_in_the_repository_the_options_name() {
+    let root: PathBuf = fixture("added-path-named-repository");
+    let holder: PathBuf = repository(root.as_path(), "holder");
+    let git_dir: PathBuf = holder.join("cfg.git");
+    let work_tree: PathBuf = holder.join("wt");
+    std::fs::create_dir(work_tree.as_path()).expect("the work tree");
+    git(
+        holder.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            git_dir.to_str().expect("a text path"),
+        ],
+    );
+    std::fs::write(work_tree.join("a.json"), b"{\"version\":\"1.0.0\"}\n").expect("a");
+    let options: Vec<String> = vec![
+        format!("--git-dir={}", git_dir.display()),
+        format!("--work-tree={}", work_tree.display()),
+    ];
+    let mut staged: Vec<String> = options.clone();
+    staged.extend(["add", "--", "a.json"].map(str::to_string));
+    git(work_tree.as_path(), staged.as_slice());
+    let mut context = git_context();
+    context.global_prefix = options
+        .iter()
+        .map(|option| { return std::ffi::OsString::from(option.as_str()); })
+        .collect();
+    // Git's discovery stops above the work tree, as it does in a person's home directory, so the listing reads the
+    //  repository only when it names the pair; the fixture's own holder would otherwise answer for it.
+    let ceiling: PathBuf = std::fs::canonicalize(holder.as_path()).expect("the holder resolves");
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CEILING_DIRECTORIES"),
+        ceiling.into_os_string(),
+    ));
+    let index: PathBuf = git_dir.join("index");
+    let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
+    let listed = real_index_entries(&context, work_tree.as_path(), index.as_path(), asked.as_slice())
+        .expect("the real index is listed in the repository the options name");
+    let entry: &Entry = listed.get(b"a.json".as_slice()).expect("the asked path is listed");
+    assert_eq!(entry.0, CandidateMode::Regular);
+    let mut oracle: Vec<String> = options;
+    oracle.extend(["ls-files", "--stage", "--", "a.json"].map(str::to_string));
+    let answered: String = crate::test_support::git_text(work_tree.as_path(), oracle.as_slice());
+    assert!(
+        answered.contains(entry.1.as_str()),
+        "the listing names the blob the real index holds: {answered}"
+    );
+    remove(root.as_path());
+}

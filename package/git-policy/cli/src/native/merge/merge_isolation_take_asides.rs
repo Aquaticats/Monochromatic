@@ -33,143 +33,31 @@ use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to_awaiting, worktree_path};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
+/// The private names a take leaves,
+/// and the merge records that claim them.
+use crate::merge_isolation_take_aside_names::{aside_name, asides_of, live_merge_keys};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-/// The start of the private name a file is set aside under while the merge's content takes its place.
-///  It sits in the file's own directory,
-/// so the take is one rename on whatever file system the worktree is on,
-/// and it
-///  ends in no name Git reads.
-pub(crate) const ASIDE_PREFIX: &str = ".cli-git-recovery";
-
-/// Makes two names set aside by one process differ.
-static ASIDE_COUNT: AtomicU64 = AtomicU64::new(0);
-
-/// The text of one file name,
-/// for the private name of a take.
-fn name_of(found: &std::ffi::OsStr) -> String {
-    return found.to_string_lossy().into_owned();
-}
-
-/// The text of a file's name,
-/// which the private name of a take names by a short key.
-fn name_text(location: &Path) -> String {
-    return location.file_name().map(name_of).unwrap_or_default();
-}
-
-/// The base of the FNV-1a hash,
-/// in 64 bits.
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-
-/// The prime of the FNV-1a hash,
-/// in 64 bits.
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
-/// What:
-///  A short,
-///  stable key for a file's name,
-///  which the private name of a take carries in place of the name itself.
-/// Why:
-///   A file name may fill the file system's 255-byte component limit,
-/// and a private name that embedded it could not exist,
-///  so a valid tracked file made a saved merge unfinishable and its record then stopped every command
-///  (a cross-vendor review of the second round).
-/// The key is the FNV-1a hash of the name's bytes in 64 bits,
-/// which every release
-///  of this program computes the same way,
-/// so a private name one release left behind is found by the next.
-/// An upper-case
-///  spelling of the same name is a different key,
-/// as it is a different file.
+/// Whether a merge whose record is still there names this private name,
+/// which is the only claim that may put a file back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function nameKey(text: string): string; // FNV-1a 64 of the UTF-8 bytes, 16 hex digits
+/// const aLiveMergeNames = (merge: string | undefined, live: string[]) => merge !== undefined && live.includes(merge);
 /// ```
-fn name_key(text: &str) -> String {
-    let mut hash: u64 = FNV_OFFSET_BASIS;
-    for byte in text.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-    return format!("{hash:016x}");
-}
-
-/// What:
-///  A private name beside `location`,
-///  naming the file it holds,
-///  that no other process uses.
-/// Why:
-///   A kill between the rename of a take and the write that follows leaves the file under this name,
-/// so the name
-///  must say which path it belongs to:
-/// the next recovery finds it there and puts it back
-///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 4's take,
-/// round two).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${dirname}/.cli-git-recovery-${basename}-${pid}-${count}-${nanos}`;
-/// ```
-pub fn aside_name(location: &Path) -> PathBuf {
-    let count: u64 = ASIDE_COUNT.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    return location.with_file_name(format!("{ASIDE_PREFIX}-{}-{}-{count}-{nanos:x}", name_key(name_text(location).as_str()), std::process::id()));
-}
-
-/// Whether one byte is one of the hex digits a ran number is written in.
-fn is_hex_digit(byte: u8) -> bool {
-    return byte.is_ascii_hexdigit();
-}
-
-/// Whether one name is a private name a take left for `location`:
-/// the prefix of that path's file name,
-/// then `<pid>-<count>-<nanos>`.
-fn is_aside_of(name: &str, location: &Path) -> bool {
-    let Some(rest) = name.strip_prefix(format!("{ASIDE_PREFIX}-{}-", name_key(name_text(location).as_str())).as_str()) else {
-        return false;
-    };
-    let mut parts = rest.split('-');
-    let (Some(_pid), Some(_count), Some(nanos), None) = (parts.next(), parts.next(), parts.next(), parts.next()) else {
-        return false;
-    };
-    return !nanos.is_empty() && nanos.bytes().all(is_hex_digit);
-}
-
-/// What:
-///  The private names in `location`'s directory that a take of that path left.
-/// Why:
-///   A recovery that stopped for any reason can leave one,
-/// and the next recovery must find it before it judges the path,
-///  because the path is empty while the file waits beside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (await readdir(dirname(location))).filter((name) => isAsideOf(name, location));
-/// ```
-fn asides_of(location: &Path) -> Vec<PathBuf> {
-    let Some(directory) = location.parent() else {
-        return Vec::new();
-    };
-    let Ok(listing) = std::fs::read_dir(directory) else {
-        return Vec::new();
-    };
-    let mut found: Vec<PathBuf> = Vec::new();
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if is_aside_of(name.as_str(), location) {
-            found.push(entry.path());
+fn a_live_merge_names(merge: Option<&String>, live: &[String]) -> bool {
+    let Some(named) = merge else { return false };
+    for key in live {
+        if key == named {
+            return true;
         }
     }
-    found.sort();
-    return found;
+    return false;
 }
 
 /// What:
@@ -191,11 +79,26 @@ fn asides_of(location: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// for (const location of locations) for (const aside of asidesOf(location)) if (free(location)) { renameNoReplace(aside, location); say(`put back ${location}`); } else say(`${aside} holds ...`);
 /// ```
-pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, changes: &[Change], out: &mut W) {
+pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, git_dir: &Path, changes: &[Change], out: &mut W) {
+    let live: Vec<String> = live_merge_keys(git_dir);
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
         for aside in asides_of(location.as_path()) {
-            match rename_noreplace(aside.as_path(), location.as_path()) {
+            // A private name no record names is what a merge that already ended left behind, and putting it back would
+            //  bring back a file the person deleted (a cross-vendor review of the second round, its third finding).
+            if !a_live_merge_names(aside.merge.as_ref(), live.as_slice()) {
+                let _noted = out.write_all(
+                    format!(
+                        "monochromatic-git-policy-cli: {} holds a file that a merge set aside for {}, and no unfinished merge names \
+                         it, so it stays where it is; move it back yourself if it is yours, and nothing was removed.\n",
+                        aside.path.display(),
+                        location.display()
+                    )
+                    .as_bytes(),
+                );
+                continue;
+            }
+            match rename_noreplace(aside.path.as_path(), location.as_path()) {
                 Ok(()) => {
                     let _noted = out.write_all(
                         format!(
@@ -211,7 +114,7 @@ pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, changes: &[Change
                         format!(
                             "monochromatic-git-policy-cli: {} holds a file that a command that stopped while finishing a merge had set aside \
                              for {}, which now holds something else; nothing was removed.\n",
-                            aside.display(),
+                            aside.path.display(),
                             location.display()
                         )
                         .as_bytes(),
@@ -390,8 +293,9 @@ pub async fn take_aside_awaiting(
     path: &[u8],
     location: &Path,
     judged: &Judged,
+    transaction_id: &str,
 ) -> Result<Take, TakeFailure> {
-    let aside: PathBuf = aside_name(location);
+    let aside: PathBuf = aside_name(location, transaction_id);
     match rename_noreplace(location, aside.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -566,7 +470,7 @@ pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &Recovery
         // `may_remove` proves that nothing can write into the file any more;
         // a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
-        if !may_remove_awaiting(place, root, entry).await {
+        if !may_remove_the_aside_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.taken, entry.expected.as_str()).await {
             let _noted = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
@@ -597,6 +501,11 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 ///  and whether its bytes are
 ///  the branch's own form rather than bytes a clean filter hides.
 /// Why:
+///   Every step that removes a private name asks this same question,
+///  whether it finishes the take of a merge's file
+///  (`merge_isolation_carry_place.rs`)
+///  or one of the second pass's install,
+///  so a write that arrives through an old descriptor is kept by both.
 ///   A program that already has the file open keeps that descriptor across the rename,
 /// and a write through it lands
 ///  in the file that waits aside;
@@ -622,14 +531,14 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
+/// function mayRemoveTheAside(git, root, path, aside, taken, expected): boolean; // identity unchanged && no readable process has it open && the scan finished && the bytes are the judged ones
 /// ```
-async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
+pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path, path: &[u8], aside: &Path, taken: FileIdentity, expected: &str) -> bool {
     // The scan comes first, and the two looks come after it, as the last steps before the unlink: a writer that still holds
     //  the file is seen by the scan, a writer that let go has already written so the bytes and the identity then show it, and
     //  the identity is read because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
     //  object as it was and the size changed.
-    let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
+    let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
         return false;
     }
@@ -640,7 +549,7 @@ async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOn
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    return are_the_file_form_of_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()).await == Some(true);
+    return are_the_file_form_of_awaiting(git, root, path, aside, expected).await == Some(true);
 }
 
 /// What:
