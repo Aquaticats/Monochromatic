@@ -202,6 +202,36 @@ fn a_detached_head_stays_where_it_is_and_the_report_says_so() {
     remove(&race.root);
 }
 
+/// What:
+///  An integration that stops on a failed command tells the person what stopped it.
+/// Why:
+///  The push above has already printed Git's own rejection,
+/// so a stop that says nothing leaves the rejection as the whole story
+/// and the caller cannot tell why the merge did not happen or what to repair.
+/// A signer that fails is the real case:
+/// the merge is committed with `-S` when the repository signs commits,
+/// and its words are the cause the person acts on.
+#[test]
+fn an_integration_that_stops_on_a_failed_command_names_it_for_the_person() {
+    const SIGNER_WORDS: &str = "SIGNER-FAILURE-THAT-MUST-REACH-THE-PERSON";
+    let race = race("ps-integration-stops");
+    commit_file(&race.rival, "rival.txt", "rival\n");
+    git(&race.rival, &["push", "--quiet", "origin", "HEAD"]);
+    commit_file(&race.local, "local.txt", "local\n");
+    let before = oid(&race.remote, &race.default);
+    let signer: PathBuf = race.root.join("failing-signer");
+    crate::test_support::executable(signer.as_path(), format!("#!/bin/sh\necho '{SIGNER_WORDS}' >&2\nexit 1\n").as_bytes());
+    git(&race.local, &["config", "commit.gpgsign", "true"]);
+    git(&race.local, &["config", "gpg.program", signer.to_str().expect("utf-8")]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, None, "the rejection's own status stands: {err}");
+    assert!(err.contains("monochromatic-git-policy-cli: push: "), "the stop is not worded as the loop words its lines: {err}");
+    assert!(err.contains("did not finish"), "the stop says nothing about what became of the push: {err}");
+    assert!(err.contains(SIGNER_WORDS), "the signer's own words are missing: {err}");
+    assert_eq!(oid(&race.remote, &race.default), before, "nothing was published");
+    remove(&race.root);
+}
+
 /// A conflict publishes nothing,
 /// names the paths,
 /// and exits non-zero.

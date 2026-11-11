@@ -33,6 +33,9 @@
 /// The reconcile loop that auto-push shares,
 /// and what it needs.
 use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push};
+/// The words the loop puts before every line it adds,
+/// so a stop of an explicit push speaks as the loop does.
+use crate::auto_push_reconcile_plan::{Wording, wording_of};
 /// The coordinator's Git,
 /// its read-only query runner and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
@@ -135,9 +138,12 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 ///  (a conflict,
 /// a gate that refused the merge,
 /// a remote that kept moving);
-/// every other failure returns nothing
+/// a failure that is no divergence returns nothing
 ///  and prints nothing,
-/// so the person sees only Git's own report.
+/// so the person sees only Git's own report,
+/// while an integration that stopped on a failed command says so
+///  and what stopped it,
+/// and the push's own status stands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,6 +203,19 @@ pub fn stack_failed_push(
         }
         Err(error) => {
             debug(TAG, &format!("stacking the failed push stopped: {error}"));
+            // The loop stopped on a command that failed. Its own report cannot say so, and Git's rejection above is still the
+            //  exit status, so this line is the only sign of why the merge did not happen, or of what became of one made before
+            //  the command that failed.
+            let wording: Wording = wording_of(&plan);
+            let remote: &str = plan.destination.remote.as_str();
+            let local: &str = plan.local.as_str();
+            // Terminal output error: the report is advisory; the exit status already carries the result.
+            let _written = writeln!(
+                err,
+                "{}the integration of {remote}/{} into {} did not finish, so {remote}/{} may or may not have taken the merge; \
+                 {local} is kept in this repository either way. What stopped it:\n{error}",
+                wording.line_prefix, wording.short, wording.merged_into, wording.short
+            );
             return None;
         }
     }
