@@ -154,7 +154,23 @@ a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an al
 round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
 This narrows the owner's 2026-11-10 choice "Before each release (Recommended)"
 ("A wrapper release waits for that run, and a skipped test fails it."): the coordinator reads it as holding for every release but an alpha.
-Open, to ask: whether an alpha still waits for the full test gate (`native:gate`), runs it without waiting, or skips it.
+The owner's answers of 2026-11-11T18:25-05:00, through the question tool, each asked with its options and a ranking:
+
+- qwen4-max-preview in long audits: "Not used for audits".
+  The result put to him: on Kimi's own audit prompts over three areas of the alpha.10 wrapper code,
+  Kimi reported 22 findings and Sonnet 20 (on its own briefs), every one confirmed by a fix agent;
+  qwen reported 6 distinct findings over four runs (none on the commit path, where Kimi had 9),
+  4 confirmed, 2 with fix agents to reproduce, none refuted;
+  it read nothing forbidden and no other model helped it (`~/temp/agent/qwen-trials/comparison-notes.md`).
+  So long audits stay Kimi and Sonnet side by side.
+- qwen4-max-preview on change reviews, which it had never done: "Trial beside Kimi (Recommended)".
+  Kimi reviews resume, which ends the hold of 16:5x ("Before the Qwen 4 review verdict, avoid starting more reviews.");
+  qwen4 reviews three changes Kimi already reviewed, without seeing Kimi's review, and both are scored against what the fix agents confirm.
+- The btrfs control run before an alpha: "Skip for alphas (Recommended)".
+  The 2026-11-10 choice "Before each release (Recommended)" holds for every release but an alpha.
+- The full test gate (`native:gate`) before an alpha: "Run it, don't wait (Recommended)".
+  The gate starts on the release commit, the alpha is released and installed at once,
+  and what the gate finds is fix work for the next alpha.
 
 ### Cleanup runs continuously, and what a Claude Code restart loses (2026-11-11T17:30:24-05:00)
 
