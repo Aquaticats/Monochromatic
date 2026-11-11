@@ -1937,6 +1937,46 @@ which is what the refusal controls see;
 `commit_named_ignored_files_tests.rs` proves both halves with a recording Git child,
 and the reader that declines an index leaves every name to Git,
 as before.
+The reader declines one more case since 2026-11-10:
+a command line that selects a repository (`--git-dir`,
+`--work-tree`,
+`--bare`)
+names an index whose paths are spelled from that repository's own worktree,
+while the layout reader answers only for the directory the command runs in,
+so a prefix from the wrong worktree could match an unrelated entry and hide a name a person named.
+There the reader leaves every name to Git,
+as `capture_invocation_layout` already does for the prefix it reads.
+The four constants name no repository,
+so their `check-ignore` stays 0,
+and a commit whose command line names one repository asks one question about its named paths.
+
+Failed and fixed on 2026-11-10:
+the same six controls read "sync calls by the wrapper:
+observed 2,
+budget 0",
+with no other figure differing,
+at `5686c7bb29`,
+the integration branch of the jam fixes after alpha.9.
+`77e8348a84` ("a held push is settled by the verdict its command left,
+and named with what sends it") writes the post-commit gate's verdict into
+the commit's held push record through `replace_private_file`,
+which flushes the record and its directory,
+and every landed commit reaches it,
+so every commit waited on two filesystem commits of the wrapper's own after its landing.
+The record now goes through `replace_private_file_unsynced` (`work_item_holding.rs`,
+`record_verdict`):
+the verdict is still published whole by one rename before the record is promoted or forgotten,
+which is what that change meant,
+a kill keeps it,
+and a machine crash leaves the record the gate found,
+which the settlement reads as a record with no verdict
+(`binary_held_push_settled_by_the_verdict_tests.rs`,
+`a_commit_whose_command_died_before_its_checks_names_what_sends_it`).
+The four constants stay as measured,
+and the mechanism,
+the kernel cost of the removed flushes,
+and the controls are recorded in `doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+"A commit".
 
 ## Filesystem identity without `findmnt` (slice S2)
 

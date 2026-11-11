@@ -4,6 +4,7 @@
 //! and the length those keep inside a file name.
 
 use super::*;
+use crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS;
 use crate::work_item::MAX_OBJECT_NAME_LENGTH;
 
 /// A push's id carries a digest of its branch,
@@ -16,6 +17,22 @@ fn a_pushs_digest_names_its_branch() {
     assert_eq!(main, branch_digest("refs/heads/main"), "the same branch gives the same digest");
     assert_ne!(main, branch_digest("refs/heads/main-two"), "another branch gives another digest");
     assert!(is_id_suffix(&WorkKind::Push, format!("abc-{main}").as_str()));
+}
+
+/// What:
+///  Every kind the service claims has an id the recovery reads as one of this release's.
+/// Why:
+///   A claim a killed service left behind is settled by what `is_valid_id` answers,
+/// and an id it cannot spell is filed as another release's and given up on
+///  instead of retried,
+/// so a kind missing from that reading loses the work that asked for it.
+#[test]
+fn every_kind_the_service_claims_has_an_id_the_recovery_reads() {
+    let object_name: String = "a".repeat(MAX_OBJECT_NAME_LENGTH);
+    for kind in SERVICE_KINDS {
+        let id: String = format!("{}-{object_name}", kind.name());
+        assert!(is_valid_id(id.as_str()), "{id:?} names no item, so a claim of it would be given up on");
+    }
 }
 
 /// What follows a kind in an id is the object alone,

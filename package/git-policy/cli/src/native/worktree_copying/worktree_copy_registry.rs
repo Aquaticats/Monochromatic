@@ -264,7 +264,7 @@ fn canonical_registered_root(root: &Path) -> Result<Option<PathBuf>, WorktreeCop
 /// ```ts
 /// async function readRegisteredRoots({ observation, gitPath }): Promise<string[]>;
 /// ```
-fn read_registered_roots(
+pub(crate) fn read_registered_roots(
     context: &GitContext,
     observation: &WorktreeCopyObservation,
 ) -> Result<Vec<PathBuf>, WorktreeCopyError> {

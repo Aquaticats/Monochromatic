@@ -48,6 +48,10 @@ pub mod work_item_recovery;
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
+/// The ids the queue still owes work for,
+/// asked by a producer that writes a record and by a consumer that takes a name away.
+pub mod work_item_queued_ids;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 
@@ -60,6 +64,14 @@ pub mod service_claim_watch;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The words for a start that cannot come at all,
+/// because the address cannot exist or the manager made the service listen elsewhere.
+pub mod service_messages_of_a_start_that_cannot_come;
+
+/// What a commit says while it waits for the service,
+/// and that the service is restarted or the commit built again.
+pub mod service_messages_of_a_wait_for_the_service;
+
 /// The commit service's serialized step.
 pub mod service_land;
 
@@ -69,6 +81,11 @@ pub mod earlier_service_journal_adopted;
 
 /// A scan of the processes run on the blocking pool and awaited under a ceiling.
 pub mod scan_awaited_under_a_ceiling;
+
+/// What one process of the process table says about itself:
+/// its command line up to the largest line any program can carry,
+/// and the report of a line that cannot be proved.
+pub mod earlier_service_command_line_read;
 
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
@@ -250,6 +267,9 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// What a commit does when the service answers that the branch moved under it.
+pub mod service_commit_after_a_moved_branch;
+
 /// Which end of a commit's scratch tree a submitted request leaves it to.
 pub mod service_commit_tree_ownership;
 
@@ -350,6 +370,21 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// The drain's step that deletes the subvolumes a removal handed over.
+pub mod service_work_drain_deletes_subvolumes;
+
+/// What a drained push's verdict does to its records,
+/// its retry plan and the person.
+pub mod service_work_settling_a_verdict;
+
+/// How one item whose kind answers with words is settled,
+/// with the line the person reads for it.
+pub mod service_work_settling_with_words;
+
+/// The drain of the snapshots the commit service makes ahead of the next add,
+/// as one step of a round.
+pub mod service_work_drains_a_snapshot_ahead;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
@@ -357,6 +392,11 @@ pub mod service_work_storage_awaited;
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;
+
+/// The service's work that can take minutes:
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
+pub mod service_work_slow_lane;
 
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;
@@ -371,6 +411,16 @@ pub mod service_handoff;
 
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;
+
+/// Which command will decide a held commit's post-commit checks,
+/// and the verdict that command left.
+pub mod held_push_holder_and_verdict;
+
+/// The wake a command gives the service when it releases a held push by itself.
+pub mod held_push_release_wakes_the_service;
+
+/// What the filesystem proves about a Git directory the service can no longer resolve.
+pub mod unreachable_git_dir_proven_gone;
 
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;

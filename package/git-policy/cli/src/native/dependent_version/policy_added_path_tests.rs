@@ -21,7 +21,13 @@ use super::{
 /// The modes and object names entries carry.
 use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
 /// Shared fixture directories and real Git.
+use crate::policy_test_support::main_worktree;
+/// The repository location Git answers for an invocation.
+use crate::repository_location::RepositoryLocation;
+/// Shared fixture directories and real Git.
 use crate::test_support::{fixture, git, git_context, remove, repository};
+/// The repository shape a location carries.
+use crate::worktree_identity::WorktreeIdentity;
 /// Unix permission bits.
 use std::os::unix::fs::PermissionsExt;
 /// Owned filesystem paths.
@@ -250,7 +256,7 @@ fn the_real_index_entries_are_listed_for_the_paths_asked_about() {
         .collect();
     let listed = real_index_entries(
         &git_context(),
-        repo.as_path(),
+        &main_worktree(repo.to_str().expect("a text path"), ""),
         index.as_path(),
         asked.as_slice(),
     )
@@ -277,4 +283,108 @@ fn git_context_index_object(repo: &Path, name: &str) -> String {
     let mut fields = text.split(' ');
     let _mode: Option<&str> = fields.next();
     return String::from(fields.next().expect("an object name"));
+}
+
+/// What:
+///  The real index is listed in the repository the command line named,
+///  as the location Git answered describes it,
+///  and never in the one the caller's `-C` names when its directory change is read a second time.
+/// Why:
+///  Git resolves a relative `--git-dir` after the caller's last `-C`,
+///  so a listing that reads those options again from the worktree top asks Git to read `<top>/wt/../cfg.git`,
+///  which is no repository at all:
+///  the listing fails,
+///  and every clean dependent whose copy it would have proved stays out of the commit.
+///  A Git directory beside its work tree has no `.git` inside the work tree to find,
+/// so the pair is named rather than discovered.
+#[test]
+fn the_real_index_is_listed_in_the_repository_the_command_line_named() {
+    let root: PathBuf = fixture("added-path-named-repository");
+    let holder: PathBuf = repository(root.as_path(), "holder");
+    let git_dir: PathBuf = holder.join("cfg.git");
+    let work_tree: PathBuf = holder.join("wt");
+    std::fs::create_dir(work_tree.as_path()).expect("the work tree");
+    git(
+        holder.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            git_dir.to_str().expect("a text path"),
+        ],
+    );
+    std::fs::write(work_tree.join("a.json"), b"{\"version\":\"1.0.0\"}\n").expect("a");
+    let options: Vec<String> = vec![
+        format!("--git-dir={}", git_dir.display()),
+        format!("--work-tree={}", work_tree.display()),
+    ];
+    let mut staged: Vec<String> = options.clone();
+    staged.extend(["add", "--", "a.json"].map(str::to_string));
+    git(work_tree.as_path(), staged.as_slice());
+    // The caller's own chain, spelled as a person writes it: `-C wt` reaches the work tree, where `../cfg.git` is the
+    //  Git directory beside it. Reading that option again from the work tree reaches `wt/cfg.git`, which is nothing.
+    let mut context = git_context();
+    context.global_prefix = ["-C", "wt", "--git-dir=../cfg.git", "--work-tree=."]
+        .iter()
+        .map(|option| { return std::ffi::OsString::from(option); })
+        .collect();
+    // Git's discovery stops above the work tree, as it does in a person's home directory, so a listing that names no
+    //  repository reads none; the fixture's own holder would otherwise answer for it.
+    let ceiling: PathBuf = std::fs::canonicalize(holder.as_path()).expect("the holder resolves");
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CEILING_DIRECTORIES"),
+        ceiling.into_os_string(),
+    ));
+    let location: RepositoryLocation = RepositoryLocation {
+        identity: WorktreeIdentity::MainWorktree {
+            common_dir: git_dir.clone(),
+            git_dir: git_dir.clone(),
+            worktree_root: work_tree.clone(),
+        },
+        prefix: Vec::new(),
+    };
+    let index: PathBuf = git_dir.join("index");
+    let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
+    let listed = real_index_entries(&context, &location, index.as_path(), asked.as_slice())
+        .expect("the real index is listed in the repository the location names");
+    let entry: &Entry = listed.get(b"a.json".as_slice()).expect("the asked path is listed");
+    assert_eq!(entry.0, CandidateMode::Regular);
+    let mut oracle: Vec<String> = options;
+    oracle.extend(["ls-files", "--stage", "--", "a.json"].map(str::to_string));
+    let answered: String = crate::test_support::git_text(work_tree.as_path(), oracle.as_slice());
+    assert!(
+        answered.contains(entry.1.as_str()),
+        "the listing names the blob the real index holds: {answered}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A location whose repository has no work tree is refused,
+///  naming the reason rather than answering that the real index holds nothing.
+/// Why:
+///  The listing is what proves a dependent's copy still holds `HEAD`'s version,
+///  so an empty answer would leave every dependent out of a commit for a reason nobody could read.
+///  Only a bare repository,
+///  where a commit adds no manifest at all,
+///  leaves a location with no work tree to list in.
+#[test]
+fn a_location_without_a_work_tree_is_refused() {
+    let bare: RepositoryLocation = RepositoryLocation {
+        identity: WorktreeIdentity::BareRepository {
+            common_dir: PathBuf::from("/bare/cfg.git"),
+            git_dir: PathBuf::from("/bare/cfg.git"),
+        },
+        prefix: Vec::new(),
+    };
+    let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
+    let index: PathBuf = PathBuf::from("/bare/cfg.git/index");
+    let refused = real_index_entries(&git_context(), &bare, index.as_path(), asked.as_slice())
+        .expect_err("a repository with no work tree cannot be listed");
+    assert_eq!(
+        refused,
+        "the repository holds no work tree to list the real index in",
+        "the refusal names what stands in the way"
+    );
 }

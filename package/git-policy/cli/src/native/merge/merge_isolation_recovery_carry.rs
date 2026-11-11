@@ -19,7 +19,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_carry::drop_capture_ref_awaiting;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry_awaiting, changes_between_awaiting, restore_awaiting};
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, LandedFile, carry_awaiting, changes_between_awaiting, restore_awaiting};
 use crate::merge_isolation_carry_notice::report_lines;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
@@ -46,13 +46,17 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     intent: &MergeIntent,
+    landed: &[LandedFile],
     out: &mut W,
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
+    // What the command that moved the checkout read, which is the one thing that tells the file Git wrote from a save whose
+    //  bytes accept the whole merge: a reading that names no path leaves the bytes as all the evidence, as before
+    //  (`merge_isolation_carry_landed.rs`).
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
+            for line in report_lines("", &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
             }
             return Ok(true);
@@ -93,7 +97,9 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
             changes.push(change.clone());
         }
     }
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
+    // The settling that ran before this carry wrote the moved head's entries, so no reading of the merge's own write describes
+    //  the paths here: each one is judged by its bytes.
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
@@ -129,7 +135,7 @@ pub(crate) async fn restore_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match restore_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
+    match restore_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(()) => return Ok(true),
         // A lock that stays held leaves everything to the next command.
         Err(CarryFailure::IndexHeld(lock)) => {

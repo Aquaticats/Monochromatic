@@ -25,6 +25,9 @@
 //! ```
 
 use crate::forwarding::{ChildOutcome, exit_code, git_command, outcome_of, run_real_git};
+/// Who a real-Git start runs for:
+/// this step reruns the command the person typed.
+use crate::hooks_off::StartOwner;
 use crate::scratch_location::scratch_file;
 use crate::service_index_wait::{foreign_holds, wait_for_service_hold_within};
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
@@ -105,7 +108,7 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 /// runOnce(argv, capturedFd) // { exited: n } | { signaled: n }
 /// ```
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
-    let mut command = git_command(real_git, arguments, overlay);
+    let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
     let status = command.status_retrying()?;
     return Ok(outcome_of(status));
@@ -114,7 +117,7 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
 /// The command with every stream inherited,
 /// as a forwarded command runs when nothing needs to be kept.
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
-    return match run_real_git(real_git, arguments, overlay) {
+    return match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
         Ok(ChildOutcome::Exited(code)) => ForwardedRun::Ran(code),
         Ok(ChildOutcome::Signaled(signal)) => ForwardedRun::Killed(signal),
         Err(error) => ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },

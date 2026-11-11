@@ -22,7 +22,7 @@ import {
 import { buildInstrumentedTargets } from './fuzz-build.ts';
 import {
   baseImage,
-  limits,
+  buildMemory,
   maxInputBytes,
   runImage,
 } from './fuzz-images.ts';
@@ -245,6 +245,7 @@ await writeFile(
       maxInputBytes,
       secondsPerTarget,
       memory: defaultContainerLimits.memory,
+      buildMemory,
       cpus: defaultContainerLimits.cpus,
       pids: defaultContainerLimits.pidsLimit,
       compilerMount: 'read-only during compilation with container label isolation disabled; absent during fuzzing',

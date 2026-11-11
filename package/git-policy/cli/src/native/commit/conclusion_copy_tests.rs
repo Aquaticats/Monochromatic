@@ -225,11 +225,13 @@ fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
 ///  and flushes neither copy.
 /// Why:
 ///  A merge leaves `MERGE_HEAD`,
-/// `MERGE_MSG` and `MERGE_MODE` behind,
-///  so a copy that flushed every publish would wait for the disk six times per merge commit
+/// `MERGE_MSG`,
+/// `MERGE_MODE` and `AUTO_MERGE` behind,
+///  so a copy that flushed every publish would wait for the disk eight times per merge commit
 ///  where a plain commit of the same paths waits none,
 ///  and the records put that wait at up to 47.9 s for one merge commit
-///  (`doc/planning/cli-git-merge-commit-landing-in-a-busy-checkout.md`).
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "A merge commit's conclusion copies no longer flush").
 ///  Every copy here is read inside this commit's own transaction,
 ///  which a power loss ends without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`,
 /// the tearing

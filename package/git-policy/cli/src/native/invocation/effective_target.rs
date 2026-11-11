@@ -3,7 +3,8 @@
 //! Why:
 //!  Linked-worktree safeguards discipline a person's repositories,
 //!  not the
-//!      disposable clones a tool keeps in its own cache.
+//!      disposable clones a tool keeps in its own cache
+//!  or in the directory a build step of that tool was given.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -201,6 +202,41 @@ pub fn mise_data_dir(
 }
 
 /// What:
+///  Cargo's output directory for one build script,
+/// as the invocation's environment names it:
+///  `OUT_DIR`,
+///  which Cargo sets for every build script and passes on to what that script starts;
+///  an empty value counts as unset.
+/// Why:
+///   A crate that vendors another project clones it into this directory and runs Git there
+/// (`libghostty-vt-sys` cloned Ghostty into `OUT_DIR/ghostty-src`),
+///  and that clone belongs to the build step rather than to the person,
+///  so a guarded command inside it is exempt as one inside uv's cache or mise's data directory is.
+///  Cargo decides the directory,
+///  so the value is taken verbatim,
+/// exactly as Cargo uses it;
+///  the environment is injected so tests never read the real one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cargoBuildScriptOutputDir(environment: [string, string][]): { path: string; namedBy: string } | undefined;
+/// ```
+pub fn cargo_build_script_output_dir(
+    environment: &[(OsString, OsString)],
+) -> Option<ToolCacheDirectory> {
+    // An empty value is unset: an empty path would exempt whatever the current directory is.
+    if let Some(explicit) = environment_value(environment, "OUT_DIR")
+        && !explicit.is_empty()
+    {
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(explicit),
+            named_by: "OUT_DIR",
+        });
+    }
+    return None;
+}
+
+/// What:
 ///  The tool directories exempt from worktree enforcement on this machine.
 ///       `Vec<PathBuf>` is an owned list of owned paths.
 /// Why:
@@ -227,70 +263,127 @@ pub fn default_allowed_worktree_dirs(
     if let Some(mise) = mise_data_dir(environment, home) {
         directories.push(mise);
     }
+    // Cargo's build-script directory is the narrowest of the three: one build step's own output, not a whole cache.
+    if let Some(cargo) = cargo_build_script_output_dir(environment) {
+        directories.push(cargo);
+    }
     return directories;
 }
 
 /// What:
-///  Report whether the canonical `candidate` lies inside any allowed directory.
-/// Why:
-///   Each allowed directory is resolved through symbolic links first,
-///  so a home
-///       reached through a link still matches;
-///  a directory that does not exist drops
-///       out.
-///  `Path::starts_with` compares whole segments,
-///  so `/a/b` does not contain
-///       `/a/bc`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function isAllowedWorktreeDir(candidate: string, allowedDirs: string[]): Promise<boolean>;
-/// ```
-pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
-    return matching_allowed_worktree_dir(candidate, allowed_dirs).is_some();
-}
-
-/// What:
-///  The first allowed directory the canonical `candidate` lies inside,
+///  The first allowed directory that holds every one of `candidates`,
 /// with the variable that named it.
 /// Why:
-///   The exemption names the variable that produced it,
-/// so a person can see why their repository
-///  was exempt instead of reading an outcome no one answers.
+///   An exemption covers a whole repository,
+///  never one directory inside it:
+///  a linked worktree keeps its Git directory in the main clone
+///  (`<clone>/.git/worktrees/<name>`)
+///  and its files wherever they were added,
+///  so a Git directory alone would exempt a checkout standing outside the allowed directory
+///  and let a guarded form overwrite the work kept there.
+///  Each allowed directory is resolved through symbolic links first;
+///  a directory that does not exist drops out,
+///  and so does an empty candidate list,
+///  which every directory would otherwise hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function matchingAllowedWorktreeDir(candidate, allowedDirs): Promise<ToolCacheDirectory | undefined>;
+/// async function matchingAllowedWorktreeDir(candidates: string[], allowedDirs): Promise<ToolCacheDirectory | undefined>;
 /// ```
 pub fn matching_allowed_worktree_dir<'dirs>(
-    candidate: &Path,
+    candidates: &[&Path],
     allowed_dirs: &'dirs [ToolCacheDirectory],
 ) -> Option<&'dirs ToolCacheDirectory> {
+    // An empty question has no answer: with no path to ask about, every directory would qualify.
+    if candidates.is_empty() {
+        return None;
+    }
     // `for directory in allowed_dirs` borrows each entry in turn.
     for directory in allowed_dirs {
-        // What: `if let Ok(resolved) = ... && cond` runs only when the directory could be
-        //       resolved and the candidate lies inside it.
+        // What: `if let Ok(resolved) = ...` runs only when the directory could be resolved, and the loop
+        //       below asks whether every candidate lies inside it.
         // Why:  A tool that is not installed has no cache directory to compare with.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // let resolved; try { resolved = await realpath(directory); } catch { continue; }
         // ```
-        if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path())
-            && candidate.starts_with(resolved.as_path())
-        {
-            return Some(directory);
+        if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path()) {
+            // What: every candidate is asked in turn, so the first one outside stops the question.
+            // Why:  A closure would be the same test, and this form keeps the state in the loop's own names.
+            let mut every_candidate_is_inside: bool = true;
+            for candidate in candidates {
+                if !candidate.starts_with(resolved.as_path()) {
+                    every_candidate_is_inside = false;
+                    break;
+                }
+            }
+            if every_candidate_is_inside {
+                return Some(directory);
+            }
         }
     }
     return None;
 }
 
 /// What:
+///  The paths that must all lie inside one allowed directory for a repository's work to be exempt:
+///  its Git directory,
+/// and the top of its worktree when it has one.
+/// Why:
+///  These are exactly the places a guarded command overwrites,
+/// so a repository is exempt only when both stand inside the directory the variable names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemptedRepositoryPaths(identity: WorktreeIdentity): string[];
+/// ```
+fn exempted_repository_paths(identity: &WorktreeIdentity) -> Vec<&Path> {
+    // `match` binds the two paths each shape holds; a bare repository and no repository hold at most one.
+    return match identity {
+        WorktreeIdentity::OutsideWorktree => Vec::<&Path>::new(),
+        WorktreeIdentity::BareRepository { git_dir, .. } => vec![git_dir.as_path()],
+        WorktreeIdentity::MainWorktree {
+            git_dir,
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            git_dir,
+            worktree_root,
+            ..
+        } => vec![git_dir.as_path(), worktree_root.as_path()],
+    };
+}
+
+/// What:
+///  The allowed directory that exempts the whole repository `identity` names,
+/// with the variable that named it.
+/// Why:
+///   The worktree guard protects the person's files,
+/// and the exemption exists for a tool's own clone,
+///  so both the Git directory and the worktree top must stand inside the same allowed directory;
+/// one of them outside means part of the work is the person's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function matchingAllowedWorktreeDirForRepository(identity, allowedDirs): Promise<ToolCacheDirectory | undefined>;
+/// ```
+pub fn matching_allowed_worktree_dir_for_repository<'dirs>(
+    identity: &WorktreeIdentity,
+    allowed_dirs: &'dirs [ToolCacheDirectory],
+) -> Option<&'dirs ToolCacheDirectory> {
+    let paths: Vec<&Path> = exempted_repository_paths(identity);
+    return matching_allowed_worktree_dir(paths.as_slice(), allowed_dirs);
+}
+
+/// What:
 ///  Map a repository identity to the target worktree policies act on.
 /// Why:
-///   Bare and absent repositories have no worktree;
-///  a repository whose Git
-///       directory sits under an allowed tool cache is exempt before main/linked matters.
+///   Bare and absent repositories have no worktree to protect;
+///  a repository whose Git directory and worktree top both stand under one allowed tool cache is exempt
+///       before main/linked matters,
+///  because the exemption covers the tool's own clone and nothing the tool writes elsewhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -300,8 +393,7 @@ pub fn classify_effective_target(
     identity: &WorktreeIdentity,
     allowed_dirs: &[ToolCacheDirectory],
 ) -> EffectiveTarget {
-    // What: `match` on the borrowed identity; `{ git_dir, .. }` binds one field and
-    //       ignores the rest.
+    // What: `match` on the borrowed identity; `{ .. }` binds nothing and the shape alone decides.
     // Why:  Each shape maps to exactly one target, and the compiler checks none is missed.
     //
     // In TS you'd write (pseudocode):
@@ -312,14 +404,14 @@ pub fn classify_effective_target(
         WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => {
             return EffectiveTarget::OutsideWorktree;
         }
-        WorktreeIdentity::MainWorktree { git_dir, .. } => {
-            if is_allowed_worktree_dir(git_dir.as_path(), allowed_dirs) {
+        WorktreeIdentity::MainWorktree { .. } => {
+            if matching_allowed_worktree_dir_for_repository(identity, allowed_dirs).is_some() {
                 return EffectiveTarget::Allowlisted;
             }
             return EffectiveTarget::MainWorktree;
         }
-        WorktreeIdentity::LinkedWorktree { git_dir, .. } => {
-            if is_allowed_worktree_dir(git_dir.as_path(), allowed_dirs) {
+        WorktreeIdentity::LinkedWorktree { .. } => {
+            if matching_allowed_worktree_dir_for_repository(identity, allowed_dirs).is_some() {
                 return EffectiveTarget::Allowlisted;
             }
             return EffectiveTarget::LinkedWorktree;

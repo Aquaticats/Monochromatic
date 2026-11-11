@@ -188,10 +188,10 @@ pub fn copy_conclusion_state(
     io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
     // Neither copy is flushed: both are read inside this commit's own transaction, and a power loss ends that
     // transaction without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`, the tearing table), so a
-    // flush finds no reader it did not already have from the page cache. A merge leaves `MERGE_HEAD`, `MERGE_MSG` and
-    // `MERGE_MODE` behind, so a flush per publish waited for the disk six times on the merge commits this repository
-    // lands and never on a plain commit of the same paths (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-    // "A merge commit's conclusion copies no longer flush").
+    // flush finds no reader it did not already have from the page cache. A merge leaves `MERGE_HEAD`, `MERGE_MSG`,
+    // `MERGE_MODE` and `AUTO_MERGE` behind, so a flush per publish waited for the disk eight times on the merge commits
+    // this repository lands and never on a plain commit of the same paths
+    // (`doc/planning/cli-git-commit-latency-under-many-agents.md`, "A merge commit's conclusion copies no longer flush").
     for (name, bytes) in entries {
         io_step(
             "copying a conclusion entry into the shadow",

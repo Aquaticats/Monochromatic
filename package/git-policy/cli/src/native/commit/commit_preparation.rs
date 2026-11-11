@@ -27,8 +27,13 @@ use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal,
 /// so a failed preparation leaves no shadow.
 /// The shadow request and the real-Git command builder.
-use crate::shadow_git::shadow_request;
+/// The shadow request every shadow command of the wrapper is made of.
+use crate::shadow_git::{git_dir_option, shadow_request};
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
+use crate::hooks_off::StartOwner;
 use crate::signal_relay::SignalGuard;
 /// Context,
 /// one required Git start and failure text.
@@ -152,7 +157,7 @@ fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>
     //  beside it. The configuration options the caller wrote stay, because they are the person's settings for the commit.
     let own_globals: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
     let mut arguments: Vec<OsString> = crate::repository_selection::without_repository_selection(own_globals.as_slice());
-    arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
+    arguments.push(git_dir_option(request.shadow));
     let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
         request.capture.layout.config_snapshot.as_ref(),
         request.scratch,
@@ -223,7 +228,7 @@ pub fn run_native_commit_within(
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
     let arguments: Vec<OsString> = native_commit_arguments(request)?;
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
+    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice(), StartOwner::Wrapper);
     command
         .current_dir(cwd)
         .env("GIT_INDEX_FILE", request.commit_index);
@@ -250,10 +255,16 @@ pub fn run_native_commit_within(
     let began: std::time::Instant = std::time::Instant::now();
     // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
     //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
-    let duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
+    // The wait also says why it still lasts when the kernel has not released the step, through the notice's writer thread:
+    //  a notice thread the system refused says nothing at all, and the wait is the one that keeps waiting.
+    let mut duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
         told: notice.step_number(),
         bound: notice.ceiling_that_applies(),
+        while_held: None,
     };
+    if let Some(lines) = notice.lines_for_the_wait() {
+        duty.while_held = Some(crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords { lines, again_every: cadence.interval });
+    }
     let finished = run_guarded_child(&mut command, duty);
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
     // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
@@ -276,11 +287,26 @@ pub fn run_native_commit_within(
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
+        // A step the ceiling ended never exited by itself, so the note carries its name and no status.
+        crate::git_step_failure::note_failed_step(step.as_str(), None);
         let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
         return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
-    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = finished?;
-    return Ok(crate::forwarding::exit_code(outcome));
+    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {
+        Ok(ended) => ended,
+        // The step never started, so the note carries its name and no status, as every other step that cannot start does.
+        Err(error) => {
+            crate::git_step_failure::note_failed_step(step.as_str(), None);
+            return Err(error);
+        }
+    };
+    let code: i32 = crate::forwarding::exit_code(outcome);
+    // Git's own status for a commit it declined is the reason the command stops, and Git printed why to the terminal; the
+    //  note keeps the step and that status so the record can name them (`commit_stop_reason.rs`).
+    if code != 0 {
+        crate::git_step_failure::note_failed_step(step.as_str(), Some(code));
+    }
+    return Ok(code);
 }
 
 /// What:

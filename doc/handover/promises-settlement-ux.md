@@ -548,7 +548,8 @@ not the active prototype.
 Its red game-faithfulness result remains historical evidence of why the mapping changed.
 At this prototype stage the lesson was still unchanged;
 the later A-neutral integration
-and its separate verification are recorded in the next section.
+and its separate verification are recorded under
+"Integrated A-neutral lesson (verified before the belt correction)".
 
 ## Integrated A-neutral lesson (verified before the belt correction)
 

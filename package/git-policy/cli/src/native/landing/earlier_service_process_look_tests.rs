@@ -1,11 +1,15 @@
 //! Controls for the look at the processes under its ceiling:
 //! the scan runs on the blocking pool and the wait for it is awaited,
 //! so a task beside the look keeps running,
-//! and a scan that outlasts the ceiling counts as "may be running".
+//! and a scan that outlasts the ceiling counts as "may be running";
+//! a command line longer than any program can carry is read whole,
+//! and a command line that cannot be read names its process.
 
 use super::*;
 use crate::scan_awaited_under_a_ceiling::scan_under_ceiling;
+use crate::test_support::{fixture, remove};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
+use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 
 /// How long the scan of a control takes.
 const SLOW_SCAN: Duration = Duration::from_millis(150);
@@ -13,6 +17,93 @@ const SLOW_SCAN: Duration = Duration::from_millis(150);
 /// A look with the given ceiling.
 fn look_with(ceiling: Duration) -> ServiceLook {
     return ServiceLook { instance: String::from("abc"), journals: Vec::new(), own_pid: 1, own_user: effective_user(), ceiling };
+}
+
+/// Why a long command line is as long as it is:
+/// a word is at most 32 pages (`MAX_ARG_STRLEN`,
+/// Linux `include/uapi/linux/binfmts.h`),
+/// and the kernel refuses a command line and environment together above 6 MiB (`fs/exec.c`,
+/// `bprm_stack_limits`).
+/// This control's line is 200 words of 1 KiB,
+/// 204,800 bytes:
+/// longer than the 65,536 bytes the look used to read whole,
+/// and far below what a program may carry.
+const LONG_LINE_WORD_BYTES: usize = 1024;
+const LONG_LINE_WORDS: usize = 200;
+
+/// The process number the fake process table lists.
+const FAKE_PID: u32 = 77;
+
+/// What a process of a fake table is called,
+/// as the kernel keeps its program's name.
+const FAKE_PROGRAM_NAME: &str = "unrelated-tool";
+
+/// What:
+///  A process table of a control:
+/// an empty table of sockets,
+/// and one process whose command line is `words`.
+/// Why:
+///   A look reads a table of the process numbers it is given,
+/// so a control states every process it is up against and never depends on what else the machine runs
+///  (`earlier_service_process_hold`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const procRoot = fakeProcRoot({ words });
+/// ```
+fn proc_root_with(words: &[String]) -> PathBuf {
+    let root: PathBuf = fixture("look-table");
+    std::fs::create_dir_all(root.join("net")).expect("a socket table folder");
+    std::fs::write(root.join("net/unix"), "Num       RefCount Protocol Flags    Type St Inode Path\n").expect("an empty socket table");
+    let process: PathBuf = root.join(FAKE_PID.to_string());
+    std::fs::create_dir_all(&process).expect("a process folder");
+    std::fs::write(process.join("comm"), format!("{FAKE_PROGRAM_NAME}\n")).expect("the program's kernel name");
+    let mut bytes: Vec<u8> = Vec::new();
+    for word in words {
+        bytes.extend(word.as_bytes());
+        bytes.push(0);
+    }
+    std::fs::write(process.join("cmdline"), bytes).expect("a command line");
+    return root;
+}
+
+/// The words of a long command line that is no service of any worktree.
+fn long_command_line() -> Vec<String> {
+    let mut words: Vec<String> = vec![String::from("/usr/bin/git"), String::from("commit"), String::from("-m")];
+    for at in 0..LONG_LINE_WORDS {
+        words.push(format!("{at:07}").chars().cycle().take(LONG_LINE_WORD_BYTES).collect());
+    }
+    return words;
+}
+
+/// What:
+///  A command line longer than the limit the look used to read is proved whole,
+/// so the look finds no service.
+/// Why:
+///   The limit exists to keep one process from filling memory,
+/// and a limit below what a program may carry counts an ordinary program as one that
+///  may be the earlier helper:
+/// a commit whose message travels in its arguments,
+/// a script passed with `-e`,
+/// and a `podman run` line with its mounts all carry tens of kilobytes,
+/// which measured 44,174 bytes of one program's command line on this host on 2026-11-10
+/// (`package/git-policy/cli/src/native/invocation/management_service_settle_earlier_batches_tests.rs`
+/// holds the same fact where the person meets it).
+/// A process counted that way refuses every settle command on the machine for as long as it runs,
+///  and its reason says a look ran out of time,
+/// which nothing can clear.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(earlierServiceProcessHold(look, procRoot)).toBeUndefined();
+/// ```
+#[test]
+#[cfg(unix)]
+fn a_command_line_longer_than_a_program_can_carry_is_proved_whole() {
+    let root: PathBuf = proc_root_with(long_command_line().as_slice());
+    let held: Option<Holding> = earlier_service_process_hold(look_with(PROCESS_LOOK_CEILING), root.as_path());
+    assert!(held.is_none(), "a command line that is no service holds nothing back: {held:?}");
+    remove(root.as_path());
 }
 
 /// A scan that takes `SLOW_SCAN` and finds no service.

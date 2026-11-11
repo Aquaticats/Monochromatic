@@ -18,8 +18,12 @@
 //!  Every fixture repository sits inside a repository of the fixture's own,
 //! so a wrapper that reads the wrong repository reads that one,
 //! never the checkout the fixture lives in.
+//!  A hand bump's dependents belong to the same commit
+//! (`doc/decision/private-npm-registry.md:158-160`),
+//! so one case commits a workspace in a named repository and reads what landed there.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::dependent_version::{CONFIGURATION, manifest, publish_set, read, write};
 use super::support::{Fixture, direct, fixture, git, repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -84,10 +88,32 @@ fn dotfiles(fixture: &Fixture, name: &str) -> Named {
 /// and a bare Git directory is no worktree,
 /// so the instance of the Git directory the line names is started here.
 fn wrapped_named(fixture: &Fixture, named: &Named, words: &[&str]) -> Command {
-    let command: Command = wrapped_commit(fixture, named.work_tree.as_path(), words);
+    return wrapped_named_in(fixture, named, named.work_tree.as_path(), words);
+}
+
+/// What:
+///  The wrapped line for a commit in a dotfiles repository,
+///  run from `directory`.
+/// Why:
+///   A line that moves Git with `-C` starts somewhere else than the work tree it names,
+///  and the service that lands its commit is the one of the Git directory the line names.
+fn wrapped_named_in(fixture: &Fixture, named: &Named, directory: &Path, words: &[&str]) -> Command {
+    let command: Command = wrapped_commit(fixture, directory, words);
     let service = fixture.service.lock().expect("the fixture's service lock");
     service.as_ref().expect("a wrapped command starts the fixture's service").serve(fixture, named.git_dir.as_path());
     return command;
+}
+
+/// What:
+///  A Git query against `named` in the text of its answer.
+/// Why:
+///   Every read of a repository whose Git directory sits outside its work tree names it,
+/// and the assertions below read the commit that landed there.
+fn named_text(fixture: &Fixture, named: &Named, arguments: &[&str]) -> String {
+    let mut line: Vec<String> = options_of(named);
+    line.extend(arguments.iter().map(|argument| { return (*argument).to_string(); }));
+    let words: Vec<&str> = line.iter().map(String::as_str).collect();
+    return git_text(fixture, named.work_tree.as_path(), words.as_slice());
 }
 
 /// Make a plain repository at `directory` with one tracked file in a subdirectory,
@@ -315,5 +341,161 @@ fn a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone(
     assert_eq!(git_text(&fixture, running_in.as_path(), &["status", "--short"]), running_in_status, "its uncommitted edit is still there");
     assert_eq!(stores_of(&fixture, running_in.as_path()), before, "the repository the command ran in gained nothing");
     assert_eq!(git_text(&fixture, oracle_in.as_path(), &["status", "--short"]), running_in_status, "the oracle's first repository was left alone too");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A hand bump of one manifest in a named repository carries every clean dependent's patch bump
+///  in the same commit,
+///  and brings their worktree copies to the committed bytes.
+/// Why:
+///  The owner's decision is that a hand bump commits its dependents in the same commit
+/// (`doc/decision/private-npm-registry.md:158-160`),
+/// and the wrapper reads the real index to prove each unselected copy still matches `HEAD`.
+///  A listing that names neither `--git-dir` nor `--work-tree` starts in a work tree with no `.git`
+/// of its own,
+/// Git answers "not a git repository",
+/// and the commit lands the hand bump while every clean dependent keeps its old version.
+///  The fixture's own root sits inside this checkout,
+/// so the service's Git would find that checkout's repository one level above the work tree and read
+/// the staged index through that discovery;
+/// `GIT_CEILING_DIRECTORIES` at the work tree's directory says what a person's home directory says,
+/// that no repository encloses this work tree.
+#[test]
+fn a_named_commit_carries_the_dependents_of_a_hand_bump() {
+    let fixture: Fixture = fixture("naming-dependent-version");
+    let named: Named = dotfiles(&fixture, "named");
+    let work_tree: &Path = named.work_tree.as_path();
+    write(work_tree, "package/module/a/package.json", &manifest("@s/a", "1.0.0", None));
+    write(work_tree, "package/module/b/package.json", &manifest("@s/b", "2.0.0", Some("@s/a")));
+    write(work_tree, "package/module/c/package.json", &manifest("@s/c", "3.0.0", Some("@s/a")));
+    write(work_tree, "package/config/pnpr/config.yaml", &publish_set(&["@s/a", "@s/b", "@s/c"]));
+    write(work_tree, "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    let mut staged: Vec<String> = options_of(&named);
+    staged.extend(["add", "--all"].map(str::to_string));
+    git(&fixture, work_tree, staged.as_slice());
+    let mut based: Vec<String> = options_of(&named);
+    based.extend(["commit", "--quiet", "--message=workspace"].map(str::to_string));
+    git(&fixture, work_tree, based.as_slice());
+    write(work_tree, "package/module/a/package.json", &manifest("@s/a", "1.1.0", None));
+    let mut raised: Vec<String> = options_of(&named);
+    raised.extend(["add", "--", "package/module/a/package.json"].map(str::to_string));
+    git(&fixture, work_tree, raised.as_slice());
+    let ceiling: PathBuf = std::fs::canonicalize(work_tree.parent().expect("the work tree's directory"))
+        .expect("the work tree's directory resolves");
+    let mut line: Vec<String> = options_of(&named);
+    line.extend(["commit", "--message=bump", "--", "package/module/a/package.json"].map(str::to_string));
+    let words: Vec<&str> = line.iter().map(String::as_str).collect();
+    let served: Output = wrapped_named(&fixture, &named, words.as_slice())
+        .env("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())
+        .output()
+        .expect("the wrapped commit runs");
+    let report: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert!(served.status.success(), "the commit lands: {report}");
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/a/package.json"]),
+        manifest("@s/a", "1.1.0", None),
+        "the hand bump lands: {report}"
+    );
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/b/package.json"]),
+        manifest("@s/b", "2.0.1", Some("@s/a")),
+        "the clean dependent's bump lands in the same commit: {report}"
+    );
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/c/package.json"]),
+        manifest("@s/c", "3.0.1", Some("@s/a")),
+        "every clean dependent's bump lands in the same commit: {report}"
+    );
+    assert_eq!(read(work_tree, "b"), manifest("@s/b", "2.0.1", Some("@s/a")), "the worktree copy takes the committed bytes");
+    assert_eq!(read(work_tree, "c"), manifest("@s/c", "3.0.1", Some("@s/a")), "the worktree copy takes the committed bytes");
+    assert_eq!(
+        named_text(&fixture, &named, &["status", "--porcelain"]),
+        "",
+        "the commit left no version change behind in the worktree"
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A hand bump committed in a repository named by relative options,
+///  reached by a relative `-C` from the directory beside its work tree,
+///  carries every clean dependent's patch bump in the same commit.
+/// Why:
+///  Git resolves a relative `--git-dir` after the caller's last `-C`,
+///  so a real-index listing that reads those options again from the worktree top
+///  asks for `<work tree>/wt/../cfg.git`,
+///  which is no repository:
+///  the listing fails,
+///  and the commit lands the hand bump while every clean dependent keeps its old version.
+///  The owner's decision is that a hand bump commits its dependents in the same commit
+/// (`doc/decision/private-npm-registry.md:158-160`).
+///  The command runs from the directory Git moves out of,
+///  which is where a person writes it,
+///  and its relative options are the ones the same person would write there.
+#[test]
+fn a_moved_named_commit_carries_the_dependents_of_a_hand_bump() {
+    let fixture: Fixture = fixture("naming-moved-dependent-version");
+    let named: Named = dotfiles(&fixture, "named");
+    let work_tree: &Path = named.work_tree.as_path();
+    let holder: PathBuf = named.git_dir.parent().expect("the Git directory's directory").to_path_buf();
+    write(work_tree, "package/module/a/package.json", &manifest("@s/a", "1.0.0", None));
+    write(work_tree, "package/module/b/package.json", &manifest("@s/b", "2.0.0", Some("@s/a")));
+    write(work_tree, "package/module/c/package.json", &manifest("@s/c", "3.0.0", Some("@s/a")));
+    write(work_tree, "package/config/pnpr/config.yaml", &publish_set(&["@s/a", "@s/b", "@s/c"]));
+    write(work_tree, "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    let mut staged: Vec<String> = options_of(&named);
+    staged.extend(["add", "--all"].map(str::to_string));
+    git(&fixture, work_tree, staged.as_slice());
+    let mut based: Vec<String> = options_of(&named);
+    based.extend(["commit", "--quiet", "--message=workspace"].map(str::to_string));
+    git(&fixture, work_tree, based.as_slice());
+    write(work_tree, "package/module/a/package.json", &manifest("@s/a", "1.1.0", None));
+    let mut raised: Vec<String> = options_of(&named);
+    raised.extend(["add", "--", "package/module/a/package.json"].map(str::to_string));
+    git(&fixture, work_tree, raised.as_slice());
+    let ceiling: PathBuf = std::fs::canonicalize(holder.as_path()).expect("the holder resolves");
+    let served: Output = wrapped_named_in(
+        &fixture,
+        &named,
+        holder.as_path(),
+        &[
+            "-C",
+            "wt",
+            "--git-dir=../cfg.git",
+            "--work-tree=.",
+            "commit",
+            "--message=bump",
+            "--",
+            "package/module/a/package.json",
+        ],
+    )
+    .env("GIT_CEILING_DIRECTORIES", ceiling.as_os_str())
+    .output()
+    .expect("the wrapped commit runs");
+    let report: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert!(served.status.success(), "the commit lands: {report}");
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/a/package.json"]),
+        manifest("@s/a", "1.1.0", None),
+        "the hand bump lands: {report}"
+    );
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/b/package.json"]),
+        manifest("@s/b", "2.0.1", Some("@s/a")),
+        "the clean dependent's bump lands in the same commit: {report}"
+    );
+    assert_eq!(
+        named_text(&fixture, &named, &["show", "HEAD:package/module/c/package.json"]),
+        manifest("@s/c", "3.0.1", Some("@s/a")),
+        "every clean dependent's bump lands in the same commit: {report}"
+    );
+    assert_eq!(read(work_tree, "b"), manifest("@s/b", "2.0.1", Some("@s/a")), "the worktree copy takes the committed bytes: {report}");
+    assert_eq!(read(work_tree, "c"), manifest("@s/c", "3.0.1", Some("@s/a")), "the worktree copy takes the committed bytes: {report}");
+    assert_eq!(
+        named_text(&fixture, &named, &["status", "--porcelain"]),
+        "",
+        "the commit left no version change behind in the worktree: {report}"
+    );
     remove_settled(&fixture);
 }

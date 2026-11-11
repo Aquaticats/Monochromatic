@@ -42,11 +42,9 @@ import {
   FORWARDED_BOUND_MILLISECONDS,
   judge,
 } from './native-perf-judge.ts';
-import {
-  reportLine,
-  violationLine,
-} from './native-perf-lines.ts';
+import { reportLine } from './native-perf-lines.ts';
 import { collectEvidence } from './native-perf-evidence.ts';
+import { assertPerfVerdict } from './native-perf-verdict.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import { forwarded } from './native-perf-scenarios.ts';
 import {
@@ -460,11 +458,9 @@ if (values.output !== undefined) {
 for (const entry of report) {
   console.log(reportLine(entry));
 }
-if (failures.length > 0) {
-  console.log(`FAILED samples: ${String(failures.length)}; first: ${JSON.stringify(failures[0])}`);
-  process.exitCode = 1;
-}
-for (const violation of violations) {
-  console.log(violationLine(violation));
-  process.exitCode = 1;
-}
+// The printed lines are the evidence, and the throw is both the status and the reason: a sample this run could not
+// measure, or a figure past its bound, reaches the error channel with the lines it printed before.
+assertPerfVerdict({
+  failures,
+  violations,
+},);

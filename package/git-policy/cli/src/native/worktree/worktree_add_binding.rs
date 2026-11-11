@@ -133,6 +133,31 @@ impl Binding {
     }
 }
 
+/// What:
+///  The record text of an add that has been bound to the objects Git made,
+/// keeping the ignored-state copy it still owes.
+/// Why:
+///   The binding is recorded as soon as Git returns,
+/// which is before the copy runs,
+/// so a record written with the binding alone loses the source and the selection a later command needs to make that copy;
+/// the two lines therefore travel with every rewrite of the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = registeredRecordWith(binding, owed, child);
+/// ```
+pub fn registered_record_with(binding: &Binding, owed: Option<&OwedCopy>, child: Option<&crate::worktree_copy_owner::CopyOwner>) -> String {
+    let mut text: String = binding.encode();
+    if let Some(copy) = owed {
+        text.push_str(format!("source={}\n", encode_path(copy.source.as_path())).as_str());
+        text.push_str(format!("sourceSelection={}\n", copy.selection.word()).as_str());
+    }
+    if let Some(named) = child {
+        text.push_str(format!("running={}\n", named.token()).as_str());
+    }
+    return text;
+}
+
 /// What a record says about an add.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Recorded {
@@ -171,15 +196,124 @@ pub fn decode_record(text: &str) -> Option<Recorded> {
     }));
 }
 
+/// What:
+///  Which of the source's ignored paths the add's copy takes.
+/// Why:
+///   A main checkout hands over its ignored state under its leave-out rule,
+/// and a linked worktree under the full listing;
+///  a later command that makes the copy must know which of the two the add meant,
+///  and that decision comes from the invoking identity,
+/// which is gone by then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwedSelection = 'ignored' | 'main-checkout';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OwedSelection {
+    /// Every path Git's standard exclusion stack ignores,
+    /// plus the ignored special entries.
+    Ignored,
+    /// The same listing,
+    /// walked under the main checkout's leave-out rule.
+    MainCheckout,
+}
+
+impl OwedSelection {
+    /// The word this selection is written as in an add's record.
+    fn word(self) -> &'static str {
+        return match self {
+            OwedSelection::Ignored => "ignored",
+            OwedSelection::MainCheckout => "main-checkout",
+        };
+    }
+
+    /// The selection a record's word names,
+    /// or nothing when the word is not one this release writes.
+    fn of_word(word: &str) -> Option<OwedSelection> {
+        return match word {
+            "ignored" => Some(OwedSelection::Ignored),
+            "main-checkout" => Some(OwedSelection::MainCheckout),
+            _ => None,
+        };
+    }
+}
+
+/// What:
+///  The ignored-state copy one add owes:
+/// the worktree it takes the state from,
+/// and which of that worktree's ignored paths it takes.
+/// Why:
+///   A command killed after real Git registered its worktree and before the copy finished leaves a worktree that must be
+/// filled,
+/// and the next command can only fill it from the source the add was invoked in;
+/// the record is where that source survives the command that died.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwedCopy = { source: string; selection: OwedSelection };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OwedCopy {
+    /// The worktree whose ignored state the add copies.
+    pub source: PathBuf,
+    /// Which of that worktree's ignored paths the copy takes.
+    pub selection: OwedSelection,
+}
+
 /// The record text of a planned add.
 pub fn planned_record(destination: &Path) -> String {
-    return format!("destination={}\nphase=planned\n", encode_path(destination));
+    return planned_record_with(destination, None, None);
 }
 
 /// The record text of a planned add whose Git process is named,
 /// so a reader can tell an add that still runs from one whose Git is gone.
 pub fn planned_record_with_child(destination: &Path, child: &crate::worktree_copy_owner::CopyOwner) -> String {
-    return format!("destination={}\nphase=planned\nrunning={}\n", encode_path(destination), child.token());
+    return planned_record_with(destination, None, Some(child));
+}
+
+/// What:
+///  The record text of a planned add,
+/// with the Git process it started and the ignored-state copy it owes when each is known.
+/// Why:
+///   Both facts must survive a kill,
+/// and the record is rewritten when Git starts,
+/// so one writer spells every field a reader takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plannedRecordWith({ destination, owed, child })
+/// ```
+pub fn planned_record_with(destination: &Path, owed: Option<&OwedCopy>, child: Option<&crate::worktree_copy_owner::CopyOwner>) -> String {
+    let mut text: String = format!("destination={}\nphase=planned\n", encode_path(destination));
+    if let Some(named) = child {
+        text.push_str(format!("running={}\n", named.token()).as_str());
+    }
+    if let Some(copy) = owed {
+        text.push_str(format!("source={}\n", encode_path(copy.source.as_path())).as_str());
+        text.push_str(format!("sourceSelection={}\n", copy.selection.word()).as_str());
+    }
+    return text;
+}
+
+/// What:
+///  The ignored-state copy a planned record says the add owes,
+/// or nothing when it names none.
+/// Why:
+///   A record written before this field existed promises no copy a later command could make,
+/// so it settles exactly as it
+///  did;
+/// only a record that names a source is finished from one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = owedCopyOf(text); // { source, selection } | undefined
+/// ```
+pub fn owed_copy_of(text: &str) -> Option<OwedCopy> {
+    return Some(OwedCopy {
+        source: decode_path(field_of(text, "source")?)?,
+        selection: OwedSelection::of_word(field_of(text, "sourceSelection")?)?,
+    });
 }
 
 /// What:

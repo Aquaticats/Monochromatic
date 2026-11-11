@@ -71,8 +71,29 @@ const TAG: &str = "worktreeRemove";
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 
-/// What the command says on standard error whenever it destroys a subvolume.
-pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: destroyed the btrfs subvolume of the removed worktree in one step; this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
+/// What:
+///  The line the command prints on standard error whenever a removed worktree was a btrfs subvolume.
+/// Why:
+///  The subvolume leaves the person's path in one step that cannot be undone,
+/// and its files are deleted by the commit
+///  service after the command returned,
+/// so a person who looks for the files has to be told which of the two happened and
+///  why nothing of theirs was lost:
+/// what went is what another process wrote or locked in the moments since the last check,
+/// which is the same risk
+///  `git worktree remove` takes.
+pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the worktree in one step, and the commit service deletes the files after this command returns (normally within a second); this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
+
+/// What:
+///  The line the command prints on standard error when a removed worktree was a btrfs subvolume and the person forced the removal.
+/// Why:
+///   `--force` is the one form that removes a worktree holding changes,
+/// and the destroy cannot be undone,
+/// so the
+///  line has to say that nothing was checked for changes before it,
+///  and the files leave later than the path does,
+/// because the same commit service the unforced line names deletes them after this command returns.
+pub const DESTROY_FORCED_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the forced removal in one step, without checking it for changes first, as `--force` asks, and the commit service deletes the files after this command returns (normally within a second); this cannot be undone, and everything the worktree held went with it, which is the set `git worktree remove --force` deletes (the risk of git worktree remove, here faster).";
 
 /// What:
 ///  Whether the administrative directory holds a `locked` entry.
@@ -211,6 +232,22 @@ pub trait RemoveOperations {
     /// Destroy the subvolume that `held` holds,
     /// and nothing else.
     fn destroy(&self, held: &Held) -> Result<(), String>;
+    /// What:
+    ///  Record the subvolume for the service and rename it out of the person's way,
+    /// so that no command waits for its delete.
+    /// Why:
+    ///  A stand-in that hands nothing over answers the reason,
+    /// and the removal then destroys the subvolume in place as it always did,
+    /// so every
+    ///  control of the deletion keeps working on the destroy below.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// handOver(context, commonDir, held, target): void; // throws the reason it did not
+    /// ```
+    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path) -> Result<(), String> {
+        return Err(String::from("this stand-in hands nothing to the service, so the subvolume is destroyed here"));
+    }
 }
 
 /// The kernel and Git,
@@ -243,6 +280,15 @@ impl RemoveOperations for LinuxOperations {
             Ok(_proof) => Ok(()),
             Err(refusal) => Err(refusal.reason),
         };
+    }
+
+    fn hand_over(&self, context: &GitContext, common_dir: &Path, held: &Held, target: &Path) -> Result<(), String> {
+        // The id names the subvolume that was held, whatever path it has by the time the service acts.
+        let id: u64 = match subvolume_id(&held.target, target) {
+            Ok(found) => found,
+            Err(error) => return Err(format!("the subvolume of {} cannot be identified ({error})", target.display())),
+        };
+        return crate::worktree_remove_hand_over::hand_over_removal(context, common_dir, &held.parent, held.parent_path.as_path(), held.name.as_os_str(), id, target);
     }
 
     fn destroy(&self, held: &Held) -> Result<(), String> {
@@ -495,7 +541,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             return RemoveOutcome::LeftToGit;
         }
     };
-    if let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir) {
+    // Git's own removal makes this proof only when the person did not force it (`remove_worktree` in
+    // `builtin/worktree.c`: `if (!force) check_clean_worktree(wt, av[0])`), and a forced removal deletes the worktree
+    // it was given whatever it holds, so the destroy answers for the same set of files.
+    if !request.plan.force
+        && let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir)
+    {
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }
@@ -509,13 +560,21 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = record_destroy(request.common_dir, registration.id.as_os_str(), &held.admin_identity, target) {
         warn(TAG, format!("the destroy of {} is not recorded, so a command that dies before its registration is removed leaves it to `git worktree prune`: {reason}", target.display()).as_str());
     }
-    if let Err(error) = operations.destroy(&held) {
-        debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
-        forget_destroy(request.common_dir, registration.id.as_os_str());
-        return RemoveOutcome::LeftToGit;
+    // The subvolume is handed to the service when it can be: it is renamed inside the parent this removal holds, a durable record
+    // names it, and the service's own call deletes it later, so the person waits for one rename and no kernel delete.
+    match operations.hand_over(request.context, request.common_dir, &held, target) {
+        Ok(()) => debug(TAG, format!("the subvolume of {} is recorded for the service's delete", target.display()).as_str()),
+        Err(why) => {
+            debug(TAG, format!("{why}; the subvolume of {} is destroyed here", target.display()).as_str());
+            if let Err(error) = operations.destroy(&held) {
+                debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
+                forget_destroy(request.common_dir, registration.id.as_os_str());
+                return RemoveOutcome::LeftToGit;
+            }
+        }
     }
-    // The kernel call returned, so its record now proves the files are gone; only that proof lets a later command remove the
-    // registration.
+    // Either the kernel call returned or the directory was renamed away, so the record now proves the files are gone from the
+    // path the person named; only that proof lets a later command remove the registration.
     record_destroyed(request.common_dir, registration.id.as_os_str());
     let outcome: RemoveOutcome = finish(&held, &registration, request);
     // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its

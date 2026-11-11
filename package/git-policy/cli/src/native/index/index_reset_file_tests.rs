@@ -27,6 +27,18 @@ fn same_as_git(scene: &Scene, names: &[Vec<u8>], label: &str) {
     assert!(git_bytes == our_bytes, "{label}: the index files differ\nGit:\n{}\nin process:\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
 }
 
+/// The version an index file's header names.
+fn version_of(bytes: &[u8]) -> u32 {
+    return u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+}
+
+/// Whether the file ends with the zeros `index.skipHash` writes instead of a checksum.
+fn trailer_is_zero(bytes: &[u8]) -> bool {
+    return bytes[bytes.len() - 20..].iter().all(|byte| {
+        return *byte == 0;
+    });
+}
+
 /// Sources of the first commit used by most cases.
 const BASE: [(&str, &[u8], bool); 6] = [
     ("a", b"a one\n", false),
@@ -271,7 +283,7 @@ pub(crate) fn add_monitor_extension(repo: &Path) {
         entry.monitor_valid = position != 0;
     }
     index.fsmonitor = Some(crate::index_fsmonitor::Fsmonitor { token: b"builtin:fixture-token".to_vec(), dirty: vec![0] });
-    let written = crate::index_full_write::write_full_index(&index, &|data: &[u8]| { return crate::subvolume_sha::sha1(data).to_vec(); }).expect("written");
+    let written = crate::index_full_write::write_full_index(&index, &|data: &[u8]| { return crate::subvolume_sha::sha1(data).to_vec(); }, crate::index_full_write::Trailer::Hashed).expect("written");
     std::fs::write(path, written).expect("index written");
 }
 
@@ -544,5 +556,63 @@ fn the_file_mode_under_a_default_acl_equals_git() {
     assert_eq!(mode(scene.repo.as_path()), 0o660, "Git's mode");
     assert_eq!(mode(copy.as_path()), 0o660, "the published file's mode");
     assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
+    finish(scene);
+}
+
+/// What:
+///  A repository carrying Git's own setting for a large checkout,
+///  `feature.manyFiles`:
+///  a version 4 index file,
+///  an untracked cache and no trailing hash.
+/// Why:
+///   The update must write the file Git writes,
+///  so a repository that adopts the setting keeps the in-process index update instead of a Git process per landing,
+///  and the bytes are compared with `git reset --no-refresh`'s.
+#[test]
+fn a_repository_with_feature_manyfiles_equals_git() {
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }, Edit::Delete("b"), Edit::Put { path: "e", mode: "100644", content: b"e new\n" }];
+    let config: Vec<(&str, &str)> = vec![("feature.manyFiles", "true")];
+    let scene: Scene = scene("index-reset-manyfiles", &Plan { files: &BASE, edits: edits.as_slice(), config: config.as_slice(), untracked_cache: true, ..Plan::default() });
+    same_as_git(&scene, &named(&["a", "b", "e"]), "feature.manyFiles");
+    let bytes: Vec<u8> = index_bytes(scene.repo.as_path());
+    assert_eq!(version_of(bytes.as_slice()), 4, "feature.manyFiles writes a version 4 index file");
+    assert!(trailer_is_zero(bytes.as_slice()), "feature.manyFiles writes no trailing hash");
+    finish(scene);
+}
+
+/// What:
+///  `core.untrackedCache=keep` beside `feature.manyFiles` with the cache already in the index:
+///  Git keeps the cache,
+///  and this update runs and writes the file Git writes.
+/// Why:
+///   `keep` leaves the untracked-cache default `feature.manyFiles` set (`repo-settings.c` of Git 2.56.0),
+///  which is to add a cache,
+///  so the steady state of such a repository still belongs to the in-process update;
+///  a control that declined every `keep` beside the feature would lose it and pass the decline control alone.
+#[test]
+fn a_repository_with_manyfiles_and_a_kept_untracked_cache_equals_git() {
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }, Edit::Delete("b")];
+    let config: Vec<(&str, &str)> = vec![("feature.manyFiles", "true"), ("core.untrackedCache", "keep")];
+    let scene: Scene = scene("index-reset-manyfiles-keep", &Plan { files: &BASE, edits: edits.as_slice(), config: config.as_slice(), untracked_cache: true, ..Plan::default() });
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    assert!(crate::index_reset_support_probe::extension_of(before.as_slice(), b"UNTR", 20).is_some(), "the scene starts with the cache, or a decline would prove nothing");
+    same_as_git(&scene, &named(&["a", "b"]), "feature.manyFiles with core.untrackedCache=keep");
+    assert!(crate::index_reset_support_probe::extension_of(index_bytes(scene.repo.as_path()).as_slice(), b"UNTR", 20).is_some(), "the update keeps the cache Git keeps");
+    finish(scene);
+}
+
+/// What:
+///  `index.skipHash` on its own,
+///  without the untracked cache `feature.manyFiles` brings.
+/// Why:
+///   The setting only moves the trailer,
+///  so the update must still run and end the file the way Git does.
+#[test]
+fn a_repository_with_a_skipped_hash_equals_git() {
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
+    let config: Vec<(&str, &str)> = vec![("index.skipHash", "true")];
+    let scene: Scene = scene("index-reset-skiphash", &Plan { files: &BASE, edits: edits.as_slice(), config: config.as_slice(), ..Plan::default() });
+    same_as_git(&scene, &named(&["a"]), "index.skipHash");
+    assert!(trailer_is_zero(index_bytes(scene.repo.as_path()).as_slice()), "the update writes the zeros Git writes");
     finish(scene);
 }

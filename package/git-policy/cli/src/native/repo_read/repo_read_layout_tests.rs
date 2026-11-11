@@ -402,3 +402,29 @@ fn variables_that_can_change_an_answer_are_not_plain() {
         assert!(!environment_is_plain(variables.as_slice()), "{name} can move an answer");
     }
 }
+
+/// What:
+///  A `.git` file whose `gitdir:` line names a Git directory that is not UTF-8 text names that directory,
+///  and every other line of the layout still equals Git's.
+/// Why:
+///   The pointer was read as UTF-8 text,
+/// so the whole layout of such a worktree was declined
+///  and every read of it started Git.
+#[test]
+fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
+    let root: PathBuf = fixture("repo-read-gitfile-not-text");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("repository directory");
+    let admin: PathBuf = root.join(std::ffi::OsString::from_vec(b"admin\xff".to_vec()));
+    let arguments: Vec<std::ffi::OsString> = vec![
+        std::ffi::OsString::from("init"),
+        std::ffi::OsString::from("--quiet"),
+        std::ffi::OsString::from("--initial-branch=main"),
+        std::ffi::OsString::from("--separate-git-dir"),
+        admin.as_os_str().to_os_string(),
+    ];
+    git(repo.as_path(), arguments.as_slice());
+    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "gitfile naming a directory that is not text");
+    assert_eq!(layout.git_dir, std::fs::canonicalize(admin.as_path()).expect("the Git directory"));
+    remove(root.as_path());
+}

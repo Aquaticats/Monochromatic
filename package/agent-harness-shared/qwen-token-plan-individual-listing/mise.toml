@@ -1,0 +1,175 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."refresh-snapshot"]
+description = "Regenerate the checked-in listing snapshot from the live Qwen Token Plan listing and the models.dev alibaba-token-plan slice, printing the drift it would change"
+depends = ["build"]
+shell = "node --input-type=module-typescript -e"
+run = """
+const { writeFileSync } = await import('node:fs')
+const {
+  fetchQwenTokenPlanIndividualListing,
+  qwenTokenPlanIndividualFacts,
+  qwenTokenPlanIndividualListingSnapshot,
+  QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME,
+} = await import('./dist/final/node/index.mjs')
+// Base URLs stay per harness (`doc/planning/qwen-token-plan-individual-provider.md`
+// section "Settled decisions"); this task fetches the DSH-side host, which serves
+// byte-identical bodies to the pi-side host from the same NLB.
+const LISTING_BASE_URL = 'https://token-plan.maas.qwencloudapi.com/compatible-mode/v1'
+// models.dev serves its v2 file-schema dump at this route (verified against
+// `packages/web/src/server.ts` in the models.dev repository, 2026-11-11).
+const MODELS_DEV_V2_URL = 'https://models.dev/experimental/v2.0/api.json'
+const MODELS_DEV_PROVIDER_ID = 'alibaba-token-plan'
+const apiKey = process.env[QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME]
+if (apiKey === undefined || apiKey.length === 0) {
+  throw new Error(`refresh-snapshot needs ${QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME} set in the environment`)
+}
+const listing = await fetchQwenTokenPlanIndividualListing({ baseUrl: LISTING_BASE_URL, apiKey })
+const factsById = new Map(qwenTokenPlanIndividualFacts.map(function toEntry(row) { return [row.id, row] }))
+const liveIds = new Set(listing.map(function toId(entry) { return entry.id }))
+const servedIds = new Set(qwenTokenPlanIndividualListingSnapshot.entries.map(function toId(entry) { return entry.id }))
+console.log(`live listing entries: ${listing.length}`)
+console.log(`served snapshot entries: ${qwenTokenPlanIndividualListingSnapshot.entries.length}`)
+for (const entry of listing) {
+  if (!servedIds.has(entry.id)) { console.log(`drift: new model ${entry.id}${factsById.has(entry.id) ? '' : ' (no facts row)'}`) }
+}
+for (const entry of qwenTokenPlanIndividualListingSnapshot.entries) {
+  if (!liveIds.has(entry.id)) { console.log(`drift: retired model ${entry.id}`) }
+}
+for (const row of qwenTokenPlanIndividualFacts) {
+  if (!liveIds.has(row.id)) { console.log(`drift: facts row ${row.id} has no live listing entry`) }
+}
+try {
+  const modelsDevResponse = await fetch(MODELS_DEV_V2_URL, { signal: AbortSignal.timeout(60_000) })
+  if (!modelsDevResponse.ok) {
+    console.log(`drift: models.dev slice unavailable (HTTP ${modelsDevResponse.status})`)
+  } else {
+    const modelsDevBody = await modelsDevResponse.json()
+    const slice = modelsDevBody?.[MODELS_DEV_PROVIDER_ID]?.models
+    if (slice === undefined || slice === null) {
+      console.log(`drift: models.dev slice carries no ${MODELS_DEV_PROVIDER_ID} provider`)
+    } else {
+      for (const row of qwenTokenPlanIndividualFacts) {
+        // Media rows never serve and carry no chat facts, so their placeholder
+        // fields say nothing worth comparing against models.dev's generation
+        // modalities.
+        if (row.kind !== 'chat') {
+          continue
+        }
+        const theirs = slice[row.id]
+        if (theirs === undefined || theirs === null) {
+          console.log(`drift: facts row ${row.id} absent from the models.dev slice`)
+          continue
+        }
+        const limit = theirs.limit ?? {}
+        const modalities = theirs.modalities ?? {}
+        const reasoning = theirs.capabilities?.reasoning ?? {}
+        const theirEfforts = Array.isArray(reasoning.effort) ? [...reasoning.effort].sort() : []
+        const ourEfforts = row.efforts === undefined ? [] : Object.values(row.efforts).filter(function isSpelling(value) { return value !== null && value !== undefined }).sort()
+        const theirImageInput = Array.isArray(modalities.input) && modalities.input.some(function isImage(kind) { return typeof kind === 'string' && kind.startsWith('image') })
+        const ourImageInput = row.input.includes('image')
+        const checks = [
+          ['name', row.name, theirs.name],
+          ['contextWindow', row.contextWindow, limit.context],
+          ['maxTokens', row.maxTokens, limit.output],
+          ['imageInput', ourImageInput, theirImageInput],
+          ['efforts', ourEfforts.join(','), theirEfforts.join(',')],
+        ]
+        for (const [field, ours, theirsField] of checks) {
+          if (ours !== undefined && theirsField !== undefined && String(ours) !== String(theirsField)) {
+            console.log(`drift: changed facts ${row.id} ${field} facts=${String(ours)} models.dev=${String(theirsField)}`)
+          }
+        }
+      }
+    }
+  }
+}
+catch (error) {
+  console.log('drift: models.dev slice fetch failed', error)
+}
+const iso = new Date().toISOString()
+const fetchedAt = `${iso.slice(0, iso.indexOf('.'))}Z`
+// Backslash built from its char code so this TOML string needs no escapes.
+const BACKSLASH = String.fromCharCode(92)
+const quoteText = function quoteText(value) {
+  return `'${value.replaceAll(BACKSLASH, BACKSLASH + BACKSLASH).replaceAll("'", BACKSLASH + "'")}'`
+}
+const numberText = function numberText(value) {
+  if (!Number.isInteger(value)) return String(value)
+  const digits = String(Math.abs(value))
+  if (digits.length < 4) return String(value)
+  const grouped = digits.replace(/\\B(?=(\\d{3})+(?!\\d))/g, '_')
+  return value < 0 ? `-${grouped}` : grouped
+}
+const entryText = listing.map(function toRow(entry) {
+  const createdLine = entry.created === undefined ? '' : `\\n      created: ${numberText(entry.created)},`
+  return `    {\\n      id: ${quoteText(entry.id)},${createdLine}\\n    },`
+}).join('\\n')
+const snapshotText = `/**
+ Checked-in Qwen Token Plan individual listing snapshot: the listing
+ membership served while the bounded fetch cannot reach the endpoint. @module
+ */
+
+import type { QwenTokenPlanListingEntry, } from './listing.ts';
+
+//region Public API
+
+/**
+ Listing membership snapshot fetched from GET
+ \\`${LISTING_BASE_URL}/models\\` at
+ ${fetchedAt}: every id the endpoint returned then, in endpoint
+ order, with the \\`created\\` stamp each entry carried. Facts come from
+ \\`qwenTokenPlanIndividualFacts\\`, so this snapshot pins membership only.
+ Regenerate it with the \\`refresh-snapshot\\` mise task, which prints the drift
+ the rewrite would change.
+ */
+export const qwenTokenPlanIndividualListingSnapshot: {
+  readonly fetchedAt: string;
+  readonly entries: readonly QwenTokenPlanListingEntry[];
+} = {
+  fetchedAt: '${fetchedAt}',
+  entries: [
+${entryText}
+  ],
+};
+
+//endregion Public API
+`
+writeFileSync(new URL('./src/snapshot.ts', import.meta.url), snapshotText)
+console.log(`wrote src/snapshot.ts (fetchedAt ${fetchedAt}, ${listing.length} entries)`)
+console.log('review the drift lines above, then run lint:types and test:unit before committing')
+"""

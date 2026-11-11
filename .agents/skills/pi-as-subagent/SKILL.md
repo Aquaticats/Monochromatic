@@ -109,6 +109,42 @@ so prefer neuralwatt."
 New runs fill standard Neuralwatt,
 then flex with twice the wall clock,
 then `opencode-go`.
+On 2026-11-11 from 01:19Z,
+16 runs ended on Neuralwatt's 429
+"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
+Your subscription is in overage with auto-renew off,
+so pay-as-you-go limits apply until it renews."
+The rate-limit endpoint still answered `effective_concurrency` 20 then,
+so the 429 is what tells;
+Pi ends the run on it instead of retrying.
+The same night 20 of 28 Kimi reviews on Kimi flex ended on
+"You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 7 in flight at once).
+Flex requests have a separate per-account concurrency limit from standard requests."
+For a few hours the launcher held standard DeepSeek at 6 and both flex pools at 7,
+the DeepSeek flex 7 an assumption never measured.
+The owner then wrote,
+2026-11-11T05:40-05:00:
+"I've re-enabled auto-renew. Treat the prev Neuralwatt 429s void."
+So the pools are back to standard DeepSeek 20,
+DeepSeek flex 22 and Kimi flex 22,
+and only a 429 seen after that sets a lower number;
+a limit is lowered from a measured refusal,
+never from an assumption about another model.
+Restart a run that ended on a 429 under its own name;
+its worktree keeps the work.
+Two launcher defects showed that night,
+fixed in the scratch launcher and owed to `package/pi-shared/subagent-driver`:
+a run whose launcher process had gone was counted in the `opencode-go` pool,
+so 12 runs sat on standard Neuralwatt while it read 0 of 6 and took more;
+the pool now comes from the unit's own `--provider` and `--model`.
+A run that named no provider or model (every batch-started run) was read as "its own provider",
+so it skipped every pool limit and the launcher's defaults put it on standard Neuralwatt;
+it is now a default run,
+and the chosen pool's provider and model are passed on.
+And `--run` defaulted to 1,
+so each restart wrote over the first run's `summary.json`
+(16 reports, 11 recovered from `~/.pi/agent/sessions/`);
+a run with no `--run` now takes the next free number.
 The owner on 2026-11-10:
 "And you should almost always keep all slots filled."
 and
@@ -130,6 +166,22 @@ from the owner's "Kimi alone" and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+When Synthetic answers 429,
+the run moves to Neuralwatt's Kimi flex model and resumes its session there
+(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
+under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+Those runs take no DeepSeek slots,
+because "Neuralwatt rate limits are per model." (the owner,
+2026-11-10).
+Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
+read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
+the Kimi flex pool holds 22 runs of its own,
+under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
+Default runs never take the Kimi pool;
+only a run that names that model does.
+Synthetic sets no limit on runs at once;
+its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
+so retrying on Synthetic fails until the quota comes back.
 The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
 and the trial caught none,
 so rerun a finding's reproduction before believing it,
@@ -332,6 +384,28 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     run only the compile or type check,
     which is what the agent could not have run on the combined tree,
     and skip that too when `main` was already in the branch.
+9.  Remove a run's worktree as soon as its unit has ended,
+    whether or not its branch has landed yet.
+    The owner,
+    2026-11-10:
+    "You're the coordinator and you're supposed to remove finished worktrees automatically."
+    A worktree added on btrfs is a snapshot of `main`,
+    so it keeps every file `main` held when it was taken,
+    build folders included,
+    after `main` has replaced them.
+    That day the owner found the 860 nearly full with 460 worktrees in place,
+    and one finished worktree measured 26.5 GiB,
+    48.7 MiB of it its own and 14.35 GiB shared with other subvolumes,
+    so removing one frees little and removing all finished ones frees what only they keep.
+    Remove it with the wrapper's `git worktree remove <worktree>`,
+    without `--force`,
+    which refuses a worktree holding uncommitted work.
+    The branch stays,
+    and a later run of the same name adds the worktree again from it.
+    Leave a worktree whose unit is active,
+    one a process still works in,
+    and one with uncommitted work,
+    and say which were left and why.
 
 ## Protocol
 

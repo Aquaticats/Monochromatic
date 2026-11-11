@@ -144,6 +144,51 @@ fn the_deletion_pass_removes_extras_and_spares_the_excluded_path() {
     remove(parent.as_path());
 }
 
+/// What:
+///  Another command's stage container is left out of a pass at any depth,
+///  and nothing of it is copied.
+/// Why:
+///   A stage container holds the whole ignored state another worktree's copy is filling,
+/// credentials
+///  included,
+/// and nothing names it in the copy;
+/// a conversion that carried it into the new subvolume would leave that
+///  state in a worktree on another branch for good.
+#[test]
+fn another_commands_stage_container_is_left_out_of_a_pass() {
+    let (parent, source, destination) = trees("sync-stage-container");
+    let container: PathBuf = source.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    std::fs::create_dir_all(&container).expect("the stage container");
+    std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
+    run(source.as_path(), destination.as_path(), COPY);
+    assert!(!destination.join(".claude").exists(), "nothing of the stage container is copied");
+    let proved: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None });
+    assert_eq!((proved.files_copied, proved.deleted), (0, 0), "the proving pass finds nothing to do");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A file or a link whose name begins the stage prefix is the source's own entry and is copied,
+///  beside the folder another command's container stands in,
+///  which stays because that file is state.
+/// Why:
+///   Only a folder is another command's stage container;
+/// a person's ignored file of that name is exactly what this pass hands over,
+///  and leaving it out would give the new worktree a file the source has.
+#[test]
+fn a_prefix_named_file_is_copied_beside_another_commands_stage_folder() {
+    let (parent, source, destination) = trees("sync-prefixed-file");
+    let worktrees: PathBuf = source.join(".claude/worktrees");
+    std::fs::create_dir_all(worktrees.join(format!(".cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload"))).expect("the stage container");
+    std::fs::write(worktrees.join("payload-note"), b"not in the container\n").expect("a name that merely begins the prefix");
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(std::fs::read(destination.join(".claude/worktrees/payload-note")).expect("the copied file"), b"not in the container\n", "a prefix-named file is the source's own entry");
+    assert!(!destination.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543").exists(), "nothing of the container is copied");
+    let proved: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None });
+    assert_eq!((proved.files_copied, proved.deleted), (0, 0), "the proving pass finds nothing to do");
+    remove(parent.as_path());
+}
+
 /// Without the deletion switch extras stay;
 /// with the update-only switch they stay even when deletion is also asked.
 #[test]
@@ -268,8 +313,8 @@ fn a_read_only_directory_is_filled_and_ends_read_only() {
     run(source.as_path(), destination.as_path(), COPY);
     assert_eq!(std::fs::read(destination.join("locked/b")).expect("copied into the read-only directory"), b"b");
     assert_eq!(std::fs::metadata(destination.join("locked")).expect("directory").mode() & 0o7777, 0o555);
-    std::fs::set_permissions(source.join("locked"), PermissionsExt::from_mode(0o755)).expect("restore");
-    std::fs::set_permissions(destination.join("locked"), PermissionsExt::from_mode(0o755)).expect("restore");
+    // Both copies stay closed, so the fixture goes closed:
+    // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     remove(parent.as_path());
 }
 
@@ -301,7 +346,8 @@ fn an_unreadable_directory_stops_the_pass_naming_it() {
     std::fs::create_dir(source.join("dir/closed")).expect("directory");
     std::fs::set_permissions(source.join("dir/closed"), PermissionsExt::from_mode(0o000)).expect("closed");
     let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("stopped");
-    std::fs::set_permissions(source.join("dir/closed"), PermissionsExt::from_mode(0o755)).expect("restore");
+    // The directory stays closed, and the fixture goes closed too:
+    // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     assert!(matches!(&error, MigrateError::UnreadableDirectory { path, .. } if path.ends_with("dir/closed")), "{error}");
     remove(parent.as_path());
 }
@@ -685,7 +731,7 @@ fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
 
 /// A pass over `source` and `destination` that the controls below drive one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
-    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
 }
 
 /// The destination directory of a relative path,

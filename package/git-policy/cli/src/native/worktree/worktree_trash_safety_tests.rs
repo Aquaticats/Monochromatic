@@ -5,6 +5,7 @@
 //! and what a failed emptying must report.
 
 use super::*;
+use crate::worktree_snapshot_ahead::AheadService;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use std::os::unix::ffi::OsStrExt;
 
@@ -71,7 +72,7 @@ fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let failure = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect_err("the rung declines");
+    let failure = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &AheadService::nothing()).expect_err("the rung declines");
     assert!(failure.reason.contains("ignored/wt/keep") && failure.reason.contains("registered worktree"), "the reason says why: {}", failure.reason);
     remove(root.as_path());
 }
@@ -116,7 +117,7 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// put(repo, `${TRASH_PARENT}/${earlier}/d0/payload`, 'token'); put(repo, `.claude/${earlier}/keep`, 'mine');
+/// plantTrash(repo, earlier); writeTrashManifest(repo, earlier); put(repo, `.claude/${earlier}/keep`, 'mine');
 /// const { manifest } = await snapshotOf(repo); await emptyTrash(itemOf(stage, commonDir, manifest));
 /// expect(existsSync(join(stage, TRASH_PARENT, earlier))).toBe(false); expect(existsSync(join(stage, '.claude', earlier, 'keep'))).toBe(true);
 /// ```
@@ -125,7 +126,8 @@ fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
     let Some(root) = btrfs_fixture("trash-carried") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
     let earlier: String = "a".repeat(40);
-    put(repo.as_path(), format!("{TRASH_PARENT}/{earlier}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    let earlier_manifest: TrashManifest = plant_trash(repo.as_path(), earlier.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(repo.as_path(), &earlier_manifest).expect("the earlier trash says what it is");
     put(repo.as_path(), format!(".claude/{earlier}/keep").as_str(), b"a directory the leave-out never made\n");
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
@@ -865,5 +867,50 @@ fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
     assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
     assert!(!said.contains(format!("{TRASH_PARENT}/personal").as_str()), "the person's own directory is not called a trash: {said}");
     assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record a kill prevented is still recorded and emptied by the next pass,
+/// because the trash carries its
+///  own manifest.
+/// Why:
+///   The work item is written after the snapshot is published,
+/// so a `SIGKILL` in between leaves a trash no record names,
+///  and nothing would ever empty it.
+/// The manifest inside the trash travels with it through the swap,
+/// so the next command in that worktree
+///  records the trash and the service empties it,
+/// and the trash is never deleted on a guess:
+/// only a manifest
+///  whose identities are the directory's own proves the wrapper made it.
+/// This control plants the state that kill leaves,
+/// a real snapshot whose record was never written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stage, trash } = await snapshotOf(repo); deletePendingRecord(common, trash.name);
+/// nameUnaccountedTrash(common, stage); expect(pendingRecord(common, trash.name)).toBeDefined();
+/// expect(await emptyTrash(itemOf(stage, common, trash))).toBe('done'); expect(existsSync(trashPath)).toBe(false);
+/// ```
+#[test]
+fn btrfs_a_trash_whose_record_a_kill_prevented_is_recorded_and_emptied_by_the_next_pass() {
+    let Some(root) = btrfs_fixture("trash-killed-before-record") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("admin");
+    std::fs::write(stage.join(".git"), format!("gitdir: {}\n", common.join("worktrees/topic").display())).expect("pointer");
+    let work: PathBuf = work_directory(common.as_path());
+    assert!(std::fs::read_dir(state_directory(work.as_path(), "pending")).is_err(), "the kill left no record");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(common.as_path(), stage.as_path(), &mut say);
+    let record: PathBuf = state_directory(work.as_path(), "pending").join(format!("trash-{}", manifest.name));
+    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the next pass records a trash that says what it is").as_str()).expect("a work item");
+    assert_eq!(item.parent, manifest.encode(), "the record carries the identities the trash itself wrote");
+    assert_eq!(item.repository, stage, "and names the worktree that holds it");
+    assert_eq!(empty_trash(&item), Verdict::Done, "so the handler empties it");
+    assert!(!stage.join(TRASH_PARENT).exists(), "and nothing is left behind: {}", stage.display());
     remove(root.as_path());
 }

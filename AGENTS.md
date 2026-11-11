@@ -209,6 +209,13 @@ commands,
 or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
+WDQ:
+ Wondering whether something we control is a defect?
+ It is:
+ fix it.
+Intended behavior that could confuse gets documented where its users meet it,
+ so they are not confused.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
@@ -572,6 +579,14 @@ FBN:
  never a stop:
  keep improving it unless the user drops the goal.
 
+NHX:
+ Never rush an agent or give it a due date,
+ not even by hint ("asap",
+ "urgent",
+ a release waiting on it);
+ any sense of hurry lowers its work.
+Briefs ask for the best result.
+
 ## Before running a command
 
 ### Command execution conventions
@@ -732,6 +747,11 @@ HXR:
  Commands that risk exhausting the host:
  run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
  containers ignore their launcher's `IOWeight`.
+
+MHX:
+ Never start a service manager (`systemd --user`) on the host
+ or claim a well-known name on the owner's session bus;
+ tests needing one run in `podman` or `mvm`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
@@ -1497,11 +1517,9 @@ VB7:
  lint misses CommonMark emphasis edge cases.
 
 SCF:
- Screenshot after scripted input:
- confirm intended rendered state,
- then capture;
- command completion isn't frame completion.
-Recapture stale or transitional frames.
+ Before accepting a screenshot,
+ verify the target application/window and intended rendered state;
+ recapture mismatches or transitional frames.
 
 ABR:
  End browser verification with `agent-browser close`:
@@ -1754,9 +1772,10 @@ CPN:
 
 XSG:
  Tracked files:
- commit with `git commit -- <paths>` alone;
+ commit with `git commit --message <text> -- <paths>` alone,
+ options before `--`;
  a separate `git add` stays staged if the commit fails,
- and another session's commit in the shared checkout then takes it.
+ and another session's commit then takes it.
 
 XCM:
  External messages report results,

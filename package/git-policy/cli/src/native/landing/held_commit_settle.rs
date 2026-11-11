@@ -32,7 +32,7 @@
 
 use crate::held_commit_record::{Held, forget, list};
 use crate::held_commit_replay::{Replay, onto, value_now};
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent};
+use crate::service_journal::{DONE_EXTENSION, Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -392,14 +392,40 @@ fn carry(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> Resul
 }
 
 /// What:
+///  The record of the batch this held record belongs to once that batch ended,
+///  nothing when no finished record is there.
+/// Why:
+///   A settlement that carries the batch onto a branch that moved writes the commit it made in the batch's own record
+///  before it moves the branch (`carry`),
+///  and the finished record is what names that commit after the branch moved.
+///  A kill between the finished record and the removal of this one leaves this one naming the commit the batch started
+///  with,
+///  so the finished record is the only place the commit that landed is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = readIntent(batchPath(journal, seq, 'done'))
+/// ```
+fn finished_of(held: &Held) -> Option<Intent> {
+    let path: PathBuf = batch_path(held.journal.as_path(), held.seq, DONE_EXTENSION);
+    let text: String = std::fs::read_to_string(path.as_path()).ok()?;
+    return parse_intent(text.as_str());
+}
+
+/// What:
 ///  What a record whose batch has no intent left stands for.
 /// Why:
 ///   A kill between the end of a batch and the removal of its record leaves one,
 ///  and the branch says whether the commit is on it.
+///  The branch can hold the commit the batch started with,
+///  and it can hold the commit a settlement made from it on a branch that moved:
+///  the batch's finished record names that one,
+///  and a comparison that read only the first would say for ever that the batch ended without landing
+///  (`carry`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// current === held.new ? (rm(record), { alreadyThere: held.new }) : { cannot: 'the batch of this record ended without landing its commit' }
+/// current === held.new ? (rm(record), { alreadyThere: held.new }) : done && isAncestor(done.new, current) ? (rm(record), { alreadyThere: done.new }) : { cannot: 'the batch of this record ended without landing its commit' }
 /// ```
 fn after_a_settled_batch(git: &GitContext, held: &Held) -> Settled {
     let Some(current) = value_now(git, held) else {
@@ -408,6 +434,12 @@ fn after_a_settled_batch(git: &GitContext, held: &Held) -> Settled {
     if current == held.new {
         forget(held.git_dir.as_path(), held.seq);
         return Settled::AlreadyThere { commit: held.new.clone() };
+    }
+    if let Some(done) = finished_of(held)
+        && landed_below(git, held, &done, current.as_str())
+    {
+        forget(held.git_dir.as_path(), held.seq);
+        return Settled::AlreadyThere { commit: done.new };
     }
     return Settled::Cannot { commit: held.new.clone(), because: String::from("the batch of this record ended without landing its commit") };
 }
@@ -478,9 +510,20 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
     // The entries are installed under Git's index lock, taken before the branch moves and before the index file is recorded, so
     //  nothing can stage between that look and the installation (`index_lock_of`).
     let mut lock: Option<crate::service_index_lock::IndexLock> = index_lock_of(held, &intent);
+    // A control settles the same record from inside this instant, which is where two commands that read the record and
+    //  decide at once are (`held_commit_settle_tests.rs`).
+    crate::service_fault::reach("held-before-a-settlement-decides");
     for _attempt in 0..ATTEMPTS {
         let Some(current) = value_now(git, held) else {
             return Settled::Cannot { commit: held.new.clone(), because: String::from("Git gave no answer about the branch") };
+        };
+        // Another settlement of this same record can carry the change onto the branch and rewrite the batch's record while
+        //  this one reads the branch, so the record on disk is the newer one: deciding from the value read before it would
+        //  put the change on the branch a second time (`carry`).
+        intent = match intent_of(held) {
+            Ok(Some(found)) => found,
+            Ok(None) => return after_a_settled_batch(git, held),
+            Err(because) => return Settled::Cannot { commit: held.new.clone(), because },
         };
         if landed_below(git, held, &intent, current.as_str()) {
             return finish_a_moved_branch(git, held, &intent, current.as_str(), lock.take());
@@ -501,9 +544,10 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
                 return if waits { Settled::LandedTheIndexWaits { commit } } else { Settled::Landed { commit } };
             }
             // The branch moved between the read and the write: read it and decide again.
-            //  A rewritten intent is a different commit, so the witness recorded under the lock describes the index that is about
-            //  to be read again; nothing was staged meanwhile because the lock is still held.
-            Ok(false) => intent = written,
+            //  The record this round wrote is read back by the next one, so the decision is made from the branch and the record
+            //  as they are then, and the witness recorded under the lock describes the index that is about to be read again;
+            //  nothing was staged meanwhile because the lock is still held.
+            Ok(false) => {}
             Err(said) => return Settled::Cannot { commit, because: format!("Git refused the branch write ({said}), and the settlement waits for the next command") },
         }
     }
@@ -520,6 +564,9 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 ///  The settlement runs first with the clearing a landing may do,
 ///  and a record that is still there says the batch waits:
 ///  nothing is decided about it until a command finds the lock gone.
+///  Nothing is answered when the record is gone:
+///  the batch is then either finished (nothing is owed and its intent is marked done) or still open,
+///  and the caller reads the batch's own record to say which and to report it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -539,6 +586,31 @@ pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent)
         decision: crate::service_journal::Recovery::Hold,
         handled: crate::service_land_finish::Handled::Held,
     });
+}
+
+/// What:
+///  Says that the record of a batch a settlement tried cannot be read,
+///  so the batch is kept and nothing of it is removed.
+/// Why:
+///   A settlement rewrites a batch's intent,
+///  and the record it leaves is the only thing that names what the batch still owes;
+///  one this build cannot read is kept and named rather than dropped,
+///  and its owed index update is settled from the worktree's own record of it
+///  (`owed_index_update.rs`).
+///  The settling module says it,
+///  beside the settlement whose outcome it describes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saySettledRecordUnreadable(intent, path) { error(`batch ${intent.seq}: its open record ${path} cannot be read ...`) }
+/// ```
+pub fn say_settled_batch_record_cannot_be_read(intent: &Intent, path: &Path) {
+    crate::service_error!(
+        "batch {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is settled; its \
+owed index update is settled from the worktree's own record of it",
+        intent.seq,
+        path.display()
+    );
 }
 
 /// What:

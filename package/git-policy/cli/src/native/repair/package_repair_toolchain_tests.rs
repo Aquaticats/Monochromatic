@@ -65,9 +65,12 @@ const SUMMARY: &str = "toolchain install: 3 installed, 62 unchanged, 0 failed";
 ///  with `install_status`.
 fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
     let script: String = format!(
-        "#!/bin/sh\necho \"$* in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\necho '{SUMMARY}'\nif [ {install_status} -eq 0 ]; then sed -i 's#/source/#/destination/#' '{launch}'; fi\nexit {install_status}\n",
+        // The install's own children read the search path the repair resolved it on, so the fixture rewrites its launcher
+        //  record with the shell's own `printf` and reaches no other program.
+        "#!/bin/sh\necho \"$* in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\necho '{SUMMARY}'\nif [ {install_status} -eq 0 ]; then printf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{launch}'; fi\nexit {install_status}\n",
         record = root.join("record").display(),
         launch = destination.join(LAUNCHERS).join("foreign.launch").display(),
+        own = destination.join(LOCK_FILE).display(),
     );
     executable(bin.join("mpm-shadow").as_path(), script.as_bytes());
 }

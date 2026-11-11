@@ -19,15 +19,18 @@
 use crate::entry_forward_action_planning::forward_action;
 use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
 use crate::exit_report_written::write_exit;
-use crate::entry_run_forwarded_actions::{finish_forwarded, run_coordinated_action, write_stream};
+use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
-use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
+use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
-    FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
+    FORWARD_TARGET_VARIABLE, environment_value, invocation_overlay,
 };
+/// The two answers to "has this process a controlling terminal",
+/// which decides whether the overlay of a typed command carries the never-prompt pair.
+use crate::control_terminal::Terminal;
 use crate::effective_target::default_allowed_worktree_dirs;
-use crate::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
+use crate::forwarding::replace_process_with_real_git;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
 use crate::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
@@ -216,6 +219,7 @@ pub fn plan_invocation(
         resolved.path,
         global_clean,
         &layout,
+        inputs.terminal,
     );
     // `.as_deref()` lends the optional owned notice as an optional borrowed one.
     return with_leading_notice(action, notice.as_deref());
@@ -233,7 +237,7 @@ pub fn plan_invocation(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWithRealGit(args: string[], environment: [string, string][], realGit: string, globalClean: string[], layout: GlobalLayout): Action;
+/// function planWithRealGit(args: string[], environment: [string, string][], realGit: string, globalClean: string[], layout: GlobalLayout, terminal: Terminal): Action;
 /// ```
 fn plan_with_real_git(
     arguments: &[OsString],
@@ -241,9 +245,14 @@ fn plan_with_real_git(
     real_git: PathBuf,
     global_clean: Vec<OsString>,
     layout: &GlobalLayout,
+    terminal: Terminal,
 ) -> Action {
+    // What: Every Git and git-lfs child of this invocation gets the overlay, and one whose process has no controlling terminal
+    //  is told never to prompt, so a missing login fails at once instead of opening a desktop dialog nobody can answer.
+    // Why:  The push itself, its LFS upload and the upload plan's questions all start from this one list, so no start added
+    //  later on this route can miss the pair.
     let overlay: Vec<(OsString, OsString)> =
-        child_environment_overlay(environment, real_git.as_path());
+        invocation_overlay(environment, real_git.as_path(), terminal);
     // What: Top-level `--version`, `-v`, `--help` and `-h` run Git as a child and add the announcement.
     // Why:  The layout is already known here, so every other invocation pays one enum comparison;
     //       the other queries keep the exact process replacement below.
@@ -425,46 +434,6 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
         }
         Action::ExitBytes { code, stdout, stderr } => {
             return write_exit(code, stdout.as_slice(), stderr.as_slice());
-        }
-    }
-}
-
-/// What:
-///  Run Git as a child for an announced query,
-///  print the announcement when Git exited with status 0,
-///  and return Git's status.
-/// Why:
-///   The child shares the caller's streams,
-/// so Git's own answer is untouched and comes first;
-///  the announcement follows it only when Git answered.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const outcome = await runRealGit(realGit, args, overlay); if (outcome.exited === 0) print(text); return exitCode(outcome);
-/// ```
-fn run_announced(
-    real_git: &Path,
-    arguments: &[OsString],
-    overlay: &[(OsString, OsString)],
-    text: &str,
-) -> i32 {
-    match run_real_git(real_git, arguments, overlay) {
-        Ok(outcome) => {
-            write_stream(&mut std::io::stdout(), printable_after(outcome, text));
-            return exit_code(outcome);
-        }
-        Err(error) => {
-            write_stream(
-                &mut std::io::stderr(),
-                format!(
-                    "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
-                     then reinstall Git or the wrapper; no Git command ran.\n",
-                    real_git.display(),
-                    real_git.display()
-                )
-                .as_str(),
-            );
-            return ENGINE_FAILURE_EXIT_CODE;
         }
     }
 }

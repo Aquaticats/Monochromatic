@@ -2,7 +2,7 @@
 //!  A three-way merge of text by line,
 //! and by word for the line regions that both sides changed,
 //! in process.
-//!  A file is merged only when every such region resolves;
+//!  A text is merged only when every such region resolves;
 //! the regions that needed the word pass are reported.
 //! Why:
 //!  Git's line merge calls two changes that touch (one ends where the other begins) a conflict,
@@ -16,14 +16,28 @@
 //! keep the
 //!  result only when every region resolves,
 //! and show each region it merged.
+//! The second pass gives this function one of Git's `--zdiff3` conflict regions at a time
+//! (`src/native/merge/merge_second_pass.rs`);
+//! the controls give it whole files,
+//! as the corpus stores them,
+//! which is why it merges lines itself as well.
 //! The diff is the `similar` crate's Myers
 //!  algorithm;
 //! the controls keep the results equal to Jujutsu 0.46.0's on the stored corpus
 //!  (`src/native/merge/word_merge_corpus/`,
 //! `doc/planning/cli-git-merge-auto-resolution.md`).
-//!  The pass can produce text neither side wrote (two edits of different arguments of one call);
-//! it never drops
-//!  a byte that either side added or kept.
+//!  The pass can produce text neither side wrote (two edits of different arguments of one call),
+//! which the owner accepted on 2026-11-03;
+//! nothing either side added or kept is dropped (the generated control holds it),
+//! and a region whose merge would do more than that keeps both sides instead:
+//! a word written twice in a row where no side writes it twice,
+//! or,
+//! in a region that spans lines on some side,
+//! a line no side holds.
+//! The owner asked on 2026-11-10 for wrong text to land less often;
+//! the controls for both refusals are
+//!  `src/native/merge/word_merge_refusals/`
+//! and merge `ef43afe9f9` (`doc/planning/cli-git-merge-auto-resolution.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,6 +48,8 @@
 use std::ops::Range;
 /// The diff of two token lists.
 use similar::{Algorithm, DiffOp, capture_diff_slices};
+/// The checks that keep a word merge from writing text no side wrote.
+use crate::merge::word_merge_invented_text::refuses_word_merge;
 
 /// The diff algorithm.
 /// Myers,
@@ -49,11 +65,11 @@ const ALGORITHM: Algorithm = Algorithm::Myers;
 const FIRST_NON_ASCII_BYTE: u8 = 0x80;
 
 /// The byte that ends a line.
-const LINE_END: u8 = b'\n';
+pub(super) const LINE_END: u8 = b'\n';
 
 /// How a text is cut into tokens.
 #[derive(Clone, Copy)]
-enum Level {
+pub(super) enum Level {
     /// Lines,
     /// each with its line end.
     Line,
@@ -79,7 +95,7 @@ fn is_word_byte(byte: u8) -> bool {
 /// Whether one byte ends a line.
 /// `&u8` borrows the byte,
 /// as `split_inclusive` hands it over.
-fn is_line_end(byte: &u8) -> bool {
+pub(super) fn is_line_end(byte: &u8) -> bool {
     return *byte == LINE_END;
 }
 
@@ -105,7 +121,7 @@ fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
 /// ```ts
 /// function tokenRanges(text: Uint8Array, level: Level): [number, number][];
 /// ```
-fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
+pub(super) fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
     match level {
         Level::Line => {
             let mut start: usize = 0;
@@ -273,7 +289,6 @@ fn trivial<'a>(gap: &Gap<'a>) -> Option<&'a [u8]> {
     return None;
 }
 
-/// What:
 ///  Re-merge one line region by word,
 /// then by the bytes between the words;
 /// `None` unless every part resolves.
@@ -303,6 +318,9 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
                 }
             },
         }
+    }
+    if refuses_word_merge(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
+        return None;
     }
     return Some(merged);
 }

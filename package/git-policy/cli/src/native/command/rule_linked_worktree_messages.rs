@@ -58,7 +58,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::StashDrop => return (
             "git stash drop (or git stash clear)",
             "it deletes entries of the one stash the whole repository shares, and git stash clear deletes every entry, so work parked in any worktree of this repository is gone",
-            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> (allowed), which applies the entry and keeps it in the branch. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
+            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> in a clean linked worktree, which applies the entry and keeps it in the branch; a stash form that changes state is refused in the main worktree, and in a linked worktree that holds uncommitted changes. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
         ),
         GuardedCommand::Clean => return (
             "git clean",
@@ -68,7 +68,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::CleanIgnored => return (
             "git clean -x",
             "it deletes ignored files as well as untracked ones, and an ignored file is where a person keeps their environment and their local secrets",
-            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, use git clean -fd (allowed while no untracked file is precious). For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
+            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, pass --no-enforce-worktree directly after clean (`git clean --no-enforce-worktree -fd`), because a clean that deletes files is refused in the main worktree, and in a linked worktree while it holds uncommitted changes or untracked files. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
         ),
         GuardedCommand::CleanIgnoredOnly => return (
             "git clean -X",
@@ -201,6 +201,8 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 ///       repository exempts it and nothing measured or saved anything;
 ///  a person who is told that before Git runs can
 ///       stop the command or unset the variable.
+///  The sentence names both paths the exemption asks for,
+///  so a worktree added outside that directory reads as the person's own work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,7 +210,7 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// ```
 pub fn exemption_notice(variable: &str, directory: &Path) -> String {
     return format!(
-        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains its Git directory. \
+        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains both its Git directory and its worktree. \
          Nothing was measured and nothing was saved, so the command runs without that guard. \
          Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
         directory.display()
@@ -251,8 +253,12 @@ pub fn dirty_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     let what: &str = match command {
         GuardedCommand::Clean => "changes to tracked files or untracked files",
-        GuardedCommand::CleanIgnored => "changes to tracked files, untracked files or ignored files",
-        GuardedCommand::CleanIgnoredOnly => "ignored files",
+        // An ignored file is not a reason to refuse this clean in a linked worktree, so the text names only what
+        //  the worktree holds and this clean loses.
+        GuardedCommand::CleanIgnored => "changes to tracked files or untracked files",
+        // Only the spelling that carries its own `-e`/`--exclude` patterns is asked about, and what those patterns
+        //  pull in is a path the worktree does not itself ignore.
+        GuardedCommand::CleanIgnoredOnly => "work that only its own -e/--exclude patterns call ignored",
         _ => "changes to tracked files",
     };
     return format!(

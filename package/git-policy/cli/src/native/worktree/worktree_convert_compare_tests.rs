@@ -204,6 +204,58 @@ fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
 }
 
 /// What:
+///  Another command's stage container in the old tree is not a difference,
+///  and a name that merely begins with its prefix is.
+/// Why:
+///   An `add` stages the ignored state it fills in a `.cli-git-worktree-copy-<id>` directory beside its destination,
+/// and one that was killed leaves it in the worktree it was filling.
+/// No copy carries it
+///  into the installed tree,
+/// so demanding it kept the old tree on every run and asked the person to settle a version
+///  that exists on one side only.
+#[test]
+fn a_stage_container_of_another_command_is_not_a_difference() {
+    let (root, old, installed) = twin_trees("compare-stage-container");
+    for tree in [&old, &installed] {
+        std::fs::create_dir_all(tree.join(".claude/worktrees")).expect("the folder the stages live in");
+    }
+    let container: PathBuf = old.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    std::fs::create_dir_all(&container).expect("the stage container");
+    std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
+    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "another command's stage container is not the old tree's state");
+    let lookalike: PathBuf = old.join("cli-git-worktree-copy-notes.md");
+    std::fs::write(&lookalike, b"notes\n").expect("a file whose name merely holds the prefix");
+    let found: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(found.contains("cli-git-worktree-copy-notes.md"), "{found}");
+    remove(root.as_path());
+}
+
+/// What:
+///  An old-tree file whose name begins the stage prefix is a difference,
+///  and a folder another command emptied by removing only its container is not.
+/// Why:
+///   No copy leaves a file out for that name,
+/// so skipping it approved deleting the only copy of the person's file;
+///  while a folder the copy left out because it held only containers carries nothing after the
+///  container is gone,
+/// and demanding it kept the old tree and asked the person to settle a version that exists on one side only.
+#[test]
+fn a_prefix_named_file_is_a_difference_and_an_emptied_stage_folder_is_not() {
+    let (root, old, installed) = twin_trees("compare-prefixed-file");
+    let notes: PathBuf = old.join(".cli-git-worktree-copy-user-notes");
+    std::fs::write(notes.as_path(), b"the person's notes\n").expect("a file whose name begins the prefix");
+    let found: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(found.contains(".cli-git-worktree-copy-user-notes"), "{found}");
+    std::fs::remove_file(notes.as_path()).expect("drop the file");
+    let container: PathBuf = old.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    std::fs::create_dir_all(container.join("payload")).expect("the stage container");
+    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "a container no copy carries is not a difference");
+    std::fs::remove_dir_all(container.as_path()).expect("the other command removes only its container");
+    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "the folder it emptied carries nothing a copy would have carried");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A mode change of the old root directory itself is a difference.
 /// Why:
 ///   The old root's own metadata supplied only the device number,

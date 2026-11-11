@@ -21,6 +21,8 @@ use crate::service_work::work_directory;
 use crate::test_support::{fixture, git, git_context, git_text, remove};
 use crate::work_item::{WorkKind, hold, state_directory};
 use crate::work_item_holding::{BlockedVerdict, block};
+/// The trait the service's push handler is reached through.
+use crate::service_work::WorkHandlers;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -128,7 +130,7 @@ fn record_the_verdict(world: &World, commit: &str, reason: &str) -> Vec<BlockedV
     let work: PathBuf = work_directory(world.repo.join(".git").as_path());
     // The gate holds the push record before it decides, and blocks it when it refuses; the hold is what a case that only
     //  records a verdict reproduces.
-    hold(work.as_path(), &item).expect("the push is held while the gate decides");
+    hold(work.as_path(), &item, "").expect("the push is held while the gate decides");
     block(work.as_path(), &item, reason);
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "a blocked push is not held");
     return crate::work_item_holding::blocked_verdicts(work.as_path());
@@ -138,7 +140,7 @@ fn record_the_verdict(world: &World, commit: &str, reason: &str) -> Vec<BlockedV
 /// answering the result and the text the push printed.
 fn push(world: &World, landed: &str, blocked: &[BlockedVerdict]) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result: AutoPushResult = push_once(&queue_git(world.repo.as_path()), BRANCH, landed, blocked, &mut err).expect("the push runs");
+    let result: AutoPushResult = push_once(&queue_git(world.repo.as_path()), BRANCH, landed, blocked, &[], &mut err).expect("the push runs");
     return (result, String::from_utf8_lossy(err.as_slice()).into_owned());
 }
 
@@ -320,7 +322,7 @@ fn an_unanswerable_question_sends_nothing() {
         BlockedVerdict { branch_ref: String::from(BRANCH), commit: String::from("2").repeat(40), reason: String::from("final-newline: no final newline") },
     ];
     let history: Unanswered = Unanswered;
-    let stop: WhereThePushStops = where_the_push_stops(&history, BRANCH, None, verdicts.as_slice());
+    let stop: WhereThePushStops = where_the_push_stops(&history, BRANCH, None, verdicts.as_slice(), &[]);
     let stopped: Stopped = match stop {
         WhereThePushStops::Unanswered(stopped) => stopped,
         other => panic!("an unanswerable question must send nothing, and the decision answered {other:?}"),
@@ -393,4 +395,110 @@ impl BranchHistory for Unanswered {
     fn merge_base(&self, _commits: &[String]) -> Option<String> {
         return None;
     }
+}
+
+/// What:
+///  The push record of one commit of the world's branch,
+///  as the queue holds it.
+/// Why:
+///  The service pushes the record's branch and its own directory's records,
+///  so a case that drives the service's own push needs the record the commit left.
+fn push_item_of(world: &World, commit: &str) -> crate::work_item::WorkItem {
+    return crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        branch_ref: String::from(BRANCH),
+        oid: String::from(commit),
+        parent: String::new(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+}
+
+/// What:
+///  A holder text naming a process that has ended,
+///  spelled as `this_command` spells one.
+/// Why:
+///  A recorded pass is released only once the command that wrote it is proven gone,
+///  and a child this control starts and waits for is the one such proof it can make without a race.
+fn a_command_that_has_ended() -> String {
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
+    let pid: u32 = child.id();
+    let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
+    let _ended = child.kill();
+    let _reaped = child.wait();
+    return format!("{}/{pid}/{birth}", crate::claim_time::current_boot_id());
+}
+
+/// What:
+///  A commit whose own post-commit check still runs is not published by any push of its branch,
+///  even one made for another commit.
+/// Why:
+///   The queue holds a commit's push until its gate answers,
+/// and a gate may refuse it;
+///  a push of the branch sends every commit up to the tip,
+/// so publishing the tip before that answer publishes a commit the gate may keep local.
+#[test]
+fn a_commit_whose_own_checks_have_not_decided_is_not_published() {
+    let world: World = world("undecided-checks-hold-the-tip");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let undecided: String = commit(&world, "undecided\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let item: crate::work_item::WorkItem = push_item_of(&world, undecided.as_str());
+    // This control's own process holds the record, so the command whose checks run is provably alive.
+    hold(work.as_path(), &item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the push is held while its checks run");
+
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&item));
+
+    let crate::service_work::Verdict::Retry(shown) = verdict else { panic!("a push waiting for a running check is tried again, and the service answered {verdict:?}") };
+    assert!(shown.contains(undecided.as_str()), "the line names the commit whose check runs: {shown}");
+    assert!(shown.contains("has not decided"), "the line says the check has not decided: {shown}");
+    assert_eq!(remote_branch(&world), base, "the automatic push stops before the commit whose checks still run");
+    assert!(!remote_has(&world, undecided.as_str()), "the undecided commit is not published");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  Releasing an older approved push does not publish a newer commit whose checks still run.
+/// Why:
+///   This is the recovery every command makes when the command that landed a commit died after recording its pass:
+///  the older record becomes runnable and the service is woken,
+/// while a newer commit's gate is still running.
+///  The wake must not publish the newer commit.
+#[test]
+fn an_older_passed_record_does_not_publish_a_newer_undecided_commit() {
+    let world: World = world("older-pass-newer-undecided");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let older: String = commit(&world, "older\n");
+    let newer: String = commit(&world, "newer\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let older_item: crate::work_item::WorkItem = push_item_of(&world, older.as_str());
+    hold(work.as_path(), &older_item, "").expect("the push was held while its gate decided");
+    // The command that landed `older` recorded its pass and died before it could promote the record.
+    assert!(
+        crate::work_item::record_verdict(work.as_path(), older_item.id().as_str(), a_command_that_has_ended().as_str(), crate::held_push_holder_and_verdict::Verdict::Passed, ""),
+        "the older record holds the pass its command left"
+    );
+    let newer_item: crate::work_item::WorkItem = push_item_of(&world, newer.as_str());
+    hold(work.as_path(), &newer_item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the newer commit's gate still runs");
+
+    let said: Vec<String> = crate::service_handoff::held_push_notices(
+        world.repo.join(".git").as_path(),
+        &crate::held_push_commit_on_the_remote::NothingAsked,
+        &crate::held_push_release_wakes_the_service::NothingWoken,
+    );
+    assert!(said.iter().any(|line| { return line.contains(older.as_str()); }), "the older pass is released and said: {said:?}");
+
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&older_item));
+
+    assert!(matches!(verdict, crate::service_work::Verdict::Retry(_)), "the push stops and is tried again, and the service answered {verdict:?}");
+    assert_eq!(remote_branch(&world), older, "the released record publishes only the commit whose gate approved it");
+    assert!(remote_has(&world, older.as_str()), "the approved commit reached the remote");
+    assert!(!remote_has(&world, newer.as_str()), "the commit whose checks still run was not published");
+    assert!(state_directory(work.as_path(), crate::work_item::HELD).join(newer_item.id()).exists(), "the newer record is still held");
+    assert_ne!(remote_branch(&world), base, "the base was published before the release, so this case tells a stop from a push");
+    remove(world.root.as_path());
 }

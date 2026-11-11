@@ -642,8 +642,12 @@ fn an_unreadable_table_of_sockets_counts_as_may_be_running() {
 /// and a relative spelling is the folder the process's own
 ///  working directory gives it.
 /// A spelling that names another existing folder is not the journal;
-/// one that cannot be resolved
-///  proves nothing,
+/// an absolute spelling of a folder that is not there is compared by the
+///  path it spells,
+/// so a folder that is not the journal holds nothing back,
+/// and a journal that is not made yet still holds;
+/// a
+///  relative spelling whose working directory cannot be read proves nothing,
 /// so it counts as "may be running".
 #[test]
 fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
@@ -675,23 +679,31 @@ fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
     assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "a relative spelling of another existing folder");
     std::fs::remove_dir_all(proc_root.join("73")).expect("ended");
     say(74, world.root.join("no-such-folder").to_string_lossy().as_ref());
-    assert!(service_of_instance_may_run(look.clone(), proc_root.as_path()), "a journal that cannot be resolved");
+    assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "an absolute folder that is not there and is not the journal");
     std::fs::remove_dir_all(proc_root.join("74")).expect("ended");
+    // A starting helper shows its journal word before it makes the folder, and the folder it will make is this worktree's.
+    let unmade: ServiceLook = ServiceLook { journals: vec![real.join("not-made-yet"), real.clone()], ..look_for(own) };
+    say(76, world.root.join("alias/not-made-yet").to_string_lossy().as_ref());
+    assert!(service_of_instance_may_run(unmade, proc_root.as_path()), "the journal of the worktree, not made yet, through a link to the folder above it");
+    std::fs::remove_dir_all(proc_root.join("76")).expect("ended");
     say(75, "real/abc");
     assert!(service_of_instance_may_run(look, proc_root.as_path()), "a relative spelling of a process whose working directory cannot be read");
     remove(world.root.as_path());
 }
 
-/// Only the first bytes of a command line are read,
+/// Only the bytes of a command line the look reads are looked at,
 /// and a line that fills that limit has more words that were not looked at:
-/// an
-///  earlier helper started with a very long program name has its service words past the limit.
+/// a process whose line is longer than any program can carry
+///  has words past the limit that were not compared.
 /// Such a line counts as "may be
 ///  running",
 /// and a line that ends exactly at the limit was read whole.
+/// The limit is the kernel's own ceiling on a command line,
+/// so no program of a machine carries more;
+/// a fake table of a control holds what a kernel would refuse.
 #[test]
 fn a_command_line_longer_than_the_bytes_read_counts_as_may_be_running() {
-    let limit: usize = usize::try_from(crate::earlier_service_process_look::COMMAND_LINE_BYTES).expect("the limit fits");
+    let limit: usize = usize::try_from(crate::earlier_service_command_line_read::COMMAND_LINE_BYTES).expect("the limit fits");
     let world: World = world("adopt-proc-long");
     let proc_root: PathBuf = empty_proc(&world);
     let long_program: String = "p".repeat(limit + limit / 2);
