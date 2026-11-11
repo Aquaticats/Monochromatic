@@ -432,7 +432,8 @@ A process can hide its working folder from its own account:
 and another cross-vendor review found that the sweep removed the worktree under such a process.
 The kernel answers nothing else about one,
 and the programs that hide their folders on this desktop are the services that start at boot or login
-(measured 2026-11-11: `systemd --user`,
+(measured 2026-11-11:
+`systemd --user`,
 `(sd-pam)`,
 `kwin_wayland`,
 `polkit-kde-authentication-agent-1`,
@@ -482,7 +483,8 @@ Those ignored files are the one hole in Git's own line,
 The owner's rule is that no command of this program discards a person's data,
  so the sweep now asks Git for the worktree's ignored entries (`worktree_landed_ignored_files.rs`)
  and compares every file and link among them with the worktree the merge ran in,
- by kind, mode and bytes (`worktree_copy_compare.rs` `entry_matches`).
+ by kind,
+ mode and bytes (`worktree_copy_compare.rs` `entry_matches`).
 A file this repository's own worktree holds identically came from the add or from the repository,
  and removing this worktree takes a copy and nothing else;
  a file it does not hold,
@@ -625,12 +627,17 @@ Nothing in the crate's Rust changed in that merge,
  so the only risk to this change was a semantic one,
  and the suites were run again after it:
 
-- `native:clippy` (the gate's Clippy flags, warnings denied): clean.
+- `native:clippy` (the gate's Clippy flags,
+  warnings denied):
+  clean.
 - `test(/worktree_landed|worktree_added_by_the_wrapper|worktree_process_inside/)`:
    `20 tests run: 20 passed, 6289 skipped`.
-- `test(/worktree_add|worktree_remove/)`: `67 tests run: 67 passed, 6242 skipped`.
-- `test(/worktree_copying/)`: `384 tests run: 384 passed, 5925 skipped`.
-- `test(/landing::/)`: `850 tests run: 850 passed, 5459 skipped`.
+- `test(/worktree_add|worktree_remove/)`:
+  `67 tests run: 67 passed, 6242 skipped`.
+- `test(/worktree_copying/)`:
+  `384 tests run: 384 passed, 5925 skipped`.
+- `test(/landing::/)`:
+  `850 tests run: 850 passed, 5459 skipped`.
 
 The package's `lint` task is red on this branch for findings this work did not add.
 Every one of them is in a file whose diff against `main` is empty,
