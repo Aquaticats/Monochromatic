@@ -7625,6 +7625,13 @@ in-process reader can) gives every value of the multi-valued keys.
   and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
+  The message reaches `commit-tree` on its standard input (`-F -`),
+  never as a `-m` argument:
+  the kernel bounds one argument at about 128 KiB,
+  and a merge whose conflicted files all resolved appends one line per merged part,
+  so a merge of many parts failed its commit with `Argument list too long` instead of publishing
+  (cross-vendor review of round 198,
+  finding 2).
   Its message reads `Merge <remote>/<tracked ref> into <branch>`,
   naming the branch whose tip is that first parent,
   the way `git merge` names the branch it is on,
@@ -13712,6 +13719,14 @@ see the refusal below.
 A `--zdiff3` answer is cut into the text Git settled and the regions it left,
 and a region's line numbers for the report and the journal are found by searching its text forward from the end
 of the region before it.
+The lines above each region are counted from the place the region before it reached,
+never from the top of its stage,
+so each stage's lines are counted once:
+while every part counted its stage from the top,
+the pass over a hundred and three thousand one-line regions against stages of 7.6 MB took about seven hundred seconds
+of a push that took 889 seconds,
+whose merge-tree took about 190
+(measured 2026-11-11 on this host with the release build).
 The markers of that answer carry labels made unguessable for every merge
 (`-L ours-<random> -L base-<random> -L theirs-<random>`):
 Git does not escape the markers it writes,
@@ -13720,6 +13735,21 @@ and replaced by the word pass.
 A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
 as Git writes that file's markers,
 so both endings are a marker's own and such a file is still merged.
+Those three labels do not reach the split marker,
+which Git writes as seven equals signs and a line end with no room for a label,
+so a line of the person's file that is exactly that cannot be told from Git's own by its bytes.
+A region is therefore cut with its split-shaped lines still unchosen,
+and its split is chosen from them:
+behind the common ancestor marker only one such line is Git's,
+because Git writes one split per region,
+and where a region holds more than one behind that marker,
+the split is the only one whose three sides are found in their own stages,
+at or after the place the region before it ended.
+A region no single split explains stays exactly as Git left it,
+as does a region that holds no text on any side.
+The searches are bounded at 256 candidate lines per file,
+which is about six hundred passes over the stages at the largest size the pass takes,
+so a file whose answer holds more split-shaped lines than that inside its regions is left as well.
 An answer that ends inside a region,
 that nests a region inside another,
 or whose region count is other than the conflict count Git reported is refused,
@@ -14245,14 +14275,34 @@ the push's stall window,
 the service's stop and the grace a stopped query gets,
 with its request on the standard input and an answer ceiling of one stage per name it asks for
 (`src/native/push/auto_push_reconcile_merge_commit.rs`),
-and the line merge's answer ceiling is four stages:
-the three stages it is given and the text Git settled,
-with the push report's own cap on top of them for the marker lines,
+and the line merge's answer ceiling is its content and its marker lines:
+four stages for the three stages it is given and the text Git settled,
+and eight stages for the marker lines,
+which is about four hundred thousand regions at four marker lines each,
 because a merge of three stages is larger than each of them and the report's cap alone refused merges
-that resolve;
-room for about twenty-six thousand regions is what that cap adds,
-and an answer larger than the ceiling is refused and leaves the path as Git left it,
+that resolve,
+and because the number of regions is bounded by the lines of the stages and not by a margin of their bytes:
+three stages of 7,605,777 bytes with a conflict every other line hold a hundred and three thousand regions
+and print a 37,871,557-byte answer although its content is under three stages
+(measured 2026-11-11 with Git 2.56.0;
+cross-vendor review of round 198,
+finding 2),
+and the earlier four stages plus the push report's own cap was 122,821 bytes short of it.
+An answer is held whole and then cut,
+so a merge at this ceiling costs its own bytes twice,
+about 190 MB,
+plus the merged file and its parts,
+under the 352 MB the pass's own word merge of three 8 MiB texts costs;
+the ceiling is a memory backstop and not the bound of what eligible stages can print,
+because marker bytes grow with the lines of the stages and not with their bytes,
+so an answer larger than the ceiling is refused and leaves the path as Git left it,
 for the person to resolve;
+the total ceiling of 300 seconds,
+not this one,
+is what ends the slowest merges this one admits,
+because `merge-tree` took 192 seconds on that fixture in one run,
+under a 3-CPU scope on a host at load 66 to 75,
+before the pass read any of it;
 so a merge driver that never returns ends the merge and is named as a stopped query,
 and the push worker,
 its claim and the drain of that repository are not held for good.

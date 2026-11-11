@@ -592,6 +592,51 @@ What is left:
   A command process whose places were all left behind in abandoned jobs would wait there for ever.
   Bounding those needs a control each,
   because each decides differently what "no place" leaves undone.
+### A many-region merge is published, and its answer, message and report are bounded by what they cost (2026-11-11T17:12:16-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-merge-pass-review-findings`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`,
+with four commits `afd91b7564`, `4cf6f725b1`, `8d19fe92b5` and `40393ab6c1`.
+The review is `~/temp/agent/kimi-reviews/kimi-findings-merge-pass-fewer-wrong-merges-round-198/review.md`;
+its two findings were both reproduced here.
+
+- **A literal split-marker-shaped line made a resolvable merge fail (real and fixed).**
+  Git writes its split marker as seven equals signs with no label,
+  so the parser took a `=======` line of the person's file for the split,
+  and the common ancestor's marker that followed was read as out of order
+  (`merge_second_pass_line_regions.rs`,
+  `marker_of` and `cut`).
+  A region now keeps its split-shaped lines as candidates,
+  and `Cut::place` chooses the split by what the three stages hold,
+  bounded at 256 candidate lines per file.
+- **The reconcile's answer ceiling was below what eligible stages print (real, raised).**
+  Three stages of 7,605,777 bytes with a conflict every other line print 37,871,557 bytes,
+  against a ceiling of 37,748,736 (`MERGE_FILE_ANSWER_BYTES`,
+  `auto_push_reconcile_merge_commit.rs:61`).
+  The ceiling is now four stages of content plus eight stages of marker lines,
+  a memory backstop and not a bound of what stages can print.
+- **The same fixture failed its merge commit with E2BIG (real and fixed).**
+  The message was one `git commit-tree -m` argument and lists one line per part
+  (`auto_push_reconcile_merge_commit.rs:295`),
+  which the kernel bounds at about 128 KiB;
+  the message now goes on the standard input with `-F -`.
+- **The report counted each stage once per part (real and fixed).**
+  `span_in_the_file` counted the lines from the top of the stage for every part
+  (`merge_second_pass_git_lines.rs:169`),
+  so 103,000 parts against 7.6 MB stages took about 700 seconds of a push of 889.
+  The count is carried from region to region now,
+  and the same fixture published end to end:
+  103,000 regions word-merged, no marker left,
+  a 35,352,342-byte merge message, 549 seconds on this host.
+
+Open, for the owner:
+
+- A merge whose answer passes the ceiling is admitted whatever its part count,
+  and its commit message and journal entry grow with that count
+  (35 MB for 103,000 parts).
+  Whether the part list keeps a cap, and whether a merge that deterministically exceeds the 300-second step
+  ceiling should be retried, are the owner's decisions;
+  today the service retries it.
 
 ### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
 ### A Kimi K3.1 Pro review of the pull's printed remedies: two findings, both reproduced and fixed (2026-11-11T15:13:43-05:00)
