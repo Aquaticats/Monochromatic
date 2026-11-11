@@ -1,34 +1,82 @@
 //! What:
 //!  Runs a forwarded Git command under the index-writer coordination,
 //! finishes a settled forward,
+//!  runs Git for an announced query and prints the announcement after its answer,
 //! and writes to the
 //!  standard streams,
 //! with the tip watch that hands a push over after a command that adds commits.
 //! Why:
 //!  `entry.rs` performs the action it planned;
-//! these are the steps of the coordinated and settled kinds,
+//! these are the steps of the coordinated,
+//! settled and announced kinds,
 //! kept in a file
 //!  that does not use `entry.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // runCoordinatedAction(forward): number; finishForwarded(run): number; writeStream(stream, text): void
+//! // runCoordinatedAction(forward): number; finishForwarded(run): number; runAnnounced(git, args, overlay, text): number;
+//! // writeStream(stream, text): void
 //! ```
 
 /// Import the sibling modules the decision combines.
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
+use crate::announced_query::printable_after;
 #[cfg(unix)]
 use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
 use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
-use crate::forwarding::{end_as_git_ended, replace_process_with_real_git};
+use crate::forwarding::{end_as_git_ended, exit_code, replace_process_with_real_git, run_real_git};
 use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use crate::forwarded_command::ResolvedCommand;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+/// `OsString` is owned operating-system text of raw OS bytes;
+///  the announced query's arguments and overlay are passed through unchanged.
+use std::ffi::OsString;
 /// The trait that gives output streams `.write_all(..)`.
 use std::io::Write;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// What:
+///  Run Git as a child for an announced query,
+///  print the announcement when Git exited with status 0,
+///  and return Git's status.
+/// Why:
+///   The child shares the caller's streams,
+/// so Git's own answer is untouched and comes first;
+///  the announcement follows it only when Git answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = await runRealGit(realGit, args, overlay); if (outcome.exited === 0) print(text); return exitCode(outcome);
+/// ```
+pub(crate) fn run_announced(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    text: &str,
+) -> i32 {
+    match run_real_git(real_git, arguments, overlay) {
+        Ok(outcome) => {
+            write_stream(&mut std::io::stdout(), printable_after(outcome, text));
+            return exit_code(outcome);
+        }
+        Err(error) => {
+            write_stream(
+                &mut std::io::stderr(),
+                format!(
+                    "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
+                     then reinstall Git or the wrapper; no Git command ran.\n",
+                    real_git.display(),
+                    real_git.display()
+                )
+                .as_str(),
+            );
+            return ENGINE_FAILURE_EXIT_CODE;
+        }
+    }
+}
+
 /// What:
 ///  The exit code of a forwarded run,
 /// after printing the text of a run that failed.
