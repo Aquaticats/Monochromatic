@@ -331,7 +331,11 @@ fn acquire_placing(
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    // The watch and the marker's text are timed apart from the making of the marker, so a wait whose whole is far longer than
+    //  its parts names the phase that took the time.
+    let watching_began: std::time::Instant = std::time::Instant::now();
     let mut watch: Option<Watch> = (platform.watch)(directory);
+    notes.setup += watching_began.elapsed();
     let (marker, staged, held) = match prestaged {
         Some(made) => {
             // The file was flushed while the service was idle: what was waited for is what the preparation measured.
@@ -339,6 +343,7 @@ fn acquire_placing(
             (made.marker, made.staged, made.held)
         }
         None => {
+            let naming_began: std::time::Instant = std::time::Instant::now();
             let marker: String = match marker_text(seq, platform.identity) {
                 Ok(text) => text,
                 Err(error) => {
@@ -346,6 +351,7 @@ fn acquire_placing(
                     return Err(LockFailure { code: FailureCode::Unavailable });
                 }
             };
+            notes.setup += naming_began.elapsed();
             let staging_began: std::time::Instant = std::time::Instant::now();
             let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
             notes.staging += staging_began.elapsed();
@@ -369,7 +375,9 @@ fn acquire_placing(
         notes,
     );
     notes.placing = placing_began.elapsed();
+    let removing_began: std::time::Instant = std::time::Instant::now();
     let _removed = std::fs::remove_file(&staged);
+    notes.after += removing_began.elapsed();
     let placed: Placed = outcome?;
     remove_dead_staging(&lock);
     return Ok(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));

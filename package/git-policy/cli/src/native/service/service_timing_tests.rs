@@ -45,6 +45,14 @@ const ANSWER_MS: u64 = 31;
 const STAGE_MS: u64 = 37;
 const PLACE_MS: u64 = 953;
 
+/// How long the readying of the acquisition took in the controls:
+/// the watch on the lock's directory and the marker's text,
+/// which the answered line states apart from the wait itself.
+const SETUP_MS: u64 = 11;
+
+/// How long removing the staged file took once the wait was decided in the controls.
+const AFTER_MS: u64 = 5;
+
 /// How many other commits were waiting for this one's landing to finish in the controls.
 const QUEUED_BEHIND: usize = 4;
 
@@ -99,7 +107,9 @@ fn landing() -> LandTiming {
             looks: 4,
             staging: Duration::from_millis(STAGE_MS),
             stage_kind: "cold",
+            setup: Duration::from_millis(SETUP_MS),
             placing: Duration::from_millis(PLACE_MS),
+            after: Duration::from_millis(AFTER_MS),
             polled: false,
         },
     };
@@ -353,15 +363,21 @@ fn the_exit_line_states_reason_and_uptime() {
 }
 
 /// The answered line says what the wait was for:
-/// the flush of the marker and the wait for the holder apart,
+/// the readying of the acquisition, the flush of the marker, the wait for the holder and the removal of the staged file apart,
 /// how many times the lock was found held,
 /// and the first and the last description of it.
+/// Why the four times are apart:
+///  a wait whose whole is longer than their sum spent its time outside the acquisition's own work,
+///  and the gate of 2026-11-11T10:29-05:00 read `lock_wait_ms=95277` against `lock_stage_ms=0` and `lock_place_ms=3003`
+///  with nothing to say where the other 92 s went.
 #[test]
 fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
     let found: HashMap<String, String> = fields(line_for("req-4", "refs/heads/main", &landing()).as_str());
     assert_eq!(found["lock_stage_ms"], STAGE_MS.to_string());
     assert_eq!(found["lock_stage_kind"], "cold");
     assert_eq!(found["lock_place_ms"], PLACE_MS.to_string());
+    assert_eq!(found["lock_setup_ms"], SETUP_MS.to_string());
+    assert_eq!(found["lock_after_ms"], AFTER_MS.to_string());
     assert_eq!(found["lock_looks"], "4");
     assert_eq!(found["lock_found"], "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]");
     assert_eq!(found["lock_last"], "service seq=7 pid=77 state=running age_ms=900");
@@ -370,6 +386,7 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
     let line: String = line_for("req-5", "refs/heads/main", &free);
     assert_eq!(fields(line.as_str())["lock_stage_ms"], STAGE_MS.to_string(), "{line}");
     assert_eq!(fields(line.as_str())["lock_stage_kind"], "pre", "{line}");
+    assert_eq!(fields(line.as_str())["lock_setup_ms"], "0", "a quick readying is stated as none: {line}");
     assert!(!line.contains("lock_found") && !line.contains("lock_looks"), "a lock that was free names no holder: {line}");
     assert!(fields(line.as_str()).contains_key("lock_place_ms"), "the placement time is always stated: {line}");
 }
@@ -389,6 +406,14 @@ fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_f
     let slow_flush: WaitNotes = WaitNotes { staging: SLOW_LOCK_STEP, ..WaitNotes::default() };
     let slow: String = wait_line(9, SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
     assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
+    // A wait that is slow in the readying and in the removal of the staged file says so without naming a holder,
+    // so the two spans are read where the lock was free at the only placement.
+    let slow_setup: WaitNotes = WaitNotes { setup: SLOW_LOCK_STEP, after: SLOW_LOCK_STEP, ..WaitNotes::default() };
+    let line: String = wait_line(10, SLOW_LOCK_STEP, &slow_setup, true).expect("a slow readying is written down");
+    assert!(
+        line.contains(format!("lock_setup_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && line.contains(format!("lock_after_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()),
+        "{line}"
+    );
 }
 
 /// Every line states its own time at the end,
