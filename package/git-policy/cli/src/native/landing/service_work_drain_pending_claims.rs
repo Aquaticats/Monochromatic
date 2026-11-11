@@ -38,6 +38,7 @@ use crate::service_work_storage_awaited::{
 use crate::journald_native::Priority;
 use crate::push_failure_notice::PushOutcome;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
+use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
 use crate::service_work_settling_with_words::settle_with_the_words;
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
@@ -102,6 +103,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
         let mut relinks: Vec<Claimed> = Vec::new();
+        let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
@@ -110,6 +112,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 WorkKind::Trash => trashes.push(item),
                 WorkKind::Prewarm => prewarms.push(item),
                 WorkKind::Relink => relinks.push(item),
+                WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
                 _ => upkeep.push(item),
             }
@@ -237,6 +240,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 Some(back) => held = back,
                 None => break 'round,
             }
+        }
+        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
+        //  nothing else names, and it frees everything the worktree held.
+        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.

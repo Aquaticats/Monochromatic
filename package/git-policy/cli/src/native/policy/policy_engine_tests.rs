@@ -104,6 +104,7 @@ fn a_note_is_reported_and_does_not_block_the_command() {
                 notes: vec![PolicyNote {
                     message: String::from("it was left as it is"),
                     path: Some(path.clone()),
+                    hint: Some(crate::policy_events::LEFT_ALONE_HINT),
                 }],
             },
         )],
@@ -158,6 +159,7 @@ fn a_note_beside_an_error_finding_still_blocks() {
                 notes: vec![PolicyNote {
                     message: String::from("it was left as it is"),
                     path: None,
+                    hint: Some(crate::policy_events::LEFT_ALONE_HINT),
                 }],
             },
         )],

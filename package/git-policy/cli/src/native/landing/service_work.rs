@@ -553,6 +553,21 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move { return crate::package_repair_relink_job::relink_awaiting(item).await; });
     }
 
+    /// What:
+    ///  Delete the subvolume a removal renamed out of the person's way.
+    /// Why:
+    ///  The removal records the path and returns,
+    /// so this is where the one kernel call happens,
+    /// with no person waiting for it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
+    /// ```
+    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,

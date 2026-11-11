@@ -373,7 +373,16 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let Some(stage_id) = made else {
         return Err(SnapshotFailure { reason: String::from("the stage cannot be examined"), stage: None });
     };
-    return Ok(Snapshotted { stage: stage_id, trash: hand_over.finish(), taken_over: pruned.taken_over, state });
+    let trash: Option<TrashManifest> = hand_over.finish();
+    // The trash says what it is before anything publishes it: the manifest travels with the trash through the swap, so a
+    //  command killed between the swap and its record leaves a trash the next pass can prove and empty, where a trash only a
+    //  record describes left an orphan nothing would ever name.
+    if let Some(manifest) = trash.as_ref()
+        && let Err(reason) = crate::worktree_trash_own_manifest::write(stage, manifest)
+    {
+        warn(TAG, format!("monochromatic-git-policy-cli: the trash {} cannot say what it is ({reason}), so a kill before its record leaves it for the next pass to name and the person to remove", manifest.name).as_str());
+    }
+    return Ok(Snapshotted { stage: stage_id, trash, taken_over: pruned.taken_over, state });
 }
 
 /// What a snapshot that was taken left for the steps after it.

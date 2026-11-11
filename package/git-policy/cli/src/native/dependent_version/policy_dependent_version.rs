@@ -30,6 +30,10 @@
 //!      something else is named and left exactly as it is:
 //!  the commit lands without it rather
 //!      than failing or overwriting somebody's work.
+//!  A real index that could not be listed proves
+//!      none of them,
+//!  so each dependent it would have proved is named with that reason
+//!      instead of being taken for an index that holds nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -67,12 +71,12 @@ use crate::git_metadata::path_from_git_bytes;
 /// The precondition for a file a direct fix did not select,
 ///  its reasons and its message.
 use crate::policy_added_path::{
-    ADDED_PATH_STAGED_REASON, Entry, added_path_message, head_mode, worktree_refusal,
+    ADDED_PATH_STAGED_REASON, added_path_message, head_mode, worktree_refusal,
 };
 /// The commit path's notes,
 ///  real-index listing and per-bump correction.
 use crate::policy_dependent_version_commit::{
-    added_entries, committed_correction, left_behind, note_of, noted,
+    RealIndexListing, added_entries, committed_correction, left_behind, note_of, noted,
 };
 /// The lifecycle's candidates and the correction a fix applies.
 use crate::policy_content::{ContentState, Correction, LifecycleContent};
@@ -85,8 +89,6 @@ use crate::policy_trigger::Trigger;
 use crate::repository_facts::RepositoryFacts;
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
-/// `BTreeMap<K, V>` is a map kept sorted by key.
-use std::collections::BTreeMap;
 /// Borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,
@@ -362,7 +364,10 @@ pub struct DependentCheck<'a, 'index, F: RepositoryFacts> {
 ///  A commit
 ///       reports a dependent it may not add and lands without it,
 ///  because a commit never fails
-///       over a copy somebody is holding.
+///       over a copy somebody is holding;
+///  a listing that could not run leaves every dependent it would
+///       have proved out of the commit the same way,
+///  each named with Git's own reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -425,18 +430,14 @@ pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_,
         Err(error) if plans_commit => return noted(&plan_error_message(&error)),
         Err(error) => return plan_failure(&error),
     };
-    let real: BTreeMap<Vec<u8>, Entry> = match added_entries(
+    let real: RealIndexListing = added_entries(
         plans_commit,
         &findings,
         version.as_ref(),
         facts,
         root.as_deref(),
         real_index,
-    ) {
-        Ok(found) => found,
-        Err(message) if plans_commit => return noted(&message),
-        Err(message) => return failed(EngineFailureCode::ContentUnavailable, message),
-    };
+    );
     let mut kept: Vec<DependentFinding> = Vec::new();
     let mut proposals: Vec<Correction> = Vec::new();
     let mut notes: Vec<PolicyNote> = Vec::new();
@@ -444,7 +445,11 @@ pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_,
         // A dependent nobody can bump automatically is named by a direct command and reported by a commit, which still lands.
         let Some(bump) = finding.patch.clone() else {
             if plans_commit {
-                notes.push(note_of(finding.message.as_str(), finding.path.as_deref()));
+                notes.push(note_of(
+                    finding.message.as_str(),
+                    finding.path.as_deref(),
+                    Some(crate::policy_events::LEFT_ALONE_HINT),
+                ));
             } else {
                 kept.push(finding);
             }

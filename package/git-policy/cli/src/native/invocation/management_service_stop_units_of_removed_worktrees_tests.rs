@@ -74,6 +74,32 @@ fn the_command_stops_the_units_of_the_removed_worktree_and_names_it() {
     remove(world.root.as_path());
 }
 
+/// What:
+///  A journal that holds a commit no branch shows is kept and named on standard error,
+///  with where it is and what kept it,
+///  and the command still ends with status 0 because the units it was asked about were stopped.
+/// Why:
+///   The person needs that line even when warnings are turned off,
+/// and it must not read as a refusal:
+/// nothing here failed.
+#[test]
+fn a_kept_journal_is_named_on_standard_error_and_is_no_refusal() {
+    let world: World = world("stop-units-kept-journal");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal folder");
+    std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let mut manager: Recorder = Recorder::default();
+    let (code, _stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stderr.contains(journal.display().to_string().as_str()), "the line names the journal: {stderr}");
+    assert!(stderr.contains("7.intent") && stderr.contains("has not landed"), "the line names what kept it: {stderr}");
+    assert!(journal.exists(), "the journal is kept");
+    remove(world.root.as_path());
+}
+
 /// A manager that refuses a stop makes status 1 with the instance and the reason,
 /// and the command can be run again.
 #[test]

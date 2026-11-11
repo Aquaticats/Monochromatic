@@ -12,7 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type WorkKind = 'review' | 'push' | 'maintenance' | 'trash' | 'prewarm' | 'relink'; kind.name(); kind.fromName('push')
+//! type WorkKind = 'review' | 'push' | 'maintenance' | 'trash' | 'prewarm' | 'relink' | 'subvolume-delete'; kind.name(); kind.fromName('push')
 //! ```
 
 /// What:
@@ -42,6 +42,9 @@ pub enum WorkKind {
     /// with each tool's own install,
     /// which the add no longer waits for.
     Relink,
+    /// Deleting the subvolume of a removed worktree,
+    /// which the removal no longer waits for.
+    SubvolumeDelete,
 }
 
 /// Methods over a kind.
@@ -56,12 +59,13 @@ impl WorkKind {
             WorkKind::Trash => "trash",
             WorkKind::Prewarm => "prewarm",
             WorkKind::Relink => "relink",
+            WorkKind::SubvolumeDelete => "subvolume-delete",
         };
     }
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink] {
+        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete] {
             if kind.name() == name {
                 return Some(kind);
             }

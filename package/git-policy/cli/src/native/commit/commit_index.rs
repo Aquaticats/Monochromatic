@@ -59,7 +59,7 @@ pub use crate::commit_index_selection::{IndexSelection, prepare_interactive_sele
 /// `OsStr`/`OsString` are borrowed/owned operating-system text.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Name of the single-consumption stdin snapshot inside the transaction directory.
 pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
@@ -86,6 +86,11 @@ fn private_git<S: AsRef<OsStr>>(
         &indexed_request(context, cwd, arguments, Some(index), Some(object_directory)),
     );
 }
+
+/// The one start that writes an empty index,
+/// for a repository whose index file does not exist yet.
+/// It writes a private copy and never the person's index.
+const EMPTY_INDEX: [&str; 2] = ["read-tree", "--empty"];
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
@@ -147,14 +152,28 @@ pub fn initialize_commit_index(
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
-    // A repository nothing was ever staged in has no index file, which Git reads as an empty index.
+    // What:
+    //  The index this preparation's copies are written from.
+    // Why:
+    //  A repository nothing was ever staged in has no index file, which Git reads as an empty index,
+    //  and that empty index is written beside the private copies and never as the person's index:
+    //  writing it there created the real index before any landing and took the real index's lock,
+    //  so a commit in such a repository failed while another command held the lock,
+    //  and two commits in it failed each other.
+    //  Every commit prepares without the real index lock (`doc/decision/cli-git-concurrent-commits.md`,
+    //  "Parallel preparation").
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const source = realIndexPresent ? realIndex : emptyIndexBesideTheCopies();
+    // ```
     let real_index_present: bool = real_index.exists();
-    if !real_index_present {
-        run_git_checked(
-            context,
-            &indexed_request(context, cwd, &["read-tree".to_string(), "--empty".to_string()], Some(real_index), None),
-        )?;
-    }
+    let source: PathBuf = if real_index_present {
+        real_index.to_path_buf()
+    } else {
+        private_git(context, cwd, indexes.captured_index.as_path(), indexes.object_directory.as_path(), &EMPTY_INDEX)?;
+        indexes.captured_index.clone()
+    };
     // What:
     //  The paths this commit writes into the private index from the worktree,
     //  whose recorded stat data the scratch commit never reads.
@@ -170,7 +189,7 @@ pub fn initialize_commit_index(
         TransactionMode::ExplicitPath => WorktreeStaging::Named(selection.pathspecs),
         TransactionMode::Index => WorktreeStaging::None,
     };
-    stage_into_the_private_index(context, cwd, real_index, real_index_present, indexes, selection)?;
+    stage_into_the_private_index(context, cwd, source.as_path(), real_index_present, indexes, selection)?;
     // What:
     //  The refresh of the private commit index's stat data,
     //  which is the index the scratch commit reads.
@@ -194,7 +213,7 @@ pub fn initialize_commit_index(
 }
 
 /// What:
-///  Copies the real index into the private commit index and stages the selection into it,
+///  Copies the index this preparation read into the private commit index and stages the selection into it,
 /// in the order the selection mode needs.
 /// Why:
 ///   The copies and the staging are one step,
@@ -218,23 +237,25 @@ pub fn initialize_commit_index(
 fn stage_into_the_private_index(
     context: &GitContext,
     cwd: &Path,
-    real_index: &Path,
+    source: &Path,
     real_index_present: bool,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
     // What:
-    //  The one read of the real index every private copy of this commit is written from.
+    //  The one read of the source index every private copy of this commit is written from.
     // Why:
     //  A copy that read its own source again cost a second and a third read of the same megabytes, and the copy of a
     //  file this process had just written waited seconds inside the kernel under this host's write pressure
     //  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+    //  The source is the person's index, or the empty index this preparation wrote beside the copies for a repository
+    //  that has none yet.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const index = await IndexBytes.read(realIndex);
+    // const index = await IndexBytes.read(source);
     // ```
-    let index: IndexBytes = IndexBytes::read(real_index).map_err(copy_index_failure)?;
+    let index: IndexBytes = IndexBytes::read(source).map_err(copy_index_failure)?;
     index.write_copy(indexes.captured_index.as_path()).map_err(copy_index_failure)?;
     if selection.mode == TransactionMode::Index {
         index.write_copy(indexes.commit_index.as_path()).map_err(copy_index_failure)?;

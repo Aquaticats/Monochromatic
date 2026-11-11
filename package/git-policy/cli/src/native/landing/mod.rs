@@ -70,6 +70,11 @@ pub mod earlier_service_journal_adopted;
 /// A scan of the processes run on the blocking pool and awaited under a ceiling.
 pub mod scan_awaited_under_a_ceiling;
 
+/// What one process of the process table says about itself:
+/// its command line up to the largest line any program can carry,
+/// and the report of a line that cannot be proved.
+pub mod earlier_service_command_line_read;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 
@@ -250,6 +255,9 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// What a commit does when the service answers that the branch moved under it.
+pub mod service_commit_after_a_moved_branch;
+
 /// Which end of a commit's scratch tree a submitted request leaves it to.
 pub mod service_commit_tree_ownership;
 
@@ -350,6 +358,9 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// The drain's step that deletes the subvolumes a removal handed over.
+pub mod service_work_drain_deletes_subvolumes;
+
 /// How one item whose kind answers with words is settled,
 /// with the line the person reads for it.
 pub mod service_work_settling_with_words;
@@ -375,6 +386,16 @@ pub mod service_handoff;
 
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;
+
+/// Which command will decide a held commit's post-commit checks,
+/// and the verdict that command left.
+pub mod held_push_holder_and_verdict;
+
+/// The wake a command gives the service when it releases a held push by itself.
+pub mod held_push_release_wakes_the_service;
+
+/// What the filesystem proves about a Git directory the service can no longer resolve.
+pub mod unreachable_git_dir_proven_gone;
 
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;

@@ -125,6 +125,71 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
+///  Give this user back the read, write and search permission on every directory of a tree that has lost it,
+///  without following a symbolic link.
+/// Why:
+///   A control that writes a directory its owner may not write (`0500`,
+/// `0555`,
+/// `0000`) proves what the product does with one,
+/// and removing that directory afterwards needs read to list it and write and search to unlink what it holds,
+/// so a fixture left in that state outlived the test that made it
+/// (issue 6282:
+/// fixtures named `rollback-read-only`,
+/// `remove-old-read-only`,
+/// `migrate-unreadable-dir` and `sync-unreadable-dir`),
+/// and a build-tree sweeper could not delete the tree they sat in.
+/// Only directories are changed,
+/// only ones this user owns,
+/// and only the owner's three bits:
+/// a file with no permissions of its own is unlinked from a writable directory,
+/// and a group or other-user bit a control set stays as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restoreOwnerAccess(root: string): void // lstat each entry, chmod OWNER_RWX on the directories this user owns
+/// ```
+#[cfg(unix)]
+pub(crate) fn restore_owner_access(root: &Path) {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    let own: u32 = unsafe { libc::geteuid() };
+    let owner_bits: u32 = 0o700;
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(metadata) = std::fs::symlink_metadata(&directory) else {
+            continue;
+        };
+        if !metadata.is_dir() {
+            continue;
+        }
+        let mode: u32 = metadata.mode() & 0o7777;
+        if metadata.uid() == own && mode & owner_bits != owner_bits {
+            let _widened = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode | owner_bits));
+        }
+        // The directory may have been closed to this user until a moment ago, so it is listed after the mode is restored.
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            let Ok(found) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if found.is_dir() {
+                stack.push(path);
+            }
+        }
+    }
+}
+
+/// What:
+///  On a platform without Unix permissions there is nothing to give back.
+/// Why:
+///   The teardown calls this on every platform.
+#[cfg(not(unix))]
+pub(crate) fn restore_owner_access(_root: &Path) {}
+
+/// What:
 ///  Remove a fixture tree unless the person asked to keep it,
 /// trying again for up to five seconds.
 /// Why:
@@ -132,10 +197,14 @@ pub(crate) fn fixture_root() -> PathBuf {
 /// a tree already gone is the explicit
 ///  `remove` having run first,
 /// not a failure.
+/// A control that made a directory read-only inside its fixture is answered here,
+/// so the fixture goes however the control ended,
+/// panic included.
 pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     if keep {
         return;
     }
+    restore_owner_access(root);
     for _ in 0..50 {
         match std::fs::remove_dir_all(root) {
             Ok(()) => return,
@@ -281,6 +350,8 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     forbid_core_dumps();
     let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
     if root.exists() {
+        // A fixture an earlier run was killed in the middle of may hold a directory it closed, so the permission is given back first.
+        restore_owner_access(&root);
         std::fs::remove_dir_all(&root).expect("remove stale fixture");
     }
     std::fs::create_dir(&root).expect("fresh fixture");
@@ -314,8 +385,10 @@ pub(crate) fn age(path: &Path) {
     assert_eq!(result, 0, "age {}", path.display());
 }
 
-/// Remove only the fixture directory a test created.
+/// Remove only the fixture directory a test created,
+/// giving this user back the permission on any directory of it that a test closed.
 pub(crate) fn remove(root: &Path) {
+    restore_owner_access(root);
     std::fs::remove_dir_all(root).expect("remove only the fixture");
 }
 

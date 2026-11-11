@@ -19,7 +19,7 @@ fn git_written_indexes_round_trip_in_versions_two_and_four() {
         let index: FullIndex = parse_full_index(bytes.as_slice(), 20).expect("read");
         assert!(index.cache_tree.is_some() && index.untracked.is_some(), "version {version} fixture has the extensions");
         assert!(index.entries.iter().any(|entry| { return entry.stat.mtime_sec != 0 && entry.stat.size != 0; }), "the entries carry stat data");
-        assert_eq!(write_full_index(&index, &checksum), Some(bytes), "version {version}");
+        assert_eq!(write_full_index(&index, &checksum, crate::index_full_write::Trailer::Hashed), Some(bytes), "version {version}");
     }
 }
 
