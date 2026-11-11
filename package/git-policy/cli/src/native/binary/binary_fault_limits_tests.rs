@@ -57,6 +57,11 @@ const MEBIBYTE: u64 = 1 << 20;
 /// in mebibytes.
 const MOST_MEBIBYTES: u64 = 1 << 16;
 
+/// The largest descriptor limit the searches for the smallest landing limit try,
+/// so that a machine on which no commit lands at any limit the control examines
+/// is told apart from one whose flip is below that ceiling.
+const FURTHEST_DESCRIPTOR_LIMIT_SEARCHED: u64 = 1024;
+
 /// How many steps a memory sweep takes between its smallest and its largest limit.
 const MEMORY_STEPS: u64 = 10;
 
@@ -370,7 +375,8 @@ fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let lands_at: u64 = smallest_working(3, 1024, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
+    let lands_at: u64 = smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
+    assert!(lands_at < FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, "no commit landed under any descriptor limit up to {FURTHEST_DESCRIPTOR_LIMIT_SEARCHED}, so this control has no landing to be close to exhaustion");
     let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
     assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
@@ -384,8 +390,9 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
-    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, 1024);
-    let lands_at: u64 = smallest_working(starts_at, 1024, &|value| { return lands_with("nofile-service", value, service_descriptors); });
+    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED);
+    let lands_at: u64 = smallest_working(starts_at, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &|value| { return lands_with("nofile-service", value, service_descriptors); });
+    assert!(lands_at < FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, "no commit landed under any descriptor limit up to {FURTHEST_DESCRIPTOR_LIMIT_SEARCHED}, so this control has no landing to be close to exhaustion");
     let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-service", starts_at, lands_at, service_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
     assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
