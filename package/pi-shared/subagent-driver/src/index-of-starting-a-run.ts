@@ -35,6 +35,18 @@ export {
   talliesOf,
 } from './pool-tallies.ts';
 export {
+  BUILD_VOLUME,
+  BYTES_IN_A_GIBIBYTE,
+  type FreeBlocksOfAVolume,
+  type FreeSpace,
+  FREE_SPACE_FLOOR_BYTES,
+  freeSpaceFloorTextOf,
+  freeSpaceIsUnderTheFloor,
+  freeSpaceOnVolume,
+  freeSpaceTextOf,
+  wholeGibibytesOf,
+} from './free-space-floor.ts';
+export {
   type GoingRun,
   LAUNCHER_ENTRY_NAMES,
   REPLACED_LAUNCHER_ENTRY_NAMES,
