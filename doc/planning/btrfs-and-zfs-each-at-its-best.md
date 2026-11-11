@@ -428,7 +428,9 @@ round runs:
 btrfs's median is 208 to 491 ms in every throttled round and 192 to
 380 unthrottled,
 ZFS's is 19 to 30 ms and 19 to 78,
-against a host control probe whose own median is about 3 ms in the same windows.
+against a host control probe whose own median in the same windows was 3 to 39 ms:
+btrfs sits 8 to 27 times above the host's own `fsync` median,
+ZFS 1.0 to 3.1 times.
 Both filesystems still produce multi-second stalls,
 and the host's own probe stalls by the same seconds in the same windows,
 so the worst-case stalls in this VM cannot be attributed to either filesystem.
@@ -1378,7 +1380,12 @@ not this experiment's),
 and the control probe that writes 400 bytes and `fsync`s once a second on the
 NVMe directory holding the VM's disk images saw:
 
-- 685 samples before the campaign:
+- 3 038 samples over the whole campaign:
+  p50 12.2 ms,
+  p99 4 963 ms,
+  worst 25 465 ms,
+  and a median inside each round's window between 3.4 and 39.2 ms.
+  The 685 samples taken before the first round were the quietest stretch:
   p50 3.1 ms,
   p99 2 167 ms,
   worst 6 342 ms.
@@ -1390,10 +1397,10 @@ The reading that matters:
 the guest's worst stall exceeds the host's own worst in some rounds and not in
 others,
 so no single worst-case number here can be attributed to a filesystem.
-The medians can:
-the host's median is about 3 ms,
-and the two arms' medians are
-an order of magnitude apart.
+The medians can,
+compared with the host's median in the same window:
+btrfs's 208 to 491 ms is 8 to 27 times the host's,
+and ZFS's 19 to 30 ms is 1.0 to 3.1 times it.
 
 ## What these runs cannot tell
 
