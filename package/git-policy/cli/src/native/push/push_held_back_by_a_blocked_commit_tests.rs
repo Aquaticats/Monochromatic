@@ -18,7 +18,7 @@ use crate::blocked_commit_lines::{UNRECORDED_REASON, held_back_line, named_reaso
 use crate::blocked_commit_questions::{ContextHistory, held_back_lines};
 use crate::auto_push_single_flight::PushGit;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git, git_context, git_text, remove};
+use crate::test_support::{fixture, git, git_context, git_output, git_text, remove};
 use crate::work_item::{WorkKind, hold, state_directory};
 use crate::work_item_holding::{BlockedVerdict, block};
 /// The trait the service's push handler is reached through.
@@ -647,6 +647,15 @@ fn a_first_push_with_no_upstream_stops_at_the_base_below_a_blocked_commit() {
     assert_eq!(remote, first, "BUG: the first push did not stop at the commit below the refused one");
     assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{shown}");
     assert!(shown.contains(blocked.as_str()), "the line names the commit that holds the branch back: {shown}");
+
+    // The branch's reading ended at `first` while its tip was `landed`: the same push must send the commit its reading named
+    //  and not the branch, which would publish the commit that landed after the reading with no verdict in it at all.
+    let (moved, moved_shown) = push(&world, first.as_str(), &[]);
+    println!("first push of a branch that moved: result={moved:?}; shown={moved_shown}; remote={}", remote_branch(&world));
+    assert!(!remote_has(&world, landed.as_str()), "BUG: the first push published the commit that landed after its reading");
+    assert_eq!(remote_branch(&world), first, "BUG: the first push of a branch that moved sent the branch instead of the commit it read");
+    let upstream: std::process::Output = git_output(world.repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"]);
+    assert!(!upstream.status.success(), "BUG: a push that sent a commit set the branch's upstream");
     remove(world.root.as_path());
 }
 
