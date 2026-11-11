@@ -467,7 +467,7 @@ pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], 
 pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let _ = (place, root);
     for entry in taken {
-        // `may_remove` proves that nothing can write into the file any more;
+        // `may_remove_the_aside_awaiting` proves that nothing can write into the file any more;
         // a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
         if !may_remove_the_aside_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.taken, entry.expected.as_str()).await {
@@ -501,10 +501,11 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 ///  and whether its bytes are
 ///  the branch's own form rather than bytes a clean filter hides.
 /// Why:
-///   Every step that removes a private name asks this same question,
-///  whether it finishes the take of a merge's file
-///  (`merge_isolation_carry_place.rs`)
-///  or one of the second pass's install,
+///   Every step that removes a private name asks this same question:
+///  the install that places the merge's own entries
+///  (`merge_isolation_recovery_install.rs`)
+///  and the carry that replaces or deletes a path
+///  (`merge_isolation_carry_place.rs`),
 ///  so a write that arrives through an old descriptor is kept by both.
 ///   A program that already has the file open keeps that descriptor across the rename,
 /// and a write through it lands

@@ -630,15 +630,20 @@ fn a_new_time_replaces_what_was_left_of_the_connections() {
     let spent: Duration = given * 2;
     let patience: Duration = Duration::from_secs(10);
     // The control: without a new time, a call made after the connection's time is spent times out.
+    // The connection is given `patience` and then its own time with `within`, because the time of a connect also bounds the
+    //  handshake and `Hello`, and under a loaded suite those two took longer than 200 ms, so the control failed as
+    //  "connected: TimedOut" (`a_new_time_replaces_what_was_left_of_the_connections`, the suite of 2026-11-10).
     let control_socket = root.join("control");
     serve_after_hello(UnixListener::bind(&control_socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
-    let mut control: Bus = Bus::connect(control_socket.as_path(), given).expect("connected");
+    let mut control: Bus = Bus::connect(control_socket.as_path(), patience).expect("connected");
+    control.within(given);
     std::thread::sleep(spent);
     assert_eq!(control.reload(), Err(CallError::TimedOut), "the connection's own time is spent");
     // With a new time, the same call after the same delay succeeds.
     let socket = root.join("bus");
     serve_after_hello(UnixListener::bind(&socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
-    let mut bus: Bus = Bus::connect(socket.as_path(), given).expect("connected");
+    let mut bus: Bus = Bus::connect(socket.as_path(), patience).expect("connected");
+    bus.within(given);
     std::thread::sleep(spent);
     bus.within(patience);
     assert_eq!(bus.reload(), Ok(()));

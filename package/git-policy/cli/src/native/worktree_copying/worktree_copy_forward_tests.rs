@@ -197,7 +197,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string() }),
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
@@ -221,6 +221,46 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
     assert_eq!(stops.len(), 1, "one removal, one stop");
     assert_eq!(stops[0].git_dir, registered);
     assert_eq!(stops[0].instance, crate::service_instance::instance_of(registered.as_path()));
+    remove(root.as_path());
+}
+
+/// A forwarded removal takes the removed worktree's shadow pool with it:
+/// the pool's name is the administrative directory the removal deletes,
+/// so nothing can ever claim a member of it
+///  again,
+/// and no other command of the repository looks at it.
+/// Why:
+///   A pool left behind holds up to `POOL_LIMIT` finished trees and the links of each,
+/// and a repository that makes and removes worktrees
+///  accumulates them without bound.
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
+    let root: PathBuf = fixture("forward-removal-pool");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let registered: PathBuf = std::fs::canonicalize(common.join("worktrees/wt")).expect("registration");
+    let pool: PathBuf = crate::shadow_pool::pool_root_for(common.as_path(), registered.as_path());
+    let member: PathBuf = pool.join("member-left-by-the-fill");
+    std::fs::create_dir_all(member.as_path()).expect("a finished member of the pool");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+    };
+    let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
+        Path::new(REAL_GIT),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "remove", "--force", worktree.to_str().expect("utf8")]).as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+        &|_about: &WorktreeAboutToGo| {},
+    );
+    assert_eq!(finished, ForwardedRun::Ran(0), "the removal itself must end well");
+    assert!(!member.exists(), "the pool of the removed worktree goes with it");
+    assert!(!pool.exists(), "and its folder too");
     remove(root.as_path());
 }
 

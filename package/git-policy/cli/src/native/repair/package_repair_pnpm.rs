@@ -125,6 +125,50 @@ fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRe
     return PnpmRepair::Relink(Relink { program, command, manual, limits: environment.limits() });
 }
 
+/// What:
+///  What the worktree needs of the pnpm repair,
+/// decided from the worktree and the search path alone.
+/// Why:
+///   The add no longer runs the relink itself,
+/// so it asks this before it writes the record the service runs:
+/// a worktree with no layout to relink leaves no work,
+/// and one whose pnpm is missing gets the line that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PnpmNeed = 'nothing' | 'needed' | { missing: Finding };
+/// ```
+pub(crate) enum PnpmNeed {
+    /// There is no lockfile or no `node_modules`,
+    /// so no relink is needed.
+    Nothing,
+    /// The relink is needed and the search path provides pnpm;
+    /// running it is the commit service's work.
+    Needed,
+    /// The relink is needed and the search path provides no pnpm;
+    /// the finding names the command to run.
+    NoProgram(Finding),
+}
+
+/// What:
+///  What this tool's part of a worktree's repair is,
+/// before anything is started.
+/// Why:
+///  Both faces of the repair decide it the same way,
+/// so a worktree the add hands over is one the repair would have relinked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needOf = (destination, environment) => decide(prepareRelink(destination, environment));
+/// ```
+pub(crate) fn need_of(destination: &Path, environment: &RepairEnvironment) -> PnpmNeed {
+    return match prepare_relink(destination, environment) {
+        PnpmRepair::NothingToDo => PnpmNeed::Nothing,
+        PnpmRepair::NoPnpm(finding) => PnpmNeed::NoProgram(finding),
+        PnpmRepair::Relink(_work) => PnpmNeed::Needed,
+    };
+}
+
 /// The relink,
 /// awaited on the runtime the caller runs on.
 async fn relink_awaiting(work: &Relink) -> ToolRun {

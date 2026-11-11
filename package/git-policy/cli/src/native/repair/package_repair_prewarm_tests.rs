@@ -3,10 +3,10 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, common_directory_awaiting, decode, encode, hand_over_with, item_of, object_name_of};
 use crate::service_route::Route;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git_context, remove};
+use crate::test_support::{fixture, git, git_context, remove};
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -175,6 +175,30 @@ fn a_hand_over_of_nothing_writes_no_record() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     hand_over_with(&git_context(), common.as_path(), destination.as_path(), &[], &no_reach()).expect("nothing to hand over never fails");
     assert!(!work_directory(common.as_path()).exists(), "no work directory is made for nothing");
+    remove(root.as_path());
+}
+
+/// What:
+///  The common directory of a repository whose directory name is not UTF-8 is the directory Git named.
+/// Why:
+///   The answer was read as text,
+///  so the path the record was keyed by held U+FFFD where the name held a byte,
+/// and the record's own acceptability check refused every record of such a repository.
+#[test]
+fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("prewarm-common-not-utf8");
+    let repo: PathBuf = root.join(OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let context = git_context();
+    let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
+        return common_directory_awaiting(&context, repo.as_path()).await;
+    })
+    .expect("the runtime")
+    .expect("Git names the common directory");
+    assert_eq!(named, std::fs::canonicalize(repo.join(".git")).expect("the common directory"));
     remove(root.as_path());
 }
 
