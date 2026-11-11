@@ -352,6 +352,30 @@ await describe({
           },
         },),
         it({
+          name: 'reads the provider and model a unit of each pool carries on its own command line as that pool, which is the accounts\' own wording rather than a copy of the table',
+          fn: async () => {
+            /**
+             The `--provider` and `--model` words each pool's units and launchers carry, as the provider accounts name them, so
+             a typo in one changes both this list and the pool it names.
+             */
+            const wordsOfAUnit: readonly (readonly [string, string, ProviderPool])[] = [
+              ['qwen-token-plan-individual', 'deepseek-v4.1-flash-1017', QWEN_PLAN_DEEPSEEK],
+              ['neuralwatt', 'deepseek-v4.1-flash', NEURALWATT_STANDARD],
+              ['neuralwatt', 'deepseek-v4.1-flash-flex', NEURALWATT_DEEPSEEK_FLEX],
+              ['opencode-go', 'deepseek-v4.1-flash', OPENCODE_GO],
+              ['neuralwatt', 'kimi-k3.1-pro-flex', NEURALWATT_KIMI_FLEX],
+              ['qwen-token-plan-individual', 'qwen4-max-preview', QWEN_PLAN_QWEN4_MAX_PREVIEW],
+            ];
+            expect(wordsOfAUnit.length,).toBe(PROVIDER_POOLS.length,);
+            for (const [provider, model, pool,] of wordsOfAUnit) {
+              expect(poolNamed({
+                provider,
+                model,
+              },),).toEqual(inPool(pool,),);
+            }
+          },
+        },),
+        it({
           name: 'reads the provider and model a run names nothing of as standard Neuralwatt, the pool the qwen plan replaced, so the run is placed on the first pool with room',
           fn: async () => {
             expect(poolNamed({
