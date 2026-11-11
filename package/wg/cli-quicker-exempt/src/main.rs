@@ -21,6 +21,18 @@ mod inherited_limits;
 mod process_info;
 /// Runs a command line client as the watched user.
 mod user_client;
+/// The D-Bus wire format of the calls to the user's manager.
+mod dbus_wire;
+/// The login every D-Bus socket of this program takes,
+/// and the peer check.
+mod dbus_login;
+/// The user's session bus,
+/// where an impostor manager can take the manager's name.
+mod session_bus;
+/// The guard that removes an impostor manager from that bus.
+mod impostor_guard;
+/// The user manager's private socket and the check of the process behind it.
+mod manager_socket;
 /// The words and outcomes of the update traffic policy.
 mod update_report;
 /// Subscribes to the kernel process-event connector.
@@ -68,6 +80,8 @@ mod system_state;
 mod application_watch;
 /// Lowercase hexadecimal spelling of arbitrary bytes.
 mod bytes_as_lowercase_hex;
+/// The command line the program accepts and the work behind it.
+mod cli_commands;
 /// Starts and stops detached application watcher.
 mod application_watch_service;
 /// Persists detached application watcher identity.
@@ -151,9 +165,28 @@ mod system_state_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;
+/// Unit tests for the wire format of the manager calls.
+#[cfg(test)]
+mod dbus_wire_tests;
+/// Unit tests for the manager's private socket.
+#[cfg(test)]
+mod manager_socket_tests;
+/// A live probe of the manager channel,
+/// ignored by default.
+#[cfg(test)]
+mod manager_probe_tests;
+/// Unit tests for the guard of the manager's bus name.
+#[cfg(test)]
+mod impostor_guard_tests;
+/// Unit tests for the session bus client.
+#[cfg(test)]
+mod session_bus_tests;
 /// Unit tests for scope adoption.
 #[cfg(test)]
 mod scope_adoption_tests;
+/// Unit tests for the manager calls the watcher builds.
+#[cfg(test)]
+mod scope_calls_tests;
 /// Unit tests for scope names.
 #[cfg(test)]
 mod scope_naming_tests;
@@ -173,119 +206,31 @@ mod bpf_tests;
 #[cfg(test)]
 mod pin_tests;
 
-/// Standard I/O error type used across command boundaries.
-use std::io;
 /// Filesystem path view for cgroup arguments.
 use std::path::Path;
 /// Process exit code returned from `main`.
 use std::process::ExitCode;
 
-/// Parses positive nonzero socket mark accepted by policy-routing contract.
-fn parse_mark(value: &str) -> io::Result<u32> {
-    let mark: u32 = match value.parse() {
-        Ok(parsed) => parsed,
-        Err(error) => {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid mark {value}: {error}")));
-        }
-    };
-    if mark == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "mark must be positive",
-        ));
-    }
-    return Ok(mark);
-}
-
-/// Parses numeric user ID selecting app slice to watch.
-fn parse_uid(value: &str) -> io::Result<u32> {
-    return match value.parse() {
-        Ok(uid) => Ok(uid),
-        Err(error) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid UID {value}: {error}"))),
-    };
-}
-
-/// Attaches marker transaction to every listed cgroup while global lock is held.
-fn attach_many(mark: u32, dirs: &[String]) -> io::Result<()> {
-    let _lock = pin::acquire_lifecycle_lock()?;
-    for dir in dirs {
-        let cgroup = Path::new(dir);
-        match pin::attach_cgroup(mark, cgroup) {
-            Ok(count) => {
-                keeper::detach_keeper(cgroup)?;
-                println!("attached mark={mark} to {dir} ({count} links pinned)");
-            }
-            Err(error) if bpf_error::is_pin_object_invalid(&error) => {
-                keeper::replace_keeper(mark, cgroup)?;
-                pin::detach_cgroup(cgroup)?;
-                println!(
-                    "attached mark={mark} to {dir} (4 links held by SELinux-regression fallback)"
-                );
-            }
-            Err(error) => {
-                return Err(io::Error::new(error.kind(), format!("attach {dir}: {error}")));
-            }
-        }
-    }
-    return Ok(());
-}
-
-/// Detaches exact marker links from every listed cgroup while global lock is held.
-fn detach_many(dirs: &[String]) -> io::Result<()> {
-    let _lock = pin::acquire_lifecycle_lock()?;
-    for dir in dirs {
-        let cgroup = Path::new(dir);
-        if let Err(error) = keeper::detach_keeper(cgroup) {
-            return Err(io::Error::new(error.kind(), format!("detach fallback {dir}: {error}")));
-        }
-        if let Err(error) = pin::detach_cgroup(cgroup) {
-            return Err(io::Error::new(error.kind(), format!("detach pins {dir}: {error}")));
-        }
-        println!("detached {dir}");
-    }
-    return Ok(());
-}
-
-/// Prints accepted command forms to stderr.
-fn usage() {
-    eprintln!("usage: wg-quicker-exempt attach <mark> <cgroup-dir>...");
-    eprintln!("       wg-quicker-exempt detach <cgroup-dir>...");
-    eprintln!("       wg-quicker-exempt list-targets <uid>");
-    eprintln!("       wg-quicker-exempt watch-start <key> <mark> <uid>");
-    eprintln!("       wg-quicker-exempt watch-stop <key>");
-}
-
-/// Converts command result into conventional process exit code and diagnostic.
-fn finish(result: io::Result<()>) -> ExitCode {
-    match result {
-        Ok(()) => return ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("error: {error}");
-            return ExitCode::FAILURE;
-        }
-    }
-}
-
 /// Program entry point with explicit attach and detach argument contracts.
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(command) = args.first() else {
-        usage();
+        cli_commands::usage();
         return ExitCode::from(2);
     };
     if command == "__watch" {
         if args.len() != 4 {
             return ExitCode::from(2);
         }
-        let mark = match parse_mark(&args[2]) {
+        let mark = match cli_commands::parse_mark(&args[2]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
-        let uid = match parse_uid(&args[3]) {
+        let uid = match cli_commands::parse_uid(&args[3]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
-        return finish(application_watch_service::run_application_watch_child(
+        return cli_commands::finish(application_watch_service::run_application_watch_child(
             mark,
             uid,
             None,
@@ -296,11 +241,11 @@ fn main() -> ExitCode {
         if args.len() != 3 {
             return ExitCode::from(2);
         }
-        let mark = match parse_mark(&args[1]) {
+        let mark = match cli_commands::parse_mark(&args[1]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
-        return finish(application_watch_service::run_application_watch_child(
+        return cli_commands::finish(application_watch_service::run_application_watch_child(
             mark,
             0,
             Some(Path::new(&args[2])),
@@ -313,88 +258,103 @@ fn main() -> ExitCode {
         let (Ok(pid), Ok(start_time), Ok(uid), Ok(gid)) = (args[2].parse::<i32>(), args[3].parse::<u64>(), args[4].parse::<u32>(), args[5].parse::<u32>()) else {
             return ExitCode::from(2);
         };
-        return finish(watcher_sentinel::run_sentinel_command(&args[1], pid, start_time, uid, gid));
+        return cli_commands::finish(watcher_sentinel::run_sentinel_command(&args[1], pid, start_time, uid, gid));
     }
     if command == "__hold" {
         if args.len() != 3 {
             return ExitCode::from(2);
         }
-        let mark = match parse_mark(&args[1]) {
+        let mark = match cli_commands::parse_mark(&args[1]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
-        return finish(keeper::run_holder(mark, Path::new(&args[2])));
+        return cli_commands::finish(keeper::run_holder(mark, Path::new(&args[2])));
     }
     if command == "list-targets" {
         if args.len() != 2 {
-            usage();
+            cli_commands::usage();
             return ExitCode::from(2);
         }
-        let uid = match parse_uid(&args[1]) {
+        let uid = match cli_commands::parse_uid(&args[1]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
         let targets = match application_targets::scan_user_application_targets(uid) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
         };
         for target in targets {
             println!("{}", target.display());
         }
         return ExitCode::SUCCESS;
     }
-    if command == "watch-start" {
+    if command == impostor_guard::GUARD_COMMAND {
         if args.len() != 4 {
-            usage();
             return ExitCode::from(2);
         }
-        let mark = match parse_mark(&args[2]) {
-            Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+        let (Ok(uid), Ok(poll_millis), Ok(reexec_millis)) = (args[1].parse::<u32>(), args[2].parse::<u64>(), args[3].parse::<u64>()) else {
+            return ExitCode::from(2);
         };
-        let uid = match parse_uid(&args[3]) {
+        let setup = impostor_guard::GuardSetup {
+            uid,
+            poll_interval: std::time::Duration::from_millis(poll_millis),
+            reexec_gap: std::time::Duration::from_millis(reexec_millis),
+        };
+        let mut steps = impostor_guard::RealSteps::new(std::time::Duration::from_secs(5));
+        return cli_commands::finish(impostor_guard::run_child(&setup, &mut steps));
+    }
+    if command == "watch-start" {
+        if args.len() != 4 {
+            cli_commands::usage();
+            return ExitCode::from(2);
+        }
+        let mark = match cli_commands::parse_mark(&args[2]) {
             Ok(value) => value,
-            Err(error) => return finish(Err(error)),
+            Err(error) => return cli_commands::finish(Err(error)),
+        };
+        let uid = match cli_commands::parse_uid(&args[3]) {
+            Ok(value) => value,
+            Err(error) => return cli_commands::finish(Err(error)),
         };
         let result = match pin::acquire_lifecycle_lock() {
             Ok(_lock) => application_watch_service::start_application_watch(&args[1], mark, uid),
             Err(error) => Err(error),
         };
-        return finish(result);
+        return cli_commands::finish(result);
     }
     if command == "watch-stop" {
         if args.len() != 2 {
-            usage();
+            cli_commands::usage();
             return ExitCode::from(2);
         }
         let result = match pin::acquire_lifecycle_lock() {
             Ok(_lock) => application_watch_service::stop_application_watch(&args[1]),
             Err(error) => Err(error),
         };
-        return finish(result);
+        return cli_commands::finish(result);
     }
     if command == "attach" {
         if args.len() < 3 {
-            usage();
+            cli_commands::usage();
             return ExitCode::from(2);
         }
-        let mark = match parse_mark(&args[1]) {
+        let mark = match cli_commands::parse_mark(&args[1]) {
             Ok(value) => value,
             Err(error) => {
                 eprintln!("error: {error}");
                 return ExitCode::from(2);
             }
         };
-        return finish(attach_many(mark, &args[2..]));
+        return cli_commands::finish(cli_commands::attach_many(mark, &args[2..]));
     }
     if command == "detach" {
         if args.len() < 2 {
-            usage();
+            cli_commands::usage();
             return ExitCode::from(2);
         }
-        return finish(detach_many(&args[1..]));
+        return cli_commands::finish(cli_commands::detach_many(&args[1..]));
     }
-    usage();
+    cli_commands::usage();
     return ExitCode::from(2);
 }
 

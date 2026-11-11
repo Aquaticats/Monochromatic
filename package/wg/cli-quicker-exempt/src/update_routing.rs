@@ -71,8 +71,6 @@ fn nothing() {}
 pub struct RoutingSetup {
     /// Watched user.
     pub uid: u32,
-    /// Primary group of the watched user.
-    pub gid: u32,
     /// Toolchain install roots of that user.
     pub install_roots: Vec<PathBuf>,
     /// Procfs root.
@@ -145,12 +143,7 @@ impl UpdateRouting {
     /// Makes sure the updates slice exists below the user's `app.slice`,
     /// so the watcher can attach the mark to it before any process is moved.
     pub fn ensure_slice(&self, app_slice: &std::path::Path) -> std::io::Result<()> {
-        return self.setup.adopter.ensure_slice(
-            self.setup.uid,
-            self.setup.gid,
-            TOOLCHAIN_UPDATES_SLICE,
-            &app_slice.join(TOOLCHAIN_UPDATES_SLICE),
-        );
+        return self.setup.adopter.ensure_slice(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &app_slice.join(TOOLCHAIN_UPDATES_SLICE));
     }
 
     /// Starts a pass now:
@@ -307,7 +300,6 @@ impl UpdateRouting {
         let request = AdoptRequest {
             pids: &pids,
             uid: self.setup.uid,
-            gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
             scope_name: &scope_name,

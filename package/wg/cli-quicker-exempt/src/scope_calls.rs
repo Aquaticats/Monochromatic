@@ -1,11 +1,16 @@
-//! Builds the `busctl` arguments for the calls to the user's service manager:
+//! Builds the calls the watcher makes to the user's service manager:
 //! creating the updates slice,
 //! creating a scope that adopts processes,
 //! attaching processes to a scope that exists,
 //! giving a live scope new limits,
 //! and stopping an empty scope.
-//! All are calls of `org.freedesktop.systemd1.Manager` on the user manager's private socket.
+//! Each names `org.freedesktop.systemd1.Manager`;
+//! the call itself goes over that manager's own private socket,
+//! where the manager is the only process that can answer,
+//! never over a bus name another process could take.
 
+/// The property values and arguments of a call.
+use crate::dbus_wire::{Argument, MethodCall, MANAGER_INTERFACE, Property, PropertyValue};
 /// The limits a scope carries.
 use crate::inherited_limits::InheritedLimits;
 /// Escaping of untrusted text.
@@ -15,6 +20,12 @@ use crate::update_entry_points::MatchReason;
 
 /// What `systemctl status` shows for the slice that holds the scopes.
 const SLICE_DESCRIPTION: &str = "wg-quicker: scopes holding the processes whose traffic leaves outside the WireGuard tunnel";
+/// How a unit of the earlier design was started,
+/// which a slice the manager already holds keeps.
+const TRANSIENT_MODE: &str = "fail";
+/// How a stop applies to the named unit,
+/// replacing a queued job for it.
+const STOP_MODE: &str = "replace";
 
 /// What `systemctl status` shows for one scope:
 /// the cgroup it was adopted from and the method that moved it,
@@ -23,133 +34,105 @@ pub fn scope_description(origin: &str, reason: MatchReason) -> String {
     return sanitize(&format!("wg-quicker: adopted from {origin} (moved because it is {})", reason.method_label()));
 }
 
-/// The arguments every manager call starts with.
-fn manager_call(method: &str, signature: &str) -> Vec<String> {
-    return vec![
-        "--user".to_string(),
-        "call".to_string(),
-        "org.freedesktop.systemd1".to_string(),
-        "/org/freedesktop/systemd1".to_string(),
-        "org.freedesktop.systemd1.Manager".to_string(),
-        method.to_string(),
-        signature.to_string(),
-    ];
-}
-
-/// Appends one `t` (unsigned 64-bit) property to a `StartTransientUnit` or `SetUnitProperties` call.
-fn push_number(arguments: &mut Vec<String>, name: &str, value: u64) {
-    arguments.push(name.to_string());
-    arguments.push("t".to_string());
-    arguments.push(value.to_string());
-}
-
-/// Appends one per-device property:
-/// the name,
-/// the type `a(st)`,
-/// the number of entries,
-/// and each entry as a device path and a number.
-fn push_device_array(arguments: &mut Vec<String>, name: &str, entries: &[(String, u64)]) {
-    arguments.push(name.to_string());
-    arguments.push("a(st)".to_string());
-    arguments.push(entries.len().to_string());
-    for (path, value) in entries {
-        arguments.push(path.clone());
-        arguments.push(value.to_string());
+/// The pids as the unsigned numbers the wire carries,
+/// which a negative pid keeps its bytes through.
+fn as_unsigned(pids: &[i32]) -> Vec<u32> {
+    let mut numbers: Vec<u32> = Vec::with_capacity(pids.len());
+    for pid in pids {
+        numbers.push(u32::from_ne_bytes(pid.to_ne_bytes()));
     }
+    return numbers;
 }
 
-/// Builds the arguments for `StartTransientUnit` of a slice.
-pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
-    let mut arguments = manager_call("StartTransientUnit", "ssa(sv)a(sa(sv))");
-    arguments.push(slice.to_string());
-    arguments.push("fail".to_string());
-    arguments.push("1".to_string());
-    arguments.extend(["Description", "s"].map(str::to_string));
-    arguments.push(SLICE_DESCRIPTION.to_string());
-    arguments.push("0".to_string());
-    return arguments;
+/// One call of the manager's interface.
+fn manager_call(member: &'static str, arguments: Vec<Argument>) -> MethodCall {
+    return MethodCall { interface: MANAGER_INTERFACE, member, arguments };
 }
 
-/// Builds the arguments for `StartTransientUnit` of a scope that adopts `pids` and carries `limits`.
-/// `description` names the origin cgroup and the method that moved the processes,
-/// which is what `systemctl status` shows for the scope.
+/// One `(sv)` property holding a 64-bit number.
+fn number_property(name: &str, value: u64) -> Property {
+    return Property { name: name.to_string(), value: PropertyValue::Number(value) };
+}
+
+/// One `(sv)` property holding per-device limits.
+fn devices_property(name: &str, entries: Vec<(String, u64)>) -> Property {
+    return Property { name: name.to_string(), value: PropertyValue::Devices(entries) };
+}
+
+/// The properties that carry `limits` onto a new scope.
+/// A limit the origin does not set is left out,
+/// so the manager's own default applies instead of a value read from nowhere.
+fn limit_properties(limits: &InheritedLimits) -> Vec<Property> {
+    let mut properties: Vec<Property> = Vec::new();
+    for (name, value) in limits.properties() {
+        properties.push(number_property(name, value));
+    }
+    for (name, entries) in limits.device_properties() {
+        if !entries.is_empty() {
+            properties.push(devices_property(name, entries));
+        }
+    }
+    return properties;
+}
+
+/// The call that creates the updates slice when the manager does not hold it.
+pub fn ensure_slice_call(slice: &str) -> MethodCall {
+    let properties = vec![Property { name: "Description".to_string(), value: PropertyValue::Text(SLICE_DESCRIPTION.to_string()) }];
+    return manager_call(
+        "StartTransientUnit",
+        vec![Argument::Text(slice.to_string()), Argument::Text(TRANSIENT_MODE.to_string()), Argument::Properties(properties), Argument::NoAuxUnits],
+    );
+}
+
+/// The call that creates a scope adopting `pids` under `slice`,
+/// carrying `limits`,
+/// and `description` naming the origin and the method that moved them.
 /// The scope is delegated,
 /// because the manager refuses `AttachProcessesToUnit` for a unit that is not
 /// (`bus_unit_method_attach_processes` in systemd v259.10 `src/core/dbus-unit.c`,
 /// line 1592),
 /// and `CollectMode=inactive-or-failed` makes the manager forget the scope as soon as it stops or fails,
 /// so a scope that failed to start leaves no unit behind.
-pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits, description: &str) -> Vec<String> {
-    let limit_properties = limits.properties();
-    let mut device_properties: Vec<(&'static str, Vec<(String, u64)>)> = Vec::new();
-    for (name, entries) in limits.device_properties() {
-        if !entries.is_empty() {
-            device_properties.push((name, entries));
-        }
-    }
-    let mut arguments = manager_call("StartTransientUnit", "ssa(sv)a(sa(sv))");
-    arguments.push(scope_name.to_string());
-    arguments.push("fail".to_string());
-    arguments.push((5 + limit_properties.len() + device_properties.len()).to_string());
-    arguments.extend(["Slice", "s"].map(str::to_string));
-    arguments.push(slice.to_string());
-    arguments.extend(["PIDs", "au"].map(str::to_string));
-    arguments.push(pids.len().to_string());
-    arguments.extend(pids.iter().map(i32::to_string));
-    arguments.extend(["Description", "s"].map(str::to_string));
-    arguments.push(description.to_string());
-    arguments.extend(["Delegate", "b", "true"].map(str::to_string));
-    arguments.extend(["CollectMode", "s", "inactive-or-failed"].map(str::to_string));
-    for (name, value) in limit_properties {
-        push_number(&mut arguments, name, value);
-    }
-    for (name, entries) in &device_properties {
-        push_device_array(&mut arguments, name, entries);
-    }
-    arguments.push("0".to_string());
-    return arguments;
+pub fn create_call(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits, description: &str) -> MethodCall {
+    let adopted: Vec<u32> = as_unsigned(pids);
+    let mut properties: Vec<Property> = vec![
+        Property { name: "Slice".to_string(), value: PropertyValue::Text(slice.to_string()) },
+        Property { name: "PIDs".to_string(), value: PropertyValue::Pids(adopted) },
+        Property { name: "Description".to_string(), value: PropertyValue::Text(description.to_string()) },
+        Property { name: "Delegate".to_string(), value: PropertyValue::Flag(true) },
+        Property { name: "CollectMode".to_string(), value: PropertyValue::Text("inactive-or-failed".to_string()) },
+    ];
+    properties.extend(limit_properties(limits));
+    return manager_call(
+        "StartTransientUnit",
+        vec![Argument::Text(scope_name.to_string()), Argument::Text(TRANSIENT_MODE.to_string()), Argument::Properties(properties), Argument::NoAuxUnits],
+    );
 }
 
-/// Builds the arguments for `AttachProcessesToUnit`:
-/// the unit name,
-/// an empty subgroup,
-/// and the pids.
+/// The call that attaches `pids` to the scope's root subgroup.
 /// A process that is already in the scope stays where it is.
-pub fn attach_arguments(scope_name: &str, pids: &[i32]) -> Vec<String> {
-    let mut arguments = manager_call("AttachProcessesToUnit", "ssau");
-    arguments.push(scope_name.to_string());
-    arguments.push(String::new());
-    arguments.push(pids.len().to_string());
-    arguments.extend(pids.iter().map(i32::to_string));
-    return arguments;
+pub fn attach_call(scope_name: &str, pids: &[i32]) -> MethodCall {
+    let attached: Vec<u32> = as_unsigned(pids);
+    return manager_call("AttachProcessesToUnit", vec![Argument::Text(scope_name.to_string()), Argument::Text(String::new()), Argument::Numbers(attached)]);
 }
 
-/// Builds the arguments for `SetUnitProperties` with `runtime` set,
-/// so the live scope gets every limit again:
+/// The call that gives a live scope every limit again,
+/// because a property left out would keep its old value:
 /// a limit the origin no longer sets goes back to unlimited,
 /// the I/O weight back to the kernel default,
-/// and a kind of per-device limit that no device has any more is sent as an empty array,
-/// because leaving a property out would keep the old value.
-pub fn set_properties_arguments(scope_name: &str, limits: &InheritedLimits) -> Vec<String> {
-    let properties = limits.all_properties();
-    let device_properties = limits.device_properties();
-    let mut arguments = manager_call("SetUnitProperties", "sba(sv)");
-    arguments.push(scope_name.to_string());
-    arguments.push("true".to_string());
-    arguments.push((properties.len() + device_properties.len()).to_string());
-    for (name, value) in properties {
-        push_number(&mut arguments, name, value);
+/// and a kind of per-device limit that no device has any more is sent as an empty array.
+pub fn set_properties_call(scope_name: &str, limits: &InheritedLimits) -> MethodCall {
+    let mut properties: Vec<Property> = Vec::new();
+    for (name, value) in limits.all_properties() {
+        properties.push(number_property(name, value));
     }
-    for (name, entries) in &device_properties {
-        push_device_array(&mut arguments, name, entries);
+    for (name, entries) in limits.device_properties() {
+        properties.push(devices_property(name, entries));
     }
-    return arguments;
+    return manager_call("SetUnitProperties", vec![Argument::Text(scope_name.to_string()), Argument::Flag(true), Argument::Properties(properties)]);
 }
 
-/// Builds the arguments for `StopUnit` of a scope.
-pub fn stop_arguments(scope_name: &str) -> Vec<String> {
-    let mut arguments = manager_call("StopUnit", "ss");
-    arguments.push(scope_name.to_string());
-    arguments.push("replace".to_string());
-    return arguments;
+/// The call that stops a scope.
+pub fn stop_call(scope_name: &str) -> MethodCall {
+    return manager_call("StopUnit", vec![Argument::Text(scope_name.to_string()), Argument::Text(STOP_MODE.to_string())]);
 }

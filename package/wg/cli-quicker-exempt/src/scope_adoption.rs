@@ -20,15 +20,17 @@ use crate::process_info::parse_stat_fields;
 /// Names a user chose,
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
-/// The arguments of the manager calls.
-use crate::scope_calls::{attach_arguments, create_arguments, ensure_slice_arguments, scope_description, set_properties_arguments, stop_arguments};
+/// The calls of the manager.
+use crate::scope_calls::{attach_call, create_call, ensure_slice_call, scope_description, set_properties_call, stop_call};
 /// The names of the scope of an origin.
 use crate::scope_naming::{origin_scope_names, scope_cgroup_directory};
 /// Why a process is kept outside the tunnel,
 /// which the scope's description names.
 use crate::update_entry_points::MatchReason;
-/// The client run as the user.
-use crate::user_client::{ClientError, UserClient};
+/// The seam that runs one call against the user's manager.
+use crate::manager_socket::{ManagerCaller, ManagerError, PrivateSocketManager};
+/// A call's reply and the arguments of a call.
+use crate::dbus_wire::{Message, MethodCall};
 /// Syscall and process failures.
 use std::io;
 /// Fake procfs and cgroup roots in tests.
@@ -53,8 +55,6 @@ pub struct AdoptRequest<'a> {
     pub pids: &'a [i32],
     /// User whose manager adopts them.
     pub uid: u32,
-    /// Group id used when dropping privilege for the bus call.
-    pub gid: u32,
     /// Slice that receives the scope.
     pub slice: &'a str,
     /// Limits a new scope carries,
@@ -92,8 +92,6 @@ enum Presence {
 pub struct LimitRequest<'a> {
     /// User whose manager owns the scope.
     pub uid: u32,
-    /// Group id used when dropping privilege for the bus call.
-    pub gid: u32,
     /// Slice that holds the scope.
     pub slice: &'a str,
     /// Name of the scope.
@@ -156,7 +154,7 @@ impl std::fmt::Display for AdoptError {
 /// Seam between the policy and the user's service manager.
 pub trait Adopter {
     /// Creates the slice when it does not exist.
-    fn ensure_slice(&self, uid: u32, gid: u32, slice: &str, slice_directory: &Path) -> io::Result<()>;
+    fn ensure_slice(&self, uid: u32, slice: &str, slice_directory: &Path) -> io::Result<()>;
     /// The name of the scope of `origin` that is running right now,
     /// current spelling or an earlier one,
     /// so its later processes join it instead of one more scope with the same cap.
@@ -168,12 +166,13 @@ pub trait Adopter {
     fn apply_limits(&self, request: &LimitRequest<'_>) -> Result<(), AdoptError>;
 }
 
-/// Adopts through the `busctl` command line client.
-/// The marshalling of D-Bus values is the client's,
-/// not hand-written wire code in a root process.
-pub struct BusctlAdopter {
-    /// The client run as the target user.
-    pub client: UserClient,
+/// Adopts over the user manager's own private socket.
+/// The manager is the only process that can answer there,
+/// and the client checks the pid behind the socket before it sends anything,
+/// so no bus name another process could take stands between the watcher and the manager.
+pub struct PrivateSocketAdopter {
+    /// The seam that runs one call against the manager.
+    pub caller: Box<dyn ManagerCaller>,
     /// Procfs root used to confirm the move.
     pub proc_root: PathBuf,
     /// Cgroup filesystem root,
@@ -189,14 +188,23 @@ fn is_unpopulated(line: &str) -> bool {
 }
 
 /// Construction and the steps of an adoption.
-impl BusctlAdopter {
+impl PrivateSocketAdopter {
     /// Builds the production adopter.
-    pub fn new() -> BusctlAdopter {
-        return BusctlAdopter {
-            client: UserClient::new("busctl"),
+    pub fn new() -> PrivateSocketAdopter {
+        return PrivateSocketAdopter {
+            caller: Box::new(PrivateSocketManager::new()),
             proc_root: PathBuf::from("/proc"),
             cgroup_root: PathBuf::from("/sys/fs/cgroup"),
             confirmation_timeout: MOVE_CONFIRMATION_TIMEOUT,
+        };
+    }
+
+    /// Runs one call and turns its failure into the adoption's error.
+    fn run(&self, uid: u32, call: &MethodCall) -> Result<Message, AdoptError> {
+        return match self.caller.call(uid, call) {
+            Ok(reply) => Ok(reply),
+            Err(ManagerError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
+            Err(ManagerError::Refused(text) | ManagerError::Failed(text)) => Err(AdoptError::Failed(text)),
         };
     }
 
@@ -289,12 +297,12 @@ impl BusctlAdopter {
     /// Anything else stays a failure,
     /// including a process whose state could not be read,
     /// because a failed move of a living process must not be hidden.
-    fn call(&self, request: &AdoptRequest<'_>, first: i32, arguments: &[String]) -> Result<(), AdoptError> {
-        return match self.client.run(request.uid, request.gid, arguments) {
-            Ok(_output) => Ok(()),
-            Err(ClientError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
+    fn call(&self, request: &AdoptRequest<'_>, first: i32, call: &MethodCall) -> Result<(), AdoptError> {
+        return match self.run(request.uid, call) {
+            Ok(_reply) => Ok(()),
+            Err(AdoptError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
             Err(error) => {
-                let answers_no_such_process = matches!(&error, ClientError::Failed(text) if text.contains(NO_SUCH_PROCESS));
+                let answers_no_such_process = matches!(&error, AdoptError::Failed(text) if text.contains(NO_SUCH_PROCESS) || text.contains("NoSuchProcess"));
                 if self.presence(first, request.first_start_time) == Presence::Gone {
                     Err(AdoptError::Vanished)
                 } else if answers_no_such_process && self.any_gone(request.pids) {
@@ -323,7 +331,7 @@ impl BusctlAdopter {
         if !text.lines().any(is_unpopulated) {
             return false;
         }
-        let _stopped = self.client.run(request.uid, request.gid, &stop_arguments(request.scope_name));
+        let _stopped = self.run(request.uid, &stop_call(request.scope_name));
         return true;
     }
 
@@ -343,13 +351,13 @@ impl BusctlAdopter {
 }
 
 /// The production seam to the user's manager.
-impl Adopter for BusctlAdopter {
-    /// Requests the slice through the client and waits for its cgroup directory.
-    fn ensure_slice(&self, uid: u32, gid: u32, slice: &str, slice_directory: &Path) -> io::Result<()> {
+impl Adopter for PrivateSocketAdopter {
+    /// Requests the slice through the manager and waits for its cgroup directory.
+    fn ensure_slice(&self, uid: u32, slice: &str, slice_directory: &Path) -> io::Result<()> {
         if slice_directory.is_dir() {
             return Ok(());
         }
-        if let Err(error) = self.client.run(uid, gid, &ensure_slice_arguments(slice)) {
+        if let Err(error) = self.run(uid, &ensure_slice_call(slice)) {
             return Err(io::Error::other(error.to_string()));
         }
         let started = Instant::now();
@@ -387,7 +395,7 @@ impl Adopter for BusctlAdopter {
         };
         let directory = self.directory_of(request);
         if directory.is_dir() {
-            match self.call(request, *first, &attach_arguments(request.scope_name, request.pids)) {
+            match self.call(request, *first, &attach_call(request.scope_name, request.pids)) {
                 Ok(()) => return self.settle(request, *first, Joined::Attached),
                 Err(error) if directory.is_dir() => return Err(error),
                 // The scope ended while it was being attached to: create it afresh.
@@ -395,7 +403,7 @@ impl Adopter for BusctlAdopter {
             }
         }
         let description = scope_description(request.origin, request.reason);
-        self.call(request, *first, &create_arguments(request.scope_name, request.slice, request.pids, request.limits, &description))?;
+        self.call(request, *first, &create_call(request.scope_name, request.slice, request.pids, request.limits, &description))?;
         return self.settle(request, *first, Joined::Created);
     }
 
@@ -405,10 +413,10 @@ impl Adopter for BusctlAdopter {
         if !directory.is_dir() {
             return Err(AdoptError::ScopeGone);
         }
-        return match self.client.run(request.uid, request.gid, &set_properties_arguments(request.scope_name, request.limits)) {
-            Ok(_output) => Ok(()),
-            Err(ClientError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
-            Err(error) if directory.is_dir() => Err(AdoptError::Failed(error.to_string())),
+        return match self.run(request.uid, &set_properties_call(request.scope_name, request.limits)) {
+            Ok(_reply) => Ok(()),
+            Err(AdoptError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
+            Err(error) if directory.is_dir() => Err(error),
             Err(_ended) => Err(AdoptError::ScopeGone),
         };
     }

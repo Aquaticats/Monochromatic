@@ -8,6 +8,8 @@ use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 use crate::runtime_report::RuntimeReporter;
 /// The one-time sweep of the scopes of the earlier design.
 use crate::leftover_sweep::{spawn_sweep, SweepSetup};
+/// The guard of the manager's bus name.
+use crate::impostor_guard;
 /// Non-panicking bounded log.
 use crate::log_line::{log_line, sanitize};
 /// Shutdown signal descriptors.
@@ -31,6 +33,7 @@ use std::io;
 use std::os::fd::{AsRawFd, OwnedFd};
 
 /// Who the failure reporter notifies.
+#[derive(Clone, Copy)]
 pub struct ReporterIdentity {
     /// User id of the watched user.
     pub uid: u32,
@@ -63,6 +66,9 @@ pub struct ApplicationWatch<'a> {
     rescan_pending: bool,
     /// Delivers failures after startup to a person.
     reporter: RuntimeReporter,
+    /// Who the reporter notifies,
+    /// which the guard of the manager's bus name also runs as.
+    identity: ReporterIdentity,
     /// The sweep of the scopes of the earlier design,
     /// started once when the watcher runs and absent in tests.
     sweep: Option<SweepSetup>,
@@ -152,6 +158,7 @@ pub fn prepare_application_watch(
         last_full_scan: Instant::now(),
         rescan_pending: false,
         reporter,
+        identity,
         sweep,
     };
     reconcile(&mut watch)?;
@@ -254,6 +261,21 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
     // The sweep starts once the watcher is committed to run, so an abandoned start sweeps nothing.
     if let Some(setup) = watch.sweep.take() {
         spawn_sweep(setup);
+    }
+    // So does the guard of the manager's bus name,
+    // which keeps a process that is not the user's manager from answering every `systemctl --user` call on the machine.
+    let identity = watch.identity;
+    match impostor_guard::spawn(identity.uid, identity.gid) {
+        Ok(()) => log_line(&format!("wg-quicker-exempt: guarding {} on the user's session bus", impostor_guard::MANAGER_BUS_NAME)),
+        Err(error) => {
+            watch.reporter.report_failure(
+                "impostor manager",
+                &format!(
+                    "wg-quicker-exempt: {}: the guard could not start ({error}), so a process that takes the manager's bus name would answer every `systemctl --user` call on this machine for as long as it runs; the policy's own calls go over the manager's private socket and are not affected",
+                    impostor_guard::LOUD_MARKER
+                ),
+            );
+        }
     }
     let result = poll_until_stopped(watch);
     stop_process_events(watch);

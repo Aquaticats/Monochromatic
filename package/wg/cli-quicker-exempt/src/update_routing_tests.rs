@@ -35,9 +35,6 @@ use std::time::{Duration, Instant};
 
 /// The fixture user's id.
 const UID: u32 = 1000;
-/// The fixture user's primary group,
-/// different from the group of the fake processes.
-const USER_GID: u32 = 1500;
 /// The group of the fake processes.
 const PROCESS_GID: u32 = 1001;
 /// A cgroup inside the user manager's subtree that the watcher attaches no mark to itself,
@@ -53,8 +50,6 @@ struct Recorded {
     scope_name: String,
     /// Pids requested.
     pids: Vec<i32>,
-    /// Group id passed for the privilege drop.
-    gid: u32,
     /// Limits the scope should carry.
     limits: InheritedLimits,
     /// The origin cgroup the processes left.
@@ -79,7 +74,7 @@ struct ScriptedAdopter {
 /// The scripted fake.
 impl Adopter for ScriptedAdopter {
     /// The slice always exists.
-    fn ensure_slice(&self, _uid: u32, _gid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
+    fn ensure_slice(&self, _uid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
         return Ok(());
     }
 
@@ -93,7 +88,6 @@ impl Adopter for ScriptedAdopter {
         self.requests.borrow_mut().push(Recorded {
             scope_name: request.scope_name.to_string(),
             pids: request.pids.to_vec(),
-            gid: request.gid,
             limits: request.limits.clone(),
             origin: request.origin.to_string(),
             reason: request.reason,
@@ -140,7 +134,6 @@ fn fixture(name: &str, script: Vec<Result<Joined, AdoptError>>) -> Fixture {
     let adopter = ScriptedAdopter { requests: Rc::clone(&requests), script: RefCell::new(script.into()), applied: Rc::clone(&applied), apply_script: Rc::clone(&apply_script) };
     let routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
-        gid: USER_GID,
         install_roots: install_roots(Path::new("/home/tester"), Some(Path::new("/var/home/tester"))).roots,
         proc_root: proc_root.clone(),
         cgroup_root: cgroup_root.clone(),
@@ -253,17 +246,6 @@ fn a_matching_process_is_adopted_once_and_others_are_left_alone() {
     assert_eq!(fixture.requests.borrow()[0].pids, vec![10]);
 }
 
-/// The group id passed for the privilege drop is the watched user's,
-/// never the matched process's.
-#[test]
-fn the_privilege_drop_uses_the_watched_users_group() {
-    let mut fixture = fixture("gid", vec![]);
-    make_process(&fixture.proc_root, &mise(10));
-    assert!(matches!(fixture.routing.consider(10), Outcome::Adopted { .. }));
-    assert_eq!(fixture.requests.borrow()[0].gid, USER_GID);
-    assert_ne!(fixture.requests.borrow()[0].gid, PROCESS_GID);
-}
-
 /// Executables under the toolchain roots are adopted by path alone.
 #[test]
 fn an_executable_under_the_install_roots_is_adopted() {
@@ -338,7 +320,6 @@ fn a_process_in_another_pid_namespace_is_reported_and_not_moved() {
     std::os::unix::fs::symlink("pid:[4026531836]", fixture.proc_root.join("self/ns/pid")).expect("link the own namespace");
     let mut routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
-        gid: USER_GID,
         install_roots: vec![],
         proc_root: fixture.proc_root.clone(),
         cgroup_root: fixture.cgroup_root.clone(),

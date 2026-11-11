@@ -72,7 +72,8 @@ fn every_name_is_a_valid_unit_name() {
 
 /// A path outside the user manager's subtree is still named,
 /// from the whole path without its leading slash,
-/// and a unit suffix it ends in keeps one dot: the scope's own `.scope`.
+/// and a unit suffix it ends in keeps one dot:
+/// the scope's own `.scope`.
 #[test]
 fn an_origin_outside_the_manager_subtree_is_named_from_its_whole_path() {
     assert_eq!(origin_scope_name("/system.slice/x.service", 1000), "wg-quicker-update-system.slice-x\\x2eservice.scope");

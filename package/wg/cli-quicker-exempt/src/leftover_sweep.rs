@@ -143,8 +143,11 @@ pub fn is_old_style_scope_name(name: &str, prefix: &str) -> bool {
 }
 
 /// Reports whether a unit name is a scope that holds the processes of one origin:
-/// the prefix, a name made from a cgroup path, and `.scope`.
-/// The names of the earlier design are two runs of digits, which a path never is,
+/// the prefix,
+/// a name made from a cgroup path,
+/// and `.scope`.
+/// The names of the earlier design are two runs of digits,
+/// which a path never is,
 /// so the two kinds never overlap.
 pub fn is_origin_scope_name(name: &str, prefix: &str) -> bool {
     if is_old_style_scope_name(name, prefix) {

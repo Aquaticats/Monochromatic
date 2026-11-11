@@ -71,7 +71,7 @@ struct ScriptedAdopter {
 /// The scripted fake.
 impl Adopter for ScriptedAdopter {
     /// The slice always exists.
-    fn ensure_slice(&self, _uid: u32, _gid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
+    fn ensure_slice(&self, _uid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
         return Ok(());
     }
 
@@ -136,7 +136,6 @@ fn fixture(name: &str, origins: usize, cpu_max: &str, step: Duration, script: Ve
     let clock = Rc::new(FakeClock { now: Cell::new(Instant::now()) });
     let setup = RoutingSetup {
         uid: UID,
-        gid: UID,
         install_roots: vec![],
         proc_root: base.join("proc"),
         cgroup_root: cgroup_root.clone(),

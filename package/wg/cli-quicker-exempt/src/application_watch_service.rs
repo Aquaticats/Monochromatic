@@ -28,7 +28,7 @@ use crate::startup_relay::forward_startup_failures;
 /// The user's toolchain roots.
 use crate::install_roots::{install_roots, InstallRoots};
 /// Moves matched processes into the updates slice.
-use crate::scope_adoption::BusctlAdopter;
+use crate::scope_adoption::PrivateSocketAdopter;
 /// The watched user's account.
 use crate::user_account::lookup_user;
 /// Non-panicking output and escaping.
@@ -310,11 +310,10 @@ pub fn run_application_watch_child(
     }
     let routing = UpdateRouting::new(RoutingSetup {
         uid,
-        gid: account.gid,
         install_roots: install_root_set.roots,
         proc_root: PathBuf::from("/proc"),
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
-        adopter: Box::new(BusctlAdopter::new()),
+        adopter: Box::new(PrivateSocketAdopter::new()),
     });
     let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid }, Some(SweepSetup::production(uid, account.gid)))?;
     writeln!(io::stdout(), "{READY}")?;

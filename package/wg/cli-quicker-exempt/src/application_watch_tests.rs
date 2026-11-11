@@ -31,7 +31,7 @@ struct IdleAdopter;
 /// The idle manager.
 impl Adopter for IdleAdopter {
     /// The slice always exists.
-    fn ensure_slice(&self, _uid: u32, _gid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
+    fn ensure_slice(&self, _uid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
         return Ok(());
     }
 
@@ -89,7 +89,6 @@ fn every_thread_the_setup_creates_starts_with_the_shutdown_signals_blocked() {
     }
     let routing = UpdateRouting::new(RoutingSetup {
         uid: 1000,
-        gid: 1000,
         install_roots: Vec::<PathBuf>::new(),
         proc_root: proc_root.clone(),
         cgroup_root: cgroup_root.clone(),
@@ -147,7 +146,6 @@ fn the_watcher_ends_its_process_event_subscription_when_it_stops() {
     }
     let routing = UpdateRouting::new(RoutingSetup {
         uid: 1000,
-        gid: 1000,
         install_roots: Vec::<PathBuf>::new(),
         proc_root: proc_root.clone(),
         cgroup_root: cgroup_root.clone(),

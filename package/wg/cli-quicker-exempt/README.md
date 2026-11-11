@@ -303,20 +303,28 @@ whatever the number of loop wakeups.
 The watcher does not write `cgroup.procs`.
 It asks the user's systemd manager to adopt the pids
 (`StartTransientUnit` with `PIDs` and `Slice`,
-or `AttachProcessesToUnit`,
-through `busctl`,
-run as the watched user through `setpriv` when the watcher is root).
+or `AttachProcessesToUnit`).
 systemd's cgroup delegation document states the single-writer rule:
 each cgroup has one writer,
 and a writer that ignores it leaves software fighting over ownership.
 A direct write would put processes into a cgroup the manager never created,
 which it would not garbage-collect and whose pid-to-unit map would go stale.
-The `busctl` client is used instead of hand-written D-Bus wire code in a root process.
-A call costs about 3.4 ms of CPU and 20 ms of wall time,
-measured,
-so a persistent connection would save a fraction of a percent of a CPU at the rate of moves seen on this host
-and would need a D-Bus library or hand-written wire code in a root process;
-neither is used.
+The call goes over the manager's own private socket
+(`/run/user/<uid>/systemd/private`),
+never over a bus name,
+and see [One process may not answer for the manager](#one-process-may-not-answer-for-the-manager).
+The wire format is written in this program
+(`src/dbus_wire.rs`),
+because `busctl` is a bus client and asks the bus daemon first,
+which a private socket does not answer
+(`Call failed: Invalid request descriptor`,
+reproduced),
+and because the old bus-name call is what a second manager could take over.
+One connection and one login precede each call,
+and the socket's peer credentials are checked before anything is written.
+
+The group id handed to `setpriv` is the watched user's,
+not the matched process's.
 
 The matched process moves together with its live descendants of the same user that sit in the same cgroup.
 A descendant a user placed in another cgroup on purpose stays there.
@@ -386,6 +394,14 @@ which ends with its processes,
 a scope whose state cannot be read,
 or a scope of the current design,
 whose name is a path.
+The sweep also stops a scope that holds the processes of one origin while its cgroup holds no process,
+including one an earlier build named with a second `.scope`:
+the manager stops a scope when its last process exits,
+but a scope that was created for a process that was already exiting stays empty for ever,
+and nothing else would ever find it again.
+A running scope of that kind that holds a process is left alone,
+and the manager cannot report an active scope that adopted a process as empty,
+because the start job attaches the processes before the scope becomes active.
 Its counts are logged once.
 Nothing can put a process into an empty scope of the earlier design afterwards,
 so a scope that reads empty stays empty.
@@ -423,6 +439,22 @@ underscore and an inner dot becomes `\xNN`.
 the real name keeps the parent,
 because two origins with the same last component would otherwise share one cap).
 A name that would pass the 255-byte unit name limit is cut and ends in a hash of the whole path.
+The name ends in exactly one `.scope`:
+the dot of a trailing unit suffix of the origin
+(`run-p1-i2.scope`,
+`x.service`) is escaped as `\x2e`,
+so `app.slice/foo` and `app.slice/foo.scope` keep distinct scopes
+instead of one scope with the other origin's cap,
+and `app.slice/run-p1-i2.scope` is `wg-quicker-update-app.slice-run\x2dp1\x2di2\x2escope.scope`.
+The spelling earlier builds wrote is still found before a new scope is made,
+so an origin whose scope is already running under
+`wg-quicker-update-app.slice-run\x2dp1\x2di2.scope.scope`
+receives its later processes there instead of in a second scope with a copy of the cap.
+
+The description `systemctl status` shows names the origin cgroup and the method that moved the process,
+for example
+`wg-quicker: adopted from /user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash (moved because it is a program under the toolchain install roots)`,
+so a test run's scope is not read as an update run of its own.
 
 The first process from an origin makes the scope with `StartTransientUnit`:
 with the origin's limits,
@@ -537,6 +569,73 @@ thread CPU time),
 one move's group collection went from 12061 read calls and 31.7 ms to 292 and 1.95 ms,
 and a pass over every process from 12005 read calls and 29.7 ms to 3302 and 25.9 ms with procfs files read in two calls instead of about five.
 The periodic scan and the scan after dropped events still read every process.
+
+### One process may not answer for the manager
+
+On 2026-11-11T03:51:27-05:00 an agent's probe started a second
+`/usr/lib/systemd/systemd --user` on this machine.
+systemd asks for `org.freedesktop.systemd1` on the session bus with replacement allowed,
+and the real manager never asks for it back,
+so the impostor owned the name until it was killed hours later.
+Every watcher call went to it,
+and adopted scopes,
+and a container build inside one,
+ended up in its tree with its limits.
+The owner,
+after that:
+"Make sure no imposer can never succeed again."
+
+What the watcher does now,
+in order:
+
+1. It reads the main process of `user@<uid>.service` from the system manager
+   (`systemctl show --property=MainPID`),
+   which answers over its own root-owned socket.
+2. It opens the user manager's private socket and reads `SO_PEERCRED`.
+   A pid that is not that main process is refused loudly,
+   naming both pids and the socket,
+   and nothing is written,
+   so nothing is moved.
+   The pid comes from the kernel for the connected socket,
+   so a socket the user planted at that path answers with its own pid and is refused.
+3. Every call goes over that socket,
+   so no name lookup happens anywhere on the path.
+4. The root watcher starts the `__impostor-guard` child as the watched user,
+   because a user bus refuses a connection from root.
+   It asks the session bus who owns `org.freedesktop.systemd1`,
+   and hears `NameOwnerChanged` for that name;
+   a poll every five seconds is the backstop.
+   An owner that is not the user's manager is killed with `SIGKILL`,
+   never `SIGTERM`,
+   because an impostor manager stops the units it started when it is asked to stop.
+   The real manager is then asked to take the name again
+   (`systemctl --user daemon-reexec`),
+   at most once in five minutes.
+   No owner at all asks for that re-execution too,
+   once.
+   A bus that cannot be asked changes nothing,
+   because guessing could kill the manager itself.
+   Every action,
+   and every refusal,
+   goes to the watcher log,
+   the journal
+   and the desktop of the watched user.
+
+The guard's decisions and its signal are tested
+(`src/impostor_guard_tests.rs`):
+the impostor is killed with the one signal it cannot handle,
+a second impostor inside the gap is killed without another re-execution,
+and the manager owning the name is left alone.
+`src/manager_socket_tests.rs` proves the refusal:
+a socket answered by another process is refused,
+the refusal names both pids,
+and no byte is sent;
+the same socket with the right pid is called and answered.
+The live ignored test `the_real_manager_creates_attaches_and_follows_limits`
+does the whole adoption against the real manager through that socket.
+
+The coordinator's stopgap service `guard-user-manager-bus-name`
+does the same from outside the packages until a watcher with this code is deployed.
 
 ### Warned on start, loud on failure
 

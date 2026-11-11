@@ -197,5 +197,5 @@ impl ScopeRegistry {
 
 /// Gives a running scope limits through the manager.
 fn apply(setup: &RoutingSetup, slice: &str, scope_name: &str, limits: &InheritedLimits) -> Result<(), AdoptError> {
-    return setup.adopter.apply_limits(&LimitRequest { uid: setup.uid, gid: setup.gid, slice, scope_name, limits });
+    return setup.adopter.apply_limits(&LimitRequest { uid: setup.uid, slice, scope_name, limits });
 }
