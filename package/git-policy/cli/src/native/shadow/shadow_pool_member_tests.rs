@@ -76,7 +76,8 @@ fn a_worktree_configuration_is_compared_by_its_bytes() {
     remove(root.as_path());
 }
 
-/// A claim asks one question of each entry the creation shares: where its link points.
+/// A claim asks one question of each entry the creation shares:
+/// where its link points.
 /// Why:
 ///   The entry's type comes with the listing of the member,
 /// and a link that is missing or is not a link already fails the read of its target,
@@ -84,7 +85,8 @@ fn a_worktree_configuration_is_compared_by_its_bytes() {
 /// The claim on this volume is the one a commit waits on,
 /// and the disk under it stalls on single questions for seconds
 /// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-/// "The repository scratch sweep and a conclusion's copies, off the commit's path").
+/// "The repository scratch sweep and a conclusion's copies,
+/// off the commit's path").
 #[test]
 fn a_claim_asks_one_link_question_of_each_shared_entry() {
     let root: PathBuf = fixture("shadow-pool-member-questions");

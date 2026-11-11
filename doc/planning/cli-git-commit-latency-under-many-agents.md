@@ -5018,13 +5018,15 @@ the paired harness of the section above,
 with the same release on both arms,
 two reflink copies of a disposable clone of this repository on this volume
 (`/var/mnt/encrypted/temp/agent/pi-commit-perf-2`),
-each arm with its own `HOME`, `XDG_RUNTIME_DIR` and commit service,
+each arm with its own `HOME`,
+`XDG_RUNTIME_DIR` and commit service,
 one explicit-path signed commit per round,
 the arms alternating and the order flipped each round,
 eight rounds,
 every wrapped commit traced with `strace --follow-forks --syscall-times`.
 
-- Whole command, as the harness measured it:
+- Whole command,
+  as the harness measured it:
   one arm's median 58,797 ms (9,597 to 240,695),
   the other's 48,389 ms (8,636 to 98,477).
   One commit lost 240 seconds.
@@ -5058,7 +5060,8 @@ largest 8,633 ms.
 That child is the whole-index stat refresh of a private index,
 and it is what the second change below replaces.
 
-One traced commit of the clone (`b-round-3-1`), whose record names
+One traced commit of the clone (`b-round-3-1`),
+whose record names
 `prepareParts.index` 2,182 ms,
 `buildParts."shadow pool"` 3,126 ms and
 `prepareParts.stagedDeletions` 66 ms:
@@ -5067,7 +5070,8 @@ One traced commit of the clone (`b-round-3-1`), whose record names
   the member's `rename` out of the pool's directory took **1,678 ms**,
   the five `readlink` calls and fifteen `statx` calls of that claim took **0.4 ms** between them
   (the clone's common directory shares five entries;
-  this checkout shares twenty-five, which is the pairing the section above counted),
+  this checkout shares twenty-five,
+  which is the pairing the section above counted),
   and the rest of the claim's 3,126 ms is directory listings and the waits between calls.
   So on this volume the claim's one metadata write is what the commit waits for,
   and the per-entry questions cost seconds only when the volume stalls on them,
@@ -5077,7 +5081,8 @@ One traced commit of the clone (`b-round-3-1`), whose record names
   627 ms of traced time.
   Native `git commit -- <one path>` on a fixture of 2,000 files makes **10,146** `newfstatat` and **2,099** `openat`,
   where this walk makes one question per entry:
-  the walk is the pass native Git also makes, made in process,
+  the walk is the pass native Git also makes,
+  made in process,
   and it is not what either change below touches.
 - `stagedDeletions`:
   the stretch holds **no child at all** in the record's step ledger,
@@ -5132,14 +5137,19 @@ Measured on a fixture of 2,000 files whose entries hold their files' stat data,
 with every entry's times moved and its content untouched,
 `strace --summary-only --trace=%file`:
 
-- `update-index --refresh`, the whole index:
-  **4,031** `newfstatat`, **2,016** `openat`, 166 to 230 ms;
-  and **25,723** `newfstatat` on this checkout's own index (23,333 entries, 200 of them moved),
+- `update-index --refresh`,
+  the whole index:
+  **4,031** `newfstatat`,
+  **2,016** `openat`,
+  166 to 230 ms;
+  and **25,723** `newfstatat` on this checkout's own index (23,333 entries,
+  200 of them moved),
   11.6 s inside those calls under `strace`,
   against **805** for the named form with the same 200 paths,
   5.7 ms inside them.
 - `add --refresh` with the paths it is given:
-  **34** `newfstatat` for one path, 14 to 28 ms;
+  **34** `newfstatat` for one path,
+  14 to 28 ms;
   331 for a hundred;
   1,531 for half the index (115 ms);
   6,031 for all of it (234 ms).
@@ -5148,10 +5158,13 @@ with every entry's times moved and its content untouched,
   so a list as long as the index costs more than refreshing everything:
   `REFRESH_NAMES_ONE_PATH_IN` holds the named form to one path in two entries,
   with the two thirds the measurement leaves as margin,
-  and a longer set is refreshed whole, as it was.
-- The index the two forms leave is the same, entry for entry,
+  and a longer set is refreshed whole,
+  as it was.
+- The index the two forms leave is the same,
+  entry for entry,
   for a path whose times moved and whose content did not,
-  for a path whose file the worktree lost (the entry stays, nothing is removed),
+  for a path whose file the worktree lost (the entry stays,
+  nothing is removed),
   and for a path with a glob byte in its name,
   which `:(top,literal)` names exactly.
   `update-index --refresh` with a path list is refused by Git for those paths
@@ -5184,7 +5197,8 @@ which the yes-or-no answer had no shape for.
 - `stagedDeletions` is an in-process answer and reads the real index,
   which `IndexBytes::read` reads again a moment later for the private copies.
   One read of that file per command would take a second 3,200,000-byte read,
-  and its parse, off the commit's path,
+  and its parse,
+  off the commit's path,
   and it is the change this section does not take:
   the request is answered inside the reader seam,
   so sharing bytes with it means a cache of that read that every in-process reader consults,
@@ -5202,21 +5216,32 @@ Method:
 the harness above,
 one arm per binary (the branch point and this branch),
 five rounds,
-and, so that the refresh runs at all,
+and,
+so that the refresh runs at all,
 two hundred tracked files whose times moved and whose content did not
 before every commit,
 which is the state a restored or copied worktree is in.
 
-- The refresh child, by the record's own steps:
+- The refresh child,
+  by the record's own steps:
   the branch point names `git update-index`
-  16,135, 67,677, 9,886, 7,032 and 3,929 ms (104,659 ms in all);
+  16,135,
+  67,677,
+  9,886,
+  7,032 and 3,929 ms (104,659 ms in all);
   this branch names `git add` for the same five commits
-  2,254, 27,339, 31,781, 1,966 and 1,317 ms (64,657 ms in all).
+  2,254,
+  27,339,
+  31,781,
+  1,966 and 1,317 ms (64,657 ms in all).
   The counts are the figure that resolves:
-  25,723 file-system questions become 805, measured on the checkout's own index,
+  25,723 file-system questions become 805,
+  measured on the checkout's own index,
   and the run's own spread has already been shown to exceed 38 percent of a sum of five.
-- The claim, counted from the same traces:
-  its stretch holds six fewer `statx` questions (47 against 41, 49 against 43),
+- The claim,
+  counted from the same traces:
+  its stretch holds six fewer `statx` questions (47 against 41,
+  49 against 43),
   which in this clone's common directory of five shared entries is one question per entry,
   and in this checkout's twenty-five it is twenty-six fewer of the sixty-odd.
 - `prepareParts.index` (the walk) and `prepareParts.stagedDeletions` were not touched:

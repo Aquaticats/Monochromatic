@@ -529,7 +529,8 @@ struct EntrySlice<'a> {
 /// What:
 ///  What the walk of an index found about the stat data its entries record.
 /// Why:
-///   The answer is the reason a refresh of the private index is started, or is not,
+///   The answer is the reason a refresh of the private index is started,
+/// or is not,
 /// and the paths it names are the ones a refresh has to look at:
 /// a refresh that names them costs a question per stale path instead of one per entry of the index
 /// (`commit_index_stat_refresh.rs`).
@@ -542,7 +543,9 @@ struct EntrySlice<'a> {
 pub enum StaleStatData {
     /// Every entry the commit leaves alone records the stat data its file has.
     Current,
-    /// These entries, by their top-relative index path, record stat data their files no longer have.
+    /// These entries,
+    /// by their top-relative index path,
+    /// record stat data their files no longer have.
     Stale {
         /// The paths the walk could not prove,
         /// in index order.

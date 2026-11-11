@@ -94,7 +94,10 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
     // The member itself is not asked about: listing it below is the answer to that question.
-    for relative in SKELETON_DIRECTORIES.iter().filter(|relative| { return !relative.is_empty(); }) {
+    for relative in SKELETON_DIRECTORIES {
+        if relative.is_empty() {
+            continue;
+        }
         let path: PathBuf = member.join(relative);
         let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
             return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
@@ -116,7 +119,13 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     for (name, _is_link) in &listed {
         let spelled: String = name.to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
-        let linked: bool = shared.iter().any(|candidate| { return candidate.name == *name; });
+        let mut linked: bool = false;
+        for candidate in &shared {
+            if candidate.name == *name {
+                linked = true;
+                break;
+            }
+        }
         if !own && !linked {
             return Ok(Some(format!("it holds {spelled}, which this invocation's creation does not make")));
         }
@@ -125,7 +134,14 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     for entry in &shared {
         let shared_named: String = entry.name.to_string_lossy().into_owned();
         let link: PathBuf = member.join(&entry.name);
-        let Some((_, is_link)) = listed.iter().find(|(name, _is_link)| { return *name == entry.name; }) else {
+        let mut present: Option<bool> = None;
+        for (name, is_link) in &listed {
+            if *name == entry.name {
+                present = Some(*is_link);
+                break;
+            }
+        }
+        let Some(is_link) = present else {
             return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
         };
         if !is_link {
@@ -159,7 +175,8 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 /// Why:
 ///   The name and the type come from the one listing,
 /// so a caller that asks both of every entry costs one read of the directory and no question per entry.
-///  The type is the entry's own, never what a link points at.
+///  The type is the entry's own,
+/// never what a link points at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,7 +199,8 @@ fn listing_of(directory: &Path) -> std::io::Result<Vec<(std::ffi::OsString, bool
 /// and the answer it needs is the target.
 /// A missing entry and an entry that is not a link are both failures of this call,
 /// so no second question stands before it.
-///  Every answer is counted for the controls, which hold that a claim asks nothing else of a shared entry.
+///  Every answer is counted for the controls,
+/// which hold that a claim asks nothing else of a shared entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

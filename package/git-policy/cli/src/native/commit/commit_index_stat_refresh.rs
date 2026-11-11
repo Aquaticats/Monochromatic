@@ -86,16 +86,32 @@ pub enum StatRefresh {
 
 /// One stale path in this many entries of the index is the most a refresh names before it refreshes the whole index.
 /// Citation:
-/// measured, and the measurement is repeated here because the number is a cost, not a limit.
-/// One fixture of 2,000 files, an index whose entries hold the stat data of their files, and every entry's
-///  modification time moved but its content untouched, so the walk names exactly the paths that were moved. The
-///  whole-index form (`update-index --refresh`) cost 4,031 `newfstatat` and 166 to 230 ms whatever was named. The
+/// measured,
+/// and the measurement is repeated here because the number is a cost,
+/// not a limit.
+/// One fixture of 2,000 files,
+/// an index whose entries hold the stat data of their files,
+/// and every entry's
+///  modification time moved but its content untouched,
+/// so the walk names exactly the paths that were moved.
+/// The
+///  whole-index form (`update-index --refresh`) cost 4,031 `newfstatat` and 166 to 230 ms whatever was named.
+/// The
 ///  named form (`add --refresh` with the paths it is given) cost 31 questions plus three for each named path
-/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`, the section this constant was measured for):
-///  34 for one path, 331 for a hundred, 1,531 for half the index, 6,031 for the whole of it. So the named form wins
-///  while its paths are at most two thirds of the entries, and half of them is named here, with the margin the
-///  measurement's shape leaves. The stale paths are the files the person changed since the landing that refreshed the
-///  index, so a commit normally names one or two.
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// the section this constant was measured for):
+///  34 for one path,
+/// 331 for a hundred,
+/// 1,531 for half the index,
+/// 6,031 for the whole of it.
+/// So the named form wins
+///  while its paths are at most two thirds of the entries,
+/// and half of them is named here,
+/// with the margin the
+///  measurement's shape leaves.
+/// The stale paths are the files the person changed since the landing that refreshed the
+///  index,
+/// so a commit normally names one or two.
 pub const REFRESH_NAMES_ONE_PATH_IN: usize = 2;
 
 /// The exit statuses of `git update-index --refresh` that leave the index holding the worktree's stat data:
@@ -128,12 +144,18 @@ fn keeps_the_refresh(code: i32) -> bool {
 ///  Refreshes the stat data `index` records for `paths`,
 /// and answers whether Git kept the refresh in that file.
 /// Why:
-///  `git add --refresh` refreshes exactly the entries its pathspecs name, and one question per named path is what a
-///  commit needs: the whole-index form asks about every entry of the index, which on a worktree of this repository is
+///  `git add --refresh` refreshes exactly the entries its pathspecs name,
+/// and one question per named path is what a
+///  commit needs:
+/// the whole-index form asks about every entry of the index,
+/// which on a worktree of this repository is
 ///  tens of thousands of questions the commit waits on for no answer it uses.
-///  `:(top,literal)` names each path as the index stores it, from the worktree's top level, whatever directory the
+///  `:(top,literal)` names each path as the index stores it,
+/// from the worktree's top level,
+/// whatever directory the
 ///  command runs in and whatever byte the path holds.
-///  A path Git cannot match is a refresh that did not happen, which is the answer the whole-index form gives when it
+///  A path Git cannot match is a refresh that did not happen,
+/// which is the answer the whole-index form gives when it
 ///  cannot start.
 ///
 /// In TS you'd write (pseudocode):

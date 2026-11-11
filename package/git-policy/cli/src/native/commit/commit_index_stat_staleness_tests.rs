@@ -39,7 +39,8 @@ fn verdict(repo: &Path) -> StaleStatData {
 }
 
 /// Whether an answer says a refresh is needed at all:
-/// the paths a refresh has to look at, or a question for Git.
+/// the paths a refresh has to look at,
+/// or a question for Git.
 fn needs_refresh(answer: &StaleStatData) -> bool {
     return !matches!(answer, StaleStatData::Current);
 }
