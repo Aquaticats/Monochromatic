@@ -366,9 +366,9 @@ fn readers_running(expected: usize, within: Duration) -> usize {
 ///
 /// It never returns:
 /// a child that ended on its own after a sleep would race the watchers,
-/// and under load the race, not the judgment, would decide the control.
-/// Only a watcher can end this process, and the parent's deadline turns a watcher that does not
-///  into the control's failure.
+/// and under load that race would decide the control instead of the judgment.
+/// Only a watcher can end this process;
+/// the parent's deadline is what turns a watcher that never does into the control's failure.
 #[test]
 #[ignore = "started by two_watchers_do_not_keep_each_other_alive in a process of its own"]
 fn child_that_sleeps_under_two_watchers() {
@@ -384,7 +384,8 @@ fn child_that_sleeps_under_two_watchers() {
 /// Two watchers of a run that shows nothing end it,
 /// so a reading is never taken for the work of the run it reads.
 ///
-/// The child waits for ever, so nothing but a watcher can end it:
+/// The child waits for ever,
+/// so nothing but a watcher can end it:
 /// its own end is never what answers here.
 #[test]
 fn two_watchers_do_not_keep_each_other_alive() {
@@ -413,24 +414,25 @@ fn two_watchers_do_not_keep_each_other_alive() {
 /// setThreadName('g') // prctl(PR_SET_NAME), 15 bytes at most
 /// ```
 fn rename_this_thread(name: &[u8]) -> bool {
-    // SAFETY: `prctl` copies at most the 16 bytes of the NUL-terminated name it is given into this thread's own
-    //  record, and touches no memory of ours besides reading that name.
+    // SAFETY: `prctl` copies at most the 16 bytes of the NUL-terminated name it is given into this
+    //  thread's own record.
+    //  It touches no memory of ours besides reading that name.
     let renamed: libc::c_int = unsafe { libc::prctl(libc::PR_SET_NAME, name.as_ptr(), 0, 0, 0) };
     return renamed == 0;
 }
 
 /// A reader's own stat file is not the run's work.
 ///
-/// The figures a look judges are the run's work,
-/// so a change in the length of the
-///  reader's own `/proc` stat line, which grows and shrinks as its own counters gain digits,
+/// The figures a look judges are the run's work.
+/// A change in the length of the reader's own `/proc` stat line
+///  (which grows and shrinks as its own counters gain digits)
 /// must not move them:
 /// otherwise a watcher's own record of its work keeps the run it reads alive,
 /// and two of them keep each other alive.
 ///
 /// The name change is the measurement's own hand on that length:
 /// it shrinks the stat line by a known amount and does no work,
-/// so the counter that moves here is known to be the reading's, not the run's.
+/// so the counter that moves here is known to be the reading's rather than the run's.
 #[test]
 fn a_readers_own_stat_line_is_not_the_runs_work() {
     let Some(reader): Option<i32> = current_thread_id() else {
