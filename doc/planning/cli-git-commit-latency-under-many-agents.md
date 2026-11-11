@@ -4761,3 +4761,199 @@ so the wall times of the whole command do not resolve it.
 What they do show is the wait's own figure,
 which the service states per landing,
 and that figure falls by 78 percent.
+
+## The repository scratch sweep and a conclusion's copies, off the commit's path (2026-11-11T09:30:00-05:00)
+
+What this answers:
+which recorded step carried a wrapped commit over the owner's bound
+("commits vs native git should not take 5s longer")
+in the records of the installed `0.6.1-alpha.10` on this machine,
+and the two changes that took the two largest of them off the commit's path,
+each with its own figure before and after.
+
+### Where the numbers come from
+
+The five generations of the main checkout's
+`.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+(`.4` to the current file),
+read only,
+as every section above reads them.
+
+- 99 records of the release `0.6.1-alpha.10`
+  between `2026-11-11T12:33:40.727Z` (the commit that installed it,
+  `a10e75ceac`) and `14:14:28.027Z`.
+  Their whole time is 413,882 ms.
+- The distribution of `totalMs`:
+  smallest 321,
+  median 2,218,
+  p90 9,580,
+  p95 12,087,
+  largest 29,039.
+  30 of the 99 took more than 5,000 ms in all.
+- By the reading the record supports
+  ("the bar is the owner's",
+  above),
+  a commit is over the bound when its `totalMs` exceeds the sum of its own `steps` by more than 5,000 ms:
+  21 of the 99.
+  Their largest named cause is `shadow conclusion` in 5,
+  `scratch` in 6,
+  `index` in 2,
+  `shadow pool` in 4,
+  `provision` in 6,
+  and the wait for the service's answer in the rest.
+- Where the 99 spent their time:
+  `prepare` 43.3 percent,
+  `build` 25.6,
+  `submit` 16.4 (`answerWaitMs` 61,004 ms of it),
+  `provision` 7.2,
+  `gate` 2.7.
+- The named stretches over the 99:
+  `scratch` 44,091 ms (the largest),
+  `index` 29,408,
+  `shadow pool` 18,076,
+  `stagedDeletions` 17,237,
+  `policies` 12,034.
+- The same log over every generation,
+  879 records of the releases `0.6.1-alpha.6` to `0.6.1-alpha.10`,
+  holds 167 merge, cherry-pick and revert conclusion commits
+  (a `buildParts."shadow conclusion"` figure above zero).
+  67 of those took more than 5,000 ms in all,
+  33 spent more than 5,000 ms in that one stretch,
+  the stretch holds 750,263 ms of their 1,655,063 ms,
+  and the largest single one is 85,722 ms.
+  Two of them are in the window above:
+  13:51:58 with 25,992 ms and 13:51:58 with 25,191 ms in that stretch.
+
+### The two changes
+
+1.  A commit makes its scratch tree and collects nothing;
+    the resident service collects the repository scratch directory
+    beside its landing loop
+    (`package/git-policy/cli/src/native/service/service_repository_scratch_sweep.rs`,
+    commit `7dd97d64de`).
+    A commit never reads what the collection answered,
+    and the collection lists the directory,
+    asks the file system about every entry,
+    and may remove up to `SCRATCH_TREES_REMOVED_PER_COMMAND` trees.
+2.  A conclusion's copies are written without a flush of the disk
+    (`package/git-policy/cli/src/native/commit/conclusion_copy.rs`,
+    commit `f98b61d178`,
+    from the cross-vendor audit of the commit and landing route that alpha.10 ships).
+    The shadow's copy is read by this process's own `git commit` immediately after it is written,
+    the comparison copy by the landing this same command asks for,
+    and the service copies what the cleanup compares into the batch's journal before the branch moves
+    (`landing/conclusion_state_copy.rs`).
+    A copy a power cut never gave back keeps the worktree's own entry instead of removing it,
+    so no content is lost.
+    The store-held record keeps its flush only where a missing one is damage, which is the reftable backend.
+    The owner delegated this choice:
+    "I think you can decide yourself on which fsync to remove and not have to ask me."
+
+Red controls first:
+
+- `foundation::scratch_location::tests::a_commits_scratch_tree_collects_nothing_on_the_commits_own_path`
+  FAILED on the code as it stood with
+  "the commit's own path collects nothing, so the stale entry is still there for the service's collection".
+- `commit::conclusion_copy::tests::a_merge_conclusion_copies_its_entries_without_flushing_the_disk`
+  FAILED with
+  "nothing of a merge conclusion's copy is flushed: [.../shadow/MERGE_HEAD, .../transaction/conclusion/MERGE_HEAD, .../shadow/MERGE_MSG, ...]"
+  naming six files.
+
+The controls that hold the other side are
+`service::service_repository_scratch_sweep::tests::the_collection_takes_what_a_killed_command_left_beside_the_caller`,
+`a_reftable_copy_keeps_the_record_and_its_flush`,
+and the four `conclusion_cleanup` controls that remove an entry only while it holds the copied bytes.
+
+### The scratch sweep, before and after
+
+Method:
+a disposable `git clone --no-hardlinks` of this repository on this volume,
+copied per arm with `cp --archive --reflink=always`,
+its own `HOME`, `XDG_RUNTIME_DIR` and commit service,
+SSH signing with a throwaway key as this repository signs every commit,
+so every commit builds a shadow;
+four linked worktrees of each copy commit in a loop meanwhile
+(real commits, no synthetic load;
+the native arm made 195, 196, 194 and 193 of them in the before run and 289, 288, 278 and 275 in the after run,
+the wrapped arm 45, 24, 16 and 15, then 65 in the after run),
+and one explicit-path signed commit per round, alternating the arms.
+Sixteen rounds each.
+Host load average 47 and 66 during the runs.
+
+- `prepareParts.scratch` over the sixteen commits of a run:
+  before 5,738 ms, worst 5,306;
+  after 938 ms, worst 719.
+  So the stretch falls by 84 percent and its worst case by 86 percent.
+- Whole commits:
+  before 27,385 ms over sixteen, of which 5,463 ms in their own Git steps;
+  after 39,808 ms, of which 4,717.
+- Native arm:
+  before median 475 ms (169 to 18,874, one sample lost 18.9 s to a stall of the disk itself);
+  after 525 ms (170 to 2,827).
+- Wrapped arm:
+  before median 1,189 ms (516 to 6,033);
+  after 2,096 ms (483 to 9,366).
+- Over the bar by the record's own reading: 1 of 16 in each run.
+  The after run's worst commit spent 7,551 ms in `index`,
+  a stretch neither change touches.
+
+What that says and what it does not:
+the stretch the change targets falls by five sixths,
+and the whole-commit figures of one run on this host cannot resolve the change,
+exactly as the sections above found for theirs:
+the after run drew 48 percent more load commits and one of its commits lost 7.5 s in the private index build,
+which the before run did not.
+The service's collection is still real work on the same disk,
+which is the trade this takes:
+it is off the commit's own path, and it removes nothing while the repository scratch directory holds no entry old enough.
+
+### A conclusion's flushes, before and after
+
+Method:
+the script the audit of the commit and landing route used
+(`fsync_in_conclusion_copy.sh`,
+a 2,000-file fixture, one `git merge --no-ff --no-commit` and `git commit` per round,
+the wrapper under `strace -f -T -e trace=fsync,fdatasync`,
+native Git in a copy of the same fixture before it),
+six rounds with the binary of the branch point and six with the changed one.
+
+- Before:
+  8 client fsyncs in each of the six rounds,
+  4.99 s inside them in all,
+  0.08 to 1.20 s a round;
+  the wrapper's commit 0.42 to 2.09 s (8.21 s in all), native Git 0.01 to 0.02 s.
+- After:
+  0 client fsyncs in each of the six rounds, 0.00 s;
+  the wrapper's commit 0.15 to 1.58 s (2.65 s in all), native Git 0.01 to 0.02 s.
+
+The stalls the audit recorded on the same script
+(2 to 53 s a commit, five of ten rounds over native plus five seconds,
+one round with single fsyncs of 13.8 s, 17.3 s and 8.1 s)
+are what the count turns into:
+no flush is left to wait for the disk.
+
+### What this leaves
+
+- `shadow pool`, 18,076 ms over the 99 records and 6,708 ms in one:
+  the claim is one `rename` plus about seventy questions to the file system, thirty of them `read_link` and
+  `symlink_metadata` per shared entry of the member (`shadow_pool_member.rs`, `refusal`).
+  Two ways off it, neither taken here because each weakens a recorded guarantee
+  ("a member is either the tree a creation makes, or it is refused"):
+  a manifest the fill writes and the claim reads (one file, one listing), or a member named for the template's digest.
+  The first would no longer catch a member changed after it was published;
+  the second would catch nothing a name cannot say.
+  A cheaper subset is safe and unbuilt:
+  `read_link` alone already refuses a missing entry and one that is not a link,
+  so the thirty `symlink_metadata` calls are redundant.
+- `index`, 29,408 ms over the 99 and 7,551 ms in one commit of the after run:
+  the private index copy and the stat-data walk,
+  the "take the walk off the commit's path" item of the section above is still open.
+- `stagedDeletions`, 17,237 ms and 1,874 ms in one commit:
+  the stretch holds `git diff-index --cached --diff-filter=D` and no other work,
+  yet the record of that commit lists no such step,
+  so either the child is unrecorded there or an in-process call stalls.
+  Unsettled, and named here so the next reading starts from it.
+- `provision`, 29,931 ms over the 99:
+  one provisioning per worktree on its first commit after the upgrade,
+  1.3 to 4.0 s each, which is a manager reload and two starts against the owner's user manager.
+  A one-time cost of an install, not of a commit.
