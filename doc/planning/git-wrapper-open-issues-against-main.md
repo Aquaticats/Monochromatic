@@ -188,7 +188,9 @@ Issues whose named module is gone but whose behaviour is not were marked
  The environment variable was not needed:
  the file carries the quoting that the parser already reads.
  The same class of defect is closed beside it,
- each with a control that was red on 9b5624b007 and green on ac586c2b18:
+ each with a control that was red on 9b5624b007 and green on ac586c2b18,
+ except the control of an attributes file whose bytes are not text,
+ which names a branch the fix added and was written with it:
  `service/service_shadow_pool_fill.rs` reads the three facts as bytes
  and asks each fact in a start of its own when the answer count is not three,
  `repair/package_repair_prewarm.rs` builds the common directory from the bytes Git printed,
