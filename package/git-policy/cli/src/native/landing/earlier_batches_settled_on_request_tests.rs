@@ -12,6 +12,7 @@ use super::tests::{World, land_with_failed_index, request};
 use super::*;
 use crate::earlier_service_journal_adopted::{RequestedSettlement, UnansweredBatch, earlier_journals_in_state, open_batch_count, settle_on_request};
 use crate::earlier_service_process_look::Hold;
+use crate::held_commit_record::{Holding, hold};
 use crate::service_journal::{OPEN_EXTENSION, batch_path, list_intents, parse_intent, write_intent};
 use crate::test_support::{git_text, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -287,5 +288,57 @@ fn a_batch_git_cannot_answer_for_is_named_and_stays_on_disk() {
     assert_eq!(batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled); }).collect::<Vec<_>>(), vec![(1, Handled::Finished)]);
     assert_eq!(unanswered, vec![UnansweredBatch { journal: world.context.journal.clone(), seq: 2 }]);
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "its intent stays");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A held batch the request settles completely is in the settled list,
+///  with its branch moved and nothing left owed,
+///  and not in the unanswered one.
+/// Why:
+///  `settle-earlier-batches` prints one line per settled batch and one per unanswered batch,
+///  so a batch in neither list is printed nowhere:
+///  the command would end with empty standard output and exit 0 after its recovery landed the batch and updated the index,
+///  telling the person nothing about work that was done.
+///  The settlement removes the held record when nothing is owed and marks the batch done by renaming its intent,
+///  which is why the recovery cannot decide the batch from a record any more
+///  (a Kimi K3.1 Pro review of the jam-fix integration,
+/// its finding that a settled held batch is left out of the report).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = settleOnRequest(...); expect(answer.batches.map(b => [b.report.seq, b.report.handled])).toEqual([[1, 'finished']]);
+/// ```
+#[test]
+fn a_held_batch_the_request_finishes_is_in_the_settled_list() {
+    let (world, state) = world_with_earlier_journal("settle-held-finished", "state");
+    let landed: CommitRequest = request(&world, "held-finished", "held-finished.txt", "held\n");
+    // The branch already holds the batch's commit and its index update is owed: what a settlement killed between its branch move
+    //  and the removal of its record leaves, and the record is what says a reference lock kept the batch off the branch before.
+    land_with_failed_index(&world, 1, &[landed]);
+    let intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("the open batch");
+    let git_dir: PathBuf = world.repo.join(".git");
+    let _held = hold(Holding {
+        journal: world.context.journal.as_path(),
+        repository: world.repo.as_path(),
+        common_dir: git_dir.as_path(),
+        git_dir: git_dir.as_path(),
+        index: intent.index.as_path(),
+        reference: intent.reference.as_str(),
+        seq: 1,
+        intent: &intent,
+        locks: vec![git_dir.join("refs/heads/main.lock")],
+        reflog: b"commit: the held edit".as_slice(),
+    })
+    .expect("the held record");
+    let RequestedSettlement::Settled { batches, unanswered } = settle(&world, state.as_path(), empty_proc(&world).as_path()) else { panic!("settled") };
+    assert_eq!(
+        batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled, batch.journal.clone()); }).collect::<Vec<_>>(),
+        vec![(1, Handled::Finished, world.context.journal.clone())],
+        "the batch the request finished is named, so the command prints it"
+    );
+    assert_eq!(unanswered, vec![], "nothing is left unexplained");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the batch is finished");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
     remove(world.root.as_path());
 }

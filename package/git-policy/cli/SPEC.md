@@ -13251,6 +13251,11 @@ a held batch is settled first
 (`held_commit_settle.rs`),
 and one whose lock still stands is left with `Handled::Held` and `Recovery::Hold`,
 because dropping it would take a commit the person made and kept.
+A held batch whose settlement finished every obligation of it
+is reported as `Handled::Finished` with `Recovery::Finish`,
+so the person who asked what became of it reads that it finished,
+in the service's log and in what `service settle-earlier-batches` prints;
+a batch reported nowhere would leave that answer empty after the worktree was changed.
 Otherwise it is dropped:
 its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
 (`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),

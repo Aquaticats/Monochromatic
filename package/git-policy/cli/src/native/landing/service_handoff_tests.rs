@@ -254,6 +254,28 @@ fn the_verdict_a_commit_records_flushes_nothing() {
     remove(root.as_path());
 }
 
+/// What:
+///  Age one pending record to `when`,
+///  so a control decides what the bound has already passed instead of waiting for it.
+/// Why:
+///   The queued-push line is decided by the record's own modification time against the instant the command reads,
+///  and the control this serves once simulated the wait with an instant one second past the bound:
+///  a record written more than that second after the instant was captured was then younger than the bound and counted as
+///  a push in flight,
+///  which failed the control whenever this host took longer than a second to write it
+///  (measured on 2026-11-11:
+///  two seconds of added delay between the capture and the second record reproduced the failure of
+///  `a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited` exactly).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// utimes(pendingRecordOf(item), when)
+/// ```
+fn age_the_pending_record(work: &std::path::Path, item: &WorkItem, when: std::time::SystemTime) {
+    let pending: std::path::PathBuf = state_directory(work, PENDING).join(item.id());
+    std::fs::File::options().write(true).open(pending.as_path()).expect("the pending record").set_modified(when).expect("the record is aged");
+}
+
 /// A push record the wrapper promoted and no service has taken says the push is queued,
 /// and one that has just been queued is a push in flight.
 #[test]
@@ -268,7 +290,10 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
         queued_push_notices(handoff.git_dir.as_path(), now).is_empty(),
         "a record younger than the bound is a push in flight, and nothing is said about it"
     );
+    // The wait the bound names is put on the record itself, so no load between the capture and the write can make a record this
+    //  control queued look fresher than the instant it asks about.
     let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
+    age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
     let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
@@ -278,6 +303,7 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     // A second waiting push is counted rather than named: the list of a container's unserved commits has no end.
     let second: WorkItem = push_item(&handoff, PARENT);
     crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
+    age_the_pending_record(work.as_path(), &second, now);
     let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
     assert_eq!(more.len(), 2, "the oldest is named and the rest counted: {more:?}");
     assert_eq!(more[0], said[0], "the oldest keeps its line");
