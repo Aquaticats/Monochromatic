@@ -349,6 +349,11 @@ pub mod worktree_trash_remove;
 /// which every automatic removal asks for first.
 pub mod worktree_added_by_the_wrapper;
 
+/// Whether a directory is one of this repository's linked worktrees,
+/// proved from the pointer and the registration Git wrote there,
+/// which every command that changes state in a recorded worktree asks for first.
+pub mod worktree_registration_proof;
+
 /// The commit and the branch one merge stood between,
 /// and the sweep of the worktrees whose branches it landed.
 pub mod worktree_landed_after_a_merge;

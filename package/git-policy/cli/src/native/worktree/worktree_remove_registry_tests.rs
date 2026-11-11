@@ -161,3 +161,56 @@ fn a_name_that_matches_another_registered_worktree_is_refused() {
     registration_of(common.as_path(), other.as_path(), other.as_os_str()).expect("a full path matches only itself");
     remove(root.as_path());
 }
+
+/// Make a named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_a_named_pipe(path: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A `.git` that is a named pipe is refused without waiting for a writer.
+/// Why:
+///   The removal reads the worktree's pointer before it proves the registration,
+///  and `std::fs::read` waits inside `open(2)` for a writer of a pipe,
+///  so one malformed pointer would hold a removal for ever,
+///  with nothing said and no bound
+///  (`SPEC.md`,
+///  "Every wait has a bound").
+#[test]
+fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
+    use std::io::Write as _;
+    let root: PathBuf = fixture("registry-pointer-pipe");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
+    let pointer: PathBuf = worktree.join(".git");
+    let old_pointer: Vec<u8> = std::fs::read(pointer.as_path()).expect("the old pointer");
+    std::fs::remove_file(pointer.as_path()).expect("the regular pointer is removed");
+    make_a_named_pipe(pointer.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Registration, String>>();
+    let asked_common: PathBuf = common.clone();
+    let asked_worktree: PathBuf = worktree.clone();
+    let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let _ = sender.send(registered_worktree(asked_common.as_path(), asked_worktree.as_path()));
+    });
+    let bound: std::time::Duration = std::time::Duration::from_secs(5);
+    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(bound);
+    if answered.is_err() {
+        // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
+        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(pointer.as_path()).expect("release the reader");
+        writer.write_all(old_pointer.as_slice()).expect("write the pointer");
+        drop(writer);
+    }
+    let found: Result<Registration, String> = match answered {
+        Ok(answer) => answer,
+        Err(_) => receiver.recv_timeout(bound).expect("the released reader lets the read finish"),
+    };
+    worker.join().expect("join the read");
+    assert!(found.is_err(), "a pointer that is no regular file answered as a registration: {found:?}");
+}

@@ -3,7 +3,7 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{RELINK_REFERENCE, RelinkEntry, Reach, RelinkTool, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{NotTaken, RELINK_REFERENCE, RelinkEntry, Reach, RelinkTool, SearchPathOfTheAdd, decode, encode, hand_over_with, item_of, object_name_of};
 use crate::claim_time::ClaimTime;
 use crate::iso_time::now_iso;
 use crate::service_route::Route;
@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 /// One worktree that needs both tools,
 /// so the payload holds more than one name.
 fn entry(root: &Path) -> RelinkEntry {
-    return RelinkEntry { root: root.to_path_buf(), search_path: None, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
+    return RelinkEntry { root: root.to_path_buf(), search_path: SearchPathOfTheAdd::NotRecorded, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
 }
 
 /// A route finder that names no service,
@@ -75,7 +75,10 @@ fn a_payload_that_names_no_known_tool_is_refused() {
         let refused: Result<RelinkEntry, String> = decode(text);
         assert!(refused.is_err(), "{text} was accepted as {refused:?}");
     }
-    assert!(encode(&RelinkEntry { root: PathBuf::from("/w"), search_path: None, tools: Vec::new() }).is_err(), "a relink of no tool is no work");
+    assert!(
+        encode(&RelinkEntry { root: PathBuf::from("/w"), search_path: SearchPathOfTheAdd::NotRecorded, tools: Vec::new() }).is_err(),
+        "a relink of no tool is no work"
+    );
 }
 
 /// What:
@@ -118,31 +121,6 @@ fn the_record_names_the_worktree_the_common_directory_and_the_tools() {
     assert_eq!(item.branch_ref, RELINK_REFERENCE);
     assert_eq!(item.oid, object_name_of(destination.as_path(), item.created.as_str()));
     assert_eq!(decode(item.parent.as_str()).expect("the entry"), written);
-    remove(root.as_path());
-}
-
-/// What:
-///  A hand-over that finds no service takes its record back,
-/// and says why it did.
-/// Why:
-///   The add relinks the worktree itself when no service took the record,
-/// so the record owes nothing and must go:
-/// a record left behind names a path and nothing else,
-/// and a service that drains it later would start the install in whatever directory holds that path then,
-/// which need not be the worktree this record was written for.
-#[test]
-fn a_hand_over_with_no_service_takes_its_record_back() {
-    let root: PathBuf = fixture("relink-no-service");
-    let common: PathBuf = root.join("common");
-    let destination: PathBuf = root.join("topic");
-    std::fs::create_dir_all(&common).expect("the common directory");
-    std::fs::create_dir_all(&destination).expect("the worktree");
-    let written: RelinkEntry = entry(destination.as_path());
-    let told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
-    let reason: String = told.expect_err("a session with no service is reported");
-    assert!(reason.contains("no commit service can be started from this session"), "{reason}");
-    let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "the record the add did the work for is still queued");
     remove(root.as_path());
 }
 
@@ -234,15 +212,16 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
 }
 
 /// What:
-///  A hand-over whose record another party took is that party's work,
-/// and the add relinks nothing.
+///  A hand-over whose record another party took still reports the failure,
+///  so the add relinks the worktree itself,
+///  and nothing is left queued.
 /// Why:
-///   The claim moves the record out of `pending` in one rename,
-/// so the hand-over's own unlink finds nothing;
-/// running the install beside the service that holds the record would make two installs write one
-/// `node_modules` at once.
+///   The record is taken back only after the add's own run,
+/// so a service that claims it meanwhile runs the same install beside that run,
+/// which is right either way:
+/// a record removed first would leave nothing for that service to recover a killed add's repair from.
 #[test]
-fn a_hand_over_whose_record_was_taken_is_the_services_work() {
+fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     let root: PathBuf = fixture("relink-taken-elsewhere");
     let common: PathBuf = root.join("common");
     let destination: PathBuf = root.join("topic");
@@ -251,7 +230,7 @@ fn a_hand_over_whose_record_was_taken_is_the_services_work() {
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     let route: Route = Route { address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())), provision: Some(unreachable_host()) };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
-    // The claim a service makes between the write and the unlink: the record leaves `pending`.
+    // The claim a service makes: the record leaves `pending` before the add takes it back.
     let claimed_from: PathBuf = pending.clone();
     let claiming_pending = move |_host: &crate::service_provision::ProvisionHost| {
         for name in pending_names(claimed_from.as_path()) {
@@ -260,41 +239,36 @@ fn a_hand_over_whose_record_was_taken_is_the_services_work() {
         return Ok(());
     };
     let written: RelinkEntry = entry(destination.as_path());
-    hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect("the record the service took is its work");
+    let not_taken: NotTaken =
+        hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect_err("no service answered this add");
+    assert!(!not_taken.reason.is_empty(), "the add is told why no service took the record");
     assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left queued");
+    not_taken.queued.expect("the record the add wrote").take_back();
     remove(root.as_path());
 }
 
 /// What:
-///  A record that cannot be taken back is named,
-/// and the add relinks the worktree anyway.
+///  A record that cannot be taken back stays queued,
+///  so a service may relink the worktree again,
+///  and the add's own run is reported as the work that was done.
 /// Why:
-///   A worktree whose copied links were never relinked is wrong for the person's next command,
-/// so a directory that refuses the unlink makes the add do the work and leaves the record to say,
-/// in the log,
-/// that the service may do it again.
+///   The add relinks the worktree itself whatever the record says,
+/// so a directory that refuses the unlink costs a second install and never the repair.
 #[test]
-fn a_hand_over_whose_record_cannot_be_taken_back_says_it_stays() {
+fn a_record_that_cannot_be_taken_back_stays_queued() {
     let root: PathBuf = fixture("relink-record-stays");
     let common: PathBuf = root.join("common");
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    let route: Route = Route { address: Bind::Abstract(format!("relink-unremovable-{}", std::process::id())), provision: Some(unreachable_host()) };
-    let router = |_git: &Path, _directory: &Path| return Some(route.clone());
-    // A directory that refuses the unlink, as one whose permissions somebody changed does.
-    let protected: PathBuf = pending.clone();
-    let protecting_the_record = move |_host: &crate::service_provision::ProvisionHost| {
-        std::fs::set_permissions(protected.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
-        return Ok(());
-    };
     let written: RelinkEntry = entry(destination.as_path());
-    let reason: String = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &protecting_the_record))
-        .expect_err("a record that stays is not a hand-over");
+    let not_taken: NotTaken = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach()).expect_err("a session with no service is reported");
+    // A directory that refuses the unlink, as one whose permissions somebody changed does.
+    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
+    not_taken.queued.expect("the record the add wrote").take_back();
     std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture is removable again");
-    assert!(reason.contains("stays"), "the reason names the record that stays: {reason}");
-    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record is still queued");
+    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record stays, so the service may relink this worktree again");
     remove(root.as_path());
 }
 
@@ -375,4 +349,58 @@ fn serve_this_release(name: &str) -> FixtureService {
         return heard;
     });
     return FixtureService { finished, thread };
+}
+
+/// What:
+///  A hand-over that finds no service leaves its record queued.
+/// Why:
+///   The add relinks the worktree itself when no service answered,
+/// but that run is not durable until it ends:
+/// a record taken back before the add's own run leaves nothing for a service to recover the repair from
+/// after a kill,
+/// and the new worktree keeps copied links that name the source.
+/// The record is taken back after the add's own run finished,
+/// which is the only moment it owes nothing.
+#[test]
+fn a_hand_over_with_no_service_leaves_its_record_queued() {
+    let root: PathBuf = fixture("relink-no-service-record-stays");
+    let common: PathBuf = root.join("common");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(&common).expect("the common directory");
+    std::fs::create_dir_all(&destination).expect("the worktree");
+    let written: RelinkEntry = entry(destination.as_path());
+    let told: Result<(), NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
+    let not_taken: NotTaken = told.expect_err("a session with no service is reported");
+    let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
+    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record the add relinks for is gone before the add's own run");
+    // The add's own run is what makes the record superfluous; only then is it taken back.
+    not_taken.queued.expect("the queued record the add takes back after its own run").take_back();
+    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "the record stays after the add's own run finished");
+    remove(root.as_path());
+}
+
+/// What:
+///  A relative search path is recorded against the add's directory.
+/// Why:
+///   `PATH=bin` names the add's own `bin`,
+/// and the service that runs the record is a resident process of another session,
+/// started from another directory:
+/// a record carrying the text `bin` makes the service search its own `bin`,
+/// so the program the add resolved may never start and the worktree is left unrelinked.
+#[test]
+fn a_relative_search_path_is_recorded_against_the_adds_directory() {
+    use std::ffi::OsString;
+    let root: PathBuf = fixture("relink-relative-search-path");
+    let common: PathBuf = root.join("common");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(&common).expect("the common directory");
+    std::fs::create_dir_all(&destination).expect("the worktree");
+    let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
+    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written).expect("the record");
+    let recorded: SearchPathOfTheAdd = decode(item.parent.as_str()).expect("the entry").search_path;
+    let SearchPathOfTheAdd::Set(recorded_path) = recorded else { panic!("the record carries a search path: {recorded:?}") };
+    let named: PathBuf = PathBuf::from(recorded_path);
+    assert!(named.is_absolute(), "the record names a search path that means nothing outside the add's directory: {}", named.display());
+    assert!(named.ends_with("bin"), "{}", named.display());
+    remove(root.as_path());
 }
