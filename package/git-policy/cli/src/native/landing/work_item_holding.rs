@@ -23,7 +23,7 @@
 //! await hold(workDir, item); promote(workDir, id); forgetHeld(workDir, id);
 //! ```
 
-use crate::held_push_holder_and_verdict::{Holding, Verdict, this_command, with_holding};
+use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, proven_gone, this_command, with_holding};
 use crate::private_storage::{
     create_private_directory_all, replace_private_file, replace_private_file_unsynced, sync_directory, write_private_file, write_private_file_unsynced,
 };
@@ -201,6 +201,54 @@ pub fn promote(work_dir: &Path, id: &str) -> bool {
 
 /// The state directory of the blocked verdicts.
 pub const BLOCKED: &str = "blocked";
+
+/// What:
+///  The commits of one branch whose held push record says its post-commit check has not decided,
+///  and whose command still runs.
+/// Why:
+///   A held record keeps a commit's push out of the queue until its gate answers,
+/// and a push of the branch made for another
+///  commit sends every commit up to the tip:
+/// publishing the tip before that answer would publish a commit the gate may
+///  keep local.
+///  A record whose command is gone decides nothing ever,
+/// so it holds nothing back (`SPEC.md`),
+/// and a record that
+///  names no command is one of an earlier release,
+/// which holds nothing back as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// undecidedCommits(workDir, branchRef) // the commits whose gate runs now
+/// ```
+pub fn undecided_commits(work_dir: &Path, branch_ref: &str) -> Vec<String> {
+    let held: PathBuf = state_directory(work_dir, HELD);
+    let Ok(listing) = std::fs::read_dir(held.as_path()) else {
+        return Vec::new();
+    };
+    let mut commits: Vec<String> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
+        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
+        // The branch is the record's,
+        // and a record this module cannot read names no branch:
+        // it is left to the line every command prints for it.
+        let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+        if item.branch_ref != branch_ref {
+            continue;
+        }
+        let holding: Holding = holding_in(text.as_str());
+        if holding.verdict != Verdict::Undecided || holding.holder.is_empty() || proven_gone(holding.holder.as_str()) {
+            continue;
+        }
+        // An earlier release's name and this release's name can both hold one commit.
+        if !commits.iter().any(|known| { return known == commit; }) {
+            commits.push(commit.to_owned());
+        }
+    }
+    return commits;
+}
 
 /// What:
 ///  One commit a post-commit gate kept local,

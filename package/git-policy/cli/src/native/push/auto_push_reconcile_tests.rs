@@ -186,7 +186,7 @@ fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
 /// Push `main` of the repository under test the way the service does and capture the text it prints.
 fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect("auto-push");
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -195,7 +195,7 @@ fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
 /// even compute its merge ends with.
 fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
     let mut err: Vec<u8> = Vec::new();
-    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect_err("the failure is returned");
+    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect_err("the failure is returned");
 }
 
 /// What a consumer of the worktree can observe:
@@ -329,7 +329,7 @@ fn the_reconcile_fetch_sets_no_low_speed_abort() {
     let mut coordinator = push_git(&s.local);
     coordinator.real_git = stand_in;
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
     assert_eq!(
         std::fs::read_to_string(&record).expect("the fetch ran"),
@@ -2057,7 +2057,7 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let mut git = push_git(&s.local);
     git.real_git = context.real_git.clone();
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&git, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
