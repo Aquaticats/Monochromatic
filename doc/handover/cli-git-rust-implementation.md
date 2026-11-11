@@ -108,6 +108,73 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The integration tip's two compile breaks, and the snapshot identity no record names (2026-11-11T17:57:56-05:00)
+
+Branch `fix/git-policy-cli-pass-13-tip-builds`,
+commit `b3be9c19a5`,
+on the jam-fix integration at `8d9febd625`.
+That tip does not compile:
+two merges each changed one file the other's change reads,
+cleanly as text.
+
+`push/auto_push.rs` and `push/auto_push_awaiting.rs` agree everywhere,
+and with `f6c328c42b` on
+`fix/git-policy-cli-alpha-10-audit-push-shows-server-output-and-the-real-failure`:
+`47c1f07a35` wrote `MatchingPush { .., landed_oid }` while the third argument was still called
+`landed_oid`,
+and `3af8c8c4fa` had renamed it to `sent_up_to`,
+the commit the branch named before the push read the worktree's verdicts.
+The field is named `landed_oid: sent_up_to`,
+the only commit it can hold:
+the delivery question is asked only for a push that named no refspec itself,
+which is `push.default=matching`,
+and such a push can run only where no verdict holds the branch back.
+`SPEC.md` now states that a matching push fixes no commit of its own,
+so a branch that moves while one runs leaves a URL naming another commit,
+which proves nothing and plans the retry.
+
+`worktree_copying/worktree_copy_swapped_add_settlement.rs` is where the two repairs differ,
+and the coordinator keeps one.
+`e1c3574144` wrote the comparisons against `MadeObject.object: ObjectId`;
+`baa88039b3` made that field `Option<ObjectId>` for the record a command writes before its stage
+exists.
+Here an unknown identity costs only the ability to name what stands at the destination,
+so that comparison has its own answer (`AtTheDestination::NotCompared`),
+the folder at the stage name is cleared only when it holds nothing but the pointer Git wrote,
+a person's entry is never renamed into a folder no record proves is the worktree it belongs to,
+and the words say the two were not compared.
+It does not cost the proof of the exchange,
+which the object at the stage name gives,
+and it does not cost the reason to settle the add's records once the stage name is clear of Git's
+directory,
+because no copy of the source's ignored state serves a worktree that holds it or no longer stands.
+`f6c328c42b` instead requires a recorded identity at each comparison,
+so a clear stage name settles nothing,
+which leaves the claim and the records repeating
+"the ignored-state copy ... is still owed"
+for a worktree that either holds the state or is gone,
+and says the worktree is no longer the add's when nothing compared the two.
+Measured here with that answer in place:
+`an_exchange_whose_identity_was_never_recorded_is_settled_without_a_copy` fails,
+because the line says the worktree is no longer the add's when nothing compared the two,
+`an_exchange_whose_identity_was_never_recorded_and_whose_stage_was_removed_still_settles` fails
+with the copy still owed and the records still standing,
+and the control that keeps a person's entry passes under both answers,
+because a folder holding anything but the pointer is kept either way.
+The keeper control is `an_add_killed_before_its_exchange_settles_nothing`:
+it holds that a destination still holding the directory Git made settles nothing,
+so an add killed before its exchange keeps the reaping's own answers and the claim naming its stage.
+
+Evidence on the branch's tip:
+`native:test:host -- --no-run` ended `Finished test profile ... in 1m 44s`,
+`native:test:binary:host -- --no-run` `in 1m 05s`,
+`native:clippy` `Finished dev profile ... in 41.97s` under `-D warnings`,
+`native:test:host -- push:: worktree_copying::` `975 tests run: 975 passed (1 slow), 6089 skipped`,
+`native:test:host -- swapped_add_settlement` `11 tests run: 11 passed, 7053 skipped`,
+and `monochromatic-lint` over the changed files prints no diagnostic.
+Open:
+the coordinator merges this branch and keeps one settlement answer.
+
 ### An add's clean leaves a stale `Cargo.lock` rewritten (2026-11-11T15:30:00-05:00)
 
 Branch `fix/git-policy-cli-suite-failures-on-main-tip`,
