@@ -509,9 +509,9 @@ which is 175 s of the gate's wall time at two threads and 88 s at four.
   and 318 s when a manifest or lock file moved the dependency layer.
 - Most gates of the day ended red.
   Of the nineteen gates since 2026-11-09T13:32:02-05:00,
-  twelve ended with a failed test,
-  five were green,
-  and two have no recorded status.
+  fourteen recorded a failed test in their nextest summary,
+  between one and sixty-nine of the 6,382 to 7,192 tests each ran,
+  and five were green.
   A red gate makes a release wait for another whole gate,
   so this is the largest multiplier on the wait,
   and it is not what these changes address.
