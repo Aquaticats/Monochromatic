@@ -121,6 +121,17 @@ Only the `TMPDIR` destination changed between the compared launches.
   and GPU charts without the missing-sensors banner.
   Separate D-Bus samples returned CPU usage of `34.568651275820173` and `28.711656441717793`,
   with changing memory values.
+- Applications and Processes:
+  verified screenshots showed populated lists and usage values.
+- History:
+  an accessibility-tree traversal reached all `277` nodes without truncation.
+  It included the `History` page title,
+  total CPU usage of `46.3%`,
+  per-core readings,
+  GPU usage of `22.0%`,
+  physical memory of `23.6 GiB`,
+  and download/upload values of `75.5 KiB/s` and `19.7 KiB/s`.
+  Captures containing another application were rejected as evidence.
 
 The scratch reproduction is `${HOME}/temp/agent/probe-systemmonitor-temp.ts`.
 Its raw evidence is `${HOME}/temp/agent/systemmonitor-probe-ayBHK0`.
@@ -165,6 +176,8 @@ added the service to desktop-session startup.
 After a manager reload and service restart,
 `systemctl --user show` confirmed the active command includes `--remain`.
 The package's existing `PartOf=graphical-session.target` retains desktop-session shutdown ownership.
+The same sensor-service PID remained active after closing System Monitor,
+and reopening the application with its Applications page produced a populated list.
 
 Tradeoff:
 the statistics service stays resident while the graphical session exists,
@@ -178,14 +191,30 @@ Do not modify the distribution-owned service or `.page` files.
   Layout reset was not attempted because readable personal and system pages failed identically.
 - Checking only page-load diagnostics missed the separate sensor failure.
   The user's follow-up screenshot exposed the missing-sensors banner.
-- Capturing the active window immediately after an ordinary application activation request
-  captured the terminal on one attempt.
-  A later KWin-targeted activation produced a verified System Monitor screenshot.
-  Check window identity and content before accepting a capture as evidence.
-- A successful source-page navigation in `agent-browser` did not establish selection verification.
-  Follow-up inspection commands stalled;
-  source citations were checked against the cloned release files.
-  Browser selection verification remains incomplete.
+- Active-window capture was not reliable while the person using the desktop changed focus.
+  Application activation and KWin script completion did not guarantee the captured window's identity.
+  Overview,
+  Applications,
+  and Processes captures were checked by title and content;
+  History was verified through its rendered accessibility tree.
+- The initial source-verification browser stalled.
+  Its enclosing cgroup had `TasksMax=128` and recorded `54` denied task creations.
+  Relaunching the owned browser in a fresh scope with `TasksMax=512` completed the source checks.
+  This is evidence about the diagnostic command's limit,
+  not a cause of the System Monitor failures.
+
+All source links were opened in `agent-browser` and checked for the quoted text and expected line-selection fragment.
+The committed Markdown was also checked in GitHub's rendered view.
+The scoped `lint:monochromatic-lint` task passed.
+
+## Verification rule proposal
+
+Tighten `AGENTS.md` rule `SCF` to state:
+before accepting a screenshot,
+verify the target application/window and intended rendered state;
+recapture mismatches or transitional frames.
+This clarification was proposed to the owner;
+no agent-rule edit is part of the system repair.
 
 ## Upstream filing decision
 
