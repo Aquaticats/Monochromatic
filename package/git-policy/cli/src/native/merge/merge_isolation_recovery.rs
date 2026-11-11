@@ -12,6 +12,7 @@ pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref_await
 /// named here so a caller keeps one import.
 pub use crate::merge_isolation_recovery_reads::{
     holds_the_merge, holds_the_merges_entry, paths_the_branch_does_not_hold_awaiting, resolve_commit_awaiting, symbolic_ref_awaiting,
+    the_paths_hold_only_the_persons_own_bytes_awaiting,
 };
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
@@ -140,7 +141,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 Err(error) => return Err(MergeRefusal { error, began: true }),
             };
             let put_back: Vec<PathBuf> =
-                put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
+                put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
             // A file this command put back is the entry the merge judged at that path: the rename left its identity as it was and
             //  changed only its change time, so the reading is taken again there and the carry writes over the file it put back.
             for location in &put_back {
@@ -172,7 +173,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     };
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
     //  while the file waits beside it, and would otherwise be read as someone else's.
-    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
+    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
     // What this worktree already holds of the merge is read once, the index first and the worktree second, before anything can
     //  refuse; every refusal after this point reports from this one reading, so no path can say nothing is installed while the
     //  index holds the merge.
@@ -335,6 +336,36 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         }
     }
     if !foreign.is_empty() {
+        // A merge saved behind an index lock that never began leaves the person's own edits in the paths it changes, and the
+        //  capture it saved may be older than those edits are now. Nothing of the merge is in the index or the checkout, so it
+        //  cannot be installed without writing bytes the capture does not hold over them: the record goes, the saved commit stays
+        //  on its ref, and the person makes the merge again on what their files hold now (a cross-vendor audit of alpha.10, its
+        //  fourth finding; the owner's "never discard user data").
+        if intent.side_ref.is_some()
+            && !any_in_index
+            && !any_in_worktree
+            && the_paths_hold_only_the_persons_own_bytes_awaiting(place, root, changes.as_slice(), judgements.as_slice()).await
+        {
+            let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+            let _noted = out.write_all(
+                format!(
+                    "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made: {} hold your own edits, which were made \
+                     after that merge saved the work it carries, so installing it would write over them. Nothing was changed and the \
+                     record {} was removed; the merge commit {} is kept on {side_ref}, which nothing removes. Run `git merge {}` to \
+                     make the merge on the bytes your files hold now, or delete the ref once you have decided.\n",
+                    foreign.join(", "),
+                    record.display(),
+                    intent.new_oid,
+                    intent.new_oid
+                )
+                .as_bytes(),
+            );
+            if let Err(error) = drop_record(record) {
+                return Err(MergeRefusal { error, began });
+            }
+            drop_capture_awaiting(place, root, intent).await;
+            return Ok(MergeRecoveryAction::DeferredRefused);
+        }
         return Err(MergeRefusal { error: edits_on_the_merges_own_paths(root, foreign.as_slice(), record), began });
     }
     // A staged version of a path the merge replaces has no other name, so it is never written over: the finish stops and names

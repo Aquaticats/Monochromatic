@@ -35,7 +35,7 @@
 /// The private names a take leaves,
 /// which say whether an unfinished merge names one.
 use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_copy, kept_copies};
-use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys};
+use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, stale_carry_names_of};
 /// Reading the bytes of a file through Git.
 use crate::merge_isolation_take_asides::{may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
 /// The person's own work a merge captured,
@@ -610,6 +610,7 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: Option<&Capture>,
+    transaction_id: &str,
     out: &mut W,
 ) -> Vec<PathBuf> {
     let live: Vec<String> = live_merge_keys(git_dir);
@@ -618,6 +619,13 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
     let mut put_back: Vec<PathBuf> = Vec::new();
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
+        // The bytes a killed carry had written under their own name are a temporary of the placing, made again by the next
+        //  command and held in the object store either way, so a name nothing is waiting on goes before the copy beside it is
+        //  decided: otherwise a finished merge leaves an untracked file in the worktree for good (`SPEC.md`, no half-applied
+        //  result).
+        for stale in stale_carry_names_of(location.as_path(), live.as_slice(), transaction_id) {
+            let _removed = std::fs::remove_file(stale.as_path());
+        }
         for aside in asides_of(location.as_path()) {
             let copy: KeptCopy = KeptCopy { location: location.clone(), aside: aside.path.clone() };
             if settle_kept_copy_awaiting(context, root, git_dir, &copy, Some(&aside), Some(change), capture, live.as_slice(), out).await {

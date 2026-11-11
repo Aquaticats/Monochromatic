@@ -13165,9 +13165,14 @@ the paths are named on standard error and the record is kept.
 The files are checked out without `--force`,
 so a file that appears in the instant after the take is skipped and Git's own words are reported.
 A command that stops between a take and the write leaves the file under a private name beside its path,
-`.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
-where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
+`.cli-git-recovery-<file key>-<merge key>-<pid>-<count>-<nanos>`,
+where each key is a 64-bit FNV-1a hash in 16 hex digits,
+of the file's name and of the merge's transaction identifier,
 so a name at the file system's component limit still has a private name that can exist;
+the bytes the carry writes wait under the same shape with `.cli-git-carry` in place of `.cli-git-recovery`,
+so the command that finishes the merge can tell whose temporary a name is,
+and the settle of a merge removes the names its own transaction left,
+because those bytes are made again by the next carry and are in the object store either way;
 the next command puts such a file back before it judges the path and says on standard error that it did,
 and where the path holds something else keeps both,
 names the private file,
@@ -13258,6 +13263,11 @@ the emptied directories of every path the merge deletes are pruned on each attem
 whether or not the path already stands at its end state,
 because a kill between finishing a child's private name and removing the directory it emptied leaves an empty directory
 that `checkout-index` would refuse.
+A branch another program moved away from the merge is read from `git merge-base --is-ancestor`'s own status and never from
+what it printed,
+so a "no" is the answer that the merge is not in the branch:
+the paths go back to the moved head with the person's captured work,
+and no command is refused for it.
 The settling of a branch that moved reads the checkout and the index the same way the completion does,
 so a directory the branch's own files explain is read the same way there,
 and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
@@ -13287,6 +13297,11 @@ change nothing of the branch and say nothing.
 A merge saved on a side ref that cannot be finished now never stops a command while nothing of it has been installed:
 the line says where the merge is and what blocked it,
 and the command goes on.
+A merge saved on a side ref whose paths hold the person's own edits made after it was saved is not installed over them:
+nothing of it is in the index or the checkout,
+so the record goes,
+the merge's commit stays on its ref,
+and the line names that ref and the `git merge` command that makes the merge again on the bytes the files hold now.
 A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
 another branch's checkout has nothing for it to finish and nothing of it was saved,
 so the record goes and the merge is run again on the branch it is for.

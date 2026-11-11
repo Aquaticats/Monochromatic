@@ -34,7 +34,7 @@
 
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
-use crate::merge_isolation_take_aside_names::aside_name;
+use crate::merge_isolation_take_aside_names::{CARRY_PREFIX, aside_name};
 use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, may_remove_the_aside_awaiting};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
@@ -128,25 +128,32 @@ pub(crate) fn explained_entries<'a>(known: &[Option<(&'a str, &'a str)>], plan: 
     return allowed;
 }
 
-/// The file name an entry keeps,
-/// spelled as text a file system takes on every platform this builds for.
-fn the_file_name(found: &std::ffi::OsStr) -> String {
-    return found.to_string_lossy().into_owned();
-}
-
-/// The private name the new entry is written under before it takes its path.
+/// What:
+///  The private name the new entry is written under before it takes its path,
+///  which carries the key of the merge that wrote it.
+/// Why:
+///  A kill between writing those bytes and renaming them into place leaves the name behind,
+/// and nothing outside this
+///  command knows it,
+/// so the next command must be able to tell whose name it is before it removes it:
+/// a name with no
+///  merge key could be one a merge that still runs is about to rename into place
+/// (`merge_isolation_take_aside_names.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${dirname(location)}/.cli-git-carry-${pid}-${count}-${nanos}-${basename(location)}`
+/// `${dirname(location)}/${CARRY_PREFIX}-${nameKey(basename)}-${nameKey(transactionId)}-${pid}-${count}-${nanos}`
 /// ```
-fn private_name(location: &Path) -> PathBuf {
+fn private_name(location: &Path, transaction_id: &str) -> PathBuf {
     static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let count: u64 = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    let name: String = location.file_name().map(the_file_name).unwrap_or_default();
     let process: u32 = std::process::id();
-    return location.with_file_name(format!(".cli-git-carry-{process}-{count}-{nanos:x}-{name}"));
+    return location.with_file_name(format!(
+        "{CARRY_PREFIX}-{}-{}-{process}-{count}-{nanos:x}",
+        crate::merge_isolation_take_aside_names::name_key(crate::merge_isolation_take_aside_names::name_text(location).as_str()),
+        crate::merge_isolation_take_aside_names::name_key(transaction_id)
+    ));
 }
 
 /// What:
@@ -191,11 +198,11 @@ fn set_mode(file: &Path, mode: &str) -> Result<(), String> {
 /// ```ts
 /// function writePrivate(location, bytes, mode): string; // throws on a write that failed
 /// ```
-fn write_private(location: &Path, bytes: &[u8], mode: &str) -> Result<PathBuf, String> {
+fn write_private(location: &Path, bytes: &[u8], mode: &str, transaction_id: &str) -> Result<PathBuf, String> {
     if let Some(parent) = location.parent() {
         let _made = std::fs::create_dir_all(parent);
     }
-    let private: PathBuf = private_name(location);
+    let private: PathBuf = private_name(location, transaction_id);
     write_entry(private.as_path(), bytes, mode)?;
     return Ok(private);
 }
@@ -512,7 +519,7 @@ async fn place_bytes_awaiting(
             Err(error) => Err(CarryFailure::Failed(format!("{} could not be kept beside {}, which was left as it is: {error}", location.display(), location.display()))),
         };
     }
-    let private: PathBuf = match write_private(location.as_path(), bytes, mode) {
+    let private: PathBuf = match write_private(location.as_path(), bytes, mode, transaction_id) {
         Ok(made) => made,
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display()))),
     };

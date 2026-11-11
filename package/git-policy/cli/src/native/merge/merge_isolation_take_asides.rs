@@ -81,9 +81,10 @@ pub async fn put_back_stranded_takes_awaiting<W: Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: Option<&Capture>,
+    transaction_id: &str,
     out: &mut W,
 ) -> Vec<PathBuf> {
-    return settle_the_asides_of_a_merge_awaiting(context, root, git_dir, changes, capture, out).await;
+    return settle_the_asides_of_a_merge_awaiting(context, root, git_dir, changes, capture, transaction_id, out).await;
 }
 
 /// What:

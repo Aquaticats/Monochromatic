@@ -1233,6 +1233,7 @@ fn a_private_name_no_record_claims_is_never_put_back_on_a_guess() {
         world.git_dir.as_path(),
         changes.as_slice(),
         None,
+        "2a2a2a2a-0000-4000-8000-00000000002a",
         &mut said,
     ))
     .expect("the runtime of the controls");
@@ -3263,6 +3264,7 @@ fn a_copy_an_earlier_release_left_of_the_merges_own_file_is_put_back() {
         world.git_dir.as_path(),
         changes.as_slice(),
         None,
+        "2a2a2a2a-0000-4000-8000-00000000002a",
         &mut said,
     ))
     .expect("the runtime of the controls");
@@ -3313,6 +3315,7 @@ fn a_copy_an_earlier_release_left_of_newer_bytes_stays_and_is_recorded() {
         world.git_dir.as_path(),
         changes.as_slice(),
         None,
+        "2a2a2a2a-0000-4000-8000-00000000002a",
         &mut said,
     ))
     .expect("the runtime of the controls");
@@ -3357,6 +3360,7 @@ fn a_copy_the_persons_file_holds_again_is_removed() {
         world.git_dir.as_path(),
         changes.as_slice(),
         None,
+        "2a2a2a2a-0000-4000-8000-00000000002a",
         &mut said,
     ))
     .expect("the runtime of the controls");
@@ -3397,6 +3401,7 @@ fn a_kept_copy_is_decided_once_more_and_ends_when_the_file_holds_its_bytes() {
         world.git_dir.as_path(),
         changes.as_slice(),
         None,
+        "2a2a2a2a-0000-4000-8000-00000000002a",
         &mut said,
     ))
     .expect("the runtime of the controls");
@@ -3876,5 +3881,115 @@ fn a_branch_another_program_moved_away_from_the_merge_is_not_a_refusal() {
     assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved, "the move is settled, not refused: {text}");
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("f.txt"), person, "the person's edit is back in its file: {text}");
     assert!(!record.exists(), "the record goes with the settled merge: {text}");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  The name a killed carry wrote its bytes under is removed when the merge is finished,
+///  so the worktree holds no half-applied result.
+/// Why:
+///  A kill between writing those bytes and renaming them into place leaves an untracked
+///  `.cli-git-carry-*` file beside the path,
+/// and nothing ended it:
+/// later commands put the path back and exit 0,
+/// and the copy stayed
+///  for good (a cross-vendor audit of alpha.10,
+/// its fifth finding).
+///  The bytes are a temporary of the placing,
+/// made again by the next carry and held in the object store either
+///  way,
+/// so the name goes with the merge that wrote it and no other merge's does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capture = halfCarried(world); private = carryName('f.txt', id); write(private, 'made again'); await recover(...); expect(exists(private)).toBe(false); expect(exists(record)).toBe(false);
+/// ```
+#[test]
+fn a_private_name_a_killed_carry_left_is_removed_when_the_merge_finishes() {
+    let world: World = world("merge-recovery-carry-name-left");
+    let id: &str = "2b2b2b2b-0000-4000-8000-0000000000b2";
+    let _capture: crate::merge_isolation_carry_parts::Capture = half_carried(&world, id);
+    let record: PathBuf = crate::merge_isolation_journal::intent_path(world.git_dir.as_path(), id);
+    let left: PathBuf = world.repo.join(format!(
+        ".cli-git-carry-{}-{}-{}-0-1",
+        crate::merge_isolation_take_aside_names::name_key("f.txt"),
+        crate::merge_isolation_take_aside_names::name_key(id),
+        std::process::id()
+    ));
+    std::fs::write(left.as_path(), b"f.txt feature\nthe person's line\n").expect("the bytes the killed placing had written");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    assert!(!record.exists(), "the record goes once the merge is finished");
+    assert!(!left.exists(), "the name a killed carry left goes with the merge that wrote it");
+    assert_eq!(
+        std::fs::read(world.repo.join("f.txt")).expect("f.txt"),
+        b"f.txt feature\n",
+        "the file holds the merge's own bytes, which nothing proves are not a save made after a kill"
+    );
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge saved behind an index lock that never began settles when the lock is gone,
+///  even though the person's own edits stand in the paths it changes:
+///  nothing is written over them,
+///  the saved commit stays on its ref,
+///  and the line says what to run.
+/// Why:
+///  A merge that waits out a held `index.lock` saves itself on a ref and exits 0,
+/// and the next command must finish it.
+///  Where the person has unsaved edits in the merge's paths,
+/// the capture the record holds is older than they are,
+///  and the finish refused for ever:
+/// every command exited 0 with "was not finished ... was interrupted while
+///  Git updated these files",
+/// the branch never advanced,
+/// and the only ways offered were to discard the edit or to abandon
+///  the merge (a cross-vendor audit of alpha.10,
+/// its fourth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = world(); write('f.txt', personEdit); const capture = keepCapture(captureWork(['f.txt'])); updateRef('refs/cli-git/kept/9', world.newOid); record({ carried: capture, sideRef: 'refs/cli-git/kept/9' }); const outcomes = await recover(...); expect(outcomes[0].action).toBe('deferred'); expect(read('f.txt')).toEqual(personEdit); expect(exists(record)).toBe(false); expect(refExists('refs/cli-git/kept/9')).toBe(true);
+/// ```
+#[test]
+fn a_saved_merge_whose_paths_hold_newer_edits_settles_and_names_the_ref() {
+    let world: World = world("merge-recovery-saved-behind-a-lock");
+    let id: &str = "2c2c2c2c-0000-4000-8000-0000000000c2";
+    let side_ref: &str = "refs/cli-git/kept/9";
+    let person: &[u8] = b"f.txt base\nthe person's line\n";
+    std::fs::write(world.repo.join("f.txt"), person).expect("the person's edit");
+    let context = crate::test_support::git_context();
+    let capture: crate::merge_isolation_carry_parts::Capture = crate::merge_isolation_carry::keep_capture(
+        &context,
+        world.repo.as_path(),
+        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
+    git(world.repo.as_path(), &["update-ref", side_ref, world.new_oid.as_str()]);
+    let intent: MergeIntent = MergeIntent {
+        owner: dead_owner(id),
+        repository_root: world.repo.clone(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+        side_ref: Some(String::from(side_ref)),
+        carried: Some(capture),
+    };
+    let record: PathBuf = write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command must not stop");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused, "the saved merge settles, it does not refuse: {text}");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("f.txt"), person, "the person's edit is untouched: {text}");
+    assert!(!record.exists(), "the record goes, so no later command meets it again: {text}");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "--verify", side_ref]),
+        world.new_oid,
+        "the saved merge commit stays on its ref: {text}"
+    );
+    assert!(text.contains(side_ref), "the line names the ref that keeps the merge: {text}");
+    assert!(text.contains(&format!("git merge {}", world.new_oid)), "the line says how to make the merge: {text}");
     remove(world.parent.as_path());
 }

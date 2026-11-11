@@ -148,3 +148,53 @@ pub async fn paths_the_branch_does_not_hold_awaiting(
     }
     return Ok(found);
 }
+
+/// What:
+///  Whether every path that stands in the way of a saved merge holds a file whose bytes are neither side's,
+///  which is
+///  the person's own edit and nothing a merge wrote.
+/// Why:
+///   A merge saved behind a live `index.lock` never began,
+/// and where the person's own edits stand in its paths it cannot
+///  be installed without writing over bytes only they hold.
+///  A directory in the way,
+/// or a file whose bytes are one side's and whose mode differs,
+/// is not that:
+/// both are
+///  read as they always were,
+/// and the refusal that keeps the record stands.
+///  So the answer decides between settling the record with its ref
+/// named and refusing, and it is read from the same judgements the
+///  decision already has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function thePathsHoldOnlyThePersonsOwnBytes({ place, root, changes, judgements }): Promise<boolean>; // every Foreign path a file whose file form neither side has
+/// ```
+pub async fn the_paths_hold_only_the_persons_own_bytes_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    changes: &[Change],
+    judgements: &[Judged],
+) -> bool {
+    let mut found_one: bool = false;
+    for (change, judged) in changes.iter().zip(judgements.iter()) {
+        if judged.standing != Standing::Foreign {
+            continue;
+        }
+        // A directory or another entry has no bytes of its own to judge, and a mode of the person's over a side's bytes is not an
+        //  edit this answer covers.
+        let Some(content) = judged.content.as_deref() else { return false };
+        for side in [change.old_oid.as_str(), change.new_oid.as_str()] {
+            if crate::merge_isolation_take_asides::the_file_form_of_awaiting(&place.git, root, change.path.as_slice(), side)
+                .await
+                .as_deref()
+                == Some(content)
+            {
+                return false;
+            }
+        }
+        found_one = true;
+    }
+    return found_one;
+}

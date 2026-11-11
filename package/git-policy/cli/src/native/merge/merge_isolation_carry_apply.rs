@@ -248,7 +248,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), transaction_id, out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
@@ -487,7 +487,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), transaction_id, out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
