@@ -55,7 +55,7 @@ use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
-use crate::worktree_removal_held_commits::keep_held_commits;
+use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
@@ -213,7 +213,14 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     // A held commit lives on the worktree's own reference and in its own Git directory, and both go with the removal, so
     // every one of them reaches a reference of this repository first: the ordinary `git worktree remove` keeps them the same
     // way (`worktree_removal_held_commits.rs`). Nothing here can fail the merge, so the lines are kept for the notice.
-    sweep.kept_commits = keep_held_commits(place.common_dir, place.context);
+    // A held commit that no reference could keep lives only in the worktree a removal would delete, so then nothing is
+    // removed: the refusal's paragraphs say which commit and what to do, and the sweep reports them as its reason.
+    let kept: KeptCommits = keep_held_commits(place.common_dir, place.context);
+    sweep.kept_commits = kept.said;
+    if !kept.refused.is_empty() {
+        sweep.failed = Some(kept.refused.join("\n"));
+        return sweep;
+    }
     let registered: Vec<Registration> = match registrations_of(place.common_dir) {
         Ok(found) => found,
         Err(reason) => {

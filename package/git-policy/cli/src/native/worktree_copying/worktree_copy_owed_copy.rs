@@ -782,7 +782,7 @@ pub fn finish_owed_worktree_copies(
             notices.push(owed_in_another_worktree_notice(add.destination.as_path()));
             continue;
         }
-        let journaled_here: bool = journaled.contains(add.container.as_path());
+        let journaled_here: bool = journaled.contains(&add.container);
         if let Some(notice) = finish_one_owed_copy(common_dir, &add, journaled_here, ceiling, context, stderr)? {
             notices.push(notice);
         }
