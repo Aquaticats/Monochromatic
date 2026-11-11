@@ -31,7 +31,7 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, ru
 use crate::lfs_bounded_push::run_push;
 /// The verdicts a post-commit gate kept,
 /// and where they make this push stop.
-use crate::blocked_commit_lines::{held_back_line, undecided_line, unanswered_line};
+use crate::blocked_commit_lines::{branch_name, held_back_line, undecided_line, unanswered_line};
 use crate::blocked_commit_questions::QueueHistory;
 use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops};
 /// The blocked verdicts of the worktree the push is for.
@@ -80,7 +80,8 @@ pub(crate) const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::fro
 pub enum AutoPushOutcome {
     /// Nothing was pushed.
     Skipped,
-    /// Nothing was pushed because a post-commit verdict holds the branch back;
+    /// Nothing was pushed because a post-commit verdict holds the branch back,
+    /// or because a matching push's branch moved past the commit that push may send;
     /// the branch is tried again by itself.
     HeldBack,
     /// A successful push delivered the commit.
@@ -222,6 +223,48 @@ pub(crate) enum Planned {
 }
 
 /// What:
+///  The refspec source of a push,
+///  and whether it names the branch so Git can give it an upstream.
+/// Why:
+///   Git sets an upstream only from a refspec that names a branch,
+///  and a branch may be named only while it still names the commit this push may send:
+///  a branch a verdict stops before,
+///  or one that moved after the reading,
+///  is sent as that commit alone,
+///  so the push that would set the upstream publishes nothing the branch holds beyond it,
+///  and the upstream waits for the first push that can name the branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refspec = { source, set_upstream };
+/// ```
+pub(crate) struct Refspec {
+    /// The branch or the commit the refspec sends.
+    pub(crate) source: String,
+    /// Whether the source is the branch itself,
+    /// which is what `--set-upstream` needs to set one.
+    pub(crate) set_upstream: bool,
+}
+
+/// What:
+///  The refspec of a push,
+///  from the commit it may send and whether the branch still names that commit.
+/// Why:
+///   One place decides what the refspec sends and whether Git may set the branch's upstream,
+///  so the two faces of the push cannot assemble them differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refspecOf = (pinned, branchRef, namesTheBranch) => namesTheBranch ? { source: branchRef, set_upstream: true } : { source: pinned, set_upstream: false };
+/// ```
+pub(crate) fn refspec_of(pinned: &str, branch_ref: &str, names_the_branch: bool) -> Refspec {
+    return match names_the_branch {
+        true => Refspec { source: branch_ref.to_owned(), set_upstream: true },
+        false => Refspec { source: pinned.to_owned(), set_upstream: false },
+    };
+}
+
+/// What:
 ///  The `git push` arguments that send `source` to the planned destination.
 /// Why:
 ///   The source is the branch when nothing is blocked and the base below the blocked commits when something is,
@@ -229,7 +272,8 @@ pub(crate) enum Planned {
 ///  is the same either way;
 /// the arguments are built here so the two cannot be assembled differently.
 ///   A push under `push.default=matching` names no refspec at all:
-/// Git matches the branches itself.
+/// Git matches the branches itself,
+///  which is why its source is sent only when the branch has not moved past it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -270,12 +314,12 @@ pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> V
 /// its own gate may still
 ///  refuse it,
 /// and sending the reference would publish it before that answer.
-/// The one push that gives a branch its upstream names the branch instead,
+/// The push that gives a branch its upstream names the branch instead,
 /// because Git sets an upstream
 ///  only from a refspec that names a branch;
 /// the caller that builds the refspec decides that,
-/// and every later
-///  push of the branch is fixed.
+/// and it may name the branch only while the branch still names this commit
+///  (`refspec_of`).
 pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, sent_up_to: &str) -> Option<String> {
     return match stop {
         WhereThePushStops::Nothing => Some(sent_up_to.to_owned()),
@@ -285,6 +329,52 @@ pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, sent_up_to: &str)
         },
         WhereThePushStops::Unanswered(_) => None,
     };
+}
+
+/// What:
+///  Whether the branch still names `commit`.
+/// Why:
+///   The commit a push may send was read before this push read the worktree's verdicts,
+///  so the branch's reference may name a newer commit whose gate has not answered;
+///  naming the branch is right only while the two are the same commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const branchNamesThePin = ({ gitPath, cwd }, branchRef, commit) => gitText(gitPath, ['rev-parse', '--verify', '--quiet', `${branchRef}^{commit}`], { cwd }) === commit;
+/// ```
+fn branch_names_the_pin(git: &PushGit, branch_ref: &str, commit: &str) -> Result<bool, SingleFlightError> {
+    let asked: String = format!("{branch_ref}^{{commit}}");
+    let arguments: Vec<OsString> = ["rev-parse", "--verify", "--quiet", asked.as_str()].iter().map(OsString::from).collect();
+    let output = run_query(git, &arguments)?;
+    if output.code != Some(0) {
+        // The branch names no commit at all, so it does not name this one.
+        return Ok(false);
+    }
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == commit);
+}
+
+/// What:
+///  The result of a matching push that sent nothing because the branch moved past the commit it may send.
+/// Why:
+///   A push under `push.default=matching` gives Git no refspec,
+///  so Git resolves the branch itself and would send a commit that landed after the reading,
+///  whose own gate may still keep it local.
+///  Nothing is sent, so nothing is lost,
+///  and the retry plan the service keeps tries the branch again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const movedPastThePin = (branchRef, err) => ({ outcome: 'held-back', exitCode: 0, shown: line });
+/// ```
+pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoPushResult {
+    let line: String = format!(
+        "{} moved after this push read it, and `push.default=matching` gives Git no refspec, so nothing was sent; the commit service tries the branch again.",
+        branch_name(branch_ref)
+    );
+    debug(TAG, line.as_str());
+    // Terminal output error: the line is the only diagnostic of a push that sent nothing.
+    let _written = writeln!(err, "{line}");
+    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line };
 }
 
 /// What:
@@ -447,16 +537,23 @@ pub fn push_once(
     let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };
-    // Git sets a branch's upstream only from a refspec that names a branch, and a push of a commit gives the branch none
-    //  (measured with Git 2.56.0: `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves
-    //  `branch.new.merge` unset). The one push that gives a branch its upstream therefore sends the branch, and every other push
-    //  sends the commit that push was allowed to send.
-    let source: String = match set_upstream {
-        true => pushed_ref.clone(),
-        false => pinned,
+    // Two pushes ask the branch what it names now: a matching one, which leaves the refspec to Git, and the one that would give
+    //  the branch its upstream, because Git sets an upstream only from a refspec that names a branch (measured with Git 2.56.0:
+    //  `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves `branch.new.merge` unset).
+    //  Both may name the branch only while it still names the commit this push may send.
+    let names_the_pin: bool = match sent.targets.is_empty() || set_upstream {
+        true => branch_names_the_pin(git, pushed_ref.as_str(), pinned.as_str())?,
+        false => false,
     };
+    // A matching push names no refspec at all, so Git resolves the branch itself and sends whatever it names by then: a commit that
+    //  landed after the reading has no verdict in it, and its own gate may still keep it local. Nothing is sent while the branch has
+    //  moved past the commit this push may send, and the retry plan tries the branch again.
+    if sent.targets.is_empty() && !names_the_pin {
+        return Ok(moved_past_the_pin(pushed_ref.as_str(), err));
+    }
+    let refspec: Refspec = refspec_of(pinned.as_str(), pushed_ref.as_str(), names_the_pin);
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
-    let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
+    let arguments: Vec<String> = push_arguments(refspec.source.as_str(), &sent, refspec.set_upstream);
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
     debug(TAG, &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;

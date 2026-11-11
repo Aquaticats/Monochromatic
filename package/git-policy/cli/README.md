@@ -450,7 +450,10 @@ Read-only commands,
 - After a landed commit.
   The wrapper checks the committed bytes again,
    then pushes the branch.
-  A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists.
+  A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists,
+   unless a post-commit verdict stops it before the branch's tip:
+  that push sends the commit below the refused one,
+  and the upstream is set by the first push that can name the branch.
   A branch with an upstream is pushed to it,
    including a branch whose upstream has another name,
   such as a linked worktree branch created from `origin/main`:
@@ -467,6 +470,10 @@ Read-only commands,
    so every local branch whose name exists on the remote is pushed,
   not only the recorded one,
    and a branch deleted on the remote is not recreated.
+   It runs only while the recorded branch still names the commit the push read:
+  a branch that moved sends nothing,
+  says so once,
+  and its retry plan tries it again.
    When Git refuses the setting or would push the branch nowhere
    (several `branch.<name>.merge` values under `simple` or `upstream`,
   `push.default=nothing`,
