@@ -244,6 +244,8 @@ fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
     std::fs::write(git_dir.join("MERGE_HEAD"), format!("{head}\n")).expect("merge head");
     std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'feature'\n").expect("merge message");
     std::fs::write(git_dir.join("MERGE_MODE"), "").expect("merge mode");
+    // Git 2.56 leaves the auto-merged tree behind as well, and the loop copies it like the other three.
+    std::fs::write(git_dir.join("AUTO_MERGE"), format!("{head}\n")).expect("auto merge");
     let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
     let transaction: PathBuf = root.join("transaction");
     std::fs::create_dir(&transaction).expect("transaction");
@@ -265,7 +267,7 @@ fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
     .expect("copy");
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
     assert!(synced.is_empty(), "a merge's copies are published without a flush: {synced:?}");
-    for name in ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE"] {
+    for name in ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "AUTO_MERGE"] {
         assert_eq!(
             std::fs::read_to_string(shadow.join(name)).expect("shadow copy"),
             std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
