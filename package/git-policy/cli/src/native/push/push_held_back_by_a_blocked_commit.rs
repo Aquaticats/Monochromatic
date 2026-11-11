@@ -121,7 +121,8 @@ pub trait BranchHistory {
 /// `Before` names the commits it may not publish and the commit it publishes instead,
 /// so
 ///  the plan and the result are one decision;
-/// `Undecided` names the commits whose own checks are still running, which may not be published yet either;
+/// `Undecided` names the commits whose own checks are still running,
+/// which may not be published yet either;
 /// `Unanswered` is the safe stop for a question Git could not answer,
 /// because sending
 ///  nothing loses nothing while sending a commit the gate refused cannot be undone.

@@ -101,7 +101,8 @@ The controls of the proof itself are
 The proof is a point in time,
 and the drain does not apply what it asks:
 the change a gone repository produces is applied by the service loop after the drain returns
-(`push_retry.rs`, `Retrying::apply`).
+(`push_retry.rs`,
+`Retrying::apply`).
 A repository renamed away and back in that gap,
 or one whose drive comes back then,
 reads as gone when it was looked at and is reachable when the plan would be dropped.
@@ -110,7 +111,9 @@ The forget a gone repository produces therefore carries `only_while_unreachable`
 and the applier asks the filesystem once more before it drops the plan:
 a Git directory that names a directory now keeps its plan,
 and one that is still missing ends it as before.
-Every other forget (a push that landed, one that needs the person, one whose record is no longer acceptable)
+Every other forget (a push that landed,
+one that needs the person,
+one whose record is no longer acceptable)
 is a decision about the work and not a reading of the filesystem,
 so it is applied whatever the path shows.
 

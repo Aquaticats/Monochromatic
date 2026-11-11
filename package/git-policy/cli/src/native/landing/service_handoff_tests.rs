@@ -574,13 +574,16 @@ fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
 }
 
 /// What:
-///  A refusal is flushed, with its directory, before the record that holds it is given up.
+///  A refusal is flushed,
+///  with its directory,
+///  before the record that holds it is given up.
 /// Why:
 ///  A machine crash loses an unflushed rename,
 ///  and the record left behind would say the checks never decided,
 ///  which no push reads as a stop:
 ///  the refused commit would be published by the next push of its branch.
-///  The pass keeps its no-flush rule, which the control above it states.
+///  The pass keeps its no-flush rule,
+///  which the control above it states.
 #[test]
 fn a_refusal_is_flushed_before_its_record_is_given_up() {
     let root: std::path::PathBuf = fixture("handoff-refusal-durable");

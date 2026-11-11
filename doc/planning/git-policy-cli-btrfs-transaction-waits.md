@@ -135,8 +135,8 @@ and the kernel lines that decide what it waits for.
   which reads as no verdict and keeps the commit local,
   while a lost refusal reads the same way and lets the next push of the branch publish a commit the gate refused.
   The refusal therefore goes through `replace_private_file`,
-  and the `blocked` verdict that settles it (`work_item_holding.rs`, `block`) goes through `write_private_file` with
-  `sync_directory` before the held record is given up,
+  and the `blocked` verdict that settles it (`work_item_holding.rs`,
+  `block`) goes through `write_private_file` with `sync_directory` before the held record is given up,
   so the one durable copy of the refusal is on the disk before anything reads it as absent.
   Both syncs are on the refusal's path alone,
   which ends the command with `2` after a policy said no,

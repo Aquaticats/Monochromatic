@@ -116,7 +116,9 @@ pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict,
 /// What:
 ///  `record_verdict` with the record's durability given.
 /// Why:
-///   Only the refusal waits for the disk: a pass may be lost, because the record it was found in then says the checks never
+///   Only the refusal waits for the disk:
+/// a pass may be lost,
+/// because the record it was found in then says the checks never
 ///  decided and the commit stays local,
 /// while a lost refusal is a commit a later push publishes.
 ///
@@ -242,8 +244,12 @@ pub fn undecided_commits(work_dir: &Path, branch_ref: &str) -> Vec<String> {
         if holding.verdict != Verdict::Undecided || holding.holder.is_empty() || proven_gone(holding.holder.as_str()) {
             continue;
         }
-        // An earlier release's name and this release's name can both hold one commit.
-        if !commits.iter().any(|known| { return known == commit; }) {
+        // An earlier release's name and this release's name can both hold one commit, so the answer is one commit.
+        let mut known: bool = false;
+        for earlier in &commits {
+            known = known || earlier.as_str() == commit;
+        }
+        if !known {
             commits.push(commit.to_owned());
         }
     }
@@ -317,15 +323,21 @@ pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
     }
     let path: PathBuf = blocked.join(id.as_str());
     let record: String = blocked_record(item.branch_ref.as_str(), item.oid.as_str(), reason);
-    match write_private_file(path.as_path(), record.as_bytes()).and_then(|()| sync_directory(blocked.as_path())) {
-        // A verdict on this commit is already kept: it is the same stop, and the record that named it can go.
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => forget_held(work_dir, id.as_str()),
-        Ok(()) => forget_held(work_dir, id.as_str()),
+    match write_private_file(path.as_path(), record.as_bytes()) {
+        // A verdict on this commit is already kept: it is the same stop, and its directory entry is already there.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => {
             crate::service_error!("the blocked verdict of the push record {id} cannot be kept: {error}");
             return false;
         }
+        Ok(()) => {}
     }
+    // The name is the last part of the verdict a crash can lose, so the directory that holds it is flushed too.
+    if let Err(error) = sync_directory(blocked.as_path()) {
+        crate::service_error!("the blocked verdict of the push record {id} cannot be flushed: {error}");
+        return false;
+    }
+    forget_held(work_dir, id.as_str());
     return true;
 }
 

@@ -9746,15 +9746,6 @@ A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
 so the next push from that branch carries it.
-A record whose command still runs decides the other way:
-that command's checks may refuse the commit,
-so the automatic push stops before it until they answer
-(see "A blocked commit is never published").
-A command whose output a program reads settles the held records too and shows no line,
-because the settlement is not a notice:
-the approval a dead command recorded must not wait for a command a person types,
-and a workflow of scripts types no other kind.
-It takes no push-failure notice and no held line, as it takes none of the other notices.
 Every command in the worktree says so in one line,
 read from the held records themselves:
 which commit is held,
@@ -9787,6 +9778,16 @@ which can stop a push that verdict never concerned,
 and no line names it,
 because no branch can be named.
 
+A record whose command still runs decides the other way:
+that command's checks may refuse the commit,
+so the automatic push stops before it until they answer
+(see "A blocked commit is never published").
+A command whose output a program reads settles the held records too and shows no line,
+because the settlement is not a notice:
+the approval a dead command recorded must not wait for a command a person types,
+and a workflow of scripts types no other kind.
+It takes no push-failure notice and no held line,
+as it takes none of the other notices.
 A held record is settled when Git proves its commit reached the remote.
 The question is put to the local repository alone,
 because a command asks no remote:
