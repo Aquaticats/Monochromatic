@@ -5006,6 +5006,16 @@ mise run //package/git-policy/cli:native:test:container
   other,
   and either one still fails the gate on its own
   (`bin/native-gate-checks.ts`).
+  Each check is given one hour,
+  three times the slowest measured phase of the gate,
+  and a check that reaches that bound stops the client that ran its container,
+  removes the container by the ID file that client wrote,
+  and reports the bound it missed
+  (`bin/native-gate-container.ts`).
+  The gate waits three minutes past that bound for a check which never settles at all,
+  then refuses naming both checks,
+  so a container that never ends refuses the gate instead of holding a release open
+  ("nothing should ever wait forever or indefinitely").
   Before it copies or builds anything it runs `lint:sidecar-locks`,
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
