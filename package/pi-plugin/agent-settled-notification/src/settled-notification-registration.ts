@@ -259,6 +259,9 @@ function registerAgentSettledNotification(
   /**
    Removes one delivery from the tracked set once it has finished reporting.
 
+   The delivery never rejects: `deliverAndReport` reports every outcome itself, so
+   the floating completion started beside it cannot become an unhandled rejection.
+
    @param delivery - delivery whose completion is awaited
    */
   async function forgetDelivery(delivery: Promise<void>,): Promise<void> {

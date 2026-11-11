@@ -249,7 +249,7 @@ await describe({
         },),
 
         it({
-          name: 'reports the executable own refusal text once every attempt failed',
+          name: 'reports the refusal text the executable wrote once every attempt failed',
           fn: async () => {
             /** Delivery replay refused by every attempt. */
             const replay = deliveryReplay([REFUSED,],);
