@@ -34,6 +34,10 @@ The owner wrote on 2026-11-10:
 and "And you have 62 slots."
 (Neuralwatt 20, Neuralwatt flex 22, opencode-go 20;
 `start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room, in that order).
+The owner changed the Neuralwatt limits on 2026-11-11 at about 17:05:
+"Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
+So the pools are Neuralwatt DeepSeek 18, Neuralwatt DeepSeek flex 20, Neuralwatt Kimi flex 20 (each per model), opencode-go 20, and the qwen plan 4 (comparison runs only);
+the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
