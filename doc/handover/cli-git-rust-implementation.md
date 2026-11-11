@@ -292,8 +292,31 @@ Eighteen more Kimi reviews came back, fourteen with findings;
 fix agents for the gravest started in rounds 159 and 160 (ten),
 four reviews that ended on model errors were started again,
 and ten fix agents of rounds 155 and 156 finished, to merge as pass 8.
+The owner came back at 2026-11-11T05:30-05:00 and asked "What is going on? Why did you downgrade everything to 6 and 7?",
+then decided two things:
+"I've re-enabled auto-renew. Treat the prev Neuralwatt 429s void."
+(the launcher's pools are back to standard DeepSeek 20, DeepSeek flex 22, Kimi flex 22;
+the DeepSeek flex 7 had been an unmeasured assumption),
+and, asked whether to hold `0.6.1-alpha.10` for the new data-loss findings,
+picked "Release now, fixes in alpha.11".
+That choice is also an older standing rule the coordinator misapplied overnight:
+"didn't I also say reviews and mutation testings don't block publishing?"
+(recorded under "Working rules for this effort"),
+so review findings become follow-up fixes and later releases, never a hold.
+`main` merged into the integration at `b96767962c`;
+the release gate runs on it
+(unit `gpc-gate-wrapper-alpha-10-on-b96767962c-20261111T053330-0500`, log in `~/temp/agent/gate/`).
+`native:gate:verdict` could not run in the integration worktree
+("Cannot find package '@monochromatic-dev/async-time-core'"),
+so the verdict is read with `~/temp/agent/gate/wait-for-gate-verdict.ts`;
+the task failing outside a fully installed checkout is a defect to fix.
+Pass 8's first merge failed with "fatal: unable to create threaded lstat: Resource temporarily unavailable"
+(the host near its thread limit under about 30 agents' builds);
+the wrapper applied nothing and said so, and pass 8 is retried after the release.
 Next:
-pass 8 and its suites,
+the gate's verdict, then merge to `main`, `native:clippy` on `main`, `native:release`, `native:release:wait`,
+the upgrade and a sample commit (nothing touching the release's paths lands on `main` until the bump commit is there),
+pass 8 and its suites for alpha.11,
 the fix agents' reproductions,
 the suites on `6df69b62f8` and the checks of `crate-release`, `cargo-shadow` and `mpm-shadow`,
 the Kimi reviews of the newly merged branches,

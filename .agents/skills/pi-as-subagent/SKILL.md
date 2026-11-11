@@ -117,15 +117,20 @@ so pay-as-you-go limits apply until it renews."
 The rate-limit endpoint still answered `effective_concurrency` 20 then,
 so the 429 is what tells;
 Pi ends the run on it instead of retrying.
-The launcher's standard pool holds 6 runs until the owner turns auto-renew back on,
-which is the owner's billing decision.
 The same night 20 of 28 Kimi reviews on Kimi flex ended on
 "You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 7 in flight at once).
-Flex requests have a separate per-account concurrency limit from standard requests.",
-so the Kimi flex pool holds 7,
-not the 22 of the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something.";
-the DeepSeek flex pool is set to 7 on the assumption that the same per-model flex limit applies.
-Restart a run that ended this way under its own name;
+Flex requests have a separate per-account concurrency limit from standard requests."
+For a few hours the launcher held standard DeepSeek at 6 and both flex pools at 7,
+the DeepSeek flex 7 an assumption never measured.
+The owner then wrote,
+2026-11-11T05:40-05:00:
+"I've re-enabled auto-renew. Treat the prev Neuralwatt 429s void."
+So the pools are back to standard DeepSeek 20,
+DeepSeek flex 22 and Kimi flex 22,
+and only a 429 seen after that sets a lower number;
+a limit is lowered from a measured refusal,
+never from an assumption about another model.
+Restart a run that ended on a 429 under its own name;
 its worktree keeps the work.
 Two launcher defects showed that night,
 fixed in the scratch launcher and owed to `package/pi-shared/subagent-driver`:
