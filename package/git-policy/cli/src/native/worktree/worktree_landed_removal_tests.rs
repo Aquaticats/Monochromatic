@@ -424,6 +424,51 @@ fn a_swept_worktrees_unshown_push_failure_is_shown_by_the_next_command() {
     );
 }
 
+/// What:
+///  A merge run again after a refused sweep looks at no landed worktree,
+///  and writes no kept reference,
+///  which is why the notice names the removal that finishes the work instead.
+/// Why:
+///  The refusal used to prescribe the same command again,
+///  and the command that reaches the sweep is a merge:
+///  its branch already landed,
+///  so the head does not move and the sweep is skipped,
+///  and the person following the advice got silence and no preserved commit
+///  (a cross-vendor review of the landed sweep,
+///  finding 2).
+///  This control pins that fact:
+/// if the sweep ever gains a retry,
+///  it fails,
+/// and the notice that says a merge again removes nothing is read again.
+#[test]
+fn a_merge_run_again_after_a_refusal_looks_at_no_landed_worktree() {
+    let landed: Landed = a_repository_with_a_worktree("landed-refusal-retry");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let _held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    for name in ["refs/cli-git/kept/7", "refs/cli-git/kept/7-rescue"] {
+        plant_lock(landed.common.as_path(), name);
+    }
+    let identity: crate::worktree_identity::WorktreeIdentity = crate::worktree_identity::WorktreeIdentity::MainWorktree {
+        common_dir: landed.common.clone(),
+        git_dir: landed.common.clone(),
+        worktree_root: landed.main.clone(),
+    };
+    let (context, window) = crate::worktree_landed_after_a_merge::window(git_context(), &identity).expect("the branch as the merge finds it");
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let first: LandedSweep = crate::worktree_landed_after_a_merge::after_a_merge(&context, &identity, &window, 0).expect("the merge landed the branch");
+    assert!(first.failed.is_some(), "neither kept reference can be written: {first:?}");
+    assert!(landed.worktree.exists(), "the refusal leaves the worktree where it is");
+    for name in ["refs/cli-git/kept/7", "refs/cli-git/kept/7-rescue"] {
+        std::fs::remove_file(landed.common.join(format!("{name}.lock"))).expect("the lock nothing holds is removed");
+    }
+    let (retry_context, retry_window) = crate::worktree_landed_after_a_merge::window(git_context(), &identity).expect("the branch as the retry finds it");
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let retry: Option<LandedSweep> = crate::worktree_landed_after_a_merge::after_a_merge(&retry_context, &identity, &retry_window, 0);
+    assert!(retry.is_none(), "a merge whose branch already landed moves nothing and looks at no worktree: {retry:?}");
+    assert!(landed.worktree.exists(), "the worktree is where the refusal left it");
+    assert!(!landed.common.join("refs/cli-git/kept/7").exists(), "the retry wrote no kept reference");
+}
+
 #[test]
 fn a_landed_clean_worktree_is_removed_and_its_branch_stays() {
     let landed: Landed = a_repository_with_a_worktree("landed-clean");
