@@ -197,6 +197,45 @@ the reader must return that start time for a running process,
 nothing for a zombie or dead one,
 and refuse a line without the start time or without a closing parenthesis.
 
+### `index_lock_records`
+
+Runs `parse_pid_file_text`,
+the reader of a Git PID file,
+and `parse_linux_stat`,
+the reader of the start time in `/proc/<pid>/stat`,
+over raw bytes and over text built from the input.
+The index-lock evidence decides between waiting without limit and retiring a lock,
+so what these two readers accept must mean one thing.
+A built PID file chooses its prefix
+(the accepted `pid `,
+three near misses and a text that is not a PID),
+its suffix
+(none,
+JavaScript whitespace,
+and text that is not whitespace),
+and its digits
+(a positive value,
+zero,
+a leading-zero spelling,
+a value past the safe integer range,
+and text).
+Only the accepted prefix with a whitespace-only suffix may read as a PID,
+that PID is from 1 to the safe-integer bound,
+and rewriting the accepted text as `pid <pid>` with one line feed gives the same PID back.
+A built stat line chooses up to three command-name pieces
+(spaces,
+parentheses,
+`) ` sequences and text that is not ASCII),
+a process state,
+and a start-tick field
+(a positive value,
+a value past the safe integer range,
+and non-digits).
+The last `)` ends the command name,
+so the reader finds the state and the start time after it,
+a start tick is only ever a value from 0 to the safe-integer bound,
+and a state carries no space.
+
 ### `owner_claim_record`
 
 Runs `decode`,
@@ -306,6 +345,51 @@ the finding or the empty source.
 The two size bounds are far above the input limit,
 so a control builds the two oversized runs instead.
 
+### `event_path`
+
+Runs the event form of a pathname,
+its standard base64,
+and the rendered finding and fix-summary lines over raw bytes.
+Git allows any byte in a name,
+so a line must carry the readable text and,
+for a name that is not UTF-8,
+the exact bytes,
+without breaking its JSON line.
+The text is the lossy reading of the bytes,
+`path` is that reading,
+`pathBytes` is present exactly when the name is not UTF-8,
+and the base64 holds `ceil(len / 3) * 4` characters and decodes back to the same bytes.
+A line ends with exactly one line feed,
+and a fix summary lists the base64 of every changed path,
+the plain one first,
+only when one of them is not UTF-8.
+
+### `linter_config`
+
+Runs `one_rule_configuration`,
+which builds the single-rule linter configuration the Markdown policy runs,
+over exclude patterns built from the input,
+and reads the document back with an independent JSONC parser.
+The repository chooses the patterns,
+so none may change the document's structure:
+it holds one block whose `files` is the shipped pattern list and whose `rules` holds one rule,
+`markdown/lfs-image-url` at `warn`,
+with exactly the chosen patterns as `exclude`.
+
+### `dbus_reply`
+
+Runs `decode_reply`,
+the reply reader of the session bus client,
+over raw bytes and over an error or method-return message built from the input.
+The bytes come from a socket another process writes,
+so the reader answers every input without panicking,
+and an error name or a text it reports is never longer than the message it came from.
+A built message chooses its reply serial,
+whether it is a return or an error,
+an error name and a first text,
+and the reader gives back exactly those fields;
+every prefix of that message is read without a panic as well.
+
 ## Controls
 
 `mise run //package/git-policy/cli.fuzz:test` runs the generator controls.
@@ -393,11 +477,17 @@ then fuzzes each target for 30 seconds without host mounts
 under the shared container bounds
 (`defaultContainerLimits`,
 re-exported by `package/git-policy/cli/bin/container-limits.ts`:
-2 GiB,
 2 CPUs,
 512 PIDs),
 and a 4,096-byte input limit
 (`maxInputBytes` in `bin/fuzz-images.ts`).
+The containers that compile and lint the targets take more memory than the shared 2 GiB,
+because cargo-fuzz asks for one code generator for the whole wrapper library:
+the AddressSanitizer build of every target peaked at 4.71 GiB,
+and at 2 GiB the kernel killed the compiler of `monochromatic-git-policy-cli`
+(`buildMemory` in `bin/fuzz-images.ts` carries that measurement beside the size it chose).
+The containers that run a target keep the shared bound,
+which the manifest's `memory` records beside `buildMemory`.
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,
 for example `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=1800`;
