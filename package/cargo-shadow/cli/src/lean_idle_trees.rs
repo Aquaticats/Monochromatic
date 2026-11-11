@@ -167,8 +167,8 @@ pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
 }
 
 /// What:
-/// `fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf>` is the tree of the
-/// base,
+/// `fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf>` is the tree
+/// of the base,
 /// other than the one given,
 /// that the recorded workspace of the tree given lies inside.
 /// Why:
