@@ -82,6 +82,15 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 /// The forward action for these fixtures:
 ///  real Git,
 ///  the lock-PID overlay and no warning.
+/// Why:
+///   Every routing control here,
+///  in `entry_announced_tests.rs` and in `entry_stop_tests.rs`,
+///  compares planning's answer against this,
+///  and planning takes the controlling terminal from the inputs it was handed (`inputs_at`),
+///  which is `Terminal::Present` here;
+/// a fixture that read the runner's own terminal instead would disagree with them on a run without one.
+///   The never-prompt pair a command without a terminal earns is appended from that answer,
+///  and its variables and order are proven in `child_environment_tests.rs`.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),

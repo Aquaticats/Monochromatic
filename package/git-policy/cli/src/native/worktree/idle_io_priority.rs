@@ -28,7 +28,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! withIdleIoPriority(() => removeTree(...)); // ioprio_set(thread, IDLE) ... ioprio_set(thread, before)
+//! withIdleIoPriority(state, removeTree); // ioprio_set(thread, IDLE) ... ioprio_set(thread, before)
 //! ```
 
 /// The `ioprio_set(2)` selector for one thread:
@@ -53,6 +53,16 @@ const WHO_PROCESS: libc::c_int = 1;
 const IDLE: libc::c_int = (3 << 13) | 0;
 
 /// What:
+///  Whether a value the kernel answered is a priority it reported,
+///  rather than the failure it answers with.
+/// Why:
+///   The read reports a refusal as a negative number,
+/// so a value at or above zero is the only one worth restoring later.
+fn is_a_priority(value: &libc::c_int) -> bool {
+    return *value >= 0;
+}
+
+/// What:
 ///  The I/O priority this thread has now,
 /// or nothing when the kernel will not say.
 /// Why:
@@ -68,7 +78,7 @@ const IDLE: libc::c_int = (3 << 13) | 0;
 fn priority_here() -> Option<libc::c_int> {
     // The call answers the priority itself, or -1 with the reason in `errno`; nothing else is written.
     let found: libc::c_long = unsafe { libc::syscall(libc::SYS_ioprio_get, WHO_PROCESS, 0 as libc::c_int) };
-    return libc::c_int::try_from(found).ok().filter(|value: &libc::c_int| return *value >= 0);
+    return libc::c_int::try_from(found).ok().filter(is_a_priority);
 }
 
 /// What:
@@ -98,19 +108,24 @@ fn set_priority_here(value: libc::c_int) -> bool {
 ///  priority matters;
 /// setting it here covers every removal that goes through this call,
 /// and restoring it keeps the pool's
-///  other work (a push reading a pack, a review reading a commit) at the priority it expects.
+///  other work (a push reading a pack,
+/// a review reading a commit) at the priority it expects.
 /// A value that cannot be read or set leaves the thread alone in that direction:
 /// no write without a
-///  reading to restore, and no promise that the class changed.
+///  reading to restore,
+/// and no promise that the class changed.
+/// The work's own state arrives as `state`,
+/// so the removal it runs is a function a reader can look up
+///  instead of a closure written where it is called.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function withIdleIoPriority(work) { const before = priorityHere(); const lowered = setPriorityHere(IDLE); try { return work(); } finally { if (lowered && before !== undefined) setPriorityHere(before); } }
+/// function withIdleIoPriority(state, work) { const before = priorityHere(); const lowered = setPriorityHere(IDLE); try { return work(state); } finally { if (lowered && before !== undefined) setPriorityHere(before); } }
 /// ```
-pub fn with_idle_io_priority<T>(work: impl FnOnce() -> T) -> T {
+pub fn with_idle_io_priority<S, T>(state: S, work: fn(S) -> T) -> T {
     let before: Option<libc::c_int> = priority_here();
     let lowered: bool = set_priority_here(IDLE);
-    let outcome: T = work();
+    let outcome: T = work(state);
     if lowered
         && let Some(value) = before
     {

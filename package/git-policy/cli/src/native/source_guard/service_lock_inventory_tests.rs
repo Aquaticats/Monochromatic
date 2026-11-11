@@ -53,8 +53,10 @@ const COVERED_PREFIXES: &[&str] = &[
 ];
 
 /// The source files that ship nothing:
-///  a mock server and fixtures,
-///  declared under `#[cfg(test)]` in their folder's module tree.
+///  a mock server,
+///  a fixture,
+/// and the hooks a control sets at a fault point of the service,
+///  each declared under `#[cfg(test)]` in its folder's module tree.
 /// Why:
 ///   Their locks are a test's own,
 ///  and an inventory entry would say one of them ships;

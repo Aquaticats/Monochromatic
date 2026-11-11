@@ -15,7 +15,8 @@
 //! with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 //! So the add writes the record,
-//! tells the service, and returns.
+//! tells the service,
+//! and returns.
 //! The record lives in the
 //!  repository's common work directory rather than in the new worktree's,
 //! because that is what makes one repository empty its trashes
@@ -170,6 +171,18 @@ pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
 }
 
 /// What:
+///  What the provisioner answered for the host this repository needs,
+/// or nothing when the repository needs no setup at all.
+/// Why:
+///   The answer is asked before the service is woken,
+/// so a setup that fails ends the handover with the reason the person can act on,
+/// and a repository whose units are already installed pays nothing for it.
+fn the_provisioners_answer(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<Result<(), ClientFailure>> {
+    let setup: &ProvisionHost = host?;
+    return Some(provisioner(setup));
+}
+
+/// What:
 ///  `hand_over_to_the_service` with the route finder and the provisioner injected,
 /// so a control reaches no
 ///  service and no session bus.
@@ -192,7 +205,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| return (reach.provisioner)(setup)) {
+        Some(Route { address, provision: host }) => match the_provisioners_answer(reach.provisioner, host.as_ref()) {
             Some(Err(failure)) => Err(render(&failure)),
             _ => {
                 let config: ClientConfig = ClientConfig {

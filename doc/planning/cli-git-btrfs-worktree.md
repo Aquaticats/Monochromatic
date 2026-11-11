@@ -18,6 +18,11 @@ the sections "Snapshot flow (rung 1)" and
 and "Implemented flow and what superseded the proposal" says what the
 code does now.
 The measurements and the owner's decisions in this record stand.
+The removal's own cost,
+counted per route in system calls,
+and the forced form the wrapper serves now,
+are measured in
+`doc/planning/cli-git-worktree-removal-cost-and-disk-time.md`.
 Scope:
 `package/git-policy/cli` (crate `monochromatic-git-policy-cli`),
 Linux only.

@@ -461,6 +461,24 @@ pub fn stderr_of(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stderr).into_owned();
 }
 
+/// What:
+///  Standard error of an observed command as text,
+///  without the notices that say a step of the wrapper waited
+///  (`without_wait_notices`).
+/// Why:
+///  A command whose landing ran past a notice grace prints one however healthy it is,
+/// and a loaded host
+///  decides that,
+/// so a control that means the words the command said compares these.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = withoutWaitNotices(observed.stderr).toString();
+/// ```
+pub fn stderr_without_wait_notices(observed: &Observed) -> String {
+    return String::from_utf8_lossy(without_wait_notices(&observed.stderr).as_slice()).into_owned();
+}
+
 
 
 
