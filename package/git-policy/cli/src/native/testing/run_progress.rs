@@ -26,6 +26,10 @@
 //! and neither is the run working,
 //!  so only a
 //!  figure that grew counts.
+//! A task that ends takes every byte and tick it moved out of the totals,
+//! so the totals can fall while a task that stayed moved:
+//! each task's own figures are compared with the ones it showed before,
+//! and a task a look finds where the look before found none is a task that started.
 //!  Those are the signs the wrapper's own wait for a child process reads (`push_progress.rs`),
 //! so a test run
 //!  and a shipped wait are judged alike.
@@ -210,21 +214,61 @@ fn the_readers() -> Vec<Reader> {
 }
 
 /// What:
-///  What one look at the run found,
-/// added up over every task of this process and of the processes it started.
+///  What one task had moved when a look saw it.
 /// Why:
-///   Bytes and processor ticks only grow,
-/// and a task able to run or waiting for the disk is at work now,
-/// so a look
-///  says whether anything moved since the one before it.
-/// A figure that fell says a task ended or could not be read,
-///  which is not the run working.
+///   A task's own bytes and processor ticks only grow,
+/// and a task that ends takes its figures out of the totals a look adds up,
+/// so the totals can fall while a task that stayed moved;
+/// the figures of the tasks themselves are what says a task grew.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Look = { bytes: number; ticks: number; working: boolean; members: number };
+/// type TaskFigures = { task: bigint; bytes: number; ticks: number };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TaskFigures {
+    /// The process and the task the kernel numbers,
+    /// packed into one figure.
+    pub task: u64,
+    /// Every byte this task read and wrote so far.
+    pub bytes: u64,
+    /// Every processor tick this task used so far.
+    pub ticks: u64,
+}
+
+/// What:
+///  The one figure a task's process number and its task number make together.
+/// Why:
+///   A task is named by both, because a thread of one process can carry a number another process gave its own thread,
+/// and the two figures are put side by side so one number names the task in `Look`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taskNumber = (process: number, task: number) => (BigInt(process) << 32n) | BigInt(task);
+/// ```
+fn task_number(process: i32, task: i32) -> u64 {
+    let process: u64 = u64::try_from(process).unwrap_or(0);
+    let task: u64 = u64::try_from(task).unwrap_or(0);
+    return (process << 32) | task;
+}
+
+/// What:
+///  What one look at the run found:
+/// the totals it added up over every task of this process and of the processes it started,
+/// and what each of those tasks had moved.
+/// Why:
+///   A task able to run or waiting for the disk is at work now,
+/// and its own bytes and processor ticks only grow,
+/// so a look
+///  says whether anything moved since the one before it.
+/// The totals can fall while a task that stayed moved,
+/// so the judge reads the tasks themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Look = { bytes: number; ticks: number; working: boolean; members: number; tasks: TaskFigures[] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Look {
     /// Every byte the run's tasks read and wrote,
     /// from their `io` files.
@@ -236,6 +280,9 @@ pub(crate) struct Look {
     pub working: bool,
     /// How many tasks were seen.
     pub members: u64,
+    /// What each task the look found had moved,
+    /// so the next look can tell a task that moved from one that ended.
+    pub tasks: Vec<TaskFigures>,
 }
 
 /// What:
@@ -302,7 +349,7 @@ impl std::fmt::Display for Ending {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tally = { bytes: 0, ticks: 0, working: false, members: 0, readable: false };
+/// const tally = { bytes: 0, ticks: 0, working: false, members: 0, tasks: [], readable: false };
 /// ```
 #[derive(Debug, Default)]
 struct Tally {
@@ -317,11 +364,32 @@ struct Tally {
     working: bool,
     /// How many tasks were counted.
     members: u64,
+    /// What each task counted had moved.
+    tasks: Vec<TaskFigures>,
     /// Whether any task's counters could be read.
     readable: bool,
 }
 
 impl Tally {
+    /// What:
+    ///  Add one task's figures to this look,
+    ///  and to the totals that say what the run moved.
+    /// Why:
+    ///   A total and the tasks it was added from must never disagree,
+    /// because the judge reads the tasks and the report reads the totals,
+    /// so one place adds both.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// tally.noteTask({ task, bytes, ticks }); // totals += figures; members += 1; tasks.push(figures)
+    /// ```
+    fn note_task(&mut self, figures: TaskFigures) {
+        self.members = self.members.saturating_add(1);
+        self.bytes = self.bytes.saturating_add(figures.bytes);
+        self.ticks = self.ticks.saturating_add(figures.ticks);
+        self.tasks.push(figures);
+    }
+
     /// What:
     ///  Add what the looking thread has moved that no reading of its own accounts for,
     ///  and count every reading this look takes of it.
@@ -341,16 +409,17 @@ impl Tally {
     /// Only the disk wait counts for its state,
     ///  never state `R`:
     /// the reader is running because it is taking this very look.
-    fn add_the_readers_own_counters(&mut self, task: &std::path::Path, own_readings: u64) {
+    fn add_the_readers_own_counters(&mut self, number: i32, reader: i32, task: &std::path::Path, own_readings: u64) {
         let Ok(io) = std::fs::read_to_string(task.join("io")) else { return };
         self.read_bytes = self.read_bytes.saturating_add(io.len() as u64);
         // Its processor time is this look's too, so the run is judged on what it moved that was not a reading.
-        self.bytes = self.bytes.saturating_add(bytes_in(io.as_str()).saturating_sub(own_readings));
+        let moved: u64 = bytes_in(io.as_str()).saturating_sub(own_readings);
         let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
         self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
         let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
         self.working = self.working || state == 'D';
+        self.note_task(TaskFigures { task: task_number(number, reader), bytes: moved, ticks: 0 });
     }
 
     /// What:
@@ -375,21 +444,20 @@ impl Tally {
         self.working = self.working || state == 'D';
     }
 
-    /// Add the counters of the task whose directory under `/proc` is `task`,
+    /// Add the counters of task `task` of process `number`,
+    /// whose directory under `/proc` is `folder`,
     /// and leave the tally alone where they cannot be read.
-    fn add_task(&mut self, task: &std::path::Path) {
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
+    fn add_task(&mut self, number: i32, task: i32, folder: &std::path::Path) {
+        let Ok(stat) = std::fs::read_to_string(folder.join("stat")) else { return };
         self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
         let Some((state, ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
-        self.members = self.members.saturating_add(1);
-        self.ticks = self.ticks.saturating_add(ticks);
         self.working = self.working || is_working(state);
         // A kernel without task I/O accounting has no `io` file; its tasks are still seen to run and to wait.
-        let io: Option<String> = std::fs::read_to_string(task.join("io")).ok();
+        let io: Option<String> = std::fs::read_to_string(folder.join("io")).ok();
         self.read_bytes = self.read_bytes.saturating_add(io.as_ref().map_or(0, |text: &String| { return text.len() as u64; }));
         let bytes: u64 = io.map_or(0, |text: String| { return bytes_in(text.as_str()); });
-        self.bytes = self.bytes.saturating_add(bytes);
+        self.note_task(TaskFigures { task: task_number(number, task), bytes, ticks });
     }
 
     /// Add every task of the process `number`,
@@ -403,7 +471,7 @@ impl Tally {
             if leaving_out.contains(&tid) {
                 continue;
             }
-            self.add_task(task.path().as_path());
+            self.add_task(number, tid, task.path().as_path());
         }
     }
 }
@@ -525,7 +593,7 @@ fn look(reader: i32) -> Option<Look> {
     // What the looking thread moved that no reading of its own accounts for is the run's work, and the reading that
     //  learns this is itself taken off the next look (`Tally::add_the_readers_own_counters`).
     let own_readings: u64 = OWN_READINGS.with(std::cell::Cell::get);
-    tally.add_the_readers_own_counters(std::path::Path::new(format!("/proc/{own}/task/{reader}").as_str()), own_readings);
+    tally.add_the_readers_own_counters(own, reader, std::path::Path::new(format!("/proc/{own}/task/{reader}").as_str()), own_readings);
     // Another reader's disk wait is work whatever reader took the look, and nothing else of it is counted: its bytes
     //  would be its own readings, which only its own looks can take off.
     for each in &readers {
@@ -545,7 +613,7 @@ fn look(reader: i32) -> Option<Look> {
     }
     // Every byte this look read was read by this thread, so its next look takes exactly these off.
     OWN_READINGS.with(|readings: &std::cell::Cell<u64>| { readings.set(own_readings.saturating_add(tally.read_bytes)); });
-    return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members });
+    return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members, tasks: tally.tasks });
 }
 
 /// What:
@@ -595,10 +663,16 @@ impl Judge {
             return self.ending_without_a_look(elapsed);
         };
         self.last_read = Some(elapsed);
-        // Only a figure that grew is work: a figure that fell means a task ended, or one could not be read, and neither
-        //  is the run doing anything. A count that fell at every look would otherwise keep a quiet run alive for ever.
-        let moved: bool = self.previous.is_none_or(|before: Look| {
-            return current.bytes > before.bytes || current.ticks > before.ticks || current.members > before.members;
+        // A task's own figures only grow, so a task that shows more than it did before is at work,
+        //  where a task that ended only leaves the totals smaller and that is not the run doing anything.
+        let moved: bool = self.previous.as_ref().is_none_or(|before: &Look| {
+            return current.tasks.iter().any(|now: &TaskFigures| {
+                return match before.tasks.iter().find(|then: &&TaskFigures| { return then.task == now.task; }) {
+                    Some(then) => now.bytes > then.bytes || now.ticks > then.ticks,
+                    // A task this look sees and the look before it did not is a task that started.
+                    None => true,
+                };
+            });
         });
         if moved || current.working {
             self.last_change = elapsed;

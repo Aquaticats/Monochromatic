@@ -13,9 +13,23 @@ use super::*;
 use crate::test_support::{arm_watchdog, fixture, forbid_core_dumps, remove, spawn_owned, this_test_binary};
 use std::os::unix::process::ExitStatusExt as _;
 
-/// A look at a run in which nothing is able to run and nothing waits for the disk.
+/// What:
+///  A look at a run in which nothing is able to run and nothing waits for the disk,
+///  made of `members` tasks that had each moved `bytes` and used `ticks`.
+/// Why:
+///   A look's totals are the sum of the tasks it found,
+/// and the judge reads the tasks,
+/// so a look whose tasks each moved a figure is a look whose totals moved it as many times.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moved = (bytes, ticks, members) => ({ bytes: bytes * members, ticks: ticks * members, working: false, members, tasks: [...members].map((task) => ({ task, bytes, ticks })) });
+/// ```
 fn moved(bytes: u64, ticks: u64, members: u64) -> Look {
-    return Look { bytes, ticks, working: false, members };
+    let tasks: Vec<TaskFigures> = (0..members)
+        .map(|task: u64| { return TaskFigures { task, bytes, ticks }; })
+        .collect();
+    return Look { bytes: bytes.saturating_mul(members), ticks: ticks.saturating_mul(members), working: false, members, tasks };
 }
 
 /// A run that keeps moving is left alone,
@@ -48,7 +62,7 @@ fn a_run_that_stops_moving_is_ended_after_the_window() {
     let stopped: Look = moved(2 * 4096, 1, 3);
     let mut ended: Option<Ending> = None;
     for _ in 0..10 {
-        ended = judge.observe(elapsed, Some(stopped));
+        ended = judge.observe(elapsed, Some(stopped.clone()));
         if ended.is_some() {
             break;
         }
@@ -103,10 +117,11 @@ fn a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge() {
 fn a_run_waiting_for_the_disk_is_left_alone() {
     let window: Duration = Duration::from_secs(1);
     let mut judge: Judge = Judge::new(window);
-    let waiting: Look = Look { bytes: 7, ticks: 7, working: true, members: 3 };
+    let mut waiting: Look = moved(7, 7, 3);
+    waiting.working = true;
     let mut elapsed: Duration = Duration::ZERO;
     for _ in 0..8 {
-        assert_eq!(judge.observe(elapsed, Some(waiting)), None, "a task in disk wait is at work");
+        assert_eq!(judge.observe(elapsed, Some(waiting.clone())), None, "a task in disk wait is at work");
         elapsed += SAMPLE_INTERVAL;
     }
 }
@@ -132,6 +147,10 @@ fn a_run_whose_tasks_come_and_go_is_left_alone() {
 /// leaves fewer tasks and less moved behind it,
 /// and neither is the run working.
 /// A count that fell at every look kept a stuck run alive before this.
+///
+/// The tasks the look found are what says so:
+/// every one of them had moved less than the look before,
+/// and the tasks that are gone are not the run working.
 #[test]
 fn a_run_whose_figures_only_fall_is_ended() {
     let window: Duration = Duration::from_secs(2);
@@ -149,6 +168,67 @@ fn a_run_whose_figures_only_fall_is_ended() {
     }
     assert_eq!(ended, Some(Ending::Quiet(window)), "a run whose figures only fall is ended at the first look the window covers");
 }
+
+/// What:
+///  A run whose totals fall because a task ended is judged by the tasks that are still there,
+///  so a task that keeps moving keeps the run alive.
+/// Why:
+///   A look's totals are sums over the tasks it found,
+/// and a task that ends takes every byte and tick it moved with it,
+/// so a worker that moves less than the task the look before found leaves every total smaller than the one before it.
+/// A judge that read the totals alone ended such a worker once its window passed,
+/// though it never stopped working:
+/// measured on 2026-11-11 through the real look,
+/// three looks over a one-second window fell from 3,093,960 to 2,374,539 and 1,655,121 bytes
+/// while a task of the run moved 65,536,
+/// 65,630 and
+///  65,632
+/// bytes of its own and no task was able to run or waiting for the disk,
+/// and the judge answered `Quiet(1 s)`.
+#[test]
+fn a_task_that_keeps_moving_keeps_the_run_alive_though_the_totals_fall() {
+    let window: Duration = Duration::from_secs(2);
+    let mut judge: Judge = Judge::new(window);
+    let mut elapsed: Duration = Duration::ZERO;
+    let mut last_total: u64 = u64::MAX;
+    // One look per step: the worker (task 1) moved more than the look before, and the task that took the previous
+    //  look's place had moved less than the one it replaced.
+    for step in 1..=10_u64 {
+        let worker: TaskFigures = TaskFigures { task: 1, bytes: step * WORKER_MOVES, ticks: step };
+        let replaced: TaskFigures = TaskFigures {
+            task: 100 + step,
+            bytes: THE_TASK_BEFORE_HAD_MOVED.saturating_sub(step * ITS_SUCCESSOR_MOVED_THIS_MUCH_LESS),
+            ticks: ITS_SUCCESSOR_USED_THIS_MUCH_LESS.saturating_sub(step * ITS_SUCCESSOR_USED_LESS_EACH_LOOK),
+        };
+        let look: Look = Look {
+            bytes: worker.bytes + replaced.bytes,
+            ticks: worker.ticks + replaced.ticks,
+            working: false,
+            members: 2,
+            tasks: vec![worker, replaced],
+        };
+        assert!(look.bytes < last_total, "step {step}: the totals fall, {} is not below {last_total}", look.bytes);
+        last_total = look.bytes;
+        assert_eq!(judge.observe(elapsed, Some(look)), None, "step {step}: the worker moved");
+        elapsed += SAMPLE_INTERVAL;
+    }
+    assert!(elapsed > window, "{elapsed:?} passes the window while the worker moved at every look");
+}
+
+/// How much the worker of the control above moves at every look.
+const WORKER_MOVES: u64 = 100;
+
+/// What the task of the first look above had moved, before each successor of it moved less.
+const THE_TASK_BEFORE_HAD_MOVED: u64 = 10_000;
+
+/// How much less than its predecessor each task of the control above moved.
+const ITS_SUCCESSOR_MOVED_THIS_MUCH_LESS: u64 = 1_000;
+
+/// How many processor ticks the task of the first look above had used.
+const ITS_SUCCESSOR_USED_THIS_MUCH_LESS: u64 = 100;
+
+/// How many fewer ticks each task of the control above used than the one it replaced.
+const ITS_SUCCESSOR_USED_LESS_EACH_LOOK: u64 = 10;
 
 /// A thread inside two waits at once is one reader of the run:
 /// its readings are taken off once,
