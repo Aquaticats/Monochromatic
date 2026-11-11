@@ -172,6 +172,28 @@ pub(super) fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool)
     return above;
 }
 
+/// What:
+///  The search answers only a limit its own probe accepted,
+///  and never the ceiling it started from without a probe of that ceiling.
+/// Why:
+///  The halving begins with the ceiling as its upper end and lowers it only on a probe that held,
+///  so an answer that is still the ceiling was never probed:
+///  where a commit lands at the ceiling and nowhere below it the descriptor control then said no commit landed,
+///  and it skipped the sweep that landing at the ceiling would have had.
+#[test]
+fn the_search_answers_only_a_limit_its_own_probe_accepted() {
+    let probed: Mutex<Vec<u64>> = Mutex::new(Vec::new());
+    let records_and_refuses = |value: u64| -> bool {
+        probed.lock().expect("the probe list").push(value);
+        return false;
+    };
+    let answered: u64 = smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &records_and_refuses);
+    assert!(
+        probed.lock().expect("the probe list").contains(&answered),
+        "the search answered {answered}, which it never probed, so a control cannot say a commit landed there"
+    );
+}
+
 /// Runs a case for each value,
 /// `SWEEP_WIDTH` at a time,
 /// and requires that every repository recovered.
