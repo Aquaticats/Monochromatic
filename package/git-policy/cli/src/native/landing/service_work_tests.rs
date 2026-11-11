@@ -1458,3 +1458,46 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
     );
     remove(repo.root.as_path());
 }
+
+/// What:
+///  A retryable answer leaves the record where it is:
+/// the round settles nothing for it,
+/// so it keeps its lease,
+///  and the lease running out is what queues it again with one more try.
+/// Why:
+///  A copy of the source that cannot be deleted,
+/// and a snapshot ahead the service could not make,
+/// both answer
+///  `Retry` for a condition that can pass:
+/// a busy volume,
+/// a full disk,
+/// an I/O error.
+/// Failing the record drops that work for good,
+/// and a
+///  record in `failed` is never queued again under its id,
+/// so a copy that proved stale then stays on the disk for ever,
+///  pinning the source's blocks.
+#[test]
+fn a_retryable_answer_keeps_the_record_for_a_later_round() {
+    for kind in [WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
+        let repo: Repo = repo(format!("work-retryable-{}", kind.name()).as_str());
+        let wanted: WorkItem = item(&repo, kind, OID, BRANCH);
+        enqueue_all(&repo, std::slice::from_ref(&wanted));
+        let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
+        let wait: Option<Duration> = drain(repo.common.as_path(), &retrying, &ClaimTime::read());
+        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
+        assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
+        assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
+        // The lease runs out, which is what the wait above asked for: the record is queued again with one more try.
+        crate::work_item_recovery::requeue_expired(
+            work_directory(repo.common.as_path()).as_path(),
+            &ClaimTime::read(),
+            Duration::ZERO,
+            crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
+        );
+        assert_eq!(names(&repo, PENDING), vec![wanted.id()], "{}: the record waits for the next round", kind.name());
+        drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+        assert_eq!(names(&repo, DONE), vec![wanted.id()], "{}: the round after it finishes the work", kind.name());
+        remove(repo.root.as_path());
+    }
+}

@@ -9,7 +9,7 @@
 use super::*;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_snapshot_ahead_claim::{identity_of_name, look_for_a_snapshot_ahead};
-use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_btrfs_ioctl::{snapshot_create_at, subvolume_create_at};
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{git_context, remove};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
@@ -88,7 +88,7 @@ fn btrfs_an_add_claims_the_snapshot_the_wrapper_made_ahead() {
     // The seam of a control: it records every name it is handed and makes nothing, so no control reaches a service, a
     // session bus or a socket.
     let service: AheadService<'_> = AheadService {
-        ask: &|| { return Ok(()); },
+        ask: &|| { return Ok(None); },
         hand_over: &|stale: &[OsString]| { handed.borrow_mut().extend_from_slice(stale); return Ok(()); },
         ceiling: Duration::from_secs(1),
     };
@@ -101,6 +101,72 @@ fn btrfs_an_add_claims_the_snapshot_the_wrapper_made_ahead() {
     assert!(kept_in(fixture.pool.as_path(), fixture.repo.as_path()).is_empty(), "the entry moved out of the pool folder");
     assert!(!fixture.pool.join(&made).exists(), "the name the service made is gone");
     assert!(handed.borrow().is_empty(), "a claimed snapshot leaves nothing to hand over");
+    remove(fixture.root.as_path());
+}
+
+/// A copy no add claimed for longer than an add keeps one is handed to the service by the next add,
+/// whether that add
+///  claims a copy or not.
+/// Why:
+///   The sweep is what keeps a repository whose adds stopped from pinning the source's blocks for ever,
+/// and an add
+///  that claims one leaves the pool through the claim's own return,
+/// so a sweep that runs only on the waiting
+///  path never runs in a repository whose pool answers every add.
+#[test]
+fn btrfs_a_claim_hands_over_the_copies_an_add_keeps_no_longer() {
+    let Some(fixture) = fixture_of("ahead-claim-sweep") else { return };
+    make_one_ahead(&fixture);
+    let aged: OsString = ahead_name(fixture.repo.as_path(), SystemTime::UNIX_EPOCH).expect("a name");
+    snapshot_create_at(fixture.repo.as_path(), fixture.pool.join(&aged).as_path()).expect("a copy older than an add keeps");
+    let stage: PathBuf = stage_of(&fixture, "sweep");
+    let handed: RefCell<Vec<OsString>> = RefCell::new(Vec::new());
+    let service: AheadService<'_> = AheadService {
+        ask: &|| { return Ok(None); },
+        hand_over: &|stale: &[OsString]| { handed.borrow_mut().extend_from_slice(stale); return Ok(()); },
+        ceiling: Duration::from_secs(1),
+    };
+    let look: AheadLook = look_for_a_snapshot_ahead(&fixture.source, &fixture.plan, stage.as_path(), &crate::fixture_content_decision::content_environment(), &service);
+    assert!(matches!(look, AheadLook::Claimed { .. }), "the newest copy proves equal to the source's index: {look:?}");
+    assert_eq!(handed.borrow().as_slice(), std::slice::from_ref(&aged), "the copy no add keeps is handed to the service");
+    remove(fixture.root.as_path());
+}
+
+/// An add whose own request the service gave up on stops waiting at once:
+/// it takes its own snapshot instead of paying the ceiling for a copy nothing will make.
+/// Why:
+///  A request the service refused for a condition nothing of the add's changes ends in `failed`,
+/// which is the
+///  state nothing scans,
+/// so a wait that could only end at its ceiling costs the add that ceiling for work that
+///  cannot come.
+#[test]
+fn btrfs_the_add_stops_waiting_when_the_service_gave_its_request_up() {
+    let Some(fixture) = fixture_of("ahead-given-up") else { return };
+    let stage: PathBuf = stage_of(&fixture, "given-up");
+    let git_dir: PathBuf = fixture.repo.join(".git");
+    let work: PathBuf = crate::service_work::work_directory(git_dir.as_path());
+    let handed: RefCell<Vec<OsString>> = RefCell::new(Vec::new());
+    let service: AheadService<'_> = AheadService {
+        ask: &|| {
+            // The service answers this request once and gives it up, as one refused for good does.
+            let asked: WorkItem = crate::worktree_snapshot_ahead::ask_with(git_dir.as_path(), fixture.repo.as_path(), fixture.pool.as_path())?;
+            let id: String = asked.id();
+            std::fs::rename(
+                crate::work_item::state_directory(work.as_path(), crate::work_item::PENDING).join(id.as_str()),
+                crate::work_item::state_directory(work.as_path(), crate::work_item::FAILED).join(id.as_str()),
+            )
+            .map_err(|error| { return format!("the record could not be given up: {error}"); })?;
+            return Ok(Some(id));
+        },
+        hand_over: &|stale: &[OsString]| { handed.borrow_mut().extend_from_slice(stale); return Ok(()); },
+        ceiling: Duration::from_secs(20),
+    };
+    let began: Instant = Instant::now();
+    let look: AheadLook = look_for_a_snapshot_ahead(&fixture.source, &fixture.plan, stage.as_path(), &crate::fixture_content_decision::content_environment(), &service);
+    let spent: Duration = began.elapsed();
+    assert!(matches!(look, AheadLook::None), "the add takes its own snapshot: {look:?}");
+    assert!(spent < Duration::from_secs(10), "the add pays no ceiling for a request the service gave up: {spent:?}");
     remove(fixture.root.as_path());
 }
 
@@ -117,7 +183,7 @@ fn btrfs_a_snapshot_ahead_that_fell_behind_the_index_is_refused_and_handed_over(
     let stage: PathBuf = stage_of(&fixture, "stale");
     let handed: RefCell<Vec<OsString>> = RefCell::new(Vec::new());
     let service: AheadService<'_> = AheadService {
-        ask: &|| { return Ok(()); },
+        ask: &|| { return Ok(None); },
         hand_over: &|stale: &[OsString]| { handed.borrow_mut().extend_from_slice(stale); return Ok(()); },
         ceiling: Duration::from_millis(1),
     };
@@ -136,7 +202,7 @@ fn btrfs_the_wait_for_a_snapshot_ahead_ends_at_its_ceiling_and_says_so() {
     let stage: PathBuf = stage_of(&fixture, "ceiling");
     let handed: RefCell<Vec<OsString>> = RefCell::new(Vec::new());
     let service: AheadService<'_> = AheadService {
-        ask: &|| { return Ok(()); },
+        ask: &|| { return Ok(None); },
         hand_over: &|_stale: &[OsString]| { return Ok(()); },
         ceiling: Duration::from_millis(150),
     };
@@ -164,7 +230,7 @@ fn btrfs_a_source_with_changes_is_not_served_a_snapshot_ahead() {
     let stage: PathBuf = stage_of(&fixture, "dirty");
     let handed: RefCell<Vec<OsString>> = RefCell::new(Vec::new());
     let service: AheadService<'_> = AheadService {
-        ask: &|| { return Ok(()); },
+        ask: &|| { return Ok(None); },
         hand_over: &|stale: &[OsString]| { handed.borrow_mut().extend_from_slice(stale); return Ok(()); },
         ceiling: Duration::from_secs(30),
     };
