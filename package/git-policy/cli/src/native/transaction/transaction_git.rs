@@ -160,6 +160,9 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
         return Ok(answered);
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
+    // A step that is starting takes the note of an earlier failure with it: only the step running last can be the reason a
+    //  command stops (`git_step_failure.rs`).
+    crate::git_step_failure::clear_failed_step();
     let entered: bool = crate::add_timing::begin_step(label.as_str());
     let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
     crate::add_timing::end_step(entered);
@@ -453,16 +456,20 @@ pub fn run_git_checked(
 /// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
 /// ```
 pub(crate) fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+    let step: String = crate::add_timing::git_step_label(arguments);
     let output: GitOutput = match outcome {
         Ok(finished) => finished,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            crate::git_step_failure::note_failed_step(step.as_str(), None);
             return Err(GitFailure(error.to_string()));
         }
         Err(error) => {
+            crate::git_step_failure::note_failed_step(step.as_str(), None);
             return Err(GitFailure(format!("{} could not start: {error}", command_text(arguments))));
         }
     };
     if !output.succeeded() {
+        crate::git_step_failure::note_failed_step(step.as_str(), output.code);
         return Err(GitFailure(format!("{} failed: {}", command_text(arguments), output.error_text())));
     }
     return Ok(output);

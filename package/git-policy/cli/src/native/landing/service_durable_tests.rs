@@ -292,3 +292,28 @@ fn the_background_syncs_are_made_without_a_thread_of_their_own() {
     assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  The flush the index lock marker asks for is queued in the background task and never made on the caller's thread,
+///  even outside a landing,
+///  and the background task makes it.
+/// Why:
+///  The marker names the process that holds the lock and nothing else,
+///  and its flush sat on every commit's waiting path
+///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+/// A marker a power cut leaves empty or torn names no holder,
+/// and the step that runs before a landing removes exactly that file at once
+///  (`service_index_unheld_removal.rs`),
+///  so the command after such a cut proceeds without waiting out any age.
+#[test]
+fn the_lock_markers_flush_is_queued_and_the_background_task_makes_it() {
+    let (root, file) = record("durable-lock-marker");
+    let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    let events = events_of(|| {
+        crate::service_index_placement::sync_file(&file).expect("queued");
+    });
+    assert_eq!(events, vec![String::from("sync-queued:lock-marker")], "the flush is queued and none is waited for");
+    drain();
+    assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed the marker");
+    remove(root.as_path());
+}

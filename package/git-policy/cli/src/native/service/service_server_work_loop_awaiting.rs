@@ -25,7 +25,8 @@
 //! for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::PushRetries;
 use crate::service_claim_watch::ClaimWatch;
@@ -50,9 +51,9 @@ use tokio::sync::mpsc::UnboundedReceiver;
 ///  owner at a time,
 /// so the job takes it and hands it back,
 /// and nothing locks it.
-/// A job the system refuses a thread for makes the write
-///  on this task instead
-/// (`run_a_job_or_in_turn`),
+/// A task of the runtime never writes the note itself:
+///  a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a write that gives no answer is kept as a note the watch tries again after its pause,
 /// so a note is not lost to a refusal.
 /// A watch kept in memory only writes nothing,
 /// so it is not a job at all.
@@ -68,15 +69,40 @@ async fn remember_awaiting(watch: ClaimWatch, git_dir: &Path) -> ClaimWatch {
         return kept;
     }
     let unchanged: ClaimWatch = watch.clone();
-    return match run_a_job_or_in_turn((watch, git_dir.to_path_buf()), remember_in_a_job).await {
-        Ok(back) => back,
-        // Nothing was written and the watch is as it was, so the next wake writes this directory down; the notes it
-        //  already holds stand.
-        Err(reason) => {
-            crate::service_warn!("{} could not be written down for a restart: {reason}", git_dir.display());
-            unchanged
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, (watch, git_dir.to_path_buf()), remember_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran(back) => back,
+        // The system gave no thread, so nothing was written and the watch is as it was: this directory is kept as one whose
+        //  note may be missing, so `retry` writes it after the pause and the work goes on either way.
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("{} could not be written down for a restart, because the system gave no thread for it; it is tried again after a pause", git_dir.display());
+            a_watch_that_tries_again(unchanged, git_dir)
+        }
+        // The job started on another thread or gave no answer within its ceiling, so whether the note was written is not
+        //  known; writing it again at worst writes the same note twice.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("{} may not have been written down for a restart, because the note gave no answer; it is tried again after a pause", git_dir.display());
+            a_watch_that_tries_again(unchanged, git_dir)
         }
     };
+}
+
+/// What:
+///  `watch` keeping `git_dir` as a directory whose note may be missing.
+/// Why:
+///  A write that did not run,
+/// or whose answer cannot be read,
+/// leaves the journal without the note this call asked for;
+/// the watch tries it again after its pause,
+/// and the work goes on either way,
+/// because a failed note must not stop a backup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch.aNoteThatMayBeMissing(gitDir)
+/// ```
+fn a_watch_that_tries_again(mut watch: ClaimWatch, git_dir: &Path) -> ClaimWatch {
+    watch.a_note_that_may_be_missing(git_dir);
+    return watch;
 }
 
 /// `remember_awaiting`'s work,
@@ -108,12 +134,18 @@ async fn retry_awaiting(watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
         return (kept, found);
     }
     let unchanged: ClaimWatch = watch.clone();
-    return match run_a_job_or_in_turn(watch, retry_in_a_job).await {
-        Ok((back, found)) => (back, found),
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, watch, retry_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran((back, found)) => (back, found),
         // Nothing was read or written, so the pause for this failure is not grown either: the next round of the schedule
         //  tries the same notes again.
-        Err(reason) => {
-            crate::service_warn!("the notes this service keeps for a restart could not be tried again: {reason}");
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the notes this service keeps for a restart could not be tried again, because the system gave no thread for it");
+            (unchanged, Vec::new())
+        }
+        // Whether the notes were read or written is not known, and a watch without them would schedule nothing: the
+        //  schedule keeps this pause, so they are tried again after it.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the notes this service keeps for a restart gave no answer, so they are tried again after this pause");
             (unchanged, Vec::new())
         }
     };
@@ -279,3 +311,8 @@ pub async fn work_loop_awaiting(
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
+
+/// Controls for the notes the loop keeps for a restart stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_work_loop_awaiting_tests.rs"]
+mod tests;

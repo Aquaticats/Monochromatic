@@ -15,6 +15,33 @@ fn corpus() -> PathBuf {
     return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus");
 }
 
+/// Where the inputs whose word merge must be refused are,
+/// each as `.base`,
+/// `.ours` and `.theirs`.
+/// Why:
+///  They are the shapes a word merge writes wrong text for,
+///  so they are kept apart from the corpus the controls hold to Jujutsu's verdicts:
+/// Jujutsu merges some of these the wrong way too.
+fn refusals() -> PathBuf {
+    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_refusals");
+}
+
+/// The bytes of one stored file of a refusal input.
+fn refused(name: &str, extension: &str) -> Vec<u8> {
+    return std::fs::read(refusals().join(format!("{name}.{extension}"))).expect("a stored refusal input");
+}
+
+/// The names of the refusal inputs,
+/// in order.
+fn refusal_names() -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(refusals())
+        .expect("the refusal directory")
+        .filter_map(|entry| { return entry.ok()?.file_name().to_str()?.strip_suffix(".base").map(str::to_owned); })
+        .collect();
+    found.sort();
+    return found;
+}
+
 /// The bytes of one stored file of a corpus input.
 fn stored(name: &str, extension: &str) -> Vec<u8> {
     return std::fs::read(corpus().join(format!("{name}.{extension}"))).expect("a stored corpus file");
@@ -108,6 +135,74 @@ fn a_true_overlap_stays_a_conflict() {
     assert!(matches!(merged("md3"), WordMerge::Conflict { unresolved } if unresolved > 0));
     let outcome: WordMerge = merge_by_word(b"scale(1, 2)\n", b"scale(7, 2)\n", b"scale(8, 2)\n");
     assert!(matches!(outcome, WordMerge::Conflict { .. }));
+}
+
+/// Every stored refusal input keeps its conflict,
+/// and the text a carried layer keeps holds both sides and no doubled word.
+/// The real case is merge `ef43afe9f9`,
+/// whose word-level pass shipped
+/// `return return without_variable == *selected;`
+/// in `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`.
+#[test]
+fn the_stored_refusal_inputs_stay_conflicts() {
+    let names: Vec<String> = refusal_names();
+    assert!(names.len() >= 2, "the stored refusal inputs are gone: {names:?}");
+    for name in names {
+        let base: Vec<u8> = refused(name.as_str(), "base");
+        let ours: Vec<u8> = refused(name.as_str(), "ours");
+        let theirs: Vec<u8> = refused(name.as_str(), "theirs");
+        let outcome: WordMerge = merge_by_word(base.as_slice(), ours.as_slice(), theirs.as_slice());
+        assert!(matches!(outcome, WordMerge::Conflict { .. }), "{name}: resolved, and the word pass writes text no side wrote for this input");
+        let kept: Vec<u8> = keep_both(base.as_slice(), ours.as_slice(), theirs.as_slice(), ("ours", "theirs"));
+        let text: String = String::from_utf8_lossy(kept.as_slice()).into_owned();
+        assert!(text.contains("<<<<<<< ours\n"), "{name}: the file a carried layer keeps holds both sides");
+    }
+}
+
+/// The doubled `return` of merge `ef43afe9f9` is the word the two sides inserted at one place,
+/// and the merge of it is a conflict rather than the line that shipped.
+#[test]
+fn a_word_no_side_doubles_is_never_written_twice() {
+    let base: &[u8] = b"    return configured.is_ok_and(|without_variable| without_variable == *selected);\n";
+    let ours: &[u8] = b"    let Ok(without_variable) = configured else {\n        return false;\n    };\n    return without_variable == *selected;\n";
+    let theirs: &[u8] = b"    return configured.is_ok_and(|without_variable| return without_variable == *selected);\n";
+    let outcome: WordMerge = merge_by_word(base, ours, theirs);
+    let text: String = match &outcome {
+        WordMerge::Conflict { .. } => String::from("a conflict"),
+        WordMerge::Resolved { merged: bytes, .. } => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+    };
+    assert!(matches!(outcome, WordMerge::Conflict { .. }), "the merge wrote {text}");
+    assert!(!text.contains("return return"), "the merge wrote a doubled return: {text}");
+}
+
+/// A word a side doubles is that side's own text,
+/// so a region that keeps it stays resolved.
+#[test]
+fn a_word_a_side_doubles_is_not_refused() {
+    let outcome: WordMerge = merge_by_word(b"the very old value\n", b"the very very old value\n", b"the very old value here\n");
+    let WordMerge::Resolved { merged: bytes, parts } = outcome else { panic!("a doubling one side wrote itself is its own text") };
+    let text: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
+    assert!(text.contains("very very"), "{text}");
+    assert!(text.contains("here"), "{text}");
+    assert_eq!(parts.len(), 1);
+}
+
+/// A region that spans lines keeps both sides when the merge can only write a line no side holds,
+/// and a region whose sentences each come from one side still resolves.
+/// The first is what merge `31f72ecf12` left in `doc/handover/questions-for-the-owner.md`:
+/// one side joined two clauses and the other side added a word,
+/// and the word pass wrote the clauses as one line neither side holds.
+#[test]
+fn a_line_no_side_holds_is_refused_across_lines() {
+    let joined: WordMerge = merge_by_word(b"alpha\nbeta\n", b"alpha beta\n", b"alpha\nbeta two\n");
+    let text: String = match &joined {
+        WordMerge::Conflict { .. } => String::from("a conflict"),
+        WordMerge::Resolved { merged: bytes, .. } => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+    };
+    assert!(matches!(joined, WordMerge::Conflict { .. }), "the merge wrote a line no side holds: {text}");
+    let separate: WordMerge = merge_by_word(b"alpha one\nbeta two\n", b"alpha uno\nbeta two\n", b"alpha one\nbeta zwei\n");
+    let WordMerge::Resolved { merged: bytes, .. } = separate else { panic!("two edits of two lines resolve") };
+    assert_eq!(String::from_utf8_lossy(bytes.as_slice()), "alpha uno\nbeta zwei\n");
 }
 
 /// The first lines of the text of the next two controls:

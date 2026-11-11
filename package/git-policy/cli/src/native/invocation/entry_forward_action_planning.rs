@@ -22,7 +22,7 @@ use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolv
 use crate::invocation_config::{config_invalid_event, load_identity_config};
 use crate::repository_location::RepositoryLocation;
 use crate::transaction_git::GitContext;
-use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_identity::{WorktreeIdentity, common_directory};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
 use crate::policy_checks::ShippedChecks;
@@ -42,7 +42,7 @@ use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// What:
 ///  Choose how a forwarded command runs:
 ///  plainly,
@@ -115,7 +115,11 @@ pub(crate) fn forward_action(
     let creates: bool = creates_worktrees(&command);
     let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command) } else { None };
     let destination: Option<PathBuf> = if creates { plan_copy_destination(&command) } else { None };
-    let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" { plan_worktree_remove(&command) } else { None };
+    let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
+        plan_worktree_remove(&command, common_directory(&location.identity))
+    } else {
+        None
+    };
     let serves_ladder: bool = add_plan.is_some() || remove_plan.is_some();
     let copy: Option<CopyFacts> =
         if !copy_bypassed && copy_applies_with(&location.identity, creates, serves_ladder) {
@@ -207,17 +211,21 @@ fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
 ///  directory.
 /// Why:
 ///   The directory is relative to where Git starts,
-/// which the global `-C` options move;
-/// anything else is Git's.
+/// which the global `-C` options move,
+/// and Git picks a
+///  registered worktree by the last components of its path before it reads the name as a path,
+/// so the common
+///  directory that holds that list is passed beside the start directory.
+/// Anything else is Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWorktreeRemove(command: ResolvedCommand): RemovePlan | undefined;
+/// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string): RemovePlan | undefined;
 /// ```
-fn plan_worktree_remove(command: &ResolvedCommand) -> Option<RemovePlan> {
+fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>) -> Option<RemovePlan> {
     let current: PathBuf = std::env::current_dir().ok()?;
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
-    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
+    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
 }
 
 /// What:

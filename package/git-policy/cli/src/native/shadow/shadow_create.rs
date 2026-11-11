@@ -24,7 +24,7 @@ use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 use crate::capture_invocation::{InvocationCapture, InvocationLayout};
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
-/// Format copy and config text.
+/// Format copy and the config bytes.
 use crate::shadow_config::{RepositoryFormat, format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
 use crate::shadow_links::link_shadow_entries;
@@ -44,6 +44,9 @@ use std::ffi::OsString;
 /// The build phase's stretches,
 /// which the creation marks as it goes.
 use crate::commit_build_part_durations::BuildPartClock;
+/// The bytes of a path,
+/// for a file that names one.
+use crate::path_bytes::path_bytes_of;
 
 /// What:
 ///  Overwrites a file the shadow's `git init` already created,
@@ -323,31 +326,37 @@ impl ShadowTemplate {
     }
 
     /// What:
-    ///  The text of the shadow's `config` for these facts.
+    ///  The bytes of the shadow's `config` for these facts.
     /// Why:
     ///   The creation writes it and a claim compares a member's own file with it,
-    /// so one function says what the file holds.
+    /// so one function says what the file holds;
+    ///  the included path and the worktree it names are the bytes the layout holds,
+    ///  because a spelling of either loses a name that is not UTF-8.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// template.configText()
+    /// template.configBytes()
     /// ```
-    pub fn config_text(&self) -> String {
+    pub fn config_bytes(&self) -> Vec<u8> {
         return format_shadow_config(&self.format, self.common_dir.as_path(), self.repository_root.as_path());
     }
 
     /// What:
-    ///  The text of the shadow's `objects/info/alternates` for these facts.
+    ///  The bytes of the shadow's `objects/info/alternates` for these facts.
     /// Why:
     ///   The alternates are what lets the shadow's Git read the real object store,
-    /// and a claim checks a member names this invocation's object directory.
+    ///  and a claim checks that a member names this invocation's object directory;
+    ///  the object directory's own bytes name it,
+    ///  because a spelling of it loses a name that is not UTF-8 and would send the shadow to a store that does not exist.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// template.alternatesText()
+    /// Buffer.concat([Buffer.from(this.objectDirectory), Buffer.from('\n')])
     /// ```
-    pub fn alternates_text(&self) -> String {
-        return format!("{}\n", self.object_directory.display());
+    pub fn alternates_bytes(&self) -> Vec<u8> {
+        let mut text: Vec<u8> = path_bytes_of(self.object_directory.as_path()).to_vec();
+        text.push(b'\n');
+        return text;
     }
 }
 
@@ -508,13 +517,13 @@ pub fn create_shadow_template(
     step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
     clock.next("shadow config");
     named_step_failure(
-        overwrite_private(shadow.join("config").as_path(), template.config_text().as_bytes()),
+        overwrite_private(shadow.join("config").as_path(), template.config_bytes().as_slice()),
         "writing the shadow config",
     )?;
     named_step_failure(
         overwrite_private(
             shadow.join("objects").join("info").join("alternates").as_path(),
-            template.alternates_text().as_bytes(),
+            template.alternates_bytes().as_slice(),
         ),
         "writing the shadow alternates",
     )?;

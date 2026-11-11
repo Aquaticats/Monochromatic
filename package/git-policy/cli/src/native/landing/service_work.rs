@@ -516,6 +516,40 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
     }
 
+    /// What:
+    ///  Fill the Cargo build directories a new worktree's record names,
+    /// its clone and its clean awaited on the runtime.
+    /// Why:
+    ///   The add hands this work over instead of waiting for it
+    /// (`package_repair_prewarm.rs`),
+    /// and the round is a task of the runtime,
+    /// so the tree clone and the Cargo child are awaited here rather than entered from a
+    ///  synchronous face.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prewarmAwaiting(item) { return prewarmAwaiting(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move { return crate::package_repair_prewarm_job::prewarm_awaiting(item).await; });
+    }
+
+    /// What:
+    ///  Delete the subvolume a removal renamed out of the person's way.
+    /// Why:
+    ///  The removal records the path and returns,
+    /// so this is where the one kernel call happens,
+    /// with no person waiting for it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
+    /// ```
+    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,

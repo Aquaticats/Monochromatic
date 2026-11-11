@@ -1,5 +1,8 @@
 # What a worktree add pays for the directories its snapshot leaves out
 
+What the add's own btrfs calls cost, and the transaction commits they force,
+is measured in `doc/planning/git-policy-cli-btrfs-transaction-waits.md`.
+
 Status:
 the coordinator picked the route below under the owner's "Please make any non-destructive options
 (when they are the ones I would likely have picked) yourself from now on for this session.",
@@ -256,6 +259,37 @@ and both are design changes of their own.
 - The deletions moved off the add's path are the manifest's entries:
   7,500 in the fixture (one left-out directory of 7,500 names and one of 7,500),
   and in the real main checkout at least 269,003 by the unfinished count above.
+
+## The trash that says what it is
+
+The work item is written after the snapshot is swapped into place,
+so a command killed between the two left a trash that no record named,
+that nothing would ever empty,
+and that only the person could remove.
+`e5e689c8a5`'s review named that window,
+and it is closed by writing the trash's own manifest into the trash
+(`worktree_trash_own_manifest.rs`) before the swap publishes it.
+The file is the same text a work item carries,
+the identity of the trash directory and of every directory moved into it,
+so whatever a later pass finds already says what the trash is.
+
+The next command in that worktree reads that manifest,
+compares the trash identity it names with the directory itself,
+writes the record the service drains,
+and the service empties the trash one trash at a time,
+as it empties any other.
+A trash-shaped directory whose manifest is missing,
+damaged or names another object is only named to the person:
+the wrapper removes what it can prove it made.
+A person's directory below the trash parent is not looked at.
+
+The emptying treats the manifest as the wrapper's own:
+it removes that file with the trash it belongs to,
+while a file of that name that is not that manifest keeps the whole directory,
+as every other thing the snapshot did not put there does.
+The leave-out still takes over an earlier trash by the name the wrapper gives one,
+because a copy re-creates the identities a manifest names,
+so the manifest decides nothing about a trash that a snapshot carried.
 
 ## What is left for the owner
 

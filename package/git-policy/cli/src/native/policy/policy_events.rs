@@ -171,6 +171,26 @@ pub const STOPPED_READ_HINT: &str =
 pub const LEFT_ALONE_HINT: &str = "Hint: this command is not stopped and nothing was discarded. The message names a file a policy left as it is, because changing it would overwrite the changes it holds; commit that file too, or restore it to match HEAD with `git restore --staged --worktree -- <path>`, and write the command again.";
 
 /// What:
+///  The hint of a note whose dependent was left out because a repository read the check
+///       needed failed.
+/// Why:
+///   Nothing of the person's was held or overwritten:
+///  the commit keeps that
+///       dependent at its version because Git could not answer,
+///  so the remedy is to make the
+///       read answer and to write the command again,
+///  never to commit a file or to restore one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const UNPROVEN_RIPPLE_HINT = 'Hint: this command is not stopped and nothing was discarded; the message names a dependent that keeps its version because a Git read failed, so correct what Git reported and write the command again.';
+/// ```
+pub const UNPROVEN_RIPPLE_HINT: &str =
+    "Hint: this command is not stopped and nothing was discarded. The message names a dependent that keeps its version \
+     because a Git read this policy needs failed, so this commit lands without that version bump; correct what Git \
+     reported, then write the command again.";
+
+/// What:
 ///  Every event a policy pass can produce.
 ///  An `enum` is a closed set of named
 ///       alternatives;

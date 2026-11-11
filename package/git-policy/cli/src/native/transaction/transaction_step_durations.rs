@@ -132,7 +132,9 @@ pub fn step_time_between(from: Instant, to: Instant) -> Duration {
 /// so a name can
 ///  never carry a path,
 /// an option value or a separator of the log line.
-fn plain_name(name: &str) -> String {
+/// The note of a failed step (`git_step_failure.rs`) is written with it too,
+/// so both records name a step the same way.
+pub(crate) fn plain_name(name: &str) -> String {
     return name.chars().map(plain_character).collect();
 }
 

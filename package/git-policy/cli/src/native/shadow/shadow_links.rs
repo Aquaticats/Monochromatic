@@ -28,8 +28,9 @@ use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
 /// The name prefix of every private copy of an index the wrapper makes beside the real one.
 use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 /// The names of the repository scratch root,
-/// which holds the shadow itself.
-use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
+/// which holds the shadow itself,
+/// and of the pool of finished shadows beside it.
+use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SHADOW_POOL_FOLDER};
 /// The infix of the file one of the wrapper's commands stages a lock in before it becomes the lock,
 /// so the lock's name is worked out from the name Git's lock would have.
 use crate::service_index_staging::STAGED_INFIX;
@@ -76,6 +77,10 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 /// a link to it points the shadow at its own directory,
 ///  and every name inside it that a shadow links costs one directory-entry creation
 ///  on a volume where those calls wait.
+///  The pool of finished shadows is private because it holds the shadow trees of other commits:
+/// a link to it would let a shadow reach every member,
+///  its entry set would decide whether a member is what a creation makes,
+///  and the first fill of a repository would otherwise refuse the member made a moment before it.
 ///  A file a command stages a lock in is private for the same reason a lock is:
 /// it is named after the lock (`index.lock.cli-git-marker-<pid>.<namespace>-<batch>-<token>`),
 /// it belongs to one command,
@@ -89,6 +94,7 @@ pub fn is_private_shadow_entry(name: &str) -> bool {
     return PRIVATE_SHADOW_ENTRIES.contains(&name)
         || name == REPOSITORY_SCRATCH.current
         || name == REPOSITORY_SCRATCH.earlier
+        || name == SHADOW_POOL_FOLDER
         || CONCLUSION_STATE_FILES.contains(&name)
         || name == SEQUENCER_DIRECTORY
         || name.starts_with(PRIVATE_INDEX_PREFIX)

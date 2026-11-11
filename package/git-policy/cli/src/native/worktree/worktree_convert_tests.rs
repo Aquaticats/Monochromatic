@@ -662,6 +662,31 @@ fn a_socket_left_in_the_old_tree_names_the_entry_to_delete() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A stage container that reaches the old tree after the swap does not keep it.
+/// Why:
+///   Another command filling a stage inside the worktree can finish after the proving pass,
+/// so the old tree holds a
+///  container the installed tree never had;
+/// the comparison demanded it and kept the old tree on every run,
+/// asking the
+///  person to settle a version that exists on one side only.
+#[test]
+fn a_stage_container_left_in_the_old_tree_does_not_keep_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-stage-past");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let container: PathBuf = converting.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    std::fs::create_dir_all(&container).expect("the stage container");
+    std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
+    let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(&converting).is_err(), "the old tree is gone");
+    assert!(!worktree.join(".claude").exists(), "the container is in neither tree");
+    remove(parent.as_path());
+}
+
 /// On a real btrfs filesystem the same conversion creates a real subvolume (root inode 256),
 /// clones the file data,
 /// keeps the
@@ -683,6 +708,37 @@ fn btrfs_a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     assert_eq!(std::fs::read(worktree.join(".git")).expect(".git"), git_file);
     assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "");
     assert!(git_text(root.as_path(), &["worktree", "list", "--porcelain"]).contains(worktree.to_string_lossy().as_ref()));
+    assert_nothing_left(worktree.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A real conversion of a worktree that holds another command's stage container finishes,
+///  and no part of that container reaches the new subvolume.
+/// Why:
+///   The stage holds a whole worktree's ignored state,
+/// credentials included,
+/// and a conversion that carried it
+///  would leave that state in a worktree on another branch with nothing naming it.
+/// The container belongs to the
+///  command filling it,
+/// which removes it at its own path,
+/// so it is left out and goes with the old tree.
+#[test]
+fn btrfs_a_stage_container_is_left_out_of_the_new_subvolume() {
+    use crate::fs_btrfs_test_support::btrfs_fixture;
+    use crate::subvolume_platform::LinuxPlatform;
+    let Some(probe) = btrfs_fixture("convert-stage-container") else { return };
+    remove(probe.as_path());
+    let (parent, _root, worktree) = quiet_worktree("convert-stage-container");
+    let container: PathBuf = worktree.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    std::fs::create_dir_all(container.join("payload")).expect("the stage container");
+    std::fs::write(container.join("payload/credentials"), b"token\n").expect("its payload");
+    std::fs::set_permissions(container.join("payload/credentials"), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a credential's mode");
+    let (verdict, lines) = run(&LinuxPlatform::default(), worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
+    assert!(!worktree.join(".claude").exists(), "no part of the stage container reaches the new subvolume");
+    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
     assert_nothing_left(worktree.as_path());
     remove(parent.as_path());
 }

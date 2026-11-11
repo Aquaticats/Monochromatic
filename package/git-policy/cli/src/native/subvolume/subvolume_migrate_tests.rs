@@ -260,7 +260,8 @@ fn an_unreadable_directory_stops_the_run_before_the_exchange() {
     std::fs::set_permissions(root.join("ignored/locked"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unlistable");
     let platform: PlainPlatform = PlainPlatform::new();
     let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
-    std::fs::set_permissions(root.join("ignored/locked"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    // The directory stays closed, so the fixture goes closed: the teardown gives this user the permission back before it
+    // removes the tree (`test_support::settle_fixture`).
     assert_eq!(code, FAILED, "{lines:#?}");
     let text: String = lines.join("\n");
     assert!(text.contains("ignored/locked") && text.contains("cannot be listed or searched") && text.contains("--rollback"), "{text}");
