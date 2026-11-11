@@ -359,7 +359,8 @@ fn branch_names_the_pin(git: &PushGit, branch_ref: &str, commit: &str) -> Result
 ///   A push under `push.default=matching` gives Git no refspec,
 ///  so Git resolves the branch itself and would send a commit that landed after the reading,
 ///  whose own gate may still keep it local.
-///  Nothing is sent, so nothing is lost,
+///  Nothing is sent,
+///  so nothing is lost,
 ///  and the retry plan the service keeps tries the branch again.
 ///
 /// In TS you'd write (pseudocode):

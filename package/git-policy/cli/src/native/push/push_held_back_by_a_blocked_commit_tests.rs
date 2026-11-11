@@ -683,7 +683,8 @@ fn the_awaited_first_push_with_no_upstream_stops_at_the_base_below_a_blocked_com
 ///  so Git resolves the branch at push time:
 ///  a commit that landed after the reading goes out with no verdict at all,
 ///  and its own gate may still keep it local.
-/// Nothing is sent then, and the branch's retry plan runs the same matching push once the branch has settled,
+/// Nothing is sent then,
+///  and the branch's retry plan runs the same matching push once the branch has settled,
 ///  which is the backup the commit needs.
 #[test]
 fn a_matching_push_does_not_publish_a_commit_that_landed_after_the_reading() {
