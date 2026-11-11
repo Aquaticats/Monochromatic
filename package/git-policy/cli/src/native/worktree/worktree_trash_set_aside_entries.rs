@@ -107,7 +107,7 @@ pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Pat
 /// const listedDirectoryOf = (entry) => entry.fileType().map((kind) => kind.isDirectory());
 /// ```
 fn listed_directory_of(entry: &std::fs::DirEntry) -> Option<bool> {
-    return entry.file_type().ok().map(|kind| kind.is_dir());
+    return entry.file_type().ok().map(is_dir_kind);
 }
 
 /// What:

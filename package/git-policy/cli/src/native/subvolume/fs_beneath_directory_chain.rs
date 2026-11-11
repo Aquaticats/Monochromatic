@@ -68,7 +68,8 @@ pub struct DirectoryChain<'root> {
     /// The held root every path is found below.
     root: &'root File,
     /// The device of the root,
-    /// read once: a directory on another device is another filesystem or a nested subvolume.
+    /// read once:
+    /// a directory on another device is another filesystem or a nested subvolume.
     device: u64,
     /// The directories open below the root,
     /// nearest to it first.
@@ -97,6 +98,20 @@ fn shared_prefix(opened: &[Opened], names: &[OsString]) -> usize {
     return shared;
 }
 
+/// What:
+///  The name one opened directory of the chain was opened as.
+/// Why:
+///   A control asks what the chain holds,
+/// and naming that through a closure would be a function that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nameOf = (opened) => opened.name;
+/// ```
+fn name_of(opened: &Opened) -> &OsStr {
+    return opened.name.as_os_str();
+}
+
 impl<'root> DirectoryChain<'root> {
     /// What:
     ///  A chain that has opened nothing below `root`,
@@ -104,7 +119,8 @@ impl<'root> DirectoryChain<'root> {
     /// Why:
     ///   A walk reads its root's device once rather than once per directory change;
     /// the root itself must be a plain
-    ///  directory handle, which the caller opened.
+    ///  directory handle,
+    /// which the caller opened.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -159,7 +175,7 @@ impl<'root> DirectoryChain<'root> {
     /// chain.heldNames(); // ['package', 'cli'] after directory(['package', 'cli'])
     /// ```
     pub fn held_names(&self) -> Vec<&OsStr> {
-        return self.opened.iter().map(|opened| opened.name.as_os_str()).collect();
+        return self.opened.iter().map(name_of).collect();
     }
 }
 
