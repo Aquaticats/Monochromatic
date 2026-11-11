@@ -1,9 +1,11 @@
 //! The main checkout's leave-out rule:
 //! each marker family,
+//! the folder that holds nothing but another command's stage container,
 //! the root `.cache` exception,
 //! and the run-record toggle.
 
 use super::*;
+use crate::test_support::{fixture, remove};
 
 /// The rule with run records skipped,
 /// which is what the crate ships.
@@ -211,4 +213,61 @@ fn a_directory_below_the_trash_parent_that_is_no_trash_name_is_state_of_the_sour
         assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "b".repeat(39)).as_bytes()), "a name one digit short is not one the wrapper makes");
         assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "A".repeat(40)).as_bytes()), "and neither is one in upper case");
     }
+}
+
+/// What:
+///  A folder that holds another command's stage container and nothing else,
+/// however many folders around the container hold
+///  nothing else either,
+/// is left out whole;
+/// everything else is state the copy keeps.
+/// Why:
+///  The copy leaves a container out,
+/// so a folder that held nothing but one is no state of the source either,
+/// and a
+///  conversion that kept it would hand the new worktree an empty folder nothing names.
+/// A file,
+/// an
+///  empty folder,
+/// a link or a name that merely begins the prefix is the person's own state,
+/// so the folders above it stay.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsOnlyPrivateStages('.claude/worktrees') // true while only a container is in it
+/// ```
+#[test]
+fn a_folder_that_holds_nothing_but_a_stage_container_is_left_out_whole() {
+    let root: PathBuf = fixture("prune-stage-only");
+    let worktrees: PathBuf = root.join(".claude/worktrees");
+    let container: PathBuf = worktrees.join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
+    std::fs::create_dir_all(container.join("payload")).expect("the stage container");
+    std::fs::write(container.join("payload/credentials"), b"token\n").expect("its payload");
+    assert!(holds_only_private_stages(root.join(".claude").as_path()), "the folders around a container hold nothing else");
+    assert!(holds_only_private_stages(worktrees.as_path()), "and the folder the container sits in holds nothing else");
+    // A file of the person's own beside the container is state, so the folders above it stay.
+    std::fs::write(worktrees.join("notes.txt"), b"mine\n").expect("a file of the person's own");
+    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a file beside the container is state");
+    std::fs::remove_file(worktrees.join("notes.txt")).expect("drop the file");
+    // An empty folder is state of its own, so it keeps the folders above it.
+    std::fs::create_dir(worktrees.join("keep")).expect("an empty folder");
+    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "an empty folder is state of its own");
+    std::fs::remove_dir(worktrees.join("keep")).expect("drop the empty folder");
+    // A link to the container is not followed: the folder it names is somewhere else.
+    std::os::unix::fs::symlink(&container, root.join(".claude/elsewhere")).expect("a link to the container");
+    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a link is state, and nothing below it is looked at");
+    std::fs::remove_file(root.join(".claude/elsewhere")).expect("drop the link");
+    // A name that merely begins the prefix is the person's own, as `names_a_private_stage` decides.
+    std::fs::write(worktrees.join("cli-git-worktree-copy-notes.md"), b"notes\n").expect("a name without the leading dot");
+    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a name that merely begins the prefix is state");
+    std::fs::remove_file(worktrees.join("cli-git-worktree-copy-notes.md")).expect("drop the lookalike");
+    // A folder this user cannot list is not proven to hold nothing but a container, so the answer is no.
+    let closed: PathBuf = worktrees.join("closed");
+    std::fs::create_dir(closed.as_path()).expect("a folder");
+    std::fs::set_permissions(closed.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("close it");
+    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a folder nothing can look inside is state");
+    std::fs::set_permissions(closed.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("open it again");
+    std::fs::remove_dir(closed.as_path()).expect("drop it");
+    assert!(holds_only_private_stages(worktrees.as_path()), "with only the container left it is left out whole again");
+    remove(root.as_path());
 }

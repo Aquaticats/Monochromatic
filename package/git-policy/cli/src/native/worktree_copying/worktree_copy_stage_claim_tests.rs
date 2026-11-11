@@ -521,7 +521,11 @@ fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() 
     assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
     assert_eq!(first.len(), 1, "{first:?}");
     let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-    assert!(first[0].contains(format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard").as_str()) && first[0].contains(format!("git worktree remove --force {shown}").as_str()), "the report names what finishes or removes it: {}", first[0]);
+    // The two commands are the ones a report of an interrupted add names everywhere, and they are the ones
+    //  `worktree_finish_commands.rs` owns, so the expected words come from there: the finish command carries the
+    //  worktree guard's hatch, which a checkout that never ran needs.
+    let (finish, remove_it): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
+    assert!(first[0].contains(finish.as_str()) && first[0].contains(remove_it.as_str()), "the report names what finishes or removes it: {}", first[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
     // The person finishes the checkout the report names.
@@ -552,8 +556,8 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
-    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-    assert!(notices[0].contains(format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard").as_str()) && notices[0].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[0]);
+    let (finish, remove_it): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
+    assert!(notices[0].contains(finish.as_str()) && notices[0].contains(remove_it.as_str()), "{}", notices[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records stay while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), notices, "the next command says the same");
     remove(root.as_path());
@@ -990,10 +994,14 @@ fn a_report_names_its_path_as_the_shell_reads_it_back() {
         std::fs::write(admin.join(INDEX_LOCK), b"").expect("the lock a killed Git leaves");
         let destination: PathBuf = repository.join("topic");
         let text: String = finish_instructions(destination.as_path(), admin.as_path());
-        let finish_end: String = format!(" reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
+        // The finish command names the path before its own flags, so that word ends where the rest of the command begins;
+        //  the flags are the ones `worktree_finish_commands.rs` prints.
+        let finish_tail: String = format!(" reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
+        // A word that ends the command ends at the closing backtick and the first word the sentence after it writes: a
+        //  backtick alone cannot end a word, because one of the names below holds a backtick of its own.
         let expected: Vec<(&str, &str, PathBuf)> = vec![
-            ("git -C ", finish_end.as_str(), destination.clone()),
-            ("git worktree remove --force ", "` removes it with everything in it,", destination.clone()),
+            ("git -C ", finish_tail.as_str(), destination.clone()),
+            ("git worktree remove --force ", "` removes it with everything in it", destination.clone()),
             ("rm ", "` removes it,", admin.join(INDEX_LOCK)),
         ];
         for (marker, end, path) in expected {

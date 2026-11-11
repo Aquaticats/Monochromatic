@@ -460,6 +460,44 @@ land this branch;
 the red tests the earlier section lists are still the integration's,
 and nothing this branch resolved reaches them.
 
+The integration then moved again to `ee545033ad`,
+which contains this branch (`cc75b83b0b`),
+and `a68c816916` fixed the commit budgets after this merge.
+The whole suites on this branch's tree (`0c74222b2c`),
+one run of each:
+
+```text
+native:test:host -- --no-fail-fast
+  Summary [ 775.885s] 6522 tests run: 6503 passed (2 slow), 19 failed, 19 skipped
+native:test:binary:host -- --no-fail-fast
+  Summary [ 719.633s] 953 tests run: 944 passed (6 slow), 9 failed, 3 skipped
+```
+
+None of the 19 lib failures lives in a file this merge resolved:
+ten `invocation::entry`,
+three `worktree_copying::worktree_copy_stage_claim`,
+four stage-container tests
+(`worktree::worktree_convert` twice,
+`worktree::worktree_convert_compare`,
+`subvolume::subvolume_sync`),
+`landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`,
+and
+`service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
+The nine binary failures are six `budget` tests and three `package_repair` ones.
+The same filter on `ee545033ad`,
+`-E 'test(budget::) | test(package_repair::)'`,
+passes all six `budget` tests and still fails the three `package_repair` ones
+(`a_failing_pnpm_never_fails_the_add`,
+`real_cargo_rebuilds_own_crates_with_an_external_build_directory`,
+`a_running_repair_does_not_hold_another_add`),
+so both families are the integration's,
+and the budget family was fixed after this branch's merge.
+
+Next action:
+nothing of this merge is open;
+the red tests above are the integration's own,
+and the coordinator has landed this branch.
+
 ### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
@@ -11096,6 +11134,18 @@ filing is the owner's decision).
 The earlier statements stay in `package/git-policy/cli/README.md`,
 "Git's own fsmonitor",
 as history.
+The decision was amended 2026-11-10,
+when the owner was asked
+"Should the wrapper switch fsmonitor off for its own internal Git commands only?"
+and chose "B:
+off for internal Git (Recommended)":
+every Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+(the prefix in `package/git-policy/cli/src/native/invocation/hooks_off.rs`,
+named `StartOwner::Wrapper` there),
+so a step that reads the index no longer waits for the daemon,
+while a command the person typed keeps the person's setting (`StartOwner::Person`).
+The wording is in `package/git-policy/cli/SPEC.md`,
+"Real Git starts with traditional hooks off".
 
 ### Worktree add and package managers
 

@@ -35,7 +35,7 @@ use crate::merge_isolation_carry::drop_capture_ref;
 use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
 /// What Git's own update left at each path,
 /// and the read of it.
-use crate::merge_isolation_carry_landed::{LandedFile, landed_of};
+use crate::merge_isolation_carry_landed::{LandedFile, landed_of, write_landed_record};
 use crate::merge_isolation_carry_notice::report_lines;
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
@@ -288,6 +288,9 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     }
     let landed_paths: Vec<LandedFile> = landed_of(root, written_paths.as_slice());
     let landed: &[LandedFile] = landed_paths.as_slice();
+    // What Git wrote is recorded beside the merge's record, so a command that is killed from here to the end of the carry
+    //  reads the same entries this command read, and a save that arrives after the kill is never read as the merge's own file.
+    write_landed_record(git_dir, transaction_id.as_str(), landed);
     reach_phase(Phase::MergeApplied)?;
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's
     //  lines comes back where it was, a staged edit stays staged, and an edit of the merge's own lines keeps both sides between

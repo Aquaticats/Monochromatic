@@ -25,6 +25,9 @@ use crate::announced_query::printable_after;
 use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
 use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
 use crate::forwarding::{end_as_git_ended, exit_code, replace_process_with_real_git, run_real_git};
+/// Who a real-Git start runs for:
+/// the announced query is the command the person typed.
+use crate::hooks_off::StartOwner;
 use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use crate::forwarded_command::ResolvedCommand;
 use crate::worktree_identity::WorktreeIdentity;
@@ -56,7 +59,8 @@ pub(crate) fn run_announced(
     overlay: &[(OsString, OsString)],
     text: &str,
 ) -> i32 {
-    match run_real_git(real_git, arguments, overlay) {
+    // The announced query is the command the person typed, so the person's monitor setting stays (`hooks_off`).
+    match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
         Ok(outcome) => {
             write_stream(&mut std::io::stdout(), printable_after(outcome, text));
             return exit_code(outcome);
