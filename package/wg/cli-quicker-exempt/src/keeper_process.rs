@@ -272,6 +272,91 @@ pub fn stop_command_process(
     ));
 }
 
+/// What ending the group of a watcher whose leader is gone did.
+#[derive(Debug, Eq, PartialEq)]
+pub enum LeftoverGroup {
+    /// The group was gone already,
+    /// so nothing was signalled.
+    Absent,
+    /// The group held a member and ended after the signals sent.
+    Ended,
+}
+
+/// Waits bounded time for a process group to hold no member,
+/// and answers whether it became empty.
+fn wait_for_group_end(leader: i32, limit: Duration) -> bool {
+    let deadline = Instant::now() + limit;
+    while group_has_members(leader) {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(STOP_POLL);
+    }
+    return true;
+}
+
+/// Sends one signal to a process group.
+fn signal_group(leader: i32, signal: libc::c_int) -> io::Result<()> {
+    // SAFETY: a negative pid names the process group the caller proved.
+    let result = unsafe { libc::kill(-leader, signal) };
+    if result < 0 {
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ESRCH) {
+            return Ok(());
+        }
+        return Err(error);
+    }
+    return Ok(());
+}
+
+/// Ends the process group a watcher led when the watcher itself is gone.
+///
+/// A watcher leads its own session and starts its `ip` calls and manager clients in that group.
+/// When the kernel kills the watcher alone,
+/// which an out-of-memory kill does,
+/// those children stay running in the recorded group,
+/// and a stop that only looks for the leader finds nothing and would forget the record,
+/// although a client left alive can still change the user's manager.
+/// The group is ended before the record goes.
+///
+/// The group is signalled only when it is proven to be the recorded one:
+/// while a process group exists the kernel keeps its number,
+/// so the leader's pid cannot name another process meanwhile,
+/// and a live process at that pid with the recorded start time is the leader itself.
+/// A different start time means the record names something else,
+/// and nothing is signalled.
+///
+/// @throws {@link io::Error} with `InvalidData` when the pid names another process,
+/// and with `TimedOut` when the group survives `SIGKILL`.
+pub fn end_leftover_group(pid: i32, start_time: u64, role: &str) -> io::Result<LeftoverGroup> {
+    if !group_has_members(pid) {
+        return Ok(LeftoverGroup::Absent);
+    }
+    match process_start_time(pid) {
+        Ok(observed) if observed == start_time => {}
+        Ok(_other) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{role} PID {pid} now belongs to another process, so the group it leads is not signalled"),
+            ));
+        }
+        Err(error) if means_vanished(&error) => {}
+        Err(error) => return Err(error),
+    }
+    signal_group(pid, libc::SIGTERM)?;
+    if wait_for_group_end(pid, STOP_WAIT) {
+        return Ok(LeftoverGroup::Ended);
+    }
+    signal_group(pid, libc::SIGKILL)?;
+    if wait_for_group_end(pid, KILL_WAIT) {
+        return Ok(LeftoverGroup::Ended);
+    }
+    return Err(io::Error::new(
+        io::ErrorKind::TimedOut,
+        format!("the process group of {role} PID {pid} outlived SIGTERM and SIGKILL, so its record is kept"),
+    ));
+}
+
 /// Sends SIGTERM,
 ///  escalates exact surviving holder to SIGKILL,
 ///  and confirms disappearance.

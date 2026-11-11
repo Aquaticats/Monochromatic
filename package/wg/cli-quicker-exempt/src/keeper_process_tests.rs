@@ -106,3 +106,40 @@ fn a_stop_of_a_pid_that_names_another_command_is_refused() {
     let _killed = child.kill();
     let _reaped = child.wait();
 }
+
+/// A watcher killed on its own leaves its children in the group it led,
+/// and the group is ended from the recorded identity,
+/// so a stop that finds only the group still ends it.
+#[test]
+fn the_group_of_a_killed_watcher_is_ended_and_an_absent_group_is_no_work() {
+    use crate::keeper_process::{end_leftover_group, LeftoverGroup};
+    let mut child = session_leader();
+    let pid = child.id() as i32;
+    let start_time = process_start_time(pid).expect("the fixture has a start time");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while group_member_count(pid) <= 1 && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(group_member_count(pid) > 1, "the fixture's child is in the group the fixture leads");
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGKILL) }, 0, "the leader is killed on its own");
+    let _reaped = child.wait();
+    assert_eq!(group_member_count(pid), 1, "the child outlived the leader in the recorded group");
+    assert_eq!(end_leftover_group(pid, start_time, "watcher").expect("the group is ended"), LeftoverGroup::Ended);
+    assert_eq!(group_member_count(pid), 0, "no process of the group is left");
+    assert_eq!(end_leftover_group(pid, start_time, "watcher").expect("an absent group answers"), LeftoverGroup::Absent);
+}
+
+/// A group whose number the kernel gave to another process is never signalled,
+/// because the recorded watcher and its group are gone by then.
+#[test]
+fn a_group_recorded_under_another_start_time_is_refused() {
+    use crate::keeper_process::end_leftover_group;
+    let mut child = session_leader();
+    let pid = child.id() as i32;
+    let recorded = process_start_time(pid).expect("the fixture has a start time");
+    let refusal = end_leftover_group(pid, recorded + 1, "watcher").expect_err("the group is refused");
+    assert_eq!(refusal.kind(), std::io::ErrorKind::InvalidData, "{refusal}");
+    assert!(group_member_count(pid) > 0, "the refused group was signalled anyway");
+    let _killed = unsafe { libc::kill(-pid, libc::SIGKILL) };
+    let _reaped = child.wait();
+}

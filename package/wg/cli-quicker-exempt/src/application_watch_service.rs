@@ -8,9 +8,11 @@ use crate::application_watch::{prepare_application_watch, run_application_watch,
 use crate::leftover_sweep::SweepSetup;
 /// Production target roots and app slice path.
 use crate::application_targets::{user_app_slice, ScanRoots};
-/// Generic exact process validation and shutdown.
+/// Generic exact process validation and shutdown,
+/// including the group a killed watcher left.
 use crate::keeper_process::{
     command_process_is_live,
+    end_leftover_group,
     process_start_time,
     stop_command_process,
 };
@@ -114,20 +116,31 @@ pub fn stop_application_watch(key: &str) -> io::Result<()> {
         return Ok(());
     };
     let expected = expected_watch_command(process, key)?;
-    if !command_process_is_live(
+    if command_process_is_live(
         process.pid,
         process.start_time,
         &expected,
         "application watcher",
     )? {
+        stop_command_process(
+            process.pid,
+            process.start_time,
+            &expected,
+            "application watcher",
+        )?;
         return remove_watch_state(key);
     }
-    stop_command_process(
-        process.pid,
-        process.start_time,
-        &expected,
-        "application watcher",
-    )?;
+    // The leader is gone,
+    // and the children it started in its group need not be:
+    // a manager client left alive can still change the user's manager after this stop returned,
+    // so the group is ended before the record is forgotten.
+    // A group that survives keeps the record, so the next stop tries again.
+    let group = end_leftover_group(process.pid, process.start_time, "application watcher")?;
+    if group == crate::keeper_process::LeftoverGroup::Ended {
+        log_line(&format!(
+            "wg-quicker-exempt: the watcher of {key} was gone and its process group still held a member, so the group was ended before its record was removed"
+        ));
+    }
     return remove_watch_state(key);
 }
 
