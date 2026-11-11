@@ -3044,6 +3044,20 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
+- A pathspec the command names that matches no path Git can stage.
+  Native Git keeps deciding which pathspecs are valid,
+   so the wrapper reports Git's own refusal instead of predicting a match:
+   a directory,
+   a pattern,
+   a magic selector and a literal name behave exactly as before.
+  The commit is not made,
+   nothing is staged by it,
+   the finding `explicit-path-commit/pathspec-matches-nothing` names every refused token as Git named it,
+   and a token that begins with a hyphen also says that options belong before `--`
+   (`git commit --message <text> -- <paths>`).
+  Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
+  "Core finding event";
+  issue 6283).
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
