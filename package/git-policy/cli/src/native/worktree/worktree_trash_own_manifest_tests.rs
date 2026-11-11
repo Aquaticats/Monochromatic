@@ -2,7 +2,7 @@
 //! what it proves,
 //! and what a directory that cannot show it is.
 
-use super::{MANIFEST_FILE_NAME, is_its_own, read, write};
+use super::{MANIFEST_FILE_NAME, its_own, read, write};
 use crate::fs_beneath::{identity_at, identity_of, open_directory_at, open_root, plain_components};
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash::TRASH_PARENT;
@@ -48,7 +48,7 @@ fn a_written_manifest_reads_back_as_the_trashs_own() {
     let manifest: TrashManifest = planted(root.as_path(), name.as_str(), 2);
     write(root.as_path(), &manifest).expect("the manifest is written");
     assert_eq!(read(root.as_path(), name.as_str()), Some(manifest), "the manifest reads back whole");
-    assert!(is_its_own(&opened(root.as_path(), name.as_str()), name.as_str()), "and the emptying takes the file for its own");
+    assert!(its_own(&opened(root.as_path(), name.as_str()), name.as_str()).is_some(), "and the emptying takes the file for its own");
     remove(root.as_path());
 }
 
@@ -72,9 +72,12 @@ fn a_manifest_that_is_not_the_trashs_own_proves_nothing() {
     let forged: TrashManifest = TrashManifest { name: name.clone(), trash: other_manifest.trash, entries: manifest.entries.clone() };
     write(root.as_path(), &forged).expect("the file is written");
     assert_eq!(read(root.as_path(), name.as_str()), None, "identities that are not the directory's prove nothing");
+    // The emptying asks the same question of the opened trash, so a manifest that decodes but names another directory is
+    //  no file of the emptying's either.
+    assert!(its_own(&opened(root.as_path(), name.as_str()), name.as_str()).is_none(), "the bytes decode, and they name another directory");
     std::fs::write(root.join(TRASH_PARENT).join(&name).join(MANIFEST_FILE_NAME), b"not a manifest").expect("damage");
     assert_eq!(read(root.as_path(), name.as_str()), None, "a damaged manifest proves nothing");
-    assert!(!is_its_own(&opened(root.as_path(), name.as_str()), name.as_str()), "and is no file of the emptying's");
+    assert!(its_own(&opened(root.as_path(), name.as_str()), name.as_str()).is_none(), "and is no file of the emptying's");
     remove(root.as_path());
 }
 
@@ -120,8 +123,8 @@ fn a_manifest_name_that_holds_a_pipe_is_refused_without_waiting() {
     let written_root: PathBuf = root.clone();
     let written_manifest: TrashManifest = manifest.clone();
     let outcome = crate::test_support::finished_within(move || return write(written_root.as_path(), &written_manifest).map_err(|error| return error.to_string()));
-    let Some(outcome) = outcome else { panic!("the manifest write waited on a named pipe") };
-    let refused: String = outcome.expect_err("a named pipe is refused");
+    let Some(finished) = outcome else { panic!("the manifest write waited on a named pipe") };
+    let refused: String = finished.expect_err("a named pipe is refused");
     assert!(refused.contains("not a plain file"), "{refused}");
     remove(root.as_path());
 }

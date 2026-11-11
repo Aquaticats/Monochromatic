@@ -195,33 +195,40 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// What:
 ///  Write the trash's record now that the worktree holding it is published,
 /// and answer what the hand-over still owes,
-///  which is the same trash when the record is written.
+///  which is the same trash when a run of the service will claim that record.
 /// Why:
 ///   The record is what outlives the command,
 /// so it is written before the rung returns,
 /// and a command killed after
 ///  the swap leaves a trash the service empties.
-/// A record that cannot be written is a trash nothing will ever empty,
+/// A record that cannot be written,
+///  and one the service already settled,
+/// are both a trash no later run will empty,
 /// and the add
-///  pays the emptying itself in that case,
-/// which no ordinary add reaches;
-/// a trash that then stays is reported with its path
-///  and the reason.
+///  pays the emptying itself in either case,
+/// which no ordinary add reaches:
+/// a trash's name is the name this
+///  add gave it,
+/// so its record is new or the one this command has just written;
+/// a trash that then stays is reported with its
+///  path and the reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const recordBeforeTheRungReturns = (pending) => { try { recordTheTrash(pending); return pending; } catch (reason) { warn(reason); deleteTrash(pending); return undefined; } };
+/// const recordBeforeTheRungReturns = (pending) => { const will = recordTheTrash(pending); return will === 'empty it' ? pending : (warn(why(will)), deleteTrash(pending), undefined); };
 /// ```
 fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
     let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
-    if let Err(reason) = record_the_trash(&pending) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the record of the trash {} could not be written ({reason}), so this add empties it before it returns", shown.display()).as_str());
-        if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
-            warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
-        }
-        return None;
+    let why: String = match record_the_trash(&pending) {
+        Ok(crate::worktree_trash::TheServiceWill::EmptyIt) => return Some(pending),
+        Ok(crate::worktree_trash::TheServiceWill::Nothing) => String::from("the record of the trash is settled, so no run of the commit service will claim this one"),
+        Err(reason) => format!("the record of the trash could not be written ({reason})"),
+    };
+    warn(TAG, format!("monochromatic-git-policy-cli: {why}, so this add empties it before it returns: {}", shown.display()).as_str());
+    if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
+        warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
     }
-    return Some(pending);
+    return None;
 }
 
 /// What:

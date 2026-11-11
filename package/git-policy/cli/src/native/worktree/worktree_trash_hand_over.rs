@@ -52,7 +52,7 @@ use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
-use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{Enqueued, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash::{PendingTrash, TRASH_PARENT, TRASH_REFERENCE};
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt as _;
@@ -145,8 +145,35 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
 }
 
 /// What:
+///  What a trash's record leaves the commit service to do.
+/// Why:
+///   The queue answers `Known` for an id that is already in any state,
+/// and a record the service settled as
+///  `done` or `failed` is never claimed again:
+/// a caller that took every `Ok` for a record the service will
+///  empty promised a run that never comes,
+/// while the person read that the trash "is recorded now and the commit
+///  service empties it".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheServiceWill = 'empty it' | 'nothing'; // a pending record, or one that is settled
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TheServiceWill {
+    /// A record of this trash waits for the service,
+    /// or the service is working on one:
+    /// a woken service empties the trash.
+    EmptyIt,
+    /// A record of this trash is settled,
+    /// so no run of the service will claim it.
+    Nothing,
+}
+
+/// What:
 ///  Write this trash as a durable work item now,
-/// and answer the reason it could not be written.
+/// and answer what the record leaves the service,
+///  or the reason it could not be written.
 /// Why:
 ///   The record is what outlives the command,
 /// so it is written the moment its trash stands in the published worktree,
@@ -157,15 +184,23 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
 /// Writing it twice is one record:
 /// the queue's id
 ///  is the trash's name,
-/// so a second write finds the first.
+/// so a second write finds the first,
+/// and the answer says whether that first
+///  one is still work or was settled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordTheTrash(trash) // enqueue(workDir(trash.commonDir), trashItem(trash))
+/// recordTheTrash(trash) // enqueue(workDir(trash.commonDir), trashItem(trash)); settledRecordOf(workDir, item.id) ? 'nothing' : 'empty it'
 /// ```
-pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
-    return match enqueue(work_directory(trash.common_dir.as_path()).as_path(), &trash_item(trash)) {
-        Ok(_added) => Ok(()),
+pub fn record_the_trash(trash: &PendingTrash) -> Result<TheServiceWill, String> {
+    let item: WorkItem = trash_item(trash);
+    let work: PathBuf = work_directory(trash.common_dir.as_path());
+    return match enqueue(work.as_path(), &item) {
+        Ok(Enqueued::Added) => Ok(TheServiceWill::EmptyIt),
+        // The id is in some state already, and only a settled one is no work: a pending record waits for the service, and a
+        //  claimed or recovering one is what a service is doing now.
+        Ok(Enqueued::Known) if crate::work_item::settled_record_of(work.as_path(), item.id().as_str()) => Ok(TheServiceWill::Nothing),
+        Ok(Enqueued::Known) => Ok(TheServiceWill::EmptyIt),
         Err(reason) => Err(reason),
     };
 }
@@ -197,9 +232,16 @@ fn the_provisioners_answer(provisioner: Provisioner<'_>, host: Option<&Provision
 /// handOverWith({ context, trash, notices, reach });
 /// ```
 pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
-    if let Err(reason) = record_the_trash(trash) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return Err(stays_words(trash, format!("the work item could not be written: {reason}").as_str(), None));
+    match record_the_trash(trash) {
+        // A record of this trash that the service already settled is one no wake makes it claim. An add's trash is named
+        //  with a name of its own, so an ordinary hand-over never reaches this; the trash stays and every later command in
+        //  the worktree names it (`worktree_trash_unaccounted.rs`).
+        Ok(TheServiceWill::Nothing) => debug(TAG, "a record of this trash is settled, so the commit service will not claim this one"),
+        Ok(TheServiceWill::EmptyIt) => {}
+        Err(reason) => {
+            debug(TAG, format!("the work item could not be written: {reason}").as_str());
+            return Err(stays_words(trash, format!("the work item could not be written: {reason}").as_str(), None));
+        }
     }
     let record: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), PENDING).join(trash_item(trash).id());
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {

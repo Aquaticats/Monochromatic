@@ -310,6 +310,12 @@ pub mod worktree_trash_manifest;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_own_manifest;
 
+/// What every later command in a worktree says about the trash left there:
+///  which directory nothing will empty,
+///  which trash it records again,
+///  and the wake that tells the service so.
+pub mod worktree_trash_unaccounted;
+
 /// Removal of a directory tree beneath a held parent handle,
 /// never following a link.
 #[cfg(target_os = "linux")]

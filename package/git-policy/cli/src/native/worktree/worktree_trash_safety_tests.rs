@@ -255,13 +255,13 @@ fn a_trash_that_could_not_be_emptied_is_named_and_left_alone() {
     let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-named", name.as_str(), 2);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(trash.to_str().expect("UTF-8")), "the person is told which trash stays: {said}");
     assert!(trash.join("d0").is_dir() && trash.join("d1").is_dir(), "nothing in it is deleted");
     // Said once for the command it is said in, and again by the next one, so a long-lived worktree does not lose it.
     let mut second: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut second);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut second, &nothing_woken());
     assert!(String::from_utf8_lossy(second.as_slice()).contains(trash.to_str().expect("UTF-8")), "the next command says it again: {}", String::from_utf8_lossy(second.as_slice()));
     remove(root.as_path());
 }
@@ -282,7 +282,7 @@ fn a_trash_a_record_accounts_for_is_not_named() {
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("record");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(!said.contains(trash.to_str().expect("UTF-8")), "a trash its record accounts for is not named: {said}");
     assert!(trash.join("d0/file").is_file(), "the trash the record names is not touched");
@@ -315,7 +315,7 @@ fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
     let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     age_by(&pending, std::time::Duration::from_secs(600));
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(trash.to_str().expect("UTF-8")), "a record nothing claimed is named with its trash: {said}");
     assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
@@ -327,7 +327,8 @@ fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
 ///  so the file at that name and the trash directory itself both stay,
 ///  and the emptying says why.
 /// Why:
-///   The proof is the identity the manifest names, compared with the directory that holds it;
+///   The proof is the identity the manifest names,
+/// compared with the directory that holds it;
 /// a manifest that decodes but names another directory is somebody's file,
 /// and the emptying removes only what it can prove the leave-out moved there.
 /// The entries are still the recorded objects,
@@ -361,7 +362,8 @@ fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
 ///  so a scan that said the trash "is recorded now and the commit service empties it"
 /// would promise a run that never comes.
 /// A failed record is where the promise of a later attempt stops
-/// (`SPEC.md`, "A trash that cannot be emptied ...").
+/// (`SPEC.md`,
+/// "A trash that cannot be emptied ...").
 #[test]
 fn a_settled_record_makes_the_notice_name_the_trash_instead_of_promising_a_run() {
     let name: String = "a".repeat(40);
@@ -374,13 +376,69 @@ fn a_settled_record_makes_the_notice_name_the_trash_instead_of_promising_a_run()
     let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
     std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash is named: {said}");
     assert!(!said.contains("recorded now"), "and nothing promises a record was written: {said}");
     assert!(failed.is_file() && !pending.exists(), "no pending record is invented from a settled one");
     remove(root.as_path());
+}
+
+/// A scan that asks no service,
+/// which is what a control wants:
+/// no socket,
+/// no service manager and no session bus.
+fn nothing_woken() -> crate::held_push_release_wakes_the_service::NothingWoken {
+    return crate::held_push_release_wakes_the_service::NothingWoken;
+}
+
+/// What:
+///  A trash recovered from the manifest it carries tells the repository's service,
+///  because a record alone is not a run.
+/// Why:
+///  The service drains what it is woken for,
+/// and it is woken by a hand-over,
+/// by a commit,
+/// or by an add;
+/// a scan that only wrote the record
+///  left the trash pending until some unrelated wake,
+/// which need never come,
+/// while the line it printed said the
+///  commit service empties it.
+#[test]
+fn a_recovered_trash_tells_the_service() {
+    let name: String = "6".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-recovered-wake", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let woken = Woken::default();
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &woken);
+    assert_eq!(woken.named(), vec![git_dir.clone()], "the repository's service is told: {}", String::from_utf8_lossy(say.as_slice()));
+    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::PENDING).join(item_of(worktree.as_path(), git_dir.as_path(), &manifest).id());
+    assert!(pending.is_file(), "and the record it empties stands");
+    remove(root.as_path());
+}
+
+/// A wake a control can read,
+/// which reaches no socket and no service manager.
+#[derive(Clone, Default)]
+struct Woken(std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>);
+
+impl Woken {
+    /// The Git directories the scan has told so far,
+    /// in the order it told them.
+    fn named(&self) -> Vec<PathBuf> {
+        return self.0.lock().map(|named: std::sync::MutexGuard<'_, Vec<PathBuf>>| return named.clone()).unwrap_or_default();
+    }
+}
+
+impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
+    fn wake(&self, git_dir: &Path) {
+        if let Ok(mut named) = self.0.lock() {
+            named.push(git_dir.to_path_buf());
+        }
+    }
 }
 
 /// Move a file's modification time into the past,
@@ -415,7 +473,7 @@ fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
     let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
     std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash of a given-up record is named: {said}");
     assert!(failed.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
@@ -442,7 +500,7 @@ fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
     let (git_dir_for_scan, worktree_for_scan) = (git_dir.clone(), worktree.clone());
     let runner = std::thread::spawn(move || {
         let mut said: Vec<u8> = Vec::new();
-        name_unaccounted_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said);
+        name_unaccounted_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said, &nothing_woken());
         let _sent = sender.send(said);
     });
     let said: Vec<u8> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
@@ -467,7 +525,7 @@ fn a_trash_no_record_names_is_named_and_left_alone() {
     let unrecorded: PathBuf = worktree.join(TRASH_PARENT).join("6".repeat(40));
     put(unrecorded.as_path(), "d0/precious", b"copied by hand\n");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(unrecorded.to_str().expect("UTF-8")), "the person is told what sits there: {said}");
     assert!(unrecorded.join("d0/precious").exists(), "nothing is deleted");
@@ -922,7 +980,7 @@ fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
     let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-personal-named", name.as_str(), 1);
     put(worktree.join(TRASH_PARENT).as_path(), "personal/important-notes.txt", b"the person's own notes\n");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
     assert!(!said.contains(format!("{TRASH_PARENT}/personal").as_str()), "the person's own directory is not called a trash: {said}");
@@ -965,7 +1023,7 @@ fn btrfs_a_trash_whose_record_a_kill_prevented_is_recorded_and_emptied_by_the_ne
     let work: PathBuf = work_directory(common.as_path());
     assert!(std::fs::read_dir(state_directory(work.as_path(), "pending")).is_err(), "the kill left no record");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(common.as_path(), stage.as_path(), &mut say);
+    name_unaccounted_trash(common.as_path(), stage.as_path(), &mut say, &nothing_woken());
     let record: PathBuf = state_directory(work.as_path(), "pending").join(format!("trash-{}", manifest.name));
     let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the next pass records a trash that says what it is").as_str()).expect("a work item");
     assert_eq!(item.parent, manifest.encode(), "the record carries the identities the trash itself wrote");

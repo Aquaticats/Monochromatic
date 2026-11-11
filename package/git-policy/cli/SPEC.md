@@ -1399,6 +1399,11 @@ the identity of the trash directory (device,
 inode and birth time,
 taken when it was
 made) and the identity of each directory moved into it.
+That file is written at a name opened without following a link and without blocking:
+a link another process put there is refused instead of written through,
+which would replace the file it points at,
+and a named pipe there is refused at once instead of waited on,
+so no add waits for a reader that may never come.
 A directory the leave-out set aside as another command's stage container is removed in the foreground,
 before the
  snapshot is installed,
@@ -1507,6 +1512,9 @@ worktree's device;
 the trash has the recorded identity (device,
 inode and birth time,
 taken when it was made);
+the file at the manifest's name is that trash's own only when the identity it records is the directory's,
+and it is unlinked only while the name still holds the object whose bytes were read there,
+so a file moved onto that name is left alone and named in the failure;
 and each
  entry removed is the recorded object (a replacement,
 a link or anything unrecorded is left alone and named in the
@@ -1550,6 +1558,13 @@ a record still pending after one claim lease is one no service ever looked at,
 and a directory nothing recorded cannot be proven to be one the leave-out moved;
 nothing there is deleted,
 and a worktree with no trash parent costs the command one lookup.
+A trash that carries its own manifest is recorded again by that command,
+and the record it writes is one the service drains,
+so the line says so.
+A record the service already settled is no work for any later run:
+the line then names the trash as one nothing will empty,
+with the advice to look at it,
+rather than promising an emptying that never comes.
 A work item of kind `trash` that an earlier release wrote is emptied by the same handler
 (`empty_trash`),
 with the same checks and the same identities,
