@@ -83,10 +83,12 @@ const QUIET_NOTICE_SECONDS: &str = "3600";
 /// and a writer the suite's load held back writes a beat only when the answer is already queued,
 ///  where `tokio::time::timeout` takes the ready message and no beat is written at all
 /// (gate of 2026-11-11T10:29-05:00,
-/// `a_landing_that_starts_as_the_bound_passes_is_reported_as_landed`: `Ok(Landed { already: false })`
+/// `a_landing_that_starts_as_the_bound_passes_is_reported_as_landed`:
+/// `Ok(Landed { already: false })`
 /// after 3.17 s,
 /// where the landing's own answer crossed the client's one-second ceiling with no line before it).
-/// A notice is *queued* by the landing, so it is ahead of the answer on the connection whatever the writer's timing.
+/// A notice is *queued* by the landing,
+/// so it is ahead of the answer on the connection whatever the writer's timing.
 const RACE_NOTICE_SECONDS: &str = "1";
 
 /// The ceiling the client of that control gives the service's answer:

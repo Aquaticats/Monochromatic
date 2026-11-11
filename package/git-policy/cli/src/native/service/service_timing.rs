@@ -265,7 +265,8 @@ fn holder_field(who: &String) -> String {
 /// Why the four figures are split:
 ///  a wait whose whole is far longer than their sum has spent its time outside the acquisition's own work,
 ///  which the line must let a reader see
-/// (the gate of 2026-11-11T10:29-05:00: one landing's wait took 95,277 ms while these parts accounted for 3,003 ms of it).
+/// (the gate of 2026-11-11T10:29-05:00:
+/// one landing's wait took 95,277 ms while these parts accounted for 3,003 ms of it).
 pub fn lock_notes_fields(notes: &WaitNotes) -> String {
     if notes.looks == 0 {
         return format!(
@@ -312,7 +313,9 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 /// not with the answer,
 /// so a landing that fails afterwards still leaves what it waited for.
 /// It says the total,
-/// how it split between readying the acquisition, flushing the marker, waiting for a holder and removing the staged file,
+/// how it split between readying the acquisition,
+/// flushing the marker,
+/// waiting for a holder and removing the staged file,
 /// how many times the lock was found held,
 /// and what the first and the last look found (`lock_found`,
 /// `lock_last`).

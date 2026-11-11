@@ -4,7 +4,8 @@
 //! Why:
 //!  The gate of 2026-11-11T10:29-05:00 failed
 //! `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`
-//! because one of its services logged `ready` and then, 1.76 s later,
+//! because one of its services logged `ready` and then,
+//! 1.76 s later,
 //! `cannot start the acceptor of connections: the runtime that runs it has no worker thread`:
 //! a build that missed its one-second deadline stood in for the runtime,
 //! and the service ended at the deadline itself instead of waiting for the build that is kept for it.

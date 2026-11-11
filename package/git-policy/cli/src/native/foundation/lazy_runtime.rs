@@ -145,8 +145,14 @@ pub const SLOW_BUILD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
 /// The pause `SLOW_BUILD_VARIABLE` names,
 /// or none.
 fn the_pause_a_control_asks_for() -> Duration {
-    let named: Option<u64> = std::env::var(SLOW_BUILD_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); });
+    let named: Option<u64> = std::env::var(SLOW_BUILD_VARIABLE).ok().and_then(milliseconds_of);
     return named.map_or(Duration::ZERO, Duration::from_millis);
+}
+
+/// The whole number of milliseconds `text` names,
+/// or nothing when it names none.
+fn milliseconds_of(text: String) -> Option<u64> {
+    return text.trim().parse::<u64>().ok();
 }
 
 /// The multi-thread runtime with `workers` workers and at most `blocking` blocking-pool threads.
@@ -571,7 +577,8 @@ const A_WORKER_WAIT_STEP: Duration = Duration::from_millis(10);
 /// Why:
 ///   A caller that must have a worker (`spawn_on_runtime_within`) asks once and gets an answer that is either a worker
 /// or a wait that has run out;
-/// the wait is bounded, so nothing here waits without an end.
+/// the wait is bounded,
+/// so nothing here waits without an end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -592,7 +599,8 @@ pub fn await_a_worker_within(within: Duration) -> bool {
 }
 
 /// What:
-///  `spawn_on_runtime`, after waiting up to `within` for a late build,
+///  `spawn_on_runtime`,
+/// after waiting up to `within` for a late build,
 /// so a caller that cannot do its work without a worker does not give up at `BUILD_DEADLINE` itself.
 /// Why:
 ///   A build that outlasted its deadline is kept for the work it was built for,

@@ -363,7 +363,9 @@ fn the_exit_line_states_reason_and_uptime() {
 }
 
 /// The answered line says what the wait was for:
-/// the readying of the acquisition, the flush of the marker, the wait for the holder and the removal of the staged file apart,
+/// the readying of the acquisition,
+/// the flush of the marker,
+/// the wait for the holder and the removal of the staged file apart,
 /// how many times the lock was found held,
 /// and the first and the last description of it.
 /// Why the four times are apart:

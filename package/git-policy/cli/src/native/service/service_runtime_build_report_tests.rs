@@ -56,7 +56,9 @@ fn a_stand_in_runtime_is_named_with_its_cause_and_the_wait() {
 }
 
 /// What:
-///  The words of a task that must have a worker name the task, the cause, the wait and what to check.
+///  The words of a task that must have a worker name the task,
+/// the cause,
+/// the wait and what to check.
 /// Why:
 ///   A person whose commit failed because a service ended here reads this line and nothing else,
 /// so it names the limit that may have refused the threads and the two that may have made them slow.
