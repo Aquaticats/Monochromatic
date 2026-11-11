@@ -12010,10 +12010,12 @@ and the commit lands with the dependents it could take.
 The landing then writes the commit's entries into the real index,
 which is why the real index must already hold them.
 The listing that reads the real index names the repository the command line does,
-with `--git-dir` and `--work-tree` kept from the global options and resolved from the worktree top level
-the listing runs in
-(`repository_selection::from_global_options`),
-because a Git directory beside its work tree has no `.git` in the work tree to find.
+from the location Git answered for the invocation
+(`repository_selection::of_identity`),
+which already holds the Git directory and the work tree those options selected,
+because a Git directory beside its work tree has no `.git` in the work tree to find
+and a relative `--git-dir` read again from a discovered directory would apply the caller's `-C`
+a second time and name no repository at all.
 A listing that cannot run is not a verdict that the index holds nothing:
 each dependent it would have proved is left out of the commit and named with Git's own reason,
 and the commit lands with the rest.
