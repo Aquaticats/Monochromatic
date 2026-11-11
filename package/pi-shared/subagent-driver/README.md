@@ -58,18 +58,44 @@ and the commands read them from there:
 
 - `neuralwatt`:
   standard DeepSeek,
-  20 runs.
+  18 runs.
+  The owner, 2026-11-11: Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt
+  said to keep 1 to 2 below the limit because "a slot frees up a moment after your client sees the response finish, so a
+  request sent straight away can land as the 23rd".
 - `neuralwatt-flex`:
   DeepSeek flex,
-  22 runs.
+  20 runs.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
 - `opencode-go`:
-  20 runs,
+  20 runs when it is open,
   taken only once both Neuralwatt pools are full.
+  It is closed now:
+  the owner, 2026-11-11:
+  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
-  22 runs of Kimi K3.1 Pro flex,
+  20 runs of Kimi K3.1 Pro flex,
   taken only by a run that names that model.
+
+A closed pool keeps the room it returns to,
+so the count prints it as `opencode-go 0/0` and every other pool as the room it has.
+Every pool's limit can be set for one command without a code change,
+which is how a pool with a weekly or monthly quota is closed and reopened:
+`PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
+a limit of zero closes the pool,
+and any number above zero is the room it takes again.
+
+```sh
+# reopen OpenCode Go once the owner says the week has reset
+PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
+# close Neuralwatt's Kimi flex pool for the day
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+```
+
+A pair naming no pool,
+or holding anything but a whole number,
+is refused rather than counted,
+because a mistyped name would otherwise close nothing and read as though it had.
 
 A run that names a model only one pool takes stays on that pool.
 A run that resumes a session stays on the pool it named,

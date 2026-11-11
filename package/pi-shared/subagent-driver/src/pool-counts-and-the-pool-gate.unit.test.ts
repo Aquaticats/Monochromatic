@@ -24,8 +24,12 @@ import {
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
   PoolGateOptionsError,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   PROVIDER_OPTION,
+  PoolLimitsError,
+  limitsIn,
+  poolsWithTheseLimits,
   type PoolGateOptions,
   type PoolMembership,
   firstDefaultPoolWithRoom,
@@ -36,9 +40,54 @@ import {
   poolChoiceFor,
   poolHasRoom,
   poolNamed,
+  roomIn,
   summaryTextOf,
   talliesOf,
 } from '../dist/final/node/index.mjs';
+
+/**
+ The line the counts print, read from the pools themselves so a test never names a limit of its own.
+
+ @param counts - the count each pool is at, by the pool's name
+
+ @returns the line, in the owner's order
+
+ @example
+ ```ts
+ const line = countsLineOf(new Map([['neuralwatt', 1]]));
+ ```
+ */
+function countsLineOf(
+  counts: ReadonlyMap<string, number>,
+  pools: readonly (typeof NEURALWATT_STANDARD)[] = PROVIDER_POOLS,
+): string {
+  return pools.map(function atItsLimit(pool,) {
+    return `${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`;
+  },)
+    .join(', ',);
+}
+
+/**
+ The table with every pool open, which is what a test that fills pools needs while OpenCode Go is set aside: its room is the
+ number it returns to, read from the pool itself rather than written here.
+
+ @returns the pools, every one of them open
+
+ @example
+ ```ts
+ const pools = everyPoolOpen();
+ ```
+ */
+function everyPoolOpen(): readonly (typeof NEURALWATT_STANDARD)[] {
+  return poolsWithTheseLimits({
+    limits: new Map(PROVIDER_POOLS.map(function atItsOwnLimit(pool,) {
+      return [
+        pool.name,
+        pool.limit,
+      ] as const;
+    },),),
+  },);
+}
 
 /**
  One run going now, in the pool a test names.
@@ -249,7 +298,11 @@ await describe({
             },);
             expect(tallies.counts.get('neuralwatt',),).toBe(2,);
             expect(tallies.counts.get('opencode-go',),).toBe(0,);
-            expect(summaryTextOf(tallies,),).toBe('neuralwatt 2/20, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22',);
+            /**
+             The line the two runs on the standard pool print.
+             */
+            const owed = countsLineOf(new Map([['neuralwatt', 2],],),);
+            expect(summaryTextOf(tallies,),).toBe(owed,);
           },
         },),
         it({
@@ -268,7 +321,16 @@ await describe({
             expect(tallies.counts.get('neuralwatt-flex',),).toBe(1,);
             expect(tallies.counts.get('opencode-go',),).toBe(1,);
             expect(tallies.counts.get('neuralwatt-kimi-flex',),).toBe(2,);
-            expect(summaryTextOf(tallies,),).toBe('neuralwatt 1/20, neuralwatt-flex 1/22, opencode-go 1/20, neuralwatt-kimi-flex 2/22',);
+            /**
+             The line an unreadable ordinary run and an unreadable Kimi run print.
+             */
+            const owed = countsLineOf(new Map([
+              ['neuralwatt', 1],
+              ['neuralwatt-flex', 1],
+              ['opencode-go', 1],
+              ['neuralwatt-kimi-flex', 2],
+            ],),);
+            expect(summaryTextOf(tallies,),).toBe(owed,);
           },
         },),
       ],
@@ -303,11 +365,18 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order: standard Neuralwatt, then its flex pool, then opencode-go, and never the Kimi pool',
+          name: 'takes the owner order: standard Neuralwatt, then its flex pool, then opencode-go once it is open, and never the Kimi pool',
           fn: async () => {
+            /**
+             The table with every pool open, so the third pool of the order is one this test can reach.
+             */
+            const pools = everyPoolOpen();
             expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(NEURALWATT_STANDARD,);
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,), },),
+              tallies: talliesOf({
+                runs: runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
+                pools,
+              },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
             expect(firstDefaultPoolWithRoom({
               tallies: talliesOf({
@@ -315,22 +384,93 @@ await describe({
                   ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
                   ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
                 ],
+                pools,
               },),
-            },),).toEqual(OPENCODE_GO,);
+            },),).toEqual(pools.find(function isOpencodeGo(pool,) {
+              return pool.name === OPENCODE_GO.name;
+            },),);
           },
         },),
         it({
-          name: 'answers that no pool has room once every pool that takes a default run is full',
+          name: 'skips a pool the owner set aside, so no room is found once the open default pools are full',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({
-                runs: [
-                  ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
-                  ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
-                  ...runsIn(OPENCODE_GO, OPENCODE_GO.limit,),
-                ],
+            /**
+             The default pools that are open now, filled each to the room it has.
+             */
+            const openDefaults = PROVIDER_POOLS.filter(function takesDefaultRuns(pool,) {
+              return pool.takesDefaultRuns && (roomIn(pool,) > 0);
+            },);
+            /**
+             Every open default pool, filled to its own limit.
+             */
+            const filled = talliesOf({
+              runs: openDefaults.flatMap(function runsOf(pool,) {
+                return runsIn(pool, roomIn(pool,),);
               },),
-            },),).toBe(NO_POOL_HAS_ROOM,);
+            },);
+            expect(openDefaults.length,).toBeLessThan(PROVIDER_POOLS.length,);
+            expect(firstDefaultPoolWithRoom({ tallies: filled, },),).toBe(NO_POOL_HAS_ROOM,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: limitsIn.name,
+      children: [
+        it({
+          name: 'reads the limits a caller set, and refuses a pair that names no pool, holds no whole number, or misses its equals sign',
+          fn: async () => {
+            expect(limitsIn({ listed: 'opencode-go=20, neuralwatt-kimi-flex=0', },),).toEqual(new Map([
+              ['opencode-go', 20],
+              ['neuralwatt-kimi-flex', 0],
+            ],),);
+            expect(limitsIn({ listed: '', },),).toEqual(new Map(),);
+            expect(() => limitsIn({ listed: 'neuralwatt=nineteen', },),).toThrow(PoolLimitsError,);
+            expect(() => limitsIn({ listed: 'no-such-pool=1', },),).toThrow('no-such-pool',);
+            expect(() => limitsIn({ listed: 'opencode-go', },),).toThrow(PoolLimitsError,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: poolsWithTheseLimits.name,
+      children: [
+        it({
+          name: 'opens a pool the owner set aside, closes one a caller set to zero, and leaves every other pool as it ships',
+          fn: async () => {
+            /**
+             The shipped pool the owner set aside.
+             */
+            const setAside = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
+              return pool.name === OPENCODE_GO.name;
+            },) ?? OPENCODE_GO;
+            expect(roomIn(setAside,),).toBe(0,);
+            /**
+             The same pool with the room it returns to, named by a caller.
+             */
+            const opened = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, OPENCODE_GO.limit],]), },)
+              .find(function isOpencodeGo(pool,) {
+                return pool.name === OPENCODE_GO.name;
+              },) ?? OPENCODE_GO;
+            expect(opened.closed,).toBeUndefined();
+            expect(roomIn(opened,),).toBe(OPENCODE_GO.limit,);
+            /**
+             A pool a caller closed, which keeps the room it returns to and says who closed it.
+             */
+            const closed = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_STANDARD.name, 0],]), },)
+              .find(function isStandard(pool,) {
+                return pool.name === NEURALWATT_STANDARD.name;
+              },) ?? NEURALWATT_STANDARD;
+            expect(roomIn(closed,),).toBe(0,);
+            expect(closed.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
+            /**
+             A pool the caller named nothing about.
+             */
+            const untouched = poolsWithTheseLimits({ limits: new Map(), },)
+              .find(function isFlex(pool,) {
+                return pool.name === NEURALWATT_DEEPSEEK_FLEX.name;
+              },) ?? NEURALWATT_DEEPSEEK_FLEX;
+            expect(untouched,).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
         },),
       ],
@@ -509,7 +649,11 @@ await describe({
               sessionFileOf: aSessionFile,
             },);
             expect(outcome.action,).toBe('counts',);
-            expect(outcome.lines,).toEqual(['neuralwatt 0/20, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22',],);
+            /**
+             The line every pool at nothing prints.
+             */
+            const owed = countsLineOf(new Map(),);
+            expect(outcome.lines,).toEqual([owed,],);
           },
         },),
         it({

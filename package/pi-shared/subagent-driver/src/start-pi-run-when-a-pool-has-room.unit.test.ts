@@ -29,6 +29,9 @@ import {
   NEURALWATT_STANDARD,
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
+  POOL_LIMITS_VARIABLE,
+  PROVIDER_POOLS,
+  roomIn,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -36,6 +39,25 @@ import {
  */
 const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
 const execFileAsync = promisifyExecFile(execFile,);
+
+/**
+ The line the gate's counts print, read from the pools themselves so a test never names a limit of its own.
+
+ @param counts - the count each pool is at, by the pool's name
+
+ @returns the line, in the owner's order, each pool with the room it has now
+
+ @example
+ ```ts
+ const line = countsLineOf(new Map([['neuralwatt', 1]]));
+ ```
+ */
+function countsLineOf(counts: ReadonlyMap<string, number>,): string {
+  return PROVIDER_POOLS.map(function atItsLimit(pool,) {
+    return `${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`;
+  },)
+    .join(', ',);
+}
 
 /**
  The pool gate's entry, run from source so the test exercises the same file the task runs.
@@ -235,6 +257,8 @@ async function writeProcess({
 
  @param words - the gate's own words
 
+ @param poolLimits - the limits the gate is told to use, when a test sets one
+
  @returns the status and both streams
 
  @example
@@ -245,9 +269,11 @@ async function writeProcess({
 async function runTheGate({
   folder,
   words,
+  poolLimits,
 }: {
   readonly folder: BareFolder;
   readonly words: readonly string[];
+  readonly poolLimits?: string;
 }): Promise<{
   readonly status: number;
   readonly stdout: string;
@@ -278,6 +304,7 @@ async function runTheGate({
         FAKE_UNITS: '',
         FAKE_EXEC_START: '',
         PI_RUNS_PROCESS_FOLDER: folder.processes,
+        ...(poolLimits === undefined ? {} : { [POOL_LIMITS_VARIABLE]: poolLimits, }),
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -361,7 +388,11 @@ await describe({
           words: ['--counts-only', '--runs-folder=/nowhere',],
         },);
         expect(ran.status,).toBe(0,);
-        expect(ran.stdout.trim(),).toBe(`neuralwatt 1/${String(NEURALWATT_STANDARD.limit,)}, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22`,);
+        /**
+         The counts the gate owes: one run on the standard pool and nothing on the others.
+         */
+        const owed = countsLineOf(new Map([['neuralwatt', 1],],),);
+        expect(ran.stdout.trim(),).toBe(owed,);
         expect(await programsAsked(folder,),).toEqual([
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
           'systemctl --user show pi-copy-route.service --property=ExecStart --value',
@@ -542,6 +573,49 @@ await describe({
       },
     },),
     it({
+      name: 'closes and reopens a pool from the environment alone, which is how a spent weekly quota is set aside',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         The counts as the gate ships them, with the pool the owner set aside closed.
+         */
+        const closed = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+        },);
+        /**
+         The counts the gate owes with nothing going and the set-aside pool closed.
+         */
+        const owed = countsLineOf(new Map(),);
+        expect(closed.stdout.trim(),).toBe(owed,);
+        /**
+         The counts with that pool reopened by the caller, and another pool closed in its place.
+         */
+        const reopened = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+          poolLimits: `${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)},${NEURALWATT_STANDARD.name}=0`,
+        },);
+        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(OPENCODE_GO.limit,)}`,);
+        expect(reopened.stdout.trim(),).toContain(`${NEURALWATT_STANDARD.name} 0/0`,);
+        /**
+         What a limits setting the gate cannot read answers with, so a mistyped pool name is never counted as a closed pool.
+         */
+        const refused = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+          poolLimits: 'no-such-pool=1',
+        },);
+        expect(refused.status,).not.toBe(0,);
+        expect(refused.stderr,).toContain('no-such-pool',);
+      },
+    },),
+    it({
       name: 'counts a unit whose own command line could not be read in every pool it could be running on, saying which it could not read',
       fn: async () => {
         await using folder = await makeBareFolder();
@@ -559,7 +633,16 @@ await describe({
           words: ['--counts-only', '--runs-folder=/nowhere',],
         },);
         expect(ran.status,).toBe(0,);
-        expect(ran.stdout.trim(),).toBe('neuralwatt 1/20, neuralwatt-flex 1/22, opencode-go 1/20, neuralwatt-kimi-flex 1/22',);
+        /**
+         The counts the gate owes for the run whose pool it could not read.
+         */
+        const owed = countsLineOf(new Map([
+          ['neuralwatt', 1],
+          ['neuralwatt-flex', 1],
+          ['opencode-go', 1],
+          ['neuralwatt-kimi-flex', 1],
+        ],),);
+        expect(ran.stdout.trim(),).toBe(owed,);
         expect(ran.stderr,).toContain('pool of unit pi-copy-route.service not read',);
       },
     },),
