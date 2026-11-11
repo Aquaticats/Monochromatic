@@ -4325,9 +4325,13 @@ so a kill leaves either no file or the complete one.
 
 Why neither needs the flush:
 
-- Both are read inside this commit's own transaction.
+- Both are read inside this commit's own transaction,
+  on this machine.
   The shadow copy is read by the `git commit` this process starts a moment later,
-  and the comparison copy by the landing that follows the same transaction.
+  and the comparison copy by the landing that follows the same transaction in the commit service,
+  which reads the same filesystem a moment later.
+  A client that dies after sending leaves its page cache to the service;
+  a power loss ends both processes and the transaction with them.
 - A power loss ends a transaction without a verdict
   (`doc/planning/cli-git-spawn-and-sync-reduction.md`,
   its tearing table),
@@ -4370,6 +4374,14 @@ The end-to-end controls of the same path pass as well
 of them `a_merge_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared`,
 the same control for a cherry-pick,
 one for a revert and one for an amend.
+
+The whole library suite passes with the change,
+run alone in its own scope with nothing else building in the target directory:
+`Summary [ 386.629s] 6271 tests run: 6271 passed (1 slow), 19 skipped`,
+exit 0
+(a first attempt at this run reported 3,633 failures and was an artifact of a second build replacing the test
+binary under the run,
+`doc/troubleshooting/cargo-nextest-double-spawn-a-rebuilt-test-binary.md`).
 
 The change itself is the commit `75de8b98a8`.
 
