@@ -64,7 +64,7 @@ use crate::rule_linked_worktree::{
     repository_stash_message, resolve_linked_worktree, target_tree,
 };
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
-use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
+use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
 /// The text that refusal prints.
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
@@ -73,20 +73,86 @@ use crate::rule_worktree_dirty::index_file_is_absent;
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
 /// The common Git directory,
-///  for naming the file every worktree shares.
-use crate::worktree_identity::common_directory;
+///  for naming the file every worktree shares,
+///  and the worktree top level,
+///  for the directory a command runs in.
+use crate::worktree_identity::{common_directory, worktree_root};
+/// The reader that turns the bytes Git printed into a path,
+///  whose form differs per platform.
+use crate::git_metadata::path_from_git_bytes;
+/// The path with every link resolved as far as it exists,
+///  for comparing two spellings of one file.
+use crate::repository_link_paths::resolve_as_far_as_it_exists;
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::PathBuf;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
+use std::path::{Path, PathBuf};
+
+/// What:
+///  The directory the command runs in,
+///  as Git resolved it:
+///  the worktree top level plus the path Git
+///  reported from it to the working directory.
+///  `&RepositoryLocation` borrows the reading that names both.
+/// Why:
+///   A relative `--file` path is read from where the command runs,
+///  and `git -C` moves that
+///       directory before the command reads it;
+///  Git's own `--show-prefix` already carries that move.
+///  A command below the worktree root is
+///       usually refused by the require-root policy before this rule reads it,
+///  and its hatch is what lets such
+///       a command reach here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commandDirectory = (location) => location.worktreeRoot ? join(location.worktreeRoot, location.prefix) : undefined;
+/// ```
+fn command_directory(location: &RepositoryLocation) -> Option<PathBuf> {
+    let root: &Path = worktree_root(&location.identity)?;
+    // A command at the top level reports no prefix at all, which is the root itself.
+    return Some(match path_from_git_bytes(location.prefix.as_slice()) {
+        Some(prefix) => root.join(prefix),
+        None => root.to_path_buf(),
+    });
+}
+
+/// What:
+///  Whether the path a `--file` write names is the configuration file every worktree
+///  shares.
+///  `&Path` borrows the named path,
+///  the directory the command runs in and the shared file.
+/// Why:
+///   The shared file is one of the paths `--file` takes,
+///  and naming it is not naming another file;
+///  a
+///       relative path,
+///  one through `..` and one through a link are the same file,
+///  so both spellings are
+///       resolved the way the filesystem does before they are compared.
+///  A path that names neither the file nor a
+///       link to it is a file of the command's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesTheSharedFile = (named, directory, shared) => resolve(named.startsWith('/') ? named : join(directory, named)) === resolve(shared);
+/// ```
+fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> bool {
+    let spelled: PathBuf = if named.is_absolute() {
+        named.to_path_buf()
+    } else {
+        directory.join(named)
+    };
+    return resolve_as_far_as_it_exists(spelled.as_path()) == resolve_as_far_as_it_exists(shared_file);
+}
 
 /// What:
 ///  The refusal of a command that would change the remote settings every worktree of the
 ///  repository shares,
 ///  when the command runs in a linked worktree.
-///  `&SharedRemoteWrite` borrows the setting the guard decided about.
+///  `&SharedRemoteChange` borrows the change the guard decided about.
 /// Why:
 ///   One `.git/config` is shared by the main checkout and every linked worktree,
 ///  so a write from a
@@ -98,14 +164,16 @@ use std::path::PathBuf;
 ///  a place outside a worktree and an
 ///       exempt tool cache keep today's behaviour,
 ///  and every other command is left to the policies below.
+///  A
+///       `--file` write is this rule's only when its path resolves to that same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseSharedRemoteSettings(facts, write, allowedDirs): PolicyOutcome;
+/// function refuseSharedRemoteSettings(facts, change, allowedDirs): PolicyOutcome;
 /// ```
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
-    write: &SharedRemoteWrite,
+    change: &SharedRemoteChange,
     allowed_worktree_dirs: &[ToolCacheDirectory],
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
@@ -118,10 +186,6 @@ fn refuse_shared_remote_settings(
     if target != EffectiveTarget::LinkedWorktree {
         return clean();
     }
-    let main_checkout: PathBuf = match facts.main_worktree_root() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
     // The configuration file Git writes for the repository: `$GIT_COMMON_DIR/config`.
     let shared_file: PathBuf = match common_directory(&location.identity) {
         Some(directory) => directory.join("config"),
@@ -132,9 +196,22 @@ fn refuse_shared_remote_settings(
             ));
         }
     };
+    // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
+    if let Some(named) = &change.named_file {
+        let Some(directory) = command_directory(&location) else {
+            return clean();
+        };
+        if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
+            return clean();
+        }
+    }
+    let main_checkout: PathBuf = match facts.main_worktree_root() {
+        Ok(found) => found,
+        Err(message) => return fact_unavailable(message),
+    };
     return rejected(
         SHARED_REMOTE_SETTINGS_CODE,
-        shared_remote_settings_message(write, shared_file.as_path(), main_checkout.as_path()),
+        shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
     );
 }
 
@@ -205,8 +282,8 @@ pub(crate) fn check_linked_worktree(
     let seen: &[OsString] = forwarded.arguments.as_slice();
     // The settings every worktree shares are decided first: no guarded form below is about them,
     // and the guard read them from the command Git will run, a shell alias included.
-    if let LinkedWorktreeDecision::SharedRemote(write) = &forwarded.decision {
-        return refuse_shared_remote_settings(facts, write, allowed_worktree_dirs);
+    if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {
+        return refuse_shared_remote_settings(facts, change, allowed_worktree_dirs);
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {

@@ -2563,8 +2563,24 @@ No write to another file is rejected either:
 `--global`,
 `--system`,
 `--worktree`,
-`--file`,
-`--blob` and `git config --edit`.
+`--blob`,
+and a `--file` whose path is not the shared file:
+the path is resolved from the directory the command runs in,
+so `git config --file ../repo/.git/config <key> <value>`,
+an absolute spelling,
+one written with `=` and one through a link are refused as the plain form is,
+while `git config --file other.config <key> <value>` and `git config --file other.config --edit` run.
+An editor session on the shared file is refused as well:
+`git config --edit` and `git config edit` open that file when no scope option names another one,
+and an editor can change any remote setting,
+so `--edit` with `--global`,
+`--system`,
+`--worktree` or a `--file` of its own is what runs.
+The `edit` subcommand takes no argument ("wrong number of arguments,
+should be 0"),
+so `git config edit <key>` keeps Git's own refusal.
+A setting that is not a remote setting can always be named from the worktree:
+`git config <key> <value>`.
 `git -c remote.origin.url=<value>` is one command's override and changes no file,
 so it runs.
 The main checkout keeps today's behavior,
@@ -2590,6 +2606,7 @@ written directly after `remote` for a remote subcommand
 ```text
 git remote --no-enforce-worktree set-url origin <url>
 git config --no-enforce-worktree remote.origin.url <value>
+git config --no-enforce-worktree --edit
 ```
 
 A hatch run is not silent about the change it makes:
