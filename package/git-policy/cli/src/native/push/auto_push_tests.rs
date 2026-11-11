@@ -4,7 +4,7 @@
 //! each case below reproduces one of its cases.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, git_text, remove};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -972,4 +972,33 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
     };
     assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
     remove(root.as_path());
+}
+
+/// What:
+///  A push that delivered the branch while another Git held the lock of its remote-tracking reference leaves that reference
+///  naming the pushed commit.
+/// Why:
+///   Git delivers such a push, prints `cannot lock ref`, and exits `0`,
+///  so the service records the push as made while the reference stays behind what the remote holds.
+/// Every later question about the branch's remote is answered from that reference, so a stale one makes every command say a
+///  published commit is held.
+/// The fixture is a real push killed at the moment it holds that lock (`stale_ref_lock_killed_git`), which is that state:
+///  the remote took the commit and the reference still names the commit before it.
+#[test]
+fn a_push_whose_tracking_reference_was_left_behind_writes_it() {
+    let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-repaired", true);
+    let mut held: crate::stale_ref_lock_killed_git::Held = crate::stale_ref_lock_killed_git::hold_push(&stage);
+    assert!(stage.lock_of("refs/remotes/origin/main").exists(), "the killed push holds the tracking reference");
+    held.kill();
+    // The person clears the lock the notice names, and the next push of the branch runs with nothing left to deliver.
+    std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
+    let tip: String = head_oid(stage.repo.as_path());
+    let tracked: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
+    assert_ne!(tracked, tip, "the fixture starts with the reference behind the branch, as the refused update left it");
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut err).expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(err.as_slice()));
+    let tracked_after: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
+    assert_eq!(tracked_after, tip, "the successful push leaves the tracking reference naming its own commit");
+    stage.finish();
 }

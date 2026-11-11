@@ -13,7 +13,7 @@
 //! ```
 
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run, run_words};
+use crate::service_land_git_steps_and_import_stream::{checked, holders_of, ids_of, requests_that_land, run, run_words};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, read_commit};
@@ -195,6 +195,9 @@ pub(crate) fn land_batch_body(
             new: new.clone(),
             ids: ids_of(&batch),
             commits: commits.clone(),
+            // The command that will run each commit's post-commit gate, recorded with the batch so a restart's hold of that
+            //  commit's push names the command that will decide it (`held_push_holder_and_verdict.rs`).
+            holders: holders_of(&batch),
             paths,
             derived,
             cleanup: first.cleanup.clone(),

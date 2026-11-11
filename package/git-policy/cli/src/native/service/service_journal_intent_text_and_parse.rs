@@ -60,6 +60,15 @@ pub struct Intent {
     /// The commit each request became,
     /// in the same order as the identities.
     pub commits: Vec<String>,
+    /// The command each request says will decide its commit's post-commit checks,
+    /// in the same order as the commits,
+    /// and empty for a request that named none.
+    /// Why:
+    ///   The held push of a landed commit says which command will promote it,
+    ///   and a batch a restart finishes holds the pushes again:
+    ///  the command that would have promoted them is the one the request named,
+    /// which no process table of the restart can tell.
+    pub holders: Vec<String>,
     /// Paths whose index entries the batch updates.
     pub paths: Vec<Vec<u8>>,
     /// Whether the index entries to update are the paths that differ between `old` and `new`,
@@ -142,6 +151,7 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
+        format!("holders={}", intent.holders.join("\t")),
         format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
         format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
@@ -348,6 +358,8 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         new: intent_value(text, "new")?.to_string(),
         ids: intent_list(text, "ids")?,
         commits: intent_list(text, "commits")?,
+        // Intents written before this field existed name no command.
+        holders: intent_list(text, "holders").unwrap_or_default(),
         paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),

@@ -197,6 +197,7 @@ fn a_restart_says_each_batch_it_settled() {
         new: built,
         ids: vec![String::from("r")],
         commits: vec![String::from("c")],
+        holders: vec![String::new()],
         paths: Vec::new(),
         derived: false,
         cleanup: None,

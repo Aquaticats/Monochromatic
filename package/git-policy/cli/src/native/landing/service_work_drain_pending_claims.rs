@@ -83,7 +83,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
-        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds).await {
+        //  A drain of the slow kinds takes one item of each kind: a step of these kinds can take minutes
+        //  (`worktree_trash_dispose.rs`), and every record behind it in the same round would be claimed and renewed for that whole
+        //  time while it waited, unable to end and saying nothing about what it waited for
+        //  (`2026-11-11T10:24:46-05:00`: two reviews claimed and renewed for a quarter of an hour while the trashes ahead of them
+        //  were emptied).
+        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds, a_round_claims_at_most(kinds)).await {
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
@@ -252,29 +257,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
-        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
-        //  nothing else names, and it frees everything the worktree held.
-        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
-            Some(back) => held = back,
-            None => break 'round,
-        }
-        // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
-        //  reviews: freeing them is a bounded, local job.
-        let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
-            Some((back, mine)) => {
-                held = back;
-                mine
-            }
-            None => break 'round,
-        };
-        for item in trashed {
-            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
-        }
-        // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
+        // The review of a commit runs before every step that can take minutes: it is bounded by its own ceiling
+        //  (`REVIEW_CEILING`), it decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of
+        //  an hour while the round emptied trashes of removed worktrees ahead of them.
         let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
             Some((back, mine)) => {
                 held = back;
@@ -289,6 +274,28 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
             }
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
+        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
+        //  nothing else names, and it frees everything the worktree held.
+        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+            Some(back) => held = back,
+            None => break 'round,
+        }
+        // The left-out files of a snapshot-made worktree are emptied last: freeing them is a local job nothing waits for, and a
+        //  trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in trashed {
+            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
                 Some(back) => held = back,
                 None => break 'round,
             }

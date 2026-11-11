@@ -78,6 +78,28 @@ pub const SLOW_KINDS: [WorkKind; 7] = [
     WorkKind::Review,
 ];
 
+/// How many items of each kind one round claims before it runs any of them.
+/// Why:
+///   A round that takes every pending item of the slow kinds holds the claims of all of them while it runs the first,
+///  so a record that waits for a step of minutes is claimed and renewed for all of that time,
+///  and it names nothing about what it waits for
+///  (`2026-11-11T10:24:46-05:00`: sixty records of seven kinds, two reviews among them, claimed in one round and renewed
+///  together for a quarter of an hour).
+/// A round of the pushes alone takes every push it finds:
+/// a push is bounded by the network,
+///  and a landing's backup must not wait for the next round to take the next commit.
+/// A round of the slow kinds takes one of each,
+///  so every record behind the running one stays `pending`,
+/// which is the state that says it is queued and not that a command is working on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const atMostEach = (kinds) => kinds.length > 1 ? 1 : undefined;
+/// ```
+pub fn a_round_claims_at_most(kinds: &[WorkKind]) -> Option<usize> {
+    return (kinds.len() > 1).then_some(1);
+}
+
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
 

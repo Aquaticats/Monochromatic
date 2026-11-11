@@ -47,8 +47,11 @@ pub(crate) fn forget_what_a_batch_owes(intent: &crate::service_journal::Intent) 
 }
 
 pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
-    for commit in &intent.commits {
-        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
+    for (at, commit) in intent.commits.iter().enumerate() {
+        // The command that will decide this commit's checks is the one the request named, and the batch recorded it: a restart's
+        //  hold says who will answer, so a later command can prove that one gone instead of saying nothing will ever answer.
+        let holder: &str = intent.holders.get(at).map_or("", String::as_str);
+        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str(), holder);
     }
 }
 
@@ -86,16 +89,17 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
     }
 }
 
-/// Holds one push record for a commit a batch lands.
+/// Holds one push record for a commit a batch lands,
+/// naming the command that will decide the commit's checks.
 ///
-/// The holder is left empty here:
-/// this runs before the branch moves,
-/// and the answer loop that names the command (`hold_the_push`)
-///  writes it into the same record with the item's own words.
-fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
+/// The holder is the request's own, recorded with the batch:
+/// the answer loop writes it into the same record with the item's own words once the branch has moved (`hold_the_push`),
+/// and a batch a restart finishes names the command the request named,
+/// because no process table of the restart can tell which command owes the gate.
+fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, holder: &str) {
     let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, "") {
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, holder) {
         crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
     }
 }

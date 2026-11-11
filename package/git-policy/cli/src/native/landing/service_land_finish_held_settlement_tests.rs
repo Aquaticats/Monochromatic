@@ -137,6 +137,7 @@ fn held_batch(world: &World) -> Held {
         new: held_commit.clone(),
         ids: vec![String::from("request-1")],
         commits: vec![held_commit],
+        holders: vec![String::new()],
         paths: vec![THE_HELD_FILE.as_bytes().to_vec()],
         derived: false,
         cleanup: None,

@@ -553,6 +553,18 @@ Read-only commands,
    and a commit whose command died before its check ran holds nothing back:
   it has no verdict,
    so the next push of the branch carries it.
+  The line such a record prints says exactly that:
+  it says the record pushes nothing,
+  that the next automatic push of the branch carries the commit if it is not published yet,
+  and that a push the person makes sends it the same way.
+  A record that names no command, which an earlier release wrote or a batch wrote before it recorded one,
+  prints the same shape of line,
+  so no line ever claims a commit stays local while nothing stops a push of its branch.
+  When Git delivered a push but was refused the update of the branch's remote-tracking reference,
+  because another Git held that reference's lock, the wrapper writes the reference itself once the push is over,
+  with the reflog message `update by push` and the same bounded retries,
+  so the reference names what the remote holds as soon as the push says it delivered.
+  A reference that could not be written is logged and left; the next push or fetch writes it.
    A commit whose check is still running holds the push back the same way a refusal does,
   because that check may refuse it:
   the push stops before it,
@@ -6370,6 +6382,12 @@ Guard tests keep it so:
   after the command returned,
   and appends one entry to the repository's review log,
   `<common Git directory>/monochromatic-git-policy-cli/standards-review-shadow.md`.
+  The review decides nothing about publication:
+  a commit is pushed as soon as its post-commit gate allows the push,
+  whatever the review later says,
+  and a review item that waits behind other work of the service holds no push back.
+  A review is claimed one at a time and runs before every step of the slow lane that can take minutes,
+  so a commit's review ends within the review's own time limit rather than behind a trash of a removed worktree.
   That log is untracked and inside the Git directory,
   so no
   checkout shows it as a change;

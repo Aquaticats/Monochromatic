@@ -31,6 +31,10 @@ mod push_slow_server_tests;
 /// planned and run inside the running wrapper.
 pub mod stacked_merge_push;
 
+/// The remote-tracking reference a successful push delivered,
+/// brought up to date when Git could not write it.
+pub mod push_tracking_ref_repair;
+
 /// The service's own retry of a push it stopped or that failed:
 /// the pauses,
 /// and the waiting branches.

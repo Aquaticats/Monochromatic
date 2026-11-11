@@ -444,6 +444,16 @@ pub fn push_once(
         std::thread::sleep(PUSH_LOCK_PAUSE * pause);
         attempt = run_push_command(git, argument_views.as_slice())?;
     }
+    // The push delivered, and Git may have been refused the update of the branch's remote-tracking reference while another Git
+    //  held its lock; the repeats above find nothing left to deliver and write nothing, so the reference is brought up to date
+    //  here. Every question about the branch's remote is answered from that reference, so a stale one would say a commit the
+    //  remote already has is held (`push_tracking_ref_repair.rs`). Nothing a person asked for waits on it: the push is over.
+    if attempt.exit_code == 0
+        && let Some(of) = upstream.as_deref()
+        && sent.targets.first().is_some_and(|target| { return target.as_str() == pushed_ref.as_str(); })
+    {
+        let _repaired: bool = crate::push_tracking_ref_repair::bring_up_to_date(git, of, source.as_str());
+    }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
     //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
