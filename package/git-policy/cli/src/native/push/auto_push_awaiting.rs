@@ -26,6 +26,8 @@ use crate::auto_push::{
 use crate::auto_push_destination::{NamedPush, named_push_awaiting};
 use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query_awaiting};
+/// Whether a push Git reported as failed published the recorded branch all the same.
+use crate::matching_push_delivered_the_recorded_branch::{MatchingPush, delivered_although_git_failed_awaiting};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
 use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops_awaiting};
@@ -183,7 +185,15 @@ pub async fn push_once_awaiting(
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
         attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, attempt).await?;
     }
-    return reported(attempt, &stop, pushed_ref.as_str(), err);
+    // Under `push.default=matching` this one push carried every branch the remote has, so Git's status is the worst of them: a
+    //  sibling the remote refused makes it non-zero while this branch arrived. The repository says which, and a delivery it proves
+    //  is not reported as a failure nor retried.
+    let delivered: bool = delivered_although_git_failed_awaiting(
+        git,
+        &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid },
+    )
+    .await?;
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), err);
 }
 
 

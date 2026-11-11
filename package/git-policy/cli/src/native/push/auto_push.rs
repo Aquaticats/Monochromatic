@@ -36,6 +36,8 @@ use crate::blocked_commit_questions::QueueHistory;
 use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops};
 /// The blocked verdicts of the worktree the push is for.
 use crate::work_item_holding::BlockedVerdict;
+/// Whether a push Git reported as failed published the recorded branch all the same.
+use crate::matching_push_delivered_the_recorded_branch::{MatchingPush, delivered_although_git_failed};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 /// Owned OS strings for Git arguments.
@@ -440,7 +442,14 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
         attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
     }
-    return reported(attempt, &stop, pushed_ref.as_str(), err);
+    // Under `push.default=matching` this one push carried every branch the remote has, so Git's status is the worst of them: a
+    //  sibling the remote refused makes it non-zero while this branch arrived. The repository says which, and a delivery it proves
+    //  is not reported as a failure nor retried.
+    let delivered: bool = delivered_although_git_failed(
+        git,
+        &MatchingPush { git_matched: sent.targets.is_empty(), remote: sent.remote.as_str(), branch_ref: pushed_ref.as_str(), exit_code: attempt.exit_code, landed_oid },
+    )?;
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), err);
 }
 
 /// What:
@@ -453,13 +462,17 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
 /// the person reads one line that names the commit and the
 ///  check,
 /// and Git's own lines follow it when there are any.
+///  `delivered` is the repository's proof that this branch arrived although Git's status says the push failed
+/// (`matching_push_delivered_the_recorded_branch.rs`),
+///  and a push it proves says `Pushed` with exit code `0` while Git's own lines about the
+///  branches that were refused stay in the report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reported = (attempt, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
+/// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
-    let failed: bool = attempt.exit_code != 0;
+pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+    let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
         WhereThePushStops::Before(stopped) => Some(held_back_line(branch_ref, stopped)),
@@ -483,7 +496,10 @@ pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_re
             (false, true) => AutoPushOutcome::HeldBack,
             (false, false) => AutoPushOutcome::Pushed,
         },
-        exit_code: attempt.exit_code,
+        exit_code: match delivered {
+            true => 0,
+            false => attempt.exit_code,
+        },
         shown,
     });
 }

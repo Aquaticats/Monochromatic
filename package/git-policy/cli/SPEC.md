@@ -6312,6 +6312,28 @@ in-process reader can) gives every value of the multi-valued keys.
   a branch the remote lacks is left alone,
   and Git's own failure ("No refs in common and none specified")
   is a failed push reported with Git's words.
+  One such push carries several branches,
+  so Git's exit status is the worst fate among them:
+  a sibling the remote refused makes it non-zero while the recorded branch arrived.
+  The recorded branch's fate is therefore asked of the remote,
+  never read from that status:
+  after a matching push that failed,
+  one `git ls-remote --refs <remote> refs/heads/<name>` names the object the branch's ref holds,
+  and a push whose answer is the commit it sent is reported as published,
+  while the service journal names the refused sibling from Git's own line for it,
+  since nothing else would.
+  A refused sibling is then no failure of this branch and plans no retry.
+  The remote-tracking ref cannot answer this,
+  because it lags the remote:
+  it still names a commit whose branch the remote deleted,
+  and a push to a remote that cannot be reached would read as delivered.
+  A remote that cannot be asked,
+  or that names another object,
+  proves nothing and leaves the push the failure it was,
+  so the retry that publishes the branch is still planned.
+  The question goes to the remote's fetch URL,
+  so a push URL that differs can leave the answer unproven,
+  which errs toward the retry and never toward a claim.
 
 #### Reconcile and bounds
 

@@ -450,6 +450,12 @@ Read-only commands,
    so every local branch whose name exists on the remote is pushed,
   not only the recorded one,
    and a branch deleted on the remote is not recreated.
+   One such push can be refused for a sibling branch while the recorded one arrived,
+   so after a matching push that failed the service asks the remote what the recorded branch's ref names,
+   and a branch the remote holds at the commit it sent is reported as pushed:
+   the sibling's refusal is no failure of that branch and does not delay it,
+  and the service log names the refused sibling from Git's own line,
+  since nothing else would.
    When Git refuses the setting or would push the branch nowhere
    (several `branch.<name>.merge` values under `simple` or `upstream`,
   `push.default=nothing`,
