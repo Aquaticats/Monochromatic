@@ -126,6 +126,10 @@ fixed in the scratch launcher and owed to `package/pi-shared/subagent-driver`:
 a run whose launcher process had gone was counted in the `opencode-go` pool,
 so 12 runs sat on standard Neuralwatt while it read 0 of 6 and took more;
 the pool now comes from the unit's own `--provider` and `--model`.
+A run that named no provider or model (every batch-started run) was read as "its own provider",
+so it skipped every pool limit and the launcher's defaults put it on standard Neuralwatt;
+it is now a default run,
+and the chosen pool's provider and model are passed on.
 And `--run` defaulted to 1,
 so each restart wrote over the first run's `summary.json`
 (16 reports, 11 recovered from `~/.pi/agent/sessions/`);
