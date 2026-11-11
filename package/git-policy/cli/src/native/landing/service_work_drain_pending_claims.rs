@@ -45,19 +45,24 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// What:
-///  Claims and runs every pending item of one work directory until none is left;
-/// the claims held are renewed every third of
-/// `lease`,
+///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
+/// until none is left;
+/// the claims held are renewed every third of `lease`,
 /// so that none of them looks abandoned to another instance while it waits or runs.
 /// Why:
 ///   See the module description.
+/// The kinds are the caller's:
+/// the round that holds the service claims `PUSH_KINDS` alone,
+/// so a step that can take minutes never holds a person's push,
+/// and the slow lane claims `SLOW_KINDS`
+///  (`landing/service_work_slow_lane.rs`).
 /// A directory that cannot be listed ends the round where it is,
 /// as before,
 /// and the records it holds keep their lease.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning)
+/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds)
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     git_dir: &Path,
@@ -65,6 +70,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     lease: Duration,
     renewal: Renewal<'_>,
     replanning: &mut Replanning,
+    kinds: &'static [WorkKind],
 ) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (the_claims, renewer) = held_claims(work_dir.as_path());
@@ -78,7 +84,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
-        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path()).await {
+        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds).await {
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");

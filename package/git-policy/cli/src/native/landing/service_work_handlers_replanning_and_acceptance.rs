@@ -30,8 +30,31 @@ use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-/// The kinds of work the service runs itself.
+/// The kinds of work the service runs itself: the push and every slow kind.
 pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
+
+/// The kinds the round that answers a wake claims: the push, which is the person's backup.
+/// Why:
+///   A round holds the service until it ends,
+/// so nothing else may be claimed beside a push:
+/// on `2026-11-10` six landings of `refs/heads/main` waited 18 minutes for one round that was
+/// emptying trashes of removed worktrees,
+/// and every round that held a push that day was measured the same way
+/// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
+/// The other kinds are the slow lane's (`landing/service_work_slow_lane.rs`).
+pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
+
+/// The kinds whose steps can take minutes: the upkeep, the prewarm of a new worktree's build directories, the delete of a
+/// removed worktree's subvolume, the emptying of a trash, and the shadow review.
+/// Why:
+///   Each of them is waited for by nobody,
+/// and the whole of `2026-11-10` shows that a step of these kinds that ran for minutes held every push of
+/// `refs/heads/main` of the round it ran in
+/// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
+/// They are claimed by the slow lane (`landing/service_work_slow_lane.rs`),
+/// one at a time,
+/// and never by the round.
+pub const SLOW_KINDS: [WorkKind; 5] = [WorkKind::Maintenance, WorkKind::Prewarm, WorkKind::SubvolumeDelete, WorkKind::Trash, WorkKind::Review];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;

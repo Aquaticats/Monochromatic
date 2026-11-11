@@ -27,7 +27,7 @@
 
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_handlers_replanning_and_acceptance::{
-    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
+    Drained, PUSH_KINDS, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
     keep_plans_while_unreachable, planned_retry, work_directory,
 };
 use crate::service_work_storage_awaited::{
@@ -100,7 +100,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     //  keeps a kill in between from abandoning the branch in silence.
     requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
     run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning).await;
-    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning).await;
+    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, &PUSH_KINDS).await;
     let wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
     return Drained { wait, changes: replanning.changes };
 }
@@ -157,7 +157,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;
-    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning).await;
+    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, &PUSH_KINDS).await;
     let wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
     return Drained { wait, changes: replanning.changes };
 }
