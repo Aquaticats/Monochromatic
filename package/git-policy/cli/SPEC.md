@@ -13472,6 +13472,7 @@ and how the snapshot was found (`snapshotAhead`:
 `claimed`,
 `waited`,
 `timed-out`,
+`given-up`,
 `not-for-a-source-with-changes` or
 `no-service`).
 
