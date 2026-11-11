@@ -292,8 +292,14 @@ fn main() -> ExitCode {
             Ok(value) => value,
             Err(error) => return cli_commands::finish(Err(error)),
         };
-        for target in targets {
+        for target in targets.targets {
             println!("{}", target.display());
+        }
+        for cgroup in targets.without_application {
+            println!(
+                "not marked, no program of the application its name claims is in it: {}",
+                cgroup.display()
+            );
         }
         return ExitCode::SUCCESS;
     }

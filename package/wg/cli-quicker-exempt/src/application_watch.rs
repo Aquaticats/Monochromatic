@@ -22,6 +22,8 @@ use crate::update_routing::UpdateRouting;
 use crate::update_report::{describe_outcome, policy_failure, Outcome, POLICY_PROCESS_WATCH};
 /// Timing of the process scan.
 use std::time::{Duration, Instant};
+/// Cgroup paths of the marks the watcher holds.
+use std::path::PathBuf;
 /// The directory notification and the marker links retained for each target.
 #[path = "watch_support.rs"]
 mod watch_support;
@@ -72,6 +74,10 @@ pub struct ApplicationWatch<'a> {
     /// The sweep of the scopes of the earlier design,
     /// started once when the watcher runs and absent in tests.
     sweep: Option<SweepSetup>,
+    /// Cgroups a desktop application's name selected that held no program of that application,
+    /// as last reported,
+    /// so a rescan every quarter second does not repeat the same line for ever.
+    reported_without_application: Vec<PathBuf>,
 }
 
 /// Time between full process scans,
@@ -97,16 +103,38 @@ pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
 }
 
 /// Reconciles discovered targets and retains attached cgroups until directory removal.
+///
+/// A name-selected cgroup that holds no program of the application the name claims is not marked,
+/// and the watcher says so once for each such cgroup,
+/// because an application whose program the scan cannot recognize would otherwise lose its exemption in silence.
+/// The marks the watcher holds are also what the process watch treats as covered,
+/// so the two can never disagree about which cgroup carries the mark.
 fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     watch.active.retain(attachment_directory_exists);
-    let targets = scan_application_targets(&watch.roots)?;
-    for target in targets {
+    let scan = scan_application_targets(&watch.roots)?;
+    for target in scan.targets {
         if is_attached(&watch.active, &target) {
             continue;
         }
         if let Some(attachment) = attach_target(&target, watch.mark)? {
             watch.active.push(attachment);
         }
+    }
+    // The cgroup paths of the marks the watcher holds.
+    let marked: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    watch.routing.note_marked(&marked);
+    for cgroup in scan.without_application {
+        if watch.reported_without_application.contains(&cgroup) {
+            continue;
+        }
+        watch.reported_without_application.push(cgroup.clone());
+        watch.reporter.report_failure(
+            "application unit without its program",
+            &format!(
+                "wg-quicker-exempt: POLICY NOT IN FORCE for {:?}: its name claims a desktop application, and no process in it runs that application's program, so the socket mark is not attached to it and the traffic of every process in it stays in the tunnel. A program of the application may be spelled in a way this build does not know, and `list-targets` shows the cgroups it does mark",
+                cgroup.display(),
+            ),
+        );
     }
     return Ok(());
 }
@@ -160,6 +188,7 @@ pub fn prepare_application_watch(
         reporter,
         identity,
         sweep,
+        reported_without_application: Vec::new(),
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;

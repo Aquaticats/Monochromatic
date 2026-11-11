@@ -218,6 +218,20 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   leaves the tunnel without a move.
   The named terminals and desktop applications are selected this way,
   and so is every `pi-<name>.service` Pi agent unit.
+  A desktop application's name is believed only while the cgroup it names holds that application's own program
+  (`is_application_executable` in `src/application_targets.rs`,
+  one program rule per application,
+  shared with the process watch so a name and a program cannot disagree about what an application is).
+  A unit a user named `app-firefox@anything.service` and filled with another program is therefore not marked,
+  where the name alone used to be enough;
+  the watcher reports such a cgroup once,
+  under `POLICY NOT IN FORCE` for that cgroup,
+  naming it and saying that its traffic stays in the tunnel,
+  and `list-targets` lists it as not marked.
+  That report is how an application whose program this build spells differently is noticed
+  instead of losing its exemption in silence.
+  The two names that need no evidence are the Pi units and the updates slice,
+  which the owner accepted as names alone.
   The user's service manager cannot move a service's main process,
   so a Pi unit is never moved:
   the mark attached to the unit's own cgroup covers the agent,
@@ -1076,7 +1090,7 @@ Release builds omit injection seam.
    Qure,
    and OdyTTY processes.
    Firefox matching accepts exact `firefox` and `firefox-bin` names only under a `firefox` or `firefox-nightly` directory.
-   The release launcher matches `app-firefox@*.service`.
+   The release launcher's `app-firefox@*.service` unit is marked while it holds one of those two images.
    Firefox ESR's directory and service remain tunnel-routed.
    ChatGPT matching accepts every executable inside the root-owned `/usr/lib/chatgpt` package tree,
    which includes the subprocess agents that application spawns.
@@ -1098,6 +1112,9 @@ Release builds omit injection seam.
    because the mark belongs to the cgroup.
    A unit whose name begins with `pi-` is marked whoever created it,
    because a unit name is a name the user can choose.
+   The named desktop applications need their own program in the cgroup:
+   a `app-firefox@*.service` or `app-com.mitchellh.ghostty@*.service` unit that holds something else keeps its traffic in the tunnel,
+   and the watcher says which cgroup that was.
 - Process discovery attaches entire current cgroup.
    If Helium,
    Pale Moon,

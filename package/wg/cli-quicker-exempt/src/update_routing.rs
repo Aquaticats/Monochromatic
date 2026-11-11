@@ -12,7 +12,7 @@
 
 /// Slice and cgroup names,
 /// and the cgroups that carry the mark themselves.
-use crate::application_targets::{is_in_updates_slice, is_socket_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
+use crate::application_targets::{is_in_updates_slice, is_unconditionally_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
@@ -114,6 +114,13 @@ pub struct UpdateRouting {
     blocked_until: Option<Instant>,
     /// When the current pass began.
     pass_started: Option<Instant>,
+    /// Cgroups the watcher attached the socket mark to,
+    /// as its last scan found them.
+    /// A process in one of them,
+    /// or in a cgroup below one,
+    /// needs no move:
+    /// its sockets already leave the tunnel.
+    marked: Vec<PathBuf>,
 }
 
 /// Behavior of the policy engine.
@@ -131,7 +138,27 @@ impl UpdateRouting {
             failed_attempts_this_pass: 0,
             blocked_until: None,
             pass_started: None,
+            marked: Vec::new(),
         };
+    }
+
+    /// Records the cgroups the watcher holds the mark on,
+    /// which is what the process watch treats as covered.
+    pub fn note_marked(&mut self, marked: &[PathBuf]) {
+        self.marked = marked.to_vec();
+    }
+
+    /// Reports whether a process's cgroup carries the socket mark:
+    /// one of the marks the watcher holds,
+    /// or a cgroup below one,
+    /// or a name that needs no evidence,
+    /// because a Pi agent's unit and the updates slice are marked whoever filled them.
+    fn is_covered(&self, cgroup: &str) -> bool {
+        if is_unconditionally_marked_cgroup(cgroup, self.setup.uid) {
+            return true;
+        }
+        let full = self.setup.cgroup_root.join(cgroup.trim_start_matches('/'));
+        return self.marked.iter().any(|mark| return full.starts_with(mark));
     }
 
     /// Reports whether the watcher could read its own pid namespace.
@@ -260,9 +287,9 @@ impl UpdateRouting {
             }
             _ => {}
         }
-        // A cgroup the watcher attaches the mark to itself needs no move,
+        // A cgroup the watcher attached the mark to needs no move,
         // which is how a service's main process, and every Pi process in its unit, is covered.
-        if is_socket_marked_cgroup(&info.cgroup, self.setup.uid) {
+        if self.is_covered(&info.cgroup) {
             self.handled.insert(key);
             return Outcome::Covered { pid };
         }

@@ -12,8 +12,11 @@ use crate::application_targets::{
     is_pi_service_name,
     is_qure_service_name,
     is_in_updates_slice,
-    is_socket_marked_cgroup,
+    is_unconditionally_marked_cgroup,
     is_toolchain_updates_slice_name,
+    desktop_application_of_name,
+    is_application_executable,
+    DesktopApplication,
     scan_application_targets,
     ScanRoots,
     TOOLCHAIN_UPDATES_SLICE,
@@ -274,6 +277,43 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         "/home/user/.local/opt/firefox-nightly-backup/firefox-bin",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
+    // Each named desktop application's own program is in the cgroup its name claims.
+    create_process(
+        &proc_root,
+        "60",
+        "/usr/bin/ghostty",
+        "0::/users/app.slice/app-com.mitchellh.ghostty@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "61",
+        "/usr/bin/ghostty",
+        "0::/users/app.slice/app-ghostty-surface-transient-123.scope\n",
+    )?;
+    create_process(
+        &proc_root,
+        "62",
+        "/var/home/user/.local/share/Steam/ubuntu12_32/steam",
+        "0::/users/app.slice/app-steam@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "63",
+        "/tmp/.mount_helium/opt/helium/helium",
+        "0::/users/app.slice/app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "64",
+        "/home/user/.local/opt/firefox-nightly/firefox-bin",
+        "0::/users/app.slice/app-firefox\\x2dnightly@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "65",
+        "/fixture/opt/firefox/firefox",
+        "0::/users/app.slice/app-firefox@fixture.service\n",
+    )?;
     // Borrow the fixture procfs and propagate setup errors for both release executable names.
     create_process(
         &proc_root,
@@ -302,7 +342,7 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         "/fixture/opt/firefox/updater",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
@@ -323,7 +363,8 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         firefox_release_launcher_scope,
     ];
     expected.sort();
-    assert_eq!(targets, expected);
+    assert_eq!(scan.targets, expected);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -364,6 +405,19 @@ fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
     ] {
         std::fs::create_dir(path)?;
     }
+    // The desktop integration service of each holds that application's own program.
+    create_process(
+        &proc_root,
+        "53",
+        "/usr/lib/chatgpt/ChatGPT",
+        "0::/users/app.slice/app-chatgpt@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "52",
+        "/home/user/AppImages/interpreter.appimage",
+        "0::/users/app.slice/app-interpreter@abc.service\n",
+    )?;
     // ChatGPT's Electron image is the process the desktop launcher leaves behind.
     create_process(
         &proc_root,
@@ -440,7 +494,7 @@ fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
         "/usr/bin/Interpreter",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
@@ -457,7 +511,8 @@ fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
         interpreter_cli,
     ];
     expected.sort();
-    assert_eq!(targets, expected);
+    assert_eq!(scan.targets, expected);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -492,6 +547,13 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
     ] {
         std::fs::create_dir(path)?;
     }
+    // The desktop integration service holds Qure's own program.
+    create_process(
+        &proc_root,
+        "64",
+        "/home/user/AppImages/qure.appimage",
+        "0::/users/app.slice/app-qure@abc.service\n",
+    )?;
     // Qure's AppImage runtime file is itself a live executable image.
     create_process(
         &proc_root,
@@ -549,7 +611,7 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
         "/usr/bin/Qure",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
@@ -562,7 +624,8 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
         qure_pytest,
     ];
     expected.sort();
-    assert_eq!(targets, expected);
+    assert_eq!(scan.targets, expected);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -619,14 +682,15 @@ fn scan_discovers_odytty_cgroups() -> io::Result<()> {
         "/usr/bin/OdyTTY",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
     })?;
     let mut expected = vec![odytty_service, odytty_runtime];
     expected.sort();
-    assert_eq!(targets, expected);
+    assert_eq!(scan.targets, expected);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -690,12 +754,13 @@ fn scan_discovers_only_the_toolchain_updates_slice() -> io::Result<()> {
     // is outside the watched directory.
     let outside = cgroup_root.join("users/monochromatic-updates.slice");
     std::fs::create_dir(&outside)?;
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
     })?;
-    assert_eq!(targets, vec![updates_slice]);
+    assert_eq!(scan.targets, vec![updates_slice]);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -723,42 +788,145 @@ fn pi_agent_service_names_are_marked_by_name() {
     assert!(is_pi_service_name("pi-agent@abc.service"));
 }
 
-/// Names the cgroups the watcher attaches the socket mark to itself:
-/// a direct `app.slice` entry whose name one of the watcher's own rules selects.
+/// Names the cgroups the watcher marks by name alone:
+/// a Pi agent's unit and the updates slice,
+/// the two names the owner accepted as names alone.
 #[test]
-fn socket_marked_cgroups_are_direct_named_app_slice_entries() {
+fn only_a_pi_unit_and_the_slice_are_marked_by_name_alone() {
     let prefix = "/user.slice/user-1000.slice/user@1000.service/app.slice/";
+    for leaf in ["pi-wg-quicker-model-providers-off-the-tunnel.service", TOOLCHAIN_UPDATES_SLICE] {
+        let cgroup = format!("{prefix}{leaf}");
+        assert!(is_unconditionally_marked_cgroup(&cgroup, 1000), "{leaf}");
+    }
+    // A desktop application's name is not enough: the cgroup it names must hold that application's program.
     for leaf in [
-        "pi-wg-quicker-model-providers-off-the-tunnel.service",
         "app-com.mitchellh.ghostty@abc.service",
         "app-ghostty-surface-transient-123.scope",
         "app-steam@abc.service",
         "app-firefox@abc.service",
         "app-chatgpt@abc.service",
-        TOOLCHAIN_UPDATES_SLICE,
     ] {
         let cgroup = format!("{prefix}{leaf}");
-        assert!(is_socket_marked_cgroup(&cgroup, 1000), "{leaf}");
+        assert!(!is_unconditionally_marked_cgroup(&cgroup, 1000), "{leaf}");
     }
     // A cgroup below a marked one inherits the program but is not the entry itself.
-    assert!(!is_socket_marked_cgroup(
+    assert!(!is_unconditionally_marked_cgroup(
         &format!("{prefix}pi-agent.service/nested.scope"),
         1000
     ));
     // A service the watcher does not name is left to the process watch.
-    assert!(!is_socket_marked_cgroup(&format!("{prefix}other.service"), 1000));
-    assert!(!is_socket_marked_cgroup(&format!("{prefix}pi-agent.scope"), 1000));
+    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}other.service"), 1000));
+    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}pi-agent.scope"), 1000));
     // Only the watched user's app slice is scanned.
-    assert!(!is_socket_marked_cgroup(&format!("{prefix}pi-agent.service"), 2000));
-    assert!(!is_socket_marked_cgroup(
+    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}pi-agent.service"), 2000));
+    assert!(!is_unconditionally_marked_cgroup(
         "/user.slice/user-1000.slice/user@1000.service/pi-agent.service",
         1000
     ));
-    assert!(!is_socket_marked_cgroup(
+    assert!(!is_unconditionally_marked_cgroup(
         "/user.slice/user-1000.slice/session-3.scope/pi-agent.service",
         1000
     ));
-    assert!(!is_socket_marked_cgroup("/", 1000));
+    assert!(!is_unconditionally_marked_cgroup("/", 1000));
+}
+
+/// Says which desktop application a cgroup name claims,
+/// and which program of that application a cgroup must hold.
+#[test]
+fn a_cgroup_name_claims_one_application_and_that_application_has_one_program() {
+    assert_eq!(
+        desktop_application_of_name("app-com.mitchellh.ghostty@abc.service"),
+        Some(DesktopApplication::Ghostty)
+    );
+    assert_eq!(
+        desktop_application_of_name("app-ghostty-surface-transient-1.scope"),
+        Some(DesktopApplication::Ghostty)
+    );
+    assert_eq!(desktop_application_of_name("app-steam@abc.service"), Some(DesktopApplication::Steam));
+    assert_eq!(
+        desktop_application_of_name("app-chatgpt@abc.service"),
+        Some(DesktopApplication::Chatgpt)
+    );
+    assert_eq!(desktop_application_of_name("app-org.example.Other.scope"), None);
+    // A Pi unit and the slice are names alone, so no application's program is asked for.
+    assert_eq!(
+        desktop_application_of_name("pi-wg-quicker-model-providers-off-the-tunnel.service"),
+        None
+    );
+    assert!(is_application_executable(DesktopApplication::Ghostty, Path::new("/usr/bin/ghostty")));
+    assert!(!is_application_executable(DesktopApplication::Ghostty, Path::new("/usr/bin/ghostty-wrapper")));
+    assert!(is_application_executable(
+        DesktopApplication::Steam,
+        Path::new("/var/home/user/.local/share/Steam/ubuntu12_32/steam")
+    ));
+    assert!(!is_application_executable(DesktopApplication::Steam, Path::new("/usr/bin/steamcmd")));
+    assert!(is_application_executable(
+        DesktopApplication::FirefoxRelease,
+        Path::new("/fixture/opt/firefox/firefox-bin")
+    ));
+    assert!(!is_application_executable(
+        DesktopApplication::FirefoxRelease,
+        Path::new("/usr/bin/firefox")
+    ));
+    assert!(is_application_executable(
+        DesktopApplication::Chatgpt,
+        Path::new("/usr/lib/chatgpt/chatgpt")
+    ));
+    assert!(!is_application_executable(DesktopApplication::Chatgpt, Path::new("/usr/bin/curl")));
+}
+
+/// A unit a user named after a desktop application and filled with another program is not marked,
+/// and the scan names the cgroup whose name it did not believe.
+///
+/// The name is a name the user can choose,
+/// so it is believed only while the application's own program is in the cgroup it names.
+#[test]
+fn a_unit_named_after_an_application_without_it_is_not_marked() -> io::Result<()> {
+    let scratch = crate::test_scratch::scratch_root().join(format!(
+        "wg-quicker-application-targets-unwitnessed-{}",
+        std::process::id()
+    ));
+    let cgroup_root = scratch.join("cgroup");
+    let app_slice = cgroup_root.join("users/app.slice");
+    let proc_root = scratch.join("proc");
+    std::fs::create_dir_all(&app_slice)?;
+    std::fs::create_dir(&proc_root)?;
+    let fake_firefox = app_slice.join("app-firefox@not-a-firefox-process.service");
+    let fake_ghostty = app_slice.join("app-com.mitchellh.ghostty@abc.service");
+    let fake_steam = app_slice.join("app-steam@abc.service");
+    for path in [&fake_firefox, &fake_ghostty, &fake_steam] {
+        std::fs::create_dir(path)?;
+    }
+    // Each unit runs something that is not the application its name claims.
+    create_process(
+        &proc_root,
+        "80",
+        "/usr/bin/curl",
+        "0::/users/app.slice/app-firefox@not-a-firefox-process.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "81",
+        "/usr/bin/curl",
+        "0::/users/app.slice/app-com.mitchellh.ghostty@abc.service\n",
+    )?;
+    create_process(
+        &proc_root,
+        "82",
+        "/usr/bin/curl",
+        "0::/users/app.slice/app-steam@abc.service\n",
+    )?;
+    let scan = scan_application_targets(&ScanRoots {
+        app_slice: &app_slice,
+        proc_root: &proc_root,
+        cgroup_root: &cgroup_root,
+    })?;
+    assert!(scan.targets.is_empty(), "{:?}", scan.targets);
+    let mut expected = vec![fake_firefox, fake_ghostty, fake_steam];
+    expected.sort();
+    assert_eq!(scan.without_application, expected);
+    std::fs::remove_dir_all(&scratch)?;
+    return Ok(());
 }
 
 /// Discovers Pi's agent units beside the other named application cgroups.
@@ -779,12 +947,13 @@ fn scan_discovers_pi_agent_units() -> io::Result<()> {
     for path in [&agent_unit, &other_unit, &agent_scope] {
         std::fs::create_dir(path)?;
     }
-    let targets = scan_application_targets(&ScanRoots {
+    let scan = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
         cgroup_root: &cgroup_root,
     })?;
-    assert_eq!(targets, vec![agent_unit]);
+    assert_eq!(scan.targets, vec![agent_unit]);
+    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }

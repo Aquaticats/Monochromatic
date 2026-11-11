@@ -196,33 +196,11 @@ pub fn is_pi_service_name(name: &str) -> bool {
     return !agent.is_empty();
 }
 
-/// Reports whether the watcher attaches the socket mark to a cgroup of this name itself,
-/// which is the cgroup a named service or scope keeps,
-/// or the updates slice.
-fn is_named_application_cgroup_name(name: &str) -> bool {
-    return is_ghostty_cgroup_name(name)
-        || is_steam_service_name(name)
-        || is_helium_service_name(name)
-        || is_firefox_nightly_service_name(name)
-        || is_firefox_release_service_name(name)
-        || is_chatgpt_service_name(name)
-        || is_interpreter_service_name(name)
-        || is_qure_service_name(name)
-        || is_odytty_service_name(name)
-        || is_pi_service_name(name)
-        || is_toolchain_updates_slice_name(name);
-}
-
-/// Reports whether the watcher attaches the socket mark to this very cgroup of the watched user,
-/// because it is a direct `app.slice` entry whose name one of the watcher's rules selects.
-/// Such a cgroup needs no moved process:
-/// the mark applies to every process in it and to every descendant cgroup the user's manager
-/// creates below it,
-/// which covers a service's main process,
-/// the one thing the manager cannot move,
-/// and every process Pi or a terminal starts,
-/// the same rule either way.
-pub fn is_socket_marked_cgroup(cgroup: &str, uid: u32) -> bool {
+/// Reports whether a cgroup name is marked without any evidence of its application:
+/// a Pi agent's unit and the updates slice,
+/// the two names the owner accepted as names alone.
+/// Every desktop application's name needs the application's own program in the cgroup it names.
+pub fn is_unconditionally_marked_cgroup(cgroup: &str, uid: u32) -> bool {
     let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/");
     let Some(leaf) = cgroup.strip_prefix(&prefix) else {
         return false;
@@ -230,7 +208,7 @@ pub fn is_socket_marked_cgroup(cgroup: &str, uid: u32) -> bool {
     if leaf.is_empty() || leaf.contains('/') {
         return false;
     }
-    return is_named_application_cgroup_name(leaf);
+    return is_pi_service_name(leaf) || is_toolchain_updates_slice_name(leaf);
 }
 
 /// Reports numeric procfs directory name without regular expression parsing.
@@ -241,6 +219,147 @@ fn is_process_id(name: &str) -> bool {
 /// Reports one ASCII decimal digit byte.
 fn is_ascii_digit_byte(byte: u8) -> bool {
     return byte.is_ascii_digit();
+}
+
+/// The desktop application a socket-marked cgroup name claims.
+///
+/// The name alone is a name the user can choose,
+/// so each of these is marked only while the cgroup it names holds a process running that application's own program.
+/// Pi units and the updates slice are the two names the owner accepted as names alone.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DesktopApplication {
+    /// The Ghostty terminal, its user service or one of its surface scopes.
+    Ghostty,
+    /// Steam's user service.
+    Steam,
+    /// Helium's desktop integration service.
+    Helium,
+    /// Firefox Nightly's service.
+    FirefoxNightly,
+    /// Firefox release's service, the launcher `firefox.desktop` starts.
+    FirefoxRelease,
+    /// ChatGPT's desktop integration service.
+    Chatgpt,
+    /// Interpreter's desktop integration service.
+    Interpreter,
+    /// Qure's desktop integration service.
+    Qure,
+    /// OdyTTY's desktop integration service.
+    OdyTty,
+}
+
+/// The file name of an executable path,
+/// or nothing when the path has no final component.
+fn executable_name(path: &Path) -> Option<std::borrow::Cow<'_, str>> {
+    let name = path.file_name()?;
+    return Some(name.to_string_lossy());
+}
+
+/// Reports whether an executable path is the program of the application a cgroup name claims.
+///
+/// The families are the same ones `is_exempt_application_executable` matches,
+/// so a name and a program can never disagree about what an application is.
+pub fn is_application_executable(application: DesktopApplication, path: &Path) -> bool {
+    let Some(name) = executable_name(path) else {
+        return false;
+    };
+    return match application {
+        DesktopApplication::Ghostty => is_ghostty_executable(&name),
+        DesktopApplication::Steam => is_steam_executable(&name),
+        DesktopApplication::Helium => is_helium_executable(&name),
+        DesktopApplication::FirefoxNightly => is_firefox_nightly_executable(path),
+        DesktopApplication::FirefoxRelease => is_firefox_release_executable(path),
+        DesktopApplication::Chatgpt => is_chatgpt_executable(path),
+        DesktopApplication::Interpreter => is_interpreter_executable(&name),
+        DesktopApplication::Qure => is_qure_executable(&name),
+        DesktopApplication::OdyTty => is_odytty_executable(&name),
+    };
+}
+
+/// Reports whether which desktop application a cgroup name claims,
+/// or nothing for a name that claims none.
+pub fn desktop_application_of_name(name: &str) -> Option<DesktopApplication> {
+    if is_ghostty_cgroup_name(name) {
+        return Some(DesktopApplication::Ghostty);
+    }
+    if is_steam_service_name(name) {
+        return Some(DesktopApplication::Steam);
+    }
+    if is_helium_service_name(name) {
+        return Some(DesktopApplication::Helium);
+    }
+    if is_firefox_nightly_service_name(name) {
+        return Some(DesktopApplication::FirefoxNightly);
+    }
+    if is_firefox_release_service_name(name) {
+        return Some(DesktopApplication::FirefoxRelease);
+    }
+    if is_chatgpt_service_name(name) {
+        return Some(DesktopApplication::Chatgpt);
+    }
+    if is_interpreter_service_name(name) {
+        return Some(DesktopApplication::Interpreter);
+    }
+    if is_qure_service_name(name) {
+        return Some(DesktopApplication::Qure);
+    }
+    if is_odytty_service_name(name) {
+        return Some(DesktopApplication::OdyTty);
+    }
+    return None;
+}
+
+/// Reports Ghostty's program, whose service and surface cgroups carry the terminal's name.
+fn is_ghostty_executable(name: &str) -> bool {
+    return name == "ghostty";
+}
+
+/// Reports Steam's launcher, the program its user service runs.
+fn is_steam_executable(name: &str) -> bool {
+    return name == "steam";
+}
+
+/// Reports Helium's executable family by its case-insensitive prefix.
+fn is_helium_executable(name: &str) -> bool {
+    return name.to_ascii_lowercase().starts_with("helium");
+}
+
+/// Reports Pale Moon's two installed executable names.
+fn is_palemoon_executable(name: &str) -> bool {
+    return (name == "palemoon") || (name == "palemoon-bin");
+}
+
+/// Reports Firefox Nightly's image, which only its own install directory carries.
+fn is_firefox_nightly_executable(path: &Path) -> bool {
+    return path.ends_with("firefox-nightly/firefox")
+        || path.ends_with("firefox-nightly/firefox-bin");
+}
+
+/// Reports release Firefox's image, which only its own install directory carries,
+/// leaving ESR and backup directories unmatched.
+fn is_firefox_release_executable(path: &Path) -> bool {
+    return path.ends_with("firefox/firefox") || path.ends_with("firefox/firefox-bin");
+}
+
+/// Reports any program inside ChatGPT's root-owned package tree,
+/// which includes the subprocess agents that application spawns.
+fn is_chatgpt_executable(path: &Path) -> bool {
+    return path.starts_with(CHATGPT_INSTALL_DIRECTORY);
+}
+
+/// Reports Interpreter's executable family by its exact lowercase prefix.
+fn is_interpreter_executable(name: &str) -> bool {
+    return name.starts_with(INTERPRETER_EXECUTABLE_PREFIX);
+}
+
+/// Reports Qure's executable family by its exact lowercase prefix.
+fn is_qure_executable(name: &str) -> bool {
+    return name.starts_with(QURE_EXECUTABLE_PREFIX);
+}
+
+/// Reports OdyTTY's executable family by its exact lowercase prefix.
+fn is_odytty_executable(name: &str) -> bool {
+    return name.starts_with(ODYTTY_EXECUTABLE_PREFIX);
 }
 
 /// What:
@@ -261,98 +380,29 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 /// ```ts
 /// function isExemptApplicationExecutable(path: string): boolean {
 ///   const name = basename(path);
-///   const isFirefoxNightly = path.endsWith('/firefox-nightly/firefox')
-///     || path.endsWith('/firefox-nightly/firefox-bin');
-///   const isFirefoxRelease = path.endsWith('/firefox/firefox')
-///     || path.endsWith('/firefox/firefox-bin');
-///   const isChatGpt = path.startsWith('/usr/lib/chatgpt/');
 ///   return name.toLowerCase().startsWith('helium')
 ///     || name === 'palemoon'
 ///     || name === 'palemoon-bin'
-///     || isFirefoxNightly
-///     || isFirefoxRelease
-///     || isChatGpt
+///     || isFirefoxNightly(path)
+///     || isFirefoxRelease(path)
+///     || isChatgpt(path)
 ///     || name.startsWith('interpreter')
 ///     || name.startsWith('qure')
 ///     || name.startsWith('odytty');
 /// }
 /// ```
 fn is_exempt_application_executable(path: &Path) -> bool {
-    // What:     `let Some(name) = ... else` extracts present filename from Rust's `Option` wrapper.
-    //           `Some` carries filename; sibling `None` means path has no final component.
-    // Why:      Matching requires filename, while root-like paths must safely return false.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const name = basename(path);
-    // if (name === undefined) return false;
-    // ```
-    let Some(name) = path.file_name() else {
+    let Some(name) = executable_name(path) else {
         return false;
     };
-    // What:     `.to_string_lossy()` creates readable text from an OS filename, replacing invalid UTF-8.
-    // Why:      Installed executable names are ASCII, while malformed names must remain safe to inspect.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const nameText = String(name);
-    // ```
-    let name_text = name.to_string_lossy();
-    // What:     `.to_ascii_lowercase()` allocates lowercase owned text for Helium's case-insensitive prefix comparison.
-    // Why:      Preserve existing Helium matching without widening Pale Moon beyond exact installed filenames.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const normalizedHeliumName = nameText.toLowerCase();
-    // ```
-    let normalized_helium_name = name_text.to_ascii_lowercase();
-    // What:     `Path::ends_with` compares complete path components rather than a text suffix.
-    // Why:      Exact install-directory and binary names distinguish Firefox Nightly
-    //           from Firefox ESR and release Firefox.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const isFirefoxNightly = path.endsWith('/firefox-nightly/firefox')
-    //   || path.endsWith('/firefox-nightly/firefox-bin');
-    // ```
-    let is_firefox_nightly = path.ends_with("firefox-nightly/firefox")
-        || path.ends_with("firefox-nightly/firefox-bin");
-    // Compare complete release-directory components, leaving ESR and backup directories unmatched.
-    let is_firefox_release = path.ends_with("firefox/firefox")
-        || path.ends_with("firefox/firefox-bin");
-    // What:     `Path::starts_with` compares complete leading path components instead of a text prefix.
-    // Why:      ChatGPT spawns every bundled agent from its own root-owned package tree,
-    //           so that whole tree identifies the application even when a subprocess
-    //           runs in a cgroup of its own, while `/usr/lib/chatgpt-backup` stays tunnel-routed.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const isChatGpt = path.startsWith('/usr/lib/chatgpt/');
-    // ```
-    let is_chatgpt = path.starts_with(CHATGPT_INSTALL_DIRECTORY);
-    // Interpreter's AppImage runtime file, its mounted inner binary, and its bundled agents
-    // all carry the lowercase `interpreter` name prefix.
-    // Unlike Helium's rule this comparison keeps the exact lowercase spelling,
-    // so a capitalized lookalike stays tunnel-routed, while a renamed AppImage file still matches
-    // through the lowercase inner binary it mounts.
-    let is_interpreter = name_text.starts_with(INTERPRETER_EXECUTABLE_PREFIX);
-    // Qure's AppImage runtime file, its mounted Electron image, its bundled pytest runner,
-    // and every CLI wrapper it spawns all exec an image whose name begins with `qure`.
-    // Its Chromium-generic helpers, such as `chrome_crashpad_handler`, carry no such name and
-    // stay tunnel-routed on their own; they bypass only while sharing a Qure cgroup.
-    let is_qure = name_text.starts_with(QURE_EXECUTABLE_PREFIX);
-    // OdyTTY's AppImage runtime file and the native image it runs both carry the lowercase `odytty` prefix.
-    // The comparison keeps the exact lowercase spelling, so a capitalized lookalike stays tunnel-routed.
-    let is_odytty = name_text.starts_with(ODYTTY_EXECUTABLE_PREFIX);
-    return normalized_helium_name.starts_with("helium")
-        || name_text == "palemoon"
-        || name_text == "palemoon-bin"
-        || is_firefox_nightly
-        || is_firefox_release
-        || is_chatgpt
-        || is_interpreter
-        || is_qure
-        || is_odytty;
+    return is_helium_executable(&name)
+        || is_palemoon_executable(&name)
+        || is_firefox_nightly_executable(path)
+        || is_firefox_release_executable(path)
+        || is_chatgpt_executable(path)
+        || is_interpreter_executable(&name)
+        || is_qure_executable(&name)
+        || is_odytty_executable(&name);
 }
 
 /// Extracts unified cgroup path from one procfs cgroup file.
@@ -376,6 +426,54 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 /// which the shared reader of process facts also decides.
 use crate::process_info::means_vanished;
 
+/// One process of the watched user: the cgroup it runs in and the program it runs.
+struct ApplicationProcess {
+    /// Cgroup directory of the process, under the app slice the scan reads.
+    cgroup: PathBuf,
+    /// Resolved executable path of the process.
+    executable: PathBuf,
+}
+
+/// Reads every process that runs in the watched user's app slice.
+///
+/// One pass serves both halves of the scan:
+/// a program that owns a cgroup, and the program a cgroup name has to hold before the name is believed.
+fn read_application_processes(roots: &ScanRoots<'_>) -> io::Result<Vec<ApplicationProcess>> {
+    let mut processes = Vec::new();
+    for entry_result in std::fs::read_dir(roots.proc_root)? {
+        let entry = entry_result?;
+        let name = entry.file_name();
+        let Some(name_text) = name.to_str() else {
+            continue;
+        };
+        if !is_process_id(name_text) {
+            continue;
+        }
+        let process = entry.path();
+        let Some(executable) = read_process_executable(&process.join("exe"))? else {
+            continue;
+        };
+        let Some(cgroup_text) = read_process_file(&process.join("cgroup"))? else {
+            continue;
+        };
+        let Some(relative) = unified_cgroup_path(&cgroup_text) else {
+            continue;
+        };
+        let target = roots.cgroup_root.join(relative.trim_start_matches('/'));
+        if target.starts_with(roots.app_slice) && target.is_dir() {
+            processes.push(ApplicationProcess { cgroup: target, executable });
+        }
+    }
+    return Ok(processes);
+}
+
+/// Reports whether a cgroup, or a cgroup below it, holds a process running `application`'s program.
+fn holds_application(application: DesktopApplication, directory: &Path, processes: &[ApplicationProcess]) -> bool {
+    return processes.iter().any(|process| {
+        return process.cgroup.starts_with(directory) && is_application_executable(application, &process.executable);
+    });
+}
+
 /// Scans direct app slice entries identifying Ghostty,
 ///  Steam,
 ///  Helium,
@@ -387,9 +485,18 @@ use crate::process_info::means_vanished;
 ///  OdyTTY
 ///  or Pi services,
 ///  and the toolchain updates slice.
-/// The same names answer `is_socket_marked_cgroup`,
-///  so the attaching and the process watch never disagree about which cgroup carries the mark.
-fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::Result<()> {
+///
+/// A desktop application's name is believed only while the cgroup it names holds that application's own program:
+/// a unit a user named `app-firefox@anything.service` and filled with another program is not marked,
+/// where the name alone used to be enough.
+/// Pi units and the updates slice are marked by name,
+/// which the owner accepted because a unit name is a name the user can choose.
+fn scan_named_cgroups(
+    roots: &ScanRoots<'_>,
+    processes: &[ApplicationProcess],
+    targets: &mut Vec<PathBuf>,
+    without_application: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     for entry_result in std::fs::read_dir(roots.app_slice)? {
         let entry = entry_result?;
         if !entry.file_type()?.is_dir() {
@@ -399,8 +506,18 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
         let Some(name_text) = name.to_str() else {
             continue;
         };
-        if is_named_application_cgroup_name(name_text) {
-            push_unique(targets, entry.path());
+        let directory = entry.path();
+        if is_pi_service_name(name_text) || is_toolchain_updates_slice_name(name_text) {
+            push_unique(targets, directory);
+            continue;
+        }
+        let Some(application) = desktop_application_of_name(name_text) else {
+            continue;
+        };
+        if holds_application(application, &directory, processes) {
+            push_unique(targets, directory);
+        } else {
+            push_unique(without_application, directory);
         }
     }
     return Ok(());
@@ -444,48 +561,41 @@ fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
 ///   // Add live Helium, Pale Moon, Firefox release, and Nightly cgroups or throw an I/O error.
 /// }
 /// ```
-fn scan_exempt_application_processes(
-    roots: &ScanRoots<'_>,
-    targets: &mut Vec<PathBuf>,
-) -> io::Result<()> {
-    for entry_result in std::fs::read_dir(roots.proc_root)? {
-        let entry = entry_result?;
-        let name = entry.file_name();
-        let Some(name_text) = name.to_str() else {
-            continue;
-        };
-        if !is_process_id(name_text) {
-            continue;
-        }
-        let process = entry.path();
-        let Some(executable) = read_process_executable(&process.join("exe"))? else {
-            continue;
-        };
-        if !is_exempt_application_executable(&executable) {
-            continue;
-        }
-        let Some(cgroup_text) = read_process_file(&process.join("cgroup"))? else {
-            continue;
-        };
-        let Some(relative) = unified_cgroup_path(&cgroup_text) else {
-            continue;
-        };
-        let target = roots.cgroup_root.join(relative.trim_start_matches('/'));
-        if target.starts_with(roots.app_slice) && target.is_dir() {
-            push_unique(targets, target);
+fn scan_exempt_application_processes(processes: &[ApplicationProcess], targets: &mut Vec<PathBuf>) {
+    for process in processes {
+        if is_exempt_application_executable(&process.executable) {
+            push_unique(targets, process.cgroup.clone());
         }
     }
-    return Ok(());
 }
 
-/// Returns deduplicated sorted cgroups requiring socket exemption.
-pub fn scan_application_targets(roots: &ScanRoots<'_>) -> io::Result<Vec<PathBuf>> {
+/// What one scan found.
+///
+/// `without_application` names the cgroups a desktop application's name selected
+/// while no process of that application was in them:
+/// the mark is not attached there,
+/// and the watcher says so,
+/// because an application whose program the scan cannot recognize would otherwise lose its exemption in silence.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ApplicationScan {
+    /// Deduplicated, sorted cgroups that carry the socket mark.
+    pub targets: Vec<PathBuf>,
+    /// Sorted cgroups a desktop application's name selected that hold no program of it.
+    pub without_application: Vec<PathBuf>,
+}
+
+/// Returns the cgroups requiring socket exemption, and the names that were not believed.
+pub fn scan_application_targets(roots: &ScanRoots<'_>) -> io::Result<ApplicationScan> {
+    let processes = read_application_processes(roots)?;
     let mut targets = Vec::new();
-    scan_named_cgroups(roots, &mut targets)?;
-    scan_exempt_application_processes(roots, &mut targets)?;
+    let mut without_application = Vec::new();
+    scan_named_cgroups(roots, &processes, &mut targets, &mut without_application)?;
+    scan_exempt_application_processes(&processes, &mut targets);
     targets.sort();
     targets.dedup();
-    return Ok(targets);
+    without_application.sort();
+    without_application.dedup();
+    return Ok(ApplicationScan { targets, without_application });
 }
 
 /// Builds production user `app.slice` path from numeric UID.
@@ -497,7 +607,7 @@ pub fn user_app_slice(uid: u32) -> PathBuf {
 }
 
 /// Scans production procfs and cgroup mount for one desktop user.
-pub fn scan_user_application_targets(uid: u32) -> io::Result<Vec<PathBuf>> {
+pub fn scan_user_application_targets(uid: u32) -> io::Result<ApplicationScan> {
     let app_slice = user_app_slice(uid);
     return scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
