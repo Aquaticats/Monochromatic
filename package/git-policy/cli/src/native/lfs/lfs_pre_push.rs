@@ -391,7 +391,7 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 /// What:
 ///  The refusal that follows a failed upload which needed a login:
 ///  it names the server,
-/// says why nothing asked the person,
+/// says what the wrapper did about prompting,
 /// and names every way to give git-lfs a login it can use.
 /// Why:
 ///   The incident of 2026-11-10 ran for seven minutes because nothing said what was missing,
@@ -399,12 +399,29 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 ///  published (`doc/troubleshooting/lfs-credential-in-url.md`).
 /// The server is named without any credential,
 /// and the setting that stores one is named without its value.
+///  `prompting_disabled` is whether the overlay the program ran under carried the never-prompt pair:
+/// a command at a terminal keeps Git's and `git-lfs`'s own prompting,
+/// and telling its person that no terminal existed
+///  names a cause that cannot be fixed because it was never there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: the Git LFS upload to ${server} needed a login, and this command has no controlling terminal...`
+/// promptingDisabled ? `...this command has no controlling terminal, so ...` : `...this command has a controlling terminal, so ...`
 /// ```
-pub fn login_needed_message(server: &str) -> String {
+pub fn login_needed_message(server: &str, prompting_disabled: bool) -> String {
+    if !prompting_disabled {
+        return format!(
+            "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login and stopped. This command has a \
+             controlling terminal, so the wrapper left prompting to `git-lfs` and the Git it asks (`GIT_ASKPASS` and \
+             `GIT_TERMINAL_PROMPT` unchanged): either a login they already had was refused, or a variable or Git setting of this \
+             command stopped them from asking. Ways forward: store a login the server accepts in a Git credential helper for that \
+             URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or `cache` \
+             for a while), and push again, because objects the server already has are not sent twice; or check a \
+             `GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `core.askPass` or `credential.helper` setting of this command that refuses the \
+             login. A login written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
+             `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
+        );
+    }
     return format!(
         "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this command has no controlling \
          terminal, so `git-lfs` and the Git it asks were told never to prompt (`GIT_ASKPASS` set to the empty string and \

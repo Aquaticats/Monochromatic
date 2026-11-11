@@ -828,6 +828,28 @@ pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 ///  slowest of them.
 pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
 
+/// The longest a `git worktree add` waits for the snapshot the commit service makes ahead of it.
+///  The ceiling covers the whole wait,
+/// not one look:
+/// the add asks the service for a snapshot,
+///  looks for what it published,
+/// and ends the snapshot rung when this passes so that Git's own checkout makes the
+///  worktree.
+///  Measured on this volume,
+/// the 473 adds of this repository's own add timing log to
+///  2026-11-11T01:53:18.713Z spent 5,413.0 ms in the snapshot ioctl at the median,
+///  15,238.4 ms at the
+///  ninetieth percentile and 39,828.5 ms at the worst (402 of them recorded that step),
+/// so 1.5 times the
+///  worst measured call is about an hour of this volume's worst traffic,
+/// and it is the owner's own bound for an add:
+///  "60s is fine for adding worktrees".
+/// A wait that reaches it costs the add Git's own checkout of the tree,
+/// which
+///  is what a worktree add does on any filesystem that cannot snapshot,
+/// and the command says why it took that route.
+pub const SNAPSHOT_AHEAD_CEILING: Duration = Duration::from_secs(60);
+
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]
 #[path = "wait_ceilings_tests.rs"]

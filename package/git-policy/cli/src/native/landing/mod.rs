@@ -377,6 +377,10 @@ pub mod service_work_settling_a_verdict;
 /// with the line the person reads for it.
 pub mod service_work_settling_with_words;
 
+/// The drain of the snapshots the commit service makes ahead of the next add,
+/// as one step of a round.
+pub mod service_work_drains_a_snapshot_ahead;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
@@ -384,6 +388,11 @@ pub mod service_work_storage_awaited;
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;
+
+/// The service's work that can take minutes:
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
+pub mod service_work_slow_lane;
 
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;

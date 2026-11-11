@@ -1704,7 +1704,7 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
 ///  (`the_lock_markers_flush_is_queued_and_the_background_task_makes_it`).
 #[test]
 fn the_flush_of_the_marker_is_the_background_tasks_and_a_refusal_fails_nothing() {
-    use crate::service_index_placement::sync_file;
+    use crate::service_index_placement::{LOCK_MARKER_SYNC, sync_file};
     use std::os::fd::FromRawFd;
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` fills the two integers of the array it is given.
@@ -1714,7 +1714,7 @@ fn the_flush_of_the_marker_is_the_background_tasks_and_a_refusal_fails_nothing()
     // Positive control: the operating system does refuse this flush, so it is the queueing and not a lenient answer that keeps
     // the refusal off the commit. The call is the flush's own, and its answer is the caller's when the caller makes it;
     //  the marker's own flush is queued instead (`sync_file`, `service_durable::defer_file`).
-    let refused = crate::service_durable::flush_file(&writer, "lock-marker").expect_err("a pipe cannot be flushed");
+    let refused = crate::service_durable::flush_file(&writer, LOCK_MARKER_SYNC).expect_err("a pipe cannot be flushed");
     assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
     assert!(sync_file(&writer).is_ok(), "a flush the system refuses is never the placement's to fail");
     drop((reader, writer));

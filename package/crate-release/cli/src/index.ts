@@ -29,6 +29,7 @@ export * from './release-options.ts';
 export * from './release-run.ts';
 export * from './release-steps.ts';
 export * from './repository-root.ts';
+export * from './run-outcome.ts';
 export * from './run-program.ts';
 export * from './run-results.ts';
 export * from './service-arguments.ts';

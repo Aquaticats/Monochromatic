@@ -85,8 +85,8 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'the shadow config leaves a hook event on',
     file: 'src/native/shadow/shadow_config.rs',
-    from: String.raw`        lines.push(String::from("\tenabled = false"));`,
-    to: String.raw`        lines.push(String::from("\tenabled = true"));`,
+    from: String.raw`        config.extend_from_slice(format!("[hook \"{event}\"]\n\tenabled = false\n").as_bytes());`,
+    to: String.raw`        config.extend_from_slice(format!("[hook \"{event}\"]\n\tenabled = true\n").as_bytes());`,
     failing: 'shadow::shadow_config::tests::the_shadow_config_switches_every_hook_event_off_after_the_include',
   },
   {

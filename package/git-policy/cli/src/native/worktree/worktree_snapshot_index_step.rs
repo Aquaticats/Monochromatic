@@ -92,12 +92,94 @@ fn own_index_in_reach(source: &SnapshotSource) -> bool {
 /// The
 ///  extensions (`UNTR`,
 /// `FSMN`) name the source's worktree.
+/// What:
+///  The walk of one copy against a source's index:
+/// the entries that index names,
+/// and the stat fields the copy's files
+///  have now,
+/// by path.
+/// Why:
+///   The same walk answers two questions:
+/// whether a snapshot a service made ahead is still the source's
+///  (`worktree_snapshot_ahead.rs`),
+/// and what the new worktree's index records for a copy this add made itself.
+/// One
+///  walk answers both,
+/// so a copy that was proven before it was claimed is never walked twice,
+/// and the fields
+///  installed are the ones the verdict was given on.
+#[derive(Debug)]
+pub struct Proof {
+    /// The entries of the source's index,
+    /// in its own order.
+    pub entries: Vec<StatEntry>,
+    /// The stat fields of the copy's files,
+    /// one per entry.
+    pub fields: Vec<StatFields>,
+}
+
+/// What:
+///  Walk the copy at `root` against the source's index and answer the proof,
+/// or the reason the copy is not the
+///  source's.
+/// Why:
+///   Every tracked file of the copy must equal its entry.
+/// An entry the stat data cannot vouch for is settled by
+///  content,
+/// as the conversion settles one;
+/// a file that really differs ends the walk at once,
+/// which is what makes
+///  proving a stale copy cheap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await installIndex({ source, stage, admin, ownIndex, environment }); // the state of the copy
+/// await proveTheCopy({ source, root, environment }); // the entries and the fields, or the reason they are not the same state
 /// ```
-pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment) -> Result<CopyState, String> {
+pub(crate) fn prove_the_copy(source: &SnapshotSource, root: &Path, environment: &ConversionEnvironment) -> Result<Proof, String> {
+    let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let seed: &[u8] = source.clean.index_bytes.as_slice();
+    let Some(entries) = stored_stats(seed, source.clean.hash_length) else {
+        return Err(String::from("the source's index changed shape"));
+    };
+    let Some(indexed) = parse_index(seed, format) else {
+        return Err(String::from("the source's index has a layout the reader does not know"));
+    };
+    let target: ContentTarget<'_> = ContentTarget { root, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
+    return match tree_fields_by_content(&target, entries.as_slice(), indexed.as_slice(), source.clean.index_seconds) {
+        Ok(fields) => Ok(Proof { entries, fields }),
+        Err(refusal) => Err(refusal.reason),
+    };
+}
+
+/// What:
+///  Check the snapshot against the source's index,
+/// then install that index in the new worktree's administrative
+///  directory with stat fields refreshed and the accelerator extensions of the source dropped;
+/// a source that changed in content keeps the
+///  snapshot and its own index when that index is in reach.
+/// Why:
+///   Every tracked file of the snapshot must equal its entry,
+/// which proves the snapshot and the index describe the same
+///  state whatever the source did meanwhile.
+/// An entry the stat data cannot vouch for is settled by content,
+/// as the conversion
+///  settles one.
+/// A file that really changed ends Git's own checkout for a linked worktree's snapshot;
+/// a main checkout's
+///  snapshot is restored to the new `HEAD` from its own index instead,
+/// which is one instant with the copied files.
+/// The
+///  extensions (`UNTR`,
+/// `FSMN`) name the source's worktree.
+/// A copy that was already proven equal to the index (`proven`) is not walked
+///  again:
+/// the fields it was given on are the ones the new index records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await installIndex({ source, stage, admin, ownIndex, environment, proven }); // the state of the copy
+/// ```
+pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment, proven: Option<Proof>) -> Result<CopyState, String> {
     let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
     let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
@@ -111,35 +193,43 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
     let mut entries: Vec<StatEntry> = Vec::new();
     let mut walked: Vec<StatFields> = Vec::new();
     if own_index.is_none() {
-        let Some(stats) = stored_stats(seed, source.clean.hash_length) else {
-            return Err(String::from("the source's index changed shape"));
-        };
-        let Some(indexed) = parse_index(seed, format) else {
-            return Err(String::from("the source's index has a layout the reader does not know"));
-        };
-        let target: ContentTarget<'_> = ContentTarget { root: stage, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
-        // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
-        //  file is looked at once, and the fields are the ones the verdict was given on.
-        let walk_snapshot_entered: bool = begin_step("walkSnapshot");
-        let walk_snapshot_outcome = tree_fields_by_content(&target, stats.as_slice(), indexed.as_slice(), source.clean.index_seconds);
-        end_step(walk_snapshot_entered);
-        match walk_snapshot_outcome {
-            Ok(fields) => {
-                entries = stats;
-                walked = fields;
+        match proven {
+            Some(proof) => {
+                entries = proof.entries;
+                walked = proof.fields;
             }
-            Err(refusal) => {
-                if !own_index_in_reach(source) || !refusal.kind.restorable() {
-                    return Err(format!("the source changed while it was copied ({})", refusal.reason));
-                }
-                let read_own_index_entered: bool = begin_step("readOwnIndex");
-                let read_own_index_outcome = read_own_index(stage);
-                end_step(read_own_index_entered);
-                let Ok(own) = read_own_index_outcome else {
-                    return Err(format!("the source changed while it was copied ({})", refusal.reason));
+            None => {
+                let Some(stats) = stored_stats(seed, source.clean.hash_length) else {
+                    return Err(String::from("the source's index changed shape"));
                 };
-                restored = Some(own);
-                state = CopyState::ChangedUnderCopy;
+                let Some(indexed) = parse_index(seed, format) else {
+                    return Err(String::from("the source's index has a layout the reader does not know"));
+                };
+                let target: ContentTarget<'_> = ContentTarget { root: stage, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
+                // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
+                //  file is looked at once, and the fields are the ones the verdict was given on.
+                let walk_snapshot_entered: bool = begin_step("walkSnapshot");
+                let walk_snapshot_outcome = tree_fields_by_content(&target, stats.as_slice(), indexed.as_slice(), source.clean.index_seconds);
+                end_step(walk_snapshot_entered);
+                match walk_snapshot_outcome {
+                    Ok(fields) => {
+                        entries = stats;
+                        walked = fields;
+                    }
+                    Err(refusal) => {
+                        if !own_index_in_reach(source) || !refusal.kind.restorable() {
+                            return Err(format!("the source changed while it was copied ({})", refusal.reason));
+                        }
+                        let read_own_index_entered: bool = begin_step("readOwnIndex");
+                        let read_own_index_outcome = read_own_index(stage);
+                        end_step(read_own_index_entered);
+                        let Ok(own) = read_own_index_outcome else {
+                            return Err(format!("the source changed while it was copied ({})", refusal.reason));
+                        };
+                        restored = Some(own);
+                        state = CopyState::ChangedUnderCopy;
+                    }
+                }
             }
         }
     }

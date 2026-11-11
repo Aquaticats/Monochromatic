@@ -19,6 +19,7 @@
 use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
+use crate::control_terminal::Terminal;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
@@ -44,6 +45,8 @@ fn no_git(root: &Path) -> ResolutionInputs {
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("own-wrapper"),
         service_unit: None,
+        // Management commands are answered by the wrapper and start no Git child, so the terminal decides nothing.
+        terminal: Terminal::Present,
     };
 }
 

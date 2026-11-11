@@ -6,7 +6,8 @@
 //!  and a value Git reads as a value (the directory of a `-C`,
 //!  the setting of a `-c`) must never be read as an option.
 
-use super::{from_global_options, of_paths, without_repository_selection};
+use super::{from_global_options, of_identity, of_paths, without_repository_selection};
+use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -159,4 +160,47 @@ fn the_shadows_start_keeps_every_option_but_the_repository_selection() {
     );
     assert_eq!(kept(&["-C", ".."]), Vec::<String>::new(), "the directory of -C goes with it");
     assert_eq!(kept(&["-c", "--git-dir=x"]), vec![String::from("-c"), String::from("--git-dir=x")], "a configuration value is not an option");
+}
+
+/// What:
+///  A located invocation's identity names the repository Git resolved,
+///  and names nothing for a layout Git finds by itself or for a bare repository.
+/// Why:
+///  A rule that starts Git somewhere other than the caller's own directory cannot read the caller's options again:
+///  a relative `--git-dir` is resolved after the last `-C`,
+///  so reading it again from a discovered directory moves Git twice and names another repository.
+#[test]
+fn a_location_names_the_repository_git_resolved() {
+    let plain: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: PathBuf::from("/repo/.git"),
+        git_dir: PathBuf::from("/repo/.git"),
+        worktree_root: PathBuf::from("/repo"),
+    };
+    assert_eq!(of_identity(&plain), Vec::<OsString>::new(), "a plain layout is found from its work tree");
+    let beside: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: PathBuf::from("/holder/cfg.git"),
+        git_dir: PathBuf::from("/holder/cfg.git"),
+        worktree_root: PathBuf::from("/holder/wt"),
+    };
+    assert_eq!(
+        text(of_identity(&beside).as_slice()),
+        vec!["--git-dir", "/holder/cfg.git", "--work-tree", "/holder/wt"],
+        "a Git directory beside its work tree is named"
+    );
+    let linked: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: PathBuf::from("/main/.git"),
+        git_dir: PathBuf::from("/main/.git/worktrees/linked"),
+        worktree_root: PathBuf::from("/linked"),
+    };
+    assert_eq!(
+        text(of_identity(&linked).as_slice()),
+        vec!["--git-dir", "/main/.git/worktrees/linked", "--work-tree", "/linked"],
+        "a linked worktree's own Git directory is named"
+    );
+    let bare: WorktreeIdentity = WorktreeIdentity::BareRepository {
+        common_dir: PathBuf::from("/bare.git"),
+        git_dir: PathBuf::from("/bare.git"),
+    };
+    assert_eq!(of_identity(&bare), Vec::<OsString>::new(), "a bare repository has no work tree to name");
+    assert_eq!(of_identity(&WorktreeIdentity::OutsideWorktree), Vec::<OsString>::new());
 }

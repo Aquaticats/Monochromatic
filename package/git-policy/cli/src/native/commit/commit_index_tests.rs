@@ -259,6 +259,54 @@ fn index_without_staging_matches_the_real_index() {
 }
 
 /// What:
+///  An index commit that stages nothing stages none of the paths it names either,
+/// so its private index is the person's own index and not the worktree.
+/// Why:
+///  The patch and interactive selections are index commits that name every path they may touch,
+/// and the answers the person
+///  gave supply the staged content;
+///  staging those paths from the worktree here would publish the worktree's version of each of them.
+///  Every control of this module passed with the guard that skips this staging planted out,
+/// because the only index
+///  commit any control built named no paths,
+/// where the step it skips stages nothing anyway
+///  (`index_without_staging_matches_the_real_index`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await initialize({ mode: 'index', pathspecs: ['a.txt'], stageIntoIndex: false });
+/// expect(privateTree).toBe(realTree);
+/// ```
+#[test]
+fn an_index_commit_without_staging_stages_none_of_the_paths_it_names() {
+    let root: PathBuf = fixture("commit-index-index-names-paths");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    // One path with staged content in the real index and different content in the worktree, so staging the named path
+    // writes the worktree's version where the person's selection had the staged one.
+    std::fs::write(repo.join("a.txt"), "staged\n").expect("stage a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "worktree\n").expect("change a");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    let real_tree: String = write_private_tree(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("real tree");
+    let private_tree: String = write_private_tree(
+        &git_context(),
+        repo.as_path(),
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("private tree");
+    assert_eq!(private_tree, real_tree);
+    remove(root.as_path());
+}
+
+/// What:
 ///  A repository whose index file does not exist yet is prepared without writing one.
 /// Why:
 ///  The preparation ran `read-tree --empty` against the real index when the file was absent,

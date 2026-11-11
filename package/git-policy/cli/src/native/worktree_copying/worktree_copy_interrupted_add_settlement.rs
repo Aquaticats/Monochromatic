@@ -206,7 +206,13 @@ fn destination_is_gone(destination: &Path) -> bool {
 /// ```ts
 /// `an interrupted \`git worktree add\` left ${shown} registered and its ignored-state copy never finished; ...`
 /// ```
-fn unfinished_copy_notice(shown: &str) -> String {
+fn unfinished_copy_notice(shown: &str, owed: bool) -> String {
+    if owed {
+        // The record names the source and the selection, so a command run in that worktree can still make the copy.
+        return format!(
+            "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered, and the copy of its source's ignored state never finished, so files that source ignores may be missing there; that copy is still owed, and the first command run in that worktree makes it. Nothing was changed here."
+        );
+    }
     return format!(
         "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered, and the copy of its source's ignored state never finished, so files that source ignores may be missing there; nothing was changed. `git worktree remove {shown}` removes the worktree and leaves one that holds changes alone, so save them first, and running the same `git worktree add` line again copies the ignored state."
     );
@@ -460,10 +466,14 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             if destination_is_gone(destination.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
+            let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if let Some(admin) = registered.as_ref()
                 && add_is_finished(destination.as_path(), admin.as_path())
             {
-                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
+                // A record that names the copy still owed is what a command run in that worktree reads to make it, so
+                // it stays whole until the copy is made or the worktree is gone; a record that names no copy can never
+                // be finished by any command, and it is said once.
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)), keep: owes_a_copy };
             }
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(
@@ -484,8 +494,10 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             if destination_is_gone(binding.destination.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
+            let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
-                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
+                // As above: a record that names the copy still owed stays, because a command in that worktree can make it.
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)), keep: owes_a_copy };
             }
             Settlement {
                 notice: Some(format!(

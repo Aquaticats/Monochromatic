@@ -26,14 +26,25 @@
 //! ```
 
 /// Files,
-/// paths and the rename that replaces the record.
-use std::{fs, path::{Path, PathBuf}};
+/// paths,
+/// the descriptor the two record files are opened on,
+/// the rename that replaces the record,
+/// and the count of names a file has.
+use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+
+/// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
+/// both record files are opened with the flags that make a link and a pipe answer at once.
+use rustix::fs::{Mode, OFlags, open};
 
 /// The directory under the state home that holds this tool's own records.
 pub const STATE_DIRECTORY_NAME: &str = "cargo-shadow";
 
 /// The file a run records where each pass stopped in.
 pub const PROGRESS_FILE_NAME: &str = "lean-progress";
+
+/// The file a run writes the record into before one rename replaces the record with it:
+/// the record's name and `.new`.
+pub const STAGING_FILE_NAME: &str = "lean-progress.new";
 
 /// The first line of the record,
 /// so a file of another shape is not read as this one.
@@ -172,6 +183,32 @@ struct ReadRecord {
     failure: Option<String>,
 }
 
+/// The mode of the record files:
+/// this user alone reads and writes them,
+/// because they name this user's own directories.
+const RECORD_MODE: u32 = 0o600;
+
+/// What:
+/// `fn read_text(path: &Path) -> std::io::Result<String>` is the whole file,
+/// opened so that a pipe at the path answers at once instead of waiting for a writer.
+/// Why:
+/// The record's name is fixed and lives in this tool's own state directory,
+/// and a pipe left at it would hold the run until someone wrote to it,
+/// which nothing here promises to do:
+/// a run waits for nothing indefinitely.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readText = (path: string): string => readFileSync(path, { encoding: 'utf8' });
+/// ```
+fn read_text(path: &Path) -> io::Result<String> {
+    let opened: OwnedFd = open(path, OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK, Mode::empty()).map_err(io::Error::from)?;
+    let mut file: fs::File = fs::File::from(opened);
+    let mut text: String = String::new();
+    file.read_to_string(&mut text)?;
+    return Ok(text);
+}
+
 /// What:
 /// `fn read_record(path: &Path) -> ReadRecord` reads the positions,
 /// or says why it could not.
@@ -179,13 +216,15 @@ struct ReadRecord {
 /// A missing file is the ordinary first run and stays silent;
 /// a file of another shape or one that cannot be read is said once,
 /// and the run starts at the front.
+/// A pipe is one of those shapes:
+/// it is read for what it already holds and never waited on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readRecord(path: string): { progress: Progress; failure?: string }
 /// ```
 fn read_record(path: &Path) -> ReadRecord {
-    let text: String = match fs::read_to_string(path) {
+    let text: String = match read_text(path) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ReadRecord { progress: Progress::default(), failure: None },
         Err(error) => return ReadRecord { progress: Progress::default(), failure: Some(format!("{}: {error}", path.display())) },
@@ -239,6 +278,44 @@ pub enum LongPass {
 }
 
 /// What:
+/// `fn write_staging(staging: &Path, text: &str) -> std::io::Result<()>` writes the record into the staging file and leaves it
+/// there for the rename.
+/// Why:
+/// The staging name is fixed and lives in this tool's own state directory,
+/// so whatever else is at that name is not a file to write through:
+/// following a link would put this text into the file of the user's that it names,
+/// truncating a file another name shares would do the same through that other name,
+/// and opening a pipe would hold the run until a reader arrived.
+/// The open therefore never follows a link and never waits on a pipe,
+/// a name that is a link (symbolic or hard),
+/// a pipe or a socket is removed first so this run can create its own file,
+/// and the staging file a killed run left behind is a regular file with one name and is simply replaced.
+/// A name that is still not writable after that is reported and the run carries on without a position:
+/// a lost position costs one pass from the front,
+/// never the run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeStaging = (staging: string, text: string): void => { rmSync(staging, { force: true }); writeFileSync(staging, text, { flag: 'wx', mode: 0o600 }); };
+/// ```
+fn write_staging(staging: &Path, text: &str) -> io::Result<()> {
+    let replace: bool = match fs::symlink_metadata(staging) {
+        Ok(metadata) => !metadata.is_file() || metadata.nlink() > 1,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    if replace {
+        // Unlinking one name of a file another name shares leaves that other name its contents.
+        fs::remove_file(staging)?;
+    }
+    let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::TRUNC | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW;
+    let opened: OwnedFd = open(staging, flags, Mode::from_raw_mode(RECORD_MODE)).map_err(io::Error::from)?;
+    let mut file: fs::File = fs::File::from(opened);
+    file.write_all(text.as_bytes())?;
+    return Ok(());
+}
+
+/// What:
 /// `pub struct Progress`'s methods.
 impl Progress {
     /// Where the given pass continues after,
@@ -266,6 +343,8 @@ impl Progress {
     /// A run killed while writing leaves either the old record or the new one,
     /// never half of either,
     /// and a key that cannot be written exactly is left out rather than written wrong.
+    /// Neither file is written through a link or waited on as a pipe,
+    /// so a save cannot put this text into a file of the user's or hold the run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -285,8 +364,8 @@ impl Progress {
             text.push_str(&format!("{UNITS_TAG} {}\n", escape(units)));
         }
         let path: PathBuf = directory.join(PROGRESS_FILE_NAME);
-        let staging: PathBuf = directory.join(format!("{PROGRESS_FILE_NAME}.new"));
-        if let Err(error) = fs::write(&staging, text) {
+        let staging: PathBuf = directory.join(STAGING_FILE_NAME);
+        if let Err(error) = write_staging(&staging, &text) {
             return Err(format!("{}: {error}", staging.display()));
         }
         return match fs::rename(&staging, &path) {

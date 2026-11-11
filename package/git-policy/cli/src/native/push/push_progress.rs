@@ -58,17 +58,19 @@
 //!  `ESTABLISHED` (read from the kernel's socket diagnostics,
 //! `tcp_sockets.rs`) has a remote that has not closed it,
 //! and a tree
-//!  with such a socket is waited for,
-//! however long it shows nothing.
+//!  with such a socket is waited for while it works.
 //! The owner's answer "Wait while connected (Recommended)"
-//!  (2026-11-03) is the rule;
-//! the rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//!  (2026-11-03) was replaced the same day by "Bound it,
+//! keep retrying":
+//!  a connection that stays open with nothing moving for `CONNECTED_PUSH_QUIET_WINDOW` ends the run as a stall,
+//! and the
+//!  service's retry plan keeps the push and tries it again.
+//! The rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
 //! which the coordinator made
 //!  under the owner's delegation ("Pick options as if I had picked them",
 //! 2026-11-03) and the owner may veto:
-//! no stall window
-//!  for a connected push,
-//! no ceiling for any push,
+//! no ceiling
+//!  for a run that shows progress,
 //! no low-speed abort.
 //!  What the code cannot observe:
 //! a peer that vanished without a reset leaves the socket `ESTABLISHED` until TCP gives up
@@ -87,7 +89,7 @@
 
 /// The patience a clock keeps,
 /// and what a stop reports.
-use crate::bounded_push::{StopCause, StopReport};
+use crate::bounded_push::{StopCause, StopReport, StopWindow};
 /// Whether a control holds a limit for an ordering it needs first.
 use crate::push_limit_held_for_an_ordering::limit_has_passed;
 use crate::push_deadline_and_patience_settings::Patience;
@@ -263,6 +265,9 @@ pub struct WaitReport {
     pub silent: Duration,
     /// How long the push has run.
     pub elapsed: Duration,
+    /// The connected window the run will be stopped by if it stays silent,
+    /// so the line a person reads names the limit that will end it.
+    pub window: Duration,
 }
 
 impl Meter {
@@ -526,9 +531,14 @@ impl Clock {
     }
 
     /// The report of a stop now,
-    /// for the limit that was hit.
-    fn report(&self, limit: Duration, now: Instant) -> StopReport {
-        return StopReport { limit, moved: self.meter.as_ref().map_or(0, Meter::moved), elapsed: now.duration_since(self.started) };
+    /// for the window that was hit and the limit it carries.
+    fn report(&self, window: StopWindow, limit: Duration, now: Instant) -> StopReport {
+        return StopReport {
+            window,
+            limit,
+            moved: self.meter.as_ref().map_or(0, Meter::moved),
+            elapsed: now.duration_since(self.started),
+        };
     }
 
     /// Whether the child must be stopped now,
@@ -557,12 +567,12 @@ impl Clock {
                 let since: Instant = *self.waiting_since.get_or_insert(now);
                 self.last_progress = now;
                 if self.waited.is_none() && now.duration_since(since) >= stall {
-                    self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed });
+                    self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed, window: self.connected_window });
                 }
                 // The owner, 2026-11-03: "Bound it, keep retrying". A connection that stays open and silent for the connected
                 //  window ends the push as a stall; the service's retry plan keeps the push and tries it again.
                 if now.duration_since(since) >= self.connected_window {
-                    return Some(StopCause::Stalled(self.report(self.connected_window, now)));
+                    return Some(StopCause::Stalled(self.report(StopWindow::Connected, self.connected_window, now)));
                 }
             } else {
                 self.waiting_since = None;
@@ -570,7 +580,7 @@ impl Clock {
             self.next_sample = now + SAMPLE_INTERVAL;
         }
         if now.duration_since(self.last_progress) >= stall {
-            return Some(StopCause::Stalled(self.report(stall, now)));
+            return Some(StopCause::Stalled(self.report(StopWindow::Stall, stall, now)));
         }
         return None;
     }

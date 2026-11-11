@@ -73,6 +73,9 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
     let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
     assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
+    assert!(decision.contains("may_rebuild"), "the rebuilding decision reads this ceiling");
+    // The decision moved to the moved-branch file, and `service_commit.rs` keeps only the loop that runs it;
+    // both are checked, because a count of builds must appear in neither.
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
     assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
@@ -196,4 +199,22 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
     assert!(request.contains("const TOOL_QUIET_WINDOW: Duration = Duration::from_secs(600);"), "the owner's quiet window is still 600 s and this change leaves it alone");
     let command: &str = include_str!("../repair/package_repair_command.rs");
     assert!(command.contains("REPAIR_TOOL_NOTICE_AFTER"), "the run of every repair tool is what waits");
+}
+
+/// What:
+///  The wait for a snapshot made ahead is the owner's 60 s bound for an add,
+/// and the snapshot rung names it.
+/// Why:
+///   The ceiling covers the whole wait for a btrfs call the add does not make itself,
+/// so it is the one number that
+///  decides when Git's own checkout makes the worktree instead;
+/// a ceiling that drifted from the owner's bound,
+/// or a
+///  rung that stopped taking it,
+/// would leave an add waiting with no end again.
+#[test]
+fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
+    assert_eq!(SNAPSHOT_AHEAD_CEILING, Duration::from_secs(60), "the owner, 2026-11-10: \"60s is fine for adding worktrees\"");
+    let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
+    assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
 }

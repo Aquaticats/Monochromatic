@@ -46,6 +46,7 @@ struct Recorder {
     reviews: RefCell<Vec<String>>,
     trashes: RefCell<Vec<String>>,
     deletions: RefCell<Vec<String>>,
+    aheads: RefCell<Vec<String>>,
 }
 
 impl Recorder {
@@ -57,6 +58,7 @@ impl Recorder {
             reviews: RefCell::new(Vec::new()),
             trashes: RefCell::new(Vec::new()),
             deletions: RefCell::new(Vec::new()),
+            aheads: RefCell::new(Vec::new()),
         };
     }
 }
@@ -86,6 +88,13 @@ impl WorkHandlers for Recorder {
     /// so the record is that path rather than a commit id.
     fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
         self.deletions.borrow_mut().push(item.parent.clone());
+        return self.verdict.clone();
+    }
+
+    /// A snapshot ahead names the worktree root to copy,
+    /// so the record is that root rather than a commit id.
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        self.aheads.borrow_mut().push(item.repository.display().to_string());
         return self.verdict.clone();
     }
 }
@@ -881,6 +890,10 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// Git command that takes input),
 /// the loopback gateway is asked with the key from the wake,
 /// and the entry is appended.
+/// The lane is what claims a review in the service,
+/// beside the round that serves the pushes
+/// (`service_work_slow_lane.rs`),
+/// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
@@ -913,7 +926,8 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
+    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
+    crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(common.as_path(), &lane_handlers));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -1351,6 +1365,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder.pushes.borrow().is_empty() {
@@ -1399,6 +1414,7 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     assert_eq!(recorder.deletions.borrow().as_slice(), [deletion.as_str()], "the step asks its handler for the path the record names");
     assert_eq!(names(&repo, DONE), vec![entry.id()], "the deletion is settled as done");
@@ -1407,6 +1423,48 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
     assert!(
         !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
         "a drain that deletes a subvolume plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The snapshot ahead a drain claims runs the handler of its kind and is settled by its answer.
+/// Why:
+///   It is the one kind of work a person's own add waits for,
+/// so a drain that claims the kind and forgets the step leaves the add waiting for a copy nothing makes
+///  and the claim taken,
+/// which no other control would see.
+/// The slow lane claims it beside the pushes,
+/// and a drain outside the service claims every kind
+/// (`SLOW_KINDS` and `SERVICE_KINDS` in `service_work_handlers_replanning_and_acceptance.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying, SERVICE_KINDS); expect(asked).toEqual([worktree]); expect(names(DONE)).toEqual([id])
+/// ```
+#[test]
+fn the_awaited_drain_makes_a_snapshot_ahead() {
+    let repo: Repo = repo("work-awaited-snapshot-ahead");
+    let wanted: WorkItem = item(&repo, WorkKind::SnapshotAhead, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&wanted));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+        &SERVICE_KINDS,
+    ));
+    assert_eq!(recorder.aheads.borrow().as_slice(), [repo.worktree.display().to_string()], "the step asks its handler for the worktree the record names");
+    assert_eq!(names(&repo, DONE), vec![wanted.id()], "the snapshot ahead is settled as done");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no snapshot ahead is failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no snapshot ahead is left claimed");
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that makes a snapshot ahead plans no retry: {:?}",
         drained.changes
     );
     remove(repo.root.as_path());

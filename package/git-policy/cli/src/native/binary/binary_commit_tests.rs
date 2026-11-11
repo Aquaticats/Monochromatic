@@ -911,6 +911,37 @@ fn an_option_written_after_the_separator_is_refused_as_a_pathspec_that_matches_n
     remove_settled(&fixture);
 }
 
+/// Every one of the twenty stopped records of 2026-11-10 wrote the message after the paths,
+/// with the path still in the selection and a word of the message as an element of its own
+/// (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`),
+/// so this is that shape:
+/// exit `1`,
+/// a finding naming the token Git refused,
+/// the remedy that options belong before `--`,
+/// and neither the path nor the message staged (issue 6283).
+#[test]
+fn a_message_written_after_the_paths_is_refused_as_the_pathspec_it_became() {
+    let fixture: Fixture = fixture("commit-message-after-paths");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let status_before: String = porcelain(&fixture, repo.as_path());
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--", "a.txt", "-m", "one two"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec '-m' did not match any files"), "the token Git refused: {text}");
+    assert!(text.contains("git commit --message <text> -- <paths>"), "the remedy: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("git add --update"), "the report names no step of the wrapper: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(porcelain(&fixture, repo.as_path()), status_before, "nothing was staged: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
 /// A plain misspelled path is the same refusal,
 /// with no advice about the separator,
 /// because nothing in it starts with a hyphen.

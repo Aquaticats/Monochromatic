@@ -93,13 +93,24 @@ pub(super) struct RepairWorkspaceJob {
     pub(super) destination_root: PathBuf,
     /// The checkout the build state is carried from.
     pub(super) source: PathBuf,
+    /// The Git directory the lock bytes a clean displaces are kept in,
+    /// or nothing when no Git directory is known,
+    /// in which case a lock the clean changed is left as it is found.
+    pub(super) kept_in: Option<PathBuf>,
 }
 
 impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
     fn run<'a>(&'a self, workspace: &'a Workspace) -> Pin<Box<dyn Future<Output = Done> + Send + 'a>> {
         return Box::pin(async move {
             let began: Instant = begin_work();
-            let done: Done = repair_workspace_awaiting(&self.tool, workspace, self.destination_root.as_path(), self.source.as_path()).await;
+            let done: Done = repair_workspace_awaiting(
+                &self.tool,
+                workspace,
+                self.destination_root.as_path(),
+                self.source.as_path(),
+                self.kept_in.as_deref(),
+            )
+            .await;
             end_work("cargoRepairWorkspace", began);
             return done;
         });

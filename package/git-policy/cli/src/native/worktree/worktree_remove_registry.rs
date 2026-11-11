@@ -56,29 +56,61 @@ fn without_newline(text: &[u8]) -> &[u8] {
 }
 
 /// What:
-///  Whether Git's match by last components finds `candidate` for `operand`:
-/// the operand is non-empty,
-/// ends the path,
-/// and
-///  starts at a directory boundary.
-/// ASCII case is ignored,
-/// which also covers `core.ignorecase`,
-/// so a match is never missed.
+///  Where `operand` starts inside `candidate` when the two meet at a directory boundary,
+/// or nothing when the operand is empty or longer than the path.
 /// Why:
-///   Git's `find_worktree_by_suffix`;
-/// a looser match only sends more removals to Git.
+///   Git's match by last components (`find_worktree_by_suffix` in `worktree.c`) asks every candidate those same two
+/// questions,
+/// and the two comparisons below differ only in the answer they take from the bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lastComponentsStart(candidate: Uint8Array, operand: Uint8Array): number | undefined;
+/// ```
+fn last_components_start(candidate: &[u8], operand: &[u8]) -> Option<usize> {
+    if operand.is_empty() || operand.len() > candidate.len() {
+        return None;
+    }
+    let start: usize = candidate.len() - operand.len();
+    let at_boundary: bool = start == 0 || candidate[start - 1] == b'/';
+    return at_boundary.then_some(start);
+}
+
+/// What:
+///  Whether Git's match by last components finds `candidate` for `operand` by the operand's own bytes.
+/// Why:
+///   Git compares that suffix with `fspathcmp`,
+/// which folds ASCII case only when `core.ignorecase` says so
+/// (Git's `dir.c`),
+/// so a byte match is one Git picks under either setting.
+/// This is the comparison that picks the worktree to remove:
+/// a name Git would refuse never removes another worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function endsWithName(candidate: string, operand: string): boolean;
 /// ```
 fn ends_with_name(candidate: &[u8], operand: &[u8]) -> bool {
-    if operand.is_empty() || operand.len() > candidate.len() {
-        return false;
-    }
-    let start: usize = candidate.len() - operand.len();
-    let at_boundary: bool = start == 0 || candidate[start - 1] == b'/';
-    return at_boundary && candidate[start..].eq_ignore_ascii_case(operand);
+    let Some(start) = last_components_start(candidate, operand) else { return false };
+    return candidate[start..].eq(operand);
+}
+
+/// What:
+///  Whether Git's match by last components could find `candidate` for `operand` under any `core.ignorecase`
+/// setting:
+/// the same directory boundary,
+/// with ASCII case ignored.
+/// Why:
+///   The guard that declines a removal must not miss a name Git's suffix match could take for another worktree,
+/// and a looser match only sends more removals to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endsWithNameIgnoringCase(candidate: string, operand: string): boolean;
+/// ```
+fn ends_with_name_ignoring_case(candidate: &[u8], operand: &[u8]) -> bool {
+    let Some(start) = last_components_start(candidate, operand) else { return false };
+    return candidate[start..].eq_ignore_ascii_case(operand);
 }
 
 /// What:
@@ -136,6 +168,10 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 ///   Git matches the typed name against the end of every registered worktree path at a directory boundary before it
 ///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),
 ///  so a person may name a worktree by its last component and the wrapper serves the same removal.
+/// That comparison is byte for byte unless Git's own `core.ignorecase` setting folds the case,
+/// so a name that differs from the registered path only by case picks nothing here:
+/// it is Git's answer to give,
+/// and a worktree Git would refuse must never be the one this removes.
 /// A name two registered paths end in is Git's ambiguous case,
 /// which falls back to the resolved path,
 ///  and no path here resolves to a directory for it.
@@ -232,9 +268,9 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
     }
     let registered: Vec<Vec<u8>> = registered_paths(common_dir, worktrees.as_path())?;
     for path in registered {
-        if ends_with_name(path.as_slice(), operand.as_bytes()) && !same_worktree(path.as_slice(), target) {
+        if ends_with_name_ignoring_case(path.as_slice(), operand.as_bytes()) && !same_worktree(path.as_slice(), target) {
             return Err(format!(
-                "Git matches the name {} to the registered worktree {} by its last components, not to {}",
+                "Git's match by the last components of the registered paths could take the name {} for the worktree {}, not for {}",
                 operand.to_string_lossy(),
                 String::from_utf8_lossy(path.as_slice()),
                 target.display()
