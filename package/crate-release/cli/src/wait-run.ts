@@ -26,8 +26,15 @@ import {
   buildCratesIoArguments,
   buildReleaseViewArguments,
   buildRunListArguments,
-  buildRunWatchArguments,
+  buildRunViewArguments,
 } from './service-arguments.ts';
+import {
+  describeRunOutcome,
+  isRunCompleted,
+  jobsStillGoing,
+  parseRunOutcome,
+  type RunOutcome,
+} from './run-outcome.ts';
 import type { WaitOptions } from './wait-options.ts';
 
 /**
@@ -164,22 +171,217 @@ function releaseAssets(release: ProgramResult): Lookup<readonly string[]> {
  */
 export type PublishCheckInput = Pick<
   WaitOptions,
-  'root' | 'crateName' | 'version' | 'repo' | 'tagTemplate' | 'assetTemplates' | 'userAgent' | 'maxTimeSeconds'
+  | 'root'
+  | 'crateName'
+  | 'version'
+  | 'repo'
+  | 'workflow'
+  | 'tagTemplate'
+  | 'assetTemplates'
+  | 'userAgent'
+  | 'maxTimeSeconds'
+  | 'pollIntervalSeconds'
+  | 'followAttempts'
   >;
 
 /**
- Watch a publish workflow run to its end, then check crates.io and the GitHub release.
+ Everything one look at a run needs besides the look number.
+ */
+type FollowInput = {
+  readonly options: Pick<WaitOptions, 'root' | 'repo' | 'pollIntervalSeconds' | 'followAttempts'>;
+  readonly run: WaitRunner;
+  readonly sleep: (milliseconds: number) => Promise<void>;
+  readonly print: (line: string) => void;
+  readonly workflow: string;
+  readonly runId: string;
+};
+
+/**
+ Say why a run that never ended was left.
+
+ @param outcome - the last thing the run said about itself
+
+ @param boundSeconds - how long the wait was allowed to follow it
+
+ @returns text naming what the wait was still waiting for
+
+ @example
+ ```ts
+ describeStillGoing({ outcome, boundSeconds: 2400 });
+ ```
+ */
+function describeStillGoing({
+  outcome,
+  boundSeconds,
+}: {
+  readonly outcome: RunOutcome;
+  readonly boundSeconds: number;
+}): string {
+  /**
+   Jobs the run had not ended when the wait left it.
+   */
+  const going = jobsStillGoing(outcome);
+  return going.length === 0
+    ? `The run was still going after ${describeDuration(boundSeconds)}, with status ${JSON.stringify(outcome.status)}.`
+    : `The run was still going after ${describeDuration(boundSeconds)}, waiting for ${going.join(', ')}.`;
+}
+
+/**
+ Look at a run from one look on, sleeping between the looks, until the run says it ended.
+
+ The answer of `gh run view` is the only verdict read here. A look that cannot be read costs one look, not the whole
+ wait: a release must not be reported as failed because the GitHub API failed once while the run was still going.
+
+ @param input - the run, the settings and the readers
+
+ @param look - number of this look, from one
+
+ @returns what the run said about itself once it ended, or a miss that says why it never did
+
+ @example
+ ```ts
+ await followLook({ input: { options, run, sleep, print, workflow, runId }, look: 1 });
+ ```
+ */
+async function followLook({
+  input,
+  look,
+}: {
+  readonly input: FollowInput;
+  readonly look: number;
+}): Promise<Lookup<RunOutcome>> {
+  /**
+   Parts of the input this look uses.
+   */
+  const {
+    options,
+    run,
+    sleep,
+    print,
+    workflow,
+    runId
+  } = input;
+  /**
+   Answer of `gh run view`.
+   */
+  const view = await run({
+    program: ghProgram,
+    args: buildRunViewArguments({
+      runId,
+      ...repositoryScope(options)
+    }),
+    cwd: options.root,
+  });
+  /**
+   What the run says about itself, or why this look read nothing.
+   */
+  const lookup: Lookup<RunOutcome> = view.status === 0
+    ? parseRunOutcome(view.stdout)
+    : missingValue(failureReason(view));
+  if (lookup.found && isRunCompleted(lookup.value))
+    return lookup;
+  /**
+   Seconds this wait may follow one run.
+   */
+  const boundSeconds = options.followAttempts * options.pollIntervalSeconds;
+  if (look >= options.followAttempts)
+    return lookup.found
+      ? missingValue(describeStillGoing({
+        outcome: lookup.value,
+        boundSeconds
+      }))
+      : missingValue(`The run could not be read within ${describeDuration(boundSeconds)}: ${lookup.reason}`);
+  print(
+    lookup.found
+      ? `${describeRunOutcome({
+        workflow,
+        runId,
+        outcome: lookup.value
+      })}; waiting up to ${describeDuration(boundSeconds)}`
+      : `${workflow} run ${runId} could not be read (${lookup.reason}); waiting up to ${describeDuration(boundSeconds)}`,
+  );
+  await sleep(options.pollIntervalSeconds * millisecondsPerSecond);
+  return await followLook({
+    input,
+    look: look + 1
+  });
+}
+
+/**
+ Follow one workflow run to its own end, bounded by the look limit and the poll interval.
+
+ Every look at a run that has not ended prints what the run says about itself, so a run that takes a while says which
+ jobs it is still running instead of looking stuck, and a look that could not be read costs one look rather than the
+ whole wait. The caller prints the verdict, from the outcome this returns.
+
+ @param options - the repository scope and the bounds of the wait
+
+ @param run - runs a program call and reports its status and output
+
+ @param sleep - waits the given milliseconds
+
+ @param print - prints one line
+
+ @param workflow - workflow file of the run, for the lines that name it
+
+ @param runId - numeric identifier of the run
+
+ @returns what the run said when it ended, or a miss that says why it never did
+
+ @example
+ ```ts
+ await followRunOutcome({ options, run, sleep, print, workflow: 'cargo-publish.yml', runId: '77' });
+ ```
+ */
+export async function followRunOutcome({
+  options,
+  run,
+  sleep,
+  print,
+  workflow,
+  runId,
+}: {
+  readonly options: FollowInput['options'];
+  readonly run: WaitRunner;
+  readonly sleep: (milliseconds: number) => Promise<void>;
+  readonly print: (line: string) => void;
+  readonly workflow: string;
+  readonly runId: string;
+}): Promise<Lookup<RunOutcome>> {
+  return await followLook({
+    input: {
+      options,
+      run,
+      sleep,
+      print,
+      workflow,
+      runId
+    },
+    look: 1
+  });
+}
+
+/**
+ Follow a publish workflow run to its own end, then check crates.io and the GitHub release.
+
+ The run is the one that publishes the crate and the one whose jobs build and upload the archives, so the archives the
+ release holds come from it, never from the release run that dispatched it.
+
+ A run that is still going says which jobs it is still running, and the wait keeps following it until the look limit;
+ a run that never ended is reported as still going rather than passed or failed.
 
  A version that never goes to crates.io (`-alpha.N`, `-beta.N` and every form the label rule does not name) is not
  looked up there: the report says crates.io was skipped and why, and the result depends on the workflow run and the
  GitHub release.
 
  A failed workflow run does not skip the checks, so the report shows everything that is and is not in place. The result
- is zero only when the workflow succeeded, crates.io has the version, and the release holds every expected asset.
+ is zero only when the run ended with success, crates.io has the version, and the release holds every expected asset.
 
  @param options - the crate, its version and the check settings
 
  @param run - runs a program call and reports its status and output
+
+ @param sleep - waits the given milliseconds between two looks at the run
 
  @param runId - numeric identifier of the publish run
 
@@ -189,31 +391,32 @@ export type PublishCheckInput = Pick<
 
  @example
  ```ts
- await checkPublishedRun({ options, run, runId: '77', print: console.log });
+ await checkPublishedRun({ options, run, sleep, runId: '77', print: console.log });
  ```
  */
 export async function checkPublishedRun({
   options,
   run,
+  sleep,
   runId,
   print,
 }: {
   readonly options: PublishCheckInput;
   readonly run: WaitRunner;
+  readonly sleep: (milliseconds: number) => Promise<void>;
   readonly runId: string;
   readonly print: (line: string) => void;
 }): Promise<number> {
-  print(`run ${runId}`);
   /**
-   Outcome of watching the run to its end.
+   What the run said about itself when it ended, or why it never did.
    */
-  const watched = await run({
-    program: ghProgram,
-    args: buildRunWatchArguments({
-      runId,
-      ...repositoryScope(options)
-    }),
-    cwd: options.root,
+  const outcome = await followRunOutcome({
+    options,
+    run,
+    sleep,
+    print,
+    workflow: options.workflow,
+    runId
   });
   /**
    Whether the label rule sends the version to crates.io, and why not when it does not.
@@ -261,7 +464,9 @@ export async function checkPublishedRun({
    What was found, and whether it is complete.
    */
   const report = formatPublishResult({
-    watchStatus: watched.status,
+    workflow: options.workflow,
+    runId,
+    outcome,
     version: options.version,
     createdAt: parseCratesIoCreatedAt(crates.stdout),
     ...(route.goes ? {} : { skippedCratesIoReason: route.reason }),
@@ -335,6 +540,7 @@ export async function waitForPublish({
   return await checkPublishedRun({
     options,
     run,
+    sleep,
     runId: runLookup.value,
     print
   });

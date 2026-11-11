@@ -15,18 +15,19 @@ import { readPackageVersion } from './package-version.ts';
 import { describeDuration } from './publish-results.ts';
 import { selectPublishRun } from './publish-run-selection.ts';
 import {
-  type DispatchedRun,
-  parseRunCreatedAt,
-} from './run-results.ts';
+  describeRunFailures,
+  describeRunOutcome,
+  runPassed,
+} from './run-outcome.ts';
+import type { DispatchedRun } from './run-results.ts';
 import {
   buildDispatchedRunListArguments,
   buildManifestContentsArguments,
-  buildRunViewArguments,
-  buildRunWatchArguments,
 } from './service-arguments.ts';
 import {
   checkPublishedRun,
   failureReason,
+  followRunOutcome,
   repositoryScope,
   type WaitRunner,
 } from './wait-run.ts';
@@ -194,45 +195,12 @@ async function findPublishRun({
 }
 
 /**
- Read when the release run was created.
-
- @param options - validated await options
-
- @param run - runs a program call and reports its status and output
-
- @returns the creation time, or a miss that carries the reason `gh` or its answer gave
-
- @example
- ```ts
- await releaseRunCreatedAt({ options, run });
- ```
- */
-async function releaseRunCreatedAt({
-  options,
-  run,
-}: {
-  readonly options: AwaitOptions;
-  readonly run: WaitRunner;
-}): Promise<Lookup<string>> {
-  /**
-   Answer of `gh run view`.
-   */
-  const view = await run({
-    program: ghProgram,
-    args: buildRunViewArguments({
-      runId: options.releaseRunId,
-      ...repositoryScope(options)
-    }),
-    cwd: options.root,
-  });
-  return view.status === 0 ? parseRunCreatedAt(view.stdout) : missingValue(failureReason(view));
-}
-
-/**
  Wait for a release workflow run, then for the publish run it started, then check crates.io and the GitHub release.
 
- The release run is watched to its end first. When it fails, the publish run is never looked for, because a failed
- release run starts none; the report names the run so its log can be read. When it succeeds, the publish run is the
+ The release run is followed to its own end first, and the verdict is what the run says about itself, never the exit
+ status of a watcher: `gh run watch --exit-status` exits 1 for its own failures too. When the run failed, the publish run
+ is never looked for, because a failed release run starts none; the report names the failing job and step and the run
+ whose log names it. When it succeeded, the publish run is the
  earliest manually started run of the publish workflow that was created at or after the release run and was built from
  a commit whose crate manifest holds the version being released (see `selectPublishRun`), so a publish run that
  someone else dispatched in the same window on another commit cannot be taken for it.
@@ -265,32 +233,31 @@ export async function awaitRelease({
 }): Promise<number> {
   print(`${releaseWorkflow} run ${options.releaseRunId}`);
   /**
-   Outcome of watching the release run to its end.
+   What the release run says about itself: its creation time, and how it ended once it has.
    */
-  const watched = await run({
-    program: ghProgram,
-    args: buildRunWatchArguments({
-      runId: options.releaseRunId,
-      ...repositoryScope(options)
-    }),
-    cwd: options.root,
+  const release = await followRunOutcome({
+    options,
+    run,
+    sleep,
+    print,
+    workflow: releaseWorkflow,
+    runId: options.releaseRunId
   });
-  print(`watch exit ${String(watched.status)}`);
-  if (watched.status !== 0) {
+  if (!release.found) {
+    print(`RELEASE RUN NOT FINISHED: ${release.reason}`);
+    return failureExitCode;
+  }
+  print(describeRunOutcome({
+    workflow: releaseWorkflow,
+    runId: options.releaseRunId,
+    outcome: release.value
+  }));
+  if (!runPassed(release.value)) {
+    for (const line of describeRunFailures(release.value))
+      print(line);
     print(
       `RELEASE RUN FAILED: no publish was started. Read its log with: gh run view ${options.releaseRunId} --log-failed`,
     );
-    return failureExitCode;
-  }
-  /**
-   When the release run was created, or why that is unknown.
-   */
-  const createdAt = await releaseRunCreatedAt({
-    options,
-    run
-  });
-  if (!createdAt.found) {
-    print(`RELEASE RUN UNREADABLE: ${createdAt.reason}`);
     return failureExitCode;
   }
   /**
@@ -301,13 +268,13 @@ export async function awaitRelease({
       options,
       run,
       sleep,
-      notBefore: createdAt.value
+      notBefore: release.value.createdAt
     },
     attempt: 1
   });
   if (!publishRun.found) {
     print(
-      `no ${options.workflow} run was started since ${createdAt.value} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
+      `no ${options.workflow} run was started since ${release.value.createdAt} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
     );
     print(`last result: ${publishRun.reason}`);
     return failureExitCode;
@@ -317,6 +284,7 @@ export async function awaitRelease({
   return await checkPublishedRun({
     options,
     run,
+    sleep,
     runId: publishRun.value
       .runId,
     print

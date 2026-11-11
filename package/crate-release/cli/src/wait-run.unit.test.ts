@@ -4,19 +4,27 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { ProgramCall } from './run-program.ts';
-import type { WaitOptions } from './wait-options.ts';
 import {
   cratesIoApiBase,
-  failureExitCode,
   millisecondsPerSecond,
 } from './constants.ts';
 import { cratesIoRoute } from './crates-io-version-label.ts';
 import { describeDuration } from './publish-results.ts';
+import {
+  recordedCargoPublishRunPassed,
+  recordedReleaseRunFailed,
+  recordedRunStillGoing,
+} from './fixture/recorded-run-answers.ts';
+import type {
+  ProgramCall,
+  ProgramResult,
+} from './run-program.ts';
+import { failureExitCode } from './constants.ts';
 import { waitForPublish } from './wait-run.ts';
+import type { WaitOptions } from './wait-options.ts';
 
 /**
- Options of the fixture wait: three attempts, two seconds apart.
+ Options of the fixture wait: three looks for the run and two looks at it once found, two seconds apart.
  */
 const options: WaitOptions = {
   root: '/repo',
@@ -26,6 +34,7 @@ const options: WaitOptions = {
   workflow: 'cargo-publish.yml',
   attempts: 3,
   pollIntervalSeconds: 2,
+  followAttempts: 2,
   runLimit: 10,
   tagTemplate: '{crate}-v{version}',
   assetTemplates: ['{crate}-{version}-a.tar.gz', '{crate}-{version}-b.tar.gz'],
@@ -37,6 +46,11 @@ const options: WaitOptions = {
  Milliseconds the wait sleeps between two looks, as the production poll computes it.
  */
 const pollSleepMilliseconds = options.pollIntervalSeconds * millisecondsPerSecond;
+
+/**
+ How long this wait may follow one run, in the words its lines use.
+ */
+const followBound = describeDuration(options.followAttempts * options.pollIntervalSeconds);
 
 /**
  Run listing that holds the commit.
@@ -54,13 +68,57 @@ const completeRelease = JSON.stringify({ assets: [{ name: 'c-0.4.10-a.tar.gz' },
 const publishedVersion = JSON.stringify({ version: { created_at: '2026-10-29T12:00:00+00:00' } });
 
 /**
+ An answer of `gh run view` that reports the given text.
+
+ @param body - the answer as JSON text
+ @returns the finished call
+ */
+function answer(body: string): ProgramResult {
+  return {
+    status: 0,
+    stdout: body,
+    stderr: ''
+  };
+}
+
+/**
+ The recorded `cargo-publish` run that built the archives of `monochromatic-git-policy-cli` 0.6.1-alpha.9, as an answer.
+
+ @returns the finished call
+ */
+function passedRunAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedCargoPublishRunPassed));
+}
+
+/**
+ The recorded release run that failed at its `pnpm install` step, as an answer.
+
+ @returns the finished call
+ */
+function failedRunAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedReleaseRunFailed));
+}
+
+/**
+ The recorded run that was still going when it was captured, as an answer.
+
+ @returns the finished call
+ */
+function stillGoingAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedRunStillGoing));
+}
+
+/**
  Scripted answers of the outside tools.
  */
 type Script = {
-  readonly listings?: readonly { readonly status: number; readonly stdout: string; readonly stderr: string }[];
-  readonly watchStatus?: number;
+  readonly listings?: readonly ProgramResult[];
+  /**
+   Answers of `gh run view`, in order; the last one repeats.
+   */
+  readonly views?: readonly ProgramResult[];
   readonly crates?: string;
-  readonly release?: { readonly status: number; readonly stdout: string; readonly stderr: string };
+  readonly release?: ProgramResult;
 };
 
 /**
@@ -80,7 +138,8 @@ async function record({
   const calls: ProgramCall[] = [];
   const sleeps: number[] = [];
   const printed: string[] = [];
-  const queue = [...(script.listings ?? [])];
+  const listings = [...(script.listings ?? [])];
+  const views = [...(script.views ?? [])];
   const status = await waitForPublish({
     options: waitOptions,
     run: async function run(call) {
@@ -88,11 +147,13 @@ async function record({
       if (call.program === 'curl')
         return { status: 0, stdout: script.crates ?? publishedVersion, stderr: '' };
       if (call.args[1] === 'list') {
-        const answer = queue.length > 1 ? queue.shift() : queue[0];
-        return answer ?? { status: 0, stdout: foundListing, stderr: '' };
+        const next = listings.length > 1 ? listings.shift() : listings[0];
+        return next ?? answer(foundListing);
       }
-      if (call.args[1] === 'watch')
-        return { status: script.watchStatus ?? 0, stdout: '', stderr: '' };
+      if (call.args[1] === 'view') {
+        const next = views.length > 1 ? views.shift() : views[0];
+        return next ?? passedRunAnswer();
+      }
       return script.release ?? { status: 0, stdout: completeRelease, stderr: '' };
     },
     sleep: async function sleep(milliseconds) {
@@ -117,17 +178,16 @@ await describe({
       name: waitForPublish.name,
       children: [
         it({
-          name: 'finds the run at once, watches it, checks crates.io and the release, and succeeds',
+          name: 'finds the run, reads what the run says about itself, checks crates.io and the release, and names the release it published',
           fn: async () => {
             const result = await record({ script: {} });
             expect(result.status).toBe(0);
             expect(result.sleeps).toEqual([]);
             expect(result.printed).toEqual([
-              'run 42',
-              'watch exit 0',
+              'cargo-publish.yml run 42: completed with success',
               'crates.io 0.4.10: 2026-10-29T12:00:00+00:00',
               'release c-v0.4.10 assets: c-0.4.10-a.tar.gz, c-0.4.10-b.tar.gz',
-              'PUBLISHED',
+              'PUBLISHED c-v0.4.10',
             ]);
           },
         }),
@@ -141,7 +201,7 @@ await describe({
                 args: ['run', 'list', '--workflow=cargo-publish.yml', '--limit=10', '--json=databaseId,headSha'],
                 cwd: '/repo',
               },
-              { program: 'gh', args: ['run', 'watch', '42', '--exit-status'], cwd: '/repo' },
+              { program: 'gh', args: ['run', 'view', '42', '--json=createdAt,status,conclusion,jobs'], cwd: '/repo' },
               {
                 program: 'curl',
                 args: [
@@ -215,13 +275,76 @@ await describe({
           },
         }),
         it({
-          name: 'still checks crates.io and the release when the workflow run failed, and fails',
+          name: 'follows a run that is still building, says which jobs it waits for, and passes once the run ends',
           fn: async () => {
-            const result = await record({ script: { watchStatus: 1 } });
+            const result = await record({
+              script: {
+                views: [stillGoingAnswer(), passedRunAnswer()],
+                crates: '{"version":{"created_at":"2026-10-29T12:00:00+00:00"}}',
+                release: { status: 0, stdout: JSON.stringify({ assets: [{ name: 'c-0.4.10-a.tar.gz' }, { name: 'c-0.4.10-b.tar.gz' }] }), stderr: '' },
+              },
+            });
+            expect(result.status).toBe(0);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds]);
+            expect(result.printed[0]).toContain('cargo-publish.yml run 42 is still going: ');
+            expect(result.printed[0]).toContain(`; waiting up to ${followBound}`);
+            expect(result.printed).toContain('cargo-publish.yml run 42: completed with success');
+            expect(result.printed.at(-1)).toBe('PUBLISHED c-v0.4.10');
+          },
+        }),
+        it({
+          name: 'says a run that never ends is still going, names what it waited for, and fails without calling it published',
+          fn: async () => {
+            const result = await record({ script: { views: [stillGoingAnswer()] } });
             expect(result.status).toBe(failureExitCode);
-            expect(result.printed).toContain('watch exit 1');
+            expect(result.sleeps).toEqual([pollSleepMilliseconds]);
+            expect(result.printed[0]).toContain('is still going: ');
+            expect(result.printed.at(-1)).toContain('PUBLISH CHECK FAILED');
+            expect(result.printed.at(-1)).toContain('did not finish');
+            expect(result.printed.at(-1)).toContain(`still going after ${followBound}`);
+            expect(result.printed).not.toContain('PUBLISHED c-v0.4.10');
+          },
+        }),
+        it({
+          name: 'costs one look, not the wait, when one look at the run fails, and reads the next look as the verdict',
+          fn: async () => {
+            const result = await record({
+              script: {
+                views: [
+                  { status: 1, stdout: '', stderr: 'HTTP 500: Server Error' },
+                  passedRunAnswer(),
+                ],
+              },
+            });
+            expect(result.status).toBe(0);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds]);
+            expect(result.printed[0]).toContain('cargo-publish.yml run 42 could not be read (HTTP 500: Server Error)');
+            expect(result.printed.at(-1)).toBe('PUBLISHED c-v0.4.10');
+          },
+        }),
+        it({
+          name: 'gives up naming the last read error when every look at the run failed',
+          fn: async () => {
+            const result = await record({
+              script: { views: [{ status: 1, stdout: '', stderr: 'HTTP 500: Server Error' }] },
+            });
+            expect(result.status).toBe(failureExitCode);
+            expect(result.printed.at(-1)).toContain('did not finish');
+            expect(result.printed.at(-1)).toContain('HTTP 500: Server Error');
+          },
+        }),
+        it({
+          name: 'still checks crates.io and the release when the run concluded failure, and names the job and step',
+          fn: async () => {
+            const result = await record({ script: { views: [failedRunAnswer()] } });
+            expect(result.status).toBe(failureExitCode);
+            expect(result.printed).toContain('cargo-publish.yml run 42: completed with failure');
+            expect(result.printed).toContain(
+              'job release concluded failure at step "Install Node, pnpm and the workspace dependencies"',
+            );
             expect(result.printed.join('\n')).toContain('crates.io 0.4.10:');
             expect(result.printed.at(-1)).toContain('PUBLISH CHECK FAILED');
+            expect(result.printed.at(-1)).not.toContain('PUBLISHED');
           },
         }),
         it({
@@ -268,11 +391,10 @@ await describe({
               return call.program === 'curl';
             })).toBe(false);
             expect(result.printed).toEqual([
-              'run 42',
-              'watch exit 0',
+              'cargo-publish.yml run 42: completed with success',
               `crates.io 0.4.10-alpha.1: skipped, ${skipReason}`,
               'release c-v0.4.10-alpha.1 assets: c-0.4.10-alpha.1-a.tar.gz, c-0.4.10-alpha.1-b.tar.gz',
-              'PUBLISHED',
+              'PUBLISHED c-v0.4.10-alpha.1',
             ]);
           },
         }),
