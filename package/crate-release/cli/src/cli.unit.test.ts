@@ -371,7 +371,7 @@ await describe({
           },
         }),
         it({
-          name: 'releases an alpha whose dependency is at alpha, and starts no publish dry run',
+          name: 'releases an alpha whose dependency is at alpha, with no check and no publish dry run, and says what it left out',
           fn: async () => {
             await using fixture = await createStubFixture();
             await writeRepository(fixture);
@@ -379,9 +379,12 @@ await describe({
             const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0-alpha.1', 'n'] });
             expect(child.status).toBe(0);
             expect(child.stdout).toContain('RELEASE COMMITTED');
+            // An alpha is committed without compiling; the lock refresh and the commit are what it runs.
             expect((await fixture.calls()).map(function programOf(call) {
               return call.program;
-            })).toEqual([cargoProgram, cargoProgram, gitProgram]);
+            })).toEqual([cargoProgram, gitProgram]);
+            expect(child.stdout).toContain('no cargo check:');
+            expect(child.stdout).toContain('no publish dry run:');
           },
         }),
         it({
