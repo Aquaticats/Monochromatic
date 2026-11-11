@@ -848,22 +848,22 @@ fn prompts_recorded(log: &Path) -> String {
 
 /// What:
 ///  The push environment that makes the recorder the program Git and git-lfs would run when neither was
-///  told not to ask: both names they try before `GIT_TERMINAL_PROMPT`,
+///  told not to ask:
+///  both names they try before `GIT_TERMINAL_PROMPT`,
 ///  `GIT_ASKPASS` and `SSH_ASKPASS`.
 /// Why:
-///   The service's push environment inherits the whole process environment (`push_environment_of`), so the control
-///  would depend on the host's own `GIT_ASKPASS` if it named only `SSH_ASKPASS`.
-/// A host that names no
-///  `GIT_ASKPASS` is what the control needs,
-/// and this repository's own guidance for Git that must never prompt
-///  sets it to the empty string,
-///  so a host is free to carry either.
-/// With only `SSH_ASKPASS` named, a set `GIT_ASKPASS` would
-///  be the program Git ran,
-///  the recorder's log would stay empty,
-///  and the control would pass even if the service
-///  stopped setting `GIT_ASKPASS` at all:
-/// naming the recorder under both makes its log the proof whoever runs it.
+///   The service's push environment inherits the whole process environment (`push_environment_of`),
+///  so a control that named only `SSH_ASKPASS` would depend on the host:
+///  on a host whose `GIT_ASKPASS` is set,
+///  that program is the one Git runs,
+///  the recorder's log stays empty,
+///  and the log would prove nothing
+///  even if the service stopped setting `GIT_ASKPASS` at all.
+/// Naming the recorder under both makes its empty log the proof on every
+///  host:
+/// the empty `GIT_ASKPASS` the service sets (`service_child_overlay`) kept every prompt program away,
+///  whichever of the two names
+///  the host itself carries.
 fn askpass_names(program: &Path) -> [(&str, &str); 2] {
     let recorded: &str = program.to_str().expect("the recorder's path is text");
     return [("GIT_ASKPASS", recorded), ("SSH_ASKPASS", recorded)];
