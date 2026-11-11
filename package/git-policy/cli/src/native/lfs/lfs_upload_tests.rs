@@ -364,25 +364,25 @@ fn a_configuration_from_the_environment_becomes_a_pair() {
         vec!["--config-env=remote.origin.pushurl=POLICY_PUSH_URL"],
         vec!["--config-env", "remote.origin.pushurl=POLICY_PUSH_URL"],
     ] {
-        let variables = prefix_variables(words(prefix.as_slice()).as_slice(), environment.as_slice()).expect("the environment answers");
-        assert_eq!(named(variables.as_slice(), "GIT_CONFIG_COUNT").as_deref(), Some("1"), "{prefix:?}");
-        assert_eq!(named(variables.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("remote.origin.pushurl"), "{prefix:?}");
-        assert_eq!(named(variables.as_slice(), "GIT_CONFIG_VALUE_0").as_deref(), Some("http://example.invalid/x"), "{prefix:?}");
+        let answered = prefix_variables(words(prefix.as_slice()).as_slice(), environment.as_slice()).expect("the environment answers");
+        assert_eq!(named(answered.as_slice(), "GIT_CONFIG_COUNT").as_deref(), Some("1"), "{prefix:?}");
+        assert_eq!(named(answered.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("remote.origin.pushurl"), "{prefix:?}");
+        assert_eq!(named(answered.as_slice(), "GIT_CONFIG_VALUE_0").as_deref(), Some("http://example.invalid/x"), "{prefix:?}");
     }
     // The last `=` names the variable and leaves the key before it, as Git reads the option.
-    let variables = prefix_variables(words(&["--config-env=probe.key=x=POLICY_PUSH_URL"]).as_slice(), environment.as_slice())
+    let split_at_last = prefix_variables(words(&["--config-env=probe.key=x=POLICY_PUSH_URL"]).as_slice(), environment.as_slice())
         .expect("the environment answers");
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("probe.key=x"));
+    assert_eq!(named(split_at_last.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("probe.key=x"));
     // A caller's `-c` keeps everything after its first `=`, and the pairs keep the order the caller gave them.
-    let variables = prefix_variables(
+    let both_spellings = prefix_variables(
         words(&["-c", "first=a=b", "--config-env=second=POLICY_PUSH_URL"]).as_slice(),
         environment.as_slice(),
     )
     .expect("the environment answers");
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_COUNT").as_deref(), Some("2"));
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("first"));
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_VALUE_0").as_deref(), Some("a=b"));
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_KEY_1").as_deref(), Some("second"));
+    assert_eq!(named(both_spellings.as_slice(), "GIT_CONFIG_COUNT").as_deref(), Some("2"));
+    assert_eq!(named(both_spellings.as_slice(), "GIT_CONFIG_KEY_0").as_deref(), Some("first"));
+    assert_eq!(named(both_spellings.as_slice(), "GIT_CONFIG_VALUE_0").as_deref(), Some("a=b"));
+    assert_eq!(named(both_spellings.as_slice(), "GIT_CONFIG_KEY_1").as_deref(), Some("second"));
     // Nothing answers for a variable the environment does not hold, a parameter with no `=`, an empty variable name, or an
     //  option with no value at all.
     for prefix in [

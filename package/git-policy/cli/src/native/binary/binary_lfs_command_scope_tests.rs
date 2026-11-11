@@ -37,11 +37,11 @@ fn link_git_lfs(fixture: &Fixture) -> Option<PathBuf> {
     let program: Option<PathBuf> = std::env::split_paths(&path)
         .map(|directory| { return directory.join("git-lfs"); })
         .find(|candidate| { return candidate.is_file(); });
-    let Some(program) = program else {
+    let Some(installed) = program else {
         eprintln!("skipped: git-lfs is not on PATH, so the real upload was not exercised");
         return None;
     };
-    std::os::unix::fs::symlink(program, fixture.root.join("bin/git-lfs")).expect("git-lfs link");
+    std::os::unix::fs::symlink(installed, fixture.root.join("bin/git-lfs")).expect("git-lfs link");
     return Some(fixture.root.join("bin/git-lfs"));
 }
 
