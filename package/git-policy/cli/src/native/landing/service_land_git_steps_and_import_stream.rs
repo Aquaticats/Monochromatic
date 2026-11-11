@@ -19,13 +19,81 @@
 use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode};
+use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, value_of};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
+
+/// How many times a side reference is written when the wait for a write ended without an answer.
+///  Two:
+///  a write a wait left running is often finished moments later,
+///  so one write more after the reference is read costs a step and saves the commit.
+///  A write Git itself refused is written no second time:
+///  the same value at the same name is refused the same way.
+const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
+
+/// What:
+///  Writes the side reference `name` at `tip`,
+///  and answers nothing when the reference names it,
+///  or the words of the write that did not.
+/// Why:
+///   A side reference is what keeps a commit a reference lock held reachable
+///  (`held_commit_record.rs`),
+///  and the wrapper never ends such a write for being slow,
+///  because cutting a write in place risks the person's data
+///  (`transaction_git_step_bounds.rs`,
+///  `is_side_ref_write`):
+///  a wait that ends without an answer says the result is not known,
+///  never that the write failed.
+///  Reading that ending as a failed write told a commit that was made that it was not made
+///  (2026-11-11,
+///  the release gate of 0.6.1-alpha.11:
+///  the write of `refs/worktree/cli-git-service/<batch>` was still moving after its wait of 127 seconds,
+///  in quiet gaps under a second,
+///  and the landing answered `unavailable`).
+///  The write names one value for one name,
+///  so it may be written again,
+///  and the reference is the answer:
+///  it is read,
+///  never guessed at from a wait that ended.
+///  `only_if_free` writes the reference only while its name names nothing,
+///  and a name it already holds at `tip` is the answer either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRef(name, tip, freeOnly); if (made.succeeded) return; if (await valueOf(name) === tip) return; if (made.answered) return wordsOf(made); } return words
+/// ```
+fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str, only_if_free: bool) -> Option<String> {
+    let mut refused: Option<String> = None;
+    for _attempt in 0..SIDE_REF_WRITE_ATTEMPTS {
+        let mut arguments: Vec<&str> = vec!["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip];
+        if only_if_free {
+            // The empty old value is Git's way to refuse when the name exists at all, so a name another command wrote is never
+            //  replaced (`keep_on_a_side_ref_only_if_free`).
+            arguments.push("");
+        }
+        let made: Result<GitOutput, FailureCode> = run(git, repository, arguments.as_slice(), None);
+        // Git's own answer, as opposed to a wait that ended before the write did.
+        let answered: bool = matches!(&made, Ok(_));
+        if matches!(&made, Ok(output) if output.succeeded()) {
+            return None;
+        }
+        // The reference says whether a write finished, whatever the wait for it said.
+        if matches!(value_of(git, repository, name), RefValue::Names(named) if named == tip) {
+            return None;
+        }
+        refused = words_of_a_refused_write(made);
+        if answered {
+            return refused;
+        }
+    }
+    return refused;
+}
+
 /// What:
 ///  Writes `refs/cli-git/kept/<number>` at `tip`,
 /// the ref the wrapper keeps a commit it did not land on,
-/// and returns nothing when Git wrote it or Git's own words when it did not.
+/// and returns nothing when the reference names it or Git's own words when it does not.
 /// Why:
 ///   One place names that ref and writes it,
 /// so the side ref of a landing that gave up at a step and the side ref the restart writes for a batch its branch does
@@ -37,19 +105,37 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = await git(['-c', withNoReflog, 'update-ref', '--no-deref', `refs/cli-git/kept/${seq}`, tip]); return made.succeeded ? undefined : made.stderr
+/// expect(await keepOnASideRef(git, repo, seq, tip)).toBeUndefined()
 /// ```
 pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
     let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
-    let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
-    return words_of_a_refused_write(made);
+    return write_until_the_reference_names(git, repository, name.as_str(), tip, false);
+}
+
+/// What:
+///  Writes the per-worktree reference `refs/worktree/cli-git-service/<seq>` at `tip`,
+///  the reference that keeps the objects of a batch reachable until its branch write,
+///  and answers nothing when the reference names it or Git's own words when it does not.
+/// Why:
+///  This is the write that keeps a commit Git built reachable while its branch write meets a lock
+///  (`service_land_objects_of_batch.rs`),
+///  and it is the one the release gate of 0.6.1-alpha.11 read as a failed write when its wait ran out;
+///  it is written here so that reading is answered by the reference
+///  (`write_until_the_reference_names`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await keepOnTheScratchReference(git, repo, scratchRef(seq), tip)).toBeUndefined()
+/// ```
+pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> Option<String> {
+    return write_until_the_reference_names(git, repository, scratch, tip, false);
 }
 
 /// What:
 ///  Writes the reference `name` at `tip`
 /// only while that name names nothing,
-/// and answers nothing when Git wrote it
-///  or Git's own words when it did not.
+/// and answers nothing when the reference names `tip`
+///  or Git's own words when it does not.
 /// Why:
 ///   A command that removes a linked worktree keeps a held commit on a reference of the common Git directory
 ///  before Git removes the only other ones (`worktree_removal_held_commits.rs`),
@@ -62,11 +148,10 @@ pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = await git(['-c', withNoReflog, 'update-ref', '--no-deref', name, tip, '']); return made.succeeded ? undefined : made.stderr
+/// expect(await keepOnASideRefOnlyIfFree(git, repo, name, tip)).toBeUndefined()
 /// ```
 pub(crate) fn keep_on_a_side_ref_only_if_free(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
-    let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip, ""], None);
-    return words_of_a_refused_write(made);
+    return write_until_the_reference_names(git, repository, name, tip, true);
 }
 
 /// What:
