@@ -1,0 +1,1693 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-11-11T01:00:30Z",
+  "jobs": [
+    {
+      "completedAt": "2026-11-11T01:01:14Z",
+      "conclusion": "success",
+      "databaseId": 130245206976,
+      "name": "ss-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:36Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:11Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:11Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:11Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:11Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:12Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:11Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245206976"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:03Z",
+      "conclusion": "success",
+      "databaseId": 130245207198,
+      "name": "je-detect",
+      "startedAt": "2026-11-11T01:00:33Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:00Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207198"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:10Z",
+      "conclusion": "success",
+      "databaseId": 130245207349,
+      "name": "fec-detect",
+      "startedAt": "2026-11-11T01:00:33Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:34Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:08Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207349"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:03Z",
+      "conclusion": "success",
+      "databaseId": 130245207391,
+      "name": "nws-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207391"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "success",
+      "databaseId": 130245207443,
+      "name": "cgs-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:03Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207443"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "success",
+      "databaseId": 130245207465,
+      "name": "ml-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207465"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "success",
+      "databaseId": 130245207482,
+      "name": "fr-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207482"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "success",
+      "databaseId": 130245207517,
+      "name": "ms-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:36Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207517"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:11Z",
+      "conclusion": "success",
+      "databaseId": 130245207546,
+      "name": "dc-detect",
+      "startedAt": "2026-11-11T01:00:33Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:08Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207546"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "success",
+      "databaseId": 130245207606,
+      "name": "detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207606"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "success",
+      "databaseId": 130245207711,
+      "name": "fe-detect",
+      "startedAt": "2026-11-11T01:00:33Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207711"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:03Z",
+      "conclusion": "success",
+      "databaseId": 130245207742,
+      "name": "cs-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:00Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:01Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207742"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:13Z",
+      "conclusion": "success",
+      "databaseId": 130245207817,
+      "name": "bl-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:36Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:10Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207817"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:06Z",
+      "conclusion": "success",
+      "databaseId": 130245207820,
+      "name": "gpc-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:04Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:05Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:05Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:05Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245207820"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "success",
+      "databaseId": 130245208044,
+      "name": "ps-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245208044"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:12Z",
+      "conclusion": "success",
+      "databaseId": 130245208481,
+      "name": "xe-detect",
+      "startedAt": "2026-11-11T01:00:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:00:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:00:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:00:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Decide whether the version goes to crates.io",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Detect version bump",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:09Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245208481"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:03Z",
+      "conclusion": "skipped",
+      "databaseId": 130245435227,
+      "name": "cs-publish-crate",
+      "startedAt": "2026-11-11T01:01:03Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245435227"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:03Z",
+      "conclusion": "skipped",
+      "databaseId": 130245436104,
+      "name": "je-publish-crate",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245436104"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245438509,
+      "name": "nws-publish-crate",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245438509"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245439050,
+      "name": "nws-release-state",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245439050"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245440225,
+      "name": "nws-build-binary",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245440225"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245440286,
+      "name": "nws-create-release",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245440286"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245441139,
+      "name": "fr-publish-crate",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245441139"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:04Z",
+      "conclusion": "skipped",
+      "databaseId": 130245442011,
+      "name": "fe-publish-crate",
+      "startedAt": "2026-11-11T01:01:04Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245442011"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245447418,
+      "name": "ps-release-state",
+      "startedAt": "2026-11-11T01:01:05Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245447418"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245448123,
+      "name": "ps-publish-crate",
+      "startedAt": "2026-11-11T01:01:05Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245448123"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245448484,
+      "name": "ps-create-release",
+      "startedAt": "2026-11-11T01:01:05Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245448484"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245448976,
+      "name": "ps-build-binary",
+      "startedAt": "2026-11-11T01:01:05Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245448976"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245450866,
+      "name": "cgs-release-state",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245450866"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245451322,
+      "name": "build-binary",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245451322"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245451473,
+      "name": "cgs-publish-crate",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245451473"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245451785,
+      "name": "create-release",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245451785"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245451967,
+      "name": "cgs-build-binary",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245451967"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245452281,
+      "name": "cgs-create-release",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245452281"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:05Z",
+      "conclusion": "skipped",
+      "databaseId": 130245452651,
+      "name": "publish-crate",
+      "startedAt": "2026-11-11T01:01:06Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245452651"
+    },
+    {
+      "completedAt": "2026-11-11T01:07:48Z",
+      "conclusion": "success",
+      "databaseId": 130245458171,
+      "name": "gpc-build-binary (x86_64-unknown-linux-gnu, ubuntu-24.04)",
+      "startedAt": "2026-11-11T01:01:09Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:01:10Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:37Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:01:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:37Z",
+          "conclusion": "success",
+          "name": "Add rust target",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:37Z",
+          "conclusion": "success",
+          "name": "Show the toolchain that builds the release",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:41Z",
+          "conclusion": "success",
+          "name": "Build binary",
+          "number": 5,
+          "startedAt": "2026-11-11T01:01:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:41Z",
+          "conclusion": "success",
+          "name": "Smoke-run the binary",
+          "number": 6,
+          "startedAt": "2026-11-11T01:07:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:42Z",
+          "conclusion": "success",
+          "name": "Package binary archive",
+          "number": 7,
+          "startedAt": "2026-11-11T01:07:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:45Z",
+          "conclusion": "success",
+          "name": "Attest binary provenance",
+          "number": 8,
+          "startedAt": "2026-11-11T01:07:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:46Z",
+          "conclusion": "success",
+          "name": "Upload archive as workflow artifact",
+          "number": 9,
+          "startedAt": "2026-11-11T01:07:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:46Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-11-11T01:07:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:46Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-11T01:07:46Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245458171"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:47Z",
+      "conclusion": "success",
+      "databaseId": 130245458210,
+      "name": "gpc-publish-crate",
+      "startedAt": "2026-11-11T01:01:09Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:01:12Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:01:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:37Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:01:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:43Z",
+          "conclusion": "success",
+          "name": "Install Rust toolchain",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:43Z",
+          "conclusion": "skipped",
+          "name": "Wait for the required forbidden-strings release",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:43Z",
+          "conclusion": "success",
+          "name": "Identify the Rust toolchain for the cache key",
+          "number": 5,
+          "startedAt": "2026-11-11T01:01:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "success",
+          "name": "Cache cargo build artifacts",
+          "number": 6,
+          "startedAt": "2026-11-11T01:01:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "skipped",
+          "name": "Build .crate package (verifies by compile)",
+          "number": 7,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "success",
+          "name": "Log cargo directory sizes",
+          "number": 8,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "skipped",
+          "name": "Attest .crate provenance",
+          "number": 9,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "skipped",
+          "name": "Authenticate with crates.io (Trusted Publishing)",
+          "number": 10,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "skipped",
+          "name": "Publish (dry run)",
+          "number": 11,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "skipped",
+          "name": "Publish (skips if this version is already on crates.io)",
+          "number": 12,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "success",
+          "name": "Post Cache cargo build artifacts",
+          "number": 23,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 24,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:44Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 25,
+          "startedAt": "2026-11-11T01:01:44Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245458210"
+    },
+    {
+      "completedAt": "2026-11-11T01:06:05Z",
+      "conclusion": "success",
+      "databaseId": 130245458417,
+      "name": "gpc-build-binary (aarch64-unknown-linux-gnu, ubuntu-24.04-arm)",
+      "startedAt": "2026-11-11T01:01:11Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:01:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:01:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:40Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-11-11T01:01:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:40Z",
+          "conclusion": "success",
+          "name": "Add rust target",
+          "number": 3,
+          "startedAt": "2026-11-11T01:01:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:01:41Z",
+          "conclusion": "success",
+          "name": "Show the toolchain that builds the release",
+          "number": 4,
+          "startedAt": "2026-11-11T01:01:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:05:58Z",
+          "conclusion": "success",
+          "name": "Build binary",
+          "number": 5,
+          "startedAt": "2026-11-11T01:01:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:05:58Z",
+          "conclusion": "success",
+          "name": "Smoke-run the binary",
+          "number": 6,
+          "startedAt": "2026-11-11T01:05:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:05:59Z",
+          "conclusion": "success",
+          "name": "Package binary archive",
+          "number": 7,
+          "startedAt": "2026-11-11T01:05:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:06:01Z",
+          "conclusion": "success",
+          "name": "Attest binary provenance",
+          "number": 8,
+          "startedAt": "2026-11-11T01:05:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:06:03Z",
+          "conclusion": "success",
+          "name": "Upload archive as workflow artifact",
+          "number": 9,
+          "startedAt": "2026-11-11T01:06:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:06:03Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-11-11T01:06:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:06:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-11T01:06:03Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245458417"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245462052,
+      "name": "ms-release-state",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245462052"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245462067,
+      "name": "ms-publish-crate",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245462067"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245462436,
+      "name": "ms-build-binary",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245462436"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245463045,
+      "name": "ms-create-release",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245463045"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245464572,
+      "name": "ml-publish-crate",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245464572"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245464670,
+      "name": "ml-build-binary",
+      "startedAt": "2026-11-11T01:01:07Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245464670"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:07Z",
+      "conclusion": "skipped",
+      "databaseId": 130245466198,
+      "name": "ml-create-release",
+      "startedAt": "2026-11-11T01:01:08Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245466198"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:11Z",
+      "conclusion": "skipped",
+      "databaseId": 130245488707,
+      "name": "fec-release-state",
+      "startedAt": "2026-11-11T01:01:11Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245488707"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:11Z",
+      "conclusion": "skipped",
+      "databaseId": 130245490082,
+      "name": "fec-build-binary",
+      "startedAt": "2026-11-11T01:01:11Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245490082"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:11Z",
+      "conclusion": "skipped",
+      "databaseId": 130245492138,
+      "name": "dc-publish-crate",
+      "startedAt": "2026-11-11T01:01:11Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245492138"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:12Z",
+      "conclusion": "skipped",
+      "databaseId": 130245496609,
+      "name": "xe-publish-crate",
+      "startedAt": "2026-11-11T01:01:12Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245496609"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:13Z",
+      "conclusion": "skipped",
+      "databaseId": 130245507461,
+      "name": "bl-publish-crate",
+      "startedAt": "2026-11-11T01:01:14Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245507461"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:13Z",
+      "conclusion": "skipped",
+      "databaseId": 130245507607,
+      "name": "fec-publish-crate",
+      "startedAt": "2026-11-11T01:01:14Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245507607"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:13Z",
+      "conclusion": "skipped",
+      "databaseId": 130245508342,
+      "name": "fec-create-release",
+      "startedAt": "2026-11-11T01:01:14Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245508342"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:15Z",
+      "conclusion": "skipped",
+      "databaseId": 130245517377,
+      "name": "ss-build-binary",
+      "startedAt": "2026-11-11T01:01:15Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245517377"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:15Z",
+      "conclusion": "skipped",
+      "databaseId": 130245517935,
+      "name": "ss-publish-crate",
+      "startedAt": "2026-11-11T01:01:15Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245517935"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:15Z",
+      "conclusion": "skipped",
+      "databaseId": 130245517972,
+      "name": "ss-release-state",
+      "startedAt": "2026-11-11T01:01:15Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245517972"
+    },
+    {
+      "completedAt": "2026-11-11T01:01:15Z",
+      "conclusion": "skipped",
+      "databaseId": 130245518122,
+      "name": "ss-create-release",
+      "startedAt": "2026-11-11T01:01:15Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130245518122"
+    },
+    {
+      "completedAt": "2026-11-11T01:08:00Z",
+      "conclusion": "success",
+      "databaseId": 130248231910,
+      "name": "gpc-create-release",
+      "startedAt": "2026-11-11T01:07:50Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-11T01:07:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-11T01:07:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:54Z",
+          "conclusion": "success",
+          "name": "Download all binary archives",
+          "number": 2,
+          "startedAt": "2026-11-11T01:07:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:58Z",
+          "conclusion": "success",
+          "name": "Create GitHub release with all archives",
+          "number": 3,
+          "startedAt": "2026-11-11T01:07:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-11T01:07:58Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 4,
+          "startedAt": "2026-11-11T01:07:58Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Aquaticats/Monochromatic/actions/runs/42935721432/job/130248231910"
+    }
+  ],
+  "status": "completed"
+}

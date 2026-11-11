@@ -1,8 +1,10 @@
 {
   "extends": "@monochromatic-dev/config-typescript/dom",
   // The preset only includes src; the executables in bin are part of this package's type check and lint too.
+  // The recorded `gh` answers under src/fixture are imported by the tests, so the project has to list them as well.
   "include": [
     "src/**/*.ts",
+    "src/**/*.json",
     "bin/**/*.ts",
   ],
 }

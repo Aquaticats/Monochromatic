@@ -4795,6 +4795,19 @@ mise run //package/git-policy/cli:native:test:container
   A control that needs a filesystem that is not btrfs does print that line on this host,
   which is the one such line a green release run holds
   (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
+- `native:release` starts a wrapper release and `native:release:wait` follows it
+  (`package/crate-release/cli/README.md`).
+  A wrapper release runs two workflows:
+  `crate-release.yml` bumps the version,
+  checks the crate and pushes the bump to `main`,
+  and the `cargo-publish.yml` run that its `publish` job dispatches publishes the crate and builds the tarballs of the
+  GitHub release.
+  Both are followed to their own end,
+  reading what each run says about itself with `gh run view --json=createdAt,status,conclusion,jobs`:
+  a release run that passed is reported as passed,
+  a run that failed names the job and the step that did not pass,
+  and a run that is still building says which jobs it waits for
+  (`doc/troubleshooting/gh-run-watch-exit-status-conflates-failures.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Before it copies or builds anything it runs `lint:sidecar-locks`,
