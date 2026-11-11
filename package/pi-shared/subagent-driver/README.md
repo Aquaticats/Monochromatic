@@ -301,6 +301,11 @@ written before the wait rather than after it,
 and the `retry` line that follows carries `withinMilliseconds` where a bounded by attempts run carries `of`.
 A run whose wait is spent with no slot free ends `model-error`,
 and its feed's `problem` line names the budget that ran out.
+Every attempt is a turn of its own,
+so a wait that runs to its end spends about one turn per delay the body grows to:
+with the recorded `max_delay_s` of 30 and a forty-minute budget,
+that is 83 turns of `--turn-cap` before the wait is spent,
+and a cap smaller than that ends such a run as `turn-cap` with the failure still standing.
 
 ### A spent Synthetic quota
 

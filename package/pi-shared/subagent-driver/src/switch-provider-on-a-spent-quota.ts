@@ -6,8 +6,8 @@
  429s."
 
  The move is a new Pi on the same session file, because a provider is chosen when Pi starts (`--provider` and `--model`) and a
- session keeps its own model otherwise: Pi restores a saved model only when the command line names none
- (`dist/main.js` in Pi 1.5.2, `if (!model && hasExistingSession && sessionModel)`), so the words given here win. Pi drops an
+ session keeps its own model otherwise: Pi restores the model a session last used only when the command line names none
+ (`dist/core/sdk.js:93` in Pi 1.5.2, `if (!model && hasExistingSession && sessionModel)`), so the words given here win. Pi drops an
  assistant message that ended in an error when it builds the next request (`packages/ai/src/api/transform-messages.ts` in
  `earendil-works/pi`), so the resumed session asks for the work that did not finish rather than for a failure.
 
