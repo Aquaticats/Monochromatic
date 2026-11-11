@@ -552,7 +552,8 @@ fn a_clean_that_deletes_ignored_files_runs_and_is_logged_in_a_linked_worktree() 
 /// const { repo, linked, nested } = repositoryWithANestedRepository(fixture);
 /// ```
 struct NestedRepository {
-    /// The main checkout, which holds the audit file every worktree writes to.
+    /// The main checkout,
+    /// which holds the audit file every worktree writes to.
     repo: PathBuf,
     /// The linked worktree each clean runs in.
     linked: PathBuf,
@@ -581,7 +582,8 @@ fn repository_with_a_nested_repository(fixture: &Fixture) -> NestedRepository {
     return NestedRepository { repo, linked, nested };
 }
 
-/// The place one audit line names for the saved copy of `path`, which the line writes as `<path> => <place>`.
+/// The place one audit line names for the saved copy of `path`,
+/// which the line writes as `<path> => <place>`.
 fn saved_place(line: &str, path: &str) -> PathBuf {
     let marker: String = format!("\"{path} => ");
     let start: usize = line.find(marker.as_str()).unwrap_or_else(|| panic!("no copy of {path} in {line}")) + marker.len();
@@ -590,7 +592,8 @@ fn saved_place(line: &str, path: &str) -> PathBuf {
     return PathBuf::from(&rest[..end]);
 }
 
-/// The one audit line a save of a nested repository leaves, or a failure naming what was written instead.
+/// The one audit line a save of a nested repository leaves,
+/// or a failure naming what was written instead.
 fn saved_nested_repository_line(lines: &[String]) -> String {
     let matching: Vec<&String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"saved-nested-repository\""); }).collect();
     assert_eq!(matching.len(), 1, "one saved-nested-repository line among {lines:?}");
@@ -598,7 +601,8 @@ fn saved_nested_repository_line(lines: &[String]) -> String {
 }
 
 /// What:
-///  A clean with a second force deletes a nested repository whole, and every byte it holds is kept first.
+///  A clean with a second force deletes a nested repository whole,
+/// and every byte it holds is kept first.
 /// Why:
 ///   The nested repository's modified tracked file and its untracked file are the person's work,
 ///  which no other copy of the repository holds;
@@ -673,7 +677,8 @@ fn a_clean_that_deletes_untracked_files_keeps_a_nested_repository_too() {
 }
 
 /// What:
-///  One force keeps the nested repository where it is, which is Git's own answer,
+///  One force keeps the nested repository where it is,
+/// which is Git's own answer,
 ///  so the wrapper moves nothing and records the clean it always recorded.
 /// Why:
 ///   A single `-f` is Git's own protection of a nested repository;
@@ -698,7 +703,8 @@ fn a_clean_with_one_force_keeps_a_nested_repository_without_a_copy() {
 }
 
 /// What:
-///  The escape hatch still deletes a nested repository, so the person has a way to say they mean it.
+///  The escape hatch still deletes a nested repository,
+/// so the person has a way to say they mean it.
 /// Why:
 ///   Keeping a repository is worthless if nothing lets the person remove it later;
 ///  the hatch is the documented way past every linked-worktree rule.

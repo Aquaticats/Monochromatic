@@ -61,13 +61,20 @@ fn keys_the_update_does_not_reproduce_decline() {
 ///  `feature.manyFiles` is the three defaults Git makes of it (`git-config` of Git 2.56.0:
 ///  a version 4 index file,
 ///  the untracked cache and a skipped trailing hash),
-///  and an explicit key beside it wins,
-///  because Git sets these defaults only where nothing set the value.
+///  and `core.untrackedCache` or `index.skipHash` beside it stands
+///  only where Git's own reader replaces the default with the key's value.
 /// Why:
 ///   A repository that adopts Git's setting for a large checkout must keep the in-process index update,
-///  which declines every configuration it cannot reproduce.
+///  which declines every configuration it cannot reproduce,
+///  and it must not write an index Git would have written differently.
+///  `repo-settings.c` of Git 2.56.0 sets the untracked cache to add from `feature.manyFiles` first and reads
+///  `core.untrackedCache` afterwards,
+///  where `keep` is a value `git_parse_maybe_bool` refuses,
+///  so `keep` leaves the added default in place while `true` and `false` replace it;
+///  `index.skipHash` is read with the `feature.manyFiles` value as its default,
+///  so an explicit boolean there always wins.
 #[test]
-fn feature_manyfiles_sets_git_s_defaults_and_explicit_keys_win() {
+fn feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins() {
     let defaults: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("true"))]).expect("feature.manyFiles is a configuration the update reproduces");
     assert_eq!((defaults.monitor, defaults.untracked, defaults.skip_hash), (false, UntrackedMode::Write, true));
     let overridden: IndexSettings = read_settings(&[
@@ -76,7 +83,7 @@ fn feature_manyfiles_sets_git_s_defaults_and_explicit_keys_win() {
         entry("index.skiphash", Some("false")),
     ])
     .expect("read");
-    assert_eq!((overridden.untracked, overridden.skip_hash), (UntrackedMode::Keep, false));
+    assert_eq!((overridden.untracked, overridden.skip_hash), (UntrackedMode::Write, false));
     let off: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("false"))]).expect("read");
     assert_eq!((off.untracked, off.skip_hash), (UntrackedMode::Keep, false));
 }

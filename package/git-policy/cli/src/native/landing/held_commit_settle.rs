@@ -564,6 +564,9 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 ///  The settlement runs first with the clearing a landing may do,
 ///  and a record that is still there says the batch waits:
 ///  nothing is decided about it until a command finds the lock gone.
+///  Nothing is answered when the record is gone:
+///  the batch is then either finished (nothing is owed and its intent is marked done) or still open,
+///  and the caller reads the batch's own record to say which and to report it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -583,6 +586,31 @@ pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent)
         decision: crate::service_journal::Recovery::Hold,
         handled: crate::service_land_finish::Handled::Held,
     });
+}
+
+/// What:
+///  Says that the record of a batch a settlement tried cannot be read,
+///  so the batch is kept and nothing of it is removed.
+/// Why:
+///   A settlement rewrites a batch's intent,
+///  and the record it leaves is the only thing that names what the batch still owes;
+///  one this build cannot read is kept and named rather than dropped,
+///  and its owed index update is settled from the worktree's own record of it
+///  (`owed_index_update.rs`).
+///  The settling module says it,
+///  beside the settlement whose outcome it describes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saySettledRecordUnreadable(intent, path) { error(`batch ${intent.seq}: its open record ${path} cannot be read ...`) }
+/// ```
+pub fn say_settled_batch_record_cannot_be_read(intent: &Intent, path: &Path) {
+    crate::service_error!(
+        "batch {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is settled; its \
+owed index update is settled from the worktree's own record of it",
+        intent.seq,
+        path.display()
+    );
 }
 
 /// What:

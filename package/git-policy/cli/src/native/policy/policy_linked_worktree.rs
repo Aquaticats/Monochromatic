@@ -33,7 +33,8 @@ use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_with
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use crate::effective_target::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target, matching_allowed_worktree_dir,
+    EffectiveTarget, ToolCacheDirectory, classify_effective_target,
+    matching_allowed_worktree_dir_for_repository,
 };
 /// The guarded decision about the command Git will run,
 /// alias expansion included.
@@ -71,15 +72,15 @@ use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
-/// The Git directories of an identity,
-///  for naming the exempted directory and the file every worktree shares.
-use crate::worktree_identity::{common_directory, git_directory};
+/// The common Git directory,
+///  for naming the file every worktree shares.
+use crate::worktree_identity::common_directory;
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+/// `PathBuf` is an owned filesystem path of raw bytes.
+use std::path::PathBuf;
 
 /// What:
 ///  The refusal of a command that would change the remote settings every worktree of the
@@ -269,8 +270,10 @@ pub(crate) fn check_linked_worktree(
     if target == EffectiveTarget::Allowlisted {
         // The environment chose this exemption, so the person is told which variable did it and where it points,
         //  before Git runs and before anything could be lost.
+        // The exemption is judged on the repository the command runs in, so the notice names the entry that held both
+        //  its Git directory and its worktree top.
         let exemption: Option<&ToolCacheDirectory> =
-            matching_allowed_worktree_dir(git_directory(&location.identity).unwrap_or(Path::new("")), allowed_worktree_dirs);
+            matching_allowed_worktree_dir_for_repository(&location.identity, allowed_worktree_dirs);
         let mut why: Vec<AuditFact> = Vec::<AuditFact>::new();
         if let Some(found) = exemption {
             why.push(AuditFact::Text("exemptedBy", found.named_by.to_string()));
