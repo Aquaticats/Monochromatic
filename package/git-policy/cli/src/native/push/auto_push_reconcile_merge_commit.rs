@@ -156,10 +156,15 @@ pub(crate) struct CommittedMerge {
 ///  tip apply,
 /// because no worktree is read.
 ///
+/// Why a control still calls it:
+///   The loop merges and commits through the awaited face (`commit_merge_awaiting`),
+/// and the control that compares the two faces asks both.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function commitMerge({ local, remote, message }): Promise<{ oid, merged } | { conflicts }>;
 /// ```
+#[cfg(test)]
 pub(crate) fn commit_merge(
     git: &PushGit,
     local: &str,

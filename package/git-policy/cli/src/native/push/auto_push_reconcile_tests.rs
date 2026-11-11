@@ -21,7 +21,7 @@ use std::time::Duration;
 
 /// A function-like value with the right shape is a merge push in these controls:
 /// the shipped callers write a small struct that holds the state.
-impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> MergePusher for Push {
+impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError> + Send> MergePusher for Push {
     fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
         return self(destination, merge_oid);
     }
@@ -2550,5 +2550,91 @@ fn a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it() {
         "the record is settled by the task itself, so the next command is not stopped for the merge"
     );
     assert_ne!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), old, "the branch moved to the settled merge");
+    remove(&s.root);
+}
+
+/// A merge push a command outside the runtime supplied starts Git synchronously,
+/// which is what `gated_merge_push` does for a person's explicit push,
+/// so the blocking entry runs it where a start of Git is allowed:
+/// on a thread of its own beside the loop,
+/// never inside the runtime that runs the loop.
+/// Why this is the whole reason for the bridge:
+/// the loop is one body and a task's work,
+/// and a start of Git from inside the runtime is refused.
+/// Planted,
+/// by calling the pusher from the loop's own task instead
+/// (`Box::pin(std::future::ready(push_merge.push_merge(destination, merge_oid)))`),
+/// it fails with "the runtime that runs this command's waits was asked for from inside itself",
+/// and nothing is published.
+#[test]
+fn a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_inside_it() {
+    let s = scenario("ar-blocking-entry-merge-push-thread");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut pushed_on: Option<std::thread::ThreadId> = None;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        // The synchronous face of a read-only query, which the planner of the person's own push also asks.
+        let read = crate::auto_push_single_flight::run_query(
+            &push_git(&s.local),
+            &argv(&["rev-parse", "--verify", "HEAD^{commit}"]),
+        )
+        .expect("the merge push of a command outside the runtime may start Git where it runs");
+        assert_eq!(read.code, Some(0), "{}", String::from_utf8_lossy(&read.stderr));
+        pushed_on = Some(std::thread::current().id());
+        git(
+            &s.local,
+            &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)],
+        );
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate(&s, &landed, false, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    assert!(attempt.output.contains("was published"), "{}", attempt.output);
+    assert_ne!(
+        pushed_on,
+        Some(std::thread::current().id()),
+        "the merge push ran on a thread of its own, never on the thread that waits for the loop"
+    );
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert_ne!(published, landed, "the published tip is the merge, not the landed commit");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), published, "the branch follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published, "the checkout follows the merge");
+    remove(&s.root);
+}
+
+/// A reconcile whose merge push finds no thread reports the rejected attempt and changes nothing:
+/// the commit stays saved,
+/// the branch and the worktree stay where the failed push left them,
+/// and the push's own report is what the person reads.
+#[test]
+fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_it_was() {
+    let s = scenario("ar-merge-push-thread-refused");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
+    let mut pushes: u32 = 0;
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        pushes += 1;
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let refused = crate::scoped_start::RefusedStarts::here();
+    let integrated = integrate(&s, &landed, false, &mut push_merge);
+    drop(refused);
+    let Integrated::NotDivergent(attempt) = integrated else {
+        panic!("a reconcile that could not push reports the rejected attempt, not a finished one");
+    };
+    assert_eq!(attempt.exit_code, 1, "{attempt:?}");
+    assert!(attempt.output.contains("[rejected]"), "{}", attempt.output);
+    assert_eq!(pushes, 0, "no merge was pushed");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "nothing was published");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), landed, "the branch did not move");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the worktree was not touched");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private fetch ref was left");
     remove(&s.root);
 }
