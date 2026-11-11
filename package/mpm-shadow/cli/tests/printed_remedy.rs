@@ -249,6 +249,10 @@ const DEMO_BIN: &str = "tool";
 /// the name the scope's install links in its exposure farm.
 const SHADOW_PROGRAM: &str = "mpm-shadow";
 
+/// The name the repository plan's postinstall link gives `mpm-shadow` in a worktree,
+/// the program the tree's sentences name.
+const SHIM_PROGRAM: &str = "mpm";
+
 /// The programs every shell has,
 /// after the scope's own directories.
 const SYSTEM_PATH: &str = "/usr/bin:/bin";
@@ -497,6 +501,12 @@ fn demo_tool_lock(request: &str, version: &str) -> String {
     return lock_with(&row);
 }
 
+/// The program a printed command starts with,
+/// the word a shell would look up on `PATH`.
+fn command_program(command: &str) -> &str {
+    return command.split(' ').next().unwrap_or_default();
+}
+
 /// What:
 /// The command a sentence prints that starts with `program`.
 /// Why:
@@ -544,10 +554,11 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     ];
     for sentence in &global_sentences {
         let command: String = command_naming(sentence, SHADOW_PROGRAM);
-        let found = machine.shell(&format!("command -v {command}"), Place::Global);
+        assert_eq!(command_program(&command), SHADOW_PROGRAM, "the sentence starts its command with the program it needs: {sentence}");
+        let found = machine.shell(&format!("command -v {SHADOW_PROGRAM}"), Place::Global);
         assert!(
             found.status.success(),
-            "the machine-global install puts `{command}` on the machine's PATH, so the sentence runs as printed: {sentence}"
+            "the machine-global install puts `{SHADOW_PROGRAM}` on the machine's PATH, so `{command}` runs as printed: {sentence}"
         );
     }
 
@@ -564,9 +575,10 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
         }),
     ];
     for sentence in &repo_sentences {
-        let command: String = command_naming(sentence, "mpm");
-        let found = machine.shell(&format!("command -v {command}"), Place::Repo);
-        assert!(found.status.success(), "the worktree's install puts `{command}` on that worktree's PATH: {sentence}");
+        let command: String = command_naming(sentence, SHIM_PROGRAM);
+        assert_eq!(command_program(&command), SHIM_PROGRAM, "the sentence starts its command with the program it needs: {sentence}");
+        let found = machine.shell(&format!("command -v {SHIM_PROGRAM}"), Place::Repo);
+        assert!(found.status.success(), "the worktree's install puts `{SHIM_PROGRAM}` on that worktree's PATH: {sentence}");
     }
 }
 

@@ -1233,17 +1233,22 @@ every `install` removes the older managed copies of this repository's tools:
 ### The farm also carries the running `mpm-shadow`
 
 Every sentence `mpm-shadow` prints tells a person to run `mpm-shadow` or `mpm`,
-so each scope's install makes those names reachable from a fresh shell:
+so every command that syncs a scope (`install`,
+and the `update` that syncs the tools it needs)
+makes those names reachable from a fresh shell:
 
 - The scope's exposure farm holds a link named after the running `mpm-shadow`,
   pointing at the installed program through the tool's `current` link,
   so a later version move never leaves it dangling.
   It is made when no tool of the scope's lock declares that bin:
-  a plan row that declares it owns the farm link and the launcher record behind it.
+  a plan row that declares it owns the farm link and the launcher record behind it,
+  even when that row installed nothing.
   It is never made for a program that belongs to no install,
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
+  Nothing removes it:
+  the program that would is the one that is gone.
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
   A machine-global plan need not declare `mpm-shadow` at all,

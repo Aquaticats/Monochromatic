@@ -2138,6 +2138,31 @@ the lock then named the version that runs and the warning was gone.
 Still the coordinator's to do after the release:
 run `mpm-shadow install -g` on this machine so the farm carries the link here.
 
+Still open,
+a second class of printed remedy that does not run as printed,
+found while proving the first:
+a sentence printed by a `-g` run names its verb without `-g`,
+so it runs but refuses.
+Measured 2026-11-11 in the same disposable home:
+`mpm-shadow install --global --lockfile-only --offline` printed
+"run `mpm-shadow update` to resolve the plan's tools and write it",
+and that command as printed exited 2 with
+"no toolchain.plan.jsonc in <dir> or any parent directory;
+run mpm-shadow inside the repository,
+set MONOCHROMATIC_WORKTREE_ROOT,
+or use --global".
+The sites:
+`sync.rs` (the frozen-lockfile advice,
+the failed-lookup advice and the missing-lock advice),
+`agree.rs` (both refusals),
+`binstall_no_archive.rs` (the no-archive advice),
+and `old_copy_remove.rs` (the cargo-uninstall advice),
+which is the same shape `launcher_current_link.rs` already solves with `ScopeKind`
+(`mpm-shadow install -g`).
+It needs its own wording decision and its own branch:
+the message text is quoted in `package/mpm-shadow/cli/README.md`,
+and the tests assert the exact sentences.
+
 Ordered behind other work rather than waiting for a slot:
 
 - Merging `fix/repository-move-cli-checks-after-the-860-move`,
