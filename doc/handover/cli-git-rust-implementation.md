@@ -101,6 +101,61 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Both suites on the integration, run whole, and the controls they left (2026-11-11T12:40:00+00:00)
+
+Branch `fix/git-policy-cli-suite-failures-on-main-tip`,
+which carries the jam-fix integration and `main` at `637a834afd`.
+Both suites were run whole once on that tree.
+
+- The unit suite ran 6,451 tests,
+  passed 6,428 and failed 23
+  (`~/temp/agent/wrapper-suite-5/unit-suite-failures-2026-11-11.log`).
+  All 23 are controls whose expected words,
+  overlay or owner had moved under a landing;
+  each now reads its owner,
+  and 187 controls of the groups touched pass.
+  The one unit failure this page recorded before,
+  `worktree_copy_stage_claim::tests::a_record_whose_named_git_still_runs_is_kept_while_its_destination_is_absent`,
+  passes (5.041 s).
+- The binary suite ran 949 tests,
+  passed 941 and failed 8
+  (`~/temp/agent/wrapper-suite-5/binary-suite-failures-2026-11-11.log`).
+  The 17 controls this page named from the earlier gate pass today in their seven groups
+  (`budget` 8,
+  `service_lane` 2,
+  `service_native` 12,
+  `service_replay` 8,
+  `service_provision` 13,
+  `dependent_version` 14,
+  `option_order_guard` 3,
+  no failure).
+  Of today's eight:
+  the prewarm now makes the folder Cargo's external build directory sits in,
+  the ladder's control reads `DESTROY_NOTICE`,
+  and six merges killed by the harness supervisor are covered by its answer-wait rule
+  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
+  "A merge that waited for the commit service's answer,
+  2026-11-11").
+- The three settle controls failed once in an earlier whole run and pass now;
+  the residual hold they can meet is a program whose `--journal` folder cannot be resolved yet,
+  which `doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md` records.
+
+Still open,
+and not this branch's:
+the package lint with `--max-warnings 0` reports 30 findings in files no commit here touched
+(`README.md` 5,
+`service_server_connection_handling_tests.rs` 5,
+`worktree_remove_hand_over.rs` 4,
+`idle_io_priority.rs` 2,
+`test_support.rs` 3,
+`test_support_tests.rs` 2,
+and one each in `service_durable.rs`,
+`worktree_trash_hand_over.rs`,
+`worktree_trash_hand_over_tests.rs`,
+`worktree_remove_hand_over_tests.rs`,
+`worktree_copy_source_still_being_filled_tests.rs`,
+and `service_work_drain_pending_claims.rs`).
+
 ### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
