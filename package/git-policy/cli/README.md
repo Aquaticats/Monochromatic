@@ -775,11 +775,11 @@ Read-only commands,
      so a repository that ran one keeps its promise,
    and a trash an earlier add left in the source is moved into this add's trash and covered by its record.
    A trash the service's round does not reach in the thirty seconds it gives its upkeep and removals together is not
-   dropped: its record goes back to pending,
-     the service writes one line naming it and the time the round spent,
-     and the round that
-   follows (five seconds later) claims it again
-     (`HOUSEKEEPING_OF_ONE_ROUND`,
+   dropped:
+   its record goes back to pending,
+   the service writes one line naming it and the time the round spent,
+   and the round that follows (five seconds later) claims it again
+   (`HOUSEKEEPING_OF_ONE_ROUND`,
    `landing/housekeeping_of_one_round.rs`).
    A trash the service cannot empty is reported by the service with its reason and its record settles as failed;
      every
