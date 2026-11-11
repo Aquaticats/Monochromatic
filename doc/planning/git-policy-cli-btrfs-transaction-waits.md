@@ -429,14 +429,16 @@ so the call belongs to the service and the client takes the copy route when the 
 - The snapshot ioctl stays on the add's path.
   It is the largest btrfs call of an add after the deletions,
   and taking it off the path is the next step below.
-- No subvolume deletion was moved, because another agent owns that path in this session.
+- No subvolume deletion was moved,
+  because another agent owns that path in this session.
 
 ## The waits that remain unavoidable on this volume
 
 Every write joins the running transaction,
 so a commit already in progress delays any write of any process:
 `btrfs_start_transaction` waits in `wait_current_trans` (`transaction.c:536-560`)
-and, when the running transaction is already committing,
+and,
+when the running transaction is already committing,
 `btrfs_commit_transaction` waits with `wait_for_commit(cur_trans, want_state)`
 (`transaction.c:2320-2331`).
 The measured add above spent most of its blocked samples there.

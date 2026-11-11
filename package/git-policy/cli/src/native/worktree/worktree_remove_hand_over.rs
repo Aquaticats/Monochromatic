@@ -246,7 +246,8 @@ pub trait ToldOfHandOver {
     fn told(&self, common_dir: &Path) -> Result<(), String>;
 }
 
-/// The service of the person's session, woken through the context the removal holds.
+/// The service of the person's session,
+/// woken through the context the removal holds.
 pub struct ThroughTheService<'a> {
     /// The context whose repository is the session's.
     pub context: &'a GitContext,

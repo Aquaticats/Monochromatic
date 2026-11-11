@@ -373,7 +373,8 @@ impl RemoveOperations for HandingOverStand {
 }
 
 /// What:
-///  A wake nobody hears, which every control that reaches no service and no session bus uses.
+///  A wake nobody hears,
+/// which every control that reaches no service and no session bus uses.
 /// Why:
 ///   A hand-over is a record and a rename without a service,
 /// and the absence of a wake must not be the removal's failure.
@@ -403,7 +404,8 @@ impl ToldOfHandOver for NobodyTold {
 /// class RememberingTold { at = []; answer; told(dir) { this.at.push(dir); return this.answer } }
 /// ```
 struct RememberingTold {
-    /// The directories the wake was told of, in the order it was told.
+    /// The directories the wake was told of,
+    /// in the order it was told.
     told_of: std::cell::RefCell<Vec<PathBuf>>,
     /// What the wake answers.
     answer: Result<(), String>,
