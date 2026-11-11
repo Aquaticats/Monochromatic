@@ -74,7 +74,7 @@
 //!  (the coordinator's integration passes on 2026-11-11 waited more than twenty seconds on one,
 //!  `still waiting for git worktree remove ..., a bulk step ..., it is a step that may not be run twice`).
 //!  The record that names the removal outlives the command,
-//!  the service of the worktree the merge ran in performs it,
+//!  the repository's commit service performs it,
 //!  and Git's own words for a refusal settle there as the record's outcome.
 //!  Nothing here can fail the merge that woke it.
 //!
@@ -148,10 +148,13 @@ pub struct LandedPlace<'a> {
     /// is not in it,
     /// and it did not exist when the merge did.
     pub(crate) registered_before: &'a RegisteredBefore,
-    /// The Git directory of the worktree the merge ran in,
-    /// whose commit service performs every removal this sweep hands over:
-    /// its work queue is the one that this record is read from,
-    /// and its instance is the one the record names.
+    /// The Git directory whose commit service performs every removal this sweep hands over,
+    /// and whose work queue the record is read from.
+    ///
+    /// It is the repository's common Git directory,
+    /// which is where a person's own `git worktree remove` records its subvolume delete:
+    /// the merge's own instance then stays free for the push that follows the merge,
+    /// and a removal that takes minutes never queues a merge's work behind it.
     pub git_dir: &'a Path,
     /// How a handed-over removal tells that service a record waits,
     /// which a control replaces with its own answer so no test reaches a service.
