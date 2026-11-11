@@ -32,7 +32,7 @@
 
 /// The reconcile loop that auto-push shares,
 /// and what it needs.
-use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push};
+use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push, run_line_prefix};
 /// The coordinator's Git,
 /// its read-only query runner and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
@@ -52,7 +52,7 @@ use crate::lfs_interactive::{InteractiveUpload, upload_first};
 /// planned and run inside this process.
 use crate::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
-use crate::manual_push_probe::probe_manual_push_updates;
+use crate::manual_push_probe::{PushUpdate, probe_manual_push_updates};
 /// The settled or plain run of the forwarded command.
 use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// Owned OS strings for Git arguments.
@@ -125,6 +125,20 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 }
 
 /// What:
+///  Whether one update of a re-probed push finds its destination already holding the object it sends.
+/// Why:
+///   A destination that holds the value an update sends leaves nothing to publish,
+/// so a failed push whose every update is like that delivered everything it was asked to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const alreadyHoldsItsObject = (update) => update.remoteOid === update.localOid;
+/// ```
+fn already_holds_its_object(update: &PushUpdate) -> bool {
+    return update.remote_oid == update.local_oid;
+}
+
+/// What:
 ///  Integrate the remote's new commits after an explicit push failed,
 /// or say nothing when the failure was no divergence.
 ///  `Option<i32>` is "the new exit status,
@@ -135,6 +149,11 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 ///  (a conflict,
 /// a gate that refused the merge,
 /// a remote that kept moving);
+/// a failure of a push whose destinations already hold every object it sends
+///  also ends `0`,
+/// with one line saying so,
+/// because another push of the same commits
+///  delivered them;
 /// every other failure returns nothing
 ///  and prints nothing,
 /// so the person sees only Git's own report.
@@ -160,6 +179,20 @@ pub fn stack_failed_push(
             return None;
         }
     };
+    // What: a push whose destinations now hold exactly the objects it sends has delivered everything it was asked to.
+    // Why:  the commit's own auto-push publishes the same branch while a typed push is on its way, so the origin can refuse
+    //       that push for an expectation only the auto-push outran (`cannot lock ref ...: is at X but expected Y`); native
+    //       Git answers "Everything up-to-date" with status zero for the same state, so this push ends that way and says why.
+    if updates.iter().all(already_holds_its_object) {
+        debug(TAG, "every destination of the failed push already holds the object it sends, so nothing is left to push");
+        // Terminal output error: the report is advisory; the exit status already carries the result.
+        let _written = writeln!(
+            err,
+            "{}the remote already holds everything this push sends; nothing is left to push, so the push succeeds.",
+            run_line_prefix("push")
+        );
+        return Some(0);
+    }
     let [update] = updates.as_slice() else {
         return None;
     };

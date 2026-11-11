@@ -351,6 +351,9 @@ fn a_bare_push_and_a_tag_are_reported_with_the_remote_git_picks() {
 #[test]
 fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     let (repo, origin, base) = repository_with_origin("mp-confirm-changed");
+    // The object this push sends is not the one the destination holds,
+    //  which is what makes a changed report a move the push does not account for.
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
     let location: &str = origin.to_str().expect("utf-8");
     let reported = |before: RemoteBefore, to: &str| -> Vec<(PorcelainUpdate, Option<String>)> {
         let update = PorcelainUpdate { from: String::from("refs/heads/main"), to: to.to_owned(), before, after: None };
@@ -366,6 +369,37 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     assert!(confirm_group(&git_for(&repo), location, "origin", deleted_since.as_slice()).is_err(), "the reported tip no longer exists");
     let appeared_since = reported(RemoteBefore::Absent, "refs/heads/main");
     assert!(confirm_group(&git_for(&repo), location, "origin", appeared_since.as_slice()).is_err(), "a new ref that now exists");
+    remove(repo.parent().expect("root"));
+}
+
+/// A destination that holds exactly the object the push sends asks for nothing:
+/// the commit's own auto-push publishes the same commit between Git's dry run and this confirmation,
+/// and the person's push then has nothing left to publish.
+#[test]
+fn a_destination_that_holds_what_the_push_sends_is_confirmed_as_nothing_to_publish() {
+    let (repo, origin, _base) = repository_with_origin("mp-confirm-already-there");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let pushed = head_of(&repo);
+    // What the auto-push of that same commit does: the remote holds it before the person's push arrives.
+    git(&repo, &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    let location: &str = origin.to_str().expect("utf-8");
+    let reported = |before: RemoteBefore| -> Vec<(PorcelainUpdate, Option<String>)> {
+        let update = PorcelainUpdate { from: String::from("refs/heads/main"), to: String::from("refs/heads/main"), before, after: None };
+        return vec![(update, Some(pushed.clone()))];
+    };
+    let other = "1".repeat(pushed.len());
+    for before in [RemoteBefore::Absent, RemoteBefore::Known(other)] {
+        let said = format!("{before:?}");
+        let confirmed = confirm_group(&git_for(&repo), location, "origin", reported(before).as_slice())
+            .expect("a destination that holds the pushed object is no move at all");
+        assert_eq!(confirmed.len(), 1, "{said}");
+        assert_eq!(confirmed[0].local_oid.as_deref(), Some(pushed.as_str()), "{said}");
+        assert_eq!(
+            confirmed[0].remote_oid.as_deref(),
+            Some(pushed.as_str()),
+            "the authoritative value bounds the scanned range to nothing: {said}"
+        );
+    }
     remove(repo.parent().expect("root"));
 }
 

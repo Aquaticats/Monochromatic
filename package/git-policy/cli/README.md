@@ -592,6 +592,15 @@ Read-only commands,
    and a failure that is not a divergence (authentication,
   offline,
   a refusing hook) keeps Git's own report.
+  A push whose destination already holds exactly what it sends succeeds.
+  Your commit's own auto-push publishes the branch while your `git push` is on its way,
+   so Git can refuse the push for an expectation it alone outran
+   (`remote: error: cannot lock ref ...: is at <commit> but expected <commit>`),
+   or the wrapper could meet the remote after that publication;
+  in both cases nothing is left to publish,
+   so the push ends with status 0 and one line saying so,
+   above Git's own words.
+  A destination that moved to any other value keeps Git's own report.
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it

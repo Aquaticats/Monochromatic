@@ -16141,6 +16141,14 @@ reads local objects the report does not name with one `git rev-parse`,
 and validates the reported remote OIDs with `git ls-remote --refs` before policy evaluation;
 a report that does not state the remote's value (a deletion,
 a refusal) takes it from `ls-remote` alone.
+A destination that now holds exactly the object its update sends is no move at all,
+and that update adds nothing to the scan:
+the commit's own auto-push publishes the same commit while a typed push is on its way,
+which is the one push that can change a destination between those two reads,
+and nothing is left for the typed push to publish
+(`src/native/push/manual_push_probe.rs`,
+`confirm_group`).
+A destination that moved to any other value stays the `remote-moved` failure below.
 The probe adds `--no-quiet` to its copy of the options,
 because `-q` empties the report,
 and skips the line Git adds for
@@ -16166,7 +16174,7 @@ A failure of the probe's own reading (Git cannot run,
 a failure without a message,
 a report outside the format,
 a remote that
-changed during discovery) stays a `content-unavailable` engine failure and exits `2`.
+moved to a value the push does not send) stays a `content-unavailable` engine failure and exits `2`.
 That one code covers causes the person answers differently,
 so the failure carries its cause and the event's hint is the
 cause's,

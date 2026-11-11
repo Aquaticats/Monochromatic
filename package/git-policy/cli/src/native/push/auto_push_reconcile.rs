@@ -74,7 +74,8 @@ use crate::auto_push_reconcile_merge_commit::commit_merge;
 use crate::auto_push_reconcile_branch_advance::advance_local_branch;
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 pub use crate::auto_push_reconcile_basics_and_limits::{
-    MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, was_rejected_as_stale,
+    MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, run_line_prefix,
+    was_rejected_as_stale,
 };
 /// A future the loop awaits,
 /// and the box it travels in.
