@@ -28,18 +28,25 @@ jams the wrapper causes under load,
 the tokio steps,
 and then the layout and TypeScript-port steps they unblock.
 
-Within the wrapper, jams come first.
+Within the wrapper,
+jams come first.
 The owner wrote on 2026-11-10:
 "Prioritize fixing the jams and release jam fixes asap."
 and "And you have 62 slots."
-(Neuralwatt 20, Neuralwatt flex 22, opencode-go 20;
-`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room, in that order).
+(Neuralwatt 20,
+Neuralwatt flex 22,
+opencode-go 20;
+`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room,
+in that order).
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
 On the word-level merge pass the owner wrote the same day:
-"there are still ways you haven't tried to make this happen less often, for example, using a better algorithm or something."
-The pass stays (`package/git-policy/cli/SPEC.md`, the owner's 2026-11-03 decision),
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+The pass stays (`package/git-policy/cli/SPEC.md`,
+the owner's 2026-11-03 decision),
 and an agent is measuring better algorithms against this repository's past merges.
 
 > References below this note that no longer resolve in the tree.
@@ -100,6 +107,128 @@ when it lands,
 move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
+
+### The Tokio step's four Kimi K3.1 Pro findings: the review's own controls reproduced, and all four mended (2026-11-11T03:53:21-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-tokio-next-step-on-the-runtime`,
+started at `ee545033ad`
+(`integrate/git-policy-cli-jam-fixes-after-alpha-9`):
+`94d93f4b5d` an abandoned round's forget judged against its own round,
+`c1d52f6b7c` a forget no round could write,
+written by the next round,
+`03efb6b1de` the journal's paths kept and its read made again,
+`610fbe4243` the drain's storage steps given a bounded wait for a place.
+The review is `kimi-reviews/tokio-next-step-on-the-runtime-round-133/review.md`,
+written against `5686c7bb29`;
+its four controls were run here against the product as it stands at `ee545033ad`
+and all four pass there,
+so every finding is real on the integration tip.
+
+What each was:
+
+- A read of the retry plan or of the watch that outlasted its ceiling answered a list with no journal path
+  and a watch with no directory.
+  A saved push retry was then never tried for the life of that service,
+  and a retry planned after the timeout was kept in memory only,
+  so a kill lost it.
+- The job that applies a round's changes is never cancelled,
+  so an abandoned round's forget ran after a later round had kept a newer plan and removed every file of the branch.
+- A forget applied by a job that gave no answer changed the memory alone:
+  the file stayed and the directory got no wake,
+  so a service started later restored the ended push.
+- Every storage step of a drain awaited a place of the blocking bound with no ceiling,
+  and a place is held by the job that took it until that job ends,
+  so one `commondir` read left behind in a job starved the drain's next step for ever.
+
+What the fixes do:
+
+- The fallback keeps both directories (`PushRetries::unread`,
+  `ClaimWatch::unread`) and answers a state owed a read
+  (`needs_restore`,
+  `restore_now`);
+  the work loop schedules that read under the plan's directory as a key of its retry schedule,
+  wakes each repository the read finds,
+  and doubles the pause for each attempt that came to nothing (`restore_came_to_nothing`).
+- A plan record carries the instant it was written,
+  and a forget removes only the plans of its branch written before the round that asked for it began.
+- A forget no round could write is named by the list,
+  written first by the next round's apply,
+  and keeps a wake whose pause grows until it is.
+- `run_a_job_once_awaited_no_longer_than` awaits the place under a ceiling and then the job under it,
+  telling "no place,
+  so the job never ran" from "the job outlasted its ceiling,
+  so it may have";
+  every step of `service_work_storage_awaited.rs` runs through `a_storage_step_awaited_no_longer_than`
+  with the 60 s ceiling the after-commit work's other state steps take,
+  and `claim_all_within_awaiting` takes that ceiling as an argument so a control reaches the bound in a moment.
+
+The review's reproductions are crate-level controls over the retry plan and the blocking budget,
+and they start no Git child,
+so they were run in this worktree against `ee545033ad`'s sources with a disposable fixture root
+(`CLI_GIT_TEST_ROOT` under the run's scratch),
+not in a cloned repository:
+a clone would have rebuilt every dependency of the crate,
+because this repository's `cargo` keeps a target directory keyed by the workspace path and ignores
+`CARGO_TARGET_DIR`.
+The `RetryChange::Forget` the branch now carries takes the instant it was asked,
+so the review's two retry-journal bodies were given it,
+which is the only edit made to them.
+
+Measured,
+each line read from the output:
+
+```text
+the review's four controls at ee545033ad
+  PASS push::push_retry::tests::kimi_review_reproduction_forget_without_writing_leaves_a_plan_for_the_next_service
+  PASS push::push_retry::tests::kimi_review_reproduction_late_forget_deletes_a_newer_rounds_plan
+  PASS service::service_journal_restored_at_start::tests::kimi_review_reproduction_restore_timeout_drops_a_valid_plan_and_disables_new_saves
+  PASS landing::service_round::tests::kimi_review_reproduction_timed_out_lane_read_starves_the_next_storage_job
+  Summary [   0.241s] 4 tests run: 4 passed, 6563 skipped
+
+the two controls whose fix is mine, with the fix planted back out
+  FAIL a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling (0.128s)
+    assertion `left == right` failed: the plan's directory is kept, so a retry made now is kept for a restart
+  FAIL a_plan_a_service_could_not_read_at_its_start_is_read_again_and_tried (0.182s)
+    the plan the earlier service kept is still to be read
+  FAIL a_lane_read_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step (30.050s)
+    the drain's first storage step never answered within the control's deadline,
+    so it waited for the place the abandoned lane read holds and the round never ends
+
+this branch, one run of each
+  native:test:host -- -E 'test(push_retry) | test(service_work_run_round) | ...'
+    Summary [  27.468s] 145 tests run: 145 passed, 6425 skipped
+  native:clippy                            Finished `dev` profile in 46.15s
+  native:test:binary:host -- --no-run      Finished `test` profile in 1m 00s
+```
+
+A delivery control (`a_plan_the_start_could_not_read_is_read_again_and_delivered`)
+was also run with the fallback planted back:
+nextest printed `SLOW [>60.000s]` and no `PASS` before the run was stopped at 145 s,
+which is the defect's shape;
+with the fix it delivers in 29.6 s here and in 6.3 s on a quieter host.
+
+Those runs cost far more than their contents because the host was compiling this crate in several
+sessions at once (load average 20 to 56 on eight CPUs,
+`/proc/pressure/io` some 14 to 43 percent),
+and one stale incremental session of this crate's own target directory had grown until a single `rustc`
+had read 10.8 GB from the volume at 98 percent full;
+removing that crate's stale sessions in this worktree's target directory freed 23 GB and the next build
+ran in the times above.
+
+What is left:
+
+- Every other shipped caller of `run_blocking_job_within_the_budget` still awaits a place with no ceiling:
+  `lfs_upload.rs`,
+  `subvolume_index_refresh_of_every_worktree.rs`,
+  `worktree_trash_entries.rs`,
+  `worktree_convert_command.rs`,
+  `parallel_runner_on_the_runtime.rs` and `run_a_job_or_in_turn`.
+  A command process whose places were all left behind in abandoned jobs would wait there for ever.
+  Bounding those needs a control each,
+  because each decides differently what "no place" leaves undone.
+
+Next action:
+review and merge this branch.
 
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
@@ -11409,15 +11538,19 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   2026-11-10,
   after the next alpha had waited a day on one flaky test of 7,192:
   "It's been a whole day and you still haven't released any of the jam fixes?"
-  and "Standing rule. Alphas don't even have to resolve all flakes."
+  and "Standing rule.
+  Alphas don't even have to resolve all flakes."
   A gate whose only failures are tests already known to fail intermittently does not hold an alpha;
   each such failure gets its own fix as follow-up work.
   The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
   on nine failing tests outside its three btrfs controls;
-  since `50161f7161` it refuses only when a required control fails, is missing or did not run,
-  or the run timed out, was stopped or failed without naming a test,
+  since `50161f7161` it refuses only when a required control fails,
+  is missing or did not run,
+  or the run timed out,
+  was stopped or failed without naming a test,
   and prints other failing tests as notices above the pass.
-  Then: merge to main,
+  Then:
+  merge to main,
   `native:clippy` clean on main,
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
