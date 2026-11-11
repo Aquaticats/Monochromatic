@@ -1109,6 +1109,9 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    never its own working folder,
    so a program that spawns a wrapped merge with a linked worktree as that folder
    leaves the worktree kept by this rule;
+- no subvolume and no mount point stands below its root,
+   because the kernel can never destroy a subvolume that contains another one,
+   and Git's own removal would delete the files of the worktree inside it;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
 
@@ -1153,6 +1156,12 @@ Every merge that lands a branch names each worktree it kept,
  giving the path,
  the branch,
  and the reason nothing was removed.
+A worktree whose files the removal took and whose registration it could not remove is
+ named as that,
+not as one left in place:
+ the line says the worktree is gone,
+ that Git still lists it as missing,
+ and the report that follows names the registration and the commands that finish it.
 A worktree whose branch holds no commit of its own is no candidate at all,
  so a merge that brings in another branch's commits leaves it where it is.
 When no kept reference can be written for a commit a reference lock holds,
@@ -1160,7 +1169,8 @@ When no kept reference can be written for a commit a reference lock holds,
  running the merge again removes nothing,
  because a branch that already landed makes that merge up to date.
 Nothing is removed in silence,
- and nothing is removed while a person is working in it.
+ and nothing is removed while a person is working in it,
+ or while a worktree of the person's own stands inside it.
 A worktree held by an unfinished merge,
  cherry-pick,
  revert,
@@ -1173,6 +1183,9 @@ A worktree the command itself was started in is kept the same way,
  `-C` names the repository a command works on,
  never the folder a program set that command loose in,
  so that folder is one a process is working in.
+A worktree that holds another worktree keeps both,
+ and `git worktree remove` of the inner one is the way forward,
+ because it keeps that branch and refuses while anything there is uncommitted.
 
 **Seeing what the snapshots hold.**
 The commands that answer this on this repository's filesystem,
@@ -1241,6 +1254,12 @@ Removing one by hand is safe:
  it is a copy,
  and
  `btrfs subvolume delete` on it takes nothing of the source away.
+The removal of a worktree that was the source of an add takes these copies with it,
+ before it hands the worktree's own subvolume over,
+ because the kernel cannot destroy a subvolume that contains another one and they stand in that worktree's
+ Git directory.
+A copy that cannot be taken stops the removal with a report naming the folder and the way to take each entry,
+ so a worktree is never destroyed while its registration could not be cleared afterwards.
 
 ## Other processes changing files
 
@@ -2919,10 +2938,16 @@ After the branch moved,
  it is not locked,
  no operation is in progress in it,
  no process works inside it,
+ no subvolume of its own stands below its root,
  and Git would remove it without `--force`.
 Each worktree the merge removes,
  leaves,
- or cannot prove it made is named on standard error with its branch and the reason.
+ cannot prove it made,
+ or removed the files of without removing its registration is named on standard error with its branch,
+ the reason,
+ and,
+ for the last,
+ the report that finishes the registration.
 See "What a worktree snapshot holds,
  and when the wrapper removes one".
 

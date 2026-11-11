@@ -916,3 +916,72 @@ fn a_branch_that_merely_sat_on_an_older_commit_is_no_candidate() {
 fn the_fixture_git_is_the_host_git() {
     assert!(Path::new(REAL_GIT).exists(), "{REAL_GIT}");
 }
+
+/// What:
+///  A landed worktree whose files the sweep removed and whose registration it could not is not reported as left in
+///  place.
+/// Why:
+///   A removal that destroyed the files and could not empty the registration is what a sweep reported as "left the
+///  worktree ... in place" while the path was gone,
+/// which sends the person to a worktree that is no longer
+///  there and says nothing about the registration the printer would have to finish (a Sonnet finding,
+/// F1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = landedSweepLines(sweep).join('\n'); expect(lines).not.toContain('in place');
+/// ```
+#[test]
+fn a_landed_worktree_whose_files_went_and_whose_registration_stayed_is_not_reported_in_place() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let Some(landed) = a_repository_with_a_subvolume_worktree("landed-unfinished") else { return };
+    if !crate::fs_btrfs_test_support::removal_allowed(landed.root.as_path()) {
+        // Nothing on this mount can destroy a subvolume, so the sweep is Git's and no registration is left behind.
+        return;
+    }
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let worktrees: PathBuf = admin.parent().expect("the directory of the registrations").to_path_buf();
+    // A registration that cannot be removed after the destroy: its files are gone and it stays, which is the state no
+    // line may call "in place".
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
+    let sweep: LandedSweep = land_feature(&landed);
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restore");
+    let lines: String = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep).join("\n");
+    assert!(!landed.worktree.exists(), "the destroy took the files of the worktree: {lines}");
+    assert!(admin.is_dir(), "the registration stayed: {lines}");
+    assert!(!lines.contains("in place"), "a worktree whose files are gone is not reported as left in place: {lines}");
+    assert!(lines.contains(admin.to_str().expect("UTF-8")), "the line names the registration that stayed: {lines}");
+    assert!(lines.contains("refs/heads/feature"), "and the branch that landed: {lines}");
+}
+
+/// What:
+///  A repository whose branch `feature` is checked out in a linked worktree that is a subvolume of its own,
+///  so that a
+///  sweep may take the destroy route.
+/// Why:
+///   The destroy route is the one the sweep takes on btrfs,
+/// and it is the one that can leave a registration behind:
+///  a worktree that is an ordinary directory is always Git's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landed = aRepositoryWithASubvolumeWorktree('landed-unfinished'); // undefined off btrfs
+/// ```
+fn a_repository_with_a_subvolume_worktree(name: &str) -> Option<Landed> {
+    let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
+    let main: PathBuf = repository(root.as_path(), "main");
+    let tracked: PathBuf = main.join("README.md");
+    std::fs::write(tracked.as_path(), b"# fixture\n").expect("a tracked file");
+    age(tracked.as_path());
+    git(main.as_path(), &["add", "--", "README.md"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=a tracked file"]);
+    let worktree: PathBuf = root.join("worktree");
+    crate::fs_btrfs_ioctl::subvolume_create_at(worktree.as_path()).expect("the subvolume of the worktree");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
+    git(worktree.as_path(), &["commit", "--quiet", "--allow-empty", "--message=the feature work"]);
+    age(worktree.join("README.md").as_path());
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    let common: PathBuf = main.join(".git");
+    return Some(Landed { root, main, common, worktree });
+}

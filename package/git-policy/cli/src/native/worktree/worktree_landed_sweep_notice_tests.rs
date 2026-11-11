@@ -77,6 +77,38 @@ fn a_kept_worktree_is_named_with_its_reason_and_the_command_that_removes_it() {
     assert!(line.contains("git worktree remove '/a worktree/busy'"), "the command is quoted for a shell: {line}");
 }
 
+/// What:
+///  A worktree whose removal refused is named with the report that clears the way,
+///  and never with the command that would refuse the same way again.
+/// Why:
+///   A refusal names its own way forward
+///  (a nested worktree is removed before the one that holds it,
+/// a pool of snapshots is taken first),
+///  and the line the sweep prints for a kept worktree appended
+/// `git worktree remove <path>`,
+/// which for those states is the command that just refused,
+/// so a person reading it
+///  would run it and read the same refusal.
+#[test]
+fn a_worktree_whose_removal_refused_names_the_report_and_not_the_command_that_refused() {
+    let sweep: LandedSweep = LandedSweep {
+        landed_branch: String::from("main"),
+        refused: vec![KeptWorktree {
+            worktree: PathBuf::from("/a worktree/holder"),
+            branch: String::from("refs/heads/feature"),
+            why: String::from("the worktree /a worktree/holder holds the linked worktree /a worktree/holder/inner, and nothing was removed: remove it first, with `git worktree remove /a worktree/holder/inner`"),
+        }],
+        ..LandedSweep::default()
+    };
+    let lines: Vec<String> = landed_sweep_lines(&sweep);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line: &str = lines[0].as_str();
+    assert!(line.contains("left the worktree /a worktree/holder in place"), "{line}");
+    assert!(line.contains("nothing there was removed"), "{line}");
+    assert!(line.contains("the linked worktree /a worktree/holder/inner"), "the report that clears the way is there: {line}");
+    assert!(!line.contains("git worktree remove '/a worktree/holder'"), "and not the command that refused: {line}");
+}
+
 #[test]
 fn an_unproven_worktree_says_the_ignored_files_may_be_the_persons() {
     let sweep: LandedSweep = LandedSweep {

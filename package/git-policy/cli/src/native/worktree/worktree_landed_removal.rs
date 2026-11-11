@@ -162,6 +162,32 @@ pub struct KeptWorktree {
     pub why: String,
 }
 
+/// What:
+///  A worktree this sweep removed the files of and could not unregister.
+/// Why:
+///   The files are gone and the registration is not,
+/// which is neither a removed worktree nor one left in place,
+/// and a
+///  person who read either of those would look for a worktree that is not there or skip a registration that still
+///  is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnfinishedWorktree = { worktree: string; branch: string; report: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnfinishedWorktree {
+    /// The worktree directory,
+    /// which is gone.
+    pub worktree: PathBuf,
+    /// The branch it had checked out,
+    /// which is kept.
+    pub branch: String,
+    /// What the removal said,
+    /// which names the registration that stayed and every command that finishes it.
+    pub report: String,
+}
+
 /// A worktree whose branch landed and which nothing proves the wrapper made.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnprovenWorktree {
@@ -185,6 +211,12 @@ pub struct LandedSweep {
     pub kept: Vec<KeptWorktree>,
     /// What landed and the wrapper cannot prove it made.
     pub unproven: Vec<UnprovenWorktree>,
+    /// The worktrees whose files went and whose registration stayed,
+    /// with what finishes each.
+    pub unfinished: Vec<UnfinishedWorktree>,
+    /// The worktrees whose removal refused,
+    /// with the report that says what stands in the way and what clears it.
+    pub refused: Vec<KeptWorktree>,
     /// The lines that say which commit a removal would have deleted,
     /// and the reference of this repository that now names it.
     pub kept_commits: Vec<String>,
@@ -386,11 +418,39 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         match examine_and_remove(place, one, registered.as_slice()) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
+            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
             Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
             Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
         }
     }
     return sweep;
+}
+
+/// What:
+///  What one attempt to remove a candidate came to.
+/// Why:
+///   A removal that destroyed the files and could not empty the registration must be told apart from one that changed
+///  nothing,
+/// because the sweep's line about it says what happened,
+/// not only why it stopped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Attempt = { kind: 'removed' } | { kind: 'unfinished'; report: string } | { kind: 'kept'; why: string };
+/// ```
+enum Attempt {
+    /// The worktree and its registration are gone.
+    Removed,
+    /// The files are gone and the registration stayed,
+    /// with what finishes it.
+    Unfinished(String),
+    /// The removal refused,
+    /// so nothing changed and this says what clears the way.
+    Refused(String),
+    /// Nothing was removed,
+    /// for this reason.
+    Kept(String),
 }
 
 /// What:
@@ -406,29 +466,30 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// remove(place, registration) // throws Git's refusal, in Git's words
+/// remove(place, registration) // an Attempt; Git's refusal is in Git's own words
 /// ```
-fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
+fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
-            return Ok(());
+            return Attempt::Removed;
         }
-        RemoveOutcome::Refused(report) | RemoveOutcome::Incomplete(report) => return Err(report),
+        RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
+        RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::LeftToGit => {}
     }
     let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
     let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("Git could not be started to remove it ({error})")),
+        Err(error) => return Attempt::Kept(format!("Git could not be started to remove it ({error})")),
     };
     if output.code == Some(0) {
-        return Ok(());
+        return Attempt::Removed;
     }
     let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-    return Err(format!("Git refused to remove it: {words}"));
+    return Attempt::Kept(format!("Git refused to remove it: {words}"));
 }
 
 /// What:
@@ -511,6 +572,12 @@ fn unfinished_operation_reason(marker: &str) -> String {
 enum Examined {
     /// The worktree and its registration are gone.
     Removed,
+    /// The removal refused,
+    /// so nothing there changed and the report says what clears the way.
+    Refused(String),
+    /// The files are gone and the registration stayed,
+    /// with what finishes it.
+    Unfinished(String),
     /// It stays,
     /// for this reason.
     Kept(String),
@@ -573,15 +640,17 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
             ));
         }
     }
-    let removal: Result<(), String> = remove(place, one);
-    if removal.is_ok() {
+    let removal: Attempt = remove(place, one);
+    if matches!(removal, Attempt::Removed) {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
         clear_the_pool_of_a_removed_worktree(place.common_dir, one.admin.as_path());
     }
     return match removal {
-        Ok(()) => Examined::Removed,
-        Err(reason) => Examined::Kept(reason),
+        Attempt::Removed => Examined::Removed,
+        Attempt::Unfinished(report) => Examined::Unfinished(report),
+        Attempt::Refused(report) => Examined::Refused(report),
+        Attempt::Kept(why) => Examined::Kept(why),
     };
 }
 

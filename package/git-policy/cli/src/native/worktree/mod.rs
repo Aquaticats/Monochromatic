@@ -99,6 +99,11 @@ pub mod worktree_clean_content_attribute_sources;
 #[cfg(unix)]
 pub mod worktree_remove_plan;
 
+/// The directories one removal holds open,
+/// the last look at them before the destroy,
+/// and the lock that keeps a worktree.
+pub mod worktree_removal_holds_the_worktree;
+
 /// The removal of a clean subvolume worktree by one ioctl,
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
@@ -129,6 +134,14 @@ pub mod worktree_removal_stops_units;
 /// The removal of the shadow pool a removed worktree's commits were served from,
 /// taken after the removal proved the worktree is gone.
 pub mod worktree_removal_clears_the_pool;
+
+/// The snapshots this program made ahead of an add,
+/// taken out of a worktree's administrative directory before that worktree is removed.
+pub mod worktree_removal_clears_the_ahead_pool;
+
+/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
+/// which the kernel can never destroy in one step.
+pub mod worktree_removal_refuses_a_nested_volume;
 
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.

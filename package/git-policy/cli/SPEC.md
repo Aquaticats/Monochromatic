@@ -2942,6 +2942,36 @@ the record is written before the wake,
 and a person removing a worktree waits for none of what the service does with it,
 so a service that greets nothing costs one later wake and never the removal.
 
+The snapshots the wrapper made ahead of an add are taken before that hand-over
+(`src/native/worktree/worktree_removal_clears_the_ahead_pool.rs`).
+A worktree that was the source of one `git worktree add` holds them in
+`<admin>/monochromatic-git-policy-cli/ahead`,
+and their members are subvolumes of that worktree,
+which the emptying of the
+registration refuses,
+so a removal that left them behind ended with the files gone and the registration kept,
+and the sweep
+after a merge reported that state as a worktree left in place.
+The pool is this program's own cache of the worktree
+being removed:
+a member is one copy of it,
+and an add that finds no pool makes its own,
+exactly as with the shadow pool of a
+removed worktree (`worktree_removal_clears_the_pool.rs`).
+It is taken out of its own name with one rename,
+so a fill
+that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
+and then member by
+member.
+A pool that cannot be taken stops the removal while nothing has happened:
+the command refuses with exit status 1
+and one report that names the worktree,
+the folder,
+the reason,
+and the command that deletes a member
+(`btrfs subvolume delete <entry>`),
+and says that nothing of the worktree changed.
+
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
 - The worktree is registered in the repository the command runs in:
@@ -3001,6 +3031,36 @@ with the same force:
   `if (force < 2) reason = worktree_lock_reason(wt)` is what lets `-f -f` remove a locked worktree,
   and the wrapper
   reads one force only.
+- No subvolume and no mount point stands below the worktree's root
+  (`src/native/worktree/worktree_removal_refuses_a_nested_volume.rs`).
+  The kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
+  so such a worktree can never go
+  this way:
+  the refusal comes before anything is renamed,
+  it names the volume it found and the branch the linked worktree
+  there has checked out,
+  and it gives the one command that removes that worktree while keeping its branch
+  (`git worktree remove <inner>`),
+  which refuses while anything there is uncommitted.
+  Git's own removal is no answer here:
+  it unlinks the
+  inner worktree's files and leaves its empty subvolume,
+  so the wrapper never hands it such a worktree.
+  The proof is the walk the
+  emptying makes (`subvolume_remove_walk.rs`),
+  which stops at the first boundary and deletes nothing;
+  it opens and reads every directory below the
+  worktree,
+  the ignored ones included,
+  because a subvolume can stand anywhere.
+  A tree the walk cannot read proves nothing either
+  way,
+  and the removal is then Git's,
+  which is what it was before this proof existed.
+  A forced removal makes the same proof:
+  the
+  destroy cannot take such a worktree whatever the person asks,
+  and Git's removal would take the files inside it.
 
 Accepted risk,
 stated to the person who runs the command:
@@ -3143,6 +3203,9 @@ a registration no back-pointer points at is the state this command's own removal
 and then cannot remove its directory,
 so finishing it discards nothing.
 Every wrapped command then finishes a marked record:
+the snapshots this program made ahead of an add go first
+(`src/native/worktree/worktree_removal_clears_the_ahead_pool.rs`),
+because they are its own and the walk below refuses every nested subvolume,
 the registration is emptied and
 removed through descriptors opened below `worktrees`,
 only while it is the identity the record names and only when
