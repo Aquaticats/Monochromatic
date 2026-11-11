@@ -907,3 +907,64 @@ fn an_edit_the_person_staged_in_a_file_the_merge_deletes_is_named_with_git_rm() 
     assert_eq!(index_entry(&fixture, repo.as_path(), "gone.txt"), "", "the staged entry went with it");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A repository whose `feature` is one commit ahead of `main`,
+/// adding `added.txt` and changing nothing else.
+/// Why:
+///   Such a merge fast-forwards,
+/// and that path is native Git's own,
+/// which is where the loss below was measured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// repository(); branch('feature', { 'added.txt': 'added by feature\n' }); switch('main');
+/// ```
+fn a_head_the_feature_is_ahead_of(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("added.txt"), b"added by feature\n").expect("added.txt");
+    git(fixture, repo.as_path(), &["add", "--", "added.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature adds added.txt"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    return repo;
+}
+
+/// What:
+///  A fast-forward whose added path is a directory the person staged keeps the file and its index entry.
+/// Why:
+///   Measured with the built wrapper: this merge exited 0,
+/// `added.txt` held the branch's file,
+/// and
+///  `added.txt/nested/file.txt` was gone with its index entry,
+/// because the fast-forward is native Git's own and it
+///  does not protect a staged file under a directory it replaces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stage('added.txt/nested/file.txt'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(ran.code).not.toBe(0); expect(status()).toBe('A  added.txt/nested/file.txt\n');
+/// ```
+#[test]
+fn a_staged_directory_on_a_fast_forward_path_keeps_its_entries() {
+    let fixture: Fixture = fixture("carry-ff-over-staged-directory");
+    let repo: PathBuf = a_head_the_feature_is_ahead_of(&fixture, "repo");
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::create_dir_all(repo.join("added.txt/nested")).expect("the person's directory");
+    std::fs::write(repo.join("added.txt/nested/file.txt"), "the person's staged file\n").expect("the person's file");
+    git(&fixture, repo.as_path(), &["add", "--", "added.txt/nested/file.txt"]);
+    let staged: String = index_entry(&fixture, repo.as_path(), "added.txt/nested/file.txt");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_ne!(observed.code, Some(0), "a fast-forward that would delete the person's file is not run: {words}");
+    assert_eq!(
+        text_at(repo.as_path(), "added.txt/nested/file.txt").as_deref(),
+        Some("the person's staged file\n"),
+        "the person's bytes are where they left them: {words}"
+    );
+    assert_eq!(index_entry(&fixture, repo.as_path(), "added.txt/nested/file.txt"), staged, "the index still holds their entry");
+    assert_eq!(status(&fixture, repo.as_path()), "A  added.txt/nested/file.txt\n", "the entry is still staged");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "the branch did not move");
+    assert!(words.contains("added.txt/nested/file.txt"), "the line names the file of theirs that stands there: {words}");
+    remove_settled(&fixture);
+}

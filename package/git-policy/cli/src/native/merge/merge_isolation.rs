@@ -235,6 +235,22 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         FastForwardChoice::Allowed => false,
         FastForwardChoice::Default => config.fast_forward == Some(false),
     };
+    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
+    let touched: Vec<Vec<u8>> = diff_paths(
+        session
+            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
+            .stdout
+            .as_slice(),
+    );
+    // A directory standing where the merge writes a file is the person's own work, and Git's update of the checkout deletes
+    //  everything in it: measured, an untracked `a.txt/nested/file.txt` and a staged one both went with the directory, the
+    //  staged one with its index entry. No layer of the carry can hold a directory, so the merge stops here, before the
+    //  first byte of the worktree, the index or the branch changes (`SPEC.md`, "A directory that stands where the merge puts a file").
+    if let Some(found) = a_directory_the_merge_would_replace(&session.context, root, head, target, touched.as_slice())
+        .map_err(Bail::from)?
+    {
+        return Err(refused(1, the_line(reference.as_str(), &found)));
+    }
     if config.fast_forward_only && shape.fast_forward == FastForwardChoice::Default {
         return Err(Bail::Forward(None));
     }
@@ -255,23 +271,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
     let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
-    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
-    let touched: Vec<Vec<u8>> = diff_paths(
-        session
-            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
-            .stdout
-            .as_slice(),
-    );
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
-    // A directory standing where the merge writes a file is the person's own work, and Git's update of the checkout deletes
-    //  everything in it: measured, an untracked `a.txt/nested/file.txt` and a staged one both went with the directory, the
-    //  staged one with its index entry. No layer of the carry can hold a directory, so the merge stops here, before the
-    //  first byte of the worktree, the index or the branch changes (`SPEC.md`, "A directory that stands where the merge puts a file").
-    if let Some(found) = a_directory_the_merge_would_replace(&session.context, root, head, target, touched.as_slice())
-        .map_err(Bail::from)?
-    {
-        return Err(refused(1, the_line(reference.as_str(), &found)));
-    }
     // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
     //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
     //  it refuses such a checkout before the editor opens (`doc/planning/cli-git-merge-with-staged-index.md`), so the
