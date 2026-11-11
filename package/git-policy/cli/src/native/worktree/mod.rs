@@ -310,3 +310,25 @@ pub mod worktree_trash_own_manifest;
 /// never following a link.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_remove;
+
+/// The record that says the wrapper made one linked worktree,
+/// which every automatic removal asks for first.
+pub mod worktree_added_by_the_wrapper;
+
+/// The commit and the branch one merge stood between,
+/// and the sweep of the worktrees whose branches it landed.
+pub mod worktree_landed_after_a_merge;
+
+/// The linked worktrees a repository registers,
+/// with the branch each one has checked out.
+pub mod worktree_landed_registrations;
+
+/// The removal of every wrapper-made worktree whose branch a merge landed.
+pub mod worktree_landed_removal;
+
+/// The words one landed sweep prints.
+pub mod worktree_landed_sweep_notice;
+
+/// Whether any process is working inside a folder,
+/// which keeps a landed worktree.
+pub mod worktree_process_inside;
