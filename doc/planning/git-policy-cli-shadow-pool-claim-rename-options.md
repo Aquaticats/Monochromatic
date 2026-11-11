@@ -102,6 +102,12 @@ and one measures real wrapped commits.
 makes a fixture whose common directory holds four shared entries,
 whose pool holds two finished members,
 and whose scratch parent waits for a commit's tree.
+It is one fixture for every arm,
+not a reflink copy per arm:
+the claim's calls depend on the entries a common directory shares,
+which the fixture fixes,
+and never on what a repository tracks,
+so one fixture is what lets each arm pair with its control in the same round.
 Each arm is one option's sequence of calls,
 written out call by call from `take` and `refusal`,
 and every arm alternates with a control:
@@ -110,7 +116,8 @@ the order flips each round,
 and the control's own figures sit beside each arm's
 (table-free figures in "What each option measured").
 300 rounds per arm,
-and 2,100 control runs.
+and a control run beside each,
+4,200 of them over the fourteen arms of the last run.
 `trace-arms.ts` and `count-calls.ts` run one arm alone under `strace --syscall-times`
 and count the calls between two marks the harness writes around its own arm,
 so every count below is counted,
@@ -305,6 +312,11 @@ is reasoning and not a measurement.
 Every median here is one arm's 300 paired rounds against the control,
 which measured a median of 1.256 ms over its 4,200 runs,
 and every count is from `strace`.
+The counts are the arm fixture's,
+where today's sequence is 47 calls;
+in the wrapped fixture's two shared entries the same sequence is 41,
+and every count below is six lower there,
+because the two more entries add the same six calls to each.
 What the wrapped commits say an option keeps is said with each:
 a claim that keeps its `rename` keeps 17 of 330 claims over 100 ms and 3 of 330 over 2 s.
 
@@ -417,6 +429,10 @@ nothing else.
   it keeps the `rename`,
   so it keeps every stalled claim this record measured:
   17 of 330 over 100 ms and 3 of 330 over 2 s.
+  It also narrows the pool:
+  a member's name is its template's digest,
+  so a second fill of the same template cannot publish beside the first,
+  and the pool holds one member per template where it holds two of anything today.
   It saves at most 82 ms in the worst claim of 330,
   which is the other 40 calls' largest.
 - What it changes in the guarantee:
@@ -644,14 +660,17 @@ outside the repository:
   their claims split into the rename and the rest.
 - `mix.ts`,
   the five kinds of call in one window.
-- `out/arms-tail.json` and `out/arms-mark.json`,
+- `out/arms-tail.json`,
+  `out/arms-mark.json` and `out/arms-final.json`,
   the paired arm medians;
   `out/counts*.json`,
   the traced counts;
   `out/wrapped.json`,
-  `out/wrapped-2.json`,
+  `out/wrapped-2.json` and
   `out/wrapped-3.json`,
-  the records and traces of the commits;
+  the records of the commits,
+  and `out/traces-wrapped-run*.tar.zst`,
+  their traces;
   `out/claim-share-all.json`,
   the split over all 330;
   `out/prims.json` and `out/mix.json`,
