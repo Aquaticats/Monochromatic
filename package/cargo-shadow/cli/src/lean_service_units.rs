@@ -16,7 +16,8 @@
 //! and a manual pass hit its own deadline before it reached every profile directory.
 //! The owner's earlier rule still bounds how it starts:
 //! "Were you implying our wrapper or something in it auto starts itself on system startup or user login?
-//! It should never do that! Follow Bazel."
+//! It should never do that!
+//! Follow Bazel."
 //! then "Systemd units are fine."
 //! So nothing in cargo-shadow starts itself:
 //! the installer writes the unit,
@@ -28,9 +29,11 @@
 //! for as long as the user manager runs:
 //! `Restart=always` with `StartLimitIntervalSec=0`,
 //! so a pass that finds nothing never stops the loop.
-//! The service shows nothing on the desktop (no bus address, no desktop message) and writes to the journal.
+//! The service shows nothing on the desktop (no bus address,
+//! no desktop message) and writes to the journal.
 //! The once-a-day timer this installer wrote before is stopped,
-//! disabled and removed, and no timer is written again.
+//! disabled and removed,
+//! and no timer is written again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -144,8 +147,13 @@ fn systemctl(arguments: &[&str]) -> Result<String, String> {
 /// ```ts
 /// const absentUnit = (reason: string): boolean => ['does not exist', 'not loaded', 'not found', 'No such file'].some((needle) => reason.includes(needle))
 /// ```
-fn absent_unit(reason: &str) -> bool {
-    return ["does not exist", "not loaded", "not found", "No such file"].iter().any(|needle| { return reason.contains(needle); });
+pub(crate) fn absent_unit(reason: &str) -> bool {
+    for needle in ["does not exist", "not loaded", "not found", "No such file"] {
+        if reason.contains(needle) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

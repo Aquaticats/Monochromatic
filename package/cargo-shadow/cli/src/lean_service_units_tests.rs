@@ -10,17 +10,20 @@
 use std::{fs, path::{Path, PathBuf}};
 
 use crate::lean_policy::{PAUSE_BETWEEN_PASSES_SECONDS, RUN_DEADLINE_SECONDS};
-use crate::lean_service_units::{RUNTIME_SLACK_SECONDS, SERVICE_NAME, TIMER_NAME, install_service, render_service};
+use crate::lean_service_units::{RUNTIME_SLACK_SECONDS, SERVICE_NAME, TIMER_NAME, absent_unit, install_service, render_service};
 use crate::test_scratch::scratch;
 
-/// The service this install writes, for a repository at `/repo`.
+/// The service this install writes,
+/// for a repository at `/repo`.
 fn service_text() -> String {
     return render_service(Path::new("/repo"), Path::new("/repo/.cache/toolchain-bin/cargo-shadow"));
 }
 
-/// The median time a pass with nothing at all to clean took on this machine, five runs, 2026-11-11:
-/// 0.052 s best and 0.054 s median over a world with nothing to clean, and 0.177 s over 500 profile
-/// directories it kept.
+/// The median time a pass with nothing at all to clean took on this machine,
+/// five runs,
+/// 2026-11-11:
+/// 0.052 s best and 0.054 s median over a world with nothing to clean,
+/// and 0.177 s over 500 profile directories it kept.
 const MEASURED_IDLE_PASS_MILLISECONDS: u64 = 54;
 
 /// A pause shorter than ten times that pass turns a machine with nothing to clean into a loop.
@@ -85,6 +88,14 @@ fn installing_without_enabling_writes_the_service_and_removes_the_once_a_day_tim
     assert!(!units.join(TIMER_NAME).exists(), "the once-a-day timer must go: {lines:?}");
     assert!(lines.iter().any(|line| { return line.contains(TIMER_NAME) && line.contains("removed"); }), "the removal must be said: {lines:?}");
     assert!(lines.iter().any(|line| { return line.contains("not enabled"); }), "{lines:?}");
+}
+
+#[test]
+fn a_systemctl_answer_that_does_not_know_the_timer_is_read_as_the_timer_already_gone() {
+    // This host's user manager answers a unit it does not know with exactly this line.
+    assert!(absent_unit("Failed to disable unit: Unit cargo-shadow-lean.timer does not exist"));
+    assert!(absent_unit("Unit cargo-shadow-lean.timer not loaded."));
+    assert!(!absent_unit("Failed to connect to bus: No medium found"), "a manager that did not answer is not a timer that is gone");
 }
 
 #[test]

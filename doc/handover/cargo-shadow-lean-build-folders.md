@@ -386,7 +386,8 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   (the old name still works and says what it does now),
   it writes a continuous service with `Restart=always` and a minute between passes,
   and it stops and removes the timer above.
-  What was built is in `doc/planning/lean-build-dirs.md`, section "Owner decision and what was built".
+  What was built is in `doc/planning/lean-build-dirs.md`,
+  section "Owner decision and what was built".
 
 - Deviation from the owner's words,
   veto open:

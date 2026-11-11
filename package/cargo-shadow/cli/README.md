@@ -1214,7 +1214,8 @@ Six mechanisms
   hours before the daily pass,
   and a manual pass hit its own deadline before it reached every profile directory.
   `cargo-shadow lean timer-install` still works and says what it does now.
-  The service has `Restart=always`, `RestartSec=60s` and `StartLimitIntervalSec=0`,
+  The service has `Restart=always`,
+  `RestartSec=60s` and `StartLimitIntervalSec=0`,
   so a pass that finds nothing never stops the loop,
   and `RuntimeMaxSec` kills a pass that outlasts the run's own deadline.
   It is installed for `default.target`,
@@ -1229,7 +1230,8 @@ Six mechanisms
   (`PAUSE_BETWEEN_PASSES_SECONDS` in `src/lean_policy.rs`):
   measured 2026-11-11,
   such a pass over a world with nothing to clean cost 0.052 s at best and 0.054 s at the median of five runs,
-  and over 500 in-tree profile directories it kept, 0.177 s,
+  and over 500 in-tree profile directories it kept,
+  0.177 s,
   so a minute keeps the loop at work under a thousandth of the time there,
   where systemd's default 100 ms restart delay would put it at work about a third of the time.
   On this machine an idle pass costs at least 27 minutes

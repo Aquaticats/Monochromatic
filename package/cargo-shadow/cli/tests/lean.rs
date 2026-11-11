@@ -201,6 +201,19 @@ fn service_install_stops_and_disables_the_once_a_day_timer_before_it_starts_the_
 }
 
 #[test]
+fn a_user_manager_that_cannot_stop_the_old_timer_stops_the_install_before_it_writes_anything() {
+    let world = make_world();
+    let units: PathBuf = installed_binary(&world);
+    let manager: PathBuf = world.fakes.join("systemctl");
+    std::fs::write(&manager, "#!/bin/sh\necho 'Failed to connect to bus: No medium found' >&2\nexit 1\n").expect("fake systemctl");
+    std::fs::set_permissions(&manager, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let output: Output = run(&world, &world.repository, &["lean", "service-install", "--unit-directory", units.to_str().expect("text")]);
+    assert_eq!(output.status.code(), Some(1), "{}", String::from_utf8_lossy(&output.stdout));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("could not stop cargo-shadow-lean.timer"), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!units.join("cargo-shadow-lean.service").exists(), "nothing is written while the daily pass could still run");
+}
+
+#[test]
 fn the_old_timer_install_name_says_what_it_does_now_and_installs_the_continuous_service() {
     let world = make_world();
     let units: PathBuf = installed_binary(&world);

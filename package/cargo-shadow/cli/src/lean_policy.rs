@@ -103,7 +103,8 @@ pub const HOST_PROFILE_CAP_BYTES: u64 = 24 * GIB;
 /// 398 s for the run records (2026-11-08),
 /// 334 s for Podman and 880 s to list 68,755 profile directories (2026-11-10),
 /// so an idle pass costs at least 27 minutes here and the pause is a twenty-seventh of the shortest one.
-/// The owner, 2026-11-11:
+/// The owner,
+/// 2026-11-11:
 /// "Make the cleanups a systemd service that runs continuously",
 /// and the volume had 6.5 MB free that day hours before the daily pass,
 /// so the pause is a minute rather than the hours between the timer's passes it replaced.
