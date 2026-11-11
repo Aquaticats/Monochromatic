@@ -42,7 +42,9 @@
 
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
-/// The plan on disk: what a start reads, and what the workers write.
+/// The plan on disk:
+/// what a start reads,
+/// and what the workers write.
 use crate::push_retry_store::LoadedPlans;
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
@@ -404,7 +406,7 @@ fn stopped_after(applied: usize) -> bool {
 /// The list writes nothing:
 /// the file of a plan is written or removed by the worker that decided it,
 /// on the thread that decided it
-///  (`Replanning::keep_the_plan`, `Replanning::forget`),
+///  (`Replanning::keep_the_plan` and `Replanning::forget`),
 /// so no round replays a stale statement onto the journal,
 ///  while the owner of the list applies the same changes to its memory here.
 /// A read that gave no answer is made again after a pause,
@@ -497,7 +499,8 @@ impl PushRetries {
     /// so a service starts without it rather than never starting;
     /// the plan's files stand there all the same,
     /// so the service starts with what it can do now
-    /// and asks again, instead of leaving those pushes to a start that nothing requires to arrive.
+    /// and asks again,
+    /// instead of leaving those pushes to a start that nothing requires to arrive.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

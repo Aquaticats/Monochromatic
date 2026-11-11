@@ -494,12 +494,14 @@ impl Replanning {
     ///   The file is what a restarted service rebuilds the plan from,
     /// so a forget that reached only the list of this process would leave the next service trying a push that has already landed
     ///  (finding 3 of the review of `bc3d54f9cd`).
-    /// It goes here, on the thread that decided the branch needs no new try,
+    /// It goes here,
+    /// on the thread that decided the branch needs no new try,
     /// as the plan a worker promises is already written here,
     ///  and not by a round that may reach the journal later,
     /// when a newer plan of the branch may have been written since
     ///  (finding 4 of the same review).
-    /// A removal that fails is said, and the next start reads the file again.
+    /// A removal that fails is said,
+    /// and the next start reads the file again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

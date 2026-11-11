@@ -243,7 +243,8 @@ fn a_file_that_holds_no_plan_is_removed() {
 }
 
 /// What:
-///  A plan whose record could not be read is read again at a later start, not removed.
+///  A plan whose record could not be read is read again at a later start,
+/// not removed.
 /// Why:
 ///  "never discard user data":
 /// the cleanup (`remove_files_of`) keeps a file whose record it could not read,
