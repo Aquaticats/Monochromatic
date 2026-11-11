@@ -322,6 +322,67 @@ fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
     remove(root.as_path());
 }
 
+/// What:
+///  A trash that carries valid manifest bytes naming another directory is not the wrapper's,
+///  so the file at that name and the trash directory itself both stay,
+///  and the emptying says why.
+/// Why:
+///   The proof is the identity the manifest names, compared with the directory that holds it;
+/// a manifest that decodes but names another directory is somebody's file,
+/// and the emptying removes only what it can prove the leave-out moved there.
+/// The entries are still the recorded objects,
+/// so those go,
+/// and the trash directory stays only because the file in it is not the wrapper's.
+#[test]
+fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
+    let name: String = "9".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-foreign-manifest", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let foreign: TrashManifest = TrashManifest {
+        name: name.clone(),
+        trash: ObjectId { device: manifest.trash.device, inode: manifest.trash.inode.wrapping_add(1), birth: manifest.trash.birth },
+        entries: Vec::new(),
+    };
+    let file: PathBuf = worktree.join(TRASH_PARENT).join(&name).join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
+    std::fs::write(file.as_path(), foreign.encode()).expect("a manifest that names another directory");
+    let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+    assert!(file.is_file(), "the file that is not the wrapper's stays; the emptying answered {verdict:?}");
+    assert!(matches!(verdict, Verdict::Failed(_)), "and the trash directory stays with it, got {verdict:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record the service already settled is named as one nothing will empty,
+///  even though the trash says what it is,
+///  and no second record is invented for it.
+/// Why:
+///   The queue answers `Known` for an id that is already in `failed` or `done`,
+/// and no round claims a settled record,
+///  so a scan that said the trash "is recorded now and the commit service empties it"
+/// would promise a run that never comes.
+/// A failed record is where the promise of a later attempt stops
+/// (`SPEC.md`, "A trash that cannot be emptied ...").
+#[test]
+fn a_settled_record_makes_the_notice_name_the_trash_instead_of_promising_a_run() {
+    let name: String = "a".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-settled-manifest", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
+    std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash is named: {said}");
+    assert!(!said.contains("recorded now"), "and nothing promises a record was written: {said}");
+    assert!(failed.is_file() && !pending.exists(), "no pending record is invented from a settled one");
+    remove(root.as_path());
+}
+
 /// Move a file's modification time into the past,
 /// so a control can read a record as one that waited.
 fn age_by(path: &Path, back: std::time::Duration) {

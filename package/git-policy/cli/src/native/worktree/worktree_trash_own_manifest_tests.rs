@@ -78,6 +78,54 @@ fn a_manifest_that_is_not_the_trashs_own_proves_nothing() {
     remove(root.as_path());
 }
 
+/// What:
+///  A link at the manifest's name is refused instead of written through,
+///  so nothing outside the trash takes the manifest's bytes.
+/// Why:
+///   Another process that may write the stage can put a link at the manifest's name before the write,
+/// and a write that follows it replaces the file it points at with encoded identities,
+/// which is that file's bytes lost.
+/// The trash is the wrapper's own directory,
+/// whose only file of that name is the one it writes itself.
+#[test]
+fn a_manifest_name_that_holds_a_link_is_refused() {
+    let root: PathBuf = fixture("trash-own-manifest-link");
+    let name: String = "e".repeat(40);
+    let manifest: TrashManifest = planted(root.as_path(), name.as_str(), 1);
+    let victim: PathBuf = root.join("victim");
+    let original = b"user data that must survive\n";
+    std::fs::write(&victim, original).expect("the person's file");
+    let link: PathBuf = root.join(TRASH_PARENT).join(&name).join(MANIFEST_FILE_NAME);
+    std::os::unix::fs::symlink(&victim, link.as_path()).expect("a link at the manifest's name");
+    assert!(write(root.as_path(), &manifest).is_err(), "a link is not written through");
+    assert_eq!(std::fs::read(&victim).expect("the person's file"), original, "and the file it points at keeps its bytes");
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe at the manifest's name is refused at once,
+///  so no command waits for a reader that may never come.
+/// Why:
+///   Another process that may write the stage can put a pipe at the manifest's name before the write,
+/// and opening a pipe for writing waits for a reader.
+#[test]
+fn a_manifest_name_that_holds_a_pipe_is_refused_without_waiting() {
+    let root: PathBuf = fixture("trash-own-manifest-pipe");
+    let name: String = "f".repeat(40);
+    let manifest: TrashManifest = planted(root.as_path(), name.as_str(), 1);
+    let path: PathBuf = root.join(TRASH_PARENT).join(&name).join(MANIFEST_FILE_NAME);
+    write(root.as_path(), &manifest).expect("positive control: an ordinary name is written");
+    std::fs::remove_file(path.as_path()).expect("make room for the pipe");
+    crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600).expect("a named pipe");
+    let written_root: PathBuf = root.clone();
+    let written_manifest: TrashManifest = manifest.clone();
+    let outcome = crate::test_support::finished_within(move || return write(written_root.as_path(), &written_manifest).map_err(|error| return error.to_string()));
+    let Some(outcome) = outcome else { panic!("the manifest write waited on a named pipe") };
+    let refused: String = outcome.expect_err("a named pipe is refused");
+    assert!(refused.contains("not a plain file"), "{refused}");
+    remove(root.as_path());
+}
+
 /// A root with no trash at all answers nothing and cannot be written into.
 #[test]
 fn a_root_without_that_trash_answers_nothing() {
