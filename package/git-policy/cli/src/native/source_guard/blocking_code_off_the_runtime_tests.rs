@@ -166,12 +166,18 @@ enum Scanner {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ReadCode = { masked: string[], braces: [number, number][] }
+/// type ReadCode = {
+///   masked: string[]
+///   braces: [number, number][]
+/// }
 /// ```
 struct ReadCode {
-    /// One entry per line of the file: the line's code, with a space wherever a comment or a literal put a character.
+    /// One entry per line of the file:
+    /// the line's code,
+    /// with a space wherever a comment or a literal put a character.
     masked: Vec<String>,
-    /// For each line, the `{` and `}` that are code rather than comment or literal text.
+    /// For each line:
+    /// the `{` and `}` that are code rather than comment or literal text.
     braces: Vec<(usize, usize)>,
 }
 
