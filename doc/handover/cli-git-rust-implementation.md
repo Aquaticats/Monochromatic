@@ -239,8 +239,37 @@ only a reproduced data-loss or recovery regression that is new since alpha.9 hol
 (the owner: "Prioritize fixing the jams and release jam fixes asap.", "Alphas don't even have to resolve all flakes.");
 a Sonnet subagent is classifying the Kimi data-loss findings as older than alpha.9 or new
 (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`).
+Both answers came back by 2026-11-11T02:40:00-05:00, and both hold `0.6.1-alpha.10`.
+Alternating runs of the 14 killed-copy controls gave
+8 and 1 failing at `5197a5537b`, 2 and 1 at `8bd685935d`,
+and 14 of 14 passing at the alpha.9 base `edbbafa190`:
+the spread at one commit (1 to 10) swamps the step seen earlier,
+and the regression is older than `8bd685935d` but newer than alpha.9.
+`~/temp/agent/pi-runs/bisect-killed-copy-controls.ts` searches that range in worktree `bisect-killed-copy-controls`,
+calling a commit good only after two clean runs
+(results in `~/temp/agent/pi-runs/bisect-killed-copy-controls-results.txt`).
+The Sonnet classification (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`, by blame, nothing run)
+found 28 data-loss findings:
+8 already in alpha.9, 2 mixed, 18 new since alpha.9 (2 of them in `cargo-shadow`), 17 still present at `ba1be33739`.
+The most direct new ones:
+the landed-merge sweep deletes an ignored `.env` written after the add,
+a by-name fallback destroys a replacement subvolume holding a user file,
+a large merge is staged without the start of a file,
+marker-shaped user text is deleted when Git's conflict count reaches 127,
+`git worktree remove TOPIC` removes `topic`,
+a swept worktree's held commit disappears at `gc`,
+and the trash manifest write follows a planted symlink.
+Each is Kimi's reproduction, so each is reproduced again and fixed, or disproved, by its round-152 fix agent;
+all 22 were resumed (rounds 155 and 156) once the paused agents' build trees and 26 finished worktrees were cleaned
+(about 330 GiB by `cargo clean`).
+Pass 7 merged seven finished branches the runs had left unmerged
+(three Kimi-findings fixes, `commits-that-stop-after-their-add-steps`, `gate-flakes-scratch-sweep-and-descriptor-limit`,
+the `mpm-shadow` printed-remedy fix and the release-waiter fix) at `6df69b62f8`, Clippy clean;
+`pushes-of-main-that-stalled-today` conflicts in five landing files and went to a re-merge agent (round 157).
 Next:
-those two answers,
+the bisect's first failing commit,
+the fix agents' reproductions,
+the suites on `6df69b62f8` and the checks of `crate-release`, `cargo-shadow` and `mpm-shadow`,
 the Kimi reviews of the newly merged branches,
 the Kimi-findings and audit fixes once free space allows,
 gate,
