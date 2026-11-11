@@ -131,24 +131,23 @@ fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 /// which a loaded host prints even when the commit lands.
 #[test]
 fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
-    let notice: String = format!(
-        "{}git commit-tree (process 7) after 10 seconds; it is ended only after 300 seconds with no sign of work.\n",
-        String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
-    );
-    let inside: String = format!(
-        "{}`git update-ref --stdin in /repo` (it moves refs/heads/main to a commit), begun 0 seconds ago. The service never ends a write in the middle.\n",
-        String::from_utf8_lossy(SERVICE_INSIDE_WRITE_NOTICE_PREFIX)
-    );
-    let stuck: String = format!(
-        "{}for 1 minutes and has not heard back: `git update-ref --stdin`. The service never ends a write in the middle.\n",
-        String::from_utf8_lossy(SERVICE_STUCK_WRITE_NOTICE_PREFIX)
-    );
+    // Each line is worded as the file that writes it does (`markdown_linter_guard.rs` for the wait notice,
+    //  `service_busy.rs` for the two notices of a write): the prefixes are held to those words below.
+    let notice: &str = "monochromatic-git-policy-cli: still waiting for git commit-tree (process 7) after 10 seconds; it is ended only after 300 seconds with no sign of work.\n";
+    let inside: &str = "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin in /repo` (it moves refs/heads/main to a commit), begun 0 seconds ago. The service never ends a write in the middle.\n";
+    let stuck: &str = "monochromatic-git-policy-cli: the commit service has been inside a write for 1 minutes and has not heard back: `git update-ref --stdin`. The service never ends a write in the middle.\n";
     let other: &str = "monochromatic-git-policy-cli: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";
     let mixed: String = format!("{notice}{other}{notice}{inside}{stuck}");
     assert_eq!(without_wait_notices(mixed.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(other.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(b"no newline at the end"), b"no newline at the end");
-    for line in [notice.as_str(), inside.as_str(), stuck.as_str()] {
+    let held_to: [(&str, &[u8]); 3] = [
+        (notice, WAIT_NOTICE_PREFIX),
+        (inside, SERVICE_INSIDE_WRITE_NOTICE_PREFIX),
+        (stuck, SERVICE_STUCK_WRITE_NOTICE_PREFIX),
+    ];
+    for (line, prefix) in held_to {
+        assert!(line.as_bytes().starts_with(prefix), "the prefix is the words the wrapper prints: {line}");
         assert!(is_a_wait_notice(line.as_bytes()), "{line}");
     }
 }
@@ -935,10 +934,34 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
     return repo.join(".git/monochromatic-git-policy-cli-merges");
 }
 
-/// The files in a records directory.
+/// The merge records in a records directory,
+/// which are its `.json` files:
+/// the reading of what Git's update left travels beside a record as a `.landed` file,
+/// and it is no record of its own.
 pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
-        .map(|entries| { return entries.flatten().map(|entry| { return entry.path(); }).collect(); })
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.path(); })
+                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "json"; }); })
+                .collect();
+        })
+        .unwrap_or_default();
+    files.sort();
+    return files;
+}
+
+/// The readings of what Git's update left in a records directory.
+pub(super) fn landed_in(directory: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.path(); })
+                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "landed"; }); })
+                .collect();
+        })
         .unwrap_or_default();
     files.sort();
     return files;
@@ -977,11 +1000,13 @@ fn a_kill_after_the_branch_moved_leaves_a_consistent_checkout() {
     stage_unrelated_work(&fixture, repo.as_path());
     let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-applied");
     assert_eq!(records_in(records.as_path()).len(), 1);
+    assert_eq!(landed_in(records.as_path()).len(), 1, "the reading of what Git's update left went beside the record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
     assert_eq!(text(&status.stdout).lines().filter(|line| { return line.starts_with("M  u.txt") || line.starts_with("A  new.txt") || line.starts_with("D  v.txt"); }).count(), 3);
     assert_eq!(text(&status.stdout).lines().count(), 3, "only the other session's work is staged: {}", text(&status.stdout));
     assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new());
+    assert_eq!(landed_in(records.as_path()), Vec::<PathBuf>::new(), "the reading goes with the record it belongs to");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);

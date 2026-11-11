@@ -48,10 +48,12 @@ use crate::worktree_copy_after_refusal::settle_refused_destination;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_owed_copy::owed_selection_of;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
 use crate::worktree_copy_notices::nothing_but_a_reservation;
 use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
 use crate::worktree_copy_synchronize::synchronize_after;
+use crate::worktree_add_binding::OwedCopy;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
@@ -338,7 +340,13 @@ fn settle_creation(
         && observation.source_root.is_some()
         && !matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty());
     let record_destination_entered: bool = begin_step("recordDestination");
-    let recorded = claim_stage_for_creation(observation.common_dir.as_path(), invocation.destination.as_deref(), copies);
+    // The record names the source and the selection as well as the destination, so a command killed before its copy ran
+    // leaves everything the next command needs to make that copy itself. A selection of named paths is not one of the
+    // two listings a record can name, so such a command records nothing and its worktree is named instead.
+    let owed: Option<OwedCopy> = observation.source_root.as_ref().and_then(|source| {
+        return owed_selection_of(&observation.selection).map(|selection| { return OwedCopy { source: source.clone(), selection }; });
+    });
+    let recorded = claim_stage_for_creation(observation.common_dir.as_path(), invocation.destination.as_deref(), copies, owed.as_ref());
     end_step(record_destination_entered);
     let mut held: Option<StageClaim> = match recorded {
         Ok(found) => found,
@@ -584,7 +592,7 @@ fn settle_observed(
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
     let recover_entered: bool = begin_step("recover");
-    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), stderr);
+    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), &invocation.context, stderr);
     end_step(recover_entered);
     recover_outcome?;
     if !invocation.creates {

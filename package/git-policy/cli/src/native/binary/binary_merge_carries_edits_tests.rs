@@ -346,7 +346,7 @@ fn a_path_the_person_deleted_that_the_merge_changes_is_named_as_deleted() {
     assert!(!head_object(&fixture, repo.as_path(), "a.txt").is_empty(), "the merge's version is in the merge commit");
     let words: String = said(&observed);
     assert!(words.contains("a.txt"), "the line names the path: {words}");
-    assert!(words.contains("keeps your own deletion"), "the line says the checkout keeps their deletion: {words}");
+    assert!(words.contains("holds nothing of yours"), "the line says the checkout keeps nothing of theirs: {words}");
     assert!(!words.contains("holds what you wrote"), "the line claims no file that holds their bytes: {words}");
     assert!(!words.contains("your bytes are kept at"), "the line claims no bytes of theirs at the path: {words}");
     assert!(
@@ -387,7 +387,7 @@ fn a_deletion_the_person_staged_that_the_merge_changes_is_named_as_deleted() {
     assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the person's deletion stands");
     assert_eq!(status(&fixture, repo.as_path()), "D  a.txt\n", "the deletion is still staged");
     let words: String = said(&observed);
-    assert!(words.contains("keeps your own deletion"), "the line says the checkout keeps their deletion: {words}");
+    assert!(words.contains("holds nothing of yours"), "the line says the checkout keeps nothing of theirs: {words}");
     assert!(!words.contains("holds what you wrote"), "the line claims no file that holds their bytes: {words}");
     assert!(
         words.contains("git restore --no-enforce-worktree --source=HEAD --staged --worktree -- a.txt"),
@@ -864,7 +864,7 @@ fn a_deletion_in_a_linked_worktree_is_named_with_a_command_that_runs_there() {
     assert_eq!(observed.code, Some(0), "{}", said(&observed));
     assert_eq!(text_at(linked.as_path(), "a.txt"), None, "the person's deletion stands");
     let words: String = said(&observed);
-    assert!(words.contains("keeps your own deletion"), "the line says the checkout keeps their deletion: {words}");
+    assert!(words.contains("holds nothing of yours"), "the line says the checkout keeps nothing of theirs: {words}");
     let restored: Observed = run(&fixture, linked.as_path(), tokens(&the_lines_command(&words)).as_slice());
     assert_eq!(restored.code, Some(0), "the line's command runs in a linked worktree: {}", said(&restored));
     let back: String = text_at(linked.as_path(), "a.txt").expect("the merge's version is back in the checkout");

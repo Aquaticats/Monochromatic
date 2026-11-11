@@ -64,15 +64,15 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
 /// `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still waiting for ";
 
-/// How the commit service tells a client that it is inside a write
-/// (`service_busy.rs`):
-/// the long warning of a write that has not ended for minutes,
-/// and the shorter one a client whose own commit may be on the branch already reads.
-pub const SERVICE_INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: this commit is inside a write of the commit service ";
+/// How the commit service's shorter notice begins,
+/// the one a client whose own commit may be on the branch already reads (`service_busy.rs`).
+/// The notice goes on with the command the service is inside,
+/// after a comma,
+/// so the prefix ends where the fixed words do.
+pub const SERVICE_INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
 
-/// How the longer warning of that write,
-/// the one a client queued behind it reads after minutes,
-/// begins.
+/// How the commit service's longer warning begins,
+/// the one a client queued behind that write reads after minutes (`service_busy.rs`).
 pub const SERVICE_STUCK_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: the commit service has been inside a write ";
 
 /// What:
@@ -90,16 +90,24 @@ pub fn is_a_wait_notice(line: &[u8]) -> bool {
 }
 
 /// What:
-///  The bytes without the lines that are wait notices.
+///  The bytes without the lines that are notices about a wait.
 /// Why:
 ///  A step that outlasts its notice grace (5 seconds for a query,
 /// 10 for a bulk step) prints a notice on standard
 ///  error however healthy it is,
 /// and a loaded host stretches any step past that.
 /// The commit service tells a client whose own commit is in its branch write that it is inside it,
-/// as the owner asked (2026-11-04,
-/// "Short extra wait"),
-/// and a beat falls inside a write a loaded host stretched past a second even when the commit lands.
+/// which the owner
+///  asked for (2026-11-04,
+/// "Short extra wait":
+/// the commit may be on the branch already,
+/// so the client is told when the write starts),
+/// and a beat falls inside a write a loaded host stretched past a second even when the commit lands,
+/// so a control that means the words drops that notice;
+/// it is a sign of the host's speed and not of the command's.
+/// The longer warning of the same write,
+/// which a client queued behind it reads after minutes,
+/// goes too.
 /// A control that compares the
 ///  wrapper's diagnostics with native Git's words means the words,
 /// not that the host was fast,

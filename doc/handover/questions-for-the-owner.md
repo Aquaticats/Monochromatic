@@ -1929,7 +1929,9 @@ the owner chose:
 "B: off for internal Git (Recommended)".
 That amends the 2026-11-03 decision:
 the wrapper adds `-c core.fsmonitor=false` to the Git commands it starts itself and never to a command the person typed.
-A new agent builds it and amends `SPEC.md` with this answer.
+Built on 2026-11-10 (branch `fix/git-policy-cli-fsmonitor-off-for-the-wrappers-own-git`),
+recorded in `package/git-policy/cli/SPEC.md`,
+"Real Git starts with traditional hooks off".
 
 ### A landing waiting for the flush of a marker made ahead (coordinator's pick, veto open)
 
@@ -1971,6 +1973,12 @@ Asked whether to tighten `AGENTS.md` rule `APQ`,
 the owner chose:
 "Use the proposed text (Recommended)",
 so `APQ` now says "never in any `git worktree add` folder of this repo".
+Built on branch `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`:
+`src/native/command/rule_shared_remote.rs` decides the forms,
+`src/native/command/rule_shared_remote_messages.rs` holds the text,
+and the refusal is `linked-worktree-only`'s when the worktree is a linked one.
+The README section "The remote settings every worktree shares" and `SPEC.md` state the rule,
+and `src/native/binary/binary_shared_remote_tests.rs` runs every refused and allowed form through the built executable.
 
 ### Two tokio choices made by an agent (coordinator's pick, veto open)
 

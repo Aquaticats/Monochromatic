@@ -101,6 +101,403 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
+
+Branch `fix/git-policy-cli-kimi-all-waits-findings`,
+from `main` at `3b0a23017e`.
+The audit read the waits added since that release and reported three findings from the code alone,
+none of them reproduced
+(`~/temp/agent/kimi-reviews/kimi-review-since-alpha8-all-waits/review.md`).
+All three reproduced here as controls that failed on that commit,
+and each is fixed with the same control passing.
+The owner's standing words behind all of them are "never discard user data",
+"Commits should never fail.",
+and "nothing should ever wait forever or indefinitely".
+
+#### Finding 1: a carry could drop bytes written through a descriptor opened before its take
+
+The audit's claim:
+`take_judged_awaiting` renames a worktree file to a `.cli-git-recovery-*` private name and checks its bytes there,
+`place_bytes_awaiting` then installs the merge's entry at the path and removed that private name unconditionally,
+and so did `remove_judged_awaiting`;
+a program that opened the file before the rename keeps a descriptor to the same inode,
+so a write through it after the check landed on a file with no name at all
+(`merge_isolation_carry_place.rs`,
+the removal at line 353 and the placing at line 415).
+That is true of the code at that commit:
+the carry's take never called the final-hash and open-holder proof the second pass's install acts on
+(`may_remove_awaiting` in `merge_isolation_take_asides.rs`,
+whose callers were `finish_asides_awaiting` and `restore_what_git_did_not_write_awaiting` only;
+the function is named `may_remove_the_aside_awaiting` since the jam-fix integration was merged,
+2026-11-10).
+
+Reproduced as `merge_isolation_carry_place::tests::a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it`:
+this process opens a write descriptor on the file before the placement,
+hangs the same inode on a child `sleep` (the holder scan leaves the calling process out),
+places the merge's bytes,
+writes through the descriptor it kept,
+and asks for the private name.
+On `3b0a23017e`:
+
+```text
+assertion `left == right` failed: the entry a process holds open is kept under its private name, not removed: [] (Written)
+  left: 0
+ right: 1
+```
+
+The fix reuses the second pass's proof instead of writing a second one:
+`may_remove_awaiting` now takes the Git context,
+the repository path,
+the aside and the identity the take proved,
+and the carry asks it before removing any private name,
+for a replacement and for a deletion.
+A private name that cannot be proved unwritable is kept,
+and the carry writes one line on standard error naming the path and the private name it kept.
+Who hands that name out is the integration's shape and not this branch's:
+the merge with `integrate/git-policy-cli-jam-fixes-after-alpha-9` kept
+`drop_the_aside_awaiting`,
+which fills a `kept: &mut Vec<PathBuf>` the caller reads,
+and dropped this branch's `Placed::Written { kept: Option<PathBuf> }`
+(the section "The jam-fix integration merged in,
+and the red tests it brings" records what changed).
+Guarantees:
+`README.md` "Merging",
+"Carrying the person's own work",
+and `SPEC.md` "Other processes changing files" (a second look before a removal,
+a descriptor held on what a removal names).
+Limit:
+the proof costs one bounded holder scan per carried path that replaces or deletes an existing entry,
+the same scan the recovery install already pays,
+and its bound and measurements are `SERVICE_SCAN_BUDGET` in `index_lock_holders.rs`.
+That cost was not measured on a carry here (the host's load average was 110 to 117 during the run);
+it is the one thing about this fix that wants a paired measurement before a release.
+
+#### Finding 3: the first Git-directory ownership check ran before the beats began
+
+The audit's claim:
+for a Git directory that is not the text `shared.own_git_dir`,
+`answer_request` awaited `is_foreign` (a real-path resolution on the blocking pool) before it called `queue_a_commit`,
+and the beat writer only started inside `queue_a_commit`,
+so the newly added heartbeat cover protected the second check and not this first one;
+a file system that answered late therefore left the client hearing nothing,
+which gives up after `HEARTBEAT_SILENCE`,
+sends the commit `RECONNECTS` more times and reports it failed,
+while the service later lands it.
+That is true of the code at that commit,
+and the two checks were the same call written twice,
+the first only to decide the refusal.
+
+Reproduced as `service::service_server_connection_handling::tests::a_commit_whose_first_directory_check_waits_is_beaten_while_it_waits`,
+which drives the real `answer_request` with a commit for another worktree and holds the blocking job that resolves
+the directory's real path (a process-wide gate in a `#[cfg(test)]` module of the handler,
+`service_server_connection_handling_directory_check_hold_test_support.rs`),
+then asks for a beat and for the refusal after it.
+On `3b0a23017e`:
+
+```text
+panicked at src/native/service/service_server_connection_handling_tests.rs:269:14:
+a beat comes while the check that names the directory's instance waits: Elapsed(())
+```
+
+(The control spent 32.6 s of process time on the failing branch:
+the six-second beat bound fired,
+and dropping the runtime then waited for the held blocking job.)
+
+The fix deletes the first check and hands its one decision to `queue_a_commit`,
+whose beats already write both the refusal and the `Unavailable` answer,
+so the beats begin with the connection and the request still reaches the landing only when the check says it is this
+instance's.
+Guarantees:
+`SPEC.md` "Every wait has a bound" and the client's own bounds,
+listed under "The silence bound between messages" in
+`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`.
+A commit for another worktree is still refused `Rejected` and still never reaches the landing
+(the older control `with_threads_a_commit_naming_another_worktree_is_rejected` runs after this one and passes).
+Limit:
+the `work` and `warm` messages answer nothing and so carry no beats;
+a check that waits there costs the client its confirmation and nothing else,
+which the client's own documentation already accepts (`wake` in `service_client.rs`).
+
+#### Finding 2: a settled hold was decided from the intent parsed before the settlement
+
+The audit's claim:
+`recover_selected` parsed an open intent and then called `settle_a_recorded_hold`;
+a settlement that replays a held commit onto a branch another session moved rewrites that intent to name the replayed
+commit,
+moves the branch and removes the held record,
+and when the index install still waits it returns `LandedTheIndexWaits` and leaves the owed index record;
+`settle_a_recorded_hold` then answered `None`,
+so the loop decided with the pre-replay intent,
+whose old and new values the branch no longer names,
+which `recovery_for` classifies as `Drop`:
+that removed the owed index record,
+the conclusion copy and the intent the settlement had just rewritten,
+forgetting the index reconciliation of a commit that is on the branch.
+That is true of the code at that commit.
+
+Reproduced as
+`landing::service_land::finish_held_settlement_tests::a_restart_that_replayed_a_held_commit_keeps_the_index_update_it_owes`:
+a disposable repository with the batch's open intent,
+the index witness,
+the owed index record,
+a held record on `refs/cli-git/kept/1` and the person's worktree bytes,
+then another session's commit moves the branch,
+and `hooks::fail_at("build-index")` leaves the index install owed (the state another program's `index.lock` leaves).
+On `3b0a23017e`:
+
+```text
+monochromatic-git-policy-cli-service: batch 1 is held behind a reference lock: LandedTheIndexWaits { commit: "0b5cf331..." }
+monochromatic-git-policy-cli-service: batch 1 is not on its branch, so its commit 35ef50ee... is kept at refs/cli-git/kept/1
+panicked at src/native/landing/service_land_finish_held_settlement_tests.rs:197:5:
+the index update the landed commit owes is kept: <repo>/.git/monochromatic-git-policy-cli/work/owed/1.owed
+([RecoveryReport { seq: 1, decision: Drop, handled: Dropped }])
+```
+
+The fix asks whether a held record was there before the settlement,
+and after a settlement that finished it,
+reads the intent again with `the_intent_as_it_reads_now`:
+nothing left means the settlement completed the batch,
+an unreadable record is kept and named as everywhere else in this loop,
+and a readable one is the intent the decision below uses.
+So the restart finishes the owed index update in the same pass,
+or leaves both records for the next command,
+and never deletes them.
+Guarantees:
+`owed_index_update.rs`'s own statement of what the record prevents
+(a next commit recording the landed change's paths in reverse),
+`SPEC.md`'s rule that work already handed over stays on disk,
+and the owner's "never discard user data".
+Limit:
+the fix reads the intent a second time in the pass,
+so a batch whose intent another process rewrites in the instant between the settlement and that read is decided from
+the newer text,
+which is the text the branch state is compared against.
+
+Evidence,
+all on this branch:
+
+```text
+merge::     Summary [ 152.540s] 221 tests run: 221 passed, 6073 skipped
+landing::   Summary [ 324.015s] 851 tests run: 851 passed, 5443 skipped
+service::   Summary [  31.444s] 319 tests run: 319 passed, 5975 skipped
+```
+
+`mise run //package/git-policy/cli:native:clippy` finished with no warnings,
+`mise run //package/git-policy/cli:native:check` passes,
+and `monochromatic-lint --max-warnings 0` reports nothing on any file this branch changes.
+That package task still exits nonzero on nine findings,
+all of them in four files under `native/worktree/` that this branch does not touch:
+five `rust/avoidable-closure` warnings (`warn` severity,
+which `--max-warnings 0` raises to a failure),
+and four `markdown/semantic-line-breaks` errors
+(`git diff --name-only 3b0a23017e..HEAD` names no file under `native/worktree/`).
+Each of the three controls above failed before its fix and passed after it,
+and the two controls added for the carry's deletion path and its notice pass too.
+The counts above are from one run of each group on the tree this branch's last commit holds.
+
+Next action:
+review and merge this branch;
+then measure what the carry pays for its holder scan on a merge that carries many paths,
+paired against the commit this branch starts from,
+before the next alpha.
+### The jam-fix integration merged in, and the red tests it brings (2026-11-10T20:56:59-05:00)
+
+`integrate/git-policy-cli-jam-fixes-after-alpha-9` at `5686c7bb29` was merged into this branch
+(`312527cbd3`).
+Four files conflicted,
+and both sides had already fixed the same two findings on their own:
+the carry that dropped a save written through a descriptor opened before its take,
+and the commit that was beaten only after its ownership check had answered.
+Where both sides had done the same work the merged tree keeps the integration's shape,
+because it asks the same proofs at the same places and the branches after it are written against it.
+
+- `merge_isolation_carry_place.rs`,
+  `merge_isolation_carry_apply_tests.rs`:
+  the merged carry is `drop_the_aside_awaiting` from the integration,
+  which fills a `kept: &mut Vec<PathBuf>` its caller reads out.
+  Both call the proof before the private name goes,
+  for a replacement and for a deletion.
+  This branch's `Placed::Written { kept: Option<PathBuf> }` is gone,
+  and so is its carry-level control
+  `a_carried_file_a_program_holds_open_is_kept_and_named`,
+  which asked what the integration's
+  `a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried_file`
+  and `a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept` ask,
+  and both of those require the notice to name the file that was kept.
+  This branch's own placement-level controls stay in
+  `merge_isolation_carry_place_tests.rs`,
+  which is not an integration file:
+  the replacement one stands beside the integration's carry-level copy
+  as the only proof that the placement hands the private name out at all,
+  and the deletion one is the only placement-level control of that path;
+  both now take the merge's identifier and the `held` list,
+  and each asserts that the placement hands out the private name it kept.
+- `merge_isolation_take_asides.rs`:
+  one proof,
+  under the integration's name `may_remove_the_aside_awaiting`,
+  with both sides' reasons for it.
+- `service_server_connection_handling.rs`,
+  `service_server_connection_handling_tests.rs`:
+  the merged answer is the integration's single ownership check beside the beats,
+  held by `service_fault_hooks_test_support.rs::hold_on_any_thread`.
+  This branch's `service_server_connection_handling_directory_check_hold_test_support.rs` and the control it served
+  are removed,
+  because the integration's
+  `a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits` asks the same question
+  (a beat arrives while the read waits,
+  the refusal follows it,
+  and nothing reaches the landing).
+- `merge_isolation_carry_writes.rs` is the one file Git's own pass resolved wrongly:
+  it kept both sides' notices and this branch's `Placed::Written` arms beside the integration's `held` list,
+  so the merged step is the integration's and its notice says the path was written,
+  which is true of a replacement and of a deletion.
+
+Measured on the merged tree,
+one run of each:
+
+```text
+native:test:host (whole lib suite)
+  Summary [ 247.860s] 6454 tests run: 6431 passed (1 slow), 23 failed, 19 skipped
+native:test:host -- -E 'test(merge) | test(service_server_connection_handling) | test(finish_held_settlement_tests)'
+  Summary [  19.468s] 311 tests run: 311 passed, 6162 skipped
+native:test:binary:host -- --no-run      Finished `test` profile in 48.76s
+native:test:host -- --no-run             Finished `test` profile in 1m 45s
+native:clippy                            Finished `dev` profile in 41.99s
+```
+
+Of the 23 that failed,
+21 fail the same way on `5686c7bb29` itself,
+one was fixed here,
+and two were the load and pass on a rerun
+(`landing::service_claim_renewal::tests::stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling`,
+`repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`).
+The one fixed here is the recovery control
+`a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_branch`
+in `merge_isolation_recovery_tests.rs`:
+it asserted `git restore --staged`,
+which `3147d271df` on the integration had already changed to `git restore --no-enforce-worktree --staged`,
+so it failed there and passes here.
+
+What the integration still carries red,
+measured by running its own tree the same way
+(`6451 tests run: 6429 passed (2 slow), 22 failed, 19 skipped`),
+and none of it is reached from a file this merge resolved:
+
+- nine `invocation::entry` tests:
+  `90991fa86e` made the shipped overlay carry the never-prompt pair when the process has no controlling terminal,
+  which a nextest run never has,
+  and these fixtures'
+  expected overlay still leaves the pair out.
+- three `worktree_copying::worktree_copy_stage_claim` tests,
+  which assert a remedy ending `reset --hard` where the shipped text now reads
+  `reset --no-enforce-worktree --hard`.
+- three stage-container tests under `worktree::worktree_convert`,
+  `worktree::worktree_convert_compare` and
+  `subvolume::subvolume_sync`,
+  where a conversion of a tree that holds a stage container reports an entry missing from the installed worktree.
+- `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`,
+  because `service/service_fault_hooks_test_support.rs` holds a `Mutex` that the inventory does not list.
+- `landing::service_index_lock::tests::the_flush_of_the_marker_is_the_operating_systems`,
+  `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`,
+  and `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
+
+`mise run //package/git-policy/cli:lint:monochromatic-lint` reports 22 errors in 13 files on the merged tree and
+27 in 14 on `5686c7bb29`:
+this branch's rewrapped prose in `service_server_connection_handling_tests.rs` removed five
+`markdown/semantic-line-breaks` errors,
+and nothing this merge resolved is named.
+The rest are `markdown/semantic-line-breaks` in `README.md`,
+`SPEC.md` and files under `native/worktree/`,
+`native/testing/`,
+`native/landing/` and `native/worktree_copying/`,
+and two `rust/max-lines` errors in `native/testing/test_support.rs` and
+`native/landing/service_work_drain_pending_claims.rs`.
+
+Next action:
+fix the red tests above where each branch's owner is not already doing it,
+then rerelease;
+and measure what the carry pays for its holder scan before the next alpha,
+as this branch's section says.
+
+### The integration moved on, and one control moved with it (2026-11-10T22:59:46-05:00)
+
+`integrate/git-policy-cli-jam-fixes-after-alpha-9` then advanced from `5686c7bb29` to `b17817f15d`,
+and that tip was merged into this branch again (`ce403354a8`).
+One file conflicted,
+`merge_isolation_recovery_tests.rs`,
+because both sides had moved the same control off the remedy the wrapper used to print:
+this branch to `git restore --no-enforce-worktree --staged`
+and the integration to the whole command,
+`git restore --no-enforce-worktree --staged --worktree`,
+which is what `merge_isolation_recovery_cleanup.rs:220` emits for a worktree that switched.
+The integration's assertion contains the text this branch asserted,
+so the merged control is the integration's,
+and the merged file is byte-identical to the integration's.
+
+The four files the earlier merge resolved do not conflict again,
+and the integration changed none of them after `5686c7bb29`:
+two hold the integration's own text
+(`merge_isolation_carry_apply_tests.rs` and `service_server_connection_handling.rs`),
+and two hold that text plus this branch's own additions
+(the test module of the placement controls in `merge_isolation_carry_place.rs`,
+and the reasons both callers share in `merge_isolation_take_asides.rs`).
+The wrapper printed no hunk-resolution warning of its own;
+the commit printed `Recorded resolution for` the one file.
+
+Measured on the merged tree,
+one run of each:
+
+```text
+native:test:host -- --no-run             Finished `test` profile in 2m 21s
+native:test:binary:host -- --no-run      Finished `test` profile in 1m 26s
+native:clippy                            Finished `dev` profile in 59.85s
+native:test:host -- -E 'test(merge::) | test(service_server_connection_handling) | test(held_settlement)'
+  Summary [  87.398s] 251 tests run: 251 passed, 6290 skipped
+```
+
+Next action:
+land this branch;
+the red tests the earlier section lists are still the integration's,
+and nothing this branch resolved reaches them.
+
+The integration then moved again to `ee545033ad`,
+which contains this branch (`cc75b83b0b`),
+and `a68c816916` fixed the commit budgets after this merge.
+The whole suites on this branch's tree (`0c74222b2c`),
+one run of each:
+
+```text
+native:test:host -- --no-fail-fast
+  Summary [ 775.885s] 6522 tests run: 6503 passed (2 slow), 19 failed, 19 skipped
+native:test:binary:host -- --no-fail-fast
+  Summary [ 719.633s] 953 tests run: 944 passed (6 slow), 9 failed, 3 skipped
+```
+
+None of the 19 lib failures lives in a file this merge resolved:
+ten `invocation::entry`,
+three `worktree_copying::worktree_copy_stage_claim`,
+four stage-container tests
+(`worktree::worktree_convert` twice,
+`worktree::worktree_convert_compare`,
+`subvolume::subvolume_sync`),
+`landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`,
+and
+`service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
+The nine binary failures are six `budget` tests and three `package_repair` ones.
+The same filter on `ee545033ad`,
+`-E 'test(budget::) | test(package_repair::)'`,
+passes all six `budget` tests and still fails the three `package_repair` ones
+(`a_failing_pnpm_never_fails_the_add`,
+`real_cargo_rebuilds_own_crates_with_an_external_build_directory`,
+`a_running_repair_does_not_hold_another_add`),
+so both families are the integration's,
+and the budget family was fixed after this branch's merge.
+
+Next action:
+nothing of this merge is open;
+the red tests above are the integration's own,
+and the coordinator has landed this branch.
+
 ### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
@@ -10737,6 +11134,18 @@ filing is the owner's decision).
 The earlier statements stay in `package/git-policy/cli/README.md`,
 "Git's own fsmonitor",
 as history.
+The decision was amended 2026-11-10,
+when the owner was asked
+"Should the wrapper switch fsmonitor off for its own internal Git commands only?"
+and chose "B:
+off for internal Git (Recommended)":
+every Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+(the prefix in `package/git-policy/cli/src/native/invocation/hooks_off.rs`,
+named `StartOwner::Wrapper` there),
+so a step that reads the index no longer waits for the daemon,
+while a command the person typed keeps the person's setting (`StartOwner::Person`).
+The wording is in `package/git-policy/cli/SPEC.md`,
+"Real Git starts with traditional hooks off".
 
 ### Worktree add and package managers
 

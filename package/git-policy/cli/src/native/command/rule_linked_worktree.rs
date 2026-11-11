@@ -52,6 +52,7 @@ use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_regi
 use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
+use crate::rule_shared_remote::{SharedRemoteWrite, shared_remote_write};
 use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
     dirty_worktree_message, exemption_notice, ignored_file_message, main_worktree_message,
@@ -229,9 +230,9 @@ pub enum AuditedCommand {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type LinkedWorktreeDecision = { kind: 'pass' } | { kind: 'needs-effective-target'; command: GuardedCommand }
-///   | { kind: 'when-dirty'; command: GuardedCommand };
+///   | { kind: 'when-dirty'; command: GuardedCommand } | { kind: 'shared-remote'; write: SharedRemoteWrite };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LinkedWorktreeDecision {
     /// Not a guarded command,
     ///  a harmless form,
@@ -250,6 +251,10 @@ pub enum LinkedWorktreeDecision {
     /// The form runs whatever its worktree holds,
     /// and the caller records what it takes.
     Audited(AuditedCommand),
+    /// The form changes remote settings every worktree of the repository shares,
+    ///  which only a linked
+    ///  worktree is refused for.
+    SharedRemote(SharedRemoteWrite),
 }
 
 /// What:
@@ -415,6 +420,10 @@ fn guarded_decision(
     word: &[u8],
     region: &[OsString],
 ) -> Result<LinkedWorktreeDecision, OptionError> {
+    // The settings every worktree shares are written by two command words only, and no guarded form is about them.
+    if let Some(write) = shared_remote_write(word, region) {
+        return Ok(LinkedWorktreeDecision::SharedRemote(write));
+    }
     if word == b"stash" {
         // A region the stash parser refuses stays guarded, as every stash form was before the read-only forms.
         let subcommand: Option<StashSubcommand> = match parse_stash_region(region, &[]) {

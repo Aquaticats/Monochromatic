@@ -60,6 +60,10 @@ pub mod service_claim_watch;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The words for a start that cannot come at all,
+/// because the address cannot exist or the manager made the service listen elsewhere.
+pub mod service_messages_of_a_start_that_cannot_come;
+
 /// The commit service's serialized step.
 pub mod service_land;
 
@@ -360,6 +364,10 @@ pub mod service_work_drain_pending_claims;
 
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
+
+/// What a drained push's verdict does to its records,
+/// its retry plan and the person.
+pub mod service_work_settling_a_verdict;
 
 /// How one item whose kind answers with words is settled,
 /// with the line the person reads for it.

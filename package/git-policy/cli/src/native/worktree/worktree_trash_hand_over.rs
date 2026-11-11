@@ -98,6 +98,24 @@ pub struct Reach<'a> {
 }
 
 /// What:
+///  Set the host a route names up for the wake,
+/// when the route names one,
+/// and answer the failure the setup gave.
+/// Why:
+///   A repository whose service units were never installed needs them before its service can be reached,
+/// and the failure is what the person reads when that cannot be done;
+/// naming the step as its own function keeps the state it needs (the provisioner) a parameter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
+/// ```
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<ClientFailure> {
+    let setup: &ProvisionHost = host?;
+    return (provisioner)(setup).err();
+}
+
+/// What:
 ///  Hand this add's trash to the commit service of the repository,
 /// and answer the reason it stays when the service
 ///  could not be told about it.
@@ -171,18 +189,6 @@ pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
 }
 
 /// What:
-///  What the provisioner answered for the host this repository needs,
-/// or nothing when the repository needs no setup at all.
-/// Why:
-///   The answer is asked before the service is woken,
-/// so a setup that fails ends the handover with the reason the person can act on,
-/// and a repository whose units are already installed pays nothing for it.
-fn the_provisioners_answer(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<Result<(), ClientFailure>> {
-    let setup: &ProvisionHost = host?;
-    return Some(provisioner(setup));
-}
-
-/// What:
 ///  `hand_over_to_the_service` with the route finder and the provisioner injected,
 /// so a control reaches no
 ///  service and no session bus.
@@ -205,9 +211,9 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match the_provisioners_answer(reach.provisioner, host.as_ref()) {
-            Some(Err(failure)) => Err(render(&failure)),
-            _ => {
+        Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+            Some(failure) => Err(render(&failure)),
+            None => {
                 let config: ClientConfig = ClientConfig {
                     address,
                     activation: Activation::Managed,

@@ -204,7 +204,9 @@ fn instead_words(path: &str, holds: Holds, in_the_index: bool) -> String {
 /// a link,
 /// a deletion or a mode change is something the
 ///  person can act on.
-///  A line never says a file holds the person's bytes when the path holds nothing.
+///  A line never says a file holds the person's bytes when the path holds nothing,
+/// and it never says the person
+///  deleted a path the capture only saw empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -212,15 +214,15 @@ fn instead_words(path: &str, holds: Holds, in_the_index: bool) -> String {
 /// ```
 pub(crate) fn kept_line(reference: &str, kept: &Kept) -> String {
     let path: String = path_message_text(kept.path.as_slice());
-    let named: String = format!("monochromatic-git-policy-cli: git merge {reference}: {path}");
+    let named: String = format!("monochromatic-git-policy-cli: {reference}: {path}");
     let why: &str = kept.why;
     return match (kept.worktree, kept.merge) {
-        // The person deleted the path and the merge changes it: the deletion stands, so nothing of theirs is in the
-        //  checkout and only the merge commit holds a version of it.
+        // Nothing of the person's is at the path and the merge writes a file there: the words say what the capture saw and
+        //  never how the path came to be empty, because a file a command set aside leaves the same state.
         (Holds::Nothing, MergeHolds::Version) => format!(
-            "{named} keeps your own deletion: {why}. The merge is made with nothing at {path}, and the merge's version of {path} \
-             is in the merge commit, not in the checkout; `git restore --no-enforce-worktree --source=HEAD --staged --worktree \
-             -- {path}` puts the merge's version in the checkout and the index."
+            "{named} holds nothing of yours: {why}. The merge is made with nothing at {path}, and a deletion of yours stands; the \
+             merge's version of {path} is in the merge commit, not in the checkout, and `git restore --no-enforce-worktree \
+             --source=HEAD --staged --worktree -- {path}` puts it in the checkout and the index."
         ),
         // Both sides hold a path the merge could not merge as text: the person's side stands whole and the merge's
         //  version waits in the commit the merge made.

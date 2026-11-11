@@ -884,8 +884,10 @@ Read-only commands,
    (a mount without `user_subvol_rm_allowed`,
    for one).
      Nothing of yours is in it:
-   a worktree is only removed
-   after the wrapper proved it clean and unlocked.
+   a removal without `--force` runs only
+   after the wrapper proved the worktree clean and unlocked,
+   and a forced removal deletes whatever the worktree held,
+   which its own line says on standard error because nothing was checked first.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
@@ -1981,9 +1983,11 @@ A wrapper-only option is removed before Git sees the arguments and applies to th
 - `--no-enforce-<policy id>` skips one policy,
    for example `--no-enforce-final-newline` or
   `--no-enforce-security/forbidden-strings`.
-- `--no-enforce-worktree` skips `linked-worktree-only` for the forms listed in "Discarding commands".
+- `--no-enforce-worktree` skips `linked-worktree-only` for the forms listed in "Discarding commands"
+  and "The remote settings every worktree shares".
   Write it directly after the subcommand,
-   for example `git restore --no-enforce-worktree -- <path>`.
+   for example `git restore --no-enforce-worktree -- <path>` or
+  `git remote --no-enforce-worktree set-url origin <url>`.
 - `--no-enforce-worktree-branch` skips `branch-worktree-only`.
 - `--no-enforce-bulk-add` skips `add-explicit`.
 - `--no-worktree-copy` skips the ignored-state copy into a new linked worktree and the whole worktree ladder:
@@ -2414,6 +2418,112 @@ Commands without a table of their own (`rm`,
  `read-tree`,
  `restore` and the `--abort` commands) take the hatch directly after the subcommand.
 
+### The remote settings every worktree shares
+
+The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
+ (`doc/handover/questions-for-the-owner.md`,
+"A push URL changed from a worktree").
+Every worktree of a repository shares one `.git/config`,
+ so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
+An agent had made a worktree outside the repository folder,
+ran `git remote set-url --push origin DISABLED` in it believing it was a separate clone,
+and every push of `main` failed from then on with
+`fatal: 'DISABLED' does not appear to be a git repository` until someone removed that entry,
+with nothing recording which command had made it.
+
+In a linked worktree,
+ the one whose Git directory is not the common one,
+ wherever it sits on disk,
+ `linked-worktree-only` rejects:
+
+- `git remote set-url`,
+  `git remote add`,
+  `git remote remove`/`rm`,
+  `git remote rename`,
+  `git remote set-branches` and `git remote set-head`.
+  `-v`/`--verbose` and its abbreviations are the only options `git remote` reads before a subcommand,
+  so `git remote --verbose add beta <url>` is the same rejection as the plain form,
+  and the subcommand's own options belong to the subcommand.
+- a `git config` write whose key or section falls under `remote.`,
+  in the plain `name value` form and with `--add`,
+  `--unset`,
+  `--unset-all`,
+  `--replace-all`,
+  `--rename-section`,
+  `--remove-section`,
+  `set`,
+  `unset`,
+  `rename-section` and `remove-section`.
+  A rename into the `remote` section creates remote settings just as renaming out of it removes them.
+  Section names are compared the way Git compares them,
+  without case,
+  so `git config Remote.Origin.URL <url>` writes the same section as `remote.origin.url`.
+  An option after the key is a value Git stores,
+  so `git config remote.origin.url --worktree` stores the text `--worktree`,
+  and the scope is read where Git reads it.
+
+No read is rejected:
+`git remote -v`,
+`git remote get-url`,
+`git remote show`,
+`git config --get`,
+`git config get`,
+`git config list`,
+`git config --get-regexp`.
+No write to another file is rejected either:
+`--global`,
+`--system`,
+`--worktree`,
+`--file`,
+`--blob` and `git config --edit`.
+`git -c remote.origin.url=<value>` is one command's override and changes no file,
+so it runs.
+The main checkout keeps today's behavior,
+and so do a bare repository and a repository under an allowlisted tool directory.
+
+The rejection says that every worktree of the repository shares the setting,
+names the shared file and the main checkout,
+and offers both ways forward:
+
+- change the setting on purpose in the main checkout,
+  which owns that file;
+- make a real clone for a copy whose remote settings are its own:
+  `git clone --no-hardlinks <path> <destination>`.
+
+A rejection changes nothing,
+and Git never runs.
+The deliberate way through is the hatch every other rejection of this policy takes,
+`--no-enforce-worktree`,
+written directly after `remote` for a remote subcommand
+ (the only place a command without a table of its own reads it)
+ or in option position of `git config`:
+
+```text
+git remote --no-enforce-worktree set-url origin <url>
+git config --no-enforce-worktree remote.origin.url <value>
+```
+
+A hatch run is not silent about the change it makes:
+the decision leaves one `hatch` line in `monochromatic-git-policy-cli-audit.jsonl`,
+with `form` `SharedRemote` and the working directory and arguments every audit line carries,
+so a later reader can attribute the change to the command that made it.
+A rejection leaves no audit line,
+because nothing was written and the JSONL finding on standard error is the record.
+A linked worktree is also one whose remote settings a shell alias would change:
+the guard reads the `git` command a `!` alias runs,
+and `git -c 'alias.su=!git remote set-url' su origin <url>` is refused like `git remote set-url`.
+
+`src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
+ outside the repository folder,
+every allowed form,
+the hatch and the main checkout through the built executable,
+and compares the shared configuration byte for byte after each rejection.
+The decision is `src/native/command/rule_shared_remote.rs`,
+the options `git remote` reads before a subcommand are `src/native/command/command_remote.rs`,
+and the `git config` form,
+file scope and write are `src/native/command/command_config.rs`.
+The rejection text is `src/native/command/rule_shared_remote_messages.rs`.
+
 ### Merging
 
 The owner's rules (2026-11-03):
@@ -2564,6 +2674,37 @@ Now the merge runs and the person's work is carried across it:
   and carries them when it did.
   A layer the person saved again while the merge ran stays as they left it,
   and is named.
+- What Git's own update left at each path is written beside the merge's record
+  (`<transaction id>.landed`) once the checkout moved and before the carry,
+  so the command that finishes a killed merge judges each path against the file Git left
+  rather than against its bytes alone.
+  A save that arrives after the kill and holds the merge's own bytes therefore stands,
+  and is named,
+  where reading by bytes alone would take it for the merge's own file
+  and write the person's older layer over it.
+- A file the merge set aside and could not put back is a copy beside its path,
+  named `.cli-git-recovery-<key>-<process>-<count>-<moment>`,
+  and it is never dropped while its bytes are the person's alone.
+  A copy whose path is empty and whose merge is unfinished goes back into the checkout.
+  A copy whose bytes the person's file holds again,
+  or the branch's own commit holds for that path,
+  is removed,
+  and the line says which of the two it was.
+  Any other copy stays where it is,
+  and its line names the copy,
+  `mv -- <copy> <path>` to put it back,
+  `rm -- <copy>` to drop it,
+  and the end a later command performs by itself once `<path>` holds its bytes again.
+  Every copy a merge keeps is recorded under
+  `.git/monochromatic-git-policy-cli-kept-copies/`,
+  so every later command that runs the merge recovery decides it again,
+  even when no merge touches its path.
+  A copy an earlier release of this program left carries no merge key in its name,
+  so its bytes decide it:
+  a copy of the branch's own file,
+  or of the person's own captured file,
+  goes back while a merge is unfinished,
+  and anything else is kept and named rather than put back on a guess.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
@@ -3042,6 +3183,22 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
+  Two causes end the commit at once instead of after that wait,
+  because the command knows them before it waits,
+  and each message names the setting that has to change and every way to change it:
+  a runtime directory that leaves no room for the service's address
+  (that address takes at most 107 bytes,
+  so `XDG_RUNTIME_DIR` may take 40),
+  and a service the account's manager started at another address than the one this command waits at,
+  which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
+  (a unit,
+  a container or a script with one of its own):
+  run the commit from your login session,
+  or set `XDG_RUNTIME_DIR` to the manager's.
+  An account without user services is still told `loginctl enable-linger`,
+  which is also what a session bus with no user manager behind it says.
+  The commit service remains the only writer of a commit,
+  so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
   heartbeats or not):
   the client withdraws the request,
@@ -3509,6 +3666,15 @@ and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`,
 and a restart of the service when no program uses the repository).
+A commit whose own batch is inside a write is told sooner,
+because its commit may be on the branch already:
+the service sends one line,
+`this commit is inside a write of the commit service`,
+as soon as the write starts
+(the owner chose this on 2026-11-04,
+"Short extra wait").
+That line is a normal part of a landing that outlasts a beat and not a failure:
+the command goes on waiting and then says whether the commit was made.
 The commit inside the stuck write waits 7 seconds
 past its `ANSWER_CEILING` and then reports that it is not known whether it was made,
 with `git log -1`,
@@ -4345,6 +4511,18 @@ which the next command drops as already landed,
 or one whose branch moved,
 which it settles as it would settle any such record.
 The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
+What Git's own update left at each path of a merge that carries work travels beside the record as
+`<transaction id>.landed`,
+so a command that finishes a killed merge reads the same entries the command that moved the checkout read;
+it goes with the record and is never read by a command the record is gone from.
+A file a merge kept beside a path is recorded in `monochromatic-git-policy-cli-kept-copies` in the worktree's Git directory,
+one small file per copy naming the copy and the path it belongs to.
+It is not a record a command refuses anything for:
+a copy whose bytes the person's file holds again,
+or the branch's commit holds them,
+is removed and the line says which,
+a copy an unfinished merge names goes back,
+and any other copy is named again on every command that runs the recovery until one of those holds.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
@@ -4360,6 +4538,16 @@ a directory the wrapper cannot prove that way stays,
 is named on every command with the reason,
 and is yours to look at and remove by hand,
 and only when no `git` command is running in that repository.
+A copy also writes the registration it was made for inside that directory before its first file,
+so the next command can tell a stage its own copy left,
+which it removes and fills again,
+from a directory another program put at that name,
+which it names and never removes.
+A directory holding nothing but that record,
+or the part of it a kill inside its write left,
+is a stage of that copy too,
+because no ignored file of the source is there yet.
+Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
 
 Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
 It is filled in a file the filesystem has given no name,
@@ -4369,20 +4557,32 @@ so a credential is never readable at a wider mode than its source,
 not even while the copy runs,
 and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
 
-A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
+A worktree whose ignored-state copy ended before it finished is filled by the next command in the repository,
+from the source its add recorded,
+and only a copy that truly cannot be made leaves the worktree named,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
-No command fills an existing worktree,
+Nothing the worktree gained since the add is ever replaced:
+an entry whose bytes differ from the source's is left alone and named,
+and the same line comes again from every later command.
+No command a person runs fills an existing worktree,
 and none is planned:
 the owner answered a request for one (2026-11-10)
 with "No,
 remove and add again",
-so removing the worktree and adding it again stays the remedy.
+so removing the worktree and adding it again stays the remedy a person can take.
 The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
 The copy writes its own record before its first entry and removes it when it completes,
 so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
-named instead of forgetting what is missing there.
+named instead of forgetting what is missing there,
+with what ended it in that record,
+so the later lines say which entry differs,
+not only that files are missing.
+An add records the worktree its ignored state comes from and which of that worktree's ignored paths it takes,
+so a command killed after the checkout and before the copy's own records leaves enough for the next command to make
+that copy itself;
+a record written by an earlier release names no source and its worktree is named rather than filled.
 The line goes when the worktree is removed or is replaced by another one at the same path.
 
 A worktree this program made has one record of its own beside its registration in the common Git directory,
@@ -4885,8 +5085,22 @@ The measurements and the cause are in `doc/troubleshooting/git-fsmonitor-daemon-
 
 What the wrapper does now:
 
-- It still never passes `-c core.fsmonitor=...` to any Git child,
-  never writes `core.fsmonitor` in any repository,
+- The Git it starts for its own work passes `-c core.fsmonitor=false`:
+  the commit's index builds and trees,
+  `read-tree`,
+  `diff-tree`,
+  `reset`,
+  the scratch commit,
+  the landing and service steps,
+  and its queries.
+  A Git that reads the index asks the file-watching daemon first and waits for it,
+  so a step that found no daemon
+  took 60 s twice in one commit.
+  The option is part of the prefix every real-Git start already carries,
+  so it adds no process and no start.
+- A command the person typed is forwarded with their configuration untouched,
+  so the person's `core.fsmonitor` stays for what they run themselves.
+- It never writes `core.fsmonitor` in any repository,
   and never starts,
   stops or kills `git fsmonitor--daemon`.
   The setting is the person's configuration,
@@ -4913,6 +5127,16 @@ What the wrapper does now:
   Doctor reads one more configuration listing with `--show-origin` for this,
   because the snapshot the commit path
   reads names scopes but not files.
+
+The wrapper's own Git is the exception,
+because the owner chose it on 2026-11-10:
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)".
+So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
+and never a command the person typed
+(`doc/handover/questions-for-the-owner.md`,
+"The wrapper's own Git and fsmonitor").
 
 The owner's earlier words,
 kept as history;

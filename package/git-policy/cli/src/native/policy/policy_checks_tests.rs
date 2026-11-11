@@ -33,10 +33,14 @@ use crate::rule_linked_worktree::{
     GuardedCommand, dirty_worktree_message, exemption_notice, main_worktree_message, outside_worktree_message,
     repository_stash_message,
 };
+/// Whether a command writes the remote settings every worktree shares,
+///  and the text its refusal prints.
+use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
+use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The shipped checks over a command,
 ///  the given facts and no candidates.
@@ -943,6 +947,72 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
                 .count(),
             1,
             "{values:?}: {nothing_questions:?}"
+        );
+    }
+}
+
+/// linked-worktree-only:
+///  a command that changes the remote settings every worktree shares is refused in a linked
+///  worktree,
+///  names the main checkout and the file the worktrees share,
+///  and runs as before everywhere else.
+#[test]
+fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree() {
+    // The scripted repository's linked worktree is `/w` of the main checkout `/r`, whose shared file is `/r/.git/config`.
+    let shared_file: &Path = Path::new("/r/.git/config");
+    let main_checkout: &Path = Path::new("/r");
+    for (values, written) in [
+        (
+            vec!["remote", "set-url", "origin", "https://example.invalid/two.git"],
+            SharedRemoteWrite::RemoteSubcommand("set-url"),
+        ),
+        (
+            vec!["config", "--add", "remote.origin.pushurl", "DISABLED"],
+            SharedRemoteWrite::Key(String::from("remote.origin.pushurl")),
+        ),
+        (
+            vec!["config", "remove-section", "remote.origin"],
+            SharedRemoteWrite::Section(String::from("remote.origin")),
+        ),
+    ] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                values.as_slice(),
+                located(linked_worktree("/r", "/w"))
+            ),
+            (
+                one(
+                    SHARED_REMOTE_SETTINGS_CODE,
+                    &shared_remote_settings_message(&written, shared_file, main_checkout)
+                ),
+                asked(&["location", "main-worktree"])
+            ),
+            "{values:?}"
+        );
+    }
+    // The main checkout owns the file, and a place outside a worktree shares it with nothing.
+    for location in [main_worktree("/r", ""), outside_worktree()] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                &["remote", "set-url", "origin", "https://example.invalid/two.git"],
+                located(location)
+            ),
+            (clean(), location_only())
+        );
+    }
+    // A read and a per-worktree write are not the shared settings, so not even the location is asked.
+    for values in [
+        vec!["remote", "-v"],
+        vec!["remote", "get-url", "origin"],
+        vec!["config", "--get", "remote.origin.url"],
+        vec!["config", "--worktree", "remote.origin.url", "own"],
+    ] {
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unlocatable()),
+            (clean(), Vec::<String>::new()),
+            "{values:?}"
         );
     }
 }

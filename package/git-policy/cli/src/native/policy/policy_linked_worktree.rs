@@ -64,22 +64,83 @@ use crate::rule_linked_worktree::{
     dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
     repository_stash_message, resolve_linked_worktree, target_tree,
 };
+/// Whether a `git remote` or `git config` command writes the settings every worktree shares.
+use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
+/// The text that refusal prints.
+use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
-/// The Git directory of an identity,
-/// for naming the exempted directory.
-use crate::worktree_identity::git_directory;
+/// The Git directories of an identity,
+///  for naming the exempted directory and the file every worktree shares.
+use crate::worktree_identity::{common_directory, git_directory};
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-use std::path::Path;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
+use std::path::{Path, PathBuf};
 
 /// The clock reading the conflict copies are named with,
 /// in milliseconds since the Unix epoch.
 fn now_milliseconds() -> i64 {
     let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+}
+
+/// What:
+///  The refusal of a command that would change the remote settings every worktree of the
+///  repository shares,
+///  when the command runs in a linked worktree.
+///  `&SharedRemoteWrite` borrows the setting the guard decided about.
+/// Why:
+///   One `.git/config` is shared by the main checkout and every linked worktree,
+///  so a write from a
+///       linked worktree reaches the main checkout and every other worktree;
+///  the refusal names that file and
+///       the main checkout,
+///  and changes nothing.
+///  A main checkout,
+///  a place outside a worktree and an
+///       exempt tool cache keep today's behaviour,
+///  and every other command is left to the policies below.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseSharedRemoteSettings(facts, write, allowedDirs): PolicyOutcome;
+/// ```
+fn refuse_shared_remote_settings(
+    facts: &mut dyn RepositoryFacts,
+    write: &SharedRemoteWrite,
+    allowed_worktree_dirs: &[ToolCacheDirectory],
+) -> PolicyOutcome {
+    let location: RepositoryLocation = match facts.location() {
+        Ok(found) => found,
+        Err(message) => return fact_unavailable(message),
+    };
+    let target: EffectiveTarget =
+        classify_effective_target(&location.identity, allowed_worktree_dirs);
+    // Only a linked worktree shares its configuration with another checkout.
+    if target != EffectiveTarget::LinkedWorktree {
+        return clean();
+    }
+    let main_checkout: PathBuf = match facts.main_worktree_root() {
+        Ok(found) => found,
+        Err(message) => return fact_unavailable(message),
+    };
+    // The configuration file Git writes for the repository: `$GIT_COMMON_DIR/config`.
+    let shared_file: PathBuf = match common_directory(&location.identity) {
+        Some(directory) => directory.join("config"),
+        None => {
+            return fact_unavailable(String::from(
+                "monochromatic-git-policy-cli could not name the configuration file this repository's worktrees \
+                 share, so the command was not judged.",
+            ));
+        }
+    };
+    return rejected(
+        SHARED_REMOTE_SETTINGS_CODE,
+        shared_remote_settings_message(write, shared_file.as_path(), main_checkout.as_path()),
+    );
 }
 
 /// What:
@@ -147,19 +208,26 @@ pub(crate) fn check_linked_worktree(
 ) -> PolicyOutcome {
     // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
     let seen: &[OsString] = forwarded.arguments.as_slice();
+    // The settings every worktree shares are decided first: no guarded form below is about them,
+    // and the guard read them from the command Git will run, a shell alias included.
+    if let LinkedWorktreeDecision::SharedRemote(write) = &forwarded.decision {
+        return refuse_shared_remote_settings(facts, write, allowed_worktree_dirs);
+    }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
-    let (command, moves_head_only): (GuardedCommand, bool) = match forwarded.decision {
+    let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return clean(),
         // The two audited forms run as Git runs them and leave one line saying what they took; nothing is refused.
         LinkedWorktreeDecision::Audited(audited) => {
             // Outside a repository there is no audit file to write, and nothing to name.
             if let Ok(location) = facts.location() {
-                record_audited(facts, seen, audited, &location);
+                record_audited(facts, seen, *audited, &location);
             }
             return clean();
         }
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) => (command, false),
-        LinkedWorktreeDecision::WhenDirty(command) => (command, true),
+        LinkedWorktreeDecision::NeedsEffectiveTarget(command) => (*command, false),
+        LinkedWorktreeDecision::WhenDirty(command) => (*command, true),
+        // Refused above, before any guarded form was measured.
+        LinkedWorktreeDecision::SharedRemote(_) => return clean(),
     };
     let location: RepositoryLocation = match facts.location() {
         Ok(found) => found,

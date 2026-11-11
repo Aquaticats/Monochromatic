@@ -45,8 +45,14 @@ pub const THEIR_LABEL: &str = "the merge";
 /// The reason a path is named when the merge deletes it and the person changed it.
 pub const MODIFY_DELETE: &str = "the merge deletes it";
 
-/// The reason a path is named when the person deleted it and the merge changed it.
-pub const DELETE_MODIFY: &str = "you deleted it, and the merge changes it";
+/// The reason a path is named when nothing stood at it for the person and the merge changed it.
+///  The capture is what says that,
+/// so the words claim nothing about how the path came to be empty:
+/// a file a
+///  command set aside before the capture leaves the same state,
+/// and the line about that copy names it
+///  (`merge_isolation_kept_copies.rs`).
+pub const DELETE_MODIFY: &str = "nothing stood there when the merge captured it, and the merge changes it";
 
 /// The reason a path is named when both sides hold a kind of entry the text merge cannot take.
 pub const NOT_TEXT: &str = "its changes cannot be merged as text";

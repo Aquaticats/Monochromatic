@@ -21,6 +21,8 @@
 
 use crate::merge_isolation_carry_place::{JudgedFile, Placed, is_still_the_judged_entry, place_file_awaiting};
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
+use crate::merge_isolation_kept_copies::keep_the_copy;
+use crate::merge_isolation_changes::worktree_path;
 use crate::transaction_git::{GitContext, GitOutput};
 use crate::transaction_phase::Phase;
 use std::ffi::OsString;
@@ -276,7 +278,8 @@ fn failure_detail(failure: &CarryFailure) -> String {
 ///  A clear checks every worktree path before its index records go,
 /// and every batch takes each path aside under a private name
 ///  before its own bytes are replaced,
-/// so a file saved in either window is kept.
+/// so a file saved in either window is kept,
+///  and the private name of a file a program can still write into is kept and said.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -329,7 +332,10 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             wrote_a_file = true;
         }
         let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
+        let location: PathBuf = worktree_path(root, step.path.as_slice());
         // The private names this one path's write may not remove, because a program could still write into them.
+        //  A deletion keeps such a name too, which is why the notice below says the write happened and not that a file was
+        //  replaced.
         let mut held: Vec<PathBuf> = Vec::new();
         let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut held).await {
             Ok(found) => found,
@@ -346,10 +352,16 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             }
         };
         for aside in &held {
+            // The copy is recorded, so a later command ends it even when no merge touches this path again.
+            keep_the_copy(git_dir, location.as_path(), aside.as_path());
             let _ = out.write_all(
                 format!(
-                    "monochromatic-git-policy-cli: {path} was replaced while a program could still write the file it held before, so \
-                     that file is kept at {}; nothing of the person's was removed.\n",
+                    "monochromatic-git-policy-cli: {path} was written, and the file it held before this merge took it can still be written \
+                     by a program that opened it, so it is kept at {}; nothing of the person's was removed. `mv -- {} {path}` puts the copy back over what is \
+                     there, `rm -- {}` drops the copy, and a later command removes the copy by itself once {path} holds its bytes \
+                     again.\n",
+                    aside.display(),
+                    aside.display(),
                     aside.display()
                 )
                 .as_bytes(),
@@ -359,10 +371,15 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
             Placed::Written | Placed::Nothing => {}
             Placed::Changed { kept } => {
                 if let Some(waits) = kept {
+                    // The copy holds bytes the merge never had, so it is recorded and named, and a later command ends it.
+                    keep_the_copy(git_dir, location.as_path(), waits.as_path());
                     let _ = out.write_all(
                         format!(
                             "monochromatic-git-policy-cli: {path} was written again while this merge ran, and the file it held before that is \
-                             kept at {}; nothing was removed.\n",
+                             kept at {}; nothing was removed. `mv -- {} {path}` puts the copy back over what is there, `rm -- {}` drops \
+                             the copy, and a later command removes the copy by itself once {path} holds its bytes again.\n",
+                            waits.display(),
+                            waits.display(),
                             waits.display()
                         )
                         .as_bytes(),
