@@ -776,6 +776,15 @@ pub fn finish_owed_worktree_copies(
         let Some(add) = owed_add_of(claim.as_path(), container.as_path()) else {
             continue;
         };
+        // A destination that holds the object the add's own snapshot became received the ignored state with it: nothing is
+        // owed, nothing is missing, and the records settle here instead of naming a worktree to finish or of starting a
+        // copy it does not need (the kill point right after the exchange).
+        if crate::worktree_copy_stage_made_object::the_made_object_stands_at(add.claim.as_path(), add.destination.as_path()) {
+            if let Some(settled) = StageClaim::adopted(add.claim.as_path(), add.container.as_path(), Some(add.record.as_path())) {
+                settled.settle_unsynced()?;
+            }
+            continue;
+        }
         // The copy fills one worktree, and the command that runs in it is the one that waits: a command in another
         // worktree does not pay for the source's ignored state, and is told which worktree does.
         if !crate::worktree_copy_recovery::finishes_destination(destinations, add.destination.as_path()) {

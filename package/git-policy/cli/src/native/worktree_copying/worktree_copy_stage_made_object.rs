@@ -256,6 +256,30 @@ pub fn remove_made(claim: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
+///  Whether the object the record beside `claim` names as the one the stage's creation made stands at `path`.
+/// Why:
+///   A snapshot rung swaps its finished stage with the destination,
+/// so the object the record of the stage's creation made is the worktree
+///  afterwards,
+/// and that object is the proof that the new worktree received the source's ignored state with the snapshot:
+/// nothing is
+///  missing there and no copy is owed.
+/// The stage name itself is never an answer,
+/// because a name and its object are one question here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placed = readMade(claim)?.object === identityOf(path) && made.container !== path;
+/// ```
+pub fn the_made_object_stands_at(claim: &Path, path: &Path) -> bool {
+    let Some(made) = read_made(claim) else { return false };
+    if made.container.as_path() == path {
+        return false;
+    }
+    return is_the_recorded_object(path, &made);
+}
+
+/// What:
 ///  Whether the object at the container's name is the one the record names,
 /// a link at either name not followed.
 /// Why:

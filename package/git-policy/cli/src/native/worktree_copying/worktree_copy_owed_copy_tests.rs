@@ -369,3 +369,26 @@ fn a_record_that_names_a_copy_is_kept_by_a_command_in_another_worktree() {
     assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the records go with the copy: {said}");
     remove(root.as_path());
 }
+
+/// A destination that holds the object the add's own snapshot became owes no copy:
+/// the snapshot carries the source's ignored state, so nothing is staged, nothing is said to be missing, and the add's
+/// records settle.
+///
+/// This is the kill point right after the exchange that publishes an add: the record still names the copy the add owed,
+/// so every command of the repository used to finish a copy nobody needed, and to say the worktree was missing files it
+/// already held (measured on the audit's fixture of 2026-11-11).
+#[test]
+fn a_destination_that_holds_the_adds_snapshot_owes_no_copy() {
+    let (root, repo, destination) = interrupted_add("owed-copy-snapshot-placed");
+    let common: PathBuf = repo.join(".git");
+    let claim_path: PathBuf = claim_path_of(crate::worktree_copy_journal::journal_root(common.as_path()).as_path());
+    let (container, _owner): (PathBuf, Option<String>) = read_claim(claim_path.as_path()).expect("a claim that reads").expect("one claim");
+    let placed = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), placed).expect("the record of the snapshot");
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert!(!destination.join("cache/data").exists(), "nothing is copied into a worktree whose snapshot already holds the ignored files: {said}");
+    assert!(!said.contains("finishing the ignored-state copy"), "and no copy is started: {said}");
+    assert!(!said.contains("still owed"), "nothing is said to be owed: {said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the add's records settle, because the snapshot is whole: {said}");
+    remove(root.as_path());
+}

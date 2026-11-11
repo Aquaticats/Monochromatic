@@ -508,7 +508,7 @@ pub fn reap_judged_stages(
             // there makes the copy, and the pending check has already named the worktree. Nothing here settles it, so the
             // obligation outlives this command. The stage above is a partial copy nothing may resume, so its removal stays
             // open to every command: a worktree that is gone has no command left to clean up its own stage.
-            if copy_owed_to_another_worktree(common_dir, record.as_path(), destinations) {
+            if copy_owed_to_another_worktree(common_dir, claim.as_path(), record.as_path(), destinations) {
                 continue;
             }
             let settled: Settlement = settle_interrupted_add(record.as_path());
@@ -563,6 +563,7 @@ pub fn reap_judged_stages(
 /// ```
 fn copy_owed_to_another_worktree(
     common_dir: &Path,
+    claim: &Path,
     record: &Path,
     destinations: &RecoveryDestinations<'_>,
 ) -> bool {
@@ -579,6 +580,11 @@ fn copy_owed_to_another_worktree(
     }
     // A record written before the add named its source and selection owes no copy, so nothing may be filled from it.
     if crate::worktree_add_binding::owed_copy_of(text.as_str()).is_none() {
+        return false;
+    }
+    // A destination holding the object the add's own snapshot became received the ignored state with it, so no copy is
+    // owed anywhere: the records settle here, and no command says the worktree is missing files it holds.
+    if crate::worktree_copy_stage_made_object::the_made_object_stands_at(claim, destination.as_path()) {
         return false;
     }
     // The copy has a future only where the registration and the checkout are whole under this repository.

@@ -2671,6 +2671,16 @@ and only the copy's own private claim chose its name;
 a container holding anything else is reported and kept.
 The claim goes with the stage it names,
 and with the records of the add once the destination settles.
+A stage name can hold the directory Git made and not a staged copy at all:
+the snapshot rung swaps its finished stage with the destination,
+and a command killed between that exchange and the removal of the displaced directory
+(`settle_displaced`) leaves it there.
+That directory is recognised by the rule `settle_displaced` applies,
+the identity the add's record holds for the directory Git made,
+and removed only while it holds nothing but the pointer Git wrote there,
+whose bytes the record holds as well;
+any other entry keeps the whole directory and is named,
+because removing it recursively would delete that entry.
 When the worktree's administrative directory holds `index.lock`
 (the shape a kill inside the index install leaves),
 the command run in that worktree finishes the checkout itself
@@ -2717,6 +2727,10 @@ and only its absence says the add left nothing to finish.
 A refusal read as absence
  deleted the record and the claim of a worktree that is still registered,
 and no later command named it.
+A worktree whose destination holds the object the record of the stage's creation made is not named at all:
+its snapshot is in place,
+so the ignored state the record still names as owed is already there,
+and the record settles without a word rather than sending a person to rebuild a worktree that is whole.
 The cost:
 an interrupted or failed add keeps naming the same worktree and stage in every command that
 runs the recovery,
@@ -3413,6 +3427,11 @@ whose destination is still a registration of this repository with a whole checko
 and whose stage no pending journal names,
 is filled from that source by the same staging,
 journaling and installation a creating command makes.
+A destination that holds the object the record of the stage's creation made holds the add's own snapshot,
+which carries the source's ignored state with the files:
+nothing is owed there and nothing is missing,
+so the claim and its records settle with no notice,
+and no command stages the source again.
 That copy is the worktree's own work:
 only a command run in that worktree makes it,
 and it says so before the first entry is read,
@@ -13759,6 +13778,47 @@ A power loss within one periodic commit of an add can therefore undo that add;
 the next invocation finds no marker and prints a
 notice,
 and running the add again recreates it.
+
+The add's three other records follow the same rule,
+by the coordinator's decision of 2026-11-10 and its measurement here on 2026-11-11:
+the stage claim,
+the add's destination record and the binding written into that record are published whole by one rename each and
+flushed by nobody
+(`write_atomic_unsynced`,
+`worktree_copy_stage_claim.rs`).
+They were the first waits of every add:
+five concurrent adds of 24 packages took 29,487 to 35,574 ms with 9,282 to 13,903 ms in the destination record alone,
+and one `fsync` of the claim's temporary file took 11,239 ms,
+because a flush there is a commit of the whole filesystem and waited behind every other writer.
+A kill keeps all three in the page cache,
+so a kill loses nothing of them.
+A power loss can take them back,
+and what it takes is the report of an interrupted add,
+the name of a stage nothing else removes,
+and the identities recovery would need to remove objects it otherwise keeps and reports:
+nothing of the person's,
+which is the direction the rule above calls safe.
+The directory of the journal root is flushed by the sweep that changed it and never by one that only looked:
+an add that found other adds' live claims removed nothing and paid 4,600 to 13,900 ms of its `recover` step for the
+flush before this rule.
+
+An add that is still running after `ADD_STANDING_NOTICE_AFTER` (five seconds) says which step it is in,
+and again at `ADD_STANDING_NOTICE_REPEAT` (fifteen seconds) while it stays in one step,
+on a thread of its own that ends with the add
+(`src/native/worktree/add_standing_notice.rs`).
+The owner,
+2026-11-03:
+"60s is fine for adding worktrees",
+with "an add that is still waiting after a few seconds says what it waits for",
+and the waits it names are the timing record's own steps,
+each said as the work it is.
+The line goes to the standard error,
+is advisory only,
+and nothing waits for it:
+a stream nobody drains holds that one thread and never the add.
+`CLI_GIT_ADD_NOTICE_SECONDS` moves the wait,
+and a setting that is missing,
+is not a number or is zero leaves the shipped one.
 
 A slow commit is split by phase from logs that exist without verbose mode.
 Neither log reaches the person's terminal,
