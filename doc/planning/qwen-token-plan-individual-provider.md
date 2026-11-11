@@ -578,13 +578,6 @@ media ids absent.
   (384,000 catalog versus 393,216 documented)
   resolves to the catalog row;
   it truncates 2.4% of the documented output room at worst.
-- The sibling `package/dsh-plugin/neuralwatt` mount refresh carries the
-  identical fire-and-forget write shape
-  (`void refreshNeuralWattRoute(...)` from `apply`),
-  so a manager re-trigger there hits the same nested reload-transaction
-  refusal this package fixed under "Live DSH mount writes".
-  Out of this build's scope (the request named `qwen-token-plan-individual`);
-  its fix is the same deferral seam.
 
 ## Measured gates
 
@@ -652,11 +645,14 @@ the pi override probe,
 the live smoke with its dispatch check,
 the never-persist guard,
 and the offline gate with its positive control.
-Open follow-ups,
-none blocking this build:
-the sibling neuralwatt plugin's identical deferral defect
-(under "Accepted risks and limits"),
-and the fact-table drift
-`refresh-snapshot` prints
+The sibling `package/dsh-plugin/neuralwatt` plugin
+carried the identical nested reload-transaction defect
+and is fixed the same way
+(its own record under "Reload-transaction deferral fix" in
+[`doc/planning/neuralwatt-pi-plugin.md`](neuralwatt-pi-plugin.md),
+commit `f0d569b5cd`).
+Open follow-up,
+not blocking this build:
+the fact-table drift `refresh-snapshot` prints
 as the endpoint adds models
 (under "Accepted risks and limits").
