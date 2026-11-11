@@ -162,6 +162,18 @@ Agent capacity that night was set by Neuralwatt, not by the session's slot numbe
 7 flex requests per model,
 and Pi ends a run on either 429;
 `.agents/skills/pi-as-subagent/SKILL.md` records the numbers and three launcher defects fixed then.
+
+By 2026-11-10T23:50-05:00 passes 3 and 4 had merged the integration tip to `ee545033ad`
+(Clippy clean; two more test-initializer fixes where branches met, `171edd1c00` and `b17817f15d`).
+The suites at `b17817f15d` failed 33 tests,
+28 of them the area agents' and 5 new (`package_repair` twice, `catalog_specifiers`,
+`service_connections_tasks`, `worktree_clean`), sent to `integration-failures-after-pass-3`.
+The commit-budget agent found a real regression behind six budget failures:
+`77e8348a84` made every commit flush its push-verdict record and directory (2 fsyncs per commit),
+fixed by `44bd759bc5` (the verdict is published by one rename without a flush, with its reasoning in
+`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+Nine branches, mostly the area fixes and round-139 follow-ups cut from `5686c7bb29`,
+went back to their agents to merge the new tip (round 150).
 Next:
 merge the resolved branches,
 gate,
