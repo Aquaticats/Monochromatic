@@ -925,12 +925,21 @@ What the four runs of the same fixture measured,
   and both worktrees went;
   the two inline removals cost about 7 s each on this host's disk.
 - this branch,
-  25 s stand-in:
-  the merge ended in 1 617 ms in one run and 11 343 ms in another,
-  with no wait notice at all;
+  25 s stand-in,
+  with the removal forced onto Git's own path:
+  the worktree's file is written again,
+  so the wrapper's cleanliness proof leaves it to Git,
+  the merge ended in 552 ms,
+  the notice about the hand-over named the record,
   the fresh review worktree stayed,
-  the finished one was removed 29 921 ms and 38 404 ms after the merge started,
+  the finished one was removed 38 606 ms after the merge started,
   and its record settled in `work/done`.
+- this branch,
+  the same stand-in,
+  with the removal taken by the btrfs destroy instead:
+  the merge ended in 1 405 ms,
+  the fresh review worktree stayed,
+  and the finished one was gone with the merge.
 - this branch,
   no slowness in the stand-in:
   the merge ended in 8 960 ms and the finished worktree was removed 15 ms later,
