@@ -401,8 +401,10 @@ Read-only commands,
   everything it started is ended,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
-  a program whose connection to the server is open is waited for,
-  as a push is.
+  a program whose connection to the server is open is waited for while it works,
+  and one that keeps it open with nothing moving for the connected window (150 seconds)
+   is stopped,
+  with `git lfs push --all <remote>` named as its way forward.
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -413,6 +415,11 @@ Read-only commands,
   and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
    login").
   A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
+  That refusal says which prompting the wrapper left:
+  a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
+   that would have refused the login,
+  and only a push without one is told the never-prompt pair was added,
+  so no person is sent to fix a missing terminal that was there.
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -539,10 +546,20 @@ Read-only commands,
    naming the branch,
   the commit and the words of its verdict,
    and the line goes once the commit is off the branch's way out or Git already holds it in the branch's remote.
+  The refusal is read from the held record as well when its own verdict record could not be written,
+   because the verdict goes into that record first,
+   so a commit your gate refused still stops the push.
   A person's own `git push` is unchanged and still sends the branch whole,
    and a commit whose command died before its check ran holds nothing back:
   it has no verdict,
    so the next push of the branch carries it.
+   A commit whose check is still running holds the push back the same way a refusal does,
+  because that check may refuse it:
+  the push stops before it,
+   the line says it waits for those checks,
+  and the push resumes by itself when they answer.
+   A command a program reads its output from settles the held records and prints no line,
+  so an approved push never waits for a command only a person would type.
   A failed push never fails the commit,
    and no configuration key turns the push off.
   Automatic maintenance,
@@ -1955,6 +1972,13 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
+  The clean runs in a worktree you may already be working in,
+   and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
+   so the bytes standing there when the clean ends are kept whole under the worktree's Git directory,
+   in `monochromatic-git-policy-cli-displaced-locks`,
+   under a directory named by the lock's path in hexadecimal,
+   and the success line names each copy.
+  A lock whose bytes cannot be kept there is left as the clean found it and the worktree shows the difference.
   Registry and git dependencies stay reused;
   the worktree's own crates rebuild with their own paths.
   A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
@@ -1988,7 +2012,9 @@ its offline data is incomplete,
 a lock does not match or the run exceeds its limit,
  the add still succeeds and prints one line that names the reason and the command to run,
  such as `pnpm --dir <worktree> install --offline --frozen-lockfile`.
-Another process changing files while a worktree is copied or repaired is your risk and is not defended against.
+Another process changing files while a worktree is copied or repaired is your risk and is not defended against,
+except for the `Cargo.lock` a repair's clean rewrites:
+the bytes that clean displaces are kept under the worktree's Git directory and the success line names them.
 Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
  section "Package-manager state of a new worktree".
 
@@ -2385,7 +2411,7 @@ the highest is
 The rotated files are kept up to 32 MiB together,
 oldest removed first,
 and
- a rotated file with a `saved-conflict` line whose copy still exists is never removed,
+ a rotated file with a `saved-conflict` or `saved-nested-repository` line whose copy still exists is never removed,
 which can take the log past 32 MiB.
  The reading of a rotated file to see whether it names a copy happens on a thread of its own,
 never on the command's path.
@@ -2537,8 +2563,24 @@ No write to another file is rejected either:
 `--global`,
 `--system`,
 `--worktree`,
-`--file`,
-`--blob` and `git config --edit`.
+`--blob`,
+and a `--file` whose path is not the shared file:
+the path is resolved from the directory the command runs in,
+so `git config --file ../repo/.git/config <key> <value>`,
+an absolute spelling,
+one written with `=` and one through a link are refused as the plain form is,
+while `git config --file other.config <key> <value>` and `git config --file other.config --edit` run.
+An editor session on the shared file is refused as well:
+`git config --edit` and `git config edit` open that file when no scope option names another one,
+and an editor can change any remote setting,
+so `--edit` with `--global`,
+`--system`,
+`--worktree` or a `--file` of its own is what runs.
+The `edit` subcommand takes no argument ("wrong number of arguments,
+should be 0"),
+so `git config edit <key>` keeps Git's own refusal.
+A setting that is not a remote setting can always be named from the worktree:
+`git config <key> <value>`.
 `git -c remote.origin.url=<value>` is one command's override and changes no file,
 so it runs.
 The main checkout keeps today's behavior,
@@ -2564,6 +2606,7 @@ written directly after `remote` for a remote subcommand
 ```text
 git remote --no-enforce-worktree set-url origin <url>
 git config --no-enforce-worktree remote.origin.url <value>
+git config --no-enforce-worktree --edit
 ```
 
 A hatch run is not silent about the change it makes:
@@ -3311,7 +3354,8 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
-- A pathspec the command names that matches no path Git can stage.
+- A pathspec the command names that matches no path Git can stage,
+   or one Git read from the pathspec file the command names.
   Native Git keeps deciding which pathspecs are valid,
    so the wrapper reports Git's own refusal instead of predicting a match:
    a directory,
@@ -3322,6 +3366,9 @@ none is waited out or retried on the moved head yet:
    the finding `explicit-path-commit/pathspec-matches-nothing` names every refused token as Git named it,
    and a token that begins with a hyphen also says that options belong before `--`
    (`git commit --message <text> -- <paths>`).
+  The staging start whose words this reads runs under the C locale,
+   so the finding appears whatever language the person's shell asks for,
+   and a token that holds Git's closing wording is named whole.
   Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
   "Core finding event";
   issue 6283).
@@ -3882,7 +3929,9 @@ fractional or non-numeric value is ignored.
   The wrapper says so once,
   in a line that starts with `monochromatic-git-policy-cli: git push is waiting for the server`
    (`git fetch` or `git-lfs push` for those runs),
-  and waits until the remote answers or the connection closes.
+  and waits until the remote answers or the connection closes,
+   or until the connection stays open with nothing moving for that window,
+  when the run is stopped as a stall.
   "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`,
   read from the kernel.
   A connection that dies without a reset is noticed only when TCP gives up;
@@ -3976,8 +4025,12 @@ fractional or non-numeric value is ignored.
   and the try number is kept.
 - There is no ceiling on a push,
   and no variable sets one:
-   no total time ends a push that shows progress or holds an open connection.
-  The report of a stopped push names `limit=stall`,
+   no total time ends a push that shows progress,
+  and a push that holds an open connection is ended only by the connected window,
+  which no variable changes.
+  The report of a stopped push names the limit that was hit:
+  `limit=stall`,
+  or `limit=connected` when the connection to the remote was what was held open,
   the bytes the push moved and the seconds it ran.
   A stopped Git process is first asked to end with `SIGTERM`,
   which lets Git remove its own `.lock` files,

@@ -44,13 +44,18 @@ use std::path::{Path, PathBuf};
 /// reload,
 /// reset a failed unit,
 /// start,
+/// restart,
 ///  stop,
 /// and read a unit's state.
 /// Nothing that enables,
 /// links,
 /// presets,
 /// masks or changes the default target is on it.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
+///  A restart ends the service so a command that needs its answer gets one
+/// (`systemd_dbus.rs`,
+/// `restart_unit`);
+/// it starts nothing at startup or at login.
+const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,

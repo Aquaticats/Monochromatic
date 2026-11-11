@@ -3,7 +3,8 @@
 //! the pause before each new try,
 //! the list of branches waiting
 //!  for one,
-//! and the test for the one failure no retry can mend.
+//! and the test for the one failure no retry can mend,
+//! and the line of Git's own words that a record names as the cause.
 //! Why:
 //!  The owner's rule is that auto-push must land (`SPEC.md`,
 //! "Merges and commits never fail").
@@ -323,7 +324,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -348,6 +349,10 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
+        /// Whether this forget rests on a reading that can go stale:
+        /// the proof that the repository is gone,
+        /// whose plans are dropped only while it still is.
+        only_while_unreachable: bool,
     },
 }
 
@@ -597,7 +602,12 @@ impl PushRetries {
                     }
                     self.plan(git_dir.as_path(), item, *attempt, *due)
                 }
-                RetryChange::Forget { git_dir, branch_ref } => {
+                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable } => {
+                    // The plan a proof of a missing repository ends was read before this change was applied, and a repository
+                    //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
+                    if *only_while_unreachable && git_dir.is_dir() {
+                        continue;
+                    }
                     let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
                     self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
                 }

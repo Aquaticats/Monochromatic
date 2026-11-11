@@ -257,7 +257,13 @@ impl StageClaim {
 
     pub fn record_binding(&self, binding: &Binding) -> Result<(), WorktreeCopyError> {
         let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
-        write_atomic(record, binding.encode().as_bytes(), "destination record")?;
+        // The copy the add owes is a line of the record this write replaces, so it is read out and written again: a
+        // record that lost it would name a worktree no later command could fill.
+        let owed: Option<crate::worktree_add_binding::OwedCopy> = match std::fs::read_to_string(record) {
+            Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
+            Err(_unreadable) => None,
+        };
+        write_atomic(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
         if let Some(parent) = self.path.parent() {
             sync_directory(parent).map_err(raw_failure_of)?;
         }
@@ -421,6 +427,37 @@ pub fn claim_stage_for(
     let text: String = claim_text(container.as_path(), owner);
     write_atomic(path.as_path(), text.as_bytes(), "stage claim")?;
     return Ok(StageClaim { path, container, destination_record: None });
+}
+
+/// What:
+///  The claim that names one stage container,
+/// with the destination record beside it,
+/// or nothing when no claim names it any more.
+/// Why:
+///   A copy's journal names the stage it fills and the claim the add wrote names it too,
+/// and a kill between the journal's creation and the claim's release leaves both;
+/// the journal's recovery settles the claim through this lookup,
+/// so a copy finished later leaves no claim and no record behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimNamingStage(commonDir, container); // undefined when no claim names it
+/// ```
+pub fn claim_naming_stage(common_dir: &Path, container: &Path) -> Option<StageClaim> {
+    let name: &str = container.file_name()?.to_str()?;
+    let identifier: &str = name.strip_prefix(STAGE_PREFIX)?;
+    if identifier.is_empty() {
+        return None;
+    }
+    let path: PathBuf = journal_root(common_dir).join(format!("{identifier}{CLAIM_SUFFIX}"));
+    // An absent claim is no claim: the add released it before its journal, which is the state a finished copy leaves.
+    std::fs::symlink_metadata(path.as_path()).ok()?;
+    let record: PathBuf = path.with_extension(&DESTINATION_SUFFIX[1..]);
+    let record_stands: Option<&Path> = match std::fs::symlink_metadata(record.as_path()) {
+        Ok(_) => Some(record.as_path()),
+        Err(_) => None,
+    };
+    return StageClaim::adopted(path.as_path(), container, record_stands);
 }
 
 pub(crate) const DESTINATION_SUFFIX: &str = ".add";

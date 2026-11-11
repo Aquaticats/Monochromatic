@@ -311,9 +311,11 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
         // The verdict keeps the gate's own words: the next push of this branch stops before this commit, and every command says
-        //  why until the commit is off the branch's way out.
+        //  why until the commit is off the branch's way out. A verdict that could not be kept is said here, with what it means.
         let said: String = blocked_reason(gate.events.as_slice());
-        forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() });
+        if let Some(unkept) = forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() }) {
+            write_stderr(format!("{unkept}\n").as_str());
+        }
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
     // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.

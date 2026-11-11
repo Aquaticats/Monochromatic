@@ -7,6 +7,7 @@
 //!  of earlier batches and the index reconciliation after corrections waited the same ten minutes for the same kind of holder.
 
 use super::*;
+use crate::service_client_listen_and_ask_to_retire::START_WAIT;
 
 /// The margin every ceiling of this file keeps over its longest measurement.
 const MARGIN: u32 = 5;
@@ -121,6 +122,83 @@ fn the_standing_notice_variable_is_the_one_the_client_reads() {
     assert_eq!(WAITING_NOTICE_VARIABLE, "CLI_GIT_STANDING_NOTICE_SECONDS");
     let source: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
     assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
+}
+
+/// What:
+///  A command that only has to tell the service about work whose record it already wrote waits the hand-over's greeting
+///  bound,
+/// and a command whose own next step depends on the answer keeps the longer start wait.
+/// Why:
+///   `git worktree remove` took 11.4 s and `git worktree add` 11 to 17 s with a service that answered nothing,
+/// though the record was
+///  already durable in both cases and 0.13 s and 0.5 s with a service that answered;
+/// a wake that keeps the commit's
+///  start wait pays it for an answer it does not need
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 4 of the after-alpha.9 audit).
+/// The control reads the sources,
+/// because the bound is chosen where the config is made,
+/// and a later change back to the commit's wait
+///  would meet nothing else.
+#[test]
+fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
+    assert!(HAND_OVER_GREETING_WAIT < START_WAIT, "{HAND_OVER_GREETING_WAIT:?} must be shorter than {START_WAIT:?}");
+    let stating: [(&str, &str); 6] = [
+        ("../worktree/worktree_trash_hand_over.rs", include_str!("../worktree/worktree_trash_hand_over.rs")),
+        ("../worktree/worktree_remove_hand_over.rs", include_str!("../worktree/worktree_remove_hand_over.rs")),
+        ("../repair/package_repair_relink.rs", include_str!("../repair/package_repair_relink.rs")),
+        ("../repair/package_repair_prewarm.rs", include_str!("../repair/package_repair_prewarm.rs")),
+        ("../landing/held_push_release_wakes_the_service.rs", include_str!("../landing/held_push_release_wakes_the_service.rs")),
+        ("../push/auto_push_trigger.rs", include_str!("../push/auto_push_trigger.rs")),
+    ];
+    for (path, source) in stating {
+        assert!(source.contains("start_wait: HAND_OVER_GREETING_WAIT"), "{path} hands its record over with the hand-over's bound");
+        assert!(!source.contains("start_wait: START_WAIT"), "{path} does not pay the commit's start wait for a record it already wrote");
+        assert!(!source.contains("start_ceiling: START_CEILING"), "{path} does not pay the commit's start ceiling either");
+        assert!(!source.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "{path} does not pay the commit's start ceiling either");
+    }
+    // The commit's own after-landing wake is one of these too: the service that answered the commit is running.
+    let aftermath: &str = include_str!("../landing/service_landed_aftermath.rs");
+    assert!(aftermath.contains("start_wait: HAND_OVER_GREETING_WAIT"), "the after-landing wake waits the hand-over's bound");
+    // The commit's own request keeps the wait its start needs.
+    let commit: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
+    assert!(commit.contains("start_wait: START_WAIT"), "a commit's own request keeps the start wait");
+    assert!(commit.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "and the start ceiling");
+}
+
+/// What:
+///  A unit the manager reports as running is given less than the start ceiling before it is asked to restart.
+/// Why:
+///   A service greets a connection before it restores anything,
+/// so a running unit that greets nothing is one that stopped
+///  inside its own process;
+/// the wait for it is bounded by the greeting silence and never by the whole start ceiling,
+/// which
+///  would hold the commit for a minute.
+#[test]
+fn a_running_unit_that_greets_nothing_is_restarted_within_the_start_ceiling() {
+    assert!(SERVICE_GREETING_SILENCE < START_CEILING, "{SERVICE_GREETING_SILENCE:?} must end before {START_CEILING:?}");
+    assert_eq!(SERVICE_GREETING_SILENCE, Duration::from_secs(3), "nearly three times the slowest of 52 measured cold starts, and under 5 s");
+    let reach: &str = include_str!("service_client_reach_service.rs");
+    assert!(reach.contains("SERVICE_GREETING_SILENCE"), "the client is what asks for the restart");
+    assert!(reach.contains("(watch.restart)("), "and the restart is a call of the service manager");
+}
+
+/// What:
+///  A repair tool is announced before either of the two bounds that end it,
+/// and long after a tool that works quickly has finished.
+/// Why:
+///   The quiet window is the owner's choice of 2026-11-04 and stays 600 s;
+/// the notice says what runs and what ends it,
+///  and it must come early enough that a person watching an add is not left without a word for ten minutes.
+#[test]
+fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
+    assert_eq!(REPAIR_TOOL_NOTICE_AFTER, Duration::from_secs(2));
+    assert!(REPAIR_TOOL_NOTICE_AFTER < REPAIR_TOOL_CEILING, "the notice comes long before the ceiling");
+    let request: &str = include_str!("../repair/package_repair_request.rs");
+    assert!(request.contains("const TOOL_QUIET_WINDOW: Duration = Duration::from_secs(600);"), "the owner's quiet window is still 600 s and this change leaves it alone");
+    let command: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(command.contains("REPAIR_TOOL_NOTICE_AFTER"), "the run of every repair tool is what waits");
 }
 
 /// What:
